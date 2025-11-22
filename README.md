@@ -1,4 +1,6 @@
 # 대항해시대3 세이브 뷰어
+<img width="272" height="384" alt="image" src="https://github.com/user-attachments/assets/59015153-9700-4752-815e-68093774bfc2" />
+
 
 대항해시대3 SAVEDATA.CDS 파일을 읽어서 캐릭터 정보를 표시하는 WPF 애플리케이션입니다.
 
