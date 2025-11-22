@@ -80,3 +80,7 @@ dotnet run
 - 0x5C: 연령 (signed byte)
 - 0x60: 얼굴 인덱스
 - 0x70+: 성좌
+
+## 참고 자료
+
+- 지도 기능: https://ellun.tistory.com/368
