@@ -67,7 +67,6 @@
                             <DataGridTextColumn Header="소재" Binding="{Binding Location}" Width="100"/>
                             <DataGridTextColumn Header="연령" Binding="{Binding Age}" Width="50"/>
                             <DataGridTextColumn Header="얼굴" Binding="{Binding Face}" Width="50"/>
-                            <DataGridTextColumn Header="성좌" Binding="{Binding Constellation}" Width="100"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -205,8 +204,7 @@
                     <DataGrid Grid.Row="1" Name="DgPatrons"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
-                              Margin="10"
-                              AlternatingRowBackground="LightGray">
+                              Margin="10">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
