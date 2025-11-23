@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private readonly SaveDataReader _saveDataReader;
     private readonly BookService _bookService;
     private readonly CityService _cityService;
+    private readonly PatronService _patronService;
     private readonly string[] _savePaths = new[]
     {
         @"SAVEDATA.CDS",
@@ -27,10 +28,13 @@ public partial class MainWindow : Window
     };
     private readonly string _booksPath = @"books.json";
     private readonly string _citiesPath = @"cities.json";
+    private readonly string _patronsPath = @"patrons.json";
 
+    private SaveGameInfo? _saveGameInfo;
     private List<CharacterData> _allCharacters = new();
     private List<Book> _allBooks = new();
     private List<City> _allCities = new();
+    private List<Patron> _allPatrons = new();
 
     // 지도 드래그 관련 변수
     private bool _isDragging = false;
@@ -73,6 +77,7 @@ public partial class MainWindow : Window
         _saveDataReader = new SaveDataReader();
         _bookService = new BookService();
         _cityService = new CityService();
+        _patronService = new PatronService();
 
         // 기본값: 미등장 캐릭터 숨김
         ChkShowGray.IsChecked = false;
@@ -94,6 +99,9 @@ public partial class MainWindow : Window
 
         // 시작 시 자동으로 도시 파일 로드 시도
         AutoLoadCities();
+
+        // 시작 시 자동으로 후원자 파일 로드 시도
+        AutoLoadPatrons();
 
         // 지도 이미지 로드
         LoadMapImage();
@@ -170,13 +178,23 @@ public partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine($"파일 로드 시작: {filePath}");
             TxtStatus.Text = "파일 읽는 중...";
 
-            _allCharacters = _saveDataReader.ReadSaveFile(filePath);
+            _saveGameInfo = _saveDataReader.ReadSaveFile(filePath);
+            _allCharacters = _saveGameInfo.Characters;
             System.Diagnostics.Debug.WriteLine($"읽은 캐릭터 수: {_allCharacters.Count}");
 
             TxtFilePath.Text = $"파일 경로: {filePath}";
 
+            // 제목 표시줄에 날짜 표시
+            Title = $"대항해시대3 세이브 뷰어 - {_saveGameInfo.DateString}";
+
             // 필터링 적용
             ApplyFilter();
+
+            // 후원자 필터도 다시 적용 (현재 년도 기준으로 상태가 바뀌므로)
+            if (_allPatrons.Count > 0)
+            {
+                ApplyPatronFilter();
+            }
         }
         catch (Exception ex)
         {
@@ -389,6 +407,7 @@ public partial class MainWindow : Window
     private void ApplyBookFilter()
     {
         var nameSearch = TxtBookSearch?.Text?.Trim() ?? "";
+        var librarySearch = TxtLibrarySearch?.Text?.Trim() ?? "";
         var hintSearch = TxtHintSearch?.Text?.Trim() ?? "";
         var selectedLanguage = (CmbLanguage.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
         var selectedSkill = (CmbRequiredSkill.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
@@ -399,6 +418,12 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(nameSearch))
         {
             filtered = filtered.Where(b => b.Name.Contains(nameSearch, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 소재 도서관 검색
+        if (!string.IsNullOrEmpty(librarySearch))
+        {
+            filtered = filtered.Where(b => b.Library.Contains(librarySearch, StringComparison.OrdinalIgnoreCase));
         }
 
         // 게제 힌트 검색
@@ -425,6 +450,8 @@ public partial class MainWindow : Window
         var filterParts = new List<string>();
         if (!string.IsNullOrEmpty(nameSearch))
             filterParts.Add($"도서명: {nameSearch}");
+        if (!string.IsNullOrEmpty(librarySearch))
+            filterParts.Add($"소재 도서관: {librarySearch}");
         if (!string.IsNullOrEmpty(hintSearch))
             filterParts.Add($"게제 힌트: {hintSearch}");
         if (!string.IsNullOrEmpty(selectedLanguage))
@@ -458,6 +485,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void TxtLibrarySearch_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_allBooks.Count > 0)
+        {
+            ApplyBookFilter();
+        }
+    }
+
     private void CmbLanguage_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_allBooks.Count > 0)
@@ -477,6 +512,7 @@ public partial class MainWindow : Window
     private void BtnResetBookFilter_Click(object sender, RoutedEventArgs e)
     {
         TxtBookSearch.Text = "";
+        TxtLibrarySearch.Text = "";
         TxtHintSearch.Text = "";
         CmbLanguage.SelectedIndex = 0;
         CmbRequiredSkill.SelectedIndex = 0;
@@ -522,6 +558,22 @@ public partial class MainWindow : Window
         {
             _allCities = _cityService.LoadCities(filePath);
 
+            // 문화권 목록 구성
+            var culturalSpheres = _allCities
+                .Select(c => c.CulturalSphere)
+                .Where(cs => !string.IsNullOrWhiteSpace(cs))
+                .Distinct()
+                .OrderBy(cs => cs)
+                .ToList();
+
+            CmbCulturalSphere.Items.Clear();
+            CmbCulturalSphere.Items.Add(new ComboBoxItem { Content = "전체", Tag = "" });
+            foreach (var cs in culturalSpheres)
+            {
+                CmbCulturalSphere.Items.Add(new ComboBoxItem { Content = cs, Tag = cs });
+            }
+            CmbCulturalSphere.SelectedIndex = 0;
+
             // 필터 적용
             ApplyCityFilter();
 
@@ -538,7 +590,9 @@ public partial class MainWindow : Window
     private void ApplyCityFilter()
     {
         var nameSearch = TxtCitySearch?.Text?.Trim() ?? "";
+        var selectedCulturalSphere = (CmbCulturalSphere?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
         var libraryOnly = ChkLibraryOnly?.IsChecked ?? false;
+        var shipyardOnly = ChkShipyardOnly?.IsChecked ?? false;
 
         var filtered = _allCities.AsEnumerable();
 
@@ -548,10 +602,22 @@ public partial class MainWindow : Window
             filtered = filtered.Where(c => c.Name.Contains(nameSearch, StringComparison.OrdinalIgnoreCase));
         }
 
+        // 문화권 필터
+        if (!string.IsNullOrEmpty(selectedCulturalSphere))
+        {
+            filtered = filtered.Where(c => c.CulturalSphere != null && c.CulturalSphere.Equals(selectedCulturalSphere, StringComparison.OrdinalIgnoreCase));
+        }
+
         // 도서관 있는 도시만 필터
         if (libraryOnly)
         {
             filtered = filtered.Where(c => c.HasLibrary);
+        }
+
+        // 조선소 있는 도시만 필터
+        if (shipyardOnly)
+        {
+            filtered = filtered.Where(c => c.HasShipyard);
         }
 
         var filteredList = filtered.ToList();
@@ -560,8 +626,12 @@ public partial class MainWindow : Window
         var filterParts = new List<string>();
         if (!string.IsNullOrEmpty(nameSearch))
             filterParts.Add($"도시명: {nameSearch}");
+        if (!string.IsNullOrEmpty(selectedCulturalSphere))
+            filterParts.Add($"문화권: {selectedCulturalSphere}");
         if (libraryOnly)
             filterParts.Add("도서관 있는 도시만");
+        if (shipyardOnly)
+            filterParts.Add("조선소 있는 도시만");
 
         if (filterParts.Count > 0)
         {
@@ -589,11 +659,240 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ChkShipyardOnly_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_allCities.Count > 0)
+        {
+            ApplyCityFilter();
+        }
+    }
+
+    private void CmbCulturalSphere_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_allCities.Count > 0)
+        {
+            ApplyCityFilter();
+        }
+    }
+
     private void BtnResetCityFilter_Click(object sender, RoutedEventArgs e)
     {
         TxtCitySearch.Text = "";
+        CmbCulturalSphere.SelectedIndex = 0;
         ChkLibraryOnly.IsChecked = false;
+        ChkShipyardOnly.IsChecked = false;
         ApplyCityFilter();
+    }
+
+    // === 후원자 관련 메서드 ===
+
+    private void AutoLoadPatrons()
+    {
+        try
+        {
+            // 실행 파일 위치에서 patrons.json 찾기
+            var executablePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var executableDir = System.IO.Path.GetDirectoryName(executablePath);
+            var patronsFilePath = System.IO.Path.Combine(executableDir!, _patronsPath);
+
+            if (!File.Exists(patronsFilePath))
+            {
+                // 프로젝트 루트에서 찾기
+                var projectRoot = System.IO.Path.Combine(executableDir!, "..", "..", "..", "..");
+                patronsFilePath = System.IO.Path.Combine(projectRoot, "cds-helper", _patronsPath);
+            }
+
+            if (File.Exists(patronsFilePath))
+            {
+                LoadPatrons(patronsFilePath);
+            }
+            else
+            {
+                TxtStatus.Text = "patrons.json 파일을 찾을 수 없습니다.";
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"후원자 자동 로드 오류: {ex}");
+        }
+    }
+
+    private void LoadPatrons(string filePath)
+    {
+        try
+        {
+            _allPatrons = _patronService.LoadPatrons(filePath);
+
+            // 국적 목록 구성
+            var nationalities = _allPatrons
+                .Select(p => p.Nationality)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct()
+                .OrderBy(n => n)
+                .ToList();
+
+            CmbPatronNationality.Items.Clear();
+            CmbPatronNationality.Items.Add(new ComboBoxItem { Content = "전체", Tag = "" });
+            foreach (var nationality in nationalities)
+            {
+                CmbPatronNationality.Items.Add(new ComboBoxItem { Content = nationality, Tag = nationality });
+            }
+            CmbPatronNationality.SelectedIndex = 0;
+
+            // 필터 적용
+            ApplyPatronFilter();
+
+            TxtStatus.Text = $"후원자 로드 완료: {_allPatrons.Count}명";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"후원자 로드 오류: {ex}");
+            MessageBox.Show($"후원자 파일 읽기 실패:\n\n{ex.Message}",
+                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ApplyPatronFilter()
+    {
+        var nameSearch = TxtPatronSearch?.Text?.Trim() ?? "";
+        var citySearch = TxtPatronCitySearch?.Text?.Trim() ?? "";
+        var selectedNationality = (CmbPatronNationality?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+        var activeOnly = ChkActiveOnly?.IsChecked ?? false;
+
+        var currentYear = _saveGameInfo?.Year ?? 1480;
+
+        var filtered = _allPatrons.AsEnumerable();
+
+        // 후원자명 검색
+        if (!string.IsNullOrEmpty(nameSearch))
+        {
+            filtered = filtered.Where(p => p.Name.Contains(nameSearch, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 도시 검색
+        if (!string.IsNullOrEmpty(citySearch))
+        {
+            filtered = filtered.Where(p => p.City.Contains(citySearch, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 국적 필터
+        if (!string.IsNullOrEmpty(selectedNationality))
+        {
+            filtered = filtered.Where(p => p.Nationality.Equals(selectedNationality, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 활동중인 후원자만 필터
+        if (activeOnly)
+        {
+            filtered = filtered.Where(p => p.IsActive(currentYear));
+        }
+
+        // 각 후원자의 상태를 현재 년도 기준으로 계산
+        var filteredList = filtered.Select(p => new
+        {
+            Patron = p,
+            StatusDisplay = p.StatusDisplay(currentYear)
+        }).ToList();
+
+        // DataGrid에 바인딩할 수 있도록 익명 타입을 사용한 래퍼 생성
+        var displayList = filteredList.Select(item => new PatronDisplay
+        {
+            Id = item.Patron.Id,
+            Name = item.Patron.Name,
+            Nationality = item.Patron.Nationality,
+            City = item.Patron.City,
+            Occupation = item.Patron.Occupation,
+            SupportRate = item.Patron.SupportRate,
+            Discernment = item.Patron.Discernment,
+            AppearYear = item.Patron.AppearYear,
+            RetireYear = item.Patron.RetireYear,
+            StatusDisplay = item.StatusDisplay,
+            Fame = item.Patron.Fame,
+            Wealth = item.Patron.Wealth,
+            Power = item.Patron.Power,
+            Note = item.Patron.Note
+        }).ToList();
+
+        DgPatrons.ItemsSource = displayList;
+
+        var filterParts = new List<string>();
+        if (!string.IsNullOrEmpty(nameSearch))
+            filterParts.Add($"후원자명: {nameSearch}");
+        if (!string.IsNullOrEmpty(citySearch))
+            filterParts.Add($"도시: {citySearch}");
+        if (!string.IsNullOrEmpty(selectedNationality))
+            filterParts.Add($"국적: {selectedNationality}");
+        if (activeOnly)
+            filterParts.Add($"활동중만 (기준년도: {currentYear})");
+
+        if (filterParts.Count > 0)
+        {
+            TxtStatus.Text = $"필터 적용: {displayList.Count}명 ({string.Join(", ", filterParts)})";
+        }
+        else
+        {
+            TxtStatus.Text = $"후원자 로드 완료: {_allPatrons.Count}명 (기준년도: {currentYear})";
+        }
+    }
+
+    // 후원자 표시용 클래스
+    public class PatronDisplay
+    {
+        public int? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Nationality { get; set; } = "";
+        public string City { get; set; } = "";
+        public string Occupation { get; set; } = "";
+        public string SupportRate { get; set; } = "";
+        public int Discernment { get; set; }
+        public int? AppearYear { get; set; }
+        public int? RetireYear { get; set; }
+        public string StatusDisplay { get; set; } = "";
+        public int Fame { get; set; }
+        public int Wealth { get; set; }
+        public string Power { get; set; } = "";
+        public string Note { get; set; } = "";
+    }
+
+    private void TxtPatronSearch_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_allPatrons.Count > 0)
+        {
+            ApplyPatronFilter();
+        }
+    }
+
+    private void TxtPatronCitySearch_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_allPatrons.Count > 0)
+        {
+            ApplyPatronFilter();
+        }
+    }
+
+    private void CmbPatronNationality_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_allPatrons.Count > 0)
+        {
+            ApplyPatronFilter();
+        }
+    }
+
+    private void ChkActiveOnly_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_allPatrons.Count > 0)
+        {
+            ApplyPatronFilter();
+        }
+    }
+
+    private void BtnResetPatronFilter_Click(object sender, RoutedEventArgs e)
+    {
+        TxtPatronSearch.Text = "";
+        TxtPatronCitySearch.Text = "";
+        CmbPatronNationality.SelectedIndex = 0;
+        ChkActiveOnly.IsChecked = false;
+        ApplyPatronFilter();
     }
 
     #region 지도 탭 이벤트
