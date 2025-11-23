@@ -19,6 +19,12 @@ public class City
     [JsonPropertyName("hasLibrary")]
     public bool HasLibrary { get; set; }
 
+    [JsonPropertyName("hasShipyard")]
+    public bool HasShipyard { get; set; }
+
+    [JsonPropertyName("culturalSphere")]
+    public string? CulturalSphere { get; set; }
+
     [JsonPropertyName("pixelX")]
     public int? PixelX { get; set; }
 

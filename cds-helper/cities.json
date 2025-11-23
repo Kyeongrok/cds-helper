@@ -6,7 +6,9 @@
     "longitude": -9,
     "hasLibrary": true,
     "pixelX": 3525,
-    "pixelY": 914
+    "pixelY": 914,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 1,
@@ -15,7 +17,9 @@
     "longitude": -8,
     "hasLibrary": false,
     "pixelX": 3550,
-    "pixelY": 847
+    "pixelY": 847,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 2,
@@ -24,7 +28,9 @@
     "longitude": -8,
     "hasLibrary": false,
     "pixelX": 3552,
-    "pixelY": 802
+    "pixelY": 802,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 3,
@@ -33,7 +39,9 @@
     "longitude": -3,
     "hasLibrary": false,
     "pixelX": 3662,
-    "pixelY": 802
+    "pixelY": 802,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 4,
@@ -42,7 +50,9 @@
     "longitude": -4,
     "hasLibrary": true,
     "pixelX": 3638,
-    "pixelY": 869
+    "pixelY": 869,
+    "hasShipyard": false,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 5,
@@ -51,7 +61,9 @@
     "longitude": -1,
     "hasLibrary": false,
     "pixelX": 3705,
-    "pixelY": 846
+    "pixelY": 846,
+    "hasShipyard": false,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 6,
@@ -60,7 +72,9 @@
     "longitude": -5,
     "hasLibrary": false,
     "pixelX": 3614,
-    "pixelY": 914
+    "pixelY": 914,
+    "hasShipyard": false,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 7,
@@ -69,7 +83,9 @@
     "longitude": -6,
     "hasLibrary": true,
     "pixelX": 3591,
-    "pixelY": 936
+    "pixelY": 936,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 8,
@@ -78,7 +94,9 @@
     "longitude": -6,
     "hasLibrary": false,
     "pixelX": 3590,
-    "pixelY": 958
+    "pixelY": 958,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 9,
@@ -87,7 +105,9 @@
     "longitude": -4,
     "hasLibrary": false,
     "pixelX": 3634,
-    "pixelY": 958
+    "pixelY": 958,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 10,
@@ -96,7 +116,9 @@
     "longitude": -3,
     "hasLibrary": true,
     "pixelX": 3657,
-    "pixelY": 936
+    "pixelY": 936,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 11,
@@ -105,7 +127,9 @@
     "longitude": 0,
     "hasLibrary": false,
     "pixelX": 3725,
-    "pixelY": 891
+    "pixelY": 891,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 12,
@@ -114,7 +138,9 @@
     "longitude": 2,
     "hasLibrary": true,
     "pixelX": 3770,
-    "pixelY": 891
+    "pixelY": 891,
+    "hasShipyard": true,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 13,
@@ -123,7 +149,9 @@
     "longitude": 2,
     "hasLibrary": false,
     "pixelX": 3771,
-    "pixelY": 846
+    "pixelY": 846,
+    "hasShipyard": false,
+    "culturalSphere": "이베리아"
   },
   {
     "id": 14,
@@ -132,7 +160,9 @@
     "longitude": 2,
     "hasLibrary": true,
     "pixelX": 3778,
-    "pixelY": 690
+    "pixelY": 690,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 15,
@@ -141,7 +171,9 @@
     "longitude": 0,
     "hasLibrary": false,
     "pixelX": 3734,
-    "pixelY": 668
+    "pixelY": 668,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 16,
@@ -150,7 +182,9 @@
     "longitude": 0,
     "hasLibrary": false,
     "pixelX": 3732,
-    "pixelY": 712
+    "pixelY": 712,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 17,
@@ -159,7 +193,9 @@
     "longitude": -2,
     "hasLibrary": false,
     "pixelX": 3688,
-    "pixelY": 712
+    "pixelY": 712,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 18,
@@ -168,7 +204,9 @@
     "longitude": 1,
     "hasLibrary": false,
     "pixelX": 3753,
-    "pixelY": 757
+    "pixelY": 757,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 19,
@@ -177,7 +215,9 @@
     "longitude": 1,
     "hasLibrary": false,
     "pixelX": 3751,
-    "pixelY": 801
+    "pixelY": 801,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 20,
@@ -186,7 +226,9 @@
     "longitude": 4,
     "hasLibrary": false,
     "pixelX": 3819,
-    "pixelY": 757
+    "pixelY": 757,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 21,
@@ -195,7 +237,9 @@
     "longitude": 5,
     "hasLibrary": false,
     "pixelX": 3840,
-    "pixelY": 801
+    "pixelY": 801,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 22,
@@ -204,7 +248,9 @@
     "longitude": 3,
     "hasLibrary": false,
     "pixelX": 3802,
-    "pixelY": 623
+    "pixelY": 623,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 23,
@@ -213,7 +259,9 @@
     "longitude": 4,
     "hasLibrary": false,
     "pixelX": 3825,
-    "pixelY": 600
+    "pixelY": 600,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 24,
@@ -222,7 +270,9 @@
     "longitude": 4,
     "hasLibrary": true,
     "pixelX": 3825,
-    "pixelY": 600
+    "pixelY": 600,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 25,
@@ -231,7 +281,9 @@
     "longitude": 4,
     "hasLibrary": false,
     "pixelX": 3824,
-    "pixelY": 645
+    "pixelY": 645,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 26,
@@ -240,7 +292,9 @@
     "longitude": 9,
     "hasLibrary": true,
     "pixelX": 3930,
-    "pixelY": 756
+    "pixelY": 756,
+    "hasShipyard": false,
+    "culturalSphere": "지중해"
   },
   {
     "id": 27,
@@ -249,7 +303,9 @@
     "longitude": 8,
     "hasLibrary": false,
     "pixelX": 3908,
-    "pixelY": 756
+    "pixelY": 756,
+    "hasShipyard": false,
+    "culturalSphere": "지중해"
   },
   {
     "id": 28,
@@ -258,7 +314,9 @@
     "longitude": 8,
     "hasLibrary": true,
     "pixelX": 3907,
-    "pixelY": 779
+    "pixelY": 779,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 29,
@@ -267,7 +325,9 @@
     "longitude": 12,
     "hasLibrary": false,
     "pixelX": 3997,
-    "pixelY": 756
+    "pixelY": 756,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 30,
@@ -276,7 +336,9 @@
     "longitude": 11,
     "hasLibrary": true,
     "pixelX": 3973,
-    "pixelY": 801
+    "pixelY": 801,
+    "hasShipyard": false,
+    "culturalSphere": "지중해"
   },
   {
     "id": 31,
@@ -285,7 +347,9 @@
     "longitude": 10,
     "hasLibrary": false,
     "pixelX": 3950,
-    "pixelY": 801
+    "pixelY": 801,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 32,
@@ -294,7 +358,9 @@
     "longitude": 13,
     "hasLibrary": false,
     "pixelX": 4017,
-    "pixelY": 800
+    "pixelY": 800,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 33,
@@ -303,7 +369,9 @@
     "longitude": 11,
     "hasLibrary": true,
     "pixelX": 3972,
-    "pixelY": 823
+    "pixelY": 823,
+    "hasShipyard": false,
+    "culturalSphere": "지중해"
   },
   {
     "id": 34,
@@ -312,7 +380,9 @@
     "longitude": 14,
     "hasLibrary": true,
     "pixelX": 4037,
-    "pixelY": 845
+    "pixelY": 845,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 35,
@@ -321,7 +391,9 @@
     "longitude": 9,
     "hasLibrary": false,
     "pixelX": 3925,
-    "pixelY": 890
+    "pixelY": 890,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 36,
@@ -330,7 +402,9 @@
     "longitude": 13,
     "hasLibrary": false,
     "pixelX": 4012,
-    "pixelY": 912
+    "pixelY": 912,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 37,
@@ -339,7 +413,9 @@
     "longitude": 15,
     "hasLibrary": false,
     "pixelX": 4056,
-    "pixelY": 934
+    "pixelY": 934,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 38,
@@ -348,7 +424,9 @@
     "longitude": 0,
     "hasLibrary": true,
     "pixelX": 3735,
-    "pixelY": 645
+    "pixelY": 645,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 39,
@@ -357,7 +435,9 @@
     "longitude": -1,
     "hasLibrary": false,
     "pixelX": 3714,
-    "pixelY": 623
+    "pixelY": 623,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 40,
@@ -366,7 +446,9 @@
     "longitude": -3,
     "hasLibrary": false,
     "pixelX": 3669,
-    "pixelY": 623
+    "pixelY": 623,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 41,
@@ -375,7 +457,9 @@
     "longitude": -1,
     "hasLibrary": false,
     "pixelX": 3716,
-    "pixelY": 556
+    "pixelY": 556,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 42,
@@ -384,7 +468,9 @@
     "longitude": -2,
     "hasLibrary": false,
     "pixelX": 3696,
-    "pixelY": 511
+    "pixelY": 511,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 43,
@@ -393,7 +479,9 @@
     "longitude": -6,
     "hasLibrary": false,
     "pixelX": 3605,
-    "pixelY": 579
+    "pixelY": 579,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 44,
@@ -402,7 +490,9 @@
     "longitude": 9,
     "hasLibrary": false,
     "pixelX": 3937,
-    "pixelY": 578
+    "pixelY": 578,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 45,
@@ -411,7 +501,9 @@
     "longitude": 10,
     "hasLibrary": false,
     "pixelX": 3960,
-    "pixelY": 555
+    "pixelY": 555,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 46,
@@ -420,7 +512,9 @@
     "longitude": 8,
     "hasLibrary": false,
     "pixelX": 3915,
-    "pixelY": 578
+    "pixelY": 578,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 47,
@@ -429,7 +523,9 @@
     "longitude": 6,
     "hasLibrary": false,
     "pixelX": 3869,
-    "pixelY": 622
+    "pixelY": 622,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 48,
@@ -438,7 +534,9 @@
     "longitude": 7,
     "hasLibrary": false,
     "pixelX": 3890,
-    "pixelY": 645
+    "pixelY": 645,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 49,
@@ -447,7 +545,9 @@
     "longitude": 6,
     "hasLibrary": false,
     "pixelX": 3866,
-    "pixelY": 689
+    "pixelY": 689,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 50,
@@ -456,7 +556,9 @@
     "longitude": 11,
     "hasLibrary": false,
     "pixelX": 3981,
-    "pixelY": 600
+    "pixelY": 600,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 51,
@@ -465,7 +567,9 @@
     "longitude": 10,
     "hasLibrary": false,
     "pixelX": 3956,
-    "pixelY": 667
+    "pixelY": 667,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 52,
@@ -474,7 +578,9 @@
     "longitude": 10,
     "hasLibrary": false,
     "pixelX": 3955,
-    "pixelY": 689
+    "pixelY": 689,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 53,
@@ -483,7 +589,9 @@
     "longitude": 14,
     "hasLibrary": false,
     "pixelX": 4044,
-    "pixelY": 666
+    "pixelY": 666,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 54,
@@ -492,7 +600,9 @@
     "longitude": 16,
     "hasLibrary": true,
     "pixelX": 4087,
-    "pixelY": 711
+    "pixelY": 711,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 55,
@@ -501,7 +611,9 @@
     "longitude": 7,
     "hasLibrary": false,
     "pixelX": 3887,
-    "pixelY": 734
+    "pixelY": 734,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 56,
@@ -510,7 +622,9 @@
     "longitude": 18,
     "hasLibrary": false,
     "pixelX": 4137,
-    "pixelY": 554
+    "pixelY": 554,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 57,
@@ -519,7 +633,9 @@
     "longitude": 19,
     "hasLibrary": false,
     "pixelX": 4160,
-    "pixelY": 554
+    "pixelY": 554,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 58,
@@ -528,7 +644,9 @@
     "longitude": 23,
     "hasLibrary": false,
     "pixelX": 4251,
-    "pixelY": 487
+    "pixelY": 487,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 59,
@@ -537,7 +655,9 @@
     "longitude": 31,
     "hasLibrary": false,
     "pixelX": 4429,
-    "pixelY": 464
+    "pixelY": 464,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 60,
@@ -546,7 +666,9 @@
     "longitude": 36,
     "hasLibrary": false,
     "pixelX": 4538,
-    "pixelY": 508
+    "pixelY": 508,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 61,
@@ -555,7 +677,9 @@
     "longitude": 30,
     "hasLibrary": false,
     "pixelX": 4400,
-    "pixelY": 643
+    "pixelY": 643,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 62,
@@ -564,7 +688,9 @@
     "longitude": 20,
     "hasLibrary": true,
     "pixelX": 4180,
-    "pixelY": 599
+    "pixelY": 599,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 63,
@@ -573,7 +699,9 @@
     "longitude": 18,
     "hasLibrary": false,
     "pixelX": 4131,
-    "pixelY": 711
+    "pixelY": 711,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 64,
@@ -582,7 +710,9 @@
     "longitude": 18,
     "hasLibrary": false,
     "pixelX": 4142,
-    "pixelY": 443
+    "pixelY": 443,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 65,
@@ -591,7 +721,9 @@
     "longitude": 18,
     "hasLibrary": false,
     "pixelX": 4140,
-    "pixelY": 487
+    "pixelY": 487,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 66,
@@ -600,7 +732,9 @@
     "longitude": 12,
     "hasLibrary": true,
     "pixelX": 4005,
-    "pixelY": 533
+    "pixelY": 533,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 67,
@@ -609,7 +743,9 @@
     "longitude": 10,
     "hasLibrary": false,
     "pixelX": 3965,
-    "pixelY": 443
+    "pixelY": 443,
+    "hasShipyard": false,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 68,
@@ -618,7 +754,9 @@
     "longitude": 4,
     "hasLibrary": false,
     "pixelX": 3832,
-    "pixelY": 422
+    "pixelY": 422,
+    "hasShipyard": true,
+    "culturalSphere": "북유럽"
   },
   {
     "id": 69,
@@ -627,7 +765,9 @@
     "longitude": 20,
     "hasLibrary": false,
     "pixelX": 4173,
-    "pixelY": 778
+    "pixelY": 778,
+    "hasShipyard": false,
+    "culturalSphere": "지중해"
   },
   {
     "id": 70,
@@ -636,7 +776,9 @@
     "longitude": 20,
     "hasLibrary": false,
     "pixelX": 4174,
-    "pixelY": 755
+    "pixelY": 755,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 71,
@@ -645,7 +787,9 @@
     "longitude": 17,
     "hasLibrary": false,
     "pixelX": 4105,
-    "pixelY": 822
+    "pixelY": 822,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 72,
@@ -654,7 +798,9 @@
     "longitude": 23,
     "hasLibrary": true,
     "pixelX": 4234,
-    "pixelY": 911
+    "pixelY": 911,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 73,
@@ -663,7 +809,9 @@
     "longitude": 23,
     "hasLibrary": false,
     "pixelX": 4236,
-    "pixelY": 867
+    "pixelY": 867,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 74,
@@ -672,7 +820,9 @@
     "longitude": 25,
     "hasLibrary": false,
     "pixelX": 4276,
-    "pixelY": 978
+    "pixelY": 978,
+    "hasShipyard": true,
+    "culturalSphere": "발칸"
   },
   {
     "id": 75,
@@ -681,7 +831,9 @@
     "longitude": 33,
     "hasLibrary": false,
     "pixelX": 4453,
-    "pixelY": 977
+    "pixelY": 977,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 76,
@@ -690,7 +842,9 @@
     "longitude": 29,
     "hasLibrary": false,
     "pixelX": 4371,
-    "pixelY": 821
+    "pixelY": 821,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 77,
@@ -699,7 +853,9 @@
     "longitude": 30,
     "hasLibrary": false,
     "pixelX": 4395,
-    "pixelY": 777
+    "pixelY": 777,
+    "hasShipyard": true,
+    "culturalSphere": "지중해"
   },
   {
     "id": 78,
@@ -708,7 +864,9 @@
     "longitude": 30,
     "hasLibrary": true,
     "pixelX": 4383,
-    "pixelY": 1067
+    "pixelY": 1067,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 79,
@@ -717,7 +875,9 @@
     "longitude": 30,
     "hasLibrary": true,
     "pixelX": 4382,
-    "pixelY": 1089
+    "pixelY": 1089,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 80,
@@ -726,7 +886,9 @@
     "longitude": 32,
     "hasLibrary": false,
     "pixelX": 4421,
-    "pixelY": 1223
+    "pixelY": 1223,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 81,
@@ -735,7 +897,9 @@
     "longitude": 13,
     "hasLibrary": false,
     "pixelX": 4007,
-    "pixelY": 1046
+    "pixelY": 1046,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 82,
@@ -744,7 +908,9 @@
     "longitude": 10,
     "hasLibrary": true,
     "pixelX": 3936,
-    "pixelY": 1158
+    "pixelY": 1158,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 83,
@@ -753,7 +919,9 @@
     "longitude": 4,
     "hasLibrary": false,
     "pixelX": 3812,
-    "pixelY": 935
+    "pixelY": 935,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 84,
@@ -762,7 +930,9 @@
     "longitude": 5,
     "hasLibrary": false,
     "pixelX": 3833,
-    "pixelY": 980
+    "pixelY": 980,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 85,
@@ -771,7 +941,9 @@
     "longitude": 8,
     "hasLibrary": false,
     "pixelX": 3897,
-    "pixelY": 1024
+    "pixelY": 1024,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 86,
@@ -780,7 +952,9 @@
     "longitude": -28,
     "hasLibrary": false,
     "pixelX": 3104,
-    "pixelY": 916
+    "pixelY": 916,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 87,
@@ -789,7 +963,9 @@
     "longitude": -16,
     "hasLibrary": false,
     "pixelX": 3365,
-    "pixelY": 1049
+    "pixelY": 1049,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 88,
@@ -798,7 +974,9 @@
     "longitude": -15,
     "hasLibrary": false,
     "pixelX": 3383,
-    "pixelY": 1138
+    "pixelY": 1138,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 89,
@@ -807,7 +985,9 @@
     "longitude": -13,
     "hasLibrary": false,
     "pixelX": 3427,
-    "pixelY": 1160
+    "pixelY": 1160,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 90,
@@ -816,7 +996,9 @@
     "longitude": -17,
     "hasLibrary": false,
     "pixelX": 3327,
-    "pixelY": 1451
+    "pixelY": 1451,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 91,
@@ -825,7 +1007,9 @@
     "longitude": -13,
     "hasLibrary": false,
     "pixelX": 3410,
-    "pixelY": 1584
+    "pixelY": 1584,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 92,
@@ -834,7 +1018,9 @@
     "longitude": -3,
     "hasLibrary": false,
     "pixelX": 3647,
-    "pixelY": 1181
+    "pixelY": 1181,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 93,
@@ -843,7 +1029,9 @@
     "longitude": -1,
     "hasLibrary": false,
     "pixelX": 3686,
-    "pixelY": 1338
+    "pixelY": 1338,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 94,
@@ -852,7 +1040,9 @@
     "longitude": -3,
     "hasLibrary": false,
     "pixelX": 3639,
-    "pixelY": 1382
+    "pixelY": 1382,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 95,
@@ -861,7 +1051,9 @@
     "longitude": -4,
     "hasLibrary": false,
     "pixelX": 3615,
-    "pixelY": 1427
+    "pixelY": 1427,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 96,
@@ -870,7 +1062,9 @@
     "longitude": -14,
     "hasLibrary": false,
     "pixelX": 3393,
-    "pixelY": 1450
+    "pixelY": 1450,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 97,
@@ -879,7 +1073,9 @@
     "longitude": 0,
     "hasLibrary": false,
     "pixelX": 3695,
-    "pixelY": 1650
+    "pixelY": 1650,
+    "hasShipyard": true,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 98,
@@ -888,7 +1084,9 @@
     "longitude": -3,
     "hasLibrary": false,
     "pixelX": 3630,
-    "pixelY": 1628
+    "pixelY": 1628,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 99,
@@ -897,7 +1095,9 @@
     "longitude": 6,
     "hasLibrary": false,
     "pixelX": 3824,
-    "pixelY": 1761
+    "pixelY": 1761,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 100,
@@ -906,7 +1106,9 @@
     "longitude": 13,
     "hasLibrary": false,
     "pixelX": 3972,
-    "pixelY": 1939
+    "pixelY": 1939,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 101,
@@ -915,7 +1117,9 @@
     "longitude": 18,
     "hasLibrary": false,
     "pixelX": 4061,
-    "pixelY": 2497
+    "pixelY": 2497,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 102,
@@ -924,7 +1128,9 @@
     "longitude": 34,
     "hasLibrary": false,
     "pixelX": 4428,
-    "pixelY": 2183
+    "pixelY": 2183,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 103,
@@ -933,7 +1139,9 @@
     "longitude": 40,
     "hasLibrary": false,
     "pixelX": 4564,
-    "pixelY": 2093
+    "pixelY": 2093,
+    "hasShipyard": true,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 104,
@@ -942,7 +1150,9 @@
     "longitude": 29,
     "hasLibrary": false,
     "pixelX": 4318,
-    "pixelY": 2161
+    "pixelY": 2161,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 105,
@@ -951,7 +1161,9 @@
     "longitude": 39,
     "hasLibrary": false,
     "pixelX": 4548,
-    "pixelY": 1937
+    "pixelY": 1937,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 106,
@@ -960,7 +1172,9 @@
     "longitude": 39,
     "hasLibrary": false,
     "pixelX": 4549,
-    "pixelY": 1915
+    "pixelY": 1915,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 107,
@@ -969,7 +1183,9 @@
     "longitude": 39,
     "hasLibrary": false,
     "pixelX": 4552,
-    "pixelY": 1848
+    "pixelY": 1848,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 108,
@@ -978,7 +1194,9 @@
     "longitude": 40,
     "hasLibrary": false,
     "pixelX": 4576,
-    "pixelY": 1803
+    "pixelY": 1803,
+    "hasShipyard": true,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 109,
@@ -987,7 +1205,9 @@
     "longitude": 44,
     "hasLibrary": false,
     "pixelX": 4668,
-    "pixelY": 1713
+    "pixelY": 1713,
+    "hasShipyard": true,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 110,
@@ -996,7 +1216,9 @@
     "longitude": 38,
     "hasLibrary": false,
     "pixelX": 4540,
-    "pixelY": 1580
+    "pixelY": 1580,
+    "hasShipyard": false,
+    "culturalSphere": "아프리카"
   },
   {
     "id": 111,
@@ -1005,7 +1227,9 @@
     "longitude": 33,
     "hasLibrary": false,
     "pixelX": 4435,
-    "pixelY": 1424
+    "pixelY": 1424,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 112,
@@ -1014,7 +1238,9 @@
     "longitude": 29,
     "hasLibrary": true,
     "pixelX": 4370,
-    "pixelY": 844
+    "pixelY": 844,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 113,
@@ -1023,7 +1249,9 @@
     "longitude": 35,
     "hasLibrary": false,
     "pixelX": 4504,
-    "pixelY": 821
+    "pixelY": 821,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 114,
@@ -1032,7 +1260,9 @@
     "longitude": 38,
     "hasLibrary": false,
     "pixelX": 4572,
-    "pixelY": 776
+    "pixelY": 776,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 115,
@@ -1041,7 +1271,9 @@
     "longitude": 34,
     "hasLibrary": false,
     "pixelX": 4479,
-    "pixelY": 888
+    "pixelY": 888,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 116,
@@ -1050,7 +1282,9 @@
     "longitude": 38,
     "hasLibrary": false,
     "pixelX": 4567,
-    "pixelY": 910
+    "pixelY": 910,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 117,
@@ -1059,7 +1293,9 @@
     "longitude": 32,
     "hasLibrary": false,
     "pixelX": 4434,
-    "pixelY": 911
+    "pixelY": 911,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 118,
@@ -1068,7 +1304,9 @@
     "longitude": 35,
     "hasLibrary": false,
     "pixelX": 4498,
-    "pixelY": 955
+    "pixelY": 955,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 119,
@@ -1077,7 +1315,9 @@
     "longitude": 34,
     "hasLibrary": true,
     "pixelX": 4473,
-    "pixelY": 1044
+    "pixelY": 1044,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 120,
@@ -1086,7 +1326,9 @@
     "longitude": 34,
     "hasLibrary": true,
     "pixelX": 4473,
-    "pixelY": 1044
+    "pixelY": 1044,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 121,
@@ -1095,7 +1337,9 @@
     "longitude": 35,
     "hasLibrary": false,
     "pixelX": 4497,
-    "pixelY": 1000
+    "pixelY": 1000,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 122,
@@ -1104,7 +1348,9 @@
     "longitude": 39,
     "hasLibrary": false,
     "pixelX": 4576,
-    "pixelY": 1223
+    "pixelY": 1223,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 123,
@@ -1113,7 +1359,9 @@
     "longitude": 39,
     "hasLibrary": true,
     "pixelX": 4574,
-    "pixelY": 1290
+    "pixelY": 1290,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 124,
@@ -1122,7 +1370,9 @@
     "longitude": 45,
     "hasLibrary": false,
     "pixelX": 4700,
-    "pixelY": 1468
+    "pixelY": 1468,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 125,
@@ -1131,7 +1381,9 @@
     "longitude": 58,
     "hasLibrary": false,
     "pixelX": 4997,
-    "pixelY": 1243
+    "pixelY": 1243,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 126,
@@ -1140,7 +1392,9 @@
     "longitude": 48,
     "hasLibrary": false,
     "pixelX": 4781,
-    "pixelY": 1088
+    "pixelY": 1088,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 127,
@@ -1149,7 +1403,9 @@
     "longitude": 44,
     "hasLibrary": true,
     "pixelX": 4694,
-    "pixelY": 1044
+    "pixelY": 1044,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 128,
@@ -1158,7 +1414,9 @@
     "longitude": 56,
     "hasLibrary": false,
     "pixelX": 4956,
-    "pixelY": 1154
+    "pixelY": 1154,
+    "hasShipyard": true,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 129,
@@ -1167,7 +1425,9 @@
     "longitude": 52,
     "hasLibrary": false,
     "pixelX": 4869,
-    "pixelY": 1110
+    "pixelY": 1110,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 130,
@@ -1176,7 +1436,9 @@
     "longitude": 51,
     "hasLibrary": true,
     "pixelX": 4849,
-    "pixelY": 1043
+    "pixelY": 1043,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 131,
@@ -1185,7 +1447,9 @@
     "longitude": 43,
     "hasLibrary": false,
     "pixelX": 4676,
-    "pixelY": 932
+    "pixelY": 932,
+    "hasShipyard": false,
+    "culturalSphere": "이슬람"
   },
   {
     "id": 132,
@@ -1194,7 +1458,9 @@
     "longitude": 66,
     "hasLibrary": true,
     "pixelX": 5188,
-    "pixelY": 885
+    "pixelY": 885,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 133,
@@ -1203,7 +1469,9 @@
     "longitude": 69,
     "hasLibrary": false,
     "pixelX": 5256,
-    "pixelY": 840
+    "pixelY": 840,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 134,
@@ -1212,7 +1480,9 @@
     "longitude": 58,
     "hasLibrary": false,
     "pixelX": 5012,
-    "pixelY": 841
+    "pixelY": 841,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 135,
@@ -1221,7 +1491,9 @@
     "longitude": 63,
     "hasLibrary": false,
     "pixelX": 5117,
-    "pixelY": 997
+    "pixelY": 997,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 136,
@@ -1230,7 +1502,9 @@
     "longitude": 69,
     "hasLibrary": false,
     "pixelX": 5250,
-    "pixelY": 997
+    "pixelY": 997,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 137,
@@ -1239,7 +1513,9 @@
     "longitude": 77,
     "hasLibrary": false,
     "pixelX": 5432,
-    "pixelY": 884
+    "pixelY": 884,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 138,
@@ -1248,7 +1524,9 @@
     "longitude": 88,
     "hasLibrary": false,
     "pixelX": 5680,
-    "pixelY": 772
+    "pixelY": 772,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 139,
@@ -1257,7 +1535,9 @@
     "longitude": 90,
     "hasLibrary": false,
     "pixelX": 5714,
-    "pixelY": 1040
+    "pixelY": 1040,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 140,
@@ -1266,7 +1546,9 @@
     "longitude": 4,
     "hasLibrary": false,
     "pixelX": 3818,
-    "pixelY": 779
+    "pixelY": 779,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 141,
@@ -1275,7 +1557,9 @@
     "longitude": 44,
     "hasLibrary": false,
     "pixelX": 4715,
-    "pixelY": 508
+    "pixelY": 508,
+    "hasShipyard": false,
+    "culturalSphere": "중앙아시아"
   },
   {
     "id": 142,
@@ -1284,7 +1568,9 @@
     "longitude": 72,
     "hasLibrary": false,
     "pixelX": 5337,
-    "pixelY": 483
+    "pixelY": 483,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 143,
@@ -1293,7 +1579,9 @@
     "longitude": 90,
     "hasLibrary": false,
     "pixelX": 5729,
-    "pixelY": 660
+    "pixelY": 660,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 144,
@@ -1302,7 +1590,9 @@
     "longitude": 100,
     "hasLibrary": false,
     "pixelX": 5950,
-    "pixelY": 659
+    "pixelY": 659,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 145,
@@ -1311,7 +1601,9 @@
     "longitude": 77,
     "hasLibrary": true,
     "pixelX": 5422,
-    "pixelY": 1130
+    "pixelY": 1130,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 146,
@@ -1320,7 +1612,9 @@
     "longitude": 73,
     "hasLibrary": false,
     "pixelX": 5336,
-    "pixelY": 1063
+    "pixelY": 1063,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 147,
@@ -1329,7 +1623,9 @@
     "longitude": 72,
     "hasLibrary": false,
     "pixelX": 5307,
-    "pixelY": 1242
+    "pixelY": 1242,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 148,
@@ -1338,7 +1634,9 @@
     "longitude": 70,
     "hasLibrary": false,
     "pixelX": 5261,
-    "pixelY": 1287
+    "pixelY": 1287,
+    "hasShipyard": true,
+    "culturalSphere": "인도"
   },
   {
     "id": 149,
@@ -1347,7 +1645,9 @@
     "longitude": 75,
     "hasLibrary": false,
     "pixelX": 5367,
-    "pixelY": 1398
+    "pixelY": 1398,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 150,
@@ -1356,7 +1656,9 @@
     "longitude": 73,
     "hasLibrary": false,
     "pixelX": 5322,
-    "pixelY": 1421
+    "pixelY": 1421,
+    "hasShipyard": true,
+    "culturalSphere": "인도"
   },
   {
     "id": 151,
@@ -1365,7 +1667,9 @@
     "longitude": 75,
     "hasLibrary": false,
     "pixelX": 5364,
-    "pixelY": 1488
+    "pixelY": 1488,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 152,
@@ -1374,7 +1678,9 @@
     "longitude": 75,
     "hasLibrary": false,
     "pixelX": 5363,
-    "pixelY": 1510
+    "pixelY": 1510,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 153,
@@ -1383,7 +1689,9 @@
     "longitude": 76,
     "hasLibrary": false,
     "pixelX": 5388,
-    "pixelY": 1420
+    "pixelY": 1420,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 154,
@@ -1392,7 +1700,9 @@
     "longitude": 76,
     "hasLibrary": false,
     "pixelX": 5384,
-    "pixelY": 1532
+    "pixelY": 1532,
+    "hasShipyard": true,
+    "culturalSphere": "인도"
   },
   {
     "id": 155,
@@ -1401,7 +1711,9 @@
     "longitude": 79,
     "hasLibrary": false,
     "pixelX": 5448,
-    "pixelY": 1599
+    "pixelY": 1599,
+    "hasShipyard": true,
+    "culturalSphere": "인도"
   },
   {
     "id": 156,
@@ -1410,7 +1722,9 @@
     "longitude": 78,
     "hasLibrary": false,
     "pixelX": 5434,
-    "pixelY": 1376
+    "pixelY": 1376,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 157,
@@ -1419,63 +1733,81 @@
     "longitude": 88,
     "hasLibrary": false,
     "pixelX": 5660,
-    "pixelY": 1285
+    "pixelY": 1285,
+    "hasShipyard": false,
+    "culturalSphere": "인도"
   },
   {
     "id": 158,
     "name": "아바",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 159,
     "name": "페구",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 160,
     "name": "말라카",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 161,
     "name": "리콜",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 162,
     "name": "아유타야",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 163,
     "name": "프놈펜",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 164,
     "name": "유에",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 165,
     "name": "교도",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 166,
@@ -1484,7 +1816,9 @@
     "longitude": 95,
     "hasLibrary": false,
     "pixelX": 5792,
-    "pixelY": 1865
+    "pixelY": 1865,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 167,
@@ -1493,7 +1827,9 @@
     "longitude": 104,
     "hasLibrary": false,
     "pixelX": 5994,
-    "pixelY": 1798
+    "pixelY": 1798,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 168,
@@ -1502,7 +1838,9 @@
     "longitude": 105,
     "hasLibrary": false,
     "pixelX": 6013,
-    "pixelY": 1865
+    "pixelY": 1865,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 169,
@@ -1511,7 +1849,9 @@
     "longitude": 112,
     "hasLibrary": false,
     "pixelX": 6167,
-    "pixelY": 1909
+    "pixelY": 1909,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 170,
@@ -1520,7 +1860,9 @@
     "longitude": 114,
     "hasLibrary": false,
     "pixelX": 6213,
-    "pixelY": 1864
+    "pixelY": 1864,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 171,
@@ -1529,7 +1871,9 @@
     "longitude": 127,
     "hasLibrary": false,
     "pixelX": 6505,
-    "pixelY": 1751
+    "pixelY": 1751,
+    "hasShipyard": false,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 172,
@@ -1538,7 +1882,9 @@
     "longitude": 127,
     "hasLibrary": false,
     "pixelX": 6503,
-    "pixelY": 1818
+    "pixelY": 1818,
+    "hasShipyard": true,
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 173,
@@ -1547,7 +1893,9 @@
     "longitude": 113,
     "hasLibrary": false,
     "pixelX": 6215,
-    "pixelY": 1261
+    "pixelY": 1261,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 174,
@@ -1556,7 +1904,9 @@
     "longitude": 113,
     "hasLibrary": true,
     "pixelX": 6215,
-    "pixelY": 1261
+    "pixelY": 1261,
+    "hasShipyard": true,
+    "culturalSphere": "중국"
   },
   {
     "id": 175,
@@ -1565,7 +1915,9 @@
     "longitude": 118,
     "hasLibrary": false,
     "pixelX": 6328,
-    "pixelY": 1194
+    "pixelY": 1194,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 176,
@@ -1574,14 +1926,18 @@
     "longitude": 119,
     "hasLibrary": false,
     "pixelX": 6351,
-    "pixelY": 1171
+    "pixelY": 1171,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 177,
     "name": "함주",
     "hasLibrary": false,
     "pixelX": null,
-    "pixelY": null
+    "pixelY": null,
+    "hasShipyard": true,
+    "culturalSphere": "중국"
   },
   {
     "id": 178,
@@ -1590,7 +1946,9 @@
     "longitude": 121,
     "hasLibrary": true,
     "pixelX": 6400,
-    "pixelY": 1059
+    "pixelY": 1059,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 179,
@@ -1599,7 +1957,9 @@
     "longitude": 113,
     "hasLibrary": false,
     "pixelX": 6222,
-    "pixelY": 1082
+    "pixelY": 1082,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 180,
@@ -1608,7 +1968,9 @@
     "longitude": 109,
     "hasLibrary": false,
     "pixelX": 6129,
-    "pixelY": 1194
+    "pixelY": 1194,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 181,
@@ -1617,7 +1979,9 @@
     "longitude": 102,
     "hasLibrary": false,
     "pixelX": 5973,
-    "pixelY": 1217
+    "pixelY": 1217,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 182,
@@ -1626,7 +1990,9 @@
     "longitude": 103,
     "hasLibrary": true,
     "pixelX": 5999,
-    "pixelY": 1106
+    "pixelY": 1106,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 183,
@@ -1635,7 +2001,9 @@
     "longitude": 98,
     "hasLibrary": false,
     "pixelX": 5897,
-    "pixelY": 883
+    "pixelY": 883,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 184,
@@ -1644,7 +2012,9 @@
     "longitude": 109,
     "hasLibrary": true,
     "pixelX": 6136,
-    "pixelY": 1016
+    "pixelY": 1016,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 185,
@@ -1653,7 +2023,9 @@
     "longitude": 114,
     "hasLibrary": true,
     "pixelX": 6247,
-    "pixelY": 993
+    "pixelY": 993,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 186,
@@ -1662,7 +2034,9 @@
     "longitude": 117,
     "hasLibrary": false,
     "pixelX": 6316,
-    "pixelY": 926
+    "pixelY": 926,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 187,
@@ -1671,7 +2045,9 @@
     "longitude": 112,
     "hasLibrary": false,
     "pixelX": 6206,
-    "pixelY": 904
+    "pixelY": 904,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 188,
@@ -1680,7 +2056,9 @@
     "longitude": 116,
     "hasLibrary": true,
     "pixelX": 6297,
-    "pixelY": 859
+    "pixelY": 859,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 189,
@@ -1689,7 +2067,9 @@
     "longitude": 121,
     "hasLibrary": false,
     "pixelX": 6409,
-    "pixelY": 836
+    "pixelY": 836,
+    "hasShipyard": true,
+    "culturalSphere": "중국"
   },
   {
     "id": 190,
@@ -1698,7 +2078,9 @@
     "longitude": 126,
     "hasLibrary": true,
     "pixelX": 6516,
-    "pixelY": 925
+    "pixelY": 925,
+    "hasShipyard": false,
+    "culturalSphere": "중국"
   },
   {
     "id": 191,
@@ -1707,7 +2089,9 @@
     "longitude": 129,
     "hasLibrary": false,
     "pixelX": 6578,
-    "pixelY": 1036
+    "pixelY": 1036,
+    "hasShipyard": true,
+    "culturalSphere": "일본"
   },
   {
     "id": 192,
@@ -1716,7 +2100,9 @@
     "longitude": 135,
     "hasLibrary": false,
     "pixelX": 6713,
-    "pixelY": 991
+    "pixelY": 991,
+    "hasShipyard": false,
+    "culturalSphere": "일본"
   },
   {
     "id": 193,
@@ -1725,7 +2111,9 @@
     "longitude": 135,
     "hasLibrary": false,
     "pixelX": 6713,
-    "pixelY": 991
+    "pixelY": 991,
+    "hasShipyard": false,
+    "culturalSphere": "일본"
   },
   {
     "id": 194,
@@ -1734,7 +2122,9 @@
     "longitude": -69,
     "hasLibrary": false,
     "pixelX": 2178,
-    "pixelY": 1366
+    "pixelY": 1366,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 195,
@@ -1743,7 +2133,9 @@
     "longitude": -76,
     "hasLibrary": false,
     "pixelX": 2024,
-    "pixelY": 1322
+    "pixelY": 1322,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 196,
@@ -1752,7 +2144,9 @@
     "longitude": -82,
     "hasLibrary": false,
     "pixelX": 1894,
-    "pixelY": 1255
+    "pixelY": 1255,
+    "hasShipyard": true,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 197,
@@ -1761,7 +2155,9 @@
     "longitude": -77,
     "hasLibrary": false,
     "pixelX": 2000,
-    "pixelY": 1366
+    "pixelY": 1366,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 198,
@@ -1770,7 +2166,9 @@
     "longitude": -66,
     "hasLibrary": false,
     "pixelX": 2244,
-    "pixelY": 1365
+    "pixelY": 1365,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 199,
@@ -1779,7 +2177,9 @@
     "longitude": -96,
     "hasLibrary": false,
     "pixelX": 1580,
-    "pixelY": 1346
+    "pixelY": 1346,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 200,
@@ -1788,7 +2188,9 @@
     "longitude": -101,
     "hasLibrary": false,
     "pixelX": 1470,
-    "pixelY": 1324
+    "pixelY": 1324,
+    "hasShipyard": false,
+    "culturalSphere": null
   },
   {
     "id": 201,
@@ -1797,7 +2199,9 @@
     "longitude": -101,
     "hasLibrary": true,
     "pixelX": 1470,
-    "pixelY": 1324
+    "pixelY": 1324,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 202,
@@ -1806,7 +2210,9 @@
     "longitude": -98,
     "hasLibrary": false,
     "pixelX": 1536,
-    "pixelY": 1346
+    "pixelY": 1346,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 203,
@@ -1815,7 +2221,9 @@
     "longitude": -98,
     "hasLibrary": false,
     "pixelX": 1535,
-    "pixelY": 1368
+    "pixelY": 1368,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 204,
@@ -1824,7 +2232,9 @@
     "longitude": -95,
     "hasLibrary": false,
     "pixelX": 1601,
-    "pixelY": 1390
+    "pixelY": 1390,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 205,
@@ -1833,7 +2243,9 @@
     "longitude": -100,
     "hasLibrary": false,
     "pixelX": 1490,
-    "pixelY": 1391
+    "pixelY": 1391,
+    "hasShipyard": true,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 206,
@@ -1842,7 +2254,9 @@
     "longitude": -88,
     "hasLibrary": false,
     "pixelX": 1759,
-    "pixelY": 1300
+    "pixelY": 1300,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 207,
@@ -1851,7 +2265,9 @@
     "longitude": -90,
     "hasLibrary": false,
     "pixelX": 1709,
-    "pixelY": 1457
+    "pixelY": 1457,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 208,
@@ -1860,7 +2276,9 @@
     "longitude": -86,
     "hasLibrary": false,
     "pixelX": 1798,
-    "pixelY": 1434
+    "pixelY": 1434,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 209,
@@ -1869,7 +2287,9 @@
     "longitude": -85,
     "hasLibrary": false,
     "pixelX": 1817,
-    "pixelY": 1523
+    "pixelY": 1523,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 210,
@@ -1878,7 +2298,9 @@
     "longitude": -79,
     "hasLibrary": false,
     "pixelX": 1948,
-    "pixelY": 1568
+    "pixelY": 1568,
+    "hasShipyard": true,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 211,
@@ -1887,7 +2309,9 @@
     "longitude": -75,
     "hasLibrary": false,
     "pixelX": 2039,
-    "pixelY": 1523
+    "pixelY": 1523,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 212,
@@ -1896,7 +2320,9 @@
     "longitude": -70,
     "hasLibrary": false,
     "pixelX": 2149,
-    "pixelY": 1522
+    "pixelY": 1522,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 213,
@@ -1905,7 +2331,9 @@
     "longitude": -64,
     "hasLibrary": false,
     "pixelX": 2281,
-    "pixelY": 1544
+    "pixelY": 1544,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 214,
@@ -1914,7 +2342,9 @@
     "longitude": -34,
     "hasLibrary": false,
     "pixelX": 2931,
-    "pixelY": 1921
+    "pixelY": 1921,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 215,
@@ -1923,7 +2353,9 @@
     "longitude": -38,
     "hasLibrary": false,
     "pixelX": 2838,
-    "pixelY": 2033
+    "pixelY": 2033,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 216,
@@ -1932,7 +2364,9 @@
     "longitude": -44,
     "hasLibrary": false,
     "pixelX": 2696,
-    "pixelY": 2279
+    "pixelY": 2279,
+    "hasShipyard": true,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 217,
@@ -1941,7 +2375,9 @@
     "longitude": -58,
     "hasLibrary": false,
     "pixelX": 2376,
-    "pixelY": 2526
+    "pixelY": 2526,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 218,
@@ -1950,7 +2386,9 @@
     "longitude": -73,
     "hasLibrary": false,
     "pixelX": 2069,
-    "pixelY": 1880
+    "pixelY": 1880,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 219,
@@ -1959,7 +2397,9 @@
     "longitude": -78,
     "hasLibrary": false,
     "pixelX": 1962,
-    "pixelY": 1768
+    "pixelY": 1768,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 220,
@@ -1968,7 +2408,9 @@
     "longitude": -80,
     "hasLibrary": false,
     "pixelX": 1915,
-    "pixelY": 1836
+    "pixelY": 1836,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 221,
@@ -1977,7 +2419,9 @@
     "longitude": -80,
     "hasLibrary": false,
     "pixelX": 1913,
-    "pixelY": 1903
+    "pixelY": 1903,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 222,
@@ -1986,7 +2430,9 @@
     "longitude": -77,
     "hasLibrary": false,
     "pixelX": 1974,
-    "pixelY": 2036
+    "pixelY": 2036,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 223,
@@ -1995,7 +2441,9 @@
     "longitude": -71,
     "hasLibrary": false,
     "pixelX": 2106,
-    "pixelY": 2058
+    "pixelY": 2058,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 224,
@@ -2004,7 +2452,9 @@
     "longitude": -75,
     "hasLibrary": false,
     "pixelX": 2016,
-    "pixelY": 2103
+    "pixelY": 2103,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   },
   {
     "id": 225,
@@ -2013,6 +2463,8 @@
     "longitude": -65,
     "hasLibrary": false,
     "pixelX": 2234,
-    "pixelY": 2192
+    "pixelY": 2192,
+    "hasShipyard": false,
+    "culturalSphere": "아메리카"
   }
 ]

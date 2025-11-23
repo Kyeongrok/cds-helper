@@ -87,6 +87,10 @@
                         <TextBox Name="TxtBookSearch" Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
                                  TextChanged="TxtBookSearch_Changed"/>
 
+                        <TextBlock Text="소재 도서관:" VerticalAlignment="Center" Margin="10,0,5,0"/>
+                        <TextBox Name="TxtLibrarySearch" Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                 TextChanged="TxtLibrarySearch_Changed"/>
+
                         <TextBlock Text="게제 힌트:" VerticalAlignment="Center" Margin="10,0,5,0"/>
                         <TextBox Name="TxtHintSearch" Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
                                  TextChanged="TxtHintSearch_Changed"/>
@@ -130,17 +134,24 @@
                     </Grid.RowDefinitions>
 
                     <!-- 도시 검색 필터 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+                    <WrapPanel Grid.Row="0" Margin="10" Orientation="Horizontal">
                         <TextBlock Text="도시명 검색:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                         <TextBox Name="TxtCitySearch" Width="150" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
                                  TextChanged="TxtCitySearch_Changed"/>
 
+                        <TextBlock Text="문화권:" VerticalAlignment="Center" Margin="10,0,5,0"/>
+                        <ComboBox Name="CmbCulturalSphere" Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                  SelectionChanged="CmbCulturalSphere_Changed"/>
+
                         <CheckBox Name="ChkLibraryOnly" Content="도서관 있는 도시만" VerticalAlignment="Center" Margin="10,0,10,0"
                                   Checked="ChkLibraryOnly_Changed" Unchecked="ChkLibraryOnly_Changed"/>
 
+                        <CheckBox Name="ChkShipyardOnly" Content="조선소 있는 도시만" VerticalAlignment="Center" Margin="10,0,10,0"
+                                  Checked="ChkShipyardOnly_Changed" Unchecked="ChkShipyardOnly_Changed"/>
+
                         <Button Name="BtnResetCityFilter" Content="필터 초기화" Width="100" Height="30"
                                 Click="BtnResetCityFilter_Click" Margin="10,0,0,0"/>
-                    </StackPanel>
+                    </WrapPanel>
 
                     <!-- 도시 데이터 그리드 -->
                     <DataGrid Grid.Row="1" Name="DgCities"
@@ -150,10 +161,79 @@
                               AlternatingRowBackground="LightGray">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
-                            <DataGridTextColumn Header="도시명" Binding="{Binding Name}" Width="200"/>
-                            <DataGridTextColumn Header="위도" Binding="{Binding LatitudeDisplay}" Width="100"/>
-                            <DataGridTextColumn Header="경도" Binding="{Binding LongitudeDisplay}" Width="100"/>
-                            <DataGridCheckBoxColumn Header="도서관" Binding="{Binding HasLibrary}" Width="80"/>
+                            <DataGridTextColumn Header="도시명" Binding="{Binding Name}" Width="150"/>
+                            <DataGridTextColumn Header="문화권" Binding="{Binding CulturalSphere}" Width="120"/>
+                            <DataGridTextColumn Header="위도" Binding="{Binding LatitudeDisplay}" Width="80"/>
+                            <DataGridTextColumn Header="경도" Binding="{Binding LongitudeDisplay}" Width="80"/>
+                            <DataGridCheckBoxColumn Header="도서관" Binding="{Binding HasLibrary}" Width="70"/>
+                            <DataGridCheckBoxColumn Header="조선소" Binding="{Binding HasShipyard}" Width="70"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- 후원자 탭 -->
+            <TabItem Header="후원자">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 후원자 검색 필터 -->
+                    <WrapPanel Grid.Row="0" Margin="10" Orientation="Horizontal">
+                        <TextBlock Text="후원자명:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBox Name="TxtPatronSearch" Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                 TextChanged="TxtPatronSearch_Changed"/>
+
+                        <TextBlock Text="도시:" VerticalAlignment="Center" Margin="10,0,5,0"/>
+                        <TextBox Name="TxtPatronCitySearch" Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                 TextChanged="TxtPatronCitySearch_Changed"/>
+
+                        <TextBlock Text="국적:" VerticalAlignment="Center" Margin="10,0,5,0"/>
+                        <ComboBox Name="CmbPatronNationality" Width="150" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                  SelectionChanged="CmbPatronNationality_Changed"/>
+
+                        <CheckBox Name="ChkActiveOnly" Content="활동중인 후원자만" VerticalAlignment="Center" Margin="10,0,10,0"
+                                  Checked="ChkActiveOnly_Changed" Unchecked="ChkActiveOnly_Changed"/>
+
+                        <Button Name="BtnResetPatronFilter" Content="필터 초기화" Width="100" Height="30"
+                                Click="BtnResetPatronFilter_Click" Margin="10,0,0,0"/>
+                    </WrapPanel>
+
+                    <!-- 후원자 데이터 그리드 -->
+                    <DataGrid Grid.Row="1" Name="DgPatrons"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              Margin="10"
+                              AlternatingRowBackground="LightGray">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusDisplay}" Value="은퇴">
+                                        <Setter Property="Background" Value="LightGray"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusDisplay}" Value="활동중">
+                                        <Setter Property="Background" Value="LightGreen"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="40"/>
+                            <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="150"/>
+                            <DataGridTextColumn Header="국적" Binding="{Binding Nationality}" Width="130"/>
+                            <DataGridTextColumn Header="도시" Binding="{Binding City}" Width="100"/>
+                            <DataGridTextColumn Header="직업" Binding="{Binding Occupation}" Width="80"/>
+                            <DataGridTextColumn Header="원조율" Binding="{Binding SupportRate}" Width="70"/>
+                            <DataGridTextColumn Header="감별력" Binding="{Binding Discernment}" Width="70"/>
+                            <DataGridTextColumn Header="등장" Binding="{Binding AppearYear}" Width="60"/>
+                            <DataGridTextColumn Header="은퇴" Binding="{Binding RetireYear}" Width="60"/>
+                            <DataGridTextColumn Header="상태" Binding="{Binding StatusDisplay}" Width="70"/>
+                            <DataGridTextColumn Header="명성" Binding="{Binding Fame}" Width="70"/>
+                            <DataGridTextColumn Header="재력" Binding="{Binding Wealth}" Width="90"/>
+                            <DataGridTextColumn Header="권력" Binding="{Binding Power}" Width="50"/>
+                            <DataGridTextColumn Header="비고" Binding="{Binding Note}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

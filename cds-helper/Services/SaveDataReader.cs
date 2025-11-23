@@ -15,6 +15,11 @@ public class SaveDataReader
     private const int CHARACTER_SIZE = 0x90; // 144 바이트
     private const int CHARACTER_COUNT = 461; // 최대 캐릭터 수
 
+    // 세이브 파일 헤더 오프셋
+    private const int YEAR_OFFSET = 0x15; // 년도 (2바이트, little-endian)
+    private const int MONTH_OFFSET = 0x19; // 월 (1바이트)
+    private const int DAY_OFFSET = 0x1A; // 일 (1바이트)
+
     private static readonly Dictionary<int, string> SkillsMap = new()
     {
         { 1, "항" },   // 항해술
@@ -46,18 +51,28 @@ public class SaveDataReader
         { 27, "동" },  // 동아시아 토착어
     };
 
-    public List<CharacterData> ReadSaveFile(string filePath)
+    public SaveGameInfo ReadSaveFile(string filePath)
     {
         if (!File.Exists(filePath))
         {
             throw new FileNotFoundException($"세이브 파일을 찾을 수 없습니다: {filePath}");
         }
 
-        var characters = new List<CharacterData>();
+        var saveInfo = new SaveGameInfo();
         var data = File.ReadAllBytes(filePath);
 
         System.Diagnostics.Debug.WriteLine($"파일 크기: {data.Length} 바이트");
 
+        // 세이브 날짜 읽기
+        if (data.Length > DAY_OFFSET)
+        {
+            saveInfo.Year = BitConverter.ToUInt16(data, YEAR_OFFSET);
+            saveInfo.Month = data[MONTH_OFFSET];
+            saveInfo.Day = data[DAY_OFFSET];
+            System.Diagnostics.Debug.WriteLine($"세이브 날짜: {saveInfo.Year}년 {saveInfo.Month}월 {saveInfo.Day}일");
+        }
+
+        var characters = new List<CharacterData>();
         int totalRead = 0;
         int validCount = 0;
 
@@ -87,7 +102,8 @@ public class SaveDataReader
 
         System.Diagnostics.Debug.WriteLine($"총 읽은 캐릭터: {totalRead}, 유효한 캐릭터: {validCount}");
 
-        return characters;
+        saveInfo.Characters = characters;
+        return saveInfo;
     }
 
     private static int _debugCounter = 0;
