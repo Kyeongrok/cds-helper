@@ -351,9 +351,10 @@ public class CdsHelperViewModel : BindableBase
         Initialize();
     }
 
-    private void Initialize()
+    private async void Initialize()
     {
         var basePath = AppDomain.CurrentDomain.BaseDirectory;
+        var dbPath = System.IO.Path.Combine(basePath, "cdshelper.db");
 
         var booksPath = System.IO.Path.Combine(basePath, "books.json");
         var citiesPath = System.IO.Path.Combine(basePath, "cities.json");
@@ -361,11 +362,12 @@ public class CdsHelperViewModel : BindableBase
         var figureheadsPath = System.IO.Path.Combine(basePath, "figurehead.json");
         var itemsPath = System.IO.Path.Combine(basePath, "item.json");
 
-        if (System.IO.File.Exists(citiesPath))
-            LoadCities(citiesPath);
+        // DB 초기화 및 도시/도서 로드 (DB 우선, JSON은 마이그레이션용)
+        await _cityService.InitializeAsync(dbPath, citiesPath);
+        await LoadCitiesFromDbAsync();
 
-        if (System.IO.File.Exists(booksPath))
-            LoadBooks(booksPath);
+        await _bookService.InitializeAsync(dbPath, booksPath);
+        await LoadBooksFromDbAsync();
 
         if (System.IO.File.Exists(patronsPath))
             LoadPatrons(patronsPath);
@@ -382,6 +384,54 @@ public class CdsHelperViewModel : BindableBase
             LoadSaveFile(savePath);
         else
             StatusText = "준비됨";
+    }
+
+    private async Task LoadCitiesFromDbAsync()
+    {
+        try
+        {
+            _allCities = await _cityService.LoadCitiesFromDbAsync();
+
+            CulturalSpheres.Clear();
+            CulturalSpheres.Add("전체");
+            foreach (var cs in _cityService.GetDistinctCulturalSpheres(_allCities))
+                CulturalSpheres.Add(cs);
+            SelectedCulturalSphere = "전체";
+
+            ApplyCityFilter();
+            StatusText = $"도시 로드 완료: {_allCities.Count}개";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "도시 로드 실패";
+            System.Windows.MessageBox.Show($"도시 로드 실패:\n\n{ex.Message}",
+                "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    private async Task LoadBooksFromDbAsync()
+    {
+        try
+        {
+            _allBooks = await _bookService.LoadBooksFromDbAsync();
+
+            Languages.Clear();
+            foreach (var lang in _bookService.GetDistinctLanguages(_allBooks))
+                Languages.Add(lang);
+
+            RequiredSkills.Clear();
+            foreach (var skill in _bookService.GetDistinctRequiredSkills(_allBooks))
+                RequiredSkills.Add(skill);
+
+            ApplyBookFilter();
+            StatusText = $"도서 로드 완료: {_allBooks.Count}개";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "도서 로드 실패";
+            System.Windows.MessageBox.Show($"도서 로드 실패:\n\n{ex.Message}",
+                "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
     }
 
     #region Load Methods
@@ -419,54 +469,6 @@ public class CdsHelperViewModel : BindableBase
         {
             StatusText = "로드 실패";
             System.Windows.MessageBox.Show($"파일 읽기 실패:\n\n{ex.Message}",
-                "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-        }
-    }
-
-    public void LoadBooks(string filePath)
-    {
-        try
-        {
-            _allBooks = _bookService.LoadBooks(filePath);
-
-            Languages.Clear();
-            foreach (var lang in _bookService.GetDistinctLanguages(_allBooks))
-                Languages.Add(lang);
-
-            RequiredSkills.Clear();
-            foreach (var skill in _bookService.GetDistinctRequiredSkills(_allBooks))
-                RequiredSkills.Add(skill);
-
-            ApplyBookFilter();
-            StatusText = $"도서 로드 완료: {_allBooks.Count}개";
-        }
-        catch (Exception ex)
-        {
-            StatusText = "도서 로드 실패";
-            System.Windows.MessageBox.Show($"도서 파일 읽기 실패:\n\n{ex.Message}",
-                "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-        }
-    }
-
-    public void LoadCities(string filePath)
-    {
-        try
-        {
-            _allCities = _cityService.LoadCities(filePath);
-
-            CulturalSpheres.Clear();
-            CulturalSpheres.Add("전체");
-            foreach (var cs in _cityService.GetDistinctCulturalSpheres(_allCities))
-                CulturalSpheres.Add(cs);
-            SelectedCulturalSphere = "전체";
-
-            ApplyCityFilter();
-            StatusText = $"도시 로드 완료: {_allCities.Count}개";
-        }
-        catch (Exception ex)
-        {
-            StatusText = "도시 로드 실패";
-            System.Windows.MessageBox.Show($"도시 파일 읽기 실패:\n\n{ex.Message}",
                 "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }
@@ -705,16 +707,17 @@ public class CdsHelperViewModel : BindableBase
         try
         {
             var result = await _cityService.UpdateCityInfoAsync(
-                city.Id, dialog.PixelX, dialog.PixelY, dialog.HasLibrary);
+                city.Id, dialog.CityName, dialog.PixelX, dialog.PixelY, dialog.HasLibrary);
 
             if (result)
             {
                 // UI 갱신
+                city.Name = dialog.CityName;
                 city.PixelX = dialog.PixelX;
                 city.PixelY = dialog.PixelY;
                 city.HasLibrary = dialog.HasLibrary;
                 ApplyCityFilter();
-                StatusText = $"{city.Name} 정보 업데이트 완료: ({dialog.PixelX}, {dialog.PixelY}), 도서관: {(dialog.HasLibrary ? "있음" : "없음")}";
+                StatusText = $"{dialog.CityName} 정보 업데이트 완료: ({dialog.PixelX}, {dialog.PixelY}), 도서관: {(dialog.HasLibrary ? "있음" : "없음")}";
             }
             else
             {

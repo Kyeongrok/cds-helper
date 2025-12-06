@@ -18,6 +18,9 @@
                         <!-- 메뉴바 -->
                         <Menu Grid.Row="0">
                             <MenuItem Header="설정" x:Name="PART_SettingsMenu" />
+                            <MenuItem Header="도구">
+                                <MenuItem Header="이벤트 큐 보기" x:Name="PART_EventQueueMenu" />
+                            </MenuItem>
                         </Menu>
 
                         <!-- TabControl -->
