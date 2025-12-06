@@ -23,6 +23,8 @@
                                       VerticalAlignment="Center" Margin="20,0,0,0" IsChecked="False" />
                             <CheckBox x:Name="PART_ChkShowCoordinates" Content="좌표 표시"
                                       VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
+                            <CheckBox x:Name="PART_ChkShowCulturalSpheres" Content="문화권 표시"
+                                      VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
                             <TextBlock x:Name="PART_TxtMapCoordinates" Text="좌표: -" VerticalAlignment="Center"
                                        Margin="20,0,0,0" FontFamily="Consolas" />
                         </StackPanel>
