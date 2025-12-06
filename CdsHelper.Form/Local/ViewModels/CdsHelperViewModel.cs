@@ -455,8 +455,10 @@ public class CdsHelperViewModel : BindableBase
             _allCities = _cityService.LoadCities(filePath);
 
             CulturalSpheres.Clear();
+            CulturalSpheres.Add("전체");
             foreach (var cs in _cityService.GetDistinctCulturalSpheres(_allCities))
                 CulturalSpheres.Add(cs);
+            SelectedCulturalSphere = "전체";
 
             ApplyCityFilter();
             StatusText = $"도시 로드 완료: {_allCities.Count}개";
@@ -584,7 +586,7 @@ public class CdsHelperViewModel : BindableBase
         var filtered = _cityService.Filter(
             _allCities,
             string.IsNullOrWhiteSpace(CityNameSearch) ? null : CityNameSearch,
-            SelectedCulturalSphere,
+            SelectedCulturalSphere == "전체" ? null : SelectedCulturalSphere,
             LibraryOnly,
             ShipyardOnly);
 
@@ -658,7 +660,7 @@ public class CdsHelperViewModel : BindableBase
     private void ResetCityFilter()
     {
         CityNameSearch = "";
-        SelectedCulturalSphere = null;
+        SelectedCulturalSphere = "전체";
         LibraryOnly = false;
         ShipyardOnly = false;
     }
