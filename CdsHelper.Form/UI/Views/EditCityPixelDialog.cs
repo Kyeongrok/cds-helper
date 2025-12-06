@@ -9,6 +9,7 @@ using IOPath = System.IO.Path;
 
 namespace CdsHelper.Form.UI.Views;
 
+[TemplatePart(Name = PART_CityNameTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_PixelXTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_PixelYTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_HasLibraryCheckBox, Type = typeof(CheckBox))]
@@ -19,6 +20,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_CancelButton, Type = typeof(Button))]
 public class EditCityPixelDialog : Window
 {
+    private const string PART_CityNameTextBox = "PART_CityNameTextBox";
     private const string PART_PixelXTextBox = "PART_PixelXTextBox";
     private const string PART_PixelYTextBox = "PART_PixelYTextBox";
     private const string PART_HasLibraryCheckBox = "PART_HasLibraryCheckBox";
@@ -28,6 +30,7 @@ public class EditCityPixelDialog : Window
     private const string PART_OkButton = "PART_OkButton";
     private const string PART_CancelButton = "PART_CancelButton";
 
+    private TextBox? _cityNameTextBox;
     private TextBox? _pixelXTextBox;
     private TextBox? _pixelYTextBox;
     private CheckBox? _hasLibraryCheckBox;
@@ -86,12 +89,12 @@ public class EditCityPixelDialog : Window
     public EditCityPixelDialog(string cityName, int? currentX, int? currentY, bool hasLibrary = false)
     {
         Title = "도시 정보 수정";
-        Width = 700;
+        Width = 800;
         Height = 550;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
 
-        CityName = $"도시: {cityName}";
+        CityName = cityName;
         PixelX = currentX;
         PixelY = currentY;
         HasLibrary = hasLibrary;
@@ -101,6 +104,7 @@ public class EditCityPixelDialog : Window
     {
         base.OnApplyTemplate();
 
+        _cityNameTextBox = GetTemplateChild(PART_CityNameTextBox) as TextBox;
         _pixelXTextBox = GetTemplateChild(PART_PixelXTextBox) as TextBox;
         _pixelYTextBox = GetTemplateChild(PART_PixelYTextBox) as TextBox;
         _hasLibraryCheckBox = GetTemplateChild(PART_HasLibraryCheckBox) as CheckBox;
@@ -116,6 +120,9 @@ public class EditCityPixelDialog : Window
 
         if (_mapImage != null)
             _mapImage.MouseLeftButtonDown += OnMapClick;
+
+        if (_cityNameTextBox != null)
+            _cityNameTextBox.Text = CityName;
 
         if (_pixelXTextBox != null)
             _pixelXTextBox.Text = PixelX?.ToString() ?? "";
@@ -134,8 +141,8 @@ public class EditCityPixelDialog : Window
             ScrollToPosition(PixelX.Value, PixelY.Value);
         }
 
-        _pixelXTextBox?.Focus();
-        _pixelXTextBox?.SelectAll();
+        _cityNameTextBox?.Focus();
+        _cityNameTextBox?.SelectAll();
     }
 
     private void LoadMapImage()
@@ -224,6 +231,7 @@ public class EditCityPixelDialog : Window
 
     private void OnOkClick(object sender, RoutedEventArgs e)
     {
+        CityName = _cityNameTextBox?.Text?.Trim() ?? CityName;
         PixelX = int.TryParse(_pixelXTextBox?.Text, out var x) ? x : null;
         PixelY = int.TryParse(_pixelYTextBox?.Text, out var y) ? y : null;
         HasLibrary = _hasLibraryCheckBox?.IsChecked ?? false;

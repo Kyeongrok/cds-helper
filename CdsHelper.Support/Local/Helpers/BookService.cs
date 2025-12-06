@@ -24,7 +24,12 @@ public class BookService
         // JSON 파일이 있으면 마이그레이션 시도
         if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
         {
-            await DataMigrator.MigrateBooksFromJsonAsync(_controller, _cityController, jsonPath);
+            await DataMigrator.MigrateBooksFromJsonAsync(
+                _controller,
+                _cityController,
+                jsonPath,
+                onSkipped: msg => EventQueueService.Instance.MigrationSkipped("BookService", msg),
+                onMigrated: msg => EventQueueService.Instance.DataLoaded("BookService", msg));
         }
 
         // 캐시 로드

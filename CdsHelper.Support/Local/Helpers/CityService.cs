@@ -24,7 +24,11 @@ public class CityService
         // JSON 파일이 있으면 마이그레이션 시도
         if (!string.IsNullOrEmpty(jsonPath) && System.IO.File.Exists(jsonPath))
         {
-            await DataMigrator.MigrateCitiesFromJsonAsync(_controller, jsonPath);
+            await DataMigrator.MigrateCitiesFromJsonAsync(
+                _controller,
+                jsonPath,
+                onSkipped: msg => EventQueueService.Instance.MigrationSkipped("CityService", msg),
+                onMigrated: msg => EventQueueService.Instance.DataLoaded("CityService", msg));
         }
 
         // 캐시 로드
@@ -216,14 +220,14 @@ public class CityService
     }
 
     /// <summary>
-    /// 도시 정보 업데이트 (픽셀 좌표 + 도서관 여부)
+    /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부)
     /// </summary>
-    public async Task<bool> UpdateCityInfoAsync(byte cityId, int? pixelX, int? pixelY, bool hasLibrary)
+    public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary)
     {
         if (_controller == null)
             throw new InvalidOperationException("CityService가 초기화되지 않았습니다.");
 
-        var result = await _controller.UpdateCityInfoAsync(cityId, pixelX, pixelY, hasLibrary);
+        var result = await _controller.UpdateCityInfoAsync(cityId, name, pixelX, pixelY, hasLibrary);
 
         // 캐시 갱신
         if (result)

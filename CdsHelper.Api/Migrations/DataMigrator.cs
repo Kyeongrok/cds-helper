@@ -9,7 +9,11 @@ public static class DataMigrator
     /// <summary>
     /// cities.json 파일에서 SQLite DB로 데이터 마이그레이션
     /// </summary>
-    public static async Task MigrateCitiesFromJsonAsync(CityController controller, string jsonPath)
+    public static async Task MigrateCitiesFromJsonAsync(
+        CityController controller,
+        string jsonPath,
+        Action<string>? onSkipped = null,
+        Action<string>? onMigrated = null)
     {
         if (!File.Exists(jsonPath))
         {
@@ -19,6 +23,7 @@ public static class DataMigrator
         // DB에 이미 데이터가 있으면 스킵
         if (await controller.HasAnyDataAsync())
         {
+            onSkipped?.Invoke("Cities 데이터가 이미 DB에 존재하여 마이그레이션 스킵");
             return;
         }
 
@@ -44,6 +49,7 @@ public static class DataMigrator
         }).ToList();
 
         await controller.AddCitiesAsync(entities);
+        onMigrated?.Invoke($"Cities {entities.Count}개 마이그레이션 완료");
     }
 
     /// <summary>
@@ -52,7 +58,9 @@ public static class DataMigrator
     public static async Task MigrateBooksFromJsonAsync(
         BookController bookController,
         CityController cityController,
-        string jsonPath)
+        string jsonPath,
+        Action<string>? onSkipped = null,
+        Action<string>? onMigrated = null)
     {
         if (!File.Exists(jsonPath))
         {
@@ -62,6 +70,7 @@ public static class DataMigrator
         // DB에 이미 데이터가 있으면 스킵
         if (await bookController.HasAnyDataAsync())
         {
+            onSkipped?.Invoke("Books 데이터가 이미 DB에 존재하여 마이그레이션 스킵");
             return;
         }
 
@@ -134,6 +143,8 @@ public static class DataMigrator
         {
             await bookController.AddBookCitiesAsync(bookCityEntities);
         }
+
+        onMigrated?.Invoke($"Books {bookEntities.Count}개, BookCities {bookCityEntities.Count}개 마이그레이션 완료");
     }
 
     private class JsonCityData
