@@ -13,6 +13,9 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_PixelXTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_PixelYTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_HasLibraryCheckBox, Type = typeof(CheckBox))]
+[TemplatePart(Name = PART_LatitudeTextBox, Type = typeof(TextBox))]
+[TemplatePart(Name = PART_LongitudeTextBox, Type = typeof(TextBox))]
+[TemplatePart(Name = PART_CulturalSphereTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_MapScrollViewer, Type = typeof(ScrollViewer))]
 [TemplatePart(Name = PART_MapImage, Type = typeof(Image))]
 [TemplatePart(Name = PART_MapCanvas, Type = typeof(Canvas))]
@@ -24,6 +27,9 @@ public class EditCityPixelDialog : Window
     private const string PART_PixelXTextBox = "PART_PixelXTextBox";
     private const string PART_PixelYTextBox = "PART_PixelYTextBox";
     private const string PART_HasLibraryCheckBox = "PART_HasLibraryCheckBox";
+    private const string PART_LatitudeTextBox = "PART_LatitudeTextBox";
+    private const string PART_LongitudeTextBox = "PART_LongitudeTextBox";
+    private const string PART_CulturalSphereTextBox = "PART_CulturalSphereTextBox";
     private const string PART_MapScrollViewer = "PART_MapScrollViewer";
     private const string PART_MapImage = "PART_MapImage";
     private const string PART_MapCanvas = "PART_MapCanvas";
@@ -34,6 +40,9 @@ public class EditCityPixelDialog : Window
     private TextBox? _pixelXTextBox;
     private TextBox? _pixelYTextBox;
     private CheckBox? _hasLibraryCheckBox;
+    private TextBox? _latitudeTextBox;
+    private TextBox? _longitudeTextBox;
+    private TextBox? _culturalSphereTextBox;
     private ScrollViewer? _mapScrollViewer;
     private Image? _mapImage;
     private Canvas? _mapCanvas;
@@ -54,6 +63,18 @@ public class EditCityPixelDialog : Window
     public static readonly DependencyProperty HasLibraryProperty =
         DependencyProperty.Register(nameof(HasLibrary), typeof(bool), typeof(EditCityPixelDialog),
             new PropertyMetadata(false));
+
+    public static readonly DependencyProperty LatitudeProperty =
+        DependencyProperty.Register(nameof(Latitude), typeof(int?), typeof(EditCityPixelDialog),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty LongitudeProperty =
+        DependencyProperty.Register(nameof(Longitude), typeof(int?), typeof(EditCityPixelDialog),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty CulturalSphereProperty =
+        DependencyProperty.Register(nameof(CulturalSphere), typeof(string), typeof(EditCityPixelDialog),
+            new PropertyMetadata(null));
 
     public string CityName
     {
@@ -79,6 +100,24 @@ public class EditCityPixelDialog : Window
         set => SetValue(HasLibraryProperty, value);
     }
 
+    public int? Latitude
+    {
+        get => (int?)GetValue(LatitudeProperty);
+        set => SetValue(LatitudeProperty, value);
+    }
+
+    public int? Longitude
+    {
+        get => (int?)GetValue(LongitudeProperty);
+        set => SetValue(LongitudeProperty, value);
+    }
+
+    public string? CulturalSphere
+    {
+        get => (string?)GetValue(CulturalSphereProperty);
+        set => SetValue(CulturalSphereProperty, value);
+    }
+
     static EditCityPixelDialog()
     {
         DefaultStyleKeyProperty.OverrideMetadata(
@@ -86,11 +125,11 @@ public class EditCityPixelDialog : Window
             new FrameworkPropertyMetadata(typeof(EditCityPixelDialog)));
     }
 
-    public EditCityPixelDialog(string cityName, int? currentX, int? currentY, bool hasLibrary = false)
+    public EditCityPixelDialog(string cityName, int? currentX, int? currentY, bool hasLibrary = false, int? latitude = null, int? longitude = null, string? culturalSphere = null)
     {
         Title = "도시 정보 수정";
         Width = 800;
-        Height = 550;
+        Height = 580;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
 
@@ -98,6 +137,9 @@ public class EditCityPixelDialog : Window
         PixelX = currentX;
         PixelY = currentY;
         HasLibrary = hasLibrary;
+        Latitude = latitude;
+        Longitude = longitude;
+        CulturalSphere = culturalSphere;
     }
 
     public override void OnApplyTemplate()
@@ -108,6 +150,9 @@ public class EditCityPixelDialog : Window
         _pixelXTextBox = GetTemplateChild(PART_PixelXTextBox) as TextBox;
         _pixelYTextBox = GetTemplateChild(PART_PixelYTextBox) as TextBox;
         _hasLibraryCheckBox = GetTemplateChild(PART_HasLibraryCheckBox) as CheckBox;
+        _latitudeTextBox = GetTemplateChild(PART_LatitudeTextBox) as TextBox;
+        _longitudeTextBox = GetTemplateChild(PART_LongitudeTextBox) as TextBox;
+        _culturalSphereTextBox = GetTemplateChild(PART_CulturalSphereTextBox) as TextBox;
         _mapScrollViewer = GetTemplateChild(PART_MapScrollViewer) as ScrollViewer;
         _mapImage = GetTemplateChild(PART_MapImage) as Image;
         _mapCanvas = GetTemplateChild(PART_MapCanvas) as Canvas;
@@ -132,6 +177,15 @@ public class EditCityPixelDialog : Window
 
         if (_hasLibraryCheckBox != null)
             _hasLibraryCheckBox.IsChecked = HasLibrary;
+
+        if (_latitudeTextBox != null)
+            _latitudeTextBox.Text = Latitude?.ToString() ?? "";
+
+        if (_longitudeTextBox != null)
+            _longitudeTextBox.Text = Longitude?.ToString() ?? "";
+
+        if (_culturalSphereTextBox != null)
+            _culturalSphereTextBox.Text = CulturalSphere ?? "";
 
         LoadMapImage();
 
@@ -235,6 +289,9 @@ public class EditCityPixelDialog : Window
         PixelX = int.TryParse(_pixelXTextBox?.Text, out var x) ? x : null;
         PixelY = int.TryParse(_pixelYTextBox?.Text, out var y) ? y : null;
         HasLibrary = _hasLibraryCheckBox?.IsChecked ?? false;
+        Latitude = int.TryParse(_latitudeTextBox?.Text, out var lat) ? lat : null;
+        Longitude = int.TryParse(_longitudeTextBox?.Text, out var lon) ? lon : null;
+        CulturalSphere = string.IsNullOrWhiteSpace(_culturalSphereTextBox?.Text) ? null : _culturalSphereTextBox.Text.Trim();
         DialogResult = true;
     }
 

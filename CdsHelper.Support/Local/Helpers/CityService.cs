@@ -220,14 +220,14 @@ public class CityService
     }
 
     /// <summary>
-    /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부)
+    /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부 + 위도/경도 + 문화권)
     /// </summary>
-    public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary)
+    public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary, int? latitude = null, int? longitude = null, string? culturalSphere = null)
     {
         if (_controller == null)
             throw new InvalidOperationException("CityService가 초기화되지 않았습니다.");
 
-        var result = await _controller.UpdateCityInfoAsync(cityId, name, pixelX, pixelY, hasLibrary);
+        var result = await _controller.UpdateCityInfoAsync(cityId, name, pixelX, pixelY, hasLibrary, latitude, longitude, culturalSphere);
 
         // 캐시 갱신
         if (result)

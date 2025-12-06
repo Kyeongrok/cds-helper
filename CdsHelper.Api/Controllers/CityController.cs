@@ -137,9 +137,9 @@ public class CityController
     }
 
     /// <summary>
-    /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부)
+    /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부 + 위도/경도 + 문화권)
     /// </summary>
-    public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary)
+    public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary, int? latitude = null, int? longitude = null, string? culturalSphere = null)
     {
         var city = await _repository.GetByIdAsync(cityId);
         if (city == null)
@@ -149,6 +149,9 @@ public class CityController
         city.PixelX = pixelX;
         city.PixelY = pixelY;
         city.HasLibrary = hasLibrary;
+        city.Latitude = latitude;
+        city.Longitude = longitude;
+        city.CulturalSphere = culturalSphere;
         await _repository.UpdateAsync(city);
         return true;
     }
