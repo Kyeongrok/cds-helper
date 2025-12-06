@@ -3,5 +3,6 @@
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/CityMarker.xaml"/>
+        <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/AreaMarker.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

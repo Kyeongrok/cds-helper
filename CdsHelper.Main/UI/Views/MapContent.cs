@@ -17,6 +17,7 @@ public class MapContent : ContentControl
     private Button? _btnZoomReset;
     private CheckBox? _chkShowCityLabels;
     private CheckBox? _chkShowCoordinates;
+    private CheckBox? _chkShowCulturalSpheres;
     private TextBlock? _txtMapCoordinates;
     private ScrollViewer? _mapScrollViewer;
     private Image? _imgMap;
@@ -88,6 +89,13 @@ public class MapContent : ContentControl
         {
             _chkShowCoordinates.Checked += (s, e) => OnShowCoordinatesChanged(true);
             _chkShowCoordinates.Unchecked += (s, e) => OnShowCoordinatesChanged(false);
+        }
+
+        _chkShowCulturalSpheres = GetTemplateChild("PART_ChkShowCulturalSpheres") as CheckBox;
+        if (_chkShowCulturalSpheres != null)
+        {
+            _chkShowCulturalSpheres.Checked += (s, e) => OnShowCulturalSpheresChanged(true);
+            _chkShowCulturalSpheres.Unchecked += (s, e) => OnShowCulturalSpheresChanged(false);
         }
 
         if (_mapScrollViewer != null)
@@ -174,6 +182,14 @@ public class MapContent : ContentControl
             var cities = _viewModel.GetCitiesWithCoordinates();
             var showLabels = _chkShowCityLabels?.IsChecked ?? false;
             var showCoordinates = _chkShowCoordinates?.IsChecked ?? false;
+            var showCulturalSpheres = _chkShowCulturalSpheres?.IsChecked ?? false;
+
+            // 문화권 영역 먼저 추가 (도시 마커 뒤에 표시되도록)
+            if (showCulturalSpheres)
+            {
+                MapMarkerHelper.AddAreaMarkers(_mapCanvas, cities, true);
+            }
+
             MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels, showCoordinates, AppSettings.MarkerSize);
         }
         catch (Exception ex)
@@ -370,5 +386,22 @@ public class MapContent : ContentControl
     {
         if (_mapCanvas == null) return;
         MapMarkerHelper.SetCoordinatesVisibility(_mapCanvas, showCoordinates);
+    }
+
+    private void OnShowCulturalSpheresChanged(bool showCulturalSpheres)
+    {
+        if (_mapCanvas == null || _viewModel == null) return;
+
+        if (showCulturalSpheres)
+        {
+            // 영역 마커 추가
+            var cities = _viewModel.GetCitiesWithCoordinates();
+            MapMarkerHelper.AddAreaMarkers(_mapCanvas, cities, true);
+        }
+        else
+        {
+            // 영역 마커 제거
+            MapMarkerHelper.ClearAreaMarkers(_mapCanvas);
+        }
     }
 }
