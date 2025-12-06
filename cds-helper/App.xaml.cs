@@ -18,12 +18,19 @@ public partial class App : PrismApplication
 
         base.OnStartup(e);
 
-        // CityService 초기화
-        var cityService = Container.Resolve<CityService>();
+        // Services 초기화
         var basePath = AppDomain.CurrentDomain.BaseDirectory;
         var dbPath = Path.Combine(basePath, "cds-helper.db");
-        var jsonPath = Path.Combine(basePath, "cities.json");
-        Task.Run(() => cityService.InitializeAsync(dbPath, jsonPath)).GetAwaiter().GetResult();
+
+        // CityService 초기화
+        var cityService = Container.Resolve<CityService>();
+        var citiesJsonPath = Path.Combine(basePath, "cities.json");
+        Task.Run(() => cityService.InitializeAsync(dbPath, citiesJsonPath)).GetAwaiter().GetResult();
+
+        // BookService 초기화
+        var bookService = Container.Resolve<BookService>();
+        var booksJsonPath = Path.Combine(basePath, "books.json");
+        Task.Run(() => bookService.InitializeAsync(dbPath, booksJsonPath)).GetAwaiter().GetResult();
     }
 
     protected override Window CreateShell()

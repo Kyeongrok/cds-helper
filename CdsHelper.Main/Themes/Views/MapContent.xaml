@@ -43,7 +43,7 @@
                                 </Image>
                                 <Canvas x:Name="PART_MapCanvas"
                                         HorizontalAlignment="Left" VerticalAlignment="Top"
-                                        IsHitTestVisible="False">
+                                        IsHitTestVisible="True">
                                     <Canvas.LayoutTransform>
                                         <ScaleTransform x:Name="PART_CanvasScaleTransform" ScaleX="1" ScaleY="1" />
                                     </Canvas.LayoutTransform>
