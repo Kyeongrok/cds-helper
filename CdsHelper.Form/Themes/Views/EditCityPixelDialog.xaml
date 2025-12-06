@@ -17,34 +17,42 @@
 
                         <!-- 상단: 도시명 + 좌표 입력 -->
                         <Grid Grid.Row="0" Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Column="0" Text="도시명:" VerticalAlignment="Center" Margin="0,0,5,0" />
-                            <TextBox Grid.Column="1" x:Name="PART_CityNameTextBox" Width="120" Height="25"
-                                     FontWeight="Bold" Margin="0,0,20,0" />
+                            <!-- 첫번째 줄: 도시명, PixelX, PixelY, 도서관 -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="도시명:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox x:Name="PART_CityNameTextBox" Width="120" Height="25"
+                                         FontWeight="Bold" Margin="0,0,20,0" />
 
-                            <TextBlock Grid.Column="2" Text="PixelX:" VerticalAlignment="Center" Margin="0,0,5,0" />
-                            <TextBox Grid.Column="3" x:Name="PART_PixelXTextBox" Width="80" Height="25" Margin="0,0,15,0" />
+                                <TextBlock Text="PixelX:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox x:Name="PART_PixelXTextBox" Width="80" Height="25" Margin="0,0,15,0" />
 
-                            <TextBlock Grid.Column="4" Text="PixelY:" VerticalAlignment="Center" Margin="0,0,5,0" />
-                            <TextBox Grid.Column="5" x:Name="PART_PixelYTextBox" Width="80" Height="25" Margin="0,0,15,0" />
+                                <TextBlock Text="PixelY:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox x:Name="PART_PixelYTextBox" Width="80" Height="25" Margin="0,0,15,0" />
 
-                            <CheckBox Grid.Column="6" x:Name="PART_HasLibraryCheckBox" Content="도서관"
-                                      VerticalAlignment="Center" Margin="0,0,15,0" />
+                                <CheckBox x:Name="PART_HasLibraryCheckBox" Content="도서관"
+                                          VerticalAlignment="Center" Margin="0,0,15,0" />
 
-                            <TextBlock Grid.Column="7" Text="(지도 클릭으로 좌표 선택)"
-                                       VerticalAlignment="Center" Margin="0,0,0,0"
-                                       Foreground="Gray" FontStyle="Italic" />
+                                <TextBlock Text="(지도 클릭으로 좌표 선택)"
+                                           VerticalAlignment="Center"
+                                           Foreground="Gray" FontStyle="Italic" />
+                            </StackPanel>
+
+                            <!-- 두번째 줄: 위도, 경도, 문화권 -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                <TextBlock Text="위도:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox x:Name="PART_LatitudeTextBox" Width="80" Height="25" Margin="0,0,15,0" />
+
+                                <TextBlock Text="경도:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox x:Name="PART_LongitudeTextBox" Width="80" Height="25" Margin="0,0,15,0" />
+
+                                <TextBlock Text="문화권:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox x:Name="PART_CulturalSphereTextBox" Width="100" Height="25" Margin="0,0,15,0" />
+                            </StackPanel>
                         </Grid>
 
                         <!-- 중앙: 지도 -->

@@ -698,7 +698,7 @@ public class CdsHelperViewModel : BindableBase
         if (city == null) return;
 
         var dialog = new CdsHelper.Form.UI.Views.EditCityPixelDialog(
-            city.Name, city.PixelX, city.PixelY, city.HasLibrary);
+            city.Name, city.PixelX, city.PixelY, city.HasLibrary, city.Latitude, city.Longitude, city.CulturalSphere);
 
         dialog.Owner = System.Windows.Application.Current.MainWindow;
 
@@ -707,7 +707,7 @@ public class CdsHelperViewModel : BindableBase
         try
         {
             var result = await _cityService.UpdateCityInfoAsync(
-                city.Id, dialog.CityName, dialog.PixelX, dialog.PixelY, dialog.HasLibrary);
+                city.Id, dialog.CityName, dialog.PixelX, dialog.PixelY, dialog.HasLibrary, dialog.Latitude, dialog.Longitude, dialog.CulturalSphere);
 
             if (result)
             {
@@ -716,8 +716,11 @@ public class CdsHelperViewModel : BindableBase
                 city.PixelX = dialog.PixelX;
                 city.PixelY = dialog.PixelY;
                 city.HasLibrary = dialog.HasLibrary;
+                city.Latitude = dialog.Latitude;
+                city.Longitude = dialog.Longitude;
+                city.CulturalSphere = dialog.CulturalSphere;
                 ApplyCityFilter();
-                StatusText = $"{dialog.CityName} 정보 업데이트 완료: ({dialog.PixelX}, {dialog.PixelY}), 도서관: {(dialog.HasLibrary ? "있음" : "없음")}";
+                StatusText = $"{dialog.CityName} 정보 업데이트 완료: 문화권 {dialog.CulturalSphere ?? "-"}, 도서관: {(dialog.HasLibrary ? "있음" : "없음")}";
             }
             else
             {
