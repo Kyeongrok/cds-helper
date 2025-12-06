@@ -696,7 +696,7 @@ public class CdsHelperViewModel : BindableBase
         if (city == null) return;
 
         var dialog = new CdsHelper.Form.UI.Views.EditCityPixelDialog(
-            city.Name, city.PixelX, city.PixelY);
+            city.Name, city.PixelX, city.PixelY, city.HasLibrary);
 
         dialog.Owner = System.Windows.Application.Current.MainWindow;
 
@@ -704,16 +704,17 @@ public class CdsHelperViewModel : BindableBase
 
         try
         {
-            var result = await _cityService.UpdatePixelCoordinatesAsync(
-                city.Id, dialog.PixelX, dialog.PixelY);
+            var result = await _cityService.UpdateCityInfoAsync(
+                city.Id, dialog.PixelX, dialog.PixelY, dialog.HasLibrary);
 
             if (result)
             {
                 // UI 갱신
                 city.PixelX = dialog.PixelX;
                 city.PixelY = dialog.PixelY;
+                city.HasLibrary = dialog.HasLibrary;
                 ApplyCityFilter();
-                StatusText = $"{city.Name} 좌표 업데이트 완료: ({dialog.PixelX}, {dialog.PixelY})";
+                StatusText = $"{city.Name} 정보 업데이트 완료: ({dialog.PixelX}, {dialog.PixelY}), 도서관: {(dialog.HasLibrary ? "있음" : "없음")}";
             }
             else
             {

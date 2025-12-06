@@ -135,4 +135,20 @@ public class CityController
         await _repository.UpdateAsync(city);
         return true;
     }
+
+    /// <summary>
+    /// 도시 정보 업데이트 (픽셀 좌표 + 도서관 여부)
+    /// </summary>
+    public async Task<bool> UpdateCityInfoAsync(byte cityId, int? pixelX, int? pixelY, bool hasLibrary)
+    {
+        var city = await _repository.GetByIdAsync(cityId);
+        if (city == null)
+            return false;
+
+        city.PixelX = pixelX;
+        city.PixelY = pixelY;
+        city.HasLibrary = hasLibrary;
+        await _repository.UpdateAsync(city);
+        return true;
+    }
 }

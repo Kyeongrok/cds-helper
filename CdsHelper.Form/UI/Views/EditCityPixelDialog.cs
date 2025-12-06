@@ -11,6 +11,7 @@ namespace CdsHelper.Form.UI.Views;
 
 [TemplatePart(Name = PART_PixelXTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_PixelYTextBox, Type = typeof(TextBox))]
+[TemplatePart(Name = PART_HasLibraryCheckBox, Type = typeof(CheckBox))]
 [TemplatePart(Name = PART_MapScrollViewer, Type = typeof(ScrollViewer))]
 [TemplatePart(Name = PART_MapImage, Type = typeof(Image))]
 [TemplatePart(Name = PART_MapCanvas, Type = typeof(Canvas))]
@@ -20,6 +21,7 @@ public class EditCityPixelDialog : Window
 {
     private const string PART_PixelXTextBox = "PART_PixelXTextBox";
     private const string PART_PixelYTextBox = "PART_PixelYTextBox";
+    private const string PART_HasLibraryCheckBox = "PART_HasLibraryCheckBox";
     private const string PART_MapScrollViewer = "PART_MapScrollViewer";
     private const string PART_MapImage = "PART_MapImage";
     private const string PART_MapCanvas = "PART_MapCanvas";
@@ -28,6 +30,7 @@ public class EditCityPixelDialog : Window
 
     private TextBox? _pixelXTextBox;
     private TextBox? _pixelYTextBox;
+    private CheckBox? _hasLibraryCheckBox;
     private ScrollViewer? _mapScrollViewer;
     private Image? _mapImage;
     private Canvas? _mapCanvas;
@@ -44,6 +47,10 @@ public class EditCityPixelDialog : Window
     public static readonly DependencyProperty PixelYProperty =
         DependencyProperty.Register(nameof(PixelY), typeof(int?), typeof(EditCityPixelDialog),
             new PropertyMetadata(null));
+
+    public static readonly DependencyProperty HasLibraryProperty =
+        DependencyProperty.Register(nameof(HasLibrary), typeof(bool), typeof(EditCityPixelDialog),
+            new PropertyMetadata(false));
 
     public string CityName
     {
@@ -63,6 +70,12 @@ public class EditCityPixelDialog : Window
         set => SetValue(PixelYProperty, value);
     }
 
+    public bool HasLibrary
+    {
+        get => (bool)GetValue(HasLibraryProperty);
+        set => SetValue(HasLibraryProperty, value);
+    }
+
     static EditCityPixelDialog()
     {
         DefaultStyleKeyProperty.OverrideMetadata(
@@ -70,9 +83,9 @@ public class EditCityPixelDialog : Window
             new FrameworkPropertyMetadata(typeof(EditCityPixelDialog)));
     }
 
-    public EditCityPixelDialog(string cityName, int? currentX, int? currentY)
+    public EditCityPixelDialog(string cityName, int? currentX, int? currentY, bool hasLibrary = false)
     {
-        Title = "픽셀 좌표 수정";
+        Title = "도시 정보 수정";
         Width = 700;
         Height = 550;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -81,6 +94,7 @@ public class EditCityPixelDialog : Window
         CityName = $"도시: {cityName}";
         PixelX = currentX;
         PixelY = currentY;
+        HasLibrary = hasLibrary;
     }
 
     public override void OnApplyTemplate()
@@ -89,6 +103,7 @@ public class EditCityPixelDialog : Window
 
         _pixelXTextBox = GetTemplateChild(PART_PixelXTextBox) as TextBox;
         _pixelYTextBox = GetTemplateChild(PART_PixelYTextBox) as TextBox;
+        _hasLibraryCheckBox = GetTemplateChild(PART_HasLibraryCheckBox) as CheckBox;
         _mapScrollViewer = GetTemplateChild(PART_MapScrollViewer) as ScrollViewer;
         _mapImage = GetTemplateChild(PART_MapImage) as Image;
         _mapCanvas = GetTemplateChild(PART_MapCanvas) as Canvas;
@@ -107,6 +122,9 @@ public class EditCityPixelDialog : Window
 
         if (_pixelYTextBox != null)
             _pixelYTextBox.Text = PixelY?.ToString() ?? "";
+
+        if (_hasLibraryCheckBox != null)
+            _hasLibraryCheckBox.IsChecked = HasLibrary;
 
         LoadMapImage();
 
@@ -208,6 +226,7 @@ public class EditCityPixelDialog : Window
     {
         PixelX = int.TryParse(_pixelXTextBox?.Text, out var x) ? x : null;
         PixelY = int.TryParse(_pixelYTextBox?.Text, out var y) ? y : null;
+        HasLibrary = _hasLibraryCheckBox?.IsChecked ?? false;
         DialogResult = true;
     }
 

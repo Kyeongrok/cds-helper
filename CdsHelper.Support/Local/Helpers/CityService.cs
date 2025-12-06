@@ -216,6 +216,25 @@ public class CityService
     }
 
     /// <summary>
+    /// 도시 정보 업데이트 (픽셀 좌표 + 도서관 여부)
+    /// </summary>
+    public async Task<bool> UpdateCityInfoAsync(byte cityId, int? pixelX, int? pixelY, bool hasLibrary)
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("CityService가 초기화되지 않았습니다.");
+
+        var result = await _controller.UpdateCityInfoAsync(cityId, pixelX, pixelY, hasLibrary);
+
+        // 캐시 갱신
+        if (result)
+        {
+            await RefreshCacheAsync();
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Entity -> Model 변환
     /// </summary>
     private static City ToModel(CityEntity entity)

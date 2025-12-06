@@ -21,6 +21,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
@@ -32,10 +33,13 @@
                             <TextBox Grid.Column="2" x:Name="PART_PixelXTextBox" Width="80" Height="25" Margin="0,0,15,0" />
 
                             <TextBlock Grid.Column="3" Text="PixelY:" VerticalAlignment="Center" Margin="0,0,5,0" />
-                            <TextBox Grid.Column="4" x:Name="PART_PixelYTextBox" Width="80" Height="25" />
+                            <TextBox Grid.Column="4" x:Name="PART_PixelYTextBox" Width="80" Height="25" Margin="0,0,15,0" />
 
-                            <TextBlock Grid.Column="5" Text="(지도 클릭으로 좌표 선택)"
-                                       VerticalAlignment="Center" Margin="15,0,0,0"
+                            <CheckBox Grid.Column="5" x:Name="PART_HasLibraryCheckBox" Content="도서관"
+                                      VerticalAlignment="Center" Margin="0,0,15,0" />
+
+                            <TextBlock Grid.Column="6" Text="(지도 클릭으로 좌표 선택)"
+                                       VerticalAlignment="Center" Margin="0,0,0,0"
                                        Foreground="Gray" FontStyle="Italic" />
                         </Grid>
 
