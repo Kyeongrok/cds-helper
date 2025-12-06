@@ -113,24 +113,26 @@ public class BookContentViewModel : BindableBase
     private async void Initialize()
     {
         var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var citiesPath = System.IO.Path.Combine(basePath, "cities.json");
         var dbPath = System.IO.Path.Combine(basePath, "cdshelper.db");
         var booksJsonPath = System.IO.Path.Combine(basePath, "books.json");
+        var citiesJsonPath = System.IO.Path.Combine(basePath, "cities.json");
 
-        if (System.IO.File.Exists(citiesPath))
-            LoadCities(citiesPath);
+        // CityService 초기화 (DB 및 JSON 마이그레이션)
+        await _cityService.InitializeAsync(dbPath, citiesJsonPath);
 
         // BookService 초기화 (DB 및 JSON 마이그레이션)
         await _bookService.InitializeAsync(dbPath, booksJsonPath);
 
+        // DB에서 로드
+        await LoadCitiesFromDbAsync();
         await LoadBooksFromDbAsync();
     }
 
-    private void LoadCities(string filePath)
+    private async Task LoadCitiesFromDbAsync()
     {
         try
         {
-            _allCities = _cityService.LoadCities(filePath);
+            _allCities = await _cityService.LoadCitiesFromDbAsync();
         }
         catch (Exception ex)
         {
@@ -192,6 +194,9 @@ public class BookContentViewModel : BindableBase
     {
         if (SelectedBook == null) return;
 
+        // 디버그: 선택된 책 정보 확인
+        MessageBox.Show($"Book Id: {SelectedBook.Id}, Name: {SelectedBook.Name}");
+
         var dialog = new BookCityMappingDialog
         {
             Owner = Application.Current.MainWindow
@@ -202,6 +207,10 @@ public class BookContentViewModel : BindableBase
         if (dialog.ShowDialog() == true)
         {
             var selectedCityIds = dialog.GetSelectedCityIds();
+            var selectedCityNames = dialog.GetSelectedCityNames();
+
+            // 디버그: 선택된 도시 확인
+            MessageBox.Show($"선택된 도시: {string.Join(", ", selectedCityNames)} (IDs: {string.Join(", ", selectedCityIds)})");
 
             try
             {
@@ -215,7 +224,7 @@ public class BookContentViewModel : BindableBase
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"매핑 저장 실패: {ex.Message}", "오류",
+                MessageBox.Show($"매핑 저장 실패: {ex.Message}\n\n{ex.StackTrace}", "오류",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

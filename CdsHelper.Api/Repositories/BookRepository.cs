@@ -96,21 +96,17 @@ public class BookRepository : IBookRepository
 
     public async Task UpdateBookCitiesAsync(int bookId, List<byte> cityIds)
     {
-        // 기존 매핑 삭제
-        var existingMappings = await _context.BookCities
-            .Where(bc => bc.BookId == bookId)
-            .ToListAsync();
-        _context.BookCities.RemoveRange(existingMappings);
+        // Raw SQL로 기존 매핑 삭제
+        await _context.Database.ExecuteSqlRawAsync(
+            "DELETE FROM BookCities WHERE BookId = {0}", bookId);
 
-        // 새 매핑 추가
-        var newMappings = cityIds.Select(cityId => new BookCityEntity
+        // Raw SQL로 새 매핑 추가
+        foreach (var cityId in cityIds)
         {
-            BookId = bookId,
-            CityId = cityId
-        });
-        await _context.BookCities.AddRangeAsync(newMappings);
-
-        await _context.SaveChangesAsync();
+            await _context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO BookCities (BookId, CityId) VALUES ({0}, {1})",
+                bookId, cityId);
+        }
     }
 
     public async Task<bool> HasAnyDataAsync()
