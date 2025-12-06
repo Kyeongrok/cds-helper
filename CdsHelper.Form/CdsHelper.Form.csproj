@@ -12,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\CdsHelper.Main\CdsHelper.Main.csproj" />
       <ProjectReference Include="..\CdsHelper.Support\CdsHelper.Support.csproj" />
     </ItemGroup>
 

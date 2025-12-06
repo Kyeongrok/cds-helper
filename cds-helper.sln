@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper.Form", "CdsHelper
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper.Support", "CdsHelper.Support\CdsHelper.Support.csproj", "{780E7AF3-8645-4FCF-8049-1D6A3F008423}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper.Main", "CdsHelper.Main\CdsHelper.Main.csproj", "{9F21F998-FBF4-4B2C-9D9D-45B7F6DA61AA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{780E7AF3-8645-4FCF-8049-1D6A3F008423}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{780E7AF3-8645-4FCF-8049-1D6A3F008423}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{780E7AF3-8645-4FCF-8049-1D6A3F008423}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9F21F998-FBF4-4B2C-9D9D-45B7F6DA61AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9F21F998-FBF4-4B2C-9D9D-45B7F6DA61AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9F21F998-FBF4-4B2C-9D9D-45B7F6DA61AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9F21F998-FBF4-4B2C-9D9D-45B7F6DA61AA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
