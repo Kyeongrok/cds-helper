@@ -9,7 +9,7 @@ public static class MapMarkerHelper
     /// <summary>
     /// Canvas에 도시 마커들을 추가합니다.
     /// </summary>
-    public static void AddCityMarkers(Canvas canvas, IEnumerable<City> cities, bool showLabels = false, bool showCoordinates = false)
+    public static void AddCityMarkers(Canvas canvas, IEnumerable<City> cities, bool showLabels = false, bool showCoordinates = false, double markerSize = 8.0)
     {
         if (canvas == null) return;
 
@@ -21,12 +21,28 @@ public static class MapMarkerHelper
             var x = city.PixelX.Value;
             var y = city.PixelY.Value;
 
-            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude)
+            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude, markerSize)
             {
                 ShowLabel = showLabels,
                 ShowCoordinates = showCoordinates
             };
             canvas.Children.Add(marker);
+        }
+    }
+
+    /// <summary>
+    /// 모든 마커의 크기를 변경합니다.
+    /// </summary>
+    public static void SetMarkerSize(Canvas canvas, double size)
+    {
+        if (canvas == null) return;
+
+        foreach (var child in canvas.Children)
+        {
+            if (child is CityMarker marker)
+            {
+                marker.MarkerSize = size;
+            }
         }
     }
 
