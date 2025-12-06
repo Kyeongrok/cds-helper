@@ -3,6 +3,8 @@ using System.Windows;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Form.UI.Views;
 using CdsHelper.Support.Local.Helpers;
+using Prism.DryIoc;
+using Prism.Ioc;
 
 namespace cds_helper;
 

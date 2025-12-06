@@ -256,6 +256,34 @@ public class CdsHelperViewModel : BindableBase
         ResetBookFilterCommand = new DelegateCommand(ResetBookFilter);
         ResetCityFilterCommand = new DelegateCommand(ResetCityFilter);
         ResetPatronFilterCommand = new DelegateCommand(ResetPatronFilter);
+
+        // 앱 시작 시 데이터 로드
+        Initialize();
+    }
+
+    private void Initialize()
+    {
+        var basePath = AppDomain.CurrentDomain.BaseDirectory;
+
+        var booksPath = System.IO.Path.Combine(basePath, "books.json");
+        var citiesPath = System.IO.Path.Combine(basePath, "cities.json");
+        var patronsPath = System.IO.Path.Combine(basePath, "patrons.json");
+
+        if (System.IO.File.Exists(citiesPath))
+            LoadCities(citiesPath);
+
+        if (System.IO.File.Exists(booksPath))
+            LoadBooks(booksPath);
+
+        if (System.IO.File.Exists(patronsPath))
+            LoadPatrons(patronsPath);
+
+        // 기본 세이브 파일 로드
+        var savePath = @"C:\Users\ocean\Desktop\대항해시대3\savedata.cds";
+        if (System.IO.File.Exists(savePath))
+            LoadSaveFile(savePath);
+        else
+            StatusText = "준비됨";
     }
 
     #region Load Methods

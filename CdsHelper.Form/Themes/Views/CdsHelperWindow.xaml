@@ -247,13 +247,44 @@
                                 </Grid>
                             </TabItem>
 
-                            <!-- 지도 탭 (나중에 구현) -->
+                            <!-- 지도 탭 -->
                             <TabItem Header="지도">
                                 <Grid>
-                                    <TextBlock Text="지도 기능은 추후 구현 예정"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontSize="16" />
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 상단 컨트롤 -->
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+                                        <TextBlock Text="대항해시대3 발견물 지도" FontSize="16" FontWeight="Bold"
+                                                   VerticalAlignment="Center" />
+                                        <Button x:Name="PART_BtnZoomIn" Content="확대 +" Width="60" Height="30" Margin="20,0,5,0" />
+                                        <Button x:Name="PART_BtnZoomOut" Content="축소 -" Width="60" Height="30" Margin="5,0,5,0" />
+                                        <Button x:Name="PART_BtnZoomReset" Content="원본" Width="60" Height="30" Margin="5,0,0,0" />
+                                        <TextBlock x:Name="PART_TxtMapCoordinates" Text="좌표: -" VerticalAlignment="Center"
+                                                   Margin="20,0,0,0" FontFamily="Consolas" />
+                                    </StackPanel>
+
+                                    <!-- 지도 이미지 -->
+                                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  Margin="10" x:Name="PART_MapScrollViewer">
+                                        <Grid>
+                                            <Image x:Name="PART_ImgMap"
+                                                   Stretch="None"
+                                                   RenderTransformOrigin="0,0">
+                                                <Image.RenderTransform>
+                                                    <ScaleTransform x:Name="PART_MapScaleTransform" ScaleX="0.3" ScaleY="0.3" />
+                                                </Image.RenderTransform>
+                                            </Image>
+                                            <Canvas x:Name="PART_MapCanvas" RenderTransformOrigin="0,0">
+                                                <Canvas.RenderTransform>
+                                                    <ScaleTransform x:Name="PART_CanvasScaleTransform" ScaleX="0.3" ScaleY="0.3" />
+                                                </Canvas.RenderTransform>
+                                            </Canvas>
+                                        </Grid>
+                                    </ScrollViewer>
                                 </Grid>
                             </TabItem>
                         </TabControl>
