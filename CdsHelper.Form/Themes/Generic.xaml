@@ -3,5 +3,6 @@
     
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="/CdsHelper.Form;component/Themes/Views/CdsHelperWindow.xaml"/>
+        <ResourceDictionary Source="/CdsHelper.Form;component/Themes/Views/EditCityPixelDialog.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

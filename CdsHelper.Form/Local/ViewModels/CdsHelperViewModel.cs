@@ -185,6 +185,13 @@ public class CdsHelperViewModel : BindableBase
 
     public ObservableCollection<string> CulturalSpheres { get; } = new();
 
+    private City? _selectedCity;
+    public City? SelectedCity
+    {
+        get => _selectedCity;
+        set => SetProperty(ref _selectedCity, value);
+    }
+
     #endregion
 
     #region Patron Filter Properties
@@ -311,6 +318,7 @@ public class CdsHelperViewModel : BindableBase
     public ICommand ResetPatronFilterCommand { get; }
     public ICommand ResetFigureheadFilterCommand { get; }
     public ICommand ResetItemFilterCommand { get; }
+    public ICommand EditCityPixelCommand { get; }
 
     #endregion
 
@@ -337,6 +345,7 @@ public class CdsHelperViewModel : BindableBase
         ResetPatronFilterCommand = new DelegateCommand(ResetPatronFilter);
         ResetFigureheadFilterCommand = new DelegateCommand(ResetFigureheadFilter);
         ResetItemFilterCommand = new DelegateCommand(ResetItemFilter);
+        EditCityPixelCommand = new DelegateCommand<City>(EditCityPixel);
 
         // 앱 시작 시 데이터 로드
         Initialize();
@@ -674,6 +683,47 @@ public class CdsHelperViewModel : BindableBase
         ItemNameSearch = "";
         SelectedItemCategory = null;
         ItemDiscoverySearch = "";
+    }
+
+    #endregion
+
+    #region City Edit Methods
+
+    private async void EditCityPixel(City? city)
+    {
+        if (city == null) return;
+
+        var dialog = new CdsHelper.Form.UI.Views.EditCityPixelDialog(
+            city.Name, city.PixelX, city.PixelY);
+
+        dialog.Owner = System.Windows.Application.Current.MainWindow;
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var result = await _cityService.UpdatePixelCoordinatesAsync(
+                city.Id, dialog.PixelX, dialog.PixelY);
+
+            if (result)
+            {
+                // UI 갱신
+                city.PixelX = dialog.PixelX;
+                city.PixelY = dialog.PixelY;
+                ApplyCityFilter();
+                StatusText = $"{city.Name} 좌표 업데이트 완료: ({dialog.PixelX}, {dialog.PixelY})";
+            }
+            else
+            {
+                System.Windows.MessageBox.Show("도시 정보를 찾을 수 없습니다.", "오류",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"업데이트 실패: {ex.Message}", "오류",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
     }
 
     #endregion

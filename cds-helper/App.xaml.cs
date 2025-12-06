@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using System.Windows;
 using CdsHelper.Form.Local.ViewModels;
@@ -16,6 +17,13 @@ public partial class App : PrismApplication
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
         base.OnStartup(e);
+
+        // CityService 초기화
+        var cityService = Container.Resolve<CityService>();
+        var basePath = AppDomain.CurrentDomain.BaseDirectory;
+        var dbPath = Path.Combine(basePath, "cds-helper.db");
+        var jsonPath = Path.Combine(basePath, "cities.json");
+        Task.Run(() => cityService.InitializeAsync(dbPath, jsonPath)).GetAwaiter().GetResult();
     }
 
     protected override Window CreateShell()

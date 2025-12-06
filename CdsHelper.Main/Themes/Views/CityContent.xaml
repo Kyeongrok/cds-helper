@@ -36,6 +36,7 @@
                         <!-- 도시 데이터 그리드 -->
                         <DataGrid Grid.Row="1"
                                   ItemsSource="{Binding Cities}"
+                                  SelectedItem="{Binding SelectedCity}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Margin="10"
@@ -48,6 +49,17 @@
                                 <DataGridTextColumn Header="경도" Binding="{Binding LongitudeDisplay}" Width="80" />
                                 <DataGridCheckBoxColumn Header="도서관" Binding="{Binding HasLibrary}" Width="70" />
                                 <DataGridCheckBoxColumn Header="조선소" Binding="{Binding HasShipyard}" Width="70" />
+                                <DataGridTextColumn Header="PixelX" Binding="{Binding PixelX}" Width="70" />
+                                <DataGridTextColumn Header="PixelY" Binding="{Binding PixelY}" Width="70" />
+                                <DataGridTemplateColumn Header="수정" Width="60">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="수정"
+                                                    Command="{Binding DataContext.EditCityPixelCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>

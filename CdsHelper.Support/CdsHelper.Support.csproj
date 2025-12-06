@@ -11,4 +11,8 @@
       <Folder Include="Themes\UI\Units\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\CdsHelper.Api\CdsHelper.Api.csproj" />
+    </ItemGroup>
+
 </Project>
