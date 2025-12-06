@@ -13,6 +13,8 @@ public class CdsHelperViewModel : BindableBase
     private readonly BookService _bookService;
     private readonly CityService _cityService;
     private readonly PatronService _patronService;
+    private readonly FigureheadService _figureheadService;
+    private readonly ItemService _itemService;
     private readonly SaveDataService _saveDataService;
 
     // Raw data
@@ -20,6 +22,8 @@ public class CdsHelperViewModel : BindableBase
     private List<Book> _allBooks = new();
     private List<City> _allCities = new();
     private List<Patron> _allPatrons = new();
+    private List<Figurehead> _allFigureheads = new();
+    private List<Item> _allItems = new();
     private SaveGameInfo? _saveGameInfo;
 
     #region Collections for DataGrid
@@ -50,6 +54,20 @@ public class CdsHelperViewModel : BindableBase
     {
         get => _patrons;
         set => SetProperty(ref _patrons, value);
+    }
+
+    private ObservableCollection<Figurehead> _figureheads = new();
+    public ObservableCollection<Figurehead> Figureheads
+    {
+        get => _figureheads;
+        set => SetProperty(ref _figureheads, value);
+    }
+
+    private ObservableCollection<Item> _items = new();
+    public ObservableCollection<Item> Items
+    {
+        get => _items;
+        set => SetProperty(ref _items, value);
     }
 
     #endregion
@@ -203,6 +221,61 @@ public class CdsHelperViewModel : BindableBase
 
     #endregion
 
+    #region Figurehead Filter Properties
+
+    private string _figureheadNameSearch = "";
+    public string FigureheadNameSearch
+    {
+        get => _figureheadNameSearch;
+        set { SetProperty(ref _figureheadNameSearch, value); ApplyFigureheadFilter(); }
+    }
+
+    private string? _selectedFigureheadFunction;
+    public string? SelectedFigureheadFunction
+    {
+        get => _selectedFigureheadFunction;
+        set { SetProperty(ref _selectedFigureheadFunction, value); ApplyFigureheadFilter(); }
+    }
+
+    private string? _selectedFigureheadLevel;
+    public string? SelectedFigureheadLevel
+    {
+        get => _selectedFigureheadLevel;
+        set { SetProperty(ref _selectedFigureheadLevel, value); ApplyFigureheadFilter(); }
+    }
+
+    public ObservableCollection<string> FigureheadFunctions { get; } = new();
+    public ObservableCollection<string> FigureheadLevels { get; } = new();
+
+    #endregion
+
+    #region Item Filter Properties
+
+    private string _itemNameSearch = "";
+    public string ItemNameSearch
+    {
+        get => _itemNameSearch;
+        set { SetProperty(ref _itemNameSearch, value); ApplyItemFilter(); }
+    }
+
+    private string? _selectedItemCategory;
+    public string? SelectedItemCategory
+    {
+        get => _selectedItemCategory;
+        set { SetProperty(ref _selectedItemCategory, value); ApplyItemFilter(); }
+    }
+
+    private string _itemDiscoverySearch = "";
+    public string ItemDiscoverySearch
+    {
+        get => _itemDiscoverySearch;
+        set { SetProperty(ref _itemDiscoverySearch, value); ApplyItemFilter(); }
+    }
+
+    public ObservableCollection<string> ItemCategories { get; } = new();
+
+    #endregion
+
     #region Status Properties
 
     private string _statusText = "준비됨";
@@ -236,6 +309,8 @@ public class CdsHelperViewModel : BindableBase
     public ICommand ResetBookFilterCommand { get; }
     public ICommand ResetCityFilterCommand { get; }
     public ICommand ResetPatronFilterCommand { get; }
+    public ICommand ResetFigureheadFilterCommand { get; }
+    public ICommand ResetItemFilterCommand { get; }
 
     #endregion
 
@@ -244,18 +319,24 @@ public class CdsHelperViewModel : BindableBase
         BookService bookService,
         CityService cityService,
         PatronService patronService,
+        FigureheadService figureheadService,
+        ItemService itemService,
         SaveDataService saveDataService)
     {
         _characterService = characterService;
         _bookService = bookService;
         _cityService = cityService;
         _patronService = patronService;
+        _figureheadService = figureheadService;
+        _itemService = itemService;
         _saveDataService = saveDataService;
 
         LoadSaveCommand = new DelegateCommand(LoadSaveFile);
         ResetBookFilterCommand = new DelegateCommand(ResetBookFilter);
         ResetCityFilterCommand = new DelegateCommand(ResetCityFilter);
         ResetPatronFilterCommand = new DelegateCommand(ResetPatronFilter);
+        ResetFigureheadFilterCommand = new DelegateCommand(ResetFigureheadFilter);
+        ResetItemFilterCommand = new DelegateCommand(ResetItemFilter);
 
         // 앱 시작 시 데이터 로드
         Initialize();
@@ -268,6 +349,8 @@ public class CdsHelperViewModel : BindableBase
         var booksPath = System.IO.Path.Combine(basePath, "books.json");
         var citiesPath = System.IO.Path.Combine(basePath, "cities.json");
         var patronsPath = System.IO.Path.Combine(basePath, "patrons.json");
+        var figureheadsPath = System.IO.Path.Combine(basePath, "figurehead.json");
+        var itemsPath = System.IO.Path.Combine(basePath, "item.json");
 
         if (System.IO.File.Exists(citiesPath))
             LoadCities(citiesPath);
@@ -277,6 +360,12 @@ public class CdsHelperViewModel : BindableBase
 
         if (System.IO.File.Exists(patronsPath))
             LoadPatrons(patronsPath);
+
+        if (System.IO.File.Exists(figureheadsPath))
+            LoadFigureheads(figureheadsPath);
+
+        if (System.IO.File.Exists(itemsPath))
+            LoadItems(itemsPath);
 
         // 기본 세이브 파일 로드
         var savePath = @"C:\Users\ocean\Desktop\대항해시대3\savedata.cds";
@@ -392,6 +481,52 @@ public class CdsHelperViewModel : BindableBase
         }
     }
 
+    public void LoadFigureheads(string filePath)
+    {
+        try
+        {
+            _allFigureheads = _figureheadService.LoadFigureheads(filePath);
+
+            FigureheadFunctions.Clear();
+            foreach (var func in _figureheadService.GetDistinctFunctions())
+                FigureheadFunctions.Add(func);
+
+            FigureheadLevels.Clear();
+            foreach (var level in _figureheadService.GetDistinctLevels())
+                FigureheadLevels.Add(level);
+
+            ApplyFigureheadFilter();
+            StatusText = $"선수상 로드 완료: {_allFigureheads.Count}개";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "선수상 로드 실패";
+            System.Windows.MessageBox.Show($"선수상 파일 읽기 실패:\n\n{ex.Message}",
+                "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    public void LoadItems(string filePath)
+    {
+        try
+        {
+            _allItems = _itemService.LoadItems(filePath);
+
+            ItemCategories.Clear();
+            foreach (var category in _itemService.GetDistinctCategories())
+                ItemCategories.Add(category);
+
+            ApplyItemFilter();
+            StatusText = $"아이템 로드 완료: {_allItems.Count}개";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "아이템 로드 실패";
+            System.Windows.MessageBox.Show($"아이템 파일 읽기 실패:\n\n{ex.Message}",
+                "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
     #endregion
 
     #region Filter Methods
@@ -465,6 +600,39 @@ public class CdsHelperViewModel : BindableBase
         StatusText = $"후원자: {displayList.Count}명 (기준년도: {CurrentYear})";
     }
 
+    private void ApplyFigureheadFilter()
+    {
+        if (_allFigureheads.Count == 0) return;
+
+        int? level = null;
+        if (!string.IsNullOrWhiteSpace(SelectedFigureheadLevel) && SelectedFigureheadLevel != "전체")
+        {
+            if (int.TryParse(SelectedFigureheadLevel, out var parsed))
+                level = parsed;
+        }
+
+        var filtered = _figureheadService.Filter(
+            string.IsNullOrWhiteSpace(FigureheadNameSearch) ? null : FigureheadNameSearch,
+            SelectedFigureheadFunction,
+            level);
+
+        Figureheads = new ObservableCollection<Figurehead>(filtered);
+        StatusText = $"선수상: {filtered.Count}개";
+    }
+
+    private void ApplyItemFilter()
+    {
+        if (_allItems.Count == 0) return;
+
+        var filtered = _itemService.Filter(
+            string.IsNullOrWhiteSpace(ItemNameSearch) ? null : ItemNameSearch,
+            SelectedItemCategory,
+            string.IsNullOrWhiteSpace(ItemDiscoverySearch) ? null : ItemDiscoverySearch);
+
+        Items = new ObservableCollection<Item>(filtered);
+        StatusText = $"아이템: {filtered.Count}개";
+    }
+
     #endregion
 
     #region Reset Methods
@@ -492,6 +660,20 @@ public class CdsHelperViewModel : BindableBase
         PatronCitySearch = "";
         SelectedNationality = null;
         ActivePatronsOnly = false;
+    }
+
+    private void ResetFigureheadFilter()
+    {
+        FigureheadNameSearch = "";
+        SelectedFigureheadFunction = null;
+        SelectedFigureheadLevel = null;
+    }
+
+    private void ResetItemFilter()
+    {
+        ItemNameSearch = "";
+        SelectedItemCategory = null;
+        ItemDiscoverySearch = "";
     }
 
     #endregion
