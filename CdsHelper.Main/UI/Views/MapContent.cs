@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using CdsHelper.Main.UI.ViewModels;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Support.UI.Units;
 using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views;
@@ -114,6 +115,13 @@ public class MapContent : ContentControl
         {
             _imgMap.MouseMove += ImgMap_MouseMove;
             _imgMap.MouseLeave += ImgMap_MouseLeave;
+        }
+
+        // CityMarker 이벤트 핸들러 등록
+        if (_mapCanvas != null)
+        {
+            _mapCanvas.AddHandler(CityMarker.MarkerClickedEvent, new RoutedEventHandler(OnCityMarkerClicked));
+            _mapCanvas.AddHandler(CityMarker.LibraryClickedEvent, new RoutedEventHandler(OnLibraryClicked));
         }
 
         // 지도 이미지 로드
@@ -337,10 +345,29 @@ public class MapContent : ContentControl
     {
         if (_mapScrollViewer == null) return;
 
+        // CityMarker 클릭인지 확인 - CityMarker 클릭 시에는 드래그 시작하지 않음
+        if (IsCityMarkerClick(e.OriginalSource))
+        {
+            return; // CityMarker가 클릭 이벤트를 처리하도록 함
+        }
+
         _isDragging = true;
         _lastMousePosition = e.GetPosition(_mapScrollViewer);
         _mapScrollViewer.CaptureMouse();
         e.Handled = true;
+    }
+
+    private bool IsCityMarkerClick(object originalSource)
+    {
+        // OriginalSource부터 시작해서 visual tree를 따라 올라가며 CityMarker 찾기
+        var element = originalSource as DependencyObject;
+        while (element != null)
+        {
+            if (element is CityMarker)
+                return true;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
     }
 
     private void MapScrollViewer_PreviewMouseMove(object sender, MouseEventArgs e)
@@ -402,6 +429,24 @@ public class MapContent : ContentControl
         {
             // 영역 마커 제거
             MapMarkerHelper.ClearAreaMarkers(_mapCanvas);
+        }
+    }
+
+    private void OnCityMarkerClicked(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is CityMarker marker)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MapContent] CityMarker clicked: {marker.CityName} (ID: {marker.CityId})");
+            MessageBox.Show($"도시: {marker.CityName}\nID: {marker.CityId}\n좌표: {marker.LatitudeDisplay}, {marker.LongitudeDisplay}\n도서관: {(marker.HasLibrary ? "있음" : "없음")}",
+                "도시 정보", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void OnLibraryClicked(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is CityMarker marker)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MapContent] Library clicked: {marker.CityName}");
         }
     }
 }
