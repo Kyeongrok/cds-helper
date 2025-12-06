@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Main.UI.ViewModels;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views;
@@ -150,7 +151,11 @@ public class MapContent : ContentControl
         {
             var cities = _viewModel.GetCitiesWithCoordinates();
             var showLabels = _chkShowCityLabels?.IsChecked ?? false;
-            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels);
+            var showCoordinates = _chkShowCoordinates?.IsChecked ?? false;
+            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels, showCoordinates, AppSettings.MarkerSize);
+
+            // 설정 변경 이벤트 구독
+            AppSettings.SettingsChanged += OnSettingsChanged;
         }
         catch (Exception ex)
         {
@@ -168,12 +173,19 @@ public class MapContent : ContentControl
             MapMarkerHelper.ClearMarkers(_mapCanvas);
             var cities = _viewModel.GetCitiesWithCoordinates();
             var showLabels = _chkShowCityLabels?.IsChecked ?? false;
-            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels);
+            var showCoordinates = _chkShowCoordinates?.IsChecked ?? false;
+            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels, showCoordinates, AppSettings.MarkerSize);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[RefreshCityMarkers] Error: {ex.Message}");
         }
+    }
+
+    private void OnSettingsChanged()
+    {
+        if (_mapCanvas == null) return;
+        Dispatcher.Invoke(() => MapMarkerHelper.SetMarkerSize(_mapCanvas, AppSettings.MarkerSize));
     }
 
     private void MapScrollViewer_Loaded(object sender, RoutedEventArgs e)

@@ -10,12 +10,18 @@
                 <ControlTemplate TargetType="{x:Type views:CdsHelperWindow}">
                     <Grid Background="{TemplateBinding Background}">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
+                        <!-- 메뉴바 -->
+                        <Menu Grid.Row="0">
+                            <MenuItem Header="설정" x:Name="PART_SettingsMenu" />
+                        </Menu>
+
                         <!-- TabControl -->
-                        <TabControl Grid.Row="0" Margin="5">
+                        <TabControl Grid.Row="1" Margin="5">
                             <!-- 캐릭터 탭 -->
                             <TabItem Header="캐릭터">
                                 <main:CharacterContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
@@ -53,7 +59,7 @@
                         </TabControl>
 
                         <!-- 하단 상태바 -->
-                        <StatusBar Grid.Row="1">
+                        <StatusBar Grid.Row="2">
                             <StatusBarItem>
                                 <TextBlock Text="{Binding DataContext.StatusText, RelativeSource={RelativeSource TemplatedParent}}" />
                             </StatusBarItem>
