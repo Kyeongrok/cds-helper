@@ -17,7 +17,7 @@ public class SettingsDialog : Window
 
     public static readonly DependencyProperty MarkerSizeProperty =
         DependencyProperty.Register(nameof(MarkerSize), typeof(double), typeof(SettingsDialog),
-            new PropertyMetadata(8.0));
+            new PropertyMetadata(AppSettings.DefaultMarkerSize));
 
     public double MarkerSize
     {

@@ -9,7 +9,6 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type units:CityMarker}">
                     <Canvas>
-                        <!-- 마커 원 -->
                         <Border Background="DodgerBlue"
                                 BorderBrush="DarkBlue"
                                 BorderThickness="1"
@@ -17,7 +16,23 @@
                                 Width="{TemplateBinding MarkerSize}"
                                 Height="{TemplateBinding MarkerSize}" />
 
-                        <!-- 도시명/좌표 라벨 -->
+                        <Border Background="Orange"
+                                BorderBrush="DarkOrange"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Width="12"
+                                Height="12"
+                                Canvas.Left="4"
+                                Canvas.Top="-8"
+                                Visibility="{Binding HasLibrary, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="&#46020;"
+                                       FontSize="8"
+                                       FontWeight="Bold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+
                         <TextBlock Text="{Binding DisplayText, RelativeSource={RelativeSource TemplatedParent}}"
                                    FontSize="10"
                                    Foreground="Black"

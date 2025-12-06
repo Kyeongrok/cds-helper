@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using CdsHelper.Support.Local.Settings;
 
 namespace CdsHelper.Support.UI.Units;
 
@@ -24,7 +25,7 @@ public class CityMarker : Control, INotifyPropertyChanged
 
     public static readonly DependencyProperty MarkerSizeProperty =
         DependencyProperty.Register(nameof(MarkerSize), typeof(double), typeof(CityMarker),
-            new PropertyMetadata(8.0, OnSizeChanged));
+            new PropertyMetadata(AppSettings.DefaultMarkerSize, OnSizeChanged));
 
     public static readonly DependencyProperty CityNameProperty =
         DependencyProperty.Register(nameof(CityName), typeof(string), typeof(CityMarker),
@@ -54,6 +55,10 @@ public class CityMarker : Control, INotifyPropertyChanged
     public static readonly DependencyProperty LongitudeProperty =
         DependencyProperty.Register(nameof(Longitude), typeof(int?), typeof(CityMarker),
             new PropertyMetadata(null));
+
+    public static readonly DependencyProperty HasLibraryProperty =
+        DependencyProperty.Register(nameof(HasLibrary), typeof(bool), typeof(CityMarker),
+            new PropertyMetadata(false));
 
     public double X
     {
@@ -101,6 +106,12 @@ public class CityMarker : Control, INotifyPropertyChanged
     {
         get => (int?)GetValue(LongitudeProperty);
         set => SetValue(LongitudeProperty, value);
+    }
+
+    public bool HasLibrary
+    {
+        get => (bool)GetValue(HasLibraryProperty);
+        set => SetValue(HasLibraryProperty, value);
     }
 
     public string LatitudeDisplay
@@ -152,13 +163,14 @@ public class CityMarker : Control, INotifyPropertyChanged
     {
     }
 
-    public CityMarker(double x, double y, string cityName = "", int? latitude = null, int? longitude = null, double size = 8)
+    public CityMarker(double x, double y, string cityName = "", int? latitude = null, int? longitude = null, bool hasLibrary = false, double size = AppSettings.DefaultMarkerSize)
     {
         X = x;
         Y = y;
         CityName = cityName;
         Latitude = latitude;
         Longitude = longitude;
+        HasLibrary = hasLibrary;
         MarkerSize = size;
         Width = size;
         Height = size;

@@ -1,6 +1,7 @@
 using System.Windows.Controls;
 using System.Windows.Media;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
 
 namespace CdsHelper.Support.Local.Helpers;
@@ -10,7 +11,7 @@ public static class MapMarkerHelper
     /// <summary>
     /// Canvas에 도시 마커들을 추가합니다.
     /// </summary>
-    public static void AddCityMarkers(Canvas canvas, IEnumerable<City> cities, bool showLabels = false, bool showCoordinates = false, double markerSize = 8.0)
+    public static void AddCityMarkers(Canvas canvas, IEnumerable<City> cities, bool showLabels = false, bool showCoordinates = false, double markerSize = AppSettings.DefaultMarkerSize)
     {
         if (canvas == null) return;
 
@@ -22,7 +23,7 @@ public static class MapMarkerHelper
             var x = city.PixelX.Value;
             var y = city.PixelY.Value;
 
-            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude, markerSize)
+            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude, city.HasLibrary, markerSize)
             {
                 ShowLabel = showLabels,
                 ShowCoordinates = showCoordinates
