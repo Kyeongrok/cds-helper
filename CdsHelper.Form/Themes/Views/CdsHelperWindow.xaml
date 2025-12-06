@@ -1,0 +1,273 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:views="clr-namespace:CdsHelper.Form.UI.Views">
+
+    <Style TargetType="{x:Type views:CdsHelperWindow}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type views:CdsHelperWindow}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- TabControl -->
+                        <TabControl Grid.Row="0" Margin="5">
+                            <!-- 캐릭터 탭 -->
+                            <TabItem Header="캐릭터">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 상단 버튼 -->
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+                                        <Button Content="세이브 파일 읽기" Width="120" Height="30" Margin="0,0,10,0"
+                                                Command="{Binding DataContext.LoadSaveCommand, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        <CheckBox Content="미등장 캐릭터 표시" VerticalAlignment="Center" Margin="10,0,10,0"
+                                                  IsChecked="{Binding DataContext.ShowGrayCharacters, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        <TextBlock Text="이름 검색:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <TextBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                 Text="{Binding DataContext.CharacterNameSearch, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}" />
+                                        <CheckBox Content="특기 필터:" VerticalAlignment="Center" Margin="10,0,5,0"
+                                                  IsChecked="{Binding DataContext.FilterBySkill, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        <ComboBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,5,0"
+                                                  SelectedIndex="{Binding DataContext.SelectedSkillIndex, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        <TextBlock Text="Lv:" VerticalAlignment="Center" Margin="5,0,5,0" />
+                                        <ComboBox Width="50" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                  SelectedIndex="{Binding DataContext.SelectedSkillLevel, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Text="{Binding DataContext.FilePath, RelativeSource={RelativeSource TemplatedParent}}" />
+                                    </StackPanel>
+
+                                    <!-- 데이터 그리드 -->
+                                    <DataGrid Grid.Row="1"
+                                              ItemsSource="{Binding DataContext.Characters, RelativeSource={RelativeSource TemplatedParent}}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              Margin="10"
+                                              AlternatingRowBackground="LightGray">
+                                        <DataGrid.RowStyle>
+                                            <Style TargetType="DataGridRow">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsGray}" Value="True">
+                                                        <Setter Property="Foreground" Value="#888888" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGrid.RowStyle>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="150" />
+                                            <DataGridTextColumn Header="체력" Binding="{Binding HP}" Width="50" />
+                                            <DataGridTextColumn Header="지력" Binding="{Binding Intelligence}" Width="50" />
+                                            <DataGridTextColumn Header="무력" Binding="{Binding Strength}" Width="50" />
+                                            <DataGridTextColumn Header="매력" Binding="{Binding Charm}" Width="50" />
+                                            <DataGridTextColumn Header="운" Binding="{Binding Luck}" Width="50" />
+                                            <DataGridTextColumn Header="특기" Binding="{Binding Skills}" Width="*" />
+                                            <DataGridTextColumn Header="명성" Binding="{Binding Fame}" Width="60" />
+                                            <DataGridTextColumn Header="소재" Binding="{Binding Location}" Width="100" />
+                                            <DataGridTextColumn Header="연령" Binding="{Binding Age}" Width="50" />
+                                            <DataGridTextColumn Header="얼굴" Binding="{Binding Face}" Width="50" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+
+                            <!-- 도서 탭 -->
+                            <TabItem Header="도서">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 도서 검색 필터 -->
+                                    <WrapPanel Grid.Row="0" Margin="10" Orientation="Horizontal">
+                                        <TextBlock Text="도서명:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                 Text="{Binding DataContext.BookNameSearch, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="소재 도서관:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <TextBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                 Text="{Binding DataContext.LibrarySearch, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="게제 힌트:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <TextBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                 Text="{Binding DataContext.HintSearch, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="언어:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <ComboBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                  ItemsSource="{Binding DataContext.Languages, RelativeSource={RelativeSource TemplatedParent}}"
+                                                  SelectedItem="{Binding DataContext.SelectedLanguage, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <TextBlock Text="필요 스킬:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <ComboBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                  ItemsSource="{Binding DataContext.RequiredSkills, RelativeSource={RelativeSource TemplatedParent}}"
+                                                  SelectedItem="{Binding DataContext.SelectedRequiredSkill, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <Button Content="필터 초기화" Width="100" Height="30" Margin="10,0,0,0"
+                                                Command="{Binding DataContext.ResetBookFilterCommand, RelativeSource={RelativeSource TemplatedParent}}" />
+                                    </WrapPanel>
+
+                                    <!-- 도서 데이터 그리드 -->
+                                    <DataGrid Grid.Row="1"
+                                              ItemsSource="{Binding DataContext.Books, RelativeSource={RelativeSource TemplatedParent}}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              Margin="10"
+                                              AlternatingRowBackground="LightGray">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="도서명" Binding="{Binding Name}" Width="200" />
+                                            <DataGridTextColumn Header="언어" Binding="{Binding Language}" Width="150" />
+                                            <DataGridTextColumn Header="소재 도서관" Binding="{Binding Library}" Width="*" MinWidth="200" />
+                                            <DataGridTextColumn Header="게제 힌트" Binding="{Binding Hint}" Width="200" />
+                                            <DataGridTextColumn Header="필요" Binding="{Binding Required}" Width="100" />
+                                            <DataGridTextColumn Header="개제조건" Binding="{Binding Condition}" Width="200" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+
+                            <!-- 도시 탭 -->
+                            <TabItem Header="도시">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 도시 검색 필터 -->
+                                    <WrapPanel Grid.Row="0" Margin="10" Orientation="Horizontal">
+                                        <TextBlock Text="도시명 검색:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBox Width="150" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                 Text="{Binding DataContext.CityNameSearch, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="문화권:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <ComboBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                  ItemsSource="{Binding DataContext.CulturalSpheres, RelativeSource={RelativeSource TemplatedParent}}"
+                                                  SelectedItem="{Binding DataContext.SelectedCulturalSphere, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <CheckBox Content="도서관 있는 도시만" VerticalAlignment="Center" Margin="10,0,10,0"
+                                                  IsChecked="{Binding DataContext.LibraryOnly, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <CheckBox Content="조선소 있는 도시만" VerticalAlignment="Center" Margin="10,0,10,0"
+                                                  IsChecked="{Binding DataContext.ShipyardOnly, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <Button Content="필터 초기화" Width="100" Height="30" Margin="10,0,0,0"
+                                                Command="{Binding DataContext.ResetCityFilterCommand, RelativeSource={RelativeSource TemplatedParent}}" />
+                                    </WrapPanel>
+
+                                    <!-- 도시 데이터 그리드 -->
+                                    <DataGrid Grid.Row="1"
+                                              ItemsSource="{Binding DataContext.Cities, RelativeSource={RelativeSource TemplatedParent}}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              Margin="10"
+                                              AlternatingRowBackground="LightGray">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" />
+                                            <DataGridTextColumn Header="도시명" Binding="{Binding Name}" Width="150" />
+                                            <DataGridTextColumn Header="문화권" Binding="{Binding CulturalSphere}" Width="120" />
+                                            <DataGridTextColumn Header="위도" Binding="{Binding LatitudeDisplay}" Width="80" />
+                                            <DataGridTextColumn Header="경도" Binding="{Binding LongitudeDisplay}" Width="80" />
+                                            <DataGridCheckBoxColumn Header="도서관" Binding="{Binding HasLibrary}" Width="70" />
+                                            <DataGridCheckBoxColumn Header="조선소" Binding="{Binding HasShipyard}" Width="70" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+
+                            <!-- 후원자 탭 -->
+                            <TabItem Header="후원자">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 후원자 검색 필터 -->
+                                    <WrapPanel Grid.Row="0" Margin="10" Orientation="Horizontal">
+                                        <TextBlock Text="후원자명:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                 Text="{Binding DataContext.PatronNameSearch, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="도시:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <TextBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                 Text="{Binding DataContext.PatronCitySearch, RelativeSource={RelativeSource TemplatedParent}, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="국적:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                                        <ComboBox Width="150" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                  ItemsSource="{Binding DataContext.Nationalities, RelativeSource={RelativeSource TemplatedParent}}"
+                                                  SelectedItem="{Binding DataContext.SelectedNationality, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <CheckBox Content="활동중인 후원자만" VerticalAlignment="Center" Margin="10,0,10,0"
+                                                  IsChecked="{Binding DataContext.ActivePatronsOnly, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <Button Content="필터 초기화" Width="100" Height="30" Margin="10,0,0,0"
+                                                Command="{Binding DataContext.ResetPatronFilterCommand, RelativeSource={RelativeSource TemplatedParent}}" />
+                                    </WrapPanel>
+
+                                    <!-- 후원자 데이터 그리드 -->
+                                    <DataGrid Grid.Row="1"
+                                              ItemsSource="{Binding DataContext.Patrons, RelativeSource={RelativeSource TemplatedParent}}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              Margin="10">
+                                        <DataGrid.RowStyle>
+                                            <Style TargetType="DataGridRow">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding StatusDisplay}" Value="은퇴">
+                                                        <Setter Property="Background" Value="LightGray" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding StatusDisplay}" Value="활동중">
+                                                        <Setter Property="Background" Value="LightGreen" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGrid.RowStyle>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="40" />
+                                            <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="150" />
+                                            <DataGridTextColumn Header="국적" Binding="{Binding Nationality}" Width="130" />
+                                            <DataGridTextColumn Header="도시" Binding="{Binding City}" Width="100" />
+                                            <DataGridTextColumn Header="직업" Binding="{Binding Occupation}" Width="80" />
+                                            <DataGridTextColumn Header="원조율" Binding="{Binding SupportRate}" Width="70" />
+                                            <DataGridTextColumn Header="감별력" Binding="{Binding Discernment}" Width="70" />
+                                            <DataGridTextColumn Header="등장" Binding="{Binding AppearYear}" Width="60" />
+                                            <DataGridTextColumn Header="은퇴" Binding="{Binding RetireYear}" Width="60" />
+                                            <DataGridTextColumn Header="상태" Binding="{Binding StatusDisplay}" Width="70" />
+                                            <DataGridTextColumn Header="명성" Binding="{Binding Fame}" Width="70" />
+                                            <DataGridTextColumn Header="재력" Binding="{Binding Wealth}" Width="90" />
+                                            <DataGridTextColumn Header="권력" Binding="{Binding Power}" Width="50" />
+                                            <DataGridTextColumn Header="비고" Binding="{Binding Note}" Width="*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+
+                            <!-- 지도 탭 (나중에 구현) -->
+                            <TabItem Header="지도">
+                                <Grid>
+                                    <TextBlock Text="지도 기능은 추후 구현 예정"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="16" />
+                                </Grid>
+                            </TabItem>
+                        </TabControl>
+
+                        <!-- 하단 상태바 -->
+                        <StatusBar Grid.Row="1">
+                            <StatusBarItem>
+                                <TextBlock Text="{Binding DataContext.StatusText, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </StatusBarItem>
+                        </StatusBar>
+                    </Grid>
+                </ControlTemplate>
+
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

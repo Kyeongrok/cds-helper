@@ -1,14 +1,12 @@
-﻿using System.Configuration;
-using System.Data;
 using System.Text;
 using System.Windows;
+using CdsHelper.Form.Local.ViewModels;
+using CdsHelper.Form.UI.Views;
+using CdsHelper.Support.Local.Helpers;
 
 namespace cds_helper;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
-public partial class App : Application
+public partial class App : PrismApplication
 {
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -16,5 +14,23 @@ public partial class App : Application
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
         base.OnStartup(e);
+    }
+
+    protected override Window CreateShell()
+    {
+        return Container.Resolve<CdsHelperWindow>();
+    }
+
+    protected override void RegisterTypes(IContainerRegistry containerRegistry)
+    {
+        // Services 등록
+        containerRegistry.RegisterSingleton<CharacterService>();
+        containerRegistry.RegisterSingleton<BookService>();
+        containerRegistry.RegisterSingleton<CityService>();
+        containerRegistry.RegisterSingleton<PatronService>();
+        containerRegistry.RegisterSingleton<SaveDataService>();
+
+        // ViewModel 등록
+        containerRegistry.Register<CdsHelperViewModel>();
     }
 }
