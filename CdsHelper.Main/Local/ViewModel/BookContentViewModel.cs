@@ -209,9 +209,6 @@ public class BookContentViewModel : BindableBase
             var selectedCityIds = dialog.GetSelectedCityIds();
             var selectedCityNames = dialog.GetSelectedCityNames();
 
-            // 디버그: 선택된 도시 확인
-            MessageBox.Show($"선택된 도시: {string.Join(", ", selectedCityNames)} (IDs: {string.Join(", ", selectedCityIds)})");
-
             try
             {
                 // DB 업데이트

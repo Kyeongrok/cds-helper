@@ -42,8 +42,6 @@ public class CityMarkerViewModel
 
     private async void OnLibraryClick()
     {
-        MessageBox.Show("hello");
-        
         try
         {
             var bookService = ContainerLocator.Container.Resolve<BookService>();

@@ -7,9 +7,11 @@ using CdsHelper.Support.Local.Settings;
 namespace CdsHelper.Support.UI.Units;
 
 [TemplatePart(Name = PART_LibraryButton, Type = typeof(Button))]
+[TemplatePart(Name = PART_MainBorder, Type = typeof(Border))]
 public class CityMarker : Control, INotifyPropertyChanged
 {
     private const string PART_LibraryButton = "PART_LibraryButton";
+    private const string PART_MainBorder = "PART_MainBorder";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -76,6 +78,17 @@ public class CityMarker : Control, INotifyPropertyChanged
     {
         add => AddHandler(LibraryClickedEvent, value);
         remove => RemoveHandler(LibraryClickedEvent, value);
+    }
+
+    // 마커 클릭 이벤트
+    public static readonly RoutedEvent MarkerClickedEvent =
+        EventManager.RegisterRoutedEvent(nameof(MarkerClicked), RoutingStrategy.Bubble,
+            typeof(RoutedEventHandler), typeof(CityMarker));
+
+    public event RoutedEventHandler MarkerClicked
+    {
+        add => AddHandler(MarkerClickedEvent, value);
+        remove => RemoveHandler(MarkerClickedEvent, value);
     }
 
     public double X
@@ -216,11 +229,25 @@ public class CityMarker : Control, INotifyPropertyChanged
                 RaiseLibraryClicked();
             };
         }
+
+        if (GetTemplateChild(PART_MainBorder) is Border mainBorder)
+        {
+            mainBorder.MouseLeftButtonDown += (s, e) =>
+            {
+                e.Handled = true;
+                RaiseMarkerClicked();
+            };
+        }
     }
 
     public void RaiseLibraryClicked()
     {
         RaiseEvent(new RoutedEventArgs(LibraryClickedEvent, this));
+    }
+
+    public void RaiseMarkerClicked()
+    {
+        RaiseEvent(new RoutedEventArgs(MarkerClickedEvent, this));
     }
 
     private static void OnPositionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
