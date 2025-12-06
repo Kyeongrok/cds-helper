@@ -49,9 +49,18 @@ public class MapContentViewModel : BindableBase
 
     /// <summary>
     /// 마커로 표시할 도시 목록 (PixelX, PixelY가 있는 도시만)
+    /// DB 캐시에서 최신 데이터를 가져옴
     /// </summary>
     public IEnumerable<City> GetCitiesWithCoordinates()
     {
+        // DB 캐시에서 최신 데이터 가져오기
+        var cities = _cityService.GetCachedCities();
+        if (cities.Count > 0)
+        {
+            return cities.Where(c => c.PixelX.HasValue && c.PixelY.HasValue && c.PixelX > 0 && c.PixelY > 0);
+        }
+
+        // 캐시가 없으면 메모리 데이터 사용
         return _allCities.Where(c => c.PixelX.HasValue && c.PixelY.HasValue && c.PixelX > 0 && c.PixelY > 0);
     }
 }

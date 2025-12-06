@@ -1,0 +1,7 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/CityMarker.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

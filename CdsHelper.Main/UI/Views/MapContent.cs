@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Main.UI.ViewModels;
 using CdsHelper.Support.Local.Helpers;
+using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views;
 
@@ -14,6 +15,7 @@ public class MapContent : ContentControl
     private Button? _btnZoomOut;
     private Button? _btnZoomReset;
     private CheckBox? _chkShowCityLabels;
+    private CheckBox? _chkShowCoordinates;
     private TextBlock? _txtMapCoordinates;
     private ScrollViewer? _mapScrollViewer;
     private Image? _imgMap;
@@ -31,6 +33,12 @@ public class MapContent : ContentControl
 
     private MapContentViewModel? _viewModel;
 
+    // 스크롤 위치 저장용 (탭 전환 시 유지)
+    private static double _savedHorizontalOffset = -1;
+    private static double _savedVerticalOffset = -1;
+    private static double _savedScale = 1.0;
+    private static bool _hasSavedPosition = false;
+
     static MapContent()
     {
         DefaultStyleKeyProperty.OverrideMetadata(
@@ -42,14 +50,16 @@ public class MapContent : ContentControl
     {
         base.OnApplyTemplate();
 
-        // ViewModel 초기화
-        _viewModel = new MapContentViewModel(new CityService());
+        // ViewModel 초기화 (DI에서 CityService 가져오기)
+        var cityService = ContainerLocator.Container.Resolve<CityService>();
+        _viewModel = new MapContentViewModel(cityService);
 
         // 지도 컨트롤 찾기
         _btnZoomIn = GetTemplateChild("PART_BtnZoomIn") as Button;
         _btnZoomOut = GetTemplateChild("PART_BtnZoomOut") as Button;
         _btnZoomReset = GetTemplateChild("PART_BtnZoomReset") as Button;
         _chkShowCityLabels = GetTemplateChild("PART_ChkShowCityLabels") as CheckBox;
+        _chkShowCoordinates = GetTemplateChild("PART_ChkShowCoordinates") as CheckBox;
         _txtMapCoordinates = GetTemplateChild("PART_TxtMapCoordinates") as TextBlock;
         _mapScrollViewer = GetTemplateChild("PART_MapScrollViewer") as ScrollViewer;
         _imgMap = GetTemplateChild("PART_ImgMap") as Image;
@@ -68,9 +78,16 @@ public class MapContent : ContentControl
             _btnZoomReset.Click += (s, e) => ZoomReset();
 
         if (_chkShowCityLabels != null)
+        {
             _chkShowCityLabels.Checked += (s, e) => OnShowCityLabelsChanged(true);
-        if (_chkShowCityLabels != null)
             _chkShowCityLabels.Unchecked += (s, e) => OnShowCityLabelsChanged(false);
+        }
+
+        if (_chkShowCoordinates != null)
+        {
+            _chkShowCoordinates.Checked += (s, e) => OnShowCoordinatesChanged(true);
+            _chkShowCoordinates.Unchecked += (s, e) => OnShowCoordinatesChanged(false);
+        }
 
         if (_mapScrollViewer != null)
         {
@@ -80,6 +97,9 @@ public class MapContent : ContentControl
             _mapScrollViewer.PreviewMouseLeftButtonUp += MapScrollViewer_PreviewMouseLeftButtonUp;
             _mapScrollViewer.Loaded += MapScrollViewer_Loaded;
         }
+
+        // 탭 전환 시 위치 저장/복원
+        IsVisibleChanged += OnIsVisibleChanged;
 
         if (_imgMap != null)
         {
@@ -129,7 +149,8 @@ public class MapContent : ContentControl
         try
         {
             var cities = _viewModel.GetCitiesWithCoordinates();
-            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities);
+            var showLabels = _chkShowCityLabels?.IsChecked ?? false;
+            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels);
         }
         catch (Exception ex)
         {
@@ -137,12 +158,70 @@ public class MapContent : ContentControl
         }
     }
 
+    private void RefreshCityMarkers()
+    {
+        if (_mapCanvas == null || _viewModel == null) return;
+
+        try
+        {
+            // 기존 마커 제거 후 새로 로드
+            MapMarkerHelper.ClearMarkers(_mapCanvas);
+            var cities = _viewModel.GetCitiesWithCoordinates();
+            var showLabels = _chkShowCityLabels?.IsChecked ?? false;
+            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RefreshCityMarkers] Error: {ex.Message}");
+        }
+    }
+
     private void MapScrollViewer_Loaded(object sender, RoutedEventArgs e)
     {
-        // 초기 스케일 적용
-        ApplyScale();
-        // 초기 위치 설정 (3529, 899가 가운데 오도록)
-        ScrollToImagePosition(3529, 899);
+        if (_hasSavedPosition)
+        {
+            // 저장된 위치 복원
+            _currentScale = _savedScale;
+            ApplyScale();
+            _mapScrollViewer?.ScrollToHorizontalOffset(_savedHorizontalOffset);
+            _mapScrollViewer?.ScrollToVerticalOffset(_savedVerticalOffset);
+        }
+        else
+        {
+            // 초기 스케일 적용
+            ApplyScale();
+            // 초기 위치 설정 (3529, 899가 가운데 오도록)
+            ScrollToImagePosition(3529, 899);
+        }
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is bool isVisible)
+        {
+            if (!isVisible && _mapScrollViewer != null)
+            {
+                // 탭 떠날 때 위치 저장
+                _savedHorizontalOffset = _mapScrollViewer.HorizontalOffset;
+                _savedVerticalOffset = _mapScrollViewer.VerticalOffset;
+                _savedScale = _currentScale;
+                _hasSavedPosition = true;
+            }
+            else if (isVisible && _mapScrollViewer != null)
+            {
+                // 탭 돌아올 때 마커 새로고침
+                RefreshCityMarkers();
+
+                if (_hasSavedPosition)
+                {
+                    // 위치 복원
+                    _currentScale = _savedScale;
+                    ApplyScale();
+                    _mapScrollViewer.ScrollToHorizontalOffset(_savedHorizontalOffset);
+                    _mapScrollViewer.ScrollToVerticalOffset(_savedVerticalOffset);
+                }
+            }
+        }
     }
 
     private void ScrollToImagePosition(double imageX, double imageY)
@@ -273,5 +352,11 @@ public class MapContent : ContentControl
     {
         if (_mapCanvas == null) return;
         MapMarkerHelper.SetLabelsVisibility(_mapCanvas, showLabels);
+    }
+
+    private void OnShowCoordinatesChanged(bool showCoordinates)
+    {
+        if (_mapCanvas == null) return;
+        MapMarkerHelper.SetCoordinatesVisibility(_mapCanvas, showCoordinates);
     }
 }
