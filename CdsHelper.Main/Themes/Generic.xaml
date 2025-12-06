@@ -5,6 +5,8 @@
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/BookContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/CityContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/PatronContent.xaml"></ResourceDictionary>
+        <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/FigureheadContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/MapContent.xaml"></ResourceDictionary>
+        <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/ItemContent.xaml"></ResourceDictionary>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

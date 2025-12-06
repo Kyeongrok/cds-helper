@@ -30,6 +30,8 @@ public partial class App : PrismApplication
         containerRegistry.RegisterSingleton<BookService>();
         containerRegistry.RegisterSingleton<CityService>();
         containerRegistry.RegisterSingleton<PatronService>();
+        containerRegistry.RegisterSingleton<FigureheadService>();
+        containerRegistry.RegisterSingleton<ItemService>();
         containerRegistry.RegisterSingleton<SaveDataService>();
 
         // ViewModel 등록

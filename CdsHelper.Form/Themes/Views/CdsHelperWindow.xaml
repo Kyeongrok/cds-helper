@@ -36,6 +36,16 @@
                                 <main:PatronContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
                             </TabItem>
 
+                            <!-- 선수상 탭 -->
+                            <TabItem Header="선수상">
+                                <main:FigureheadContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </TabItem>
+
+                            <!-- 아이템 탭 -->
+                            <TabItem Header="아이템">
+                                <main:ItemContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </TabItem>
+
                             <!-- 지도 탭 -->
                             <TabItem Header="지도">
                                 <main:MapContent x:Name="PART_MapContent" DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
