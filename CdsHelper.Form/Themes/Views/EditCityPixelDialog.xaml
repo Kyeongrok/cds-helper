@@ -3,10 +3,12 @@
                     xmlns:views="clr-namespace:CdsHelper.Form.UI.Views">
 
     <Style TargetType="{x:Type views:EditCityPixelDialog}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="Azure" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type views:EditCityPixelDialog}">
-                    <Grid Margin="10">
+                    <Grid Margin="10" Background="Azure">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
