@@ -2,6 +2,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Support.Local.ViewModel;
 using CdsHelper.Support.UI.Units;
 
 namespace CdsHelper.Support.Local.Helpers;
@@ -23,10 +24,17 @@ public static class MapMarkerHelper
             var x = city.PixelX.Value;
             var y = city.PixelY.Value;
 
-            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude, city.HasLibrary, markerSize)
+            var viewModel = new CityMarkerViewModel(city, markerSize)
             {
                 ShowLabel = showLabels,
                 ShowCoordinates = showCoordinates
+            };
+
+            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude, city.HasLibrary, city.Id, markerSize)
+            {
+                ShowLabel = showLabels,
+                ShowCoordinates = showCoordinates,
+                DataContext = viewModel
             };
             canvas.Children.Add(marker);
         }

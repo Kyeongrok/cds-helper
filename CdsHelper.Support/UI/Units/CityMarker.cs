@@ -6,8 +6,11 @@ using CdsHelper.Support.Local.Settings;
 
 namespace CdsHelper.Support.UI.Units;
 
+[TemplatePart(Name = PART_LibraryButton, Type = typeof(Button))]
 public class CityMarker : Control, INotifyPropertyChanged
 {
+    private const string PART_LibraryButton = "PART_LibraryButton";
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -59,6 +62,21 @@ public class CityMarker : Control, INotifyPropertyChanged
     public static readonly DependencyProperty HasLibraryProperty =
         DependencyProperty.Register(nameof(HasLibrary), typeof(bool), typeof(CityMarker),
             new PropertyMetadata(false));
+
+    public static readonly DependencyProperty CityIdProperty =
+        DependencyProperty.Register(nameof(CityId), typeof(byte), typeof(CityMarker),
+            new PropertyMetadata((byte)0));
+
+    // 도서관 클릭 이벤트
+    public static readonly RoutedEvent LibraryClickedEvent =
+        EventManager.RegisterRoutedEvent(nameof(LibraryClicked), RoutingStrategy.Bubble,
+            typeof(RoutedEventHandler), typeof(CityMarker));
+
+    public event RoutedEventHandler LibraryClicked
+    {
+        add => AddHandler(LibraryClickedEvent, value);
+        remove => RemoveHandler(LibraryClickedEvent, value);
+    }
 
     public double X
     {
@@ -114,6 +132,12 @@ public class CityMarker : Control, INotifyPropertyChanged
         set => SetValue(HasLibraryProperty, value);
     }
 
+    public byte CityId
+    {
+        get => (byte)GetValue(CityIdProperty);
+        set => SetValue(CityIdProperty, value);
+    }
+
     public string LatitudeDisplay
     {
         get
@@ -163,7 +187,7 @@ public class CityMarker : Control, INotifyPropertyChanged
     {
     }
 
-    public CityMarker(double x, double y, string cityName = "", int? latitude = null, int? longitude = null, bool hasLibrary = false, double size = AppSettings.DefaultMarkerSize)
+    public CityMarker(double x, double y, string cityName = "", int? latitude = null, int? longitude = null, bool hasLibrary = false, byte cityId = 0, double size = AppSettings.DefaultMarkerSize)
     {
         X = x;
         Y = y;
@@ -171,12 +195,32 @@ public class CityMarker : Control, INotifyPropertyChanged
         Latitude = latitude;
         Longitude = longitude;
         HasLibrary = hasLibrary;
+        CityId = cityId;
         MarkerSize = size;
         Width = size;
         Height = size;
 
         Canvas.SetLeft(this, x - size / 2);
         Canvas.SetTop(this, y - size / 2);
+    }
+
+    public override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+
+        if (GetTemplateChild(PART_LibraryButton) is Button libraryButton)
+        {
+            libraryButton.Click += (s, e) =>
+            {
+                e.Handled = true;
+                RaiseLibraryClicked();
+            };
+        }
+    }
+
+    public void RaiseLibraryClicked()
+    {
+        RaiseEvent(new RoutedEventArgs(LibraryClickedEvent, this));
     }
 
     private static void OnPositionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

@@ -8,30 +8,63 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type units:CityMarker}">
-                    <Canvas>
-                        <Border Background="DodgerBlue"
-                                BorderBrush="DarkBlue"
+                    <Canvas Background="Transparent"
+                            DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}">
+                        <Border x:Name="PART_MainBorder"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Width="{TemplateBinding MarkerSize}"
-                                Height="{TemplateBinding MarkerSize}" />
+                                Height="{TemplateBinding MarkerSize}"
+                                Cursor="Hand">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="DodgerBlue" />
+                                    <Setter Property="BorderBrush" Value="DarkBlue" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="Yellow" />
+                                            <Setter Property="BorderBrush" Value="Red" />
+                                            <Setter Property="BorderThickness" Value="3" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
 
-                        <Border Background="Orange"
-                                BorderBrush="DarkOrange"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Width="12"
-                                Height="12"
+                        <Button x:Name="PART_LibraryButton"
                                 Canvas.Left="4"
                                 Canvas.Top="-8"
+                                Width="12"
+                                Height="12"
+                                Cursor="Hand"
+                                Command="{Binding LibraryClickCommand}"
                                 Visibility="{Binding HasLibrary, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="&#46020;"
-                                       FontSize="8"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Border>
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="LibraryBorder"
+                                            Background="Orange"
+                                            BorderBrush="DarkOrange"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <TextBlock Text="&#46020;"
+                                                   FontSize="8"
+                                                   FontWeight="Bold"
+                                                   Foreground="White"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="LibraryBorder" Property="Background" Value="Gold" />
+                                            <Setter TargetName="LibraryBorder" Property="BorderBrush" Value="DarkGoldenrod" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="LibraryBorder" Property="Background" Value="DarkOrange" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
 
                         <TextBlock Text="{Binding DisplayText, RelativeSource={RelativeSource TemplatedParent}}"
                                    FontSize="10"

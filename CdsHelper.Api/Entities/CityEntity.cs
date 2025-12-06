@@ -27,4 +27,7 @@ public class CityEntity
     public int? PixelX { get; set; }
 
     public int? PixelY { get; set; }
+
+    // Navigation property
+    public ICollection<BookCityEntity> BookCities { get; set; } = new List<BookCityEntity>();
 }

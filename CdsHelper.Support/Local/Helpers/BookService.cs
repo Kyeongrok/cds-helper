@@ -1,11 +1,60 @@
 using System.IO;
 using System.Text.Json;
+using CdsHelper.Api.Controllers;
+using CdsHelper.Api.Entities;
+using CdsHelper.Api.Migrations;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Support.Local.Helpers;
 
 public class BookService
 {
+    private BookController? _controller;
+    private CityController? _cityController;
+    private List<Book> _cachedBooks = new();
+    private bool _initialized;
+
+    public async Task InitializeAsync(string dbPath, string? jsonPath = null)
+    {
+        if (_initialized) return;
+
+        _controller = BookController.Create(dbPath);
+        _cityController = CityController.Create(dbPath);
+
+        // JSON 파일이 있으면 마이그레이션 시도
+        if (!string.IsNullOrEmpty(jsonPath) && File.Exists(jsonPath))
+        {
+            await DataMigrator.MigrateBooksFromJsonAsync(_controller, _cityController, jsonPath);
+        }
+
+        // 캐시 로드
+        await RefreshCacheAsync();
+        _initialized = true;
+    }
+
+    private async Task RefreshCacheAsync()
+    {
+        if (_controller == null) return;
+
+        var entities = await _controller.GetAllBooksAsync();
+        _cachedBooks = entities.Select(ToModel).ToList();
+    }
+
+    /// <summary>
+    /// 도시 ID로 해당 도서관의 책 목록 조회
+    /// </summary>
+    public async Task<List<Book>> GetBooksByCityIdAsync(byte cityId)
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
+
+        var entities = await _controller.GetBooksByCityIdAsync(cityId);
+        return entities.Select(ToModel).ToList();
+    }
+
+    /// <summary>
+    /// 모든 책 로드 (기존 호환성 - JSON)
+    /// </summary>
     public List<Book> LoadBooks(string filePath)
     {
         if (!File.Exists(filePath))
@@ -19,6 +68,29 @@ public class BookService
         return books ?? new List<Book>();
     }
 
+    /// <summary>
+    /// DB에서 모든 책 로드
+    /// </summary>
+    public async Task<List<Book>> LoadBooksFromDbAsync()
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
+
+        var entities = await _controller.GetAllBooksAsync();
+        return entities.Select(ToModel).ToList();
+    }
+
+    /// <summary>
+    /// 캐시된 책 목록 반환
+    /// </summary>
+    public List<Book> GetCachedBooks()
+    {
+        return _cachedBooks;
+    }
+
+    /// <summary>
+    /// 필터링 (기존 호환성 - 메모리)
+    /// </summary>
     public List<Book> Filter(
         IEnumerable<Book> books,
         string? nameSearch = null,
@@ -29,31 +101,27 @@ public class BookService
     {
         var filtered = books.AsEnumerable();
 
-        // 도서명 검색
         if (!string.IsNullOrWhiteSpace(nameSearch))
         {
             filtered = filtered.Where(b => b.Name.Contains(nameSearch, StringComparison.OrdinalIgnoreCase));
         }
 
-        // 소재 도서관 검색
         if (!string.IsNullOrWhiteSpace(librarySearch))
         {
-            filtered = filtered.Where(b => b.Library.Contains(librarySearch, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(b => b.LibraryCityNames.Any(cn =>
+                cn.Contains(librarySearch, StringComparison.OrdinalIgnoreCase)));
         }
 
-        // 게제 힌트 검색
         if (!string.IsNullOrWhiteSpace(hintSearch))
         {
             filtered = filtered.Where(b => b.Hint.Contains(hintSearch, StringComparison.OrdinalIgnoreCase));
         }
 
-        // 언어 필터
         if (!string.IsNullOrWhiteSpace(language))
         {
             filtered = filtered.Where(b => b.Language.Equals(language, StringComparison.OrdinalIgnoreCase));
         }
 
-        // 필요 스킬 필터
         if (!string.IsNullOrWhiteSpace(requiredSkill))
         {
             filtered = filtered.Where(b => b.Required.Equals(requiredSkill, StringComparison.OrdinalIgnoreCase));
@@ -62,6 +130,46 @@ public class BookService
         return filtered.ToList();
     }
 
+    /// <summary>
+    /// DB에서 필터링
+    /// </summary>
+    public async Task<List<Book>> FilterFromDbAsync(
+        string? nameSearch = null,
+        string? language = null,
+        string? requiredSkill = null)
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
+
+        var entities = await _controller.GetBooksByFilterAsync(nameSearch, language, requiredSkill);
+        return entities.Select(ToModel).ToList();
+    }
+
+    /// <summary>
+    /// 언어 목록 (DB)
+    /// </summary>
+    public async Task<List<string>> GetDistinctLanguagesFromDbAsync()
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
+
+        return await _controller.GetLanguagesAsync();
+    }
+
+    /// <summary>
+    /// 필요 스킬 목록 (DB)
+    /// </summary>
+    public async Task<List<string>> GetDistinctRequiredSkillsFromDbAsync()
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
+
+        return await _controller.GetRequiredSkillsAsync();
+    }
+
+    /// <summary>
+    /// 언어 목록 (기존 호환성 - 메모리)
+    /// </summary>
     public List<string> GetDistinctLanguages(IEnumerable<Book> books)
     {
         return books
@@ -72,6 +180,9 @@ public class BookService
             .ToList();
     }
 
+    /// <summary>
+    /// 필요 스킬 목록 (기존 호환성 - 메모리)
+    /// </summary>
     public List<string> GetDistinctRequiredSkills(IEnumerable<Book> books)
     {
         return books
@@ -80,5 +191,23 @@ public class BookService
             .Distinct()
             .OrderBy(r => r)
             .ToList();
+    }
+
+    /// <summary>
+    /// Entity -> Model 변환
+    /// </summary>
+    private static Book ToModel(BookEntity entity)
+    {
+        return new Book
+        {
+            Id = entity.Id,
+            Name = entity.Name,
+            Language = entity.Language,
+            Hint = entity.Hint,
+            Required = entity.Required,
+            Condition = entity.Condition,
+            LibraryCityIds = entity.BookCities?.Select(bc => bc.CityId).ToList() ?? new List<byte>(),
+            LibraryCityNames = entity.BookCities?.Select(bc => bc.City?.Name ?? "").Where(n => !string.IsNullOrEmpty(n)).ToList() ?? new List<string>()
+        };
     }
 }
