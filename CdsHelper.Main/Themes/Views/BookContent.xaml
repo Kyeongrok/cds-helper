@@ -38,11 +38,15 @@
 
                             <Button Content="필터 초기화" Width="100" Height="30" Margin="10,0,0,0"
                                     Command="{Binding ResetBookFilterCommand}" />
+
+                            <Button Content="도서관 매핑" Width="100" Height="30" Margin="10,0,0,0"
+                                    Command="{Binding EditLibraryMappingCommand}" />
                         </WrapPanel>
 
                         <!-- 도서 데이터 그리드 -->
                         <DataGrid Grid.Row="1"
                                   ItemsSource="{Binding Books}"
+                                  SelectedItem="{Binding SelectedBook}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Margin="10"

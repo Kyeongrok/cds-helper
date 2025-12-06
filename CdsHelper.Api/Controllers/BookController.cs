@@ -102,4 +102,9 @@ public class BookController
     {
         return await _repository.HasAnyDataAsync();
     }
+
+    public async Task UpdateBookCitiesAsync(int bookId, List<byte> cityIds)
+    {
+        await _repository.UpdateBookCitiesAsync(bookId, cityIds);
+    }
 }

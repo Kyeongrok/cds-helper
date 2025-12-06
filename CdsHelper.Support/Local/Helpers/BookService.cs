@@ -194,6 +194,17 @@ public class BookService
     }
 
     /// <summary>
+    /// 도서-도시 매핑 업데이트
+    /// </summary>
+    public async Task UpdateBookCitiesAsync(int bookId, List<byte> cityIds)
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
+
+        await _controller.UpdateBookCitiesAsync(bookId, cityIds);
+    }
+
+    /// <summary>
     /// Entity -> Model 변환
     /// </summary>
     private static Book ToModel(BookEntity entity)
