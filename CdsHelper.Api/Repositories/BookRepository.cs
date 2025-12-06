@@ -94,6 +94,25 @@ public class BookRepository : IBookRepository
         await _context.SaveChangesAsync();
     }
 
+    public async Task UpdateBookCitiesAsync(int bookId, List<byte> cityIds)
+    {
+        // 기존 매핑 삭제
+        var existingMappings = await _context.BookCities
+            .Where(bc => bc.BookId == bookId)
+            .ToListAsync();
+        _context.BookCities.RemoveRange(existingMappings);
+
+        // 새 매핑 추가
+        var newMappings = cityIds.Select(cityId => new BookCityEntity
+        {
+            BookId = bookId,
+            CityId = cityId
+        });
+        await _context.BookCities.AddRangeAsync(newMappings);
+
+        await _context.SaveChangesAsync();
+    }
+
     public async Task<bool> HasAnyDataAsync()
     {
         return await _context.Books.AnyAsync();

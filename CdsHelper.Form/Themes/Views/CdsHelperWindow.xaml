@@ -29,7 +29,7 @@
 
                             <!-- 도서 탭 -->
                             <TabItem Header="도서">
-                                <main:BookContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
+                                <main:BookContent />
                             </TabItem>
 
                             <!-- 도시 탭 -->

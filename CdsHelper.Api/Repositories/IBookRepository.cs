@@ -15,6 +15,7 @@ public interface IBookRepository
     Task AddRangeAsync(IEnumerable<BookEntity> books);
     Task AddBookCityAsync(int bookId, byte cityId);
     Task AddBookCitiesAsync(IEnumerable<BookCityEntity> bookCities);
+    Task UpdateBookCitiesAsync(int bookId, List<byte> cityIds);
     Task<bool> HasAnyDataAsync();
     Task<List<string>> GetDistinctLanguagesAsync();
     Task<List<string>> GetDistinctRequiredSkillsAsync();
