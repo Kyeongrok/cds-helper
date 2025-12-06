@@ -7,4 +7,12 @@
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Prism.Core" Version="9.0.537" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\CdsHelper.Support\CdsHelper.Support.csproj" />
+    </ItemGroup>
+
 </Project>

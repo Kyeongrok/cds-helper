@@ -19,6 +19,8 @@
                             <Button x:Name="PART_BtnZoomIn" Content="확대 +" Width="60" Height="30" Margin="20,0,5,0" />
                             <Button x:Name="PART_BtnZoomOut" Content="축소 -" Width="60" Height="30" Margin="5,0,5,0" />
                             <Button x:Name="PART_BtnZoomReset" Content="원본" Width="60" Height="30" Margin="5,0,0,0" />
+                            <CheckBox x:Name="PART_ChkShowCityLabels" Content="도시명 표시"
+                                      VerticalAlignment="Center" Margin="20,0,0,0" IsChecked="False" />
                             <TextBlock x:Name="PART_TxtMapCoordinates" Text="좌표: -" VerticalAlignment="Center"
                                        Margin="20,0,0,0" FontFamily="Consolas" />
                         </StackPanel>
@@ -27,18 +29,20 @@
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Auto"
                                       Margin="10" x:Name="PART_MapScrollViewer">
-                            <Grid>
+                            <Grid HorizontalAlignment="Left" VerticalAlignment="Top">
                                 <Image x:Name="PART_ImgMap"
                                        Stretch="None"
                                        RenderTransformOrigin="0,0">
-                                    <Image.RenderTransform>
-                                        <ScaleTransform x:Name="PART_MapScaleTransform" ScaleX="0.3" ScaleY="0.3" />
-                                    </Image.RenderTransform>
+                                    <Image.LayoutTransform>
+                                        <ScaleTransform x:Name="PART_MapScaleTransform" ScaleX="1" ScaleY="1" />
+                                    </Image.LayoutTransform>
                                 </Image>
-                                <Canvas x:Name="PART_MapCanvas" RenderTransformOrigin="0,0">
-                                    <Canvas.RenderTransform>
-                                        <ScaleTransform x:Name="PART_CanvasScaleTransform" ScaleX="0.3" ScaleY="0.3" />
-                                    </Canvas.RenderTransform>
+                                <Canvas x:Name="PART_MapCanvas"
+                                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                                        IsHitTestVisible="False">
+                                    <Canvas.LayoutTransform>
+                                        <ScaleTransform x:Name="PART_CanvasScaleTransform" ScaleX="1" ScaleY="1" />
+                                    </Canvas.LayoutTransform>
                                 </Canvas>
                             </Grid>
                         </ScrollViewer>

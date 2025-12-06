@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using CdsHelper.Main.UI.ViewModels;
+using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Main.UI.Views;
 
@@ -11,6 +13,7 @@ public class MapContent : ContentControl
     private Button? _btnZoomIn;
     private Button? _btnZoomOut;
     private Button? _btnZoomReset;
+    private CheckBox? _chkShowCityLabels;
     private TextBlock? _txtMapCoordinates;
     private ScrollViewer? _mapScrollViewer;
     private Image? _imgMap;
@@ -26,6 +29,8 @@ public class MapContent : ContentControl
     private bool _isDragging;
     private Point _lastMousePosition;
 
+    private MapContentViewModel? _viewModel;
+
     static MapContent()
     {
         DefaultStyleKeyProperty.OverrideMetadata(
@@ -37,10 +42,14 @@ public class MapContent : ContentControl
     {
         base.OnApplyTemplate();
 
+        // ViewModel 초기화
+        _viewModel = new MapContentViewModel(new CityService());
+
         // 지도 컨트롤 찾기
         _btnZoomIn = GetTemplateChild("PART_BtnZoomIn") as Button;
         _btnZoomOut = GetTemplateChild("PART_BtnZoomOut") as Button;
         _btnZoomReset = GetTemplateChild("PART_BtnZoomReset") as Button;
+        _chkShowCityLabels = GetTemplateChild("PART_ChkShowCityLabels") as CheckBox;
         _txtMapCoordinates = GetTemplateChild("PART_TxtMapCoordinates") as TextBlock;
         _mapScrollViewer = GetTemplateChild("PART_MapScrollViewer") as ScrollViewer;
         _imgMap = GetTemplateChild("PART_ImgMap") as Image;
@@ -57,6 +66,11 @@ public class MapContent : ContentControl
 
         if (_btnZoomReset != null)
             _btnZoomReset.Click += (s, e) => ZoomReset();
+
+        if (_chkShowCityLabels != null)
+            _chkShowCityLabels.Checked += (s, e) => OnShowCityLabelsChanged(true);
+        if (_chkShowCityLabels != null)
+            _chkShowCityLabels.Unchecked += (s, e) => OnShowCityLabelsChanged(false);
 
         if (_mapScrollViewer != null)
         {
@@ -75,6 +89,8 @@ public class MapContent : ContentControl
 
         // 지도 이미지 로드
         LoadMapImage();
+        // 도시 마커 로드
+        LoadCityMarkers();
     }
 
     private void LoadMapImage()
@@ -94,8 +110,30 @@ public class MapContent : ContentControl
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
                 _imgMap.Source = bitmap;
+
+                // Canvas 크기를 이미지 크기에 맞춤
+                if (_mapCanvas != null)
+                {
+                    _mapCanvas.Width = bitmap.PixelWidth;
+                    _mapCanvas.Height = bitmap.PixelHeight;
+                }
             }
             catch { }
+        }
+    }
+
+    private void LoadCityMarkers()
+    {
+        if (_mapCanvas == null || _viewModel == null) return;
+
+        try
+        {
+            var cities = _viewModel.GetCitiesWithCoordinates();
+            MapMarkerHelper.AddCityMarkers(_mapCanvas, cities);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoadCityMarkers] Error: {ex.Message}");
         }
     }
 
@@ -229,5 +267,11 @@ public class MapContent : ContentControl
     {
         if (_txtMapCoordinates != null)
             _txtMapCoordinates.Text = "좌표: -";
+    }
+
+    private void OnShowCityLabelsChanged(bool showLabels)
+    {
+        if (_mapCanvas == null) return;
+        MapMarkerHelper.SetLabelsVisibility(_mapCanvas, showLabels);
     }
 }
