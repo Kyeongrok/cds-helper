@@ -7,7 +7,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type views:SettingsDialog}">
-                    <Grid Background="{TemplateBinding Background}" Margin="20">
+                    <Border Background="{TemplateBinding Background}" Padding="20">
+                    <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -40,6 +41,7 @@
                             <Button x:Name="PART_CancelButton" Content="취소" Width="80" Height="30" IsCancel="True" />
                         </StackPanel>
                     </Grid>
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

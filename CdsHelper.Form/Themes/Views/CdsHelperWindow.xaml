@@ -4,6 +4,7 @@
                     xmlns:main="clr-namespace:CdsHelper.Main.UI.Views;assembly=CdsHelper.Main">
 
     <Style TargetType="{x:Type views:CdsHelperWindow}">
+        <Setter Property="Title" Value="{Binding WindowTitle}" />
         <Setter Property="Background" Value="Azure" />
         <Setter Property="Template">
             <Setter.Value>

@@ -3,12 +3,13 @@
                     xmlns:views="clr-namespace:CdsHelper.Form.UI.Views">
 
     <Style TargetType="{x:Type views:EditCityPixelDialog}">
-        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Background" Value="Azure"/>
         <Setter Property="Foreground" Value="Azure" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type views:EditCityPixelDialog}">
-                    <Grid Margin="10" Background="Azure">
+                    <Border Background="{TemplateBinding Background}" Padding="10">
+                    <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -76,6 +77,7 @@
                             <Button x:Name="PART_CancelButton" Content="취소" Width="80" Height="30" IsCancel="True" />
                         </StackPanel>
                     </Grid>
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
