@@ -1,16 +1,20 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 using System.Windows;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Form.UI.Views;
 using CdsHelper.Support.Local.Helpers;
-using Prism.DryIoc;
-using Prism.Ioc;
 
 namespace cds_helper;
 
-public partial class App : PrismApplication
+internal class App : PrismApplication
 {
+    protected override Window CreateShell()
+    {
+        return Container.Resolve<CdsHelperWindow>();
+    }
+
+
     protected override void OnStartup(StartupEventArgs e)
     {
         // EUC-KR 인코딩 지원 등록
@@ -31,11 +35,6 @@ public partial class App : PrismApplication
         var bookService = Container.Resolve<BookService>();
         var booksJsonPath = Path.Combine(basePath, "books.json");
         Task.Run(() => bookService.InitializeAsync(dbPath, booksJsonPath)).GetAwaiter().GetResult();
-    }
-
-    protected override Window CreateShell()
-    {
-        return Container.Resolve<CdsHelperWindow>();
     }
 
     protected override void RegisterTypes(IContainerRegistry containerRegistry)

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# 
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cds-helper", "cds-helper\cds-helper.csproj", "{D6C87712-87D6-4AE0-9196-9540107B9B4D}"
+#
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper", "CdsHelper\CdsHelper.csproj", "{D6C87712-87D6-4AE0-9196-9540107B9B4D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper.Form", "CdsHelper.Form\CdsHelper.Form.csproj", "{6FBFA1F9-5E85-4761-8FD6-140BFB2C2B40}"
 EndProject
