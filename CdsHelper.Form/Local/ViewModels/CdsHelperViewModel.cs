@@ -95,7 +95,7 @@ public class CdsHelperViewModel : BindableBase
         set { SetProperty(ref _filterBySkill, value); ApplyCharacterFilter(); }
     }
 
-    private int _selectedSkillIndex = 1;
+    private int _selectedSkillIndex = 0;
     public int SelectedSkillIndex
     {
         get => _selectedSkillIndex;
@@ -108,6 +108,9 @@ public class CdsHelperViewModel : BindableBase
         get => _selectedSkillLevel;
         set { SetProperty(ref _selectedSkillLevel, value); if (FilterBySkill) ApplyCharacterFilter(); }
     }
+
+    public List<string> SkillNames { get; } = CharacterService.SkillNames.Values.ToList();
+    public List<byte> SkillLevels { get; } = new() { 1, 2, 3, 4, 5 };
 
     #endregion
 
@@ -552,7 +555,7 @@ public class CdsHelperViewModel : BindableBase
             _allCharacters,
             ShowGrayCharacters,
             string.IsNullOrWhiteSpace(CharacterNameSearch) ? null : CharacterNameSearch,
-            FilterBySkill ? SelectedSkillIndex : null,
+            FilterBySkill ? SelectedSkillIndex + 1 : null,
             FilterBySkill ? SelectedSkillLevel : null);
 
         Characters = new ObservableCollection<CharacterData>(filtered);
