@@ -7,7 +7,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type views:LibraryBooksDialog}">
-                    <Grid Background="{TemplateBinding Background}" Margin="10">
+                    <Border Background="{TemplateBinding Background}" Padding="10">
+                    <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -39,6 +40,7 @@
                             <Button x:Name="PART_CloseButton" Content="닫기" Width="80" Height="30" />
                         </StackPanel>
                     </Grid>
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
