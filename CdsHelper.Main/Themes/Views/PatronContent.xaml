@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:views="clr-namespace:CdsHelper.Main.UI.Views">
+                    xmlns:views="clr-namespace:CdsHelper.Main.UI.Views"
+                    xmlns:units="clr-namespace:CdsHelper.Support.UI.Units;assembly=CdsHelper.Support">
 
     <Style TargetType="{x:Type views:PatronContent}">
         <Setter Property="Template">
@@ -35,24 +36,36 @@
                         </WrapPanel>
 
                         <!-- 후원자 데이터 그리드 -->
-                        <DataGrid Grid.Row="1"
+                        <units:CdsDataGrid Grid.Row="1"
                                   ItemsSource="{Binding Patrons}"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
                                   Margin="10">
-                            <DataGrid.RowStyle>
-                                <Style TargetType="DataGridRow">
+                            <units:CdsDataGrid.RowStyle>
+                                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                    <Setter Property="Background" Value="White"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding StatusDisplay}" Value="은퇴">
-                                            <Setter Property="Background" Value="LightGray" />
+                                            <Setter Property="Background" Value="#E0E0E0" />
+                                            <Setter Property="Foreground" Value="#888888" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding StatusDisplay}" Value="활동중">
-                                            <Setter Property="Background" Value="LightGreen" />
+                                            <Setter Property="Background" Value="#E8F5E9" />
                                         </DataTrigger>
+                                        <MultiTrigger>
+                                            <MultiTrigger.Conditions>
+                                                <Condition Property="IsMouseOver" Value="True"/>
+                                                <Condition Property="IsSelected" Value="False"/>
+                                            </MultiTrigger.Conditions>
+                                            <Setter Property="Background" Value="#E8F4FC"/>
+                                        </MultiTrigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#104F89"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </Trigger>
                                     </Style.Triggers>
                                 </Style>
-                            </DataGrid.RowStyle>
-                            <DataGrid.Columns>
+                            </units:CdsDataGrid.RowStyle>
+                            <units:CdsDataGrid.Columns>
                                 <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="40" />
                                 <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="150" />
                                 <DataGridTextColumn Header="국적" Binding="{Binding Nationality}" Width="130" />
@@ -67,8 +80,8 @@
                                 <DataGridTextColumn Header="재력" Binding="{Binding Wealth}" Width="90" />
                                 <DataGridTextColumn Header="권력" Binding="{Binding Power}" Width="50" />
                                 <DataGridTextColumn Header="비고" Binding="{Binding Note}" Width="*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
+                            </units:CdsDataGrid.Columns>
+                        </units:CdsDataGrid>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>

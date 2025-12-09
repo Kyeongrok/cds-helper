@@ -38,14 +38,11 @@
                         </WrapPanel>
 
                         <!-- 도시 데이터 그리드 -->
-                        <DataGrid Grid.Row="1"
+                        <units:CdsDataGrid Grid.Row="1"
                                   ItemsSource="{Binding Cities}"
                                   SelectedItem="{Binding SelectedCity}"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  Margin="10"
-                                  AlternatingRowBackground="LightGray">
-                            <DataGrid.Columns>
+                                  Margin="10">
+                            <units:CdsDataGrid.Columns>
                                 <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" />
                                 <DataGridTextColumn Header="도시명" Binding="{Binding Name}" Width="150" />
                                 <DataGridTextColumn Header="문화권" Binding="{Binding CulturalSphere}" Width="120" />
@@ -59,13 +56,13 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="수정"
-                                                    Command="{Binding DataContext.EditCityPixelCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    Command="{Binding DataContext.EditCityPixelCommand, RelativeSource={RelativeSource AncestorType=units:CdsDataGrid}}"
                                                     CommandParameter="{Binding}" />
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                            </units:CdsDataGrid.Columns>
+                        </units:CdsDataGrid>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
