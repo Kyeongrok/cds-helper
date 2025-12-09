@@ -2,12 +2,13 @@ using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Main.UI.Views;
+using CdsHelper.Support.UI.Units;
 
 namespace CdsHelper.Form.UI.Views;
 
 [TemplatePart(Name = PART_SettingsMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
-public class CdsHelperWindow : Window
+public class CdsHelperWindow : CdsWindow
 {
     private const string PART_SettingsMenu = "PART_SettingsMenu";
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
