@@ -195,6 +195,44 @@ public class CdsHelperViewModel : BindableBase
         set => SetProperty(ref _selectedCity, value);
     }
 
+    private bool _groupByCulturalSphere;
+    public bool GroupByCulturalSphere
+    {
+        get => _groupByCulturalSphere;
+        set { SetProperty(ref _groupByCulturalSphere, value); UpdateCityGrouping(); }
+    }
+
+    private bool _groupByLibrary;
+    public bool GroupByLibrary
+    {
+        get => _groupByLibrary;
+        set { SetProperty(ref _groupByLibrary, value); UpdateCityGrouping(); }
+    }
+
+    private string? _cityGroupPropertyNames;
+    public string? CityGroupPropertyNames
+    {
+        get => _cityGroupPropertyNames;
+        private set => SetProperty(ref _cityGroupPropertyNames, value);
+    }
+
+    private bool _isCityGroupingEnabled;
+    public bool IsCityGroupingEnabled
+    {
+        get => _isCityGroupingEnabled;
+        private set => SetProperty(ref _isCityGroupingEnabled, value);
+    }
+
+    private void UpdateCityGrouping()
+    {
+        var props = new List<string>();
+        if (GroupByCulturalSphere) props.Add("CulturalSphere");
+        if (GroupByLibrary) props.Add("HasLibraryDisplay");
+
+        CityGroupPropertyNames = props.Count > 0 ? string.Join(",", props) : null;
+        IsCityGroupingEnabled = props.Count > 0;
+    }
+
     #endregion
 
     #region Patron Filter Properties

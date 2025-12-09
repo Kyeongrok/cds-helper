@@ -30,6 +30,12 @@
                             <CheckBox Content="조선소 있는 도시만" VerticalAlignment="Center" Margin="10,0,10,0"
                                       IsChecked="{Binding ShipyardOnly}" />
 
+                            <CheckBox Content="문화권 그룹핑" VerticalAlignment="Center" Margin="10,0,10,0"
+                                      IsChecked="{Binding GroupByCulturalSphere}" />
+
+                            <CheckBox Content="도서관 유무 그룹핑" VerticalAlignment="Center" Margin="10,0,10,0"
+                                      IsChecked="{Binding GroupByLibrary}" />
+
                             <Button Content="필터 초기화" Width="100" Height="30" Margin="10,0,0,0"
                                     Command="{Binding ResetCityFilterCommand}" />
 
@@ -41,7 +47,9 @@
                         <units:CdsDataGrid Grid.Row="1"
                                   ItemsSource="{Binding Cities}"
                                   SelectedItem="{Binding SelectedCity}"
-                                  Margin="10">
+                                  Margin="10"
+                                  IsGroupingEnabled="{Binding IsCityGroupingEnabled}"
+                                  GroupPropertyNames="{Binding CityGroupPropertyNames}">
                             <units:CdsDataGrid.Columns>
                                 <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" />
                                 <DataGridTextColumn Header="도시명" Binding="{Binding Name}" Width="150" />

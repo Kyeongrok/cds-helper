@@ -56,4 +56,10 @@ public class City
             return $"{direction}{absLon}";
         }
     }
+
+    [JsonIgnore]
+    public string HasLibraryDisplay => HasLibrary ? "도서관 있음" : "도서관 없음";
+
+    [JsonIgnore]
+    public string HasShipyardDisplay => HasShipyard ? "조선소 있음" : "조선소 없음";
 }
