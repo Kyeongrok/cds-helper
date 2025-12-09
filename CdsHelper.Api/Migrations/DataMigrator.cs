@@ -48,8 +48,16 @@ public static class DataMigrator
             PixelY = c.PixelY
         }).ToList();
 
-        await controller.AddCitiesAsync(entities);
-        onMigrated?.Invoke($"Cities {entities.Count}개 마이그레이션 완료");
+        try
+        {
+            await controller.AddCitiesAsync(entities);
+            onMigrated?.Invoke($"Cities {entities.Count}개 마이그레이션 완료");
+        }
+        catch (Exception ex)
+        {
+            var innerMsg = ex.InnerException?.Message ?? "없음";
+            throw new Exception($"Cities 마이그레이션 실패.\n원인: {ex.Message}\nInner: {innerMsg}", ex);
+        }
     }
 
     /// <summary>

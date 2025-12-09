@@ -112,20 +112,35 @@ public class BookContentViewModel : BindableBase
 
     private async void Initialize()
     {
-        var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var dbPath = System.IO.Path.Combine(basePath, "cdshelper.db");
-        var booksJsonPath = System.IO.Path.Combine(basePath, "books.json");
-        var citiesJsonPath = System.IO.Path.Combine(basePath, "cities.json");
+        // App.OnStartup에서 이미 초기화됨 - 캐시된 데이터 사용
+        _allCities = _cityService.GetCachedCities();
+        _allBooks = _bookService.GetCachedBooks();
 
-        // CityService 초기화 (DB 및 JSON 마이그레이션)
-        await _cityService.InitializeAsync(dbPath, citiesJsonPath);
+        if (_allBooks.Count > 0)
+        {
+            // 캐시가 있으면 바로 사용
+            LoadFromCache();
+        }
+        else
+        {
+            // 캐시가 없으면 DB에서 로드
+            await LoadCitiesFromDbAsync();
+            await LoadBooksFromDbAsync();
+        }
+    }
 
-        // BookService 초기화 (DB 및 JSON 마이그레이션)
-        await _bookService.InitializeAsync(dbPath, booksJsonPath);
+    private void LoadFromCache()
+    {
+        Languages.Clear();
+        foreach (var lang in _bookService.GetDistinctLanguages(_allBooks))
+            Languages.Add(lang);
 
-        // DB에서 로드
-        await LoadCitiesFromDbAsync();
-        await LoadBooksFromDbAsync();
+        RequiredSkills.Clear();
+        foreach (var skill in _bookService.GetDistinctRequiredSkills(_allBooks))
+            RequiredSkills.Add(skill);
+
+        ApplyFilter();
+        StatusText = $"도서 로드 완료: {_allBooks.Count}개";
     }
 
     private async Task LoadCitiesFromDbAsync()

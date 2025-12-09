@@ -11,31 +11,13 @@ internal class App : PrismApplication
 {
     protected override Window CreateShell()
     {
+        // Shell 생성 전에 Services 초기화
+        InitializeServices();
         return Container.Resolve<CdsHelperWindow>();
     }
 
-
-    protected override void OnStartup(StartupEventArgs e)
+    private void InitializeServices()
     {
-        // 전역 예외 핸들러 등록
-        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
-        {
-            var ex = args.ExceptionObject as Exception;
-            MessageBox.Show($"UnhandledException:\n{ex?.Message}\n\n{ex?.StackTrace}", "치명적 오류", MessageBoxButton.OK, MessageBoxImage.Error);
-        };
-
-        DispatcherUnhandledException += (s, args) =>
-        {
-            MessageBox.Show($"DispatcherUnhandledException:\n{args.Exception.Message}\n\n{args.Exception.StackTrace}", "UI 오류", MessageBoxButton.OK, MessageBoxImage.Error);
-            args.Handled = true;
-        };
-
-        // EUC-KR 인코딩 지원 등록
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
-        base.OnStartup(e);
-
-        // Services 초기화
         var basePath = AppDomain.CurrentDomain.BaseDirectory;
         var dbPath = Path.Combine(basePath, "cdshelper.db");
         var isNewDb = !File.Exists(dbPath);
@@ -66,6 +48,27 @@ internal class App : PrismApplication
         {
             MessageBox.Show($"초기화 오류:\n{ex.Message}\n\n{ex.StackTrace}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        // 전역 예외 핸들러 등록
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            var ex = args.ExceptionObject as Exception;
+            MessageBox.Show($"UnhandledException:\n{ex?.Message}\n\n{ex?.StackTrace}", "치명적 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+        };
+
+        DispatcherUnhandledException += (s, args) =>
+        {
+            MessageBox.Show($"DispatcherUnhandledException:\n{args.Exception.Message}\n\n{args.Exception.StackTrace}", "UI 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            args.Handled = true;
+        };
+
+        // EUC-KR 인코딩 지원 등록
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+        base.OnStartup(e);
     }
 
     protected override void RegisterTypes(IContainerRegistry containerRegistry)
