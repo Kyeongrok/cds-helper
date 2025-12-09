@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "id": 0,
     "name": "리스본",
@@ -1647,7 +1647,7 @@
     "pixelX": 5367,
     "pixelY": 1398,
     "hasShipyard": false,
-    "culturalSphere": null
+    "culturalSphere": "인도"
   },
   {
     "id": 150,
@@ -1740,6 +1740,8 @@
   {
     "id": 158,
     "name": "아바",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": 5833,
     "pixelY": 1637,
@@ -1749,6 +1751,8 @@
   {
     "id": 159,
     "name": "페구",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": 5858,
     "pixelY": 1383,
@@ -1758,6 +1762,8 @@
   {
     "id": 160,
     "name": "말라카",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": 6014,
     "pixelY": 1722,
@@ -1767,6 +1773,8 @@
   {
     "id": 161,
     "name": "리콜",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": null,
     "pixelY": null,
@@ -1776,6 +1784,8 @@
   {
     "id": 162,
     "name": "아유타야",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": 5945,
     "pixelY": 1460,
@@ -1785,6 +1795,8 @@
   {
     "id": 163,
     "name": "프놈펜",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": 6051,
     "pixelY": 1538,
@@ -1794,6 +1806,8 @@
   {
     "id": 164,
     "name": "유에",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": 5962,
     "pixelY": 1695,
@@ -1802,7 +1816,9 @@
   },
   {
     "id": 165,
-    "name": "교토",
+    "name": "교도",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": true,
     "pixelX": 6709,
     "pixelY": 1002,
@@ -1933,6 +1949,8 @@
   {
     "id": 177,
     "name": "함주",
+    "latitude": null,
+    "longitude": null,
     "hasLibrary": false,
     "pixelX": null,
     "pixelY": null,
@@ -1956,8 +1974,8 @@
     "latitude": 30,
     "longitude": 113,
     "hasLibrary": false,
-    "pixelX": 6222,
-    "pixelY": 1082,
+    "pixelX": 6246,
+    "pixelY": 1095,
     "hasShipyard": false,
     "culturalSphere": "중국"
   },
@@ -2099,8 +2117,8 @@
     "latitude": 34,
     "longitude": 135,
     "hasLibrary": false,
-    "pixelX": 6713,
-    "pixelY": 991,
+    "pixelX": 6710,
+    "pixelY": 1001,
     "hasShipyard": false,
     "culturalSphere": "일본"
   },
@@ -2110,8 +2128,8 @@
     "latitude": 34,
     "longitude": 135,
     "hasLibrary": false,
-    "pixelX": 6713,
-    "pixelY": 991,
+    "pixelX": 6717,
+    "pixelY": 987,
     "hasShipyard": false,
     "culturalSphere": "일본"
   },
