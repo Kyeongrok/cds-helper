@@ -239,6 +239,38 @@ public class CityService
     }
 
     /// <summary>
+    /// DB의 도시 정보를 JSON 파일로 저장
+    /// </summary>
+    public async Task ExportToJsonAsync(string jsonPath)
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("CityService가 초기화되지 않았습니다.");
+
+        var entities = await _controller.GetAllCitiesAsync();
+        var jsonData = entities.Select(e => new
+        {
+            id = (int)e.Id,
+            name = e.Name,
+            latitude = e.Latitude,
+            longitude = e.Longitude,
+            hasLibrary = e.HasLibrary,
+            pixelX = e.PixelX,
+            pixelY = e.PixelY,
+            hasShipyard = e.HasShipyard,
+            culturalSphere = e.CulturalSphere
+        }).ToList();
+
+        var options = new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(jsonData, options);
+        await File.WriteAllTextAsync(jsonPath, json, System.Text.Encoding.UTF8);
+    }
+
+    /// <summary>
     /// Entity -> Model 변환
     /// </summary>
     private static City ToModel(CityEntity entity)

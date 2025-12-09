@@ -31,6 +31,10 @@
 
                             <Button Content="필터 초기화" Width="100" Height="30" Margin="10,0,0,0"
                                     Command="{Binding ResetCityFilterCommand}" />
+
+                            <Button Content="데이터 내보내기" Width="100" Height="30" Margin="10,0,0,0"
+                                    Command="{Binding ExportCitiesToJsonCommand}"
+                                    BorderBrush="DodgerBlue" BorderThickness="2" />
                         </WrapPanel>
 
                         <!-- 도시 데이터 그리드 -->

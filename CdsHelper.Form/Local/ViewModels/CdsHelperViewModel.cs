@@ -322,6 +322,7 @@ public class CdsHelperViewModel : BindableBase
     public ICommand ResetFigureheadFilterCommand { get; }
     public ICommand ResetItemFilterCommand { get; }
     public ICommand EditCityPixelCommand { get; }
+    public ICommand ExportCitiesToJsonCommand { get; }
 
     #endregion
 
@@ -349,6 +350,7 @@ public class CdsHelperViewModel : BindableBase
         ResetFigureheadFilterCommand = new DelegateCommand(ResetFigureheadFilter);
         ResetItemFilterCommand = new DelegateCommand(ResetItemFilter);
         EditCityPixelCommand = new DelegateCommand<City>(EditCityPixel);
+        ExportCitiesToJsonCommand = new DelegateCommand(ExportCitiesToJson);
 
         // 앱 시작 시 데이터 로드
         Initialize();
@@ -695,6 +697,31 @@ public class CdsHelperViewModel : BindableBase
     #endregion
 
     #region City Edit Methods
+
+    private async void ExportCitiesToJson()
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "JSON 파일 (*.json)|*.json",
+            Title = "도시 정보 내보내기",
+            FileName = "cities.json"
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            await _cityService.ExportToJsonAsync(dialog.FileName);
+            StatusText = $"도시 정보 내보내기 완료: {dialog.FileName}";
+            System.Windows.MessageBox.Show($"도시 정보를 저장했습니다.\n\n{dialog.FileName}",
+                "완료", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"내보내기 실패: {ex.Message}", "오류",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
 
     private async void EditCityPixel(City? city)
     {
