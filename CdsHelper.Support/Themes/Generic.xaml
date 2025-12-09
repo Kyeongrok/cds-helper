@@ -7,5 +7,6 @@
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Views/LibraryBooksDialog.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/ExportButton.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/CdsDataGrid.xaml"/>
+        <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/CdsWindow.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
