@@ -17,17 +17,36 @@ internal class App : PrismApplication
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // 전역 예외 핸들러 등록
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            var ex = args.ExceptionObject as Exception;
+            MessageBox.Show($"UnhandledException:\n{ex?.Message}\n\n{ex?.StackTrace}", "치명적 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+        };
+
+        DispatcherUnhandledException += (s, args) =>
+        {
+            MessageBox.Show($"DispatcherUnhandledException:\n{args.Exception.Message}\n\n{args.Exception.StackTrace}", "UI 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            args.Handled = true;
+        };
+
         // EUC-KR 인코딩 지원 등록
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
         base.OnStartup(e);
 
+        // Services 초기화
+        var basePath = AppDomain.CurrentDomain.BaseDirectory;
+        var dbPath = Path.Combine(basePath, "cdshelper.db");
+        var isNewDb = !File.Exists(dbPath);
+
+        if (isNewDb)
+        {
+            MessageBox.Show($"DB 파일이 없어 새로 생성합니다.\n경로: {dbPath}", "DB 초기화", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         try
         {
-            // Services 초기화
-            var basePath = AppDomain.CurrentDomain.BaseDirectory;
-            var dbPath = Path.Combine(basePath, "cdshelper.db");
-
             // CityService 초기화
             var cityService = Container.Resolve<CityService>();
             var citiesJsonPath = Path.Combine(basePath, "cities.json");
@@ -37,6 +56,11 @@ internal class App : PrismApplication
             var bookService = Container.Resolve<BookService>();
             var booksJsonPath = Path.Combine(basePath, "books.json");
             Task.Run(() => bookService.InitializeAsync(dbPath, booksJsonPath)).GetAwaiter().GetResult();
+
+            if (isNewDb)
+            {
+                MessageBox.Show("DB 초기화가 완료되었습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
         catch (Exception ex)
         {
