@@ -8,10 +8,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Folder Include="Themes\UI\Units\" />
-    </ItemGroup>
-
-    <ItemGroup>
       <PackageReference Include="Prism.Core" Version="9.0.537" />
     </ItemGroup>
 
