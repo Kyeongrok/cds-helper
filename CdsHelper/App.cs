@@ -22,19 +22,26 @@ internal class App : PrismApplication
 
         base.OnStartup(e);
 
-        // Services 초기화
-        var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var dbPath = Path.Combine(basePath, "cds-helper.db");
+        try
+        {
+            // Services 초기화
+            var basePath = AppDomain.CurrentDomain.BaseDirectory;
+            var dbPath = Path.Combine(basePath, "cdshelper.db");
 
-        // CityService 초기화
-        var cityService = Container.Resolve<CityService>();
-        var citiesJsonPath = Path.Combine(basePath, "cities.json");
-        Task.Run(() => cityService.InitializeAsync(dbPath, citiesJsonPath)).GetAwaiter().GetResult();
+            // CityService 초기화
+            var cityService = Container.Resolve<CityService>();
+            var citiesJsonPath = Path.Combine(basePath, "cities.json");
+            Task.Run(() => cityService.InitializeAsync(dbPath, citiesJsonPath)).GetAwaiter().GetResult();
 
-        // BookService 초기화
-        var bookService = Container.Resolve<BookService>();
-        var booksJsonPath = Path.Combine(basePath, "books.json");
-        Task.Run(() => bookService.InitializeAsync(dbPath, booksJsonPath)).GetAwaiter().GetResult();
+            // BookService 초기화
+            var bookService = Container.Resolve<BookService>();
+            var booksJsonPath = Path.Combine(basePath, "books.json");
+            Task.Run(() => bookService.InitializeAsync(dbPath, booksJsonPath)).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"초기화 오류:\n{ex.Message}\n\n{ex.StackTrace}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     protected override void RegisterTypes(IContainerRegistry containerRegistry)
