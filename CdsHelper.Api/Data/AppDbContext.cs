@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<CityEntity>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever(); // JSON에서 직접 ID 지정
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.CulturalSphere).HasMaxLength(50);
         });
