@@ -129,30 +129,96 @@
                                 </MenuItem>
                             </Menu>
 
-                            <!-- TabControl -->
-                            <TabControl Grid.Row="2" Margin="5">
-                                <TabItem Header="캐릭터">
-                                    <main:CharacterContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
-                                </TabItem>
-                                <TabItem Header="도서">
-                                    <main:BookContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
-                                </TabItem>
-                                <TabItem Header="도시">
-                                    <main:CityContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
-                                </TabItem>
-                                <TabItem Header="후원자">
-                                    <main:PatronContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
-                                </TabItem>
-                                <TabItem Header="선수상">
-                                    <main:FigureheadContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
-                                </TabItem>
-                                <TabItem Header="아이템">
-                                    <main:ItemContent DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
-                                </TabItem>
-                                <TabItem Header="지도">
-                                    <main:MapContent x:Name="PART_MapContent" DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}" />
-                                </TabItem>
-                            </TabControl>
+                            <!-- 메인 컨텐츠 영역 -->
+                            <Grid Grid.Row="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 아코디언 사이드 메뉴 -->
+                                <units:AccordionControl x:Name="PART_AccordionMenu" Grid.Column="0">
+                                    <!-- 데이터 그룹 -->
+                                    <units:AccordionItem Header="데이터" IsGroup="True" IsExpanded="True">
+                                        <units:AccordionItem Header="캐릭터" Tag="Character" IsSelected="True">
+                                            <units:AccordionItem.Icon>
+                                                <Path Data="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                                                      Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                            </units:AccordionItem.Icon>
+                                            <units:AccordionItem.ItemContent>
+                                                <main:CharacterContent />
+                                            </units:AccordionItem.ItemContent>
+                                        </units:AccordionItem>
+                                        <units:AccordionItem Header="도서" Tag="Book">
+                                            <units:AccordionItem.Icon>
+                                                <Path Data="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"
+                                                      Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                            </units:AccordionItem.Icon>
+                                            <units:AccordionItem.ItemContent>
+                                                <main:BookContent />
+                                            </units:AccordionItem.ItemContent>
+                                        </units:AccordionItem>
+                                        <units:AccordionItem Header="도시" Tag="City">
+                                            <units:AccordionItem.Icon>
+                                                <Path Data="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zm-8 8H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z"
+                                                      Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                            </units:AccordionItem.Icon>
+                                            <units:AccordionItem.ItemContent>
+                                                <main:CityContent />
+                                            </units:AccordionItem.ItemContent>
+                                        </units:AccordionItem>
+                                        <units:AccordionItem Header="후원자" Tag="Patron">
+                                            <units:AccordionItem.Icon>
+                                                <Path Data="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                                                      Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                            </units:AccordionItem.Icon>
+                                            <units:AccordionItem.ItemContent>
+                                                <main:PatronContent />
+                                            </units:AccordionItem.ItemContent>
+                                        </units:AccordionItem>
+                                    </units:AccordionItem>
+
+                                    <!-- 아이템 그룹 -->
+                                    <units:AccordionItem Header="아이템" IsGroup="True" IsExpanded="True">
+                                        <units:AccordionItem Header="선수상" Tag="Figurehead">
+                                            <units:AccordionItem.Icon>
+                                                <Path Data="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"
+                                                      Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                            </units:AccordionItem.Icon>
+                                            <units:AccordionItem.ItemContent>
+                                                <main:FigureheadContent />
+                                            </units:AccordionItem.ItemContent>
+                                        </units:AccordionItem>
+                                        <units:AccordionItem Header="아이템" Tag="Item">
+                                            <units:AccordionItem.Icon>
+                                                <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"
+                                                      Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                            </units:AccordionItem.Icon>
+                                            <units:AccordionItem.ItemContent>
+                                                <main:ItemContent />
+                                            </units:AccordionItem.ItemContent>
+                                        </units:AccordionItem>
+                                    </units:AccordionItem>
+
+                                    <!-- 지도 -->
+                                    <units:AccordionItem Header="지도" Tag="Map">
+                                        <units:AccordionItem.Icon>
+                                            <Path Data="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"
+                                                  Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                        </units:AccordionItem.Icon>
+                                        <units:AccordionItem.ItemContent>
+                                            <main:MapContent x:Name="PART_MapContent" />
+                                        </units:AccordionItem.ItemContent>
+                                    </units:AccordionItem>
+                                </units:AccordionControl>
+
+                                <!-- 컨텐츠 영역 -->
+                                <Border Grid.Column="1" Background="#F5F5F5">
+                                    <ContentControl Content="{Binding SelectedContent, ElementName=PART_AccordionMenu}"
+                                                    DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}"
+                                                    Margin="5"/>
+                                </Border>
+                            </Grid>
 
                             <!-- 하단 상태바 -->
                             <StatusBar Grid.Row="3" Background="#104F89">
