@@ -2,13 +2,12 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
-using Prism.Commands;
-using Prism.Mvvm;
 
 namespace CdsHelper.Form.Local.ViewModels;
 
 public class CdsHelperViewModel : BindableBase
 {
+    private readonly IRegionManager _regionManager;
     private readonly CharacterService _characterService;
     private readonly BookService _bookService;
     private readonly CityService _cityService;
@@ -365,6 +364,7 @@ public class CdsHelperViewModel : BindableBase
     #endregion
 
     public CdsHelperViewModel(
+        IRegionManager regionManager,
         CharacterService characterService,
         BookService bookService,
         CityService cityService,
@@ -373,6 +373,7 @@ public class CdsHelperViewModel : BindableBase
         ItemService itemService,
         SaveDataService saveDataService)
     {
+        _regionManager = regionManager;
         _characterService = characterService;
         _bookService = bookService;
         _cityService = cityService;
@@ -801,6 +802,20 @@ public class CdsHelperViewModel : BindableBase
             System.Windows.MessageBox.Show($"업데이트 실패: {ex.Message}", "오류",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
+    }
+
+    #endregion
+
+    #region Region Navigation
+
+    public void NavigateToContent(string viewName)
+    {
+        if (string.IsNullOrEmpty(viewName)) return;
+        System.Diagnostics.Debug.WriteLine($"[Navigate] Requesting: {viewName}");
+        _regionManager.RequestNavigate("MainContentRegion", viewName, result =>
+        {
+            // System.Diagnostics.Debug.WriteLine($"[Navigate] Result: {result.Result}, Error: {result.Error?.Message}");
+        });
     }
 
     #endregion
