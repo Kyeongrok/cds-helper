@@ -232,18 +232,19 @@ public class CityService
             city.HasLibrary,
             city.Latitude,
             city.Longitude,
-            city.CulturalSphere);
+            city.CulturalSphere,
+            city.HasGuild);
     }
 
     /// <summary>
-    /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부 + 위도/경도 + 문화권)
+    /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부 + 위도/경도 + 문화권 + 조합)
     /// </summary>
-    public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary, int? latitude = null, int? longitude = null, string? culturalSphere = null)
+    public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary, int? latitude = null, int? longitude = null, string? culturalSphere = null, bool hasGuild = false)
     {
         if (_controller == null)
             throw new InvalidOperationException("CityService가 초기화되지 않았습니다.");
 
-        var result = await _controller.UpdateCityInfoAsync(cityId, name, pixelX, pixelY, hasLibrary, latitude, longitude, culturalSphere);
+        var result = await _controller.UpdateCityInfoAsync(cityId, name, pixelX, pixelY, hasLibrary, latitude, longitude, culturalSphere, hasGuild);
 
         // 캐시 갱신
         if (result)
@@ -273,6 +274,7 @@ public class CityService
             pixelX = e.PixelX,
             pixelY = e.PixelY,
             hasShipyard = e.HasShipyard,
+            hasGuild = e.HasGuild,
             culturalSphere = e.CulturalSphere
         }).ToList();
 
@@ -299,6 +301,7 @@ public class CityService
             Longitude = entity.Longitude,
             HasLibrary = entity.HasLibrary,
             HasShipyard = entity.HasShipyard,
+            HasGuild = entity.HasGuild,
             CulturalSphere = entity.CulturalSphere,
             PixelX = entity.PixelX,
             PixelY = entity.PixelY

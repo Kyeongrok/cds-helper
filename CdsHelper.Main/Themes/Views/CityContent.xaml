@@ -58,6 +58,7 @@
                                 <DataGridTextColumn Header="경도" Binding="{Binding LongitudeDisplay}" Width="80" />
                                 <DataGridCheckBoxColumn Header="도서관" Binding="{Binding HasLibrary}" Width="70" />
                                 <DataGridCheckBoxColumn Header="조선소" Binding="{Binding HasShipyard}" Width="70" />
+                                <DataGridCheckBoxColumn Header="조합" Binding="{Binding HasGuild}" Width="60" />
                                 <DataGridTextColumn Header="PixelX" Binding="{Binding PixelX}" Width="70" />
                                 <DataGridTextColumn Header="PixelY" Binding="{Binding PixelY}" Width="70" />
                                 <DataGridTemplateColumn Header="수정" Width="60">
