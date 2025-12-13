@@ -3,6 +3,7 @@ using System.Text;
 using System.Windows;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Form.UI.Views;
+using CdsHelper.Main.Local.ViewModels;
 using CdsHelper.Main.UI.Views;
 using CdsHelper.Support.Local.Helpers;
 
@@ -85,6 +86,7 @@ internal class App : PrismApplication
 
         // ViewModel 등록
         containerRegistry.Register<CdsHelperViewModel>();
+        containerRegistry.Register<PlayerContentViewModel>();
 
         // Navigation용 View 등록
         containerRegistry.RegisterForNavigation<CharacterContent>();
@@ -94,5 +96,6 @@ internal class App : PrismApplication
         containerRegistry.RegisterForNavigation<FigureheadContent>();
         containerRegistry.RegisterForNavigation<ItemContent>();
         containerRegistry.RegisterForNavigation<MapContent>();
+        containerRegistry.RegisterForNavigation<PlayerContent>();
     }
 }

@@ -191,4 +191,72 @@ public class SaveDataService
             return "";
         }
     }
+
+    /// <summary>
+    /// 플레이어(주인공) 데이터 읽기
+    /// </summary>
+    public PlayerData? ReadPlayerData(string filePath)
+    {
+        if (!File.Exists(filePath))
+            return null;
+
+        var data = File.ReadAllBytes(filePath);
+        if (data.Length < 0xC0)
+            return null;
+
+        var player = new PlayerData();
+
+        // 이름 (0x5F: 이름, 0x72: 성)
+        try
+        {
+            var firstName = ReadString(new ArraySegment<byte>(data, 0x5F, 14));
+            var lastName = ReadString(new ArraySegment<byte>(data, 0x72, 14));
+            player.FirstName = firstName;
+            player.LastName = lastName;
+        }
+        catch { }
+
+        // 기능 스킬 (0x35~0x41) - 실제 데이터 분석 결과
+        player.Navigation = data[0x35];      // 항해술
+        player.Seamanship = data[0x36];      // 운용술
+        player.Swordsmanship = data[0x37];   // 검술
+        player.Gunnery = data[0x38];         // 포술
+        player.Shooting = data[0x39];        // 사격술
+        player.Medicine = data[0x3A];        // 의학
+        player.Eloquence = data[0x3B];       // 웅변술
+        player.Surveying = data[0x3C];       // 측량술
+        player.History = data[0x3D];         // 역사학
+        player.Evasion = data[0x3E];         // 회피
+        player.Shipbuilding = data[0x3F];    // 조선술
+        player.Theology = data[0x40];        // 신학
+        player.Science = data[0x41];         // 과학
+
+        // 언어 스킬 (0x42~0x4F)
+        player.Spanish = data[0x42];         // 스페인어
+        player.Portuguese = data[0x43];      // 포르투갈어
+        player.Romance = data[0x44];         // 로망스어
+        player.Germanic = data[0x45];        // 게르만어
+        player.Slavic = data[0x46];          // 슬라브어
+        player.Arabic = data[0x47];          // 아랍어
+        player.Persian = data[0x48];         // 페르시아어
+        player.Chinese = data[0x49];         // 중국어
+        player.Hindi = data[0x4A];           // 힌두어
+        player.Uyghur = data[0x4B];          // 위그르어
+        player.African = data[0x4C];         // 아프리카어
+        player.American = data[0x4D];        // 아메리카어
+        player.SoutheastAsian = data[0x4E];  // 동남아시아어
+        player.EastAsian = data[0x4F];       // 동아시아어
+
+        // 명성 (0x50~)
+        player.Fame = BitConverter.ToUInt16(data, 0x50);
+
+        // 현재 도시 (0x54)
+        player.CurrentCity = data[0x54];
+        player.CurrentCityName = _cityService.GetCityName(player.CurrentCity, _cities);
+
+        // 소지금 (0x96~ 추정 - 추가 분석 필요)
+        // player.Gold = BitConverter.ToUInt32(data, 0x96);
+
+        return player;
+    }
 }
