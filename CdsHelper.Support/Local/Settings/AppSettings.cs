@@ -45,6 +45,7 @@ public static class AppSettings
         new() { Name = "PatronContent", DisplayName = "후원자" },
         new() { Name = "FigureheadContent", DisplayName = "선수상" },
         new() { Name = "ItemContent", DisplayName = "아이템" },
-        new() { Name = "MapContent", DisplayName = "지도" }
+        new() { Name = "MapContent", DisplayName = "지도" },
+        new() { Name = "SphinxCalculatorContent", DisplayName = "스핑크스" }
     };
 }
