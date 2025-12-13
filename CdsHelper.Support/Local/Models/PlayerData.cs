@@ -73,6 +73,12 @@ public class PlayerData
     public byte Surveyor { get; set; }        // 측량사
     public byte Interpreter { get; set; }     // 통역
 
+    // 동료 이름
+    public string AdjutantName { get; set; } = "없음";
+    public string NavigatorName { get; set; } = "없음";
+    public string SurveyorName { get; set; } = "없음";
+    public string InterpreterName { get; set; } = "없음";
+
     // 아이템 (최대 16개)
     public byte[] Items { get; set; } = new byte[16];
 

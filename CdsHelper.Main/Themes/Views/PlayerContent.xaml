@@ -75,16 +75,16 @@
                                             </Grid.RowDefinitions>
 
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="부관:" />
-                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding AdjutantName}" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Player.AdjutantName}" />
 
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="항해사:" Margin="0,3,0,0" />
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding NavigatorName}" Margin="0,3,0,0" />
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Player.NavigatorName}" Margin="0,3,0,0" />
 
                                             <TextBlock Grid.Row="2" Grid.Column="0" Text="측량사:" Margin="0,3,0,0" />
-                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SurveyorName}" Margin="0,3,0,0" />
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Player.SurveyorName}" Margin="0,3,0,0" />
 
                                             <TextBlock Grid.Row="3" Grid.Column="0" Text="통역:" Margin="0,3,0,0" />
-                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding InterpreterName}" Margin="0,3,0,0" />
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Player.InterpreterName}" Margin="0,3,0,0" />
                                         </Grid>
                                     </GroupBox>
 

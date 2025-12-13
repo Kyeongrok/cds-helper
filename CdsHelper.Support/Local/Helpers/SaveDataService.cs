@@ -260,13 +260,54 @@ public class SaveDataService
 
         // 동료 (0xA5-0xA8) - 캐릭터 인덱스
         player.Adjutant = data[0xA5];      // 부관
-        player.Navigator = data[0xA6];     // 항해사
-        player.Surveyor = data[0xA7];      // 측량사
-        player.Interpreter = data[0xA8];   // 통역
+        player.Navigator = data[0xA7];     // 항해사
+        player.Surveyor = data[0xA9];      // 측량사
+        player.Interpreter = data[0xAB];   // 통역
+
+        // 동료 이름 조회
+        player.AdjutantName = ReadCharacterName(data, player.Adjutant);
+        player.NavigatorName = ReadCharacterName(data, player.Navigator);
+        player.SurveyorName = ReadCharacterName(data, player.Surveyor);
+        player.InterpreterName = ReadCharacterName(data, player.Interpreter);
 
         // 소지금 (추후 확인 필요)
         // player.Gold = ...;
 
         return player;
+    }
+
+    /// <summary>
+    /// 캐릭터 인덱스로 이름 조회
+    /// </summary>
+    private string ReadCharacterName(byte[] data, byte characterIndex)
+    {
+        if (characterIndex == 0)
+            return "없음";
+
+        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE);
+        if (offset + CHARACTER_SIZE > data.Length)
+            return $"#{characterIndex}";
+
+        try
+        {
+            var name1Bytes = new ArraySegment<byte>(data, offset + 0x32, 20);
+            var name2Bytes = new ArraySegment<byte>(data, offset + 0x45, 20);
+
+            string name1 = ReadString(name1Bytes);
+            string name2 = ReadString(name2Bytes);
+
+            if (!string.IsNullOrEmpty(name1) && !string.IsNullOrEmpty(name2))
+                return $"{name1}·{name2}";
+            else if (!string.IsNullOrEmpty(name1))
+                return name1;
+            else if (!string.IsNullOrEmpty(name2))
+                return name2;
+            else
+                return $"#{characterIndex}";
+        }
+        catch
+        {
+            return $"#{characterIndex}";
+        }
     }
 }

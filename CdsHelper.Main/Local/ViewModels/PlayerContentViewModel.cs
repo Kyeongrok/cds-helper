@@ -4,28 +4,18 @@ using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using Prism.Commands;
 using Prism.Mvvm;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace CdsHelper.Main.Local.ViewModels;
 
 public class PlayerContentViewModel : BindableBase
 {
     private readonly SaveDataService _saveDataService;
-    private List<CharacterData>? _characters;
 
     private PlayerData? _player;
     public PlayerData? Player
     {
         get => _player;
-        set
-        {
-            SetProperty(ref _player, value);
-            RaisePropertyChanged(nameof(AdjutantName));
-            RaisePropertyChanged(nameof(NavigatorName));
-            RaisePropertyChanged(nameof(SurveyorName));
-            RaisePropertyChanged(nameof(InterpreterName));
-        }
+        set => SetProperty(ref _player, value);
     }
 
     private string _statusText = "세이브 파일을 로드하세요";
@@ -40,20 +30,6 @@ public class PlayerContentViewModel : BindableBase
     {
         get => _filePath;
         set => SetProperty(ref _filePath, value);
-    }
-
-    // 동료 이름
-    public string AdjutantName => GetCharacterName(Player?.Adjutant);
-    public string NavigatorName => GetCharacterName(Player?.Navigator);
-    public string SurveyorName => GetCharacterName(Player?.Surveyor);
-    public string InterpreterName => GetCharacterName(Player?.Interpreter);
-
-    private string GetCharacterName(byte? index)
-    {
-        if (index == null || index == 0) return "없음";
-        if (_characters == null) return $"#{index}";
-        var character = _characters.FirstOrDefault(c => c.Index == index);
-        return character?.Name ?? $"#{index}";
     }
 
     public ICommand LoadSaveCommand { get; }
@@ -91,10 +67,6 @@ public class PlayerContentViewModel : BindableBase
         try
         {
             StatusText = "로딩 중...";
-
-            // 캐릭터 데이터도 로드 (동료 이름 조회용)
-            var saveInfo = _saveDataService.ReadSaveFile(filePath);
-            _characters = saveInfo.Characters;
 
             Player = _saveDataService.ReadPlayerData(filePath);
             FilePath = filePath;
