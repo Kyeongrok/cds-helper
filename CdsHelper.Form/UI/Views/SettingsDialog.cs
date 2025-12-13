@@ -5,15 +5,18 @@ using CdsHelper.Support.Local.Settings;
 namespace CdsHelper.Form.UI.Views;
 
 [TemplatePart(Name = PART_MarkerSizeSlider, Type = typeof(Slider))]
+[TemplatePart(Name = PART_DefaultViewComboBox, Type = typeof(ComboBox))]
 [TemplatePart(Name = PART_OkButton, Type = typeof(Button))]
 [TemplatePart(Name = PART_CancelButton, Type = typeof(Button))]
 public class SettingsDialog : Window
 {
     private const string PART_MarkerSizeSlider = "PART_MarkerSizeSlider";
+    private const string PART_DefaultViewComboBox = "PART_DefaultViewComboBox";
     private const string PART_OkButton = "PART_OkButton";
     private const string PART_CancelButton = "PART_CancelButton";
 
     private Slider? _markerSizeSlider;
+    private ComboBox? _defaultViewComboBox;
 
     public static readonly DependencyProperty MarkerSizeProperty =
         DependencyProperty.Register(nameof(MarkerSize), typeof(double), typeof(SettingsDialog),
@@ -24,6 +27,8 @@ public class SettingsDialog : Window
         get => (double)GetValue(MarkerSizeProperty);
         set => SetValue(MarkerSizeProperty, value);
     }
+
+    public List<ViewOption> AvailableViews => AppSettings.AvailableViews;
 
     static SettingsDialog()
     {
@@ -36,7 +41,7 @@ public class SettingsDialog : Window
     {
         Title = "설정";
         Width = 400;
-        Height = 200;
+        Height = 250;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
 
@@ -49,6 +54,7 @@ public class SettingsDialog : Window
         base.OnApplyTemplate();
 
         _markerSizeSlider = GetTemplateChild(PART_MarkerSizeSlider) as Slider;
+        _defaultViewComboBox = GetTemplateChild(PART_DefaultViewComboBox) as ComboBox;
 
         if (GetTemplateChild(PART_OkButton) is Button okButton)
             okButton.Click += OnOkClick;
@@ -58,6 +64,14 @@ public class SettingsDialog : Window
 
         if (_markerSizeSlider != null)
             _markerSizeSlider.Value = MarkerSize;
+
+        if (_defaultViewComboBox != null)
+        {
+            _defaultViewComboBox.ItemsSource = AvailableViews;
+            _defaultViewComboBox.DisplayMemberPath = "DisplayName";
+            _defaultViewComboBox.SelectedValuePath = "Name";
+            _defaultViewComboBox.SelectedValue = AppSettings.DefaultView;
+        }
     }
 
     private void OnOkClick(object sender, RoutedEventArgs e)
@@ -67,6 +81,12 @@ public class SettingsDialog : Window
             MarkerSize = _markerSizeSlider.Value;
             AppSettings.MarkerSize = MarkerSize;
         }
+
+        if (_defaultViewComboBox?.SelectedValue is string selectedView)
+        {
+            AppSettings.DefaultView = selectedView;
+        }
+
         DialogResult = true;
     }
 

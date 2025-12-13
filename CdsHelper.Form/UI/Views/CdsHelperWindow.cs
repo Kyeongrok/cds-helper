@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Main.UI.Views;
+using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
 
 namespace CdsHelper.Form.UI.Views;
@@ -51,6 +52,7 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_AccordionMenu) is AccordionControl accordionMenu)
         {
             accordionMenu.ItemClickCommand = new DelegateCommand<string>(OnAccordionItemClick);
+            SelectAccordionItemByTag(accordionMenu, AppSettings.DefaultView);
         }
 
         // ControlTemplate 내의 ContentControl에 Region 설정
@@ -59,10 +61,10 @@ public class CdsHelperWindow : CdsWindow
             RegionManager.SetRegionManager(contentRegion, _regionManager);
             RegionManager.SetRegionName(contentRegion, "MainContentRegion");
 
-            // 초기 Navigation (CharacterContent)
+            // 초기 Navigation (설정에서 지정한 기본 뷰)
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                _viewModel?.NavigateToContent("CharacterContent");
+                _viewModel?.NavigateToContent(AppSettings.DefaultView);
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
     }
@@ -73,6 +75,24 @@ public class CdsHelperWindow : CdsWindow
         if (!string.IsNullOrEmpty(viewName))
         {
             _viewModel?.NavigateToContent(viewName);
+        }
+    }
+
+    private void SelectAccordionItemByTag(ItemsControl parent, string tag)
+    {
+        foreach (var item in parent.Items)
+        {
+            if (item is AccordionItem accordionItem)
+            {
+                if (accordionItem.Tag?.ToString() == tag)
+                {
+                    accordionItem.IsSelected = true;
+                    return;
+                }
+
+                // 하위 항목 검색
+                SelectAccordionItemByTag(accordionItem, tag);
+            }
         }
     }
 
