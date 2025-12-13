@@ -9,5 +9,6 @@
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/MapContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/ItemContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/PlayerContent.xaml"></ResourceDictionary>
+        <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/SphinxCalculatorContent.xaml"></ResourceDictionary>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
