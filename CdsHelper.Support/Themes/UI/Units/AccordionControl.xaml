@@ -7,7 +7,6 @@
         <Setter Property="Background" Value="#104F89"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding" Value="0"/>
-        <Setter Property="Width" Value="200"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type units:AccordionControl}">
@@ -52,18 +51,20 @@
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition x:Name="textColumn" Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
                                 <!-- Icon -->
-                                <ContentPresenter Grid.Column="0"
+                                <ContentPresenter x:Name="iconPresenter"
+                                                  Grid.Column="0"
                                                   Content="{TemplateBinding Icon}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,10,0"/>
 
                                 <!-- Header Text -->
-                                <ContentPresenter Grid.Column="1"
+                                <ContentPresenter x:Name="headerText"
+                                                  Grid.Column="1"
                                                   ContentSource="Header"
                                                   VerticalAlignment="Center"/>
 
@@ -120,6 +121,23 @@
                             <Setter Property="Padding" Value="25,8,15,8"/>
                             <Setter Property="FontSize" Value="12"/>
                         </MultiTrigger>
+                        <!-- 최소화 모드 (아이콘만 표시) -->
+                        <DataTrigger Binding="{Binding IsMinimized, RelativeSource={RelativeSource AncestorType=units:AccordionControl}}" Value="True">
+                            <Setter TargetName="headerText" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="expandArrow" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="itemsBorder" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="iconPresenter" Property="Margin" Value="0"/>
+                            <Setter Property="Padding" Value="12,10"/>
+                            <Setter TargetName="headerBorder" Property="ToolTip" Value="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </DataTrigger>
+                        <!-- 최소화 모드에서 그룹 숨기기 -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMinimized, RelativeSource={RelativeSource AncestorType=units:AccordionControl}}" Value="True"/>
+                                <Condition Binding="{Binding IsGroup, RelativeSource={RelativeSource Self}}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </MultiDataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

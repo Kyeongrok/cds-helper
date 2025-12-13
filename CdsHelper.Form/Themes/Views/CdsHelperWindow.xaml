@@ -131,12 +131,13 @@
                             <!-- 메인 컨텐츠 영역 -->
                             <Grid Grid.Row="2">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition x:Name="PART_MenuColumn" Width="200"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
                                 <!-- 아코디언 사이드 메뉴 -->
-                                <units:AccordionControl x:Name="PART_AccordionMenu" Grid.Column="0">
+                                <Grid Grid.Column="0">
+                                    <units:AccordionControl x:Name="PART_AccordionMenu">
                                     <!-- 데이터 그룹 -->
                                     <units:AccordionItem Header="데이터" IsGroup="True" IsExpanded="True">
                                         <units:AccordionItem Header="플레이어" Tag="PlayerContent">
@@ -195,12 +196,37 @@
                                         </units:AccordionItem.Icon>
                                     </units:AccordionItem>
                                 </units:AccordionControl>
+                                </Grid>
 
                                 <!-- 컨텐츠 영역 (Region) -->
-                                <Border Grid.Column="1" Background="#F5F5F5">
+                                <Grid Grid.Column="1" Background="#F5F5F5">
+                                    <!-- 토글 버튼 (왼쪽 경계에 위치, 아코디언 위로 겹침) -->
+                                    <Button x:Name="PART_MenuToggleButton"
+                                            Width="24" Height="24"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Margin="-12,5,0,0"
+                                            Cursor="Hand" ToolTip="메뉴 접기/펼치기">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border" Background="#1A6BB5"
+                                                        CornerRadius="12" Width="24" Height="24">
+                                                    <Path x:Name="arrow" Data="M 6 0 L 0 5 L 6 10"
+                                                          Stroke="White" StrokeThickness="2"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Width="6" Height="10" Stretch="Uniform"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#3A6EA5"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+
                                     <ContentControl x:Name="PART_ContentRegion"
                                                     Margin="5"/>
-                                </Border>
+                                </Grid>
                             </Grid>
 
                             <!-- 하단 상태바 -->

@@ -20,6 +20,7 @@ public class MapContent : ContentControl
     private CheckBox? _chkShowCoordinates;
     private CheckBox? _chkShowCulturalSpheres;
     private TextBlock? _txtMapCoordinates;
+    private TextBlock? _txtCenterPosition;
     private ScrollViewer? _mapScrollViewer;
     private Image? _imgMap;
     private Canvas? _mapCanvas;
@@ -64,6 +65,7 @@ public class MapContent : ContentControl
         _chkShowCityLabels = GetTemplateChild("PART_ChkShowCityLabels") as CheckBox;
         _chkShowCoordinates = GetTemplateChild("PART_ChkShowCoordinates") as CheckBox;
         _txtMapCoordinates = GetTemplateChild("PART_TxtMapCoordinates") as TextBlock;
+        _txtCenterPosition = GetTemplateChild("PART_TxtCenterPosition") as TextBlock;
         _mapScrollViewer = GetTemplateChild("PART_MapScrollViewer") as ScrollViewer;
         _imgMap = GetTemplateChild("PART_ImgMap") as Image;
         _mapCanvas = GetTemplateChild("PART_MapCanvas") as Canvas;
@@ -105,6 +107,7 @@ public class MapContent : ContentControl
             _mapScrollViewer.PreviewMouseLeftButtonDown += MapScrollViewer_PreviewMouseLeftButtonDown;
             _mapScrollViewer.PreviewMouseMove += MapScrollViewer_PreviewMouseMove;
             _mapScrollViewer.PreviewMouseLeftButtonUp += MapScrollViewer_PreviewMouseLeftButtonUp;
+            _mapScrollViewer.ScrollChanged += MapScrollViewer_ScrollChanged;
             _mapScrollViewer.Loaded += MapScrollViewer_Loaded;
         }
 
@@ -229,6 +232,9 @@ public class MapContent : ContentControl
             // 초기 위치 설정 (3529, 899가 가운데 오도록)
             ScrollToImagePosition(3529, 899);
         }
+
+        // 초기 중심 좌표 표시
+        UpdateCenterPosition();
     }
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -394,13 +400,63 @@ public class MapContent : ContentControl
         if (_imgMap == null || _txtMapCoordinates == null) return;
 
         var pos = e.GetPosition(_imgMap);
-        _txtMapCoordinates.Text = $"좌표: X={pos.X:F0}, Y={pos.Y:F0}";
+        var (lat, lon) = PixelToLatLon(pos.X, pos.Y);
+        var latDir = lat >= 0 ? "N" : "S";
+        var lonDir = lon >= 0 ? "E" : "W";
+        _txtMapCoordinates.Text = $"마우스: {Math.Abs(lat):F1}°{latDir}, {Math.Abs(lon):F1}°{lonDir}";
     }
 
     private void ImgMap_MouseLeave(object sender, MouseEventArgs e)
     {
         if (_txtMapCoordinates != null)
-            _txtMapCoordinates.Text = "좌표: -";
+            _txtMapCoordinates.Text = "마우스: -";
+    }
+
+    /// <summary>
+    /// 픽셀 좌표를 위도/경도로 변환
+    /// 기준점: 리스본 (pixelX=3525, pixelY=914, lat=38, lon=-9)
+    /// </summary>
+    private (double lat, double lon) PixelToLatLon(double pixelX, double pixelY)
+    {
+        // 기준점: 리스본
+        const double refPixelX = 3525;
+        const double refPixelY = 914;
+        const double refLat = 38;
+        const double refLon = -9;
+
+        // 스케일 (픽셀 per 도)
+        const double pixelsPerDegreeLon = 24.0;
+        const double pixelsPerDegreeLat = 21.5;
+
+        var lon = refLon + (pixelX - refPixelX) / pixelsPerDegreeLon;
+        var lat = refLat - (pixelY - refPixelY) / pixelsPerDegreeLat;
+
+        return (lat, lon);
+    }
+
+    private void MapScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        UpdateCenterPosition();
+    }
+
+    private void UpdateCenterPosition()
+    {
+        if (_mapScrollViewer == null || _txtCenterPosition == null) return;
+
+        // 뷰포트 중심점의 콘텐츠 좌표 계산
+        var viewportCenterX = _mapScrollViewer.HorizontalOffset + (_mapScrollViewer.ViewportWidth / 2);
+        var viewportCenterY = _mapScrollViewer.VerticalOffset + (_mapScrollViewer.ViewportHeight / 2);
+
+        // 현재 스케일 기준 실제 이미지 좌표
+        var imageCenterX = viewportCenterX / _currentScale;
+        var imageCenterY = viewportCenterY / _currentScale;
+
+        // 위도/경도로 변환
+        var (lat, lon) = PixelToLatLon(imageCenterX, imageCenterY);
+        var latDir = lat >= 0 ? "N" : "S";
+        var lonDir = lon >= 0 ? "E" : "W";
+
+        _txtCenterPosition.Text = $"중심: {Math.Abs(lat):F1}°{latDir}, {Math.Abs(lon):F1}°{lonDir}";
     }
 
     private void OnShowCityLabelsChanged(bool showLabels)
