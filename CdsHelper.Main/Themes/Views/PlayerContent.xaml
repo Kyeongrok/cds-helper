@@ -5,6 +5,7 @@
                     xmlns:converters="clr-namespace:CdsHelper.Main.Local.Converters">
 
     <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+    <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
     <!-- 링크 스타일 버튼 -->
     <Style x:Key="LinkButtonStyle" TargetType="Button">
@@ -91,38 +92,80 @@
 
                                     <!-- 동료 정보 -->
                                     <GroupBox Header="동료" Padding="10" Margin="0,10,0,0">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="80" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
 
-                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="부관:" />
-                                            <Button Grid.Row="0" Grid.Column="1" Content="{Binding Player.AdjutantName}"
-                                                    Command="{Binding ShowCrewMemberCommand}" CommandParameter="Adjutant"
-                                                    Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" />
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="부관:" />
+                                                <Button Grid.Row="0" Grid.Column="1" Content="{Binding Player.AdjutantName}"
+                                                        Command="{Binding ShowCrewMemberCommand}" CommandParameter="Adjutant"
+                                                        Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" />
 
-                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="항해사:" Margin="0,3,0,0" />
-                                            <Button Grid.Row="1" Grid.Column="1" Content="{Binding Player.NavigatorName}"
-                                                    Command="{Binding ShowCrewMemberCommand}" CommandParameter="Navigator"
-                                                    Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" Margin="0,3,0,0" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="항해사:" Margin="0,3,0,0" />
+                                                <Button Grid.Row="1" Grid.Column="1" Content="{Binding Player.NavigatorName}"
+                                                        Command="{Binding ShowCrewMemberCommand}" CommandParameter="Navigator"
+                                                        Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" Margin="0,3,0,0" />
 
-                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="측량사:" Margin="0,3,0,0" />
-                                            <Button Grid.Row="2" Grid.Column="1" Content="{Binding Player.SurveyorName}"
-                                                    Command="{Binding ShowCrewMemberCommand}" CommandParameter="Surveyor"
-                                                    Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" Margin="0,3,0,0" />
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="측량사:" Margin="0,3,0,0" />
+                                                <Button Grid.Row="2" Grid.Column="1" Content="{Binding Player.SurveyorName}"
+                                                        Command="{Binding ShowCrewMemberCommand}" CommandParameter="Surveyor"
+                                                        Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" Margin="0,3,0,0" />
 
-                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="통역:" Margin="0,3,0,0" />
-                                            <Button Grid.Row="3" Grid.Column="1" Content="{Binding Player.InterpreterName}"
-                                                    Command="{Binding ShowCrewMemberCommand}" CommandParameter="Interpreter"
-                                                    Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" Margin="0,3,0,0" />
-                                        </Grid>
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="통역:" Margin="0,3,0,0" />
+                                                <Button Grid.Row="3" Grid.Column="1" Content="{Binding Player.InterpreterName}"
+                                                        Command="{Binding ShowCrewMemberCommand}" CommandParameter="Interpreter"
+                                                        Style="{StaticResource LinkButtonStyle}" HorizontalAlignment="Left" Margin="0,3,0,0" />
+                                            </Grid>
+
+                                            <!-- 스킬 시뮬레이션 -->
+                                            <CheckBox Content="스킬 시뮬레이션" IsChecked="{Binding IsSimulationMode}"
+                                                      Margin="0,15,0,5" FontWeight="Bold" />
+                                            <Grid Visibility="{Binding IsSimulationMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="부관:" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,2"
+                                                          ItemsSource="{Binding AvailableCharacters}"
+                                                          SelectedItem="{Binding SimAdjutant}"
+                                                          DisplayMemberPath="Name" />
+
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="항해사:" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,2"
+                                                          ItemsSource="{Binding AvailableCharacters}"
+                                                          SelectedItem="{Binding SimNavigator}"
+                                                          DisplayMemberPath="Name" />
+
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="측량사:" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,2"
+                                                          ItemsSource="{Binding AvailableCharacters}"
+                                                          SelectedItem="{Binding SimSurveyor}"
+                                                          DisplayMemberPath="Name" />
+
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="통역:" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Row="3" Grid.Column="1" Margin="0,2"
+                                                          ItemsSource="{Binding AvailableCharacters}"
+                                                          SelectedItem="{Binding SimInterpreter}"
+                                                          DisplayMemberPath="Name" />
+                                            </Grid>
+                                        </StackPanel>
                                     </GroupBox>
 
                                     <!-- 스킬 (기능 + 언어) -->

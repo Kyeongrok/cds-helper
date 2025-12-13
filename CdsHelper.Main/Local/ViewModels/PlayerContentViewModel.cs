@@ -24,6 +24,56 @@ public class PlayerContentViewModel : BindableBase
         { 26, "동남아시아어" }, { 27, "동아시아어" }
     };
 
+    // 전체 캐릭터 목록 (시뮬레이션용)
+    private List<CharacterData> _allCharacters = new();
+    private ObservableCollection<CharacterData> _availableCharacters = new();
+    public ObservableCollection<CharacterData> AvailableCharacters
+    {
+        get => _availableCharacters;
+        set => SetProperty(ref _availableCharacters, value);
+    }
+
+    // 시뮬레이션 모드
+    private bool _isSimulationMode;
+    public bool IsSimulationMode
+    {
+        get => _isSimulationMode;
+        set
+        {
+            if (SetProperty(ref _isSimulationMode, value))
+                BuildCombinedSkills();
+        }
+    }
+
+    // 시뮬레이션용 선택된 캐릭터
+    private CharacterData? _simAdjutant;
+    public CharacterData? SimAdjutant
+    {
+        get => _simAdjutant;
+        set { if (SetProperty(ref _simAdjutant, value)) BuildCombinedSkills(); }
+    }
+
+    private CharacterData? _simNavigator;
+    public CharacterData? SimNavigator
+    {
+        get => _simNavigator;
+        set { if (SetProperty(ref _simNavigator, value)) BuildCombinedSkills(); }
+    }
+
+    private CharacterData? _simSurveyor;
+    public CharacterData? SimSurveyor
+    {
+        get => _simSurveyor;
+        set { if (SetProperty(ref _simSurveyor, value)) BuildCombinedSkills(); }
+    }
+
+    private CharacterData? _simInterpreter;
+    public CharacterData? SimInterpreter
+    {
+        get => _simInterpreter;
+        set { if (SetProperty(ref _simInterpreter, value)) BuildCombinedSkills(); }
+    }
+
     private PlayerData? _player;
     public PlayerData? Player
     {
@@ -130,10 +180,32 @@ public class PlayerContentViewModel : BindableBase
             FilePath = filePath;
             SelectedCrewMember = null;
 
+            // 전체 캐릭터 목록 로드 (시뮬레이션용)
+            var saveGameInfo = _saveDataService.ReadSaveFile(filePath);
+            _allCharacters = saveGameInfo.Characters
+                .Where(c => !c.IsGray) // 등장한 캐릭터만
+                .OrderBy(c => c.Name)
+                .ToList();
+
+            // 플레이어 명성 설정
+            if (Player != null)
+            {
+                foreach (var c in _allCharacters)
+                    c.PlayerFame = Player.Fame;
+            }
+
+            AvailableCharacters = new ObservableCollection<CharacterData>(_allCharacters);
+
+            // 시뮬레이션 초기값을 현재 동료로 설정
+            SimAdjutant = _allCharacters.FirstOrDefault(c => c.Name == Player?.AdjutantName);
+            SimNavigator = _allCharacters.FirstOrDefault(c => c.Name == Player?.NavigatorName);
+            SimSurveyor = _allCharacters.FirstOrDefault(c => c.Name == Player?.SurveyorName);
+            SimInterpreter = _allCharacters.FirstOrDefault(c => c.Name == Player?.InterpreterName);
+
             if (Player != null)
             {
                 BuildCombinedSkills();
-                StatusText = $"로드 완료: {Player.FullName}";
+                StatusText = $"로드 완료: {Player.FullName} (캐릭터 {_allCharacters.Count}명)";
             }
             else
             {
@@ -169,6 +241,12 @@ public class PlayerContentViewModel : BindableBase
         var skills = new ObservableCollection<SkillDisplayItem>();
         var languages = new ObservableCollection<SkillDisplayItem>();
 
+        // 시뮬레이션 모드일 때 사용할 캐릭터
+        var adjutant = IsSimulationMode ? SimAdjutant : Player.AdjutantData;
+        var navigator = IsSimulationMode ? SimNavigator : Player.NavigatorData;
+        var surveyor = IsSimulationMode ? SimSurveyor : Player.SurveyorData;
+        var interpreter = IsSimulationMode ? SimInterpreter : Player.InterpreterData;
+
         // 기능 스킬 (1-13)
         for (int i = 1; i <= 13; i++)
         {
@@ -178,10 +256,10 @@ public class PlayerContentViewModel : BindableBase
             {
                 Name = skillName,
                 PlayerLevel = GetPlayerSkillLevel(skillName),
-                AdjutantLevel = GetCrewSkillLevel(Player.AdjutantData, i),
-                NavigatorLevel = GetCrewSkillLevel(Player.NavigatorData, i),
-                SurveyorLevel = GetCrewSkillLevel(Player.SurveyorData, i),
-                InterpreterLevel = GetCrewSkillLevel(Player.InterpreterData, i)
+                AdjutantLevel = GetCrewSkillLevel(adjutant, i),
+                NavigatorLevel = GetCrewSkillLevel(navigator, i),
+                SurveyorLevel = GetCrewSkillLevel(surveyor, i),
+                InterpreterLevel = GetCrewSkillLevel(interpreter, i)
             };
             skills.Add(item);
         }
@@ -195,10 +273,10 @@ public class PlayerContentViewModel : BindableBase
             {
                 Name = skillName,
                 PlayerLevel = GetPlayerLanguageLevel(skillName),
-                AdjutantLevel = GetCrewSkillLevel(Player.AdjutantData, i),
-                NavigatorLevel = GetCrewSkillLevel(Player.NavigatorData, i),
-                SurveyorLevel = GetCrewSkillLevel(Player.SurveyorData, i),
-                InterpreterLevel = GetCrewSkillLevel(Player.InterpreterData, i)
+                AdjutantLevel = GetCrewSkillLevel(adjutant, i),
+                NavigatorLevel = GetCrewSkillLevel(navigator, i),
+                SurveyorLevel = GetCrewSkillLevel(surveyor, i),
+                InterpreterLevel = GetCrewSkillLevel(interpreter, i)
             };
             languages.Add(item);
         }
