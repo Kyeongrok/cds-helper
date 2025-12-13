@@ -14,6 +14,7 @@ public class CharacterContentViewModel : BindableBase
 
     private List<CharacterData> _allCharacters = new();
     private SaveGameInfo? _saveGameInfo;
+    private PlayerData? _playerData;
 
     #region Collections
 
@@ -77,6 +78,13 @@ public class CharacterContentViewModel : BindableBase
         set => SetProperty(ref _statusText, value);
     }
 
+    private ushort _playerFame;
+    public ushort PlayerFame
+    {
+        get => _playerFame;
+        set => SetProperty(ref _playerFame, value);
+    }
+
     private string _filePath = "파일 경로: 없음";
     public string FilePath
     {
@@ -127,7 +135,15 @@ public class CharacterContentViewModel : BindableBase
         {
             StatusText = "파일 읽는 중...";
             _saveGameInfo = _saveDataService.ReadSaveFile(filePath);
+            _playerData = _saveDataService.ReadPlayerData(filePath);
             _allCharacters = _saveGameInfo.Characters;
+
+            // 플레이어 명성을 각 캐릭터에 설정 (고용 가능 여부 판단용)
+            PlayerFame = _playerData?.Fame ?? 0;
+            foreach (var character in _allCharacters)
+            {
+                character.PlayerFame = PlayerFame;
+            }
 
             FilePath = $"파일 경로: {filePath}";
             ApplyFilter();

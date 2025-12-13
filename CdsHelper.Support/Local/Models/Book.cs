@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace CdsHelper.Support.Local.Models;
 
@@ -33,5 +34,49 @@ public class Book
     {
         get => string.Join(", ", LibraryCityNames);
         set { } // JSON 역직렬화용 (무시)
+    }
+
+    // 플레이어 스킬 데이터 (읽기 가능 여부 판단용)
+    [JsonIgnore]
+    public Dictionary<string, byte>? PlayerSkills { get; set; }
+
+    [JsonIgnore]
+    public Dictionary<string, byte>? PlayerLanguages { get; set; }
+
+    /// <summary>
+    /// 읽기 가능 여부: 언어 레벨 3 이상 + 필요 스킬 충족
+    /// </summary>
+    [JsonIgnore]
+    public bool CanRead
+    {
+        get
+        {
+            if (PlayerLanguages == null || PlayerSkills == null)
+                return true; // 플레이어 데이터 없으면 기본 표시
+
+            // 언어 체크 (3레벨 이상)
+            if (!string.IsNullOrEmpty(Language))
+            {
+                if (!PlayerLanguages.TryGetValue(Language, out var langLevel) || langLevel < 3)
+                    return false;
+            }
+
+            // 필요 스킬 체크
+            if (!string.IsNullOrEmpty(Required))
+            {
+                // "역사학 2", "항해술 1" 등의 형식 파싱
+                var match = Regex.Match(Required, @"(.+?)\s*(\d+)");
+                if (match.Success)
+                {
+                    var skillName = match.Groups[1].Value.Trim();
+                    var requiredLevel = byte.Parse(match.Groups[2].Value);
+
+                    if (!PlayerSkills.TryGetValue(skillName, out var playerLevel) || playerLevel < requiredLevel)
+                        return false;
+                }
+            }
+
+            return true;
+        }
     }
 }

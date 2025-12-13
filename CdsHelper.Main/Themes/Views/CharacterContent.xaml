@@ -32,6 +32,10 @@
                                       ItemsSource="{Binding SkillLevels}"
                                       SelectedItem="{Binding SelectedSkillLevel}" />
                             <TextBlock VerticalAlignment="Center" Text="{Binding FilePath}" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
+                                <TextBlock Text="내 명성: " />
+                                <TextBlock Text="{Binding PlayerFame}" FontWeight="Bold" Foreground="#1976D2" />
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- 데이터 그리드 -->
@@ -45,6 +49,11 @@
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsGray}" Value="True">
                                             <Setter Property="Foreground" Value="#888888" />
+                                        </DataTrigger>
+                                        <!-- 고용 불가 (명성 부족) -->
+                                        <DataTrigger Binding="{Binding CanRecruit}" Value="False">
+                                            <Setter Property="Background" Value="#FFF3E0" />
+                                            <Setter Property="Foreground" Value="#E65100" />
                                         </DataTrigger>
                                         <MultiTrigger>
                                             <MultiTrigger.Conditions>
