@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Threading;
-using CdsHelper.Main.Local.Models;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using Prism.Commands;

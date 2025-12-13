@@ -10,5 +10,6 @@
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/CdsDataGrid.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/CdsWindow.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/AccordionControl.xaml"/>
+        <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/SkillGroupBox.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

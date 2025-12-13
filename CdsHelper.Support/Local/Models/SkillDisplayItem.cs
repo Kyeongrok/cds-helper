@@ -1,4 +1,4 @@
-namespace CdsHelper.Main.Local.Models;
+namespace CdsHelper.Support.Local.Models;
 
 /// <summary>
 /// 스킬 통합 표시용 모델

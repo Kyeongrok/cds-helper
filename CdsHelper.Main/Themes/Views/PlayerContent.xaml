@@ -1,11 +1,10 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:views="clr-namespace:CdsHelper.Main.UI.Views"
+                    xmlns:units="clr-namespace:CdsHelper.Support.UI.Units;assembly=CdsHelper.Support"
                     xmlns:converters="clr-namespace:CdsHelper.Main.Local.Converters">
 
     <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
-    <converters:LevelToOpacityConverter x:Key="LevelToOpacityConverter" />
-    <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
 
     <!-- 링크 스타일 버튼 -->
     <Style x:Key="LinkButtonStyle" TargetType="Button">
@@ -127,78 +126,14 @@
                                     </GroupBox>
 
                                     <!-- 스킬 (기능 + 언어) -->
-                                    <GroupBox Header="스킬" Padding="10" Margin="0,10,0,0">
-                                        <StackPanel>
-                                            <!-- 범례 -->
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                <Rectangle Width="12" Height="12" Fill="#2196F3" Margin="0,0,3,0" />
-                                                <TextBlock Text="플레이어" FontSize="10" Margin="0,0,10,0" />
-                                                <Rectangle Width="12" Height="12" Fill="#4CAF50" Margin="0,0,3,0" />
-                                                <TextBlock Text="부관" FontSize="10" Margin="0,0,10,0" />
-                                                <Rectangle Width="12" Height="12" Fill="#FF9800" Margin="0,0,3,0" />
-                                                <TextBlock Text="항해사" FontSize="10" Margin="0,0,10,0" />
-                                                <Rectangle Width="12" Height="12" Fill="#9C27B0" Margin="0,0,3,0" />
-                                                <TextBlock Text="측량사" FontSize="10" Margin="0,0,10,0" />
-                                                <Rectangle Width="12" Height="12" Fill="#F44336" Margin="0,0,3,0" />
-                                                <TextBlock Text="통역" FontSize="10" />
-                                            </StackPanel>
-
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <!-- 기능 스킬 -->
-                                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                                    <TextBlock Text="기능 스킬" FontWeight="Bold" Margin="0,0,0,5" />
-                                                    <ItemsControl ItemsSource="{Binding CombinedSkills}">
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Grid Margin="0,2">
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="55" />
-                                                                        <ColumnDefinition Width="20" />
-                                                                        <ColumnDefinition Width="50" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" />
-                                                                    <TextBlock Grid.Column="1" Text="{Binding BestLevel}" FontWeight="Bold" VerticalAlignment="Center" />
-                                                                    <ProgressBar Grid.Column="2" Value="{Binding BestLevel, Mode=OneWay}" Maximum="3"
-                                                                                 Height="12" Margin="3,0,0,0"
-                                                                                 Foreground="{Binding BestColor, Converter={StaticResource StringToBrushConverter}}"
-                                                                                 ToolTip="{Binding ToolTipText}" />
-                                                                </Grid>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                </StackPanel>
-
-                                                <!-- 언어 스킬 -->
-                                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                                    <TextBlock Text="언어 스킬" FontWeight="Bold" Margin="0,0,0,5" />
-                                                    <ItemsControl ItemsSource="{Binding CombinedLanguages}">
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Grid Margin="0,2">
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="75" />
-                                                                        <ColumnDefinition Width="20" />
-                                                                        <ColumnDefinition Width="50" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" />
-                                                                    <TextBlock Grid.Column="1" Text="{Binding BestLevel}" FontWeight="Bold" VerticalAlignment="Center" />
-                                                                    <ProgressBar Grid.Column="2" Value="{Binding BestLevel, Mode=OneWay}" Maximum="3"
-                                                                                 Height="12" Margin="3,0,0,0"
-                                                                                 Foreground="{Binding BestColor, Converter={StaticResource StringToBrushConverter}}"
-                                                                                 ToolTip="{Binding ToolTipText}" />
-                                                                </Grid>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                </StackPanel>
-                                            </Grid>
-                                        </StackPanel>
-                                    </GroupBox>
+                                    <units:SkillGroupBox Header="스킬" Margin="0,10,0,0"
+                                                         Skills="{Binding CombinedSkills}"
+                                                         Languages="{Binding CombinedLanguages}"
+                                                         Column1Label="플레이어"
+                                                         Column2Label="부관"
+                                                         Column3Label="항해사"
+                                                         Column4Label="측량사"
+                                                         Column5Label="통역" />
                                 </StackPanel>
 
                                 <!-- 오른쪽: 동료 상세 -->
