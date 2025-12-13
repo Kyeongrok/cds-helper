@@ -68,6 +68,7 @@ public class SaveDataService
 
             if (character != null && character.Name != "???")
             {
+                character.Index = i;  // 캐릭터 인덱스 저장
                 characters.Add(character);
             }
         }
@@ -216,46 +217,55 @@ public class SaveDataService
         }
         catch { }
 
-        // 기능 스킬 (0x35~0x41) - 실제 데이터 분석 결과
-        player.Navigation = data[0x35];      // 항해술
-        player.Seamanship = data[0x36];      // 운용술
-        player.Swordsmanship = data[0x37];   // 검술
-        player.Gunnery = data[0x38];         // 포술
-        player.Shooting = data[0x39];        // 사격술
-        player.Medicine = data[0x3A];        // 의학
-        player.Eloquence = data[0x3B];       // 웅변술
-        player.Surveying = data[0x3C];       // 측량술
-        player.History = data[0x3D];         // 역사학
-        player.Evasion = data[0x3E];         // 회피
-        player.Shipbuilding = data[0x3F];    // 조선술
-        player.Theology = data[0x40];        // 신학
-        player.Science = data[0x41];         // 과학
+        // 기능 스킬 (0x38~0x44)
+        player.Navigation = data[0x38];      // 항해술
+        player.Seamanship = data[0x39];      // 운용술
+        player.Swordsmanship = data[0x3A];   // 검술
+        player.Gunnery = data[0x3B];         // 포술
+        player.Shooting = data[0x3C];        // 사격술
+        player.Medicine = data[0x3D];        // 의학
+        player.Eloquence = data[0x3E];       // 웅변술
+        player.Surveying = data[0x3F];       // 측량술
+        player.History = data[0x40];         // 역사학
+        player.Accounting = data[0x41];      // 회계
+        player.Shipbuilding = data[0x42];    // 조선기술
+        player.Theology = data[0x43];        // 신학
+        player.Science = data[0x44];         // 과학
 
-        // 언어 스킬 (0x42~0x4F)
-        player.Spanish = data[0x42];         // 스페인어
-        player.Portuguese = data[0x43];      // 포르투갈어
-        player.Romance = data[0x44];         // 로망스어
-        player.Germanic = data[0x45];        // 게르만어
-        player.Slavic = data[0x46];          // 슬라브어
-        player.Arabic = data[0x47];          // 아랍어
-        player.Persian = data[0x48];         // 페르시아어
-        player.Chinese = data[0x49];         // 중국어
-        player.Hindi = data[0x4A];           // 힌두어
-        player.Uyghur = data[0x4B];          // 위그르어
-        player.African = data[0x4C];         // 아프리카어
-        player.American = data[0x4D];        // 아메리카어
-        player.SoutheastAsian = data[0x4E];  // 동남아시아어
-        player.EastAsian = data[0x4F];       // 동아시아어
+        // 언어 스킬 (0x45~0x52)
+        player.Spanish = data[0x45];         // 스페인어
+        player.Portuguese = data[0x46];      // 포르투갈어
+        player.Romance = data[0x47];         // 로망스어
+        player.Germanic = data[0x48];        // 게르만어
+        player.Slavic = data[0x49];          // 슬라브어
+        player.Arabic = data[0x4A];          // 아랍어
+        player.Persian = data[0x4B];         // 페르시아어
+        player.Chinese = data[0x4C];         // 중국어
+        player.Hindi = data[0x4D];           // 힌두어
+        player.Uyghur = data[0x4E];          // 위그르어
+        player.African = data[0x4F];         // 아프리카어
+        player.American = data[0x50];        // 아메리카어
+        player.SoutheastAsian = data[0x51];  // 동남아시아어
+        player.EastAsian = data[0x52];       // 동아시아어
 
-        // 명성 (0x50~)
-        player.Fame = BitConverter.ToUInt16(data, 0x50);
+        // 명성 (0x53-0x54)
+        player.Fame = BitConverter.ToUInt16(data, 0x53);
 
-        // 현재 도시 (0x54)
-        player.CurrentCity = data[0x54];
+        // 악명 (0x55-0x56)
+        player.Notoriety = BitConverter.ToUInt16(data, 0x55);
+
+        // 현재 도시 (0x57)
+        player.CurrentCity = data[0x57];
         player.CurrentCityName = _cityService.GetCityName(player.CurrentCity, _cities);
 
-        // 소지금 (0x96~ 추정 - 추가 분석 필요)
-        // player.Gold = BitConverter.ToUInt32(data, 0x96);
+        // 동료 (0xA5-0xA8) - 캐릭터 인덱스
+        player.Adjutant = data[0xA5];      // 부관
+        player.Navigator = data[0xA6];     // 항해사
+        player.Surveyor = data[0xA7];      // 측량사
+        player.Interpreter = data[0xA8];   // 통역
+
+        // 소지금 (추후 확인 필요)
+        // player.Gold = ...;
 
         return player;
     }
