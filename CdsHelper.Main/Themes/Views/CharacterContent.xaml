@@ -78,7 +78,14 @@
                                 <DataGridTextColumn Header="무력" Binding="{Binding Strength}" Width="50" />
                                 <DataGridTextColumn Header="매력" Binding="{Binding Charm}" Width="50" />
                                 <DataGridTextColumn Header="운" Binding="{Binding Luck}" Width="50" />
-                                <DataGridTextColumn Header="특기" Binding="{Binding Skills}" Width="*" />
+                                <DataGridTextColumn Header="일반특기" Binding="{Binding GeneralSkills}" Width="300" />
+                                <DataGridTextColumn Header="언어" Binding="{Binding LanguageSkillsText}" Width="*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#0066CC" />
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
                                 <DataGridTextColumn Header="명성" Binding="{Binding Fame}" Width="60" />
                                 <DataGridTextColumn Header="소재" Binding="{Binding Location}" Width="100" />
                                 <DataGridTextColumn Header="고용" Binding="{Binding HireStatusText}" Width="70" />

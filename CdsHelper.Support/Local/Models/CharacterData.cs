@@ -13,6 +13,36 @@ public class CharacterData
     public byte Charm { get; set; }
     public byte Luck { get; set; }
     public string Skills { get; set; } = "";
+
+    // 언어 특기 목록 (축약형)
+    // 스=스페인어, 갈=포르투갈어, 로=로망스어, 게=게르만어, 슬=슬라브어
+    // 랍=아랍어, 페=페르시아어, 중=중국어, 힌=힌두어, 위=위그르어
+    // 아=아프리카어, 미=아메리카어, 남=동남아시아어, 동=동아시아어
+    private static readonly HashSet<string> LanguageSkills = new()
+    {
+        "스", "갈", "로", "게", "슬", "랍", "페", "중", "힌", "위", "아", "미", "남", "동"
+    };
+
+    /// <summary>
+    /// 일반 특기만 (항해술, 포술 등)
+    /// </summary>
+    public string GeneralSkills => string.Join(" ", Skills.Split(' ')
+        .Where(s => !string.IsNullOrEmpty(s) && !IsLanguageSkill(s)));
+
+    /// <summary>
+    /// 언어 특기만 (스페인어, 중국어 등)
+    /// </summary>
+    public string LanguageSkillsText => string.Join(" ", Skills.Split(' ')
+        .Where(s => !string.IsNullOrEmpty(s) && IsLanguageSkill(s)));
+
+    /// <summary>
+    /// 언어 특기인지 확인 (예: "스:3" -> "스"가 언어목록에 있는지)
+    /// </summary>
+    private static bool IsLanguageSkill(string skill)
+    {
+        var skillName = skill.Split(':')[0];
+        return LanguageSkills.Contains(skillName);
+    }
     public ushort Fame { get; set; }
     public string Location { get; set; } = "";
     public byte Face { get; set; }
