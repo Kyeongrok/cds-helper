@@ -146,6 +146,9 @@ public class SaveDataService
         byte ageRaw = data[offset + 0x5C];
         character.Age = unchecked((sbyte)ageRaw);
 
+        // 고용 상태 (나이 + 6바이트 = 0x62)
+        character.HireStatus = data[offset + 0x62];
+
         // 얼굴
         character.Face = data[offset + 0x60];
 

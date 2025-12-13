@@ -21,6 +21,22 @@ public class CharacterData
     public byte Available { get; set; }
 
     /// <summary>
+    /// 고용 상태: 1=대화만, 2=고용가능, 3=고용완료
+    /// </summary>
+    public byte HireStatus { get; set; }
+
+    /// <summary>
+    /// 고용 상태 표시 텍스트
+    /// </summary>
+    public string HireStatusText => HireStatus switch
+    {
+        1 => "대화만",
+        2 => "고용가능",
+        3 => "고용중",
+        _ => "-"
+    };
+
+    /// <summary>
     /// 특기별 레벨 (특기 인덱스 -> 레벨)
     /// </summary>
     public Dictionary<int, byte> RawSkills { get; set; } = new();
