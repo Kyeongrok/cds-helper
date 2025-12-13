@@ -22,6 +22,9 @@ public class City
     [JsonPropertyName("hasShipyard")]
     public bool HasShipyard { get; set; }
 
+    [JsonPropertyName("hasGuild")]
+    public bool HasGuild { get; set; }
+
     [JsonPropertyName("culturalSphere")]
     public string? CulturalSphere { get; set; }
 
@@ -62,4 +65,7 @@ public class City
 
     [JsonIgnore]
     public string HasShipyardDisplay => HasShipyard ? "조선소 있음" : "조선소 없음";
+
+    [JsonIgnore]
+    public string HasGuildDisplay => HasGuild ? "조합 있음" : "조합 없음";
 }

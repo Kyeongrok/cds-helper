@@ -621,8 +621,8 @@
     "latitude": 54,
     "longitude": 18,
     "hasLibrary": false,
-    "pixelX": 4137,
-    "pixelY": 554,
+    "pixelX": 4140,
+    "pixelY": 559,
     "hasShipyard": true,
     "culturalSphere": "북유럽"
   },
@@ -632,8 +632,8 @@
     "latitude": 54,
     "longitude": 19,
     "hasLibrary": false,
-    "pixelX": 4160,
-    "pixelY": 554,
+    "pixelX": 4167,
+    "pixelY": 558,
     "hasShipyard": true,
     "culturalSphere": "북유럽"
   },
@@ -643,8 +643,8 @@
     "latitude": 57,
     "longitude": 23,
     "hasLibrary": false,
-    "pixelX": 4251,
-    "pixelY": 487,
+    "pixelX": 4260,
+    "pixelY": 500,
     "hasShipyard": true,
     "culturalSphere": "북유럽"
   },
@@ -654,8 +654,8 @@
     "latitude": 58,
     "longitude": 31,
     "hasLibrary": false,
-    "pixelX": 4429,
-    "pixelY": 464,
+    "pixelX": 4419,
+    "pixelY": 465,
     "hasShipyard": false,
     "culturalSphere": "북유럽"
   },
@@ -1795,11 +1795,11 @@
   {
     "id": 163,
     "name": "프놈펜",
-    "latitude": null,
-    "longitude": null,
+    "latitude": 11,
+    "longitude": 105,
     "hasLibrary": false,
-    "pixelX": 6051,
-    "pixelY": 1538,
+    "pixelX": 6049,
+    "pixelY": 1514,
     "hasShipyard": false,
     "culturalSphere": "동남아시아"
   },
@@ -1820,8 +1820,8 @@
     "latitude": null,
     "longitude": null,
     "hasLibrary": true,
-    "pixelX": 6709,
-    "pixelY": 1002,
+    "pixelX": 6074,
+    "pixelY": 1305,
     "hasShipyard": false,
     "culturalSphere": "동남아시아"
   },
@@ -1831,8 +1831,8 @@
     "latitude": -5,
     "longitude": 95,
     "hasLibrary": false,
-    "pixelX": 6045,
-    "pixelY": 1812,
+    "pixelX": 5831,
+    "pixelY": 1636,
     "hasShipyard": false,
     "culturalSphere": "동남아시아"
   },
@@ -1842,10 +1842,10 @@
     "latitude": -2,
     "longitude": 104,
     "hasLibrary": false,
-    "pixelX": 5994,
-    "pixelY": 1798,
+    "pixelX": 6043,
+    "pixelY": 1812,
     "hasShipyard": false,
-    "culturalSphere": null
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 168,
@@ -1952,8 +1952,8 @@
     "latitude": null,
     "longitude": null,
     "hasLibrary": false,
-    "pixelX": null,
-    "pixelY": null,
+    "pixelX": 5922,
+    "pixelY": 1051,
     "hasShipyard": true,
     "culturalSphere": "중국"
   },
@@ -1996,8 +1996,8 @@
     "latitude": 24,
     "longitude": 102,
     "hasLibrary": false,
-    "pixelX": 5973,
-    "pixelY": 1217,
+    "pixelX": 5988,
+    "pixelY": 1222,
     "hasShipyard": false,
     "culturalSphere": "중국"
   },

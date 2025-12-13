@@ -21,6 +21,8 @@ public class CityEntity
 
     public bool HasShipyard { get; set; }
 
+    public bool HasGuild { get; set; }
+
     [MaxLength(50)]
     public string? CulturalSphere { get; set; }
 
