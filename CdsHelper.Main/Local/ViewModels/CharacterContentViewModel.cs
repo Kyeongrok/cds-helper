@@ -36,6 +36,13 @@ public class CharacterContentViewModel : BindableBase
         set { SetProperty(ref _showGrayCharacters, value); ApplyFilter(); }
     }
 
+    private bool _showOnlyHirable = true;  // 기본값 true
+    public bool ShowOnlyHirable
+    {
+        get => _showOnlyHirable;
+        set { SetProperty(ref _showOnlyHirable, value); ApplyFilter(); }
+    }
+
     private string _characterNameSearch = "";
     public string CharacterNameSearch
     {
@@ -167,13 +174,18 @@ public class CharacterContentViewModel : BindableBase
             FilterBySkill ? SelectedSkillIndex + 1 : null,
             FilterBySkill ? SelectedSkillLevel : null);
 
+        // 고용 가능 필터: HireStatus == 2 && Location != "함대소속"
+        if (ShowOnlyHirable)
+        {
+            filtered = filtered.Where(c => c.HireStatus == 2 && c.Location != "함대소속").ToList();
+        }
+
         Characters = new ObservableCollection<CharacterData>(filtered);
 
         var grayCount = _allCharacters.Count(c => c.IsGray);
         var normalCount = _allCharacters.Count - grayCount;
+        var hirableCount = _allCharacters.Count(c => c.HireStatus == 2 && c.Location != "함대소속");
 
-        StatusText = ShowGrayCharacters
-            ? $"로드 완료: {_allCharacters.Count}개 (등장: {normalCount}, 미등장: {grayCount})"
-            : $"로드 완료: {normalCount}개 (미등장 {grayCount}개 숨김)";
+        StatusText = $"표시: {filtered.Count}명 (고용가능: {hirableCount}명)";
     }
 }

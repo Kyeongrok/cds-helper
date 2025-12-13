@@ -194,7 +194,11 @@ public class PlayerContentViewModel : BindableBase
                     c.PlayerFame = Player.Fame;
             }
 
-            AvailableCharacters = new ObservableCollection<CharacterData>(_allCharacters);
+            // 고용 가능한 캐릭터만 (HireStatus == 2, 함대소속 아님)
+            var hirableCharacters = _allCharacters
+                .Where(c => c.HireStatus == 2 && c.Location != "함대소속")
+                .ToList();
+            AvailableCharacters = new ObservableCollection<CharacterData>(hirableCharacters);
 
             // 시뮬레이션 초기값을 현재 동료로 설정
             SimAdjutant = _allCharacters.FirstOrDefault(c => c.Name == Player?.AdjutantName);
@@ -205,7 +209,7 @@ public class PlayerContentViewModel : BindableBase
             if (Player != null)
             {
                 BuildCombinedSkills();
-                StatusText = $"로드 완료: {Player.FullName} (캐릭터 {_allCharacters.Count}명)";
+                StatusText = $"로드 완료: {Player.FullName} (고용가능: {hirableCharacters.Count}명)";
             }
             else
             {

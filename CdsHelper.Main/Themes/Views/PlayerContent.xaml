@@ -142,25 +142,25 @@
                                                 </Grid.RowDefinitions>
 
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="부관:" VerticalAlignment="Center" />
-                                                <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,2"
+                                                <units:SearchableComboBox Grid.Row="0" Grid.Column="1" Margin="0,2"
                                                           ItemsSource="{Binding AvailableCharacters}"
                                                           SelectedItem="{Binding SimAdjutant}"
                                                           DisplayMemberPath="Name" />
 
                                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="항해사:" VerticalAlignment="Center" />
-                                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,2"
+                                                <units:SearchableComboBox Grid.Row="1" Grid.Column="1" Margin="0,2"
                                                           ItemsSource="{Binding AvailableCharacters}"
                                                           SelectedItem="{Binding SimNavigator}"
                                                           DisplayMemberPath="Name" />
 
                                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="측량사:" VerticalAlignment="Center" />
-                                                <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,2"
+                                                <units:SearchableComboBox Grid.Row="2" Grid.Column="1" Margin="0,2"
                                                           ItemsSource="{Binding AvailableCharacters}"
                                                           SelectedItem="{Binding SimSurveyor}"
                                                           DisplayMemberPath="Name" />
 
                                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="통역:" VerticalAlignment="Center" />
-                                                <ComboBox Grid.Row="3" Grid.Column="1" Margin="0,2"
+                                                <units:SearchableComboBox Grid.Row="3" Grid.Column="1" Margin="0,2"
                                                           ItemsSource="{Binding AvailableCharacters}"
                                                           SelectedItem="{Binding SimInterpreter}"
                                                           DisplayMemberPath="Name" />
