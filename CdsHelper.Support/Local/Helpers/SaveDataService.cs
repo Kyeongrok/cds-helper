@@ -264,11 +264,17 @@ public class SaveDataService
         player.Surveyor = data[0xA9];      // 측량사
         player.Interpreter = data[0xAB];   // 통역
 
-        // 동료 이름 조회
-        player.AdjutantName = ReadCharacterName(data, player.Adjutant);
-        player.NavigatorName = ReadCharacterName(data, player.Navigator);
-        player.SurveyorName = ReadCharacterName(data, player.Surveyor);
-        player.InterpreterName = ReadCharacterName(data, player.Interpreter);
+        // 동료 캐릭터 데이터 조회
+        player.AdjutantData = ReadCharacterByIndex(data, player.Adjutant);
+        player.NavigatorData = ReadCharacterByIndex(data, player.Navigator);
+        player.SurveyorData = ReadCharacterByIndex(data, player.Surveyor);
+        player.InterpreterData = ReadCharacterByIndex(data, player.Interpreter);
+
+        // 동료 이름 설정
+        player.AdjutantName = player.AdjutantData?.Name ?? "없음";
+        player.NavigatorName = player.NavigatorData?.Name ?? "없음";
+        player.SurveyorName = player.SurveyorData?.Name ?? "없음";
+        player.InterpreterName = player.InterpreterData?.Name ?? "없음";
 
         // 소지금 (추후 확인 필요)
         // player.Gold = ...;
@@ -277,37 +283,23 @@ public class SaveDataService
     }
 
     /// <summary>
-    /// 캐릭터 인덱스로 이름 조회
+    /// 캐릭터 인덱스로 캐릭터 데이터 조회
     /// </summary>
-    private string ReadCharacterName(byte[] data, byte characterIndex)
+    private CharacterData? ReadCharacterByIndex(byte[] data, byte characterIndex)
     {
-        if (characterIndex == 0)
-            return "없음";
+        // 0 또는 0xFF(255)는 미고용 상태
+        if (characterIndex == 0 || characterIndex == 0xFF)
+            return null;
 
         int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE);
         if (offset + CHARACTER_SIZE > data.Length)
-            return $"#{characterIndex}";
+            return null;
 
-        try
+        var character = ReadCharacterData(data, offset);
+        if (character != null)
         {
-            var name1Bytes = new ArraySegment<byte>(data, offset + 0x32, 20);
-            var name2Bytes = new ArraySegment<byte>(data, offset + 0x45, 20);
-
-            string name1 = ReadString(name1Bytes);
-            string name2 = ReadString(name2Bytes);
-
-            if (!string.IsNullOrEmpty(name1) && !string.IsNullOrEmpty(name2))
-                return $"{name1}·{name2}";
-            else if (!string.IsNullOrEmpty(name1))
-                return name1;
-            else if (!string.IsNullOrEmpty(name2))
-                return name2;
-            else
-                return $"#{characterIndex}";
+            character.Index = characterIndex;
         }
-        catch
-        {
-            return $"#{characterIndex}";
-        }
+        return character;
     }
 }

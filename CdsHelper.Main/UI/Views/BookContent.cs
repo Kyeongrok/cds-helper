@@ -27,6 +27,7 @@ public class BookContent : ContentControl
 
         var bookService = ContainerLocator.Container.Resolve<BookService>();
         var cityService = ContainerLocator.Container.Resolve<CityService>();
-        DataContext = new BookContentViewModel(bookService, cityService);
+        var saveDataService = ContainerLocator.Container.Resolve<SaveDataService>();
+        DataContext = new BookContentViewModel(bookService, cityService, saveDataService);
     }
 }

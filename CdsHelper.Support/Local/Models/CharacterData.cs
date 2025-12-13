@@ -31,6 +31,16 @@ public class CharacterData
     public bool IsGray => Age < 18 || Age > 60;
 
     /// <summary>
+    /// 플레이어 명성 (비교용)
+    /// </summary>
+    public ushort PlayerFame { get; set; }
+
+    /// <summary>
+    /// 고용 가능 여부: 캐릭터 명성이 플레이어 명성 이하
+    /// </summary>
+    public bool CanRecruit => Fame <= PlayerFame;
+
+    /// <summary>
     /// 특정 특기가 특정 레벨인지 확인
     /// </summary>
     public bool HasSkill(int skillIndex, byte level)
