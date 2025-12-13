@@ -7,7 +7,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using IOPath = System.IO.Path;
 
-namespace CdsHelper.Form.UI.Views;
+namespace CdsHelper.Support.UI.Views;
 
 [TemplatePart(Name = PART_CityNameTextBox, Type = typeof(TextBox))]
 [TemplatePart(Name = PART_PixelXTextBox, Type = typeof(TextBox))]

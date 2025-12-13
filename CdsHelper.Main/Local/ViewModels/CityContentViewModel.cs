@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.UI.Views;
 using Prism.Commands;
 using Prism.Mvvm;
 
@@ -189,15 +190,43 @@ public class CityContentViewModel : BindableBase
         ShipyardOnly = false;
     }
 
-    private void EditCityPixel(City? city)
+    private async void EditCityPixel(City? city)
     {
         if (city == null) return;
 
-        // TODO: EditCityPixelDialog는 CdsHelper.Form 프로젝트에 있어 순환 참조 발생
-        // 별도 방식으로 구현 필요
-        System.Windows.MessageBox.Show(
-            $"도시: {city.Name}\n좌표: ({city.PixelX}, {city.PixelY})\n도서관: {(city.HasLibrary ? "있음" : "없음")}",
-            "도시 정보", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+        var dialog = new EditCityPixelDialog(
+            city.Name,
+            city.PixelX,
+            city.PixelY,
+            city.HasLibrary,
+            city.Latitude,
+            city.Longitude,
+            city.CulturalSphere)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            city.Name = dialog.CityName;
+            city.PixelX = dialog.PixelX;
+            city.PixelY = dialog.PixelY;
+            city.HasLibrary = dialog.HasLibrary;
+            city.Latitude = dialog.Latitude;
+            city.Longitude = dialog.Longitude;
+            city.CulturalSphere = dialog.CulturalSphere;
+
+            try
+            {
+                await _cityService.UpdateCityAsync(city);
+                StatusText = $"도시 '{city.Name}' 수정 완료";
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"도시 정보 수정 실패: {ex.Message}", "오류",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
     }
 
     private async void ExportCitiesToJson()

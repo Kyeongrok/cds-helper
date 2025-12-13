@@ -220,6 +220,22 @@ public class CityService
     }
 
     /// <summary>
+    /// City 모델로 도시 정보 업데이트
+    /// </summary>
+    public async Task<bool> UpdateCityAsync(City city)
+    {
+        return await UpdateCityInfoAsync(
+            city.Id,
+            city.Name,
+            city.PixelX,
+            city.PixelY,
+            city.HasLibrary,
+            city.Latitude,
+            city.Longitude,
+            city.CulturalSphere);
+    }
+
+    /// <summary>
     /// 도시 정보 업데이트 (이름 + 픽셀 좌표 + 도서관 여부 + 위도/경도 + 문화권)
     /// </summary>
     public async Task<bool> UpdateCityInfoAsync(byte cityId, string name, int? pixelX, int? pixelY, bool hasLibrary, int? latitude = null, int? longitude = null, string? culturalSphere = null)

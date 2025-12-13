@@ -766,7 +766,7 @@ public class CdsHelperViewModel : BindableBase
     {
         if (city == null) return;
 
-        var dialog = new CdsHelper.Form.UI.Views.EditCityPixelDialog(
+        var dialog = new CdsHelper.Support.UI.Views.EditCityPixelDialog(
             city.Name, city.PixelX, city.PixelY, city.HasLibrary, city.Latitude, city.Longitude, city.CulturalSphere);
 
         dialog.Owner = System.Windows.Application.Current.MainWindow;
