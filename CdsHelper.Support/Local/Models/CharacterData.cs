@@ -5,6 +5,7 @@ namespace CdsHelper.Support.Local.Models;
 /// </summary>
 public class CharacterData
 {
+    public int Index { get; set; }  // 캐릭터 인덱스 (세이브 파일 내 순서)
     public string Name { get; set; } = "";
     public byte HP { get; set; }
     public byte Intelligence { get; set; }

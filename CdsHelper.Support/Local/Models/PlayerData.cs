@@ -27,7 +27,7 @@ public class PlayerData
     public byte Eloquence { get; set; }       // 웅변술
     public byte Surveying { get; set; }       // 측량술
     public byte History { get; set; }         // 역사학
-    public byte Evasion { get; set; }         // 회피
+    public byte Accounting { get; set; }       // 회계
     public byte Shipbuilding { get; set; }    // 조선술
     public byte Theology { get; set; }        // 신학
     public byte Science { get; set; }         // 과학
@@ -88,7 +88,7 @@ public class PlayerData
         { "웅변술", Eloquence },
         { "측량술", Surveying },
         { "역사학", History },
-        { "회피", Evasion },
+        { "회계", Accounting },
         { "조선술", Shipbuilding },
         { "신학", Theology },
         { "과학", Science },
