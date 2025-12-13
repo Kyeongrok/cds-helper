@@ -24,6 +24,8 @@ public class MapContent : ContentControl
     private ScrollViewer? _mapScrollViewer;
     private Image? _imgMap;
     private Canvas? _mapCanvas;
+    private Canvas? _latitudeScale;
+    private Canvas? _longitudeScale;
     private ScaleTransform? _mapScaleTransform;
     private ScaleTransform? _canvasScaleTransform;
 
@@ -71,6 +73,8 @@ public class MapContent : ContentControl
         _mapCanvas = GetTemplateChild("PART_MapCanvas") as Canvas;
         _mapScaleTransform = GetTemplateChild("PART_MapScaleTransform") as ScaleTransform;
         _canvasScaleTransform = GetTemplateChild("PART_CanvasScaleTransform") as ScaleTransform;
+        _latitudeScale = GetTemplateChild("PART_LatitudeScale") as Canvas;
+        _longitudeScale = GetTemplateChild("PART_LongitudeScale") as Canvas;
 
         // 이벤트 연결
         if (_btnZoomIn != null)
@@ -118,6 +122,12 @@ public class MapContent : ContentControl
         {
             _imgMap.MouseMove += ImgMap_MouseMove;
             _imgMap.MouseLeave += ImgMap_MouseLeave;
+        }
+
+        if (_mapCanvas != null)
+        {
+            _mapCanvas.MouseMove += ImgMap_MouseMove;
+            _mapCanvas.MouseRightButtonDown += ImgMap_MouseRightButtonDown;
         }
 
         // CityMarker 이벤트 핸들러 등록
@@ -397,9 +407,13 @@ public class MapContent : ContentControl
 
     private void ImgMap_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_imgMap == null || _txtMapCoordinates == null) return;
+        if (_txtMapCoordinates == null) return;
 
-        var pos = e.GetPosition(_imgMap);
+        // Canvas 또는 Image 기준으로 좌표 가져오기
+        var target = _mapCanvas ?? (UIElement?)_imgMap;
+        if (target == null) return;
+
+        var pos = e.GetPosition(target);
         var (lat, lon) = PixelToLatLon(pos.X, pos.Y);
         var latDir = lat >= 0 ? "N" : "S";
         var lonDir = lon >= 0 ? "E" : "W";
@@ -410,6 +424,21 @@ public class MapContent : ContentControl
     {
         if (_txtMapCoordinates != null)
             _txtMapCoordinates.Text = "마우스: -";
+    }
+
+    private void ImgMap_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_mapCanvas == null) return;
+
+        var pos = e.GetPosition(_mapCanvas);
+        var (lat, lon) = PixelToLatLon(pos.X, pos.Y);
+        var latDir = lat >= 0 ? "N" : "S";
+        var lonDir = lon >= 0 ? "E" : "W";
+
+        MessageBox.Show($"위도: {Math.Abs(lat):F1}°{latDir}\n경도: {Math.Abs(lon):F1}°{lonDir}",
+            "좌표 정보", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        e.Handled = true;
     }
 
     /// <summary>
@@ -457,6 +486,152 @@ public class MapContent : ContentControl
         var lonDir = lon >= 0 ? "E" : "W";
 
         _txtCenterPosition.Text = $"중심: {Math.Abs(lat):F1}°{latDir}, {Math.Abs(lon):F1}°{lonDir}";
+
+        // 눈금 업데이트
+        UpdateLatitudeScale();
+        UpdateLongitudeScale();
+    }
+
+    private void UpdateLatitudeScale()
+    {
+        if (_latitudeScale == null || _mapScrollViewer == null) return;
+
+        _latitudeScale.Children.Clear();
+
+        var viewportHeight = _mapScrollViewer.ViewportHeight;
+        var verticalOffset = _mapScrollViewer.VerticalOffset;
+
+        // 보이는 영역의 위/아래 픽셀 Y 좌표 (이미지 기준)
+        var topPixelY = verticalOffset / _currentScale;
+        var bottomPixelY = (verticalOffset + viewportHeight) / _currentScale;
+
+        // 해당 픽셀의 위도 계산
+        var (topLat, _) = PixelToLatLon(0, topPixelY);
+        var (bottomLat, _) = PixelToLatLon(0, bottomPixelY);
+
+        // 5도 단위로 눈금 표시
+        var startLat = (int)Math.Ceiling(Math.Min(topLat, bottomLat) / 5) * 5;
+        var endLat = (int)Math.Floor(Math.Max(topLat, bottomLat) / 5) * 5;
+
+        for (var lat = startLat; lat <= endLat; lat += 5)
+        {
+            // 위도를 픽셀 Y로 변환
+            var pixelY = LatToPixelY(lat);
+            // 스케일 적용 후 뷰포트 기준 Y 좌표
+            var screenY = (pixelY * _currentScale) - verticalOffset;
+
+            if (screenY >= 0 && screenY <= viewportHeight)
+            {
+                var latDir = lat >= 0 ? "N" : "S";
+                var text = new TextBlock
+                {
+                    Text = $"{Math.Abs(lat)}°{latDir}",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(16, 79, 137)), // #104F89
+                    FontFamily = new FontFamily("Consolas"),
+                    FontWeight = FontWeights.SemiBold
+                };
+
+                Canvas.SetLeft(text, 2);
+                Canvas.SetTop(text, screenY - 7);
+                _latitudeScale.Children.Add(text);
+
+                // 눈금선
+                var line = new System.Windows.Shapes.Line
+                {
+                    X1 = 35,
+                    X2 = 40,
+                    Y1 = screenY,
+                    Y2 = screenY,
+                    Stroke = new SolidColorBrush(Color.FromRgb(16, 79, 137)),
+                    StrokeThickness = 1
+                };
+                _latitudeScale.Children.Add(line);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 위도를 픽셀 Y 좌표로 변환
+    /// </summary>
+    private double LatToPixelY(double lat)
+    {
+        const double refPixelY = 914;
+        const double refLat = 38;
+        const double pixelsPerDegreeLat = 21.5;
+
+        return refPixelY - (lat - refLat) * pixelsPerDegreeLat;
+    }
+
+    /// <summary>
+    /// 경도를 픽셀 X 좌표로 변환
+    /// </summary>
+    private double LonToPixelX(double lon)
+    {
+        const double refPixelX = 3525;
+        const double refLon = -9;
+        const double pixelsPerDegreeLon = 24.0;
+
+        return refPixelX + (lon - refLon) * pixelsPerDegreeLon;
+    }
+
+    private void UpdateLongitudeScale()
+    {
+        if (_longitudeScale == null || _mapScrollViewer == null) return;
+
+        _longitudeScale.Children.Clear();
+
+        var viewportWidth = _mapScrollViewer.ViewportWidth;
+        var horizontalOffset = _mapScrollViewer.HorizontalOffset;
+
+        // 보이는 영역의 좌/우 픽셀 X 좌표 (이미지 기준)
+        var leftPixelX = horizontalOffset / _currentScale;
+        var rightPixelX = (horizontalOffset + viewportWidth) / _currentScale;
+
+        // 해당 픽셀의 경도 계산
+        var (_, leftLon) = PixelToLatLon(leftPixelX, 0);
+        var (_, rightLon) = PixelToLatLon(rightPixelX, 0);
+
+        // 5도 단위로 눈금 표시
+        var startLon = (int)Math.Ceiling(Math.Min(leftLon, rightLon) / 5) * 5;
+        var endLon = (int)Math.Floor(Math.Max(leftLon, rightLon) / 5) * 5;
+
+        for (var lon = startLon; lon <= endLon; lon += 5)
+        {
+            // 경도를 픽셀 X로 변환
+            var pixelX = LonToPixelX(lon);
+            // 스케일 적용 후 뷰포트 기준 X 좌표
+            var screenX = (pixelX * _currentScale) - horizontalOffset;
+
+            if (screenX >= 0 && screenX <= viewportWidth)
+            {
+                var lonDir = lon >= 0 ? "E" : "W";
+                var text = new TextBlock
+                {
+                    Text = $"{Math.Abs(lon)}°{lonDir}",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(16, 79, 137)), // #104F89
+                    FontFamily = new FontFamily("Consolas"),
+                    FontWeight = FontWeights.SemiBold
+                };
+
+                Canvas.SetLeft(text, screenX - 15);
+                Canvas.SetTop(text, 5);
+                _longitudeScale.Children.Add(text);
+
+                // 눈금선
+                var line = new System.Windows.Shapes.Line
+                {
+                    X1 = screenX,
+                    X2 = screenX,
+                    Y1 = 20,
+                    Y2 = 25,
+                    Stroke = new SolidColorBrush(Color.FromRgb(16, 79, 137)),
+                    StrokeThickness = 1
+                };
+                _longitudeScale.Children.Add(line);
+            }
+        }
     }
 
     private void OnShowCityLabelsChanged(bool showLabels)

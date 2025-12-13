@@ -31,28 +31,48 @@
                                        Margin="15,0,0,0" FontFamily="Consolas" Foreground="Gray" />
                         </StackPanel>
 
-                        <!-- 지도 이미지 -->
-                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
-                                      VerticalScrollBarVisibility="Auto"
-                                      Margin="10" x:Name="PART_MapScrollViewer">
-                            <Grid HorizontalAlignment="Left" VerticalAlignment="Top">
-                                <Image x:Name="PART_ImgMap"
-                                       Stretch="None"
-                                       RenderTransformOrigin="0,0">
-                                    <Image.LayoutTransform>
-                                        <ScaleTransform x:Name="PART_MapScaleTransform" ScaleX="1" ScaleY="1" />
-                                    </Image.LayoutTransform>
-                                </Image>
-                                <Canvas x:Name="PART_MapCanvas"
-                                        HorizontalAlignment="Left" VerticalAlignment="Top"
-                                        IsHitTestVisible="True"
-                                        Background="Transparent">
-                                    <Canvas.LayoutTransform>
-                                        <ScaleTransform x:Name="PART_CanvasScaleTransform" ScaleX="1" ScaleY="1" />
-                                    </Canvas.LayoutTransform>
-                                </Canvas>
-                            </Grid>
-                        </ScrollViewer>
+                        <!-- 지도 영역 (경도 눈금 + 위도 눈금 + 지도) -->
+                        <Grid Grid.Row="1" Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="25"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 경도 눈금 (상단) -->
+                            <Canvas x:Name="PART_LongitudeScale" Grid.Row="0" Grid.Column="1"
+                                    Background="#F0F0F0" ClipToBounds="True"/>
+
+                            <!-- 위도 눈금 (좌측) -->
+                            <Canvas x:Name="PART_LatitudeScale" Grid.Row="1" Grid.Column="0"
+                                    Background="#F0F0F0" ClipToBounds="True"/>
+
+                            <!-- 지도 이미지 -->
+                            <ScrollViewer Grid.Row="1" Grid.Column="1" HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto"
+                                          x:Name="PART_MapScrollViewer">
+                                <Grid HorizontalAlignment="Left" VerticalAlignment="Top">
+                                    <Image x:Name="PART_ImgMap"
+                                           Stretch="None"
+                                           RenderTransformOrigin="0,0">
+                                        <Image.LayoutTransform>
+                                            <ScaleTransform x:Name="PART_MapScaleTransform" ScaleX="1" ScaleY="1" />
+                                        </Image.LayoutTransform>
+                                    </Image>
+                                    <Canvas x:Name="PART_MapCanvas"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            IsHitTestVisible="True"
+                                            Background="Transparent">
+                                        <Canvas.LayoutTransform>
+                                            <ScaleTransform x:Name="PART_CanvasScaleTransform" ScaleX="1" ScaleY="1" />
+                                        </Canvas.LayoutTransform>
+                                    </Canvas>
+                                </Grid>
+                            </ScrollViewer>
+                        </Grid>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
