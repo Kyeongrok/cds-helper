@@ -1129,12 +1129,12 @@
   },
   {
     "id": 94,
-    "name": "가오",
+    "name": "카노",
     "latitude": 17,
     "longitude": -3,
     "hasLibrary": false,
-    "pixelX": 3701,
-    "pixelY": 1332,
+    "pixelX": 4047,
+    "pixelY": 1445,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아프리카"
@@ -1265,8 +1265,8 @@
     "latitude": -8,
     "longitude": 39,
     "hasLibrary": false,
-    "pixelX": 4548,
-    "pixelY": 1937,
+    "pixelX": 4598,
+    "pixelY": 1950,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아프리카"
@@ -1333,12 +1333,12 @@
   },
   {
     "id": 111,
-    "name": "하트툼",
+    "name": "하르툼",
     "latitude": 15,
     "longitude": 33,
     "hasLibrary": false,
-    "pixelX": 4435,
-    "pixelY": 1424,
+    "pixelX": 4468,
+    "pixelY": 1411,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": null
