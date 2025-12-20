@@ -94,4 +94,18 @@ public class Patron
 
         return "활동중";
     }
+
+    public string PreferencesDisplay()
+    {
+        var prefs = new List<string>();
+        if (Preferences.Geography) prefs.Add("지리");
+        if (Preferences.History) prefs.Add("역사");
+        if (Preferences.Treasure) prefs.Add("보물");
+        if (Preferences.Religion) prefs.Add("종교");
+        if (Preferences.TradeGoods) prefs.Add("교역");
+        if (Preferences.Superstition) prefs.Add("미신");
+        if (Preferences.Creature) prefs.Add("생물");
+        if (Preferences.Ethnicity) prefs.Add("민족");
+        return string.Join(", ", prefs);
+    }
 }

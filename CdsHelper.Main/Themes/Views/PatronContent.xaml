@@ -79,6 +79,7 @@
                                 <DataGridTextColumn Header="명성" Binding="{Binding Fame}" Width="70" />
                                 <DataGridTextColumn Header="재력" Binding="{Binding Wealth}" Width="90" />
                                 <DataGridTextColumn Header="권력" Binding="{Binding Power}" Width="50" />
+                                <DataGridTextColumn Header="취향" Binding="{Binding Preferences}" Width="200" />
                                 <DataGridTextColumn Header="비고" Binding="{Binding Note}" Width="*" />
                             </units:CdsDataGrid.Columns>
                         </units:CdsDataGrid>
