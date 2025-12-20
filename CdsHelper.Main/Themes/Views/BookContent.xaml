@@ -76,7 +76,23 @@
                                 <DataGridTextColumn Header="도서명" Binding="{Binding Name}" Width="200" />
                                 <DataGridTextColumn Header="언어" Binding="{Binding Language}" Width="150" />
                                 <DataGridTextColumn Header="소재 도서관" Binding="{Binding Library}" Width="*" MinWidth="200" />
-                                <DataGridTextColumn Header="게제 힌트" Binding="{Binding Hint}" Width="200" />
+                                <DataGridTemplateColumn Header="게제 힌트" Width="200">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Hint}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsHintDiscovered}" Value="True">
+                                                                <Setter Property="Foreground" Value="#1976D2" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="필요" Binding="{Binding Required}" Width="100" />
                                 <DataGridTextColumn Header="개제조건" Binding="{Binding Condition}" Width="200" />
                             </units:CdsDataGrid.Columns>
