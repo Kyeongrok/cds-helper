@@ -126,6 +126,7 @@
                                 <MenuItem Header="설정" x:Name="PART_SettingsMenu" />
                                 <MenuItem Header="도구">
                                     <MenuItem Header="이벤트 큐 보기" x:Name="PART_EventQueueMenu" />
+                                    <MenuItem Header="DB 테이블 보기" x:Name="PART_DbTableViewerMenu" />
                                 </MenuItem>
                             </Menu>
 

@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Text;
 using System.Windows;
+using CdsHelper.Api.Data;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Form.UI.Views;
 using CdsHelper.Main.Local.ViewModels;
@@ -75,6 +76,11 @@ internal class App : PrismApplication
 
     protected override void RegisterTypes(IContainerRegistry containerRegistry)
     {
+        // AppDbContext 등록
+        var basePath = AppDomain.CurrentDomain.BaseDirectory;
+        var dbPath = Path.Combine(basePath, "cdshelper.db");
+        containerRegistry.RegisterSingleton<AppDbContext>(() => AppDbContextFactory.Create(dbPath));
+
         // Services 등록
         containerRegistry.RegisterSingleton<CharacterService>();
         containerRegistry.RegisterSingleton<BookService>();

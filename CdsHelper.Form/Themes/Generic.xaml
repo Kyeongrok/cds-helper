@@ -4,5 +4,6 @@
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="/CdsHelper.Form;component/Themes/Views/CdsHelperWindow.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Form;component/Themes/Views/SettingsDialog.xaml"/>
+        <ResourceDictionary Source="/CdsHelper.Form;component/Themes/Views/DbTableViewerDialog.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

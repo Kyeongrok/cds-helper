@@ -3,15 +3,18 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using CdsHelper.Api.Data;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Main.UI.Views;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
+using Prism.Ioc;
 
 namespace CdsHelper.Form.UI.Views;
 
 [TemplatePart(Name = PART_SettingsMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_AccordionMenu, Type = typeof(AccordionControl))]
 [TemplatePart(Name = PART_ContentRegion, Type = typeof(ContentControl))]
 [TemplatePart(Name = PART_MenuToggleButton, Type = typeof(Button))]
@@ -20,6 +23,7 @@ public class CdsHelperWindow : CdsWindow
 {
     private const string PART_SettingsMenu = "PART_SettingsMenu";
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
+    private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_AccordionMenu = "PART_AccordionMenu";
     private const string PART_ContentRegion = "PART_ContentRegion";
     private const string PART_MenuToggleButton = "PART_MenuToggleButton";
@@ -58,6 +62,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_EventQueueMenu) is MenuItem eventQueueMenu)
         {
             eventQueueMenu.Click += OnEventQueueMenuClick;
+        }
+
+        if (GetTemplateChild(PART_DbTableViewerMenu) is MenuItem dbTableViewerMenu)
+        {
+            dbTableViewerMenu.Click += OnDbTableViewerMenuClick;
         }
 
         _accordionMenu = GetTemplateChild(PART_AccordionMenu) as AccordionControl;
@@ -127,6 +136,16 @@ public class CdsHelperWindow : CdsWindow
     private void OnEventQueueMenuClick(object sender, RoutedEventArgs e)
     {
         var dialog = new EventQueueDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
+    private void OnDbTableViewerMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dbContext = ContainerLocator.Container.Resolve<AppDbContext>();
+        var dialog = new DbTableViewerDialog(dbContext)
         {
             Owner = this
         };
