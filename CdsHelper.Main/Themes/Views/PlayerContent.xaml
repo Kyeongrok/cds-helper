@@ -176,8 +176,50 @@
                                                          Column5Label="통역" />
                                 </StackPanel>
 
-                                <!-- 오른쪽: 동료 상세 -->
+                                <!-- 오른쪽: 동료 상세 + 힌트 -->
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0">
+
+                                    <!-- 힌트 획득 현황 -->
+                                    <GroupBox Padding="10" Margin="0,0,0,10">
+                                        <GroupBox.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="힌트 획득 현황 - " />
+                                                <TextBlock Text="{Binding HintSummary}" FontWeight="Bold" />
+                                            </StackPanel>
+                                        </GroupBox.Header>
+                                        <DataGrid ItemsSource="{Binding Hints}"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CanUserAddRows="False"
+                                                  HeadersVisibility="Column"
+                                                  MaxHeight="400"
+                                                  VerticalScrollBarVisibility="Auto">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="순번" Binding="{Binding Index}" Width="50" />
+                                                <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="*" />
+                                                <DataGridTemplateColumn Header="획득" Width="50">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock HorizontalAlignment="Center">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="X" />
+                                                                        <Setter Property="Foreground" Value="Red" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsAcquired}" Value="True">
+                                                                                <Setter Property="Text" Value="O" />
+                                                                                <Setter Property="Foreground" Value="Green" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </GroupBox>
 
                                     <!-- 선택된 동료 정보 -->
                                     <GroupBox Header="동료 상세" Padding="10"

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Support.Local.Settings;
@@ -8,12 +9,14 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_DefaultViewComboBox, Type = typeof(ComboBox))]
 [TemplatePart(Name = PART_OkButton, Type = typeof(Button))]
 [TemplatePart(Name = PART_CancelButton, Type = typeof(Button))]
+[TemplatePart(Name = PART_OpenDbFolderButton, Type = typeof(Button))]
 public class SettingsDialog : Window
 {
     private const string PART_MarkerSizeSlider = "PART_MarkerSizeSlider";
     private const string PART_DefaultViewComboBox = "PART_DefaultViewComboBox";
     private const string PART_OkButton = "PART_OkButton";
     private const string PART_CancelButton = "PART_CancelButton";
+    private const string PART_OpenDbFolderButton = "PART_OpenDbFolderButton";
 
     private Slider? _markerSizeSlider;
     private ComboBox? _defaultViewComboBox;
@@ -41,7 +44,7 @@ public class SettingsDialog : Window
     {
         Title = "설정";
         Width = 400;
-        Height = 300;
+        Height = 380;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
 
@@ -61,6 +64,9 @@ public class SettingsDialog : Window
 
         if (GetTemplateChild(PART_CancelButton) is Button cancelButton)
             cancelButton.Click += OnCancelClick;
+
+        if (GetTemplateChild(PART_OpenDbFolderButton) is Button openDbFolderButton)
+            openDbFolderButton.Click += OnOpenDbFolderClick;
 
         if (_markerSizeSlider != null)
             _markerSizeSlider.Value = MarkerSize;
@@ -93,5 +99,31 @@ public class SettingsDialog : Window
     private void OnCancelClick(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
+    }
+
+    private void OnOpenDbFolderClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var basePath = AppDomain.CurrentDomain.BaseDirectory;
+            var dbPath = Path.Combine(basePath, "cdshelper.db");
+
+            if (File.Exists(dbPath))
+            {
+                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{dbPath}\"");
+            }
+            else
+            {
+                System.Diagnostics.Process.Start("explorer.exe", basePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"폴더 열기 중 오류가 발생했습니다.\n{ex.Message}",
+                "오류",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 }

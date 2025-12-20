@@ -27,7 +27,8 @@ public class PlayerContent : ContentControl
             return;
 
         var saveDataService = ContainerLocator.Container.Resolve<SaveDataService>();
+        var hintService = ContainerLocator.Container.Resolve<HintService>();
         var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
-        DataContext = new PlayerContentViewModel(saveDataService, eventAggregator);
+        DataContext = new PlayerContentViewModel(saveDataService, hintService, eventAggregator);
     }
 }

@@ -34,6 +34,11 @@ public class SaveDataService
     private const int MONTH_OFFSET = 0x19;
     private const int DAY_OFFSET = 0x1A;
 
+    // 힌트 관련 상수
+    private const int HINT_START_OFFSET = 0x1A61B;
+    private const int HINT_SIZE = 6;
+    private const int HINT_COUNT = 186;
+
     private static readonly Dictionary<int, string> SkillsMap = new()
     {
         { 1, "항" }, { 2, "운" }, { 3, "검" }, { 4, "포" }, { 5, "사" },
@@ -90,11 +95,37 @@ public class SaveDataService
 
         saveInfo.Characters = characters;
 
+        // 힌트 데이터 읽기
+        saveInfo.Hints = ReadHintData(data);
+
         // 현재 로드된 데이터 캐싱
         CurrentSaveGameInfo = saveInfo;
         CurrentFilePath = filePath;
 
         return saveInfo;
+    }
+
+    /// <summary>
+    /// 힌트 획득 데이터 읽기 (1~186)
+    /// </summary>
+    private List<HintData> ReadHintData(byte[] data)
+    {
+        var hints = new List<HintData>();
+
+        for (int i = 0; i < HINT_COUNT; i++)
+        {
+            int offset = HINT_START_OFFSET + (i * HINT_SIZE);
+            if (offset >= data.Length)
+                break;
+
+            hints.Add(new HintData
+            {
+                Index = i + 1,
+                Value = data[offset]
+            });
+        }
+
+        return hints;
     }
 
     private CharacterData? ReadCharacterData(byte[] data, int offset)
