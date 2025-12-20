@@ -105,6 +105,7 @@ public static class DataMigrator
             var jb = jsonBooks[i];
             var bookEntity = new BookEntity
             {
+                Id = jb.Id,
                 Name = jb.Name,
                 Language = jb.Language ?? string.Empty,
                 Hint = jb.HintName ?? string.Empty,
@@ -213,6 +214,9 @@ public static class DataMigrator
 
     private class JsonBookData
     {
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public int Id { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("도서명")]
         public string Name { get; set; } = string.Empty;
 
