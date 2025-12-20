@@ -25,6 +25,8 @@
                                       VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
                             <CheckBox x:Name="PART_ChkShowCulturalSpheres" Content="문화권 표시"
                                       VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
+                            <CheckBox x:Name="PART_ChkShowShipyards" Content="조선소 표시"
+                                      VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
                             <TextBlock x:Name="PART_TxtCenterPosition" Text="중심: -" VerticalAlignment="Center"
                                        Margin="20,0,0,0" FontFamily="Consolas" Foreground="#104F89" FontWeight="Bold" />
                             <TextBlock x:Name="PART_TxtMapCoordinates" Text="마우스: -" VerticalAlignment="Center"

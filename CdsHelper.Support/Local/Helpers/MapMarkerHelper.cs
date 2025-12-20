@@ -30,7 +30,7 @@ public static class MapMarkerHelper
                 ShowCoordinates = showCoordinates
             };
 
-            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude, city.HasLibrary, city.Id, markerSize)
+            var marker = new CityMarker(x, y, city.Name, city.Latitude, city.Longitude, city.HasLibrary, city.HasShipyard, city.Id, markerSize)
             {
                 ShowLabel = showLabels,
                 ShowCoordinates = showCoordinates,
@@ -84,6 +84,22 @@ public static class MapMarkerHelper
             if (child is CityMarker marker)
             {
                 marker.ShowCoordinates = visible;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 조선소 마커 표시 여부를 변경합니다.
+    /// </summary>
+    public static void SetShipyardMarkersVisibility(Canvas canvas, bool visible)
+    {
+        if (canvas == null) return;
+
+        foreach (var child in canvas.Children)
+        {
+            if (child is CityMarker marker)
+            {
+                marker.ShowShipyardMarker = visible;
             }
         }
     }

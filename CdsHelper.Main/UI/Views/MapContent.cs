@@ -19,6 +19,7 @@ public class MapContent : ContentControl
     private CheckBox? _chkShowCityLabels;
     private CheckBox? _chkShowCoordinates;
     private CheckBox? _chkShowCulturalSpheres;
+    private CheckBox? _chkShowShipyards;
     private TextBlock? _txtMapCoordinates;
     private TextBlock? _txtCenterPosition;
     private ScrollViewer? _mapScrollViewer;
@@ -103,6 +104,13 @@ public class MapContent : ContentControl
         {
             _chkShowCulturalSpheres.Checked += (s, e) => OnShowCulturalSpheresChanged(true);
             _chkShowCulturalSpheres.Unchecked += (s, e) => OnShowCulturalSpheresChanged(false);
+        }
+
+        _chkShowShipyards = GetTemplateChild("PART_ChkShowShipyards") as CheckBox;
+        if (_chkShowShipyards != null)
+        {
+            _chkShowShipyards.Checked += (s, e) => OnShowShipyardsChanged(true);
+            _chkShowShipyards.Unchecked += (s, e) => OnShowShipyardsChanged(false);
         }
 
         if (_mapScrollViewer != null)
@@ -661,6 +669,12 @@ public class MapContent : ContentControl
             // 영역 마커 제거
             MapMarkerHelper.ClearAreaMarkers(_mapCanvas);
         }
+    }
+
+    private void OnShowShipyardsChanged(bool showShipyards)
+    {
+        if (_mapCanvas == null) return;
+        MapMarkerHelper.SetShipyardMarkersVisibility(_mapCanvas, showShipyards);
     }
 
     private void OnCityMarkerClicked(object sender, RoutedEventArgs e)

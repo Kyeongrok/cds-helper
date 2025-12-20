@@ -65,6 +65,14 @@ public class CityMarker : Control, INotifyPropertyChanged
         DependencyProperty.Register(nameof(HasLibrary), typeof(bool), typeof(CityMarker),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty HasShipyardProperty =
+        DependencyProperty.Register(nameof(HasShipyard), typeof(bool), typeof(CityMarker),
+            new PropertyMetadata(false));
+
+    public static readonly DependencyProperty ShowShipyardMarkerProperty =
+        DependencyProperty.Register(nameof(ShowShipyardMarker), typeof(bool), typeof(CityMarker),
+            new PropertyMetadata(false));
+
     public static readonly DependencyProperty CityIdProperty =
         DependencyProperty.Register(nameof(CityId), typeof(byte), typeof(CityMarker),
             new PropertyMetadata((byte)0));
@@ -145,6 +153,18 @@ public class CityMarker : Control, INotifyPropertyChanged
         set => SetValue(HasLibraryProperty, value);
     }
 
+    public bool HasShipyard
+    {
+        get => (bool)GetValue(HasShipyardProperty);
+        set => SetValue(HasShipyardProperty, value);
+    }
+
+    public bool ShowShipyardMarker
+    {
+        get => (bool)GetValue(ShowShipyardMarkerProperty);
+        set => SetValue(ShowShipyardMarkerProperty, value);
+    }
+
     public byte CityId
     {
         get => (byte)GetValue(CityIdProperty);
@@ -200,7 +220,7 @@ public class CityMarker : Control, INotifyPropertyChanged
     {
     }
 
-    public CityMarker(double x, double y, string cityName = "", int? latitude = null, int? longitude = null, bool hasLibrary = false, byte cityId = 0, double size = AppSettings.DefaultMarkerSize)
+    public CityMarker(double x, double y, string cityName = "", int? latitude = null, int? longitude = null, bool hasLibrary = false, bool hasShipyard = false, byte cityId = 0, double size = AppSettings.DefaultMarkerSize)
     {
         X = x;
         Y = y;
@@ -208,6 +228,7 @@ public class CityMarker : Control, INotifyPropertyChanged
         Latitude = latitude;
         Longitude = longitude;
         HasLibrary = hasLibrary;
+        HasShipyard = hasShipyard;
         CityId = cityId;
         MarkerSize = size;
         Width = size;

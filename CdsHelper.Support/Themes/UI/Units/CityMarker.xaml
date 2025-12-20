@@ -66,6 +66,36 @@
                             </Button.Template>
                         </Button>
 
+                        <Border Canvas.Left="-8"
+                                Canvas.Top="-8"
+                                Width="12"
+                                Height="12"
+                                Background="SteelBlue"
+                                BorderBrush="DarkSlateBlue"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding HasShipyard, RelativeSource={RelativeSource AncestorType=units:CityMarker}}" Value="True" />
+                                                <Condition Binding="{Binding ShowShipyardMarker, RelativeSource={RelativeSource AncestorType=units:CityMarker}}" Value="True" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="&#51312;"
+                                       FontSize="8"
+                                       FontWeight="Bold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+
                         <TextBlock Text="{Binding DisplayText, RelativeSource={RelativeSource TemplatedParent}}"
                                    FontSize="10"
                                    Foreground="Black"
