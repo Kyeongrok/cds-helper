@@ -33,4 +33,14 @@ public class HintData
     };
 
     public string DisplayText => $"{Index}: {Name}";
+
+    /// <summary>
+    /// 관련 책의 언어 (여러 책이면 쉼표로 구분)
+    /// </summary>
+    public string BookLanguage { get; set; } = "";
+
+    /// <summary>
+    /// 관련 책의 필요 스킬 (여러 책이면 쉼표로 구분)
+    /// </summary>
+    public string BookRequired { get; set; } = "";
 }

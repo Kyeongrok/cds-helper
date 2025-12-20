@@ -37,15 +37,15 @@ internal class App : PrismApplication
             var citiesJsonPath = Path.Combine(basePath, "cities.json");
             Task.Run(() => cityService.InitializeAsync(dbPath, citiesJsonPath)).GetAwaiter().GetResult();
 
+            // HintService 초기화 (BookHints가 Hints를 참조하므로 BookService보다 먼저)
+            var hintService = Container.Resolve<HintService>();
+            var hintJsonPath = Path.Combine(basePath, "hint.json");
+            Task.Run(() => hintService.InitializeAsync(dbPath, hintJsonPath)).GetAwaiter().GetResult();
+
             // BookService 초기화
             var bookService = Container.Resolve<BookService>();
             var booksJsonPath = Path.Combine(basePath, "books.json");
             Task.Run(() => bookService.InitializeAsync(dbPath, booksJsonPath)).GetAwaiter().GetResult();
-
-            // HintService 초기화
-            var hintService = Container.Resolve<HintService>();
-            var hintJsonPath = Path.Combine(basePath, "hint.json");
-            Task.Run(() => hintService.InitializeAsync(dbPath, hintJsonPath)).GetAwaiter().GetResult();
 
             if (isNewDb)
             {

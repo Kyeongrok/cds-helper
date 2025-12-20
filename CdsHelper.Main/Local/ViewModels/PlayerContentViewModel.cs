@@ -205,9 +205,17 @@ public class PlayerContentViewModel : BindableBase
             SimInterpreter = _allCharacters.FirstOrDefault(c => c.Name == Player?.InterpreterName);
 
             // 힌트 데이터 로드 (이름 설정)
+            var hintBookInfo = Task.Run(() => _hintService.GetHintBookInfoAsync()).GetAwaiter().GetResult();
             foreach (var hint in saveGameInfo.Hints)
             {
                 hint.Name = _hintService.GetHintName(hint.Index - 1); // 0부터 시작하는 인덱스로 변환
+
+                // 책 정보 설정
+                if (hintBookInfo.TryGetValue(hint.Index - 1, out var bookInfo))
+                {
+                    hint.BookLanguage = bookInfo.Language;
+                    hint.BookRequired = bookInfo.Required;
+                }
             }
             Hints = new ObservableCollection<HintData>(saveGameInfo.Hints);
             HintSummary = $"발견: {saveGameInfo.DiscoveredHintCount} / {saveGameInfo.TotalHintCount}";

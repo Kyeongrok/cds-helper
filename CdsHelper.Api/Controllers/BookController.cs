@@ -43,6 +43,15 @@ public class BookController
                 FOREIGN KEY (BookId) REFERENCES Books(Id),
                 FOREIGN KEY (CityId) REFERENCES Cities(Id)
             )");
+
+        context.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS BookHints (
+                BookId INTEGER NOT NULL,
+                HintId INTEGER NOT NULL,
+                PRIMARY KEY (BookId, HintId),
+                FOREIGN KEY (BookId) REFERENCES Books(Id),
+                FOREIGN KEY (HintId) REFERENCES Hints(Id)
+            )");
     }
 
     public async Task<List<BookEntity>> GetAllBooksAsync()
@@ -96,6 +105,11 @@ public class BookController
     public async Task AddBookCitiesAsync(IEnumerable<BookCityEntity> bookCities)
     {
         await _repository.AddBookCitiesAsync(bookCities);
+    }
+
+    public async Task AddBookHintsAsync(IEnumerable<BookHintEntity> bookHints)
+    {
+        await _repository.AddBookHintsAsync(bookHints);
     }
 
     public async Task<bool> HasAnyDataAsync()

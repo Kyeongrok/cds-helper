@@ -53,8 +53,8 @@
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="4*" />
+                                    <ColumnDefinition Width="6*" />
                                 </Grid.ColumnDefinitions>
 
                                 <!-- 왼쪽: 기본 정보 + 기능 스킬 -->
@@ -195,13 +195,15 @@
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
                                                   MaxHeight="400"
-                                                  MaxWidth="300"
+                                                  MaxWidth="700"
                                                   FontSize="14"
                                                   VerticalScrollBarVisibility="Auto">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="순번" Binding="{Binding Index}" Width="50" />
+                                                <DataGridTextColumn Header="순번" Binding="{Binding Index}" Width="40" />
                                                 <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="*" />
-                                                <DataGridTemplateColumn Header="힌트" Width="50">
+                                                <DataGridTextColumn Header="언어" Binding="{Binding BookLanguage}" Width="80" />
+                                                <DataGridTextColumn Header="필요" Binding="{Binding BookRequired}" Width="60" />
+                                                <DataGridTemplateColumn Header="힌트" Width="40">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>
                                                             <TextBlock Text="{Binding HasHint, Converter={StaticResource BoolToOXConverter}}"
@@ -220,7 +222,7 @@
                                                         </DataTemplate>
                                                     </DataGridTemplateColumn.CellTemplate>
                                                 </DataGridTemplateColumn>
-                                                <DataGridTemplateColumn Header="발견" Width="50">
+                                                <DataGridTemplateColumn Header="발견" Width="40">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>
                                                             <TextBlock Text="{Binding IsDiscovered, Converter={StaticResource BoolToOXConverter}}"

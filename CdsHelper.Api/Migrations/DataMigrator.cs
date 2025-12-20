@@ -98,6 +98,8 @@ public static class DataMigrator
         var bookEntities = new List<BookEntity>();
         var bookCityMappings = new List<(int BookIndex, List<byte> CityIds)>();
 
+        var bookHintMappings = new List<(int BookIndex, List<int> HintIds)>();
+
         for (int i = 0; i < jsonBooks.Count; i++)
         {
             var jb = jsonBooks[i];
@@ -105,7 +107,7 @@ public static class DataMigrator
             {
                 Name = jb.Name,
                 Language = jb.Language ?? string.Empty,
-                Hint = jb.Hint ?? string.Empty,
+                Hint = jb.HintName ?? string.Empty,
                 Required = jb.Required ?? string.Empty,
                 Condition = jb.Condition ?? string.Empty
             };
@@ -126,6 +128,9 @@ public static class DataMigrator
                 }
             }
             bookCityMappings.Add((i, cityIds));
+
+            // hint 배열 저장
+            bookHintMappings.Add((i, jb.HintIds ?? new List<int>()));
         }
 
         // Books 저장
@@ -152,7 +157,28 @@ public static class DataMigrator
             await bookController.AddBookCitiesAsync(bookCityEntities);
         }
 
-        onMigrated?.Invoke($"Books {bookEntities.Count}개, BookCities {bookCityEntities.Count}개 마이그레이션 완료");
+        // BookHint 관계 저장
+        var bookHintEntities = new List<BookHintEntity>();
+        for (int i = 0; i < bookEntities.Count; i++)
+        {
+            var bookId = bookEntities[i].Id;
+            var hintIds = bookHintMappings[i].HintIds;
+            foreach (var hintId in hintIds)
+            {
+                bookHintEntities.Add(new BookHintEntity
+                {
+                    BookId = bookId,
+                    HintId = hintId
+                });
+            }
+        }
+
+        if (bookHintEntities.Any())
+        {
+            await bookController.AddBookHintsAsync(bookHintEntities);
+        }
+
+        onMigrated?.Invoke($"Books {bookEntities.Count}개, BookCities {bookCityEntities.Count}개, BookHints {bookHintEntities.Count}개 마이그레이션 완료");
     }
 
     private class JsonCityData
@@ -197,7 +223,10 @@ public static class DataMigrator
         public string? Library { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("게제 힌트")]
-        public string? Hint { get; set; }
+        public string? HintName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("hint")]
+        public List<int>? HintIds { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("필요")]
         public string? Required { get; set; }

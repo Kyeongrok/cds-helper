@@ -107,4 +107,42 @@ public class HintService
     {
         return new Dictionary<int, string>(_hintNames);
     }
+
+    /// <summary>
+    /// 힌트별 책 정보 (언어, 필요 스킬) 조회
+    /// </summary>
+    public async Task<Dictionary<int, (string Language, string Required)>> GetHintBookInfoAsync()
+    {
+        var result = new Dictionary<int, (string Language, string Required)>();
+        if (_dbContext == null) return result;
+
+        var bookHints = await _dbContext.BookHints
+            .Include(bh => bh.Book)
+            .AsNoTracking()
+            .ToListAsync();
+
+        // 힌트별로 그룹화
+        var grouped = bookHints.GroupBy(bh => bh.HintId);
+        foreach (var group in grouped)
+        {
+            var languages = group
+                .Select(bh => bh.Book.Language)
+                .Where(l => !string.IsNullOrEmpty(l))
+                .Distinct()
+                .ToList();
+
+            var requireds = group
+                .Select(bh => bh.Book.Required)
+                .Where(r => !string.IsNullOrEmpty(r))
+                .Distinct()
+                .ToList();
+
+            result[group.Key] = (
+                string.Join(", ", languages),
+                string.Join(", ", requireds)
+            );
+        }
+
+        return result;
+    }
 }

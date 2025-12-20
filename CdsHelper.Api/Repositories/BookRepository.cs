@@ -94,6 +94,12 @@ public class BookRepository : IBookRepository
         await _context.SaveChangesAsync();
     }
 
+    public async Task AddBookHintsAsync(IEnumerable<BookHintEntity> bookHints)
+    {
+        await _context.BookHints.AddRangeAsync(bookHints);
+        await _context.SaveChangesAsync();
+    }
+
     public async Task UpdateBookCitiesAsync(int bookId, List<byte> cityIds)
     {
         // Raw SQL로 기존 매핑 삭제
