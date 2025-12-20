@@ -1,13 +1,17 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
+using Prism.Events;
 
 namespace CdsHelper.Form.Local.ViewModels;
 
 public class CdsHelperViewModel : BindableBase
 {
     private readonly IRegionManager _regionManager;
+    private readonly IEventAggregator _eventAggregator;
     private readonly CharacterService _characterService;
     private readonly BookService _bookService;
     private readonly CityService _cityService;
@@ -365,6 +369,7 @@ public class CdsHelperViewModel : BindableBase
 
     public CdsHelperViewModel(
         IRegionManager regionManager,
+        IEventAggregator eventAggregator,
         CharacterService characterService,
         BookService bookService,
         CityService cityService,
@@ -374,6 +379,7 @@ public class CdsHelperViewModel : BindableBase
         SaveDataService saveDataService)
     {
         _regionManager = regionManager;
+        _eventAggregator = eventAggregator;
         _characterService = characterService;
         _bookService = bookService;
         _cityService = cityService;
@@ -422,12 +428,16 @@ public class CdsHelperViewModel : BindableBase
         if (System.IO.File.Exists(itemsPath))
             LoadItems(itemsPath);
 
-        // 기본 세이브 파일 로드
-        var savePath = @"C:\Users\ocean\Desktop\대항해시대3\savedata.cds";
-        if (System.IO.File.Exists(savePath))
-            LoadSaveFile(savePath);
+        // 마지막 세이브 파일 로드
+        if (!string.IsNullOrEmpty(AppSettings.LastSaveFilePath) &&
+            System.IO.File.Exists(AppSettings.LastSaveFilePath))
+        {
+            LoadSaveFile(AppSettings.LastSaveFilePath);
+        }
         else
+        {
             StatusText = "준비됨";
+        }
     }
 
     private async Task LoadCitiesFromDbAsync()
@@ -501,13 +511,27 @@ public class CdsHelperViewModel : BindableBase
             StatusText = "파일 읽는 중...";
             _saveDataService.SetCities(_allCities);
             _saveGameInfo = _saveDataService.ReadSaveFile(filePath);
+            var playerData = _saveDataService.ReadPlayerData(filePath);
             _allCharacters = _saveGameInfo.Characters;
 
             FilePath = $"파일 경로: {filePath}";
             WindowTitle = $"대항해시대3 세이브 뷰어 - {_saveGameInfo.DateString}";
 
+            // 마지막 로드한 파일 경로 저장
+            AppSettings.LastSaveFilePath = filePath;
+
             ApplyCharacterFilter();
             ApplyPatronFilter();
+
+            // 세이브 데이터 로드 이벤트 발생
+            _eventAggregator.GetEvent<SaveDataLoadedEvent>().Publish(new SaveDataLoadedEventArgs
+            {
+                SaveGameInfo = _saveGameInfo,
+                PlayerData = playerData,
+                FilePath = filePath
+            });
+
+            StatusText = $"로드 완료: {_saveGameInfo.DateString}";
         }
         catch (Exception ex)
         {

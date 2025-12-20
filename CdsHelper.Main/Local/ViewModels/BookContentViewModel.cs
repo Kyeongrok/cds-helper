@@ -2,9 +2,12 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
 using CdsHelper.Main.UI.Views;
+using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 using Prism.Commands;
+using Prism.Events;
 using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModel;
@@ -97,25 +100,15 @@ public class BookContentViewModel : BindableBase
 
     public ICommand ResetBookFilterCommand { get; }
     public ICommand EditLibraryMappingCommand { get; }
-    public ICommand LoadSaveCommand { get; }
-    public DelegateCommand RefreshCommand { get; }
+    // LoadSaveCommand와 RefreshCommand는 CdsHelperWindow의 공통 영역에서 처리
 
     #endregion
 
-    private string _saveFilePath = "";
-    public string SaveFilePath
-    {
-        get => _saveFilePath;
-        set
-        {
-            if (SetProperty(ref _saveFilePath, value))
-            {
-                RefreshCommand?.RaiseCanExecuteChanged();
-            }
-        }
-    }
-
-    public BookContentViewModel(BookService bookService, CityService cityService, SaveDataService saveDataService)
+    public BookContentViewModel(
+        BookService bookService,
+        CityService cityService,
+        SaveDataService saveDataService,
+        IEventAggregator eventAggregator)
     {
         _bookService = bookService;
         _cityService = cityService;
@@ -124,53 +117,43 @@ public class BookContentViewModel : BindableBase
         ResetBookFilterCommand = new DelegateCommand(ResetFilter);
         EditLibraryMappingCommand = new DelegateCommand(EditLibraryMapping, () => SelectedBook != null)
             .ObservesProperty(() => SelectedBook);
-        LoadSaveCommand = new DelegateCommand(LoadSaveFile);
-        RefreshCommand = new DelegateCommand(RefreshSaveFile, () => !string.IsNullOrEmpty(SaveFilePath));
 
         Initialize();
 
-        // 기본 세이브 파일 로드 시도
-        var defaultPath = @"C:\Users\ocean\Desktop\대항해시대3\savedata.cds";
-        if (System.IO.File.Exists(defaultPath))
-            LoadSaveFile(defaultPath);
-    }
+        // 세이브 데이터 로드 이벤트 구독
+        eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
 
-    private void LoadSaveFile()
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
+        // 이미 로드된 데이터가 있으면 표시
+        if (saveDataService.CurrentPlayerData != null)
         {
-            Filter = "세이브 파일 (SAVEDATA.CDS)|SAVEDATA.CDS",
-            Title = "세이브 파일 선택"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            LoadSaveFile(dialog.FileName);
+            LoadSaveData(saveDataService.CurrentPlayerData);
         }
     }
 
-    private void LoadSaveFile(string filePath)
+    private void OnSaveDataLoaded(SaveDataLoadedEventArgs args)
+    {
+        if (args.PlayerData != null)
+        {
+            LoadSaveData(args.PlayerData);
+        }
+    }
+
+    // 중앙에서 세이브 데이터 로드 시 호출될 메서드
+    public void LoadSaveData(PlayerData playerData)
     {
         try
         {
-            _playerData = _saveDataService.ReadPlayerData(filePath);
-            SaveFilePath = filePath;
+            StatusText = "도서 데이터 로드 중...";
+            _playerData = playerData;
+
             UpdateBooksWithPlayerData();
             ApplyFilter();
-            StatusText = $"세이브 로드 완료 - 도서: {Books.Count}개";
+            StatusText = $"도서 로드 완료: {Books.Count}개";
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"세이브 파일 로드 실패:\n\n{ex.Message}",
+            MessageBox.Show($"도서 데이터 로드 실패:\n\n{ex.Message}",
                 "오류", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void RefreshSaveFile()
-    {
-        if (!string.IsNullOrEmpty(SaveFilePath))
-        {
-            LoadSaveFile(SaveFilePath);
         }
     }
 

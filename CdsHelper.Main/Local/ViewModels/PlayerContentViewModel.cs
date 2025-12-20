@@ -1,9 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Threading;
+using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 using Prism.Commands;
+using Prism.Events;
 using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
@@ -116,72 +119,48 @@ public class PlayerContentViewModel : BindableBase
     public string FilePath
     {
         get => _filePath;
-        set
-        {
-            if (SetProperty(ref _filePath, value))
-            {
-                RefreshCommand?.RaiseCanExecuteChanged();
-            }
-        }
+        set => SetProperty(ref _filePath, value);
     }
 
-    public ICommand LoadSaveCommand { get; }
-    public DelegateCommand RefreshCommand { get; }
+    // LoadSaveCommand와 RefreshCommand는 CdsHelperWindow의 공통 영역에서 처리
     public ICommand ShowCrewMemberCommand { get; }
 
-    public PlayerContentViewModel(SaveDataService saveDataService)
+    public PlayerContentViewModel(
+        SaveDataService saveDataService,
+        IEventAggregator eventAggregator)
     {
         _saveDataService = saveDataService;
-        LoadSaveCommand = new DelegateCommand(LoadSaveFile);
-        RefreshCommand = new DelegateCommand(RefreshSaveFile, CanRefresh);
         ShowCrewMemberCommand = new DelegateCommand<string>(ShowCrewMember);
 
-        // 기본 세이브 파일 로드 시도 (지연)
-        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
-        {
-            var defaultPath = @"C:\Users\ocean\Desktop\대항해시대3\savedata.cds";
-            if (System.IO.File.Exists(defaultPath))
-                LoadSaveFile(defaultPath);
-        }), DispatcherPriority.Background);
-    }
+        // 세이브 데이터 로드 이벤트 구독
+        eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
 
-    public void LoadSaveFile()
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
+        // 이미 로드된 데이터가 있으면 표시
+        if (saveDataService.CurrentSaveGameInfo != null && saveDataService.CurrentPlayerData != null)
         {
-            Filter = "세이브 파일 (SAVEDATA.CDS)|SAVEDATA.CDS",
-            Title = "세이브 파일 선택"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            LoadSaveFile(dialog.FileName);
+            LoadSaveData(saveDataService.CurrentSaveGameInfo, saveDataService.CurrentPlayerData);
         }
     }
 
-    private bool CanRefresh() => !string.IsNullOrEmpty(FilePath);
-
-    private void RefreshSaveFile()
+    private void OnSaveDataLoaded(SaveDataLoadedEventArgs args)
     {
-        if (!string.IsNullOrEmpty(FilePath))
+        if (args.PlayerData != null)
         {
-            LoadSaveFile(FilePath);
-            StatusText = $"새로고침 완료: {Player?.FullName}";
+            LoadSaveData(args.SaveGameInfo, args.PlayerData);
         }
     }
 
-    public void LoadSaveFile(string filePath)
+    // 중앙에서 세이브 데이터 로드 시 호출될 메서드
+    public void LoadSaveData(SaveGameInfo saveGameInfo, PlayerData playerData)
     {
         try
         {
-            StatusText = "로딩 중...";
+            StatusText = "플레이어 데이터 로드 중...";
 
-            Player = _saveDataService.ReadPlayerData(filePath);
-            FilePath = filePath;
+            Player = playerData;
             SelectedCrewMember = null;
 
             // 전체 캐릭터 목록 로드 (시뮬레이션용)
-            var saveGameInfo = _saveDataService.ReadSaveFile(filePath);
             _allCharacters = saveGameInfo.Characters
                 .Where(c => !c.IsGray) // 등장한 캐릭터만
                 .OrderBy(c => c.Name)
@@ -209,7 +188,7 @@ public class PlayerContentViewModel : BindableBase
             if (Player != null)
             {
                 BuildCombinedSkills();
-                StatusText = $"로드 완료: {Player.FullName} (고용가능: {hirableCharacters.Count}명)";
+                StatusText = $"플레이어 로드 완료: {Player.FullName} (고용가능: {hirableCharacters.Count}명)";
             }
             else
             {
@@ -219,7 +198,7 @@ public class PlayerContentViewModel : BindableBase
         catch (Exception ex)
         {
             StatusText = "로드 실패";
-            System.Windows.MessageBox.Show($"파일 읽기 실패:\n\n{ex.Message}",
+            System.Windows.MessageBox.Show($"플레이어 데이터 로드 실패:\n\n{ex.Message}",
                 "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }

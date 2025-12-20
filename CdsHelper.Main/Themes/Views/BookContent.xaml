@@ -15,11 +15,6 @@
 
                         <!-- 도서 검색 필터 -->
                         <WrapPanel Grid.Row="0" Margin="10" Orientation="Horizontal">
-                            <Button Content="세이브 로드" Width="100" Height="30" Margin="0,0,5,0"
-                                    Command="{Binding LoadSaveCommand}" />
-                            <Button Content="새로고침" Width="80" Height="30" Margin="0,0,15,0"
-                                    Command="{Binding RefreshCommand}" />
-
                             <TextBlock Text="도서명:" VerticalAlignment="Center" Margin="0,0,5,0" />
                             <TextBox Width="120" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
                                      Text="{Binding BookNameSearch, UpdateSourceTrigger=PropertyChanged}" />

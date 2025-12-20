@@ -67,6 +67,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="32"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -128,8 +129,38 @@
                                 </MenuItem>
                             </Menu>
 
+                            <!-- 세이브 파일 정보 바 -->
+                            <Border Grid.Row="2" Background="#E3F2FD" BorderBrush="#90CAF9" BorderThickness="0,0,0,1" Padding="10,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="세이브 파일 열기" Width="120" Height="28" Margin="0,0,15,0"
+                                            Command="{Binding LoadSaveCommand}"
+                                            Background="#1976D2" Foreground="White" BorderThickness="0" Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border" Background="{TemplateBinding Background}"
+                                                        CornerRadius="3" Padding="10,5">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#1565C0"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#0D47A1"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <TextBlock VerticalAlignment="Center" Foreground="#555" Margin="0,0,5,0">
+                                        <Run Text="파일:"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding FilePath}" VerticalAlignment="Center" Foreground="#1976D2" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+
                             <!-- 메인 컨텐츠 영역 -->
-                            <Grid Grid.Row="2">
+                            <Grid Grid.Row="3">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition x:Name="PART_MenuColumn" Width="200"/>
                                     <ColumnDefinition Width="*"/>
@@ -240,7 +271,7 @@
                             </Grid>
 
                             <!-- 하단 상태바 -->
-                            <StatusBar Grid.Row="3" Background="#104F89">
+                            <StatusBar Grid.Row="4" Background="#104F89">
                                 <StatusBarItem>
                                     <TextBlock Text="{Binding DataContext.StatusText, RelativeSource={RelativeSource TemplatedParent}}" Foreground="White" />
                                 </StatusBarItem>

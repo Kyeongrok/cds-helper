@@ -41,14 +41,11 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- 상단: 파일 선택 -->
+                        <!-- 상단: 모드 전환 -->
                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-                            <Button Content="세이브 파일 열기" Width="120" Height="30"
-                                    Command="{Binding LoadSaveCommand}" />
-                            <Button Content="새로고침" Width="80" Height="30" Margin="10,0,0,0"
-                                    Command="{Binding RefreshCommand}" />
-                            <TextBlock Text="{Binding FilePath}" VerticalAlignment="Center" Margin="10,0,0,0"
-                                       Foreground="Gray" />
+                            <CheckBox Content="시뮬레이션 모드" IsChecked="{Binding IsSimulationMode}"
+                                      VerticalAlignment="Center" Margin="0,0,10,0"
+                                      ToolTip="시뮬레이션 모드를 활성화하면 다른 항해사를 선택하여 스킬을 미리 확인할 수 있습니다." />
                         </StackPanel>
 
                         <!-- 중앙: 플레이어 정보 -->

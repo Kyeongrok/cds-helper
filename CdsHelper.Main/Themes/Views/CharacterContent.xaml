@@ -13,11 +13,9 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <!-- 상단 버튼 -->
+                        <!-- 상단 필터 -->
                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-                            <Button Content="세이브 파일 읽기" Width="120" Height="30" Margin="0,0,10,0"
-                                    Command="{Binding LoadSaveCommand}" />
-                            <CheckBox Content="고용가능만" VerticalAlignment="Center" Margin="10,0,10,0"
+                            <CheckBox Content="고용가능만" VerticalAlignment="Center" Margin="0,0,10,0"
                                       IsChecked="{Binding ShowOnlyHirable}" />
                             <CheckBox Content="미등장 포함" VerticalAlignment="Center" Margin="0,0,10,0"
                                       IsChecked="{Binding ShowGrayCharacters}" />
@@ -33,7 +31,6 @@
                             <ComboBox Width="50" Height="25" VerticalAlignment="Center" Margin="0,0,10,0"
                                       ItemsSource="{Binding SkillLevels}"
                                       SelectedItem="{Binding SelectedSkillLevel}" />
-                            <TextBlock VerticalAlignment="Center" Text="{Binding FilePath}" />
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
                                 <TextBlock Text="내 명성: " />
                                 <TextBlock Text="{Binding PlayerFame}" FontWeight="Bold" Foreground="#1976D2" />

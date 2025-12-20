@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 using Prism.Commands;
+using Prism.Events;
 using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
@@ -103,46 +106,44 @@ public class CharacterContentViewModel : BindableBase
 
     #region Commands
 
-    public ICommand LoadSaveCommand { get; }
+    // LoadSaveCommand는 CdsHelperWindow의 공통 영역에서 처리
 
     #endregion
 
     public CharacterContentViewModel(
         CharacterService characterService,
-        SaveDataService saveDataService)
+        SaveDataService saveDataService,
+        IEventAggregator eventAggregator)
     {
         _characterService = characterService;
         _saveDataService = saveDataService;
 
-        LoadSaveCommand = new DelegateCommand(LoadSaveFile);
+        // 세이브 데이터 로드 이벤트 구독
+        eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
 
-        // 기본 세이브 파일 로드
-        var savePath = @"C:\Users\ocean\Desktop\대항해시대3\savedata.cds";
-        if (System.IO.File.Exists(savePath))
-            LoadSaveFile(savePath);
-    }
-
-    public void LoadSaveFile()
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
+        // 이미 로드된 데이터가 있으면 표시
+        if (saveDataService.CurrentSaveGameInfo != null && saveDataService.CurrentPlayerData != null)
         {
-            Filter = "세이브 파일 (*.CDS)|*.CDS|모든 파일 (*.*)|*.*",
-            Title = "세이브 파일 선택"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            LoadSaveFile(dialog.FileName);
+            LoadSaveData(saveDataService.CurrentSaveGameInfo, saveDataService.CurrentPlayerData);
         }
     }
 
-    public void LoadSaveFile(string filePath)
+    private void OnSaveDataLoaded(SaveDataLoadedEventArgs args)
+    {
+        if (args.PlayerData != null)
+        {
+            LoadSaveData(args.SaveGameInfo, args.PlayerData);
+        }
+    }
+
+    // 중앙에서 세이브 데이터 로드 시 호출될 메서드
+    public void LoadSaveData(SaveGameInfo saveGameInfo, PlayerData playerData)
     {
         try
         {
-            StatusText = "파일 읽는 중...";
-            _saveGameInfo = _saveDataService.ReadSaveFile(filePath);
-            _playerData = _saveDataService.ReadPlayerData(filePath);
+            StatusText = "캐릭터 데이터 로드 중...";
+            _saveGameInfo = saveGameInfo;
+            _playerData = playerData;
             _allCharacters = _saveGameInfo.Characters;
 
             // 플레이어 명성을 각 캐릭터에 설정 (고용 가능 여부 판단용)
@@ -152,13 +153,13 @@ public class CharacterContentViewModel : BindableBase
                 character.PlayerFame = PlayerFame;
             }
 
-            FilePath = $"파일 경로: {filePath}";
             ApplyFilter();
+            StatusText = $"캐릭터 로드 완료: {Characters.Count}명";
         }
         catch (Exception ex)
         {
             StatusText = "로드 실패";
-            System.Windows.MessageBox.Show($"파일 읽기 실패:\n\n{ex.Message}",
+            System.Windows.MessageBox.Show($"캐릭터 데이터 로드 실패:\n\n{ex.Message}",
                 "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }

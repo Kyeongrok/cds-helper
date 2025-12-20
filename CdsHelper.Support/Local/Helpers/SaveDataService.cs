@@ -12,6 +12,21 @@ public class SaveDataService
     private readonly CityService _cityService;
     private List<City> _cities = new();
 
+    /// <summary>
+    /// 현재 로드된 세이브 게임 정보
+    /// </summary>
+    public SaveGameInfo? CurrentSaveGameInfo { get; private set; }
+
+    /// <summary>
+    /// 현재 로드된 플레이어 데이터
+    /// </summary>
+    public PlayerData? CurrentPlayerData { get; private set; }
+
+    /// <summary>
+    /// 현재 로드된 파일 경로
+    /// </summary>
+    public string? CurrentFilePath { get; private set; }
+
     private const int CHARACTER_START_OFFSET = 0x924A;
     private const int CHARACTER_SIZE = 0x90;
     private const int CHARACTER_COUNT = 461;
@@ -74,6 +89,11 @@ public class SaveDataService
         }
 
         saveInfo.Characters = characters;
+
+        // 현재 로드된 데이터 캐싱
+        CurrentSaveGameInfo = saveInfo;
+        CurrentFilePath = filePath;
+
         return saveInfo;
     }
 
@@ -281,6 +301,9 @@ public class SaveDataService
 
         // 소지금 (추후 확인 필요)
         // player.Gold = ...;
+
+        // 현재 로드된 플레이어 데이터 캐싱
+        CurrentPlayerData = player;
 
         return player;
     }

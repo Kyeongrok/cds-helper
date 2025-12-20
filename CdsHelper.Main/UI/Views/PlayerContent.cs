@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Main.Local.ViewModels;
 using CdsHelper.Support.Local.Helpers;
+using Prism.Events;
 using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views;
@@ -26,6 +27,7 @@ public class PlayerContent : ContentControl
             return;
 
         var saveDataService = ContainerLocator.Container.Resolve<SaveDataService>();
-        DataContext = new PlayerContentViewModel(saveDataService);
+        var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
+        DataContext = new PlayerContentViewModel(saveDataService, eventAggregator);
     }
 }
