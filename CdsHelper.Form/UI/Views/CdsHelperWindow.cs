@@ -6,6 +6,7 @@ using System.Windows.Shapes;
 using CdsHelper.Api.Data;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Main.UI.Views;
+using CdsHelper.Navigation.UI.Views;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
 using Prism.Ioc;
@@ -15,7 +16,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_SettingsMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
-[TemplatePart(Name = PART_AccordionMenu, Type = typeof(AccordionControl))]
+[TemplatePart(Name = PART_AccordionMenu, Type = typeof(NavigationMenu))]
 [TemplatePart(Name = PART_ContentRegion, Type = typeof(ContentControl))]
 [TemplatePart(Name = PART_MenuToggleButton, Type = typeof(Button))]
 [TemplatePart(Name = PART_MenuColumn, Type = typeof(ColumnDefinition))]
@@ -33,7 +34,7 @@ public class CdsHelperWindow : CdsWindow
     private readonly IRegionManager _regionManager;
     private ColumnDefinition? _menuColumn;
     private Button? _menuToggleButton;
-    private AccordionControl? _accordionMenu;
+    private NavigationMenu? _accordionMenu;
     private bool _isMenuCollapsed;
 
     static CdsHelperWindow()
@@ -69,7 +70,7 @@ public class CdsHelperWindow : CdsWindow
             dbTableViewerMenu.Click += OnDbTableViewerMenuClick;
         }
 
-        _accordionMenu = GetTemplateChild(PART_AccordionMenu) as AccordionControl;
+        _accordionMenu = GetTemplateChild(PART_AccordionMenu) as NavigationMenu;
         if (_accordionMenu != null)
         {
             _accordionMenu.ItemClickCommand = new DelegateCommand<string>(OnAccordionItemClick);
