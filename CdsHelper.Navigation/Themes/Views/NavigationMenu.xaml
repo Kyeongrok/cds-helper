@@ -1,0 +1,82 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:views="clr-namespace:CdsHelper.Navigation.UI.Views"
+                    xmlns:units="clr-namespace:CdsHelper.Support.UI.Units;assembly=CdsHelper.Support">
+
+    <Style TargetType="{x:Type views:NavigationMenu}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type views:NavigationMenu}">
+                    <Grid>
+                        <units:AccordionControl x:Name="PART_InnerAccordion">
+                            <units:AccordionItem Header="데이터" IsGroup="True" IsExpanded="True">
+                                <units:AccordionItem Header="플레이어" Tag="PlayerContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                                <units:AccordionItem Header="캐릭터" Tag="CharacterContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                                <units:AccordionItem Header="도서" Tag="BookContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                                <units:AccordionItem Header="도시" Tag="CityContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zm-8 8H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                                <units:AccordionItem Header="후원자" Tag="PatronContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                            </units:AccordionItem>
+
+                            <units:AccordionItem Header="아이템" IsGroup="True" IsExpanded="True">
+                                <units:AccordionItem Header="선수상" Tag="FigureheadContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                                <units:AccordionItem Header="아이템" Tag="ItemContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                            </units:AccordionItem>
+
+                            <units:AccordionItem Header="지도" Tag="MapContent">
+                                <units:AccordionItem.Icon>
+                                    <Path Data="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"
+                                          Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                </units:AccordionItem.Icon>
+                            </units:AccordionItem>
+
+                            <units:AccordionItem Header="도구" IsGroup="True" IsExpanded="True">
+                                <units:AccordionItem Header="스핑크스" Tag="SphinxCalculatorContent">
+                                    <units:AccordionItem.Icon>
+                                        <Path Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14h-2v-4H8v-2h4V7h2v4h4v2h-4v4z"
+                                              Fill="White" Width="16" Height="16" Stretch="Uniform"/>
+                                    </units:AccordionItem.Icon>
+                                </units:AccordionItem>
+                            </units:AccordionItem>
+                        </units:AccordionControl>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>
