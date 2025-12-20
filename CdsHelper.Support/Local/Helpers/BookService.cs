@@ -129,7 +129,9 @@ public class BookService
 
         if (!string.IsNullOrWhiteSpace(requiredSkill))
         {
-            filtered = filtered.Where(b => b.Required.Equals(requiredSkill, StringComparison.OrdinalIgnoreCase));
+            // 스킬 이름으로 시작하는 모든 항목 필터링 (예: "신학" 선택 시 "신학1", "신학2", "신학3" 모두 포함)
+            filtered = filtered.Where(b => !string.IsNullOrWhiteSpace(b.Required) &&
+                b.Required.StartsWith(requiredSkill, StringComparison.OrdinalIgnoreCase));
         }
 
         return filtered.ToList();
@@ -187,15 +189,30 @@ public class BookService
 
     /// <summary>
     /// 필요 스킬 목록 (기존 호환성 - 메모리)
+    /// 숫자를 제외한 스킬 이름만 반환 (예: "신학1", "신학2" -> "신학")
     /// </summary>
     public List<string> GetDistinctRequiredSkills(IEnumerable<Book> books)
     {
         return books
             .Select(b => b.Required)
             .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => ExtractSkillName(r))
             .Distinct()
             .OrderBy(r => r)
             .ToList();
+    }
+
+    /// <summary>
+    /// 스킬 문자열에서 숫자를 제거하여 스킬 이름만 추출
+    /// 예: "신학2" -> "신학", "역사학3" -> "역사학"
+    /// </summary>
+    private static string ExtractSkillName(string skill)
+    {
+        if (string.IsNullOrWhiteSpace(skill))
+            return skill;
+
+        // 끝에서 숫자 제거
+        return skill.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
     }
 
     /// <summary>

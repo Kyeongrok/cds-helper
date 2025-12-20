@@ -641,8 +641,8 @@
     "latitude": 49,
     "longitude": 14,
     "hasLibrary": false,
-    "pixelX": 4044,
-    "pixelY": 666,
+    "pixelX": 4052,
+    "pixelY": 659,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "북유럽"
@@ -833,8 +833,8 @@
     "latitude": 44,
     "longitude": 20,
     "hasLibrary": false,
-    "pixelX": 4173,
-    "pixelY": 778,
+    "pixelX": 4192,
+    "pixelY": 775,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "지중해"
@@ -857,8 +857,8 @@
     "latitude": 42,
     "longitude": 17,
     "hasLibrary": false,
-    "pixelX": 4105,
-    "pixelY": 822,
+    "pixelX": 4125,
+    "pixelY": 814,
     "hasShipyard": true,
     "hasGuild": false,
     "culturalSphere": "지중해"
@@ -977,8 +977,8 @@
     "latitude": 32,
     "longitude": 13,
     "hasLibrary": false,
-    "pixelX": 4007,
-    "pixelY": 1046,
+    "pixelX": 4023,
+    "pixelY": 1035,
     "hasShipyard": true,
     "hasGuild": false,
     "culturalSphere": "이슬람"
@@ -1793,8 +1793,8 @@
     "latitude": 16,
     "longitude": 75,
     "hasLibrary": false,
-    "pixelX": 5367,
-    "pixelY": 1398,
+    "pixelX": 5407,
+    "pixelY": 1388,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "인도"
@@ -1901,8 +1901,8 @@
     "latitude": null,
     "longitude": null,
     "hasLibrary": false,
-    "pixelX": 5833,
-    "pixelY": 1637,
+    "pixelX": 5839,
+    "pixelY": 1285,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "동남아시아"
@@ -2045,11 +2045,11 @@
     "latitude": -5,
     "longitude": 114,
     "hasLibrary": false,
-    "pixelX": 6213,
-    "pixelY": 1864,
+    "pixelX": 6258,
+    "pixelY": 1646,
     "hasShipyard": false,
     "hasGuild": false,
-    "culturalSphere": null
+    "culturalSphere": "동남아시아"
   },
   {
     "id": 171,
