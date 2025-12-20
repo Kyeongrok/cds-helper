@@ -73,6 +73,7 @@
                                 </Style>
                             </units:CdsDataGrid.RowStyle>
                             <units:CdsDataGrid.Columns>
+                                <DataGridTextColumn Header="번호" Binding="{Binding Id}" Width="50" />
                                 <DataGridTextColumn Header="도서명" Binding="{Binding Name}" Width="200" />
                                 <DataGridTextColumn Header="언어" Binding="{Binding Language}" Width="150" />
                                 <DataGridTextColumn Header="소재 도서관" Binding="{Binding Library}" Width="*" MinWidth="200" />
