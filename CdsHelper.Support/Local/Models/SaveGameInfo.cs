@@ -10,6 +10,6 @@ public class SaveGameInfo
 
     public string DateString => $"{Year}년 {Month}월 {Day}일";
 
-    public int AcquiredHintCount => Hints.Count(h => h.IsAcquired);
+    public int DiscoveredHintCount => Hints.Count(h => h.IsDiscovered);
     public int TotalHintCount => Hints.Count;
 }

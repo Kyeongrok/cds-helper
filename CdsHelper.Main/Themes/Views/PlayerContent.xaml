@@ -6,6 +6,7 @@
 
     <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
     <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    <converters:BoolToOXConverter x:Key="BoolToOXConverter" />
 
     <!-- 링크 스타일 버튼 -->
     <Style x:Key="LinkButtonStyle" TargetType="Button">
@@ -188,27 +189,47 @@
                                             </StackPanel>
                                         </GroupBox.Header>
                                         <DataGrid ItemsSource="{Binding Hints}"
+                                                  HorizontalAlignment="Left"
                                                   AutoGenerateColumns="False"
                                                   IsReadOnly="True"
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
                                                   MaxHeight="400"
+                                                  MaxWidth="300"
                                                   VerticalScrollBarVisibility="Auto">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="순번" Binding="{Binding Index}" Width="50" />
                                                 <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="*" />
-                                                <DataGridTemplateColumn Header="획득" Width="50">
+                                                <DataGridTemplateColumn Header="힌트" Width="50">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>
-                                                            <TextBlock HorizontalAlignment="Center">
+                                                            <TextBlock Text="{Binding HasHint, Converter={StaticResource BoolToOXConverter}}"
+                                                                       HorizontalAlignment="Center">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="TextBlock">
-                                                                        <Setter Property="Text" Value="X" />
-                                                                        <Setter Property="Foreground" Value="Red" />
+                                                                        <Setter Property="Foreground" Value="Gray" />
                                                                         <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsAcquired}" Value="True">
-                                                                                <Setter Property="Text" Value="O" />
+                                                                            <DataTrigger Binding="{Binding HasHint}" Value="True">
                                                                                 <Setter Property="Foreground" Value="Green" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Header="발견" Width="50">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding IsDiscovered, Converter={StaticResource BoolToOXConverter}}"
+                                                                       HorizontalAlignment="Center">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="Gray" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsDiscovered}" Value="True">
+                                                                                <Setter Property="Foreground" Value="Blue" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>

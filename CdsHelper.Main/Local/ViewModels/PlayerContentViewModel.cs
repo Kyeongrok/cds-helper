@@ -210,7 +210,7 @@ public class PlayerContentViewModel : BindableBase
                 hint.Name = _hintService.GetHintName(hint.Index - 1); // 0부터 시작하는 인덱스로 변환
             }
             Hints = new ObservableCollection<HintData>(saveGameInfo.Hints);
-            HintSummary = $"힌트 획득: {saveGameInfo.AcquiredHintCount} / {saveGameInfo.TotalHintCount}";
+            HintSummary = $"발견: {saveGameInfo.DiscoveredHintCount} / {saveGameInfo.TotalHintCount}";
 
             if (Player != null)
             {

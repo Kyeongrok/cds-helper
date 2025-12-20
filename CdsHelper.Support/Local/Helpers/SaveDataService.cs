@@ -35,8 +35,9 @@ public class SaveDataService
     private const int DAY_OFFSET = 0x1A;
 
     // 힌트 관련 상수
-    private const int HINT_START_OFFSET = 0x1A61B;
+    private const int HINT_START_OFFSET = 0x1A625;
     private const int HINT_SIZE = 6;
+    private const int HINT_STATUS_OFFSET = 4;  // 6바이트 블록 내 상태 바이트 위치
     private const int HINT_COUNT = 186;
 
     private static readonly Dictionary<int, string> SkillsMap = new()
@@ -114,7 +115,7 @@ public class SaveDataService
 
         for (int i = 0; i < HINT_COUNT; i++)
         {
-            int offset = HINT_START_OFFSET + (i * HINT_SIZE);
+            int offset = HINT_START_OFFSET + (i * HINT_SIZE) + HINT_STATUS_OFFSET;
             if (offset >= data.Length)
                 break;
 
