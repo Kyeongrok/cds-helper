@@ -14,7 +14,25 @@ public class Book
     public string Language { get; set; } = string.Empty;
 
     [JsonPropertyName("게제 힌트")]
-    public string Hint { get; set; } = string.Empty;
+    public string HintText { get; set; } = string.Empty;
+
+    // BookHints 매핑 테이블을 통한 힌트 ID 목록
+    public List<int> HintIds { get; set; } = new();
+
+    // 힌트 이름 목록 (표시용)
+    public List<string> HintNames { get; set; } = new();
+
+    // 게제 힌트 (힌트 이름들을 쉼표로 구분)
+    [JsonIgnore]
+    public string Hint => HintNames.Count > 0 ? string.Join(", ", HintNames) : HintText;
+
+    // 발견된 힌트 ID 목록 (플레이어 데이터에서 설정)
+    [JsonIgnore]
+    public HashSet<int>? DiscoveredHintIds { get; set; }
+
+    // 힌트 발견 여부 (HintIds 중 하나라도 발견되었으면 true)
+    [JsonIgnore]
+    public bool IsHintDiscovered => DiscoveredHintIds != null && HintIds.Any(id => DiscoveredHintIds.Contains(id));
 
     [JsonPropertyName("필요")]
     public string Required { get; set; } = string.Empty;

@@ -161,10 +161,21 @@ public class BookContentViewModel : BindableBase
     {
         if (_playerData == null) return;
 
+        // 발견된 힌트 ID 목록 가져오기
+        HashSet<int>? discoveredHintIds = null;
+        if (_saveDataService.CurrentSaveGameInfo?.Hints != null)
+        {
+            discoveredHintIds = _saveDataService.CurrentSaveGameInfo.Hints
+                .Where(h => h.IsDiscovered)
+                .Select(h => h.Index - 1) // 1-based -> 0-based (Hint ID)
+                .ToHashSet();
+        }
+
         foreach (var book in _allBooks)
         {
             book.PlayerSkills = _playerData.Skills;
             book.PlayerLanguages = _playerData.Languages;
+            book.DiscoveredHintIds = discoveredHintIds;
         }
     }
 

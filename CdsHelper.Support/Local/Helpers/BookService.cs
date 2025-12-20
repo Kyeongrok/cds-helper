@@ -119,7 +119,8 @@ public class BookService
 
         if (!string.IsNullOrWhiteSpace(hintSearch))
         {
-            filtered = filtered.Where(b => b.Hint.Contains(hintSearch, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(b => b.HintNames.Any(h => h.Contains(hintSearch, StringComparison.OrdinalIgnoreCase))
+                || b.HintText.Contains(hintSearch, StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrWhiteSpace(language))
@@ -236,11 +237,13 @@ public class BookService
             Id = entity.Id,
             Name = entity.Name,
             Language = entity.Language,
-            Hint = entity.Hint,
+            HintText = entity.Hint,
             Required = entity.Required,
             Condition = entity.Condition,
             LibraryCityIds = entity.BookCities?.Select(bc => bc.CityId).ToList() ?? new List<byte>(),
-            LibraryCityNames = entity.BookCities?.Select(bc => bc.City?.Name ?? "").Where(n => !string.IsNullOrEmpty(n)).ToList() ?? new List<string>()
+            LibraryCityNames = entity.BookCities?.Select(bc => bc.City?.Name ?? "").Where(n => !string.IsNullOrEmpty(n)).ToList() ?? new List<string>(),
+            HintIds = entity.BookHints?.Select(bh => bh.HintId).ToList() ?? new List<int>(),
+            HintNames = entity.BookHints?.Select(bh => bh.Hint?.Name ?? "").Where(n => !string.IsNullOrEmpty(n)).ToList() ?? new List<string>()
         };
     }
 }

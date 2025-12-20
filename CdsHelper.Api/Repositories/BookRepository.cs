@@ -18,6 +18,8 @@ public class BookRepository : IBookRepository
         return await _context.Books
             .Include(b => b.BookCities)
                 .ThenInclude(bc => bc.City)
+            .Include(b => b.BookHints)
+                .ThenInclude(bh => bh.Hint)
             .OrderBy(b => b.Name)
             .ToListAsync();
     }
