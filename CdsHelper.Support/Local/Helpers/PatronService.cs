@@ -73,6 +73,7 @@ public class PatronService
             Fame = p.Fame,
             Wealth = p.Wealth,
             Power = p.Power,
+            Preferences = p.PreferencesDisplay(),
             Note = p.Note
         }).ToList();
     }

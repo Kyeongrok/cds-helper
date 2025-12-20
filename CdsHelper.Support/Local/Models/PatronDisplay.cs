@@ -18,5 +18,6 @@ public class PatronDisplay
     public int Fame { get; set; }
     public int Wealth { get; set; }
     public string Power { get; set; } = "";
+    public string Preferences { get; set; } = "";
     public string Note { get; set; } = "";
 }

@@ -50,7 +50,7 @@ public class PatronContentViewModel : BindableBase
         set { SetProperty(ref _selectedNationality, value); ApplyFilter(); }
     }
 
-    private bool _activePatronsOnly;
+    private bool _activePatronsOnly = true;
     public bool ActivePatronsOnly
     {
         get => _activePatronsOnly;
