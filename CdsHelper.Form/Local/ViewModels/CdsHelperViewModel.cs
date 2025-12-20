@@ -357,6 +357,7 @@ public class CdsHelperViewModel : BindableBase
     #region Commands
 
     public ICommand LoadSaveCommand { get; }
+    public ICommand RefreshSaveCommand { get; }
     public ICommand ResetBookFilterCommand { get; }
     public ICommand ResetCityFilterCommand { get; }
     public ICommand ResetPatronFilterCommand { get; }
@@ -389,6 +390,7 @@ public class CdsHelperViewModel : BindableBase
         _saveDataService = saveDataService;
 
         LoadSaveCommand = new DelegateCommand(LoadSaveFile);
+        RefreshSaveCommand = new DelegateCommand(RefreshSaveFile, CanRefreshSaveFile);
         ResetBookFilterCommand = new DelegateCommand(ResetBookFilter);
         ResetCityFilterCommand = new DelegateCommand(ResetCityFilter);
         ResetPatronFilterCommand = new DelegateCommand(ResetPatronFilter);
@@ -494,7 +496,7 @@ public class CdsHelperViewModel : BindableBase
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "세이브 파일 (*.CDS)|*.CDS|모든 파일 (*.*)|*.*",
+            Filter = "세이브 파일 (SAVEDATA.CDS)|SAVEDATA.CDS",
             Title = "세이브 파일 선택"
         };
 
@@ -532,12 +534,27 @@ public class CdsHelperViewModel : BindableBase
             });
 
             StatusText = $"로드 완료: {_saveGameInfo.DateString}";
+            ((DelegateCommand)RefreshSaveCommand).RaiseCanExecuteChanged();
         }
         catch (Exception ex)
         {
             StatusText = "로드 실패";
             System.Windows.MessageBox.Show($"파일 읽기 실패:\n\n{ex.Message}",
                 "오류", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    private bool CanRefreshSaveFile()
+    {
+        return !string.IsNullOrEmpty(AppSettings.LastSaveFilePath) &&
+               System.IO.File.Exists(AppSettings.LastSaveFilePath);
+    }
+
+    private void RefreshSaveFile()
+    {
+        if (CanRefreshSaveFile())
+        {
+            LoadSaveFile(AppSettings.LastSaveFilePath!);
         }
     }
 
