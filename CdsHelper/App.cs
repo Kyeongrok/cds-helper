@@ -42,6 +42,11 @@ internal class App : PrismApplication
             var booksJsonPath = Path.Combine(basePath, "books.json");
             Task.Run(() => bookService.InitializeAsync(dbPath, booksJsonPath)).GetAwaiter().GetResult();
 
+            // HintService 초기화
+            var hintService = Container.Resolve<HintService>();
+            var hintJsonPath = Path.Combine(basePath, "hint.json");
+            Task.Run(() => hintService.InitializeAsync(dbPath, hintJsonPath)).GetAwaiter().GetResult();
+
             if (isNewDb)
             {
                 MessageBox.Show("DB 초기화가 완료되었습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -89,6 +94,7 @@ internal class App : PrismApplication
         containerRegistry.RegisterSingleton<FigureheadService>();
         containerRegistry.RegisterSingleton<ItemService>();
         containerRegistry.RegisterSingleton<SaveDataService>();
+        containerRegistry.RegisterSingleton<HintService>();
 
         // ViewModel 등록
         containerRegistry.Register<CdsHelperViewModel>();

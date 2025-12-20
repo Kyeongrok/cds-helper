@@ -1,3 +1,4 @@
+using System.Data;
 using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Api.Data;
@@ -21,13 +22,7 @@ public class DbTableViewerDialog : Window
     private TextBlock? _recordCountText;
 
     private readonly AppDbContext _dbContext;
-
-    public List<TableInfo> Tables { get; } = new()
-    {
-        new TableInfo("Books", "도서"),
-        new TableInfo("Cities", "도시"),
-        new TableInfo("BookCities", "도서-도시 매핑")
-    };
+    private List<string> _tables = new();
 
     static DbTableViewerDialog()
     {
@@ -44,6 +39,30 @@ public class DbTableViewerDialog : Window
         Height = 600;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
+
+        LoadTableNames();
+    }
+
+    private void LoadTableNames()
+    {
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+            connection.Open();
+
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                _tables.Add(reader.GetString(0));
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"테이블 목록을 가져오는 중 오류가 발생했습니다: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     public override void OnApplyTemplate()
@@ -59,19 +78,19 @@ public class DbTableViewerDialog : Window
 
         if (_tableComboBox != null)
         {
-            _tableComboBox.ItemsSource = Tables;
-            _tableComboBox.DisplayMemberPath = "DisplayName";
+            _tableComboBox.ItemsSource = _tables;
             _tableComboBox.SelectionChanged += OnTableSelectionChanged;
-            _tableComboBox.SelectedIndex = 0;
+            if (_tables.Count > 0)
+                _tableComboBox.SelectedIndex = 0;
         }
     }
 
     private void OnTableSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_tableComboBox?.SelectedItem is not TableInfo selectedTable || _dataGrid == null)
+        if (_tableComboBox?.SelectedItem is not string selectedTable || _dataGrid == null)
             return;
 
-        LoadTableData(selectedTable.TableName);
+        LoadTableData(selectedTable);
     }
 
     private void LoadTableData(string tableName)
@@ -80,47 +99,29 @@ public class DbTableViewerDialog : Window
 
         try
         {
-            object? data = tableName switch
-            {
-                "Books" => _dbContext.Books.AsNoTracking().ToList(),
-                "Cities" => _dbContext.Cities.AsNoTracking().ToList(),
-                "BookCities" => _dbContext.BookCities
-                    .AsNoTracking()
-                    .Include(bc => bc.Book)
-                    .Include(bc => bc.City)
-                    .Select(bc => new
-                    {
-                        bc.BookId,
-                        BookName = bc.Book.Name,
-                        bc.CityId,
-                        CityName = bc.City.Name
-                    })
-                    .ToList(),
-                _ => null
-            };
+            var connection = _dbContext.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
 
-            _dataGrid.ItemsSource = data as System.Collections.IEnumerable;
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT * FROM [{tableName}]";
 
-            if (_recordCountText != null && data is System.Collections.ICollection collection)
+            var dataTable = new DataTable();
+            using (var reader = command.ExecuteReader())
             {
-                _recordCountText.Text = $"총 {collection.Count}개 레코드";
+                dataTable.Load(reader);
+            }
+
+            _dataGrid.ItemsSource = dataTable.DefaultView;
+
+            if (_recordCountText != null)
+            {
+                _recordCountText.Text = $"총 {dataTable.Rows.Count}개 레코드";
             }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"데이터 로드 중 오류가 발생했습니다: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-    }
-}
-
-public class TableInfo
-{
-    public string TableName { get; }
-    public string DisplayName { get; }
-
-    public TableInfo(string tableName, string displayName)
-    {
-        TableName = tableName;
-        DisplayName = displayName;
     }
 }

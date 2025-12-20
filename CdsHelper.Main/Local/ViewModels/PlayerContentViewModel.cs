@@ -14,6 +14,7 @@ namespace CdsHelper.Main.Local.ViewModels;
 public class PlayerContentViewModel : BindableBase
 {
     private readonly SaveDataService _saveDataService;
+    private readonly HintService _hintService;
 
     // 스킬 인덱스 -> 스킬명 매핑
     private static readonly Dictionary<int, string> SkillIndexToName = new()
@@ -108,6 +109,22 @@ public class PlayerContentViewModel : BindableBase
         set => SetProperty(ref _combinedLanguages, value);
     }
 
+    // 힌트 목록
+    private ObservableCollection<HintData> _hints = new();
+    public ObservableCollection<HintData> Hints
+    {
+        get => _hints;
+        set => SetProperty(ref _hints, value);
+    }
+
+    // 힌트 요약
+    private string _hintSummary = "";
+    public string HintSummary
+    {
+        get => _hintSummary;
+        set => SetProperty(ref _hintSummary, value);
+    }
+
     private string _statusText = "세이브 파일을 로드하세요";
     public string StatusText
     {
@@ -127,9 +144,11 @@ public class PlayerContentViewModel : BindableBase
 
     public PlayerContentViewModel(
         SaveDataService saveDataService,
+        HintService hintService,
         IEventAggregator eventAggregator)
     {
         _saveDataService = saveDataService;
+        _hintService = hintService;
         ShowCrewMemberCommand = new DelegateCommand<string>(ShowCrewMember);
 
         // 세이브 데이터 로드 이벤트 구독
@@ -184,6 +203,14 @@ public class PlayerContentViewModel : BindableBase
             SimNavigator = _allCharacters.FirstOrDefault(c => c.Name == Player?.NavigatorName);
             SimSurveyor = _allCharacters.FirstOrDefault(c => c.Name == Player?.SurveyorName);
             SimInterpreter = _allCharacters.FirstOrDefault(c => c.Name == Player?.InterpreterName);
+
+            // 힌트 데이터 로드 (이름 설정)
+            foreach (var hint in saveGameInfo.Hints)
+            {
+                hint.Name = _hintService.GetHintName(hint.Index - 1); // 0부터 시작하는 인덱스로 변환
+            }
+            Hints = new ObservableCollection<HintData>(saveGameInfo.Hints);
+            HintSummary = $"힌트 획득: {saveGameInfo.AcquiredHintCount} / {saveGameInfo.TotalHintCount}";
 
             if (Player != null)
             {
