@@ -9,6 +9,7 @@ public class AppDbContext : DbContext
     public DbSet<BookEntity> Books { get; set; } = null!;
     public DbSet<BookCityEntity> BookCities { get; set; } = null!;
     public DbSet<HintEntity> Hints { get; set; } = null!;
+    public DbSet<BookHintEntity> BookHints { get; set; } = null!;
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -52,6 +53,21 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedNever();
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<BookHintEntity>(entity =>
+        {
+            entity.HasKey(e => new { e.BookId, e.HintId });
+
+            entity.HasOne(e => e.Book)
+                .WithMany(b => b.BookHints)
+                .HasForeignKey(e => e.BookId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Hint)
+                .WithMany(h => h.BookHints)
+                .HasForeignKey(e => e.HintId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

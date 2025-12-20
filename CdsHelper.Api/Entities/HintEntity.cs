@@ -13,4 +13,7 @@ public class HintEntity
     [Required]
     [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
+
+    // Navigation property
+    public ICollection<BookHintEntity> BookHints { get; set; } = new List<BookHintEntity>();
 }

@@ -53,7 +53,7 @@
 
     <Style TargetType="{x:Type views:CdsHelperWindow}">
         <Setter Property="Title" Value="{Binding WindowTitle}" />
-        <Setter Property="Width" Value="1024" />
+        <Setter Property="Width" Value="1280" />
         <Setter Property="Height" Value="640" />
         <Setter Property="Background" Value="#F5F5F5" />
         <Setter Property="BorderBrush" Value="#104F89"/>

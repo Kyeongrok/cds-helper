@@ -196,6 +196,7 @@
                                                   HeadersVisibility="Column"
                                                   MaxHeight="400"
                                                   MaxWidth="300"
+                                                  FontSize="14"
                                                   VerticalScrollBarVisibility="Auto">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="순번" Binding="{Binding Index}" Width="50" />

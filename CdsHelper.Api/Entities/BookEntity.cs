@@ -26,6 +26,7 @@ public class BookEntity
     [MaxLength(100)]
     public string Condition { get; set; } = string.Empty;
 
-    // Navigation property
+    // Navigation properties
     public ICollection<BookCityEntity> BookCities { get; set; } = new List<BookCityEntity>();
+    public ICollection<BookHintEntity> BookHints { get; set; } = new List<BookHintEntity>();
 }
