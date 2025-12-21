@@ -1241,8 +1241,8 @@
     "latitude": -15,
     "longitude": 40,
     "hasLibrary": false,
-    "pixelX": 4564,
-    "pixelY": 2093,
+    "pixelX": 4617,
+    "pixelY": 2101,
     "hasShipyard": true,
     "hasGuild": false,
     "culturalSphere": "아프리카"
@@ -1253,8 +1253,8 @@
     "latitude": -18,
     "longitude": 29,
     "hasLibrary": false,
-    "pixelX": 4318,
-    "pixelY": 2161,
+    "pixelX": 4394,
+    "pixelY": 2167,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아프리카"
@@ -2401,7 +2401,7 @@
   },
   {
     "id": 200,
-    "name": "테노치티틀란",
+    "name": "테노치티클란",
     "latitude": 20,
     "longitude": -101,
     "hasLibrary": false,
@@ -2429,8 +2429,8 @@
     "latitude": 19,
     "longitude": -98,
     "hasLibrary": false,
-    "pixelX": 1536,
-    "pixelY": 1346,
+    "pixelX": 1566,
+    "pixelY": 1329,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아메리카"
@@ -2453,8 +2453,8 @@
     "latitude": 17,
     "longitude": -95,
     "hasLibrary": false,
-    "pixelX": 1625,
-    "pixelY": 1374,
+    "pixelX": 1563,
+    "pixelY": 1360,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아메리카"
