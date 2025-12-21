@@ -156,15 +156,19 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Content="새로고침" Width="80" Height="28" Margin="0,0,15,0"
+                                    <Button Width="28" Height="28" Margin="0,0,15,0"
                                             Command="{Binding RefreshSaveCommand}"
-                                            Background="#43A047" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                            Background="#1976D2" BorderThickness="0" Cursor="Hand"
                                             ToolTip="마지막으로 로드한 세이브 파일을 다시 로드합니다">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border x:Name="border" Background="{TemplateBinding Background}"
-                                                        CornerRadius="3" Padding="10,5">
-                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        CornerRadius="3" Padding="5">
+                                                    <Path x:Name="icon"
+                                                          Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                                                          Fill="White"
+                                                          Width="16" Height="16"
+                                                          Stretch="Uniform"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
@@ -175,6 +179,7 @@
                                                     </Trigger>
                                                     <Trigger Property="IsEnabled" Value="False">
                                                         <Setter TargetName="border" Property="Background" Value="#BDBDBD"/>
+                                                        <Setter TargetName="icon" Property="Fill" Value="#9E9E9E"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>

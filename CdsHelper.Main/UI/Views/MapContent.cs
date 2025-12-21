@@ -4,9 +4,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Main.UI.ViewModels;
+using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
+using Prism.Events;
 using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views;
@@ -45,6 +47,18 @@ public class MapContent : ContentControl
     private static double _savedVerticalOffset = -1;
     private static double _savedScale = 1.0;
     private static bool _hasSavedPosition = false;
+
+    // 대기 중인 도시 네비게이션 (MapContent 로드 전 이벤트 수신 시)
+    private static NavigateToCityEventArgs? _pendingNavigation = null;
+
+    /// <summary>
+    /// 대기 중인 네비게이션 설정 (MapContent 로드 전 호출됨)
+    /// </summary>
+    public static void SetPendingNavigation(NavigateToCityEventArgs args)
+    {
+        _pendingNavigation = args;
+        System.Diagnostics.Debug.WriteLine($"[MapContent] SetPendingNavigation: {args.CityName} ({args.PixelX}, {args.PixelY})");
+    }
 
     static MapContent()
     {
@@ -149,6 +163,35 @@ public class MapContent : ContentControl
         LoadMapImage();
         // 도시 마커 로드
         LoadCityMarkers();
+
+        // NavigateToCityEvent 구독
+        var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
+        eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
+    }
+
+    private void OnNavigateToCity(NavigateToCityEventArgs args)
+    {
+        if (!args.PixelX.HasValue || !args.PixelY.HasValue)
+        {
+            MessageBox.Show($"도시 '{args.CityName}'의 좌표 정보가 없습니다.",
+                "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // MapContent가 아직 로드되지 않은 경우 대기
+        if (_mapScrollViewer == null)
+        {
+            _pendingNavigation = args;
+            System.Diagnostics.Debug.WriteLine($"[MapContent] Pending navigation to: {args.CityName}");
+            return;
+        }
+
+        // UI 스레드에서 실행
+        Dispatcher.Invoke(() =>
+        {
+            ScrollToImagePosition(args.PixelX.Value, args.PixelY.Value);
+            System.Diagnostics.Debug.WriteLine($"[MapContent] Navigated to city: {args.CityName} ({args.PixelX}, {args.PixelY})");
+        });
     }
 
     private void LoadMapImage()
@@ -235,7 +278,20 @@ public class MapContent : ContentControl
 
     private void MapScrollViewer_Loaded(object sender, RoutedEventArgs e)
     {
-        if (_hasSavedPosition)
+        // 대기 중인 네비게이션이 있으면 우선 처리
+        if (_pendingNavigation != null)
+        {
+            var nav = _pendingNavigation;
+            _pendingNavigation = null;
+
+            ApplyScale();
+            if (nav.PixelX.HasValue && nav.PixelY.HasValue)
+            {
+                ScrollToImagePosition(nav.PixelX.Value, nav.PixelY.Value);
+                System.Diagnostics.Debug.WriteLine($"[MapContent] Processed pending navigation to: {nav.CityName}");
+            }
+        }
+        else if (_hasSavedPosition)
         {
             // 저장된 위치 복원
             _currentScale = _savedScale;

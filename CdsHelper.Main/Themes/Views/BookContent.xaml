@@ -37,8 +37,8 @@
                                       ItemsSource="{Binding RequiredSkills}"
                                       SelectedItem="{Binding SelectedRequiredSkill}" />
 
-                            <Button Content="필터 초기화" Width="100" Height="30" Margin="10,0,0,0"
-                                    Command="{Binding ResetBookFilterCommand}" />
+                            <units:ResetButton Margin="10,0,0,0"
+                                               Command="{Binding ResetBookFilterCommand}"/>
 
                             <Button Content="도서관 매핑" Width="100" Height="30" Margin="10,0,0,0"
                                     Command="{Binding EditLibraryMappingCommand}" />
@@ -76,7 +76,27 @@
                                 <DataGridTextColumn Header="번호" Binding="{Binding Id}" Width="50" />
                                 <DataGridTextColumn Header="도서명" Binding="{Binding Name}" Width="200" />
                                 <DataGridTextColumn Header="언어" Binding="{Binding Language}" Width="150" />
-                                <DataGridTextColumn Header="소재 도서관" Binding="{Binding Library}" Width="*" MinWidth="200" />
+                                <DataGridTemplateColumn Header="소재 도서관" Width="*" MinWidth="200">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ItemsControl ItemsSource="{Binding LibraryCities}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <units:LinkButton Content="{Binding Name}"
+                                                                CommandParameter="{Binding Id}"
+                                                                Command="{Binding DataContext.NavigateToLibraryCommand, RelativeSource={RelativeSource AncestorType=units:CdsDataGrid}}"
+                                                                Margin="0,0,5,0"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="게제 힌트" Width="200">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>

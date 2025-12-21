@@ -7,8 +7,10 @@ using CdsHelper.Api.Data;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Main.UI.Views;
 using CdsHelper.Navigation.UI.Views;
+using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
+using Prism.Events;
 using Prism.Ioc;
 
 namespace CdsHelper.Form.UI.Views;
@@ -74,7 +76,7 @@ public class CdsHelperWindow : CdsWindow
         if (_accordionMenu != null)
         {
             _accordionMenu.ItemClickCommand = new DelegateCommand<string>(OnAccordionItemClick);
-            SelectAccordionItemByTag(_accordionMenu, AppSettings.DefaultView);
+            _accordionMenu.SelectItemByTag(AppSettings.DefaultView);
         }
 
         _menuColumn = GetTemplateChild(PART_MenuColumn) as ColumnDefinition;
@@ -96,6 +98,19 @@ public class CdsHelperWindow : CdsWindow
                 _viewModel?.NavigateToContent(AppSettings.DefaultView);
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
+
+        // NavigateToCityEvent 구독 - 아코디언 메뉴 동기화
+        var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
+        eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
+    }
+
+    private void OnNavigateToCity(NavigateToCityEventArgs args)
+    {
+        // 아코디언 메뉴에서 지도 탭 선택
+        Dispatcher.Invoke(() =>
+        {
+            _accordionMenu?.SelectItemByTag("MapContent");
+        });
     }
 
     private void OnAccordionItemClick(string? viewName)
@@ -104,24 +119,6 @@ public class CdsHelperWindow : CdsWindow
         if (!string.IsNullOrEmpty(viewName))
         {
             _viewModel?.NavigateToContent(viewName);
-        }
-    }
-
-    private void SelectAccordionItemByTag(ItemsControl parent, string tag)
-    {
-        foreach (var item in parent.Items)
-        {
-            if (item is AccordionItem accordionItem)
-            {
-                if (accordionItem.Tag?.ToString() == tag)
-                {
-                    accordionItem.IsSelected = true;
-                    return;
-                }
-
-                // 하위 항목 검색
-                SelectAccordionItemByTag(accordionItem, tag);
-            }
         }
     }
 

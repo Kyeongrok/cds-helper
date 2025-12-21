@@ -17,6 +17,7 @@ public class BookContentViewModel : BindableBase
     private readonly BookService _bookService;
     private readonly CityService _cityService;
     private readonly SaveDataService _saveDataService;
+    private readonly IEventAggregator _eventAggregator;
     private List<Book> _allBooks = new();
     private List<City> _allCities = new();
     private PlayerData? _playerData;
@@ -100,6 +101,7 @@ public class BookContentViewModel : BindableBase
 
     public ICommand ResetBookFilterCommand { get; }
     public ICommand EditLibraryMappingCommand { get; }
+    public ICommand NavigateToLibraryCommand { get; }
     // LoadSaveCommand와 RefreshCommand는 CdsHelperWindow의 공통 영역에서 처리
 
     #endregion
@@ -113,10 +115,12 @@ public class BookContentViewModel : BindableBase
         _bookService = bookService;
         _cityService = cityService;
         _saveDataService = saveDataService;
+        _eventAggregator = eventAggregator;
 
         ResetBookFilterCommand = new DelegateCommand(ResetFilter);
         EditLibraryMappingCommand = new DelegateCommand(EditLibraryMapping, () => SelectedBook != null)
             .ObservesProperty(() => SelectedBook);
+        NavigateToLibraryCommand = new DelegateCommand<byte?>(NavigateToLibrary);
 
         Initialize();
 
@@ -272,6 +276,22 @@ public class BookContentViewModel : BindableBase
         HintSearch = "";
         SelectedLanguage = null;
         SelectedRequiredSkill = null;
+    }
+
+    private void NavigateToLibrary(byte? cityId)
+    {
+        if (!cityId.HasValue) return;
+
+        var city = _allCities.FirstOrDefault(c => c.Id == cityId.Value);
+        if (city == null) return;
+
+        _eventAggregator.GetEvent<NavigateToCityEvent>().Publish(new NavigateToCityEventArgs
+        {
+            CityId = city.Id,
+            CityName = city.Name,
+            PixelX = city.PixelX,
+            PixelY = city.PixelY
+        });
     }
 
     private async void EditLibraryMapping()

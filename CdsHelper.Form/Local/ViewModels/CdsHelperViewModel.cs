@@ -399,8 +399,20 @@ public class CdsHelperViewModel : BindableBase
         EditCityPixelCommand = new DelegateCommand<City>(EditCityPixel);
         ExportCitiesToJsonCommand = new DelegateCommand(ExportCitiesToJson);
 
+        // NavigateToCityEvent 구독 - 지도 탭으로 전환
+        _eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
+
         // 앱 시작 시 데이터 로드
         Initialize();
+    }
+
+    private void OnNavigateToCity(NavigateToCityEventArgs args)
+    {
+        // 네비게이션 정보 저장 (MapContent가 로드될 때 처리)
+        CdsHelper.Main.UI.Views.MapContent.SetPendingNavigation(args);
+
+        // 지도 탭으로 전환
+        NavigateToContent("MapContent");
     }
 
     private async void Initialize()

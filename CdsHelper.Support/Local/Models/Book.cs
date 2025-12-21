@@ -3,6 +3,15 @@ using System.Text.RegularExpressions;
 
 namespace CdsHelper.Support.Local.Models;
 
+/// <summary>
+/// 도서관 도시 정보 (XAML 바인딩용)
+/// </summary>
+public class LibraryCityInfo
+{
+    public byte Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
 public class Book
 {
     public int Id { get; set; }
@@ -45,6 +54,21 @@ public class Book
 
     // 소재 도서관 도시명 목록 (표시용)
     public List<string> LibraryCityNames { get; set; } = new();
+
+    // 소재 도서관 도시 목록 (ID와 이름 쌍) - XAML 바인딩용
+    [JsonIgnore]
+    public List<LibraryCityInfo> LibraryCities
+    {
+        get
+        {
+            var result = new List<LibraryCityInfo>();
+            for (var i = 0; i < Math.Min(LibraryCityIds.Count, LibraryCityNames.Count); i++)
+            {
+                result.Add(new LibraryCityInfo { Id = LibraryCityIds[i], Name = LibraryCityNames[i] });
+            }
+            return result;
+        }
+    }
 
     // 기존 호환성용 (쉼표 구분 문자열)
     [JsonPropertyName("소재 도서관")]

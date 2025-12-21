@@ -2,6 +2,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/LinkButton.xaml"/>
+        <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/ResetButton.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/CityMarker.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Units/AreaMarker.xaml"/>
         <ResourceDictionary Source="/CdsHelper.Support;component/Themes/UI/Views/LibraryBooksDialog.xaml"/>
