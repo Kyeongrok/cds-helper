@@ -40,20 +40,20 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="40"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="40"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- 경도 눈금 (상단) -->
-                            <Canvas x:Name="PART_LongitudeScale" Grid.Row="0" Grid.Column="1"
+                            <Canvas x:Name="PART_LongitudeScale" Grid.Row="0" Grid.Column="0"
                                     Background="#F0F0F0" ClipToBounds="True"/>
 
-                            <!-- 위도 눈금 (좌측) -->
-                            <Canvas x:Name="PART_LatitudeScale" Grid.Row="1" Grid.Column="0"
+                            <!-- 위도 눈금 (우측) -->
+                            <Canvas x:Name="PART_LatitudeScale" Grid.Row="1" Grid.Column="1"
                                     Background="#F0F0F0" ClipToBounds="True"/>
 
                             <!-- 지도 이미지 -->
-                            <ScrollViewer Grid.Row="1" Grid.Column="1" HorizontalScrollBarVisibility="Auto"
+                            <ScrollViewer Grid.Row="1" Grid.Column="0" HorizontalScrollBarVisibility="Auto"
                                           VerticalScrollBarVisibility="Auto"
                                           x:Name="PART_MapScrollViewer">
                                 <Grid HorizontalAlignment="Left" VerticalAlignment="Top">
