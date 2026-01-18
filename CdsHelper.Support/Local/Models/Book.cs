@@ -35,13 +35,21 @@ public class Book
     [JsonIgnore]
     public string Hint => HintNames.Count > 0 ? string.Join(", ", HintNames) : HintText;
 
-    // 발견된 힌트 ID 목록 (플레이어 데이터에서 설정)
+    // 발견된 힌트 ID 목록 (플레이어 데이터에서 설정) - IsDiscovered
     [JsonIgnore]
     public HashSet<int>? DiscoveredHintIds { get; set; }
 
-    // 힌트 발견 여부 (HintIds 중 하나라도 발견되었으면 true)
+    // 힌트 보유 ID 목록 (플레이어 데이터에서 설정) - HasHint
     [JsonIgnore]
-    public bool IsHintDiscovered => DiscoveredHintIds != null && HintIds.Any(id => DiscoveredHintIds.Contains(id));
+    public HashSet<int>? HasHintIds { get; set; }
+
+    // 발견물 발견 여부 (HintIds 중 하나라도 발견되었으면 true)
+    [JsonIgnore]
+    public bool IsDiscoveryFound => DiscoveredHintIds != null && HintIds.Any(id => DiscoveredHintIds.Contains(id));
+
+    // 힌트 보유 여부 (HintIds 중 하나라도 힌트를 얻었으면 true)
+    [JsonIgnore]
+    public bool IsHintObtained => HasHintIds != null && HintIds.Any(id => HasHintIds.Contains(id));
 
     [JsonPropertyName("필요")]
     public string Required { get; set; } = string.Empty;
