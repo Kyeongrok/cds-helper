@@ -43,4 +43,9 @@ public class HintData
     /// 관련 책의 필요 스킬 (여러 책이면 쉼표로 구분)
     /// </summary>
     public string BookRequired { get; set; } = "";
+
+    /// <summary>
+    /// 관련 책의 개제조건/선행 발견물 (여러 책이면 쉼표로 구분)
+    /// </summary>
+    public string BookCondition { get; set; } = "";
 }

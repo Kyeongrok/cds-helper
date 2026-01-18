@@ -215,6 +215,7 @@ public class PlayerContentViewModel : BindableBase
                 {
                     hint.BookLanguage = bookInfo.Language;
                     hint.BookRequired = bookInfo.Required;
+                    hint.BookCondition = bookInfo.Condition;
                 }
             }
             Hints = new ObservableCollection<HintData>(saveGameInfo.Hints);
