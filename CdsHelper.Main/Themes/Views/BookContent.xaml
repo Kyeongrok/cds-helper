@@ -54,6 +54,14 @@
                                     <Setter Property="Background" Value="White"/>
                                     <Setter Property="Cursor" Value="Hand"/>
                                     <Style.Triggers>
+                                        <!-- 힌트 보유 (연한 초록색 배경) -->
+                                        <DataTrigger Binding="{Binding IsHintObtained}" Value="True">
+                                            <Setter Property="Background" Value="#E8F5E9" />
+                                        </DataTrigger>
+                                        <!-- 발견물 발견 (연한 파란색 배경) - 힌트보유보다 우선 -->
+                                        <DataTrigger Binding="{Binding IsDiscoveryFound}" Value="True">
+                                            <Setter Property="Background" Value="#E3F2FD" />
+                                        </DataTrigger>
                                         <!-- 읽기 불가 (언어/스킬 부족) -->
                                         <DataTrigger Binding="{Binding CanRead}" Value="False">
                                             <Setter Property="Foreground" Value="#D32F2F" />
@@ -104,7 +112,12 @@
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsHintDiscovered}" Value="True">
+                                                            <!-- 힌트 보유 (초록색) -->
+                                                            <DataTrigger Binding="{Binding IsHintObtained}" Value="True">
+                                                                <Setter Property="Foreground" Value="#388E3C" />
+                                                            </DataTrigger>
+                                                            <!-- 발견물 발견 (파란색) - 우선 -->
+                                                            <DataTrigger Binding="{Binding IsDiscoveryFound}" Value="True">
                                                                 <Setter Property="Foreground" Value="#1976D2" />
                                                             </DataTrigger>
                                                         </Style.Triggers>

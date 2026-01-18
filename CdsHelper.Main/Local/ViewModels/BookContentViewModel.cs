@@ -165,12 +165,20 @@ public class BookContentViewModel : BindableBase
     {
         if (_playerData == null) return;
 
-        // 발견된 힌트 ID 목록 가져오기
+        // 발견된 힌트 ID 목록 가져오기 (IsDiscovered)
         HashSet<int>? discoveredHintIds = null;
+        // 힌트 보유 ID 목록 가져오기 (HasHint)
+        HashSet<int>? hasHintIds = null;
+
         if (_saveDataService.CurrentSaveGameInfo?.Hints != null)
         {
             discoveredHintIds = _saveDataService.CurrentSaveGameInfo.Hints
                 .Where(h => h.IsDiscovered)
+                .Select(h => h.Index - 1) // 1-based -> 0-based (Hint ID)
+                .ToHashSet();
+
+            hasHintIds = _saveDataService.CurrentSaveGameInfo.Hints
+                .Where(h => h.HasHint)
                 .Select(h => h.Index - 1) // 1-based -> 0-based (Hint ID)
                 .ToHashSet();
         }
@@ -180,6 +188,7 @@ public class BookContentViewModel : BindableBase
             book.PlayerSkills = _playerData.Skills;
             book.PlayerLanguages = _playerData.Languages;
             book.DiscoveredHintIds = discoveredHintIds;
+            book.HasHintIds = hasHintIds;
         }
     }
 
