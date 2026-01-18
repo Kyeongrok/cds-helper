@@ -25,27 +25,41 @@
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="DataGridColumnHeader">
-                                <Border Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        Padding="{TemplateBinding Padding}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <ContentPresenter Grid.Column="0"
-                                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                          VerticalAlignment="Center"/>
-                                        <!-- 정렬 화살표 -->
-                                        <Path x:Name="SortArrow"
-                                              Grid.Column="1"
-                                              Margin="5,0,0,0"
-                                              VerticalAlignment="Center"
-                                              Visibility="Collapsed"
-                                              StrokeThickness="0"/>
-                                    </Grid>
-                                </Border>
+                                <Grid>
+                                    <Border Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            Padding="{TemplateBinding Padding}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ContentPresenter Grid.Column="0"
+                                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                              VerticalAlignment="Center"/>
+                                            <!-- 정렬 화살표 -->
+                                            <Path x:Name="SortArrow"
+                                                  Grid.Column="1"
+                                                  Margin="5,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Visibility="Collapsed"
+                                                  StrokeThickness="0"/>
+                                        </Grid>
+                                    </Border>
+                                    <!-- 컬럼 리사이즈 그립 -->
+                                    <Thumb x:Name="PART_RightHeaderGripper"
+                                           HorizontalAlignment="Right"
+                                           Width="4"
+                                           Cursor="SizeWE"
+                                           Background="Transparent">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="Transparent" Width="4"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Grid>
                                 <ControlTemplate.Triggers>
                                     <!-- 오름차순 - 빨간색 위 화살표 -->
                                     <Trigger Property="SortDirection" Value="Ascending">

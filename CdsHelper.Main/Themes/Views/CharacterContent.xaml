@@ -76,7 +76,7 @@
                                 <DataGridTextColumn Header="매력" Binding="{Binding Charm}" Width="50" />
                                 <DataGridTextColumn Header="운" Binding="{Binding Luck}" Width="50" />
                                 <DataGridTextColumn Header="일반특기" Binding="{Binding GeneralSkills}" Width="300" />
-                                <DataGridTextColumn Header="언어" Binding="{Binding LanguageSkillsText}" Width="*">
+                                <DataGridTextColumn Header="언어" Binding="{Binding LanguageSkillsText}" Width="300">
                                     <DataGridTextColumn.ElementStyle>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="#0066CC" />

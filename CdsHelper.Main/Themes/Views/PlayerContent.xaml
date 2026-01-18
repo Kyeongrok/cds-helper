@@ -200,7 +200,7 @@
                                                   VerticalScrollBarVisibility="Auto">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="순번" Binding="{Binding Index}" Width="40" />
-                                                <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="*" />
+                                                <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="200" />
                                                 <DataGridTextColumn Header="언어" Binding="{Binding BookLanguage}" Width="80" />
                                                 <DataGridTextColumn Header="필요" Binding="{Binding BookRequired}" Width="60" />
                                                 <DataGridTemplateColumn Header="힌트" Width="40">
