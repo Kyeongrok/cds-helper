@@ -203,6 +203,7 @@
                                                 <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="200" />
                                                 <DataGridTextColumn Header="언어" Binding="{Binding BookLanguage}" Width="80" />
                                                 <DataGridTextColumn Header="필요" Binding="{Binding BookRequired}" Width="60" />
+                                                <DataGridTextColumn Header="선행" Binding="{Binding BookCondition}" Width="100" />
                                                 <DataGridTemplateColumn Header="힌트" Width="40">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>

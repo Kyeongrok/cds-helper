@@ -10,6 +10,8 @@ public class AppDbContext : DbContext
     public DbSet<BookCityEntity> BookCities { get; set; } = null!;
     public DbSet<HintEntity> Hints { get; set; } = null!;
     public DbSet<BookHintEntity> BookHints { get; set; } = null!;
+    public DbSet<DiscoveryEntity> Discoveries { get; set; } = null!;
+    public DbSet<DiscoveryParentEntity> DiscoveryParents { get; set; } = null!;
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -68,6 +70,33 @@ public class AppDbContext : DbContext
                 .WithMany(h => h.BookHints)
                 .HasForeignKey(e => e.HintId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DiscoveryEntity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+
+            entity.HasOne(e => e.Hint)
+                .WithMany(h => h.Discoveries)
+                .HasForeignKey(e => e.HintId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<DiscoveryParentEntity>(entity =>
+        {
+            entity.HasKey(e => new { e.DiscoveryId, e.ParentDiscoveryId });
+
+            entity.HasOne(e => e.Discovery)
+                .WithMany(d => d.Parents)
+                .HasForeignKey(e => e.DiscoveryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.ParentDiscovery)
+                .WithMany(d => d.Children)
+                .HasForeignKey(e => e.ParentDiscoveryId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

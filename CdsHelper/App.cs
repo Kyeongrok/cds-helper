@@ -42,6 +42,11 @@ internal class App : PrismApplication
             var hintJsonPath = Path.Combine(basePath, "hint.json");
             Task.Run(() => hintService.InitializeAsync(dbPath, hintJsonPath)).GetAwaiter().GetResult();
 
+            // DiscoveryService 초기화
+            var discoveryService = Container.Resolve<DiscoveryService>();
+            var discoveryCsvPath = Path.Combine(basePath, "발견물힌트.csv");
+            Task.Run(() => discoveryService.InitializeAsync(dbPath, discoveryCsvPath)).GetAwaiter().GetResult();
+
             // BookService 초기화
             var bookService = Container.Resolve<BookService>();
             var booksJsonPath = Path.Combine(basePath, "books.json");
@@ -95,6 +100,7 @@ internal class App : PrismApplication
         containerRegistry.RegisterSingleton<ItemService>();
         containerRegistry.RegisterSingleton<SaveDataService>();
         containerRegistry.RegisterSingleton<HintService>();
+        containerRegistry.RegisterSingleton<DiscoveryService>();
 
         // ViewModel 등록
         containerRegistry.Register<CdsHelperViewModel>();
@@ -110,5 +116,6 @@ internal class App : PrismApplication
         containerRegistry.RegisterForNavigation<MapContent>();
         containerRegistry.RegisterForNavigation<PlayerContent>();
         containerRegistry.RegisterForNavigation<SphinxCalculatorContent>();
+        containerRegistry.RegisterForNavigation<DiscoveryContent>();
     }
 }
