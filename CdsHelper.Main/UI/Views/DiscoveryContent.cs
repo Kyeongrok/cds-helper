@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Main.Local.ViewModels;
 using CdsHelper.Support.Local.Helpers;
+using Prism.Events;
 using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views;
@@ -26,6 +27,8 @@ public class DiscoveryContent : ContentControl
             return;
 
         var discoveryService = ContainerLocator.Container.Resolve<DiscoveryService>();
-        DataContext = new DiscoveryContentViewModel(discoveryService);
+        var saveDataService = ContainerLocator.Container.Resolve<SaveDataService>();
+        var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
+        DataContext = new DiscoveryContentViewModel(discoveryService, saveDataService, eventAggregator);
     }
 }

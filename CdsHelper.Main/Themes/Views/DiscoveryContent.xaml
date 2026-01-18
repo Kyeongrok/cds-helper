@@ -26,6 +26,11 @@
                             <CheckBox Content="힌트 있는 것만" VerticalAlignment="Center" Margin="10,0,10,0"
                                       IsChecked="{Binding ShowOnlyWithHint}" />
 
+                            <TextBlock Text="발견:" VerticalAlignment="Center" Margin="10,0,5,0" />
+                            <ComboBox Width="80" Height="25" VerticalAlignment="Center"
+                                      ItemsSource="{Binding DiscoveryFilterOptions}"
+                                      SelectedIndex="{Binding DiscoveryFilterIndex}" />
+
                             <units:ResetButton Margin="10,0,0,0"
                                                Command="{Binding ResetFilterCommand}"/>
                         </WrapPanel>
@@ -42,6 +47,14 @@
                                         <!-- 힌트 없음 (회색) -->
                                         <DataTrigger Binding="{Binding HintName}" Value="">
                                             <Setter Property="Foreground" Value="#888888" />
+                                        </DataTrigger>
+                                        <!-- 힌트 획득 (연한 초록색) -->
+                                        <DataTrigger Binding="{Binding IsHintObtained}" Value="True">
+                                            <Setter Property="Background" Value="#E8F5E9" />
+                                        </DataTrigger>
+                                        <!-- 발견물 발견 (연한 파란색) -->
+                                        <DataTrigger Binding="{Binding IsDiscoveryFound}" Value="True">
+                                            <Setter Property="Background" Value="#E3F2FD" />
                                         </DataTrigger>
                                         <MultiTrigger>
                                             <MultiTrigger.Conditions>
@@ -60,6 +73,7 @@
                             <units:CdsDataGrid.Columns>
                                 <DataGridTextColumn Header="번호" Binding="{Binding Id}" Width="50" />
                                 <DataGridTextColumn Header="발견물명" Binding="{Binding Name}" Width="180" />
+                                <DataGridTextColumn Header="발견" Binding="{Binding DiscoveryStatusDisplay}" Width="45" />
                                 <DataGridTextColumn Header="힌트" Binding="{Binding HintName}" Width="150" />
                                 <DataGridTextColumn Header="선행 발견물" Binding="{Binding ParentNames}" Width="250" />
                                 <DataGridTextColumn Header="등장조건" Binding="{Binding AppearCondition}" Width="80" />

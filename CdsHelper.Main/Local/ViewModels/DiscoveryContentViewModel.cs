@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CdsHelper.Api.Entities;
+using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using Prism.Commands;
+using Prism.Events;
 using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
@@ -10,8 +12,12 @@ namespace CdsHelper.Main.Local.ViewModels;
 public class DiscoveryContentViewModel : BindableBase
 {
     private readonly DiscoveryService _discoveryService;
+    private readonly SaveDataService _saveDataService;
+    private readonly IEventAggregator _eventAggregator;
     private List<DiscoveryEntity> _allDiscoveries = new();
     private Dictionary<int, List<int>> _parentMappings = new();
+    private HashSet<int>? _discoveredHintIds;
+    private HashSet<int>? _hasHintIds;
 
     #region Collections
 
@@ -47,6 +53,16 @@ public class DiscoveryContentViewModel : BindableBase
         set { SetProperty(ref _showOnlyWithHint, value); ApplyFilter(); }
     }
 
+    private int _discoveryFilterIndex;
+    public int DiscoveryFilterIndex
+    {
+        get => _discoveryFilterIndex;
+        set { SetProperty(ref _discoveryFilterIndex, value); ApplyFilter(); }
+    }
+
+    // 0: 전체, 1: 발견, 2: 미발견
+    public List<string> DiscoveryFilterOptions { get; } = new() { "전체", "발견", "미발견" };
+
     #endregion
 
     #region Status
@@ -66,12 +82,46 @@ public class DiscoveryContentViewModel : BindableBase
 
     #endregion
 
-    public DiscoveryContentViewModel(DiscoveryService discoveryService)
+    public DiscoveryContentViewModel(
+        DiscoveryService discoveryService,
+        SaveDataService saveDataService,
+        IEventAggregator eventAggregator)
     {
         _discoveryService = discoveryService;
+        _saveDataService = saveDataService;
+        _eventAggregator = eventAggregator;
         ResetFilterCommand = new DelegateCommand(ResetFilter);
 
+        // 세이브 데이터 로드 이벤트 구독
+        eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
+
         Initialize();
+    }
+
+    private void OnSaveDataLoaded(SaveDataLoadedEventArgs args)
+    {
+        UpdateHintStatus();
+        ApplyFilter();
+    }
+
+    private void UpdateHintStatus()
+    {
+        if (_saveDataService.CurrentSaveGameInfo?.Hints == null) return;
+
+        _discoveredHintIds = _saveDataService.CurrentSaveGameInfo.Hints
+            .Where(h => h.IsDiscovered)
+            .Select(h => h.Index - 1) // 1-based -> 0-based (Hint ID)
+            .ToHashSet();
+
+        _hasHintIds = _saveDataService.CurrentSaveGameInfo.Hints
+            .Where(h => h.HasHint)
+            .Select(h => h.Index - 1) // 1-based -> 0-based (Hint ID)
+            .ToHashSet();
+
+        System.Diagnostics.Debug.WriteLine($"[Discovery] HasHintIds count: {_hasHintIds?.Count ?? 0}");
+        System.Diagnostics.Debug.WriteLine($"[Discovery] DiscoveredHintIds count: {_discoveredHintIds?.Count ?? 0}");
+        if (_hasHintIds?.Count > 0)
+            System.Diagnostics.Debug.WriteLine($"[Discovery] HasHintIds: {string.Join(", ", _hasHintIds.Take(20))}");
     }
 
     private async void Initialize()
@@ -82,6 +132,9 @@ public class DiscoveryContentViewModel : BindableBase
 
             _allDiscoveries = _discoveryService.GetAllDiscoveries().Values.ToList();
             _parentMappings = await _discoveryService.GetAllParentMappingsAsync();
+
+            // 세이브 데이터가 있으면 힌트 상태 업데이트
+            UpdateHintStatus();
 
             ApplyFilter();
             StatusText = $"발견물 로드 완료: {_allDiscoveries.Count}개";
@@ -114,15 +167,35 @@ public class DiscoveryContentViewModel : BindableBase
             filtered = filtered.Where(d => d.HintId != null);
         }
 
+        // 발견 상태 필터 (0: 전체, 1: 발견, 2: 미발견)
+        if (DiscoveryFilterIndex == 1)
+        {
+            filtered = filtered.Where(d => d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true);
+        }
+        else if (DiscoveryFilterIndex == 2)
+        {
+            filtered = filtered.Where(d => !d.HintId.HasValue || _discoveredHintIds?.Contains(d.HintId.Value) != true);
+        }
+
         var displayItems = filtered.Select(d => new DiscoveryDisplayItem
         {
             Id = d.Id,
             Name = d.Name,
+            HintId = d.HintId,
             HintName = d.Hint?.Name ?? "",
             AppearCondition = d.AppearCondition ?? "",
             BookName = d.BookName ?? "",
-            ParentNames = GetParentNames(d.Id)
+            ParentNames = GetParentNames(d.Id),
+            IsHintObtained = d.HintId.HasValue && _hasHintIds?.Contains(d.HintId.Value) == true,
+            IsDiscoveryFound = d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true
         }).ToList();
+
+        // 디버그: 힌트가 있는 발견물 몇 개 출력
+        var withHint = displayItems.Where(d => d.HintId.HasValue).Take(5).ToList();
+        foreach (var d in withHint)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Discovery] {d.Name} HintId={d.HintId}, IsHintObtained={d.IsHintObtained}, IsDiscoveryFound={d.IsDiscoveryFound}");
+        }
 
         Discoveries = new ObservableCollection<DiscoveryDisplayItem>(displayItems);
         StatusText = $"발견물: {displayItems.Count}개";
@@ -146,6 +219,7 @@ public class DiscoveryContentViewModel : BindableBase
         NameSearch = "";
         HintSearch = "";
         ShowOnlyWithHint = false;
+        DiscoveryFilterIndex = 0;
     }
 }
 
@@ -156,8 +230,24 @@ public class DiscoveryDisplayItem
 {
     public int Id { get; set; }
     public string Name { get; set; } = "";
+    public int? HintId { get; set; }
     public string HintName { get; set; } = "";
     public string AppearCondition { get; set; } = "";
     public string BookName { get; set; } = "";
     public string ParentNames { get; set; } = "";
+
+    /// <summary>
+    /// 힌트 획득 여부 (연한 초록색)
+    /// </summary>
+    public bool IsHintObtained { get; set; }
+
+    /// <summary>
+    /// 발견물 발견 여부 (연한 파란색)
+    /// </summary>
+    public bool IsDiscoveryFound { get; set; }
+
+    /// <summary>
+    /// 발견여부 표시 (O / 빈값)
+    /// </summary>
+    public string DiscoveryStatusDisplay => IsDiscoveryFound ? "O" : "";
 }
