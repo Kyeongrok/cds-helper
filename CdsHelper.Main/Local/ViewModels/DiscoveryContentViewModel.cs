@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using CdsHelper.Api.Entities;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Support.Local.Settings;
 using Prism.Commands;
 using Prism.Events;
 using Prism.Mvvm;
@@ -177,17 +180,23 @@ public class DiscoveryContentViewModel : BindableBase
             filtered = filtered.Where(d => !d.HintId.HasValue || _discoveredHintIds?.Contains(d.HintId.Value) != true);
         }
 
-        var displayItems = filtered.Select(d => new DiscoveryDisplayItem
+        var displayItems = filtered.Select(d =>
         {
-            Id = d.Id,
-            Name = d.Name,
-            HintId = d.HintId,
-            HintName = d.Hint?.Name ?? "",
-            AppearCondition = d.AppearCondition ?? "",
-            BookName = d.BookName ?? "",
-            ParentNames = GetParentNames(d.Id),
-            IsHintObtained = d.HintId.HasValue && _hasHintIds?.Contains(d.HintId.Value) == true,
-            IsDiscoveryFound = d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true
+            var item = new DiscoveryDisplayItem
+            {
+                Id = d.Id,
+                Name = d.Name,
+                HintId = d.HintId,
+                HintName = d.Hint?.Name ?? "",
+                AppearCondition = d.AppearCondition ?? "",
+                BookName = d.BookName ?? "",
+                ParentNames = GetParentNames(d.Id),
+                IsHintObtained = d.HintId.HasValue && _hasHintIds?.Contains(d.HintId.Value) == true,
+                IsDiscoveryFound = d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true
+            };
+            // 저장된 체크 상태 로드 (setter 호출 없이 직접 설정)
+            item.SetCheckedWithoutSave(AppSettings.IsDiscoveryChecked(d.Id));
+            return item;
         }).ToList();
 
         // 디버그: 힌트가 있는 발견물 몇 개 출력
@@ -226,7 +235,7 @@ public class DiscoveryContentViewModel : BindableBase
 /// <summary>
 /// 발견물 표시용 모델
 /// </summary>
-public class DiscoveryDisplayItem
+public class DiscoveryDisplayItem : INotifyPropertyChanged
 {
     public int Id { get; set; }
     public string Name { get; set; } = "";
@@ -250,4 +259,37 @@ public class DiscoveryDisplayItem
     /// 발견여부 표시 (O / 빈값)
     /// </summary>
     public string DiscoveryStatusDisplay => IsDiscoveryFound ? "O" : "";
+
+    private bool _isChecked;
+    /// <summary>
+    /// 사용자가 체크한 발견물 여부
+    /// </summary>
+    public bool IsChecked
+    {
+        get => _isChecked;
+        set
+        {
+            if (_isChecked != value)
+            {
+                _isChecked = value;
+                AppSettings.SetDiscoveryChecked(Id, value);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 저장 없이 체크 상태만 설정 (로드 시 사용)
+    /// </summary>
+    public void SetCheckedWithoutSave(bool value)
+    {
+        _isChecked = value;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }

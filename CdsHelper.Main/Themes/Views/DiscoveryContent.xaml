@@ -71,6 +71,14 @@
                                 </Style>
                             </units:CdsDataGrid.RowStyle>
                             <units:CdsDataGrid.Columns>
+                                <DataGridTemplateColumn Header="✓" Width="40">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="번호" Binding="{Binding Id}" Width="50" />
                                 <DataGridTextColumn Header="발견물명" Binding="{Binding Name}" Width="180" />
                                 <DataGridTextColumn Header="발견" Binding="{Binding DiscoveryStatusDisplay}" Width="45" />

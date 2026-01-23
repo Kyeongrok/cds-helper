@@ -1289,8 +1289,8 @@
     "latitude": -4,
     "longitude": 39,
     "hasLibrary": false,
-    "pixelX": 4623,
-    "pixelY": 1809,
+    "pixelX": 4602,
+    "pixelY": 1849,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아프리카"
@@ -1301,8 +1301,8 @@
     "latitude": -2,
     "longitude": 40,
     "hasLibrary": false,
-    "pixelX": 4576,
-    "pixelY": 1803,
+    "pixelX": 4622,
+    "pixelY": 1807,
     "hasShipyard": true,
     "hasGuild": false,
     "culturalSphere": "아프리카"
@@ -2404,12 +2404,12 @@
     "name": "테노치티클란",
     "latitude": 20,
     "longitude": -101,
-    "hasLibrary": false,
-    "pixelX": 1470,
-    "pixelY": 1324,
+    "hasLibrary": true,
+    "pixelX": 1522,
+    "pixelY": 1319,
     "hasShipyard": false,
     "hasGuild": false,
-    "culturalSphere": null
+    "culturalSphere": "아메리카"
   },
   {
     "id": 201,
@@ -2441,8 +2441,8 @@
     "latitude": 18,
     "longitude": -98,
     "hasLibrary": false,
-    "pixelX": 1619,
-    "pixelY": 1375,
+    "pixelX": 1561,
+    "pixelY": 1361,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아메리카"
@@ -2453,8 +2453,8 @@
     "latitude": 17,
     "longitude": -95,
     "hasLibrary": false,
-    "pixelX": 1563,
-    "pixelY": 1360,
+    "pixelX": 1623,
+    "pixelY": 1377,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "아메리카"

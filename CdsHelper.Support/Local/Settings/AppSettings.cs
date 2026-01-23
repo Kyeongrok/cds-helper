@@ -14,6 +14,7 @@ public class AppSettingsData
     public double MarkerSize { get; set; } = AppSettings.DefaultMarkerSize;
     public string DefaultView { get; set; } = AppSettings.DefaultDefaultView;
     public string? LastSaveFilePath { get; set; }
+    public HashSet<int> CheckedDiscoveryIds { get; set; } = new();
 }
 
 public static class AppSettings
@@ -31,6 +32,7 @@ public static class AppSettings
     private static double _markerSize = DefaultMarkerSize;
     private static string _defaultView = DefaultDefaultView;
     private static string? _lastSaveFilePath;
+    private static HashSet<int> _checkedDiscoveryIds = new();
 
     static AppSettings()
     {
@@ -69,6 +71,26 @@ public static class AppSettings
         }
     }
 
+    public static HashSet<int> CheckedDiscoveryIds => _checkedDiscoveryIds;
+
+    public static void SetDiscoveryChecked(int discoveryId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            _checkedDiscoveryIds.Add(discoveryId);
+        }
+        else
+        {
+            _checkedDiscoveryIds.Remove(discoveryId);
+        }
+        SaveSettings();
+    }
+
+    public static bool IsDiscoveryChecked(int discoveryId)
+    {
+        return _checkedDiscoveryIds.Contains(discoveryId);
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -95,6 +117,7 @@ public static class AppSettings
                     _markerSize = data.MarkerSize;
                     _defaultView = data.DefaultView;
                     _lastSaveFilePath = data.LastSaveFilePath;
+                    _checkedDiscoveryIds = data.CheckedDiscoveryIds ?? new();
                 }
             }
         }
@@ -118,7 +141,8 @@ public static class AppSettings
             {
                 MarkerSize = _markerSize,
                 DefaultView = _defaultView,
-                LastSaveFilePath = _lastSaveFilePath
+                LastSaveFilePath = _lastSaveFilePath,
+                CheckedDiscoveryIds = _checkedDiscoveryIds
             };
 
             var json = JsonSerializer.Serialize(data, new JsonSerializerOptions
