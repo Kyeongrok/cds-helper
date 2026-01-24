@@ -10,6 +10,11 @@ public class CharacterData : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
+    /// 고용 상태 변경 전 호출되는 콜백 (첫 변경 시 백업용)
+    /// </summary>
+    public static Action? OnBeforeFirstHireStatusChange { get; set; }
+
+    /// <summary>
     /// 고용 상태 변경 시 호출되는 콜백 (characterIndex, hireStatus)
     /// </summary>
     public static Action<int, byte>? OnHireStatusChanged { get; set; }
@@ -104,6 +109,9 @@ public class CharacterData : INotifyPropertyChanged
             var newStatus = (byte)(value + 1);
             if (_hireStatus != newStatus)
             {
+                // 변경 전 콜백 (첫 변경 시 백업용)
+                OnBeforeFirstHireStatusChange?.Invoke();
+
                 _hireStatus = newStatus;
                 OnPropertyChanged(nameof(HireStatus));
                 OnPropertyChanged(nameof(HireStatusIndex));
