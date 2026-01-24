@@ -1,10 +1,24 @@
+using System.ComponentModel;
+
 namespace CdsHelper.Support.Local.Models;
 
 /// <summary>
 /// 캐릭터 데이터 모델
 /// </summary>
-public class CharacterData
+public class CharacterData : INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// 고용 상태 변경 시 호출되는 콜백 (characterIndex, hireStatus)
+    /// </summary>
+    public static Action<int, byte>? OnHireStatusChanged { get; set; }
+
+    protected void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
     public int Index { get; set; }  // 캐릭터 인덱스 (세이브 파일 내 순서)
     public string Name { get; set; } = "";
     public byte HP { get; set; }
@@ -53,7 +67,20 @@ public class CharacterData
     /// <summary>
     /// 고용 상태: 1=대화만, 2=고용가능, 3=고용완료
     /// </summary>
-    public byte HireStatus { get; set; }
+    private byte _hireStatus;
+    public byte HireStatus
+    {
+        get => _hireStatus;
+        set
+        {
+            if (_hireStatus != value)
+            {
+                _hireStatus = value;
+                OnPropertyChanged(nameof(HireStatus));
+                OnPropertyChanged(nameof(HireStatusText));
+            }
+        }
+    }
 
     /// <summary>
     /// 고용 상태 표시 텍스트
@@ -65,6 +92,28 @@ public class CharacterData
         3 => "고용중",
         _ => "-"
     };
+
+    /// <summary>
+    /// 고용 상태 인덱스 (ComboBox용): 0=대화만, 1=고용가능, 2=고용중
+    /// </summary>
+    public int HireStatusIndex
+    {
+        get => HireStatus - 1;
+        set
+        {
+            var newStatus = (byte)(value + 1);
+            if (_hireStatus != newStatus)
+            {
+                _hireStatus = newStatus;
+                OnPropertyChanged(nameof(HireStatus));
+                OnPropertyChanged(nameof(HireStatusIndex));
+                OnPropertyChanged(nameof(HireStatusText));
+
+                // 세이브 파일에 저장
+                OnHireStatusChanged?.Invoke(Index, _hireStatus);
+            }
+        }
+    }
 
     /// <summary>
     /// 특기별 레벨 (특기 인덱스 -> 레벨)

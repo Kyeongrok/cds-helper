@@ -94,7 +94,7 @@ public static class AppSettings
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
-        new() { Name = "CharacterContent", DisplayName = "캐릭터" },
+        new() { Name = "CharacterContent", DisplayName = "항해사" },
         new() { Name = "BookContent", DisplayName = "도서" },
         new() { Name = "CityContent", DisplayName = "도시" },
         new() { Name = "PatronContent", DisplayName = "후원자" },

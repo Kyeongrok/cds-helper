@@ -103,7 +103,25 @@ public class SaveDataService
         CurrentSaveGameInfo = saveInfo;
         CurrentFilePath = filePath;
 
+        // CharacterData에서 고용 상태 변경 시 저장할 수 있도록 콜백 설정
+        CharacterData.OnHireStatusChanged = SaveCharacterHireStatus;
+
         return saveInfo;
+    }
+
+    /// <summary>
+    /// 캐릭터 고용 상태를 세이브 파일에 저장
+    /// </summary>
+    public void SaveCharacterHireStatus(int characterIndex, byte hireStatus)
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
+            return;
+
+        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x62;
+
+        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.WriteByte(hireStatus);
     }
 
     /// <summary>
