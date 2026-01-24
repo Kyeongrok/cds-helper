@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
@@ -18,6 +19,7 @@ public class CharacterContentViewModel : BindableBase
     private List<CharacterData> _allCharacters = new();
     private SaveGameInfo? _saveGameInfo;
     private PlayerData? _playerData;
+    private bool _hasBackedUpThisSession = false;
 
     #region Collections
 
@@ -102,11 +104,93 @@ public class CharacterContentViewModel : BindableBase
         set => SetProperty(ref _filePath, value);
     }
 
+    private string _toastMessage = "";
+    public string ToastMessage
+    {
+        get => _toastMessage;
+        set => SetProperty(ref _toastMessage, value);
+    }
+
+    private bool _isToastVisible = false;
+    public bool IsToastVisible
+    {
+        get => _isToastVisible;
+        set => SetProperty(ref _isToastVisible, value);
+    }
+
     #endregion
 
     #region Commands
 
     // LoadSaveCommand는 CdsHelperWindow의 공통 영역에서 처리
+
+    public ICommand BackupCommand { get; }
+
+    private void ExecuteBackup()
+    {
+        var bakFilePath = PerformBackup();
+        if (bakFilePath != null)
+        {
+            System.Windows.MessageBox.Show($"백업 완료:\n{bakFilePath}",
+                "백업", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+        }
+    }
+
+    private string? PerformBackup()
+    {
+        try
+        {
+            var filePath = _saveDataService.CurrentFilePath;
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            {
+                return null;
+            }
+
+            var directory = Path.GetDirectoryName(filePath);
+            var bakDirectory = Path.Combine(directory!, "bak");
+
+            if (!Directory.Exists(bakDirectory))
+            {
+                Directory.CreateDirectory(bakDirectory);
+            }
+
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var fileName = Path.GetFileNameWithoutExtension(filePath);
+            var extension = Path.GetExtension(filePath);
+            var bakFileName = $"{fileName}_{timestamp}{extension}";
+            var bakFilePath = Path.Combine(bakDirectory, bakFileName);
+
+            File.Copy(filePath, bakFilePath, overwrite: true);
+
+            return bakFilePath;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void OnBeforeFirstHireStatusChange()
+    {
+        if (_hasBackedUpThisSession) return;
+
+        var bakFilePath = PerformBackup();
+        if (bakFilePath != null)
+        {
+            _hasBackedUpThisSession = true;
+            ShowToast($"자동 백업 완료: {Path.GetFileName(bakFilePath)}");
+        }
+    }
+
+    private async void ShowToast(string message)
+    {
+        ToastMessage = message;
+        IsToastVisible = true;
+
+        await Task.Delay(3000);
+
+        IsToastVisible = false;
+    }
 
     #endregion
 
@@ -117,6 +201,11 @@ public class CharacterContentViewModel : BindableBase
     {
         _characterService = characterService;
         _saveDataService = saveDataService;
+
+        BackupCommand = new DelegateCommand(ExecuteBackup);
+
+        // 고용 상태 첫 변경 시 자동 백업 콜백 설정
+        CharacterData.OnBeforeFirstHireStatusChange = OnBeforeFirstHireStatusChange;
 
         // 세이브 데이터 로드 이벤트 구독
         eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
