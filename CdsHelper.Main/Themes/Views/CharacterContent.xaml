@@ -46,6 +46,7 @@
 
                         <!-- 토스트 알림 -->
                         <Border Grid.Row="0" Grid.RowSpan="2"
+                                Panel.ZIndex="999"
                                 HorizontalAlignment="Center" VerticalAlignment="Top"
                                 Margin="0,50,0,0"
                                 Background="#323232" CornerRadius="5"
@@ -101,21 +102,61 @@
                                     </DataGridTextColumn.ElementStyle>
                                 </DataGridTextColumn>
                                 <DataGridTextColumn Header="명성" Binding="{Binding Fame}" Width="60" />
-                                <DataGridTextColumn Header="소재" Binding="{Binding Location}" Width="100" />
+                                <DataGridTemplateColumn Header="소재" Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox Text="{Binding Location}"
+                                                      SelectedIndex="{Binding LocationSelectIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                      IsEditable="True"
+                                                      IsReadOnly="True"
+                                                      BorderThickness="0"
+                                                      Background="Transparent">
+                                                <ComboBoxItem Content="리스본" />
+                                                <ComboBoxItem Content="세빌리아" />
+                                                <ComboBoxItem Content="함대소속" />
+                                            </ComboBox>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="고용" Width="90">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox SelectedIndex="{Binding HireStatusIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                                       BorderThickness="0"
-                                                      Background="Transparent">
+                                                      Background="Transparent"
+                                                      IsEnabled="{Binding CanEditHireStatus}">
                                                 <ComboBoxItem Content="대화만" />
                                                 <ComboBoxItem Content="고용가능" />
-                                                <ComboBoxItem Content="고용중" />
+                                                <ComboBoxItem Content="고용중" IsEnabled="False" />
                                             </ComboBox>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="연령" Binding="{Binding Age}" Width="50" />
+                                <DataGridTemplateColumn Header="연령" Width="50">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding Age, UpdateSourceTrigger=LostFocus, Mode=TwoWay}"
+                                                     BorderThickness="0"
+                                                     Background="Transparent"
+                                                     TextAlignment="Center"
+                                                     Width="40"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="등장" Width="50">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox SelectedIndex="{Binding Available, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                      BorderThickness="0"
+                                                      Background="Transparent">
+                                                <ComboBoxItem Content="0" />
+                                                <ComboBoxItem Content="1" />
+                                                <ComboBoxItem Content="2" />
+                                                <ComboBoxItem Content="3" />
+                                            </ComboBox>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="얼굴" Binding="{Binding Face}" Width="50" />
                             </units:CdsDataGrid.Columns>
                         </units:CdsDataGrid>

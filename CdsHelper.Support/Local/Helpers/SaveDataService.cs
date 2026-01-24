@@ -103,8 +103,11 @@ public class SaveDataService
         CurrentSaveGameInfo = saveInfo;
         CurrentFilePath = filePath;
 
-        // CharacterData에서 고용 상태 변경 시 저장할 수 있도록 콜백 설정
+        // CharacterData에서 고용 상태/연령/소재/등장여부 변경 시 저장할 수 있도록 콜백 설정
         CharacterData.OnHireStatusChanged = SaveCharacterHireStatus;
+        CharacterData.OnAgeChanged = SaveCharacterAge;
+        CharacterData.OnLocationChanged = SaveCharacterLocation;
+        CharacterData.OnAvailableChanged = SaveCharacterAvailable;
 
         return saveInfo;
     }
@@ -122,6 +125,51 @@ public class SaveDataService
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
         stream.WriteByte(hireStatus);
+    }
+
+    /// <summary>
+    /// 캐릭터 연령을 세이브 파일에 저장
+    /// </summary>
+    public void SaveCharacterAge(int characterIndex, byte age)
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
+            return;
+
+        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x5C;
+
+        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.WriteByte(age);
+    }
+
+    /// <summary>
+    /// 캐릭터 소재를 세이브 파일에 저장
+    /// </summary>
+    public void SaveCharacterLocation(int characterIndex, byte locationIndex)
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
+            return;
+
+        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x2E;
+
+        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.WriteByte(locationIndex);
+    }
+
+    /// <summary>
+    /// 캐릭터 등장 여부를 세이브 파일에 저장
+    /// </summary>
+    public void SaveCharacterAvailable(int characterIndex, byte available)
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
+            return;
+
+        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x0A;
+
+        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.WriteByte(available);
     }
 
     /// <summary>
@@ -210,6 +258,7 @@ public class SaveDataService
 
         // 소재
         byte locationIdx = data[offset + 0x2E];
+        character.LocationIndex = locationIdx;
         character.Location = _cityService.GetCityName(locationIdx, _cities);
 
         // 연령

@@ -19,6 +19,21 @@ public class CharacterData : INotifyPropertyChanged
     /// </summary>
     public static Action<int, byte>? OnHireStatusChanged { get; set; }
 
+    /// <summary>
+    /// 연령 변경 시 호출되는 콜백 (characterIndex, age)
+    /// </summary>
+    public static Action<int, byte>? OnAgeChanged { get; set; }
+
+    /// <summary>
+    /// 소재 변경 시 호출되는 콜백 (characterIndex, locationIndex)
+    /// </summary>
+    public static Action<int, byte>? OnLocationChanged { get; set; }
+
+    /// <summary>
+    /// 등장 여부 변경 시 호출되는 콜백 (characterIndex, available)
+    /// </summary>
+    public static Action<int, byte>? OnAvailableChanged { get; set; }
+
     protected void OnPropertyChanged(string propertyName)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -63,11 +78,104 @@ public class CharacterData : INotifyPropertyChanged
         return LanguageSkills.Contains(skillName);
     }
     public ushort Fame { get; set; }
+
+    private byte _locationIndex;
+    public byte LocationIndex
+    {
+        get => _locationIndex;
+        set
+        {
+            if (_locationIndex != value)
+            {
+                OnBeforeFirstHireStatusChange?.Invoke();
+                _locationIndex = value;
+                Location = LocationIndexToName(_locationIndex);
+                OnPropertyChanged(nameof(LocationIndex));
+                OnPropertyChanged(nameof(Location));
+                OnPropertyChanged(nameof(LocationSelectIndex));
+                OnLocationChanged?.Invoke(Index, _locationIndex);
+            }
+        }
+    }
+
     public string Location { get; set; } = "";
+
+    /// <summary>
+    /// 소재 선택 인덱스 (ComboBox용): 0=리스본, 1=세빌리아, 2=함대소속
+    /// </summary>
+    public int LocationSelectIndex
+    {
+        get => _locationIndex switch
+        {
+            0 => 0,    // 리스본
+            7 => 1,    // 세빌리아
+            255 => 2,  // 함대소속
+            _ => -1    // 기타 (선택 안됨)
+        };
+        set
+        {
+            var newIndex = value switch
+            {
+                0 => (byte)0,    // 리스본
+                1 => (byte)7,    // 세빌리아
+                2 => (byte)255,  // 함대소속
+                _ => _locationIndex
+            };
+            if (_locationIndex != newIndex)
+            {
+                LocationIndex = newIndex;
+            }
+        }
+    }
+
+    private static string LocationIndexToName(byte index) => index switch
+    {
+        0 => "리스본",
+        7 => "세빌리아",
+        255 => "함대소속",
+        _ => $"기타({index})"
+    };
+
     public byte Face { get; set; }
-    public sbyte Age { get; set; }
+
+    private sbyte _age;
+    public sbyte Age
+    {
+        get => _age;
+        set
+        {
+            if (_age != value)
+            {
+                // 변경 전 콜백 (첫 변경 시 백업용)
+                OnBeforeFirstHireStatusChange?.Invoke();
+
+                _age = value;
+                OnPropertyChanged(nameof(Age));
+                OnPropertyChanged(nameof(IsGray));
+
+                // 세이브 파일에 저장
+                OnAgeChanged?.Invoke(Index, unchecked((byte)_age));
+            }
+        }
+    }
+
     public string Constellation { get; set; } = "";
-    public byte Available { get; set; }
+
+    private byte _available;
+    public byte Available
+    {
+        get => _available;
+        set
+        {
+            if (_available != value)
+            {
+                OnBeforeFirstHireStatusChange?.Invoke();
+                _available = value;
+                OnPropertyChanged(nameof(Available));
+                OnAvailableChanged?.Invoke(Index, _available);
+            }
+        }
+    }
 
     /// <summary>
     /// 고용 상태: 1=대화만, 2=고용가능, 3=고용완료
@@ -142,6 +250,11 @@ public class CharacterData : INotifyPropertyChanged
     /// 고용 가능 여부: 캐릭터 명성이 플레이어 명성 이하
     /// </summary>
     public bool CanRecruit => Fame <= PlayerFame;
+
+    /// <summary>
+    /// 고용 상태 수정 가능 여부: 고용중(3)이 아닐 때만 수정 가능
+    /// </summary>
+    public bool CanEditHireStatus => HireStatus != 3;
 
     /// <summary>
     /// 특정 특기가 특정 레벨인지 확인
