@@ -103,11 +103,12 @@ public class SaveDataService
         CurrentSaveGameInfo = saveInfo;
         CurrentFilePath = filePath;
 
-        // CharacterData에서 고용 상태/연령/소재/등장여부 변경 시 저장할 수 있도록 콜백 설정
+        // CharacterData에서 고용 상태/연령/소재/등장여부/건물 변경 시 저장할 수 있도록 콜백 설정
         CharacterData.OnHireStatusChanged = SaveCharacterHireStatus;
         CharacterData.OnAgeChanged = SaveCharacterAge;
         CharacterData.OnLocationChanged = SaveCharacterLocation;
         CharacterData.OnAvailableChanged = SaveCharacterAvailable;
+        CharacterData.OnBuildingChanged = SaveCharacterBuilding;
 
         return saveInfo;
     }
@@ -170,6 +171,21 @@ public class SaveDataService
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
         stream.WriteByte(available);
+    }
+
+    /// <summary>
+    /// 캐릭터 건물을 세이브 파일에 저장
+    /// </summary>
+    public void SaveCharacterBuilding(int characterIndex, byte building)
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
+            return;
+
+        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x30;
+
+        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.WriteByte(building);
     }
 
     /// <summary>
@@ -260,6 +276,9 @@ public class SaveDataService
         byte locationIdx = data[offset + 0x2E];
         character.LocationIndex = locationIdx;
         character.Location = _cityService.GetCityName(locationIdx, _cities);
+
+        // 건물 (도시가 2바이트이므로 0x30)
+        character.Building = data[offset + 0x30];
 
         // 연령
         byte ageRaw = data[offset + 0x5C];

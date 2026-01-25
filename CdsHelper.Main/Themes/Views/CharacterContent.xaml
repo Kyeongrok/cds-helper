@@ -105,7 +105,7 @@
                                 <DataGridTemplateColumn Header="소재" Width="100">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <ComboBox Text="{Binding Location}"
+                                            <ComboBox Text="{Binding Location, Mode=OneWay}"
                                                       SelectedIndex="{Binding LocationSelectIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                                       IsEditable="True"
                                                       IsReadOnly="True"
@@ -114,6 +114,21 @@
                                                 <ComboBoxItem Content="리스본" />
                                                 <ComboBoxItem Content="세빌리아" />
                                                 <ComboBoxItem Content="함대소속" />
+                                            </ComboBox>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="건물" Width="70">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox Text="{Binding BuildingName, Mode=OneWay}"
+                                                      SelectedIndex="{Binding BuildingSelectIndex, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                      IsEditable="True"
+                                                      IsReadOnly="True"
+                                                      BorderThickness="0"
+                                                      Background="Transparent">
+                                                <ComboBoxItem Content="주점" />
+                                                <ComboBoxItem Content="여관" />
                                             </ComboBox>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>

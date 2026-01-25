@@ -34,6 +34,11 @@ public class CharacterData : INotifyPropertyChanged
     /// </summary>
     public static Action<int, byte>? OnAvailableChanged { get; set; }
 
+    /// <summary>
+    /// 건물 변경 시 호출되는 콜백 (characterIndex, building)
+    /// </summary>
+    public static Action<int, byte>? OnBuildingChanged { get; set; }
+
     protected void OnPropertyChanged(string propertyName)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -137,6 +142,56 @@ public class CharacterData : INotifyPropertyChanged
     };
 
     public byte Face { get; set; }
+
+    private byte _building;
+    public byte Building
+    {
+        get => _building;
+        set
+        {
+            if (_building != value)
+            {
+                OnBeforeFirstHireStatusChange?.Invoke();
+                _building = value;
+                OnPropertyChanged(nameof(Building));
+                OnPropertyChanged(nameof(BuildingName));
+                OnBuildingChanged?.Invoke(Index, _building);
+            }
+        }
+    }
+
+    public string BuildingName => Building switch
+    {
+        4 => "주점",
+        5 => "여관",
+        _ => Building.ToString()
+    };
+
+    /// <summary>
+    /// 건물 선택 인덱스 (ComboBox용): 0=주점, 1=여관
+    /// </summary>
+    public int BuildingSelectIndex
+    {
+        get => Building switch
+        {
+            4 => 0,  // 주점
+            5 => 1,  // 여관
+            _ => -1
+        };
+        set
+        {
+            var newBuilding = value switch
+            {
+                0 => (byte)4,  // 주점
+                1 => (byte)5,  // 여관
+                _ => _building
+            };
+            if (_building != newBuilding)
+            {
+                Building = newBuilding;
+            }
+        }
+    }
 
     private sbyte _age;
     public sbyte Age
