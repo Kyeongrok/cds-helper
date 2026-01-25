@@ -1,0 +1,105 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:views="clr-namespace:CdsHelper.Main.UI.Views"
+                    xmlns:vm="clr-namespace:CdsHelper.Main.Local.ViewModels"
+                    xmlns:units="clr-namespace:CdsHelper.Support.UI.Units;assembly=CdsHelper.Support">
+
+    <Style TargetType="{x:Type views:ExePatchContent}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type views:ExePatchContent}">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 헤더 -->
+                        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                            <TextBlock Text="대항해시대2 인물 목록 (CDS_95.EXE)" FontSize="18" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="대화만 가능한 인물을 고용 가능하게 패치합니다" Foreground="Gray"/>
+                        </StackPanel>
+
+                        <!-- 파일 경로 및 버튼 -->
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="파일: " VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding ExeFilePath}" VerticalAlignment="Center" Foreground="#1976D2" Margin="0,0,20,0"/>
+                            <Button Content="새로고침" Command="{Binding RefreshCommand}"
+                                    Width="80" Height="28" Margin="0,0,10,0"/>
+                            <Button Content="원본 복원" Command="{Binding RestoreOriginalCommand}"
+                                    Width="100" Height="28"
+                                    Background="#FF9800" Foreground="White" BorderThickness="0"/>
+                        </StackPanel>
+
+                        <!-- 데이터 그리드 -->
+                        <units:CdsDataGrid Grid.Row="2"
+                                          ItemsSource="{Binding Characters}"
+                                          AutoGenerateColumns="False">
+                            <units:CdsDataGrid.RowStyle>
+                                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                    <Setter Property="Background" Value="White"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HireStatusValue}" Value="2">
+                                            <Setter Property="Background" Value="#E8F5E9" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HireStatusValue}" Value="1">
+                                            <Setter Property="Background" Value="#FFF3E0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </units:CdsDataGrid.RowStyle>
+                            <units:CdsDataGrid.Columns>
+                                <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="35" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="160" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="등장" Binding="{Binding AppearYear}" Width="55" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="성별" Binding="{Binding Gender}" Width="35" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="체력" Binding="{Binding Hp}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="지력" Binding="{Binding Intelligence}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="무력" Binding="{Binding Combat}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="매력" Binding="{Binding Charisma}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="운" Binding="{Binding Luck}" Width="35" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="항해" Binding="{Binding Navigation}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="측량" Binding="{Binding Surveying}" Width="40" IsReadOnly="True"/>
+                                <DataGridTemplateColumn Header="고용" Width="70">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox ItemsSource="{x:Static vm:HireStatusOption.Options}"
+                                                      SelectedValue="{Binding HireStatusValue, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedValuePath="Value"
+                                                      DisplayMemberPath="Display"
+                                                      BorderThickness="0"
+                                                      Background="Transparent"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="패치주소" Binding="{Binding PatchAddress}" Width="90" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontFamily" Value="Consolas"/>
+                                            <Setter Property="Foreground" Value="Gray"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                            </units:CdsDataGrid.Columns>
+                        </units:CdsDataGrid>
+
+                        <!-- 상태 바 -->
+                        <Border Grid.Row="3" Background="#F5F5F5" Padding="10,5" Margin="0,10,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding StatusText}" />
+                                <TextBlock Text=" | " Foreground="Gray" Margin="10,0"/>
+                                <TextBlock Text="총 "/>
+                                <TextBlock Text="{Binding TotalCount}" FontWeight="Bold"/>
+                                <TextBlock Text="명, 대화만: "/>
+                                <TextBlock Text="{Binding TalkOnlyCount}" FontWeight="Bold" Foreground="#E65100"/>
+                                <TextBlock Text="명"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>
