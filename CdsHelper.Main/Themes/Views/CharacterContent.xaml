@@ -158,21 +158,6 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="등장" Width="50">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <ComboBox SelectedIndex="{Binding Available, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                                      BorderThickness="0"
-                                                      Background="Transparent">
-                                                <ComboBoxItem Content="0" />
-                                                <ComboBoxItem Content="1" />
-                                                <ComboBoxItem Content="2" />
-                                                <ComboBoxItem Content="3" />
-                                            </ComboBox>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="얼굴" Binding="{Binding Face}" Width="50" />
                             </units:CdsDataGrid.Columns>
                         </units:CdsDataGrid>
                     </Grid>
