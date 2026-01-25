@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace CdsHelper.Support.UI.Units;
@@ -71,6 +72,43 @@ public class CdsDataGrid : DataGrid
         GridLinesVisibility = DataGridGridLinesVisibility.All;
 
         Loaded += OnLoaded;
+        PreviewMouseWheel += OnPreviewMouseWheel;
+    }
+
+    /// <summary>
+    /// ComboBox 등 자식 컨트롤이 마우스 휠 이벤트를 가로채지 않도록 처리
+    /// </summary>
+    private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        // ComboBox가 열려있지 않을 때만 스크롤 이벤트를 DataGrid가 처리하도록 함
+        if (e.OriginalSource is DependencyObject source)
+        {
+            var comboBox = FindParent<ComboBox>(source);
+            if (comboBox != null && !comboBox.IsDropDownOpen)
+            {
+                e.Handled = true;
+                var eventArg = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+                {
+                    RoutedEvent = MouseWheelEvent,
+                    Source = sender
+                };
+                RaiseEvent(eventArg);
+            }
+        }
+    }
+
+    private static T? FindParent<T>(DependencyObject child) where T : DependencyObject
+    {
+        var parent = VisualTreeHelper.GetParent(child);
+        while (parent != null)
+        {
+            if (parent is T typedParent)
+                return typedParent;
+            if (parent is CdsDataGrid)
+                return null;
+            parent = VisualTreeHelper.GetParent(parent);
+        }
+        return null;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
