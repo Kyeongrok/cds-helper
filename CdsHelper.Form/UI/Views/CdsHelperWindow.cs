@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -18,6 +19,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_SettingsMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_AccordionMenu, Type = typeof(NavigationMenu))]
 [TemplatePart(Name = PART_ContentRegion, Type = typeof(ContentControl))]
 [TemplatePart(Name = PART_MenuToggleButton, Type = typeof(Button))]
@@ -27,6 +29,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_SettingsMenu = "PART_SettingsMenu";
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
+    private const string PART_HelpMenu = "PART_HelpMenu";
     private const string PART_AccordionMenu = "PART_AccordionMenu";
     private const string PART_ContentRegion = "PART_ContentRegion";
     private const string PART_MenuToggleButton = "PART_MenuToggleButton";
@@ -70,6 +73,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_DbTableViewerMenu) is MenuItem dbTableViewerMenu)
         {
             dbTableViewerMenu.Click += OnDbTableViewerMenuClick;
+        }
+
+        if (GetTemplateChild(PART_HelpMenu) is MenuItem helpMenu)
+        {
+            helpMenu.Click += OnHelpMenuClick;
         }
 
         _accordionMenu = GetTemplateChild(PART_AccordionMenu) as NavigationMenu;
@@ -138,6 +146,14 @@ public class CdsHelperWindow : CdsWindow
             Owner = this
         };
         dialog.ShowDialog();
+    }
+
+    private void OnHelpMenuClick(object sender, RoutedEventArgs e)
+    {
+        var version = System.Reflection.Assembly.GetEntryAssembly()
+            ?.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion ?? "unknown";
+        MessageBox.Show($"CDS Helper\n버전: {version}", "도움말", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnDbTableViewerMenuClick(object sender, RoutedEventArgs e)

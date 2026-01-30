@@ -45,6 +45,40 @@ public class Unko2CharacterItem : BindableBase
 
     public Action<Unko2CharacterItem>? OnAppearYearChanged { get; set; }
 
+    public int AppearTypeOffset { get; set; }  // 등장조건(+0x08)의 파일 내 오프셋
+
+    internal int _appearType;
+    public int AppearType
+    {
+        get => _appearType;
+        set
+        {
+            if (SetProperty(ref _appearType, value))
+            {
+                OnAppearTypeChanged?.Invoke(this);
+            }
+        }
+    }
+
+    public Action<Unko2CharacterItem>? OnAppearTypeChanged { get; set; }
+
+    public int BirthYearOffset { get; set; }  // 출생연도(+0xAC)의 파일 내 오프셋
+
+    internal int _birthYear;
+    public int BirthYear
+    {
+        get => _birthYear;
+        set
+        {
+            if (SetProperty(ref _birthYear, value))
+            {
+                OnBirthYearChanged?.Invoke(this);
+            }
+        }
+    }
+
+    public Action<Unko2CharacterItem>? OnBirthYearChanged { get; set; }
+
     public string Gender { get; set; } = "";
     public int Hp { get; set; }
     public int Intelligence { get; set; }
@@ -83,6 +117,15 @@ public class ExePatchContentViewModel : BindableBase
     private const int DataStart = 0xE6198;
     private const int MaxRecords = 80;
 
+    // 등장 조건 오프셋
+    private const int AppearConditionOffset = 0x00030F6D;
+    private const int AppearConditionOriginal = 191;   // 0xBF → 1671년
+    private const int AppearConditionPatched = 201;    // 0xC9 → 1681년
+
+    // 장기휴양 기간 제한 오프셋
+    private const int LongRestLimitOffset = 0x05FB83;
+    private const int LongRestLimitOriginal = 12;
+
     private ObservableCollection<Unko2CharacterItem> _characters = new();
     public ObservableCollection<Unko2CharacterItem> Characters
     {
@@ -118,8 +161,26 @@ public class ExePatchContentViewModel : BindableBase
         set => SetProperty(ref _talkOnlyCount, value);
     }
 
+    private int _appearCondition;
+    public int AppearCondition
+    {
+        get => _appearCondition;
+        set => SetProperty(ref _appearCondition, value);
+    }
+
+    private int _longRestLimit;
+    public int LongRestLimit
+    {
+        get => _longRestLimit;
+        set => SetProperty(ref _longRestLimit, value);
+    }
+
     public ICommand RefreshCommand { get; }
     public ICommand RestoreOriginalCommand { get; }
+    public ICommand SaveAppearConditionCommand { get; }
+    public ICommand RestoreAppearConditionCommand { get; }
+    public ICommand SaveLongRestLimitCommand { get; }
+    public ICommand RestoreLongRestLimitCommand { get; }
 
     public ExePatchContentViewModel()
     {
@@ -128,6 +189,10 @@ public class ExePatchContentViewModel : BindableBase
 
         RefreshCommand = new DelegateCommand(LoadExeData);
         RestoreOriginalCommand = new DelegateCommand(RestoreOriginal);
+        SaveAppearConditionCommand = new DelegateCommand(SaveAppearCondition);
+        RestoreAppearConditionCommand = new DelegateCommand(RestoreAppearCondition);
+        SaveLongRestLimitCommand = new DelegateCommand(SaveLongRestLimit);
+        RestoreLongRestLimitCommand = new DelegateCommand(RestoreLongRestLimit);
 
         // 마지막 세이브 파일 경로에서 게임 폴더 추출
         var lastSavePath = AppSettings.LastSaveFilePath;
@@ -219,6 +284,11 @@ public class ExePatchContentViewModel : BindableBase
             // PE 헤더 파싱
             ParsePeHeaders(data);
 
+            // 등장 조건, 장기휴양 로드
+            AppearCondition = 1480 + BitConverter.ToInt32(data, AppearConditionOffset);
+            if (LongRestLimitOffset < data.Length)
+                LongRestLimit = data[LongRestLimitOffset];
+
             for (int i = 0; i < MaxRecords; i++)
             {
                 int recAddr = DataStart + (i * RecordSize);
@@ -226,6 +296,7 @@ public class ExePatchContentViewModel : BindableBase
 
                 int delay = BitConverter.ToInt32(data, recAddr);
                 int type = BitConverter.ToInt32(data, recAddr + 0x04);
+                int appearType = BitConverter.ToInt32(data, recAddr + 0x08);
                 int hp = BitConverter.ToInt32(data, recAddr + 0x0C);
 
                 // 유효성 검사 (체력 50~255)
@@ -238,6 +309,9 @@ public class ExePatchContentViewModel : BindableBase
                 int stat4 = BitConverter.ToInt32(data, recAddr + 0x1C); // 운
                 int stat5 = BitConverter.ToInt32(data, recAddr + 0x20); // 항해
                 int stat6 = BitConverter.ToInt32(data, recAddr + 0x24); // 측량
+
+                int birthOffset = BitConverter.ToInt32(data, recAddr + 0xAC);
+                int birthYear = 1480 - birthOffset;  // 양수=나이→1480-나이, 음수=미래출생→1480+|값|
 
                 int hireStatus = BitConverter.ToInt32(data, recAddr + 0xC8);
 
@@ -271,10 +345,14 @@ public class ExePatchContentViewModel : BindableBase
                     Index = i + 1,
                     PatchOffset = patchAddr,
                     AppearOffset = recAddr,  // delay는 레코드 시작(+0x00)
+                    AppearTypeOffset = recAddr + 0x08,
+                    BirthYearOffset = recAddr + 0xAC,
                     RecordAddress = $"0x{recAddr:X6}",
                     PatchAddress = $"0x{patchAddr:X6}",
                     Name = fullName,
                     _appearYear = appearYear,
+                    _appearType = appearType,
+                    _birthYear = birthYear,
                     Gender = genderStr,
                     Hp = hp,
                     Intelligence = stat1,
@@ -285,7 +363,9 @@ public class ExePatchContentViewModel : BindableBase
                     Surveying = stat6,
                     HireStatusValue = hireStatus,
                     OnHireStatusChanged = SaveHireStatus,
-                    OnAppearYearChanged = SaveAppearYear
+                    OnAppearYearChanged = SaveAppearYear,
+                    OnAppearTypeChanged = SaveAppearType,
+                    OnBirthYearChanged = SaveBirthYear
                 };
 
                 Characters.Add(item);
@@ -378,6 +458,130 @@ public class ExePatchContentViewModel : BindableBase
         {
             StatusText = $"저장 오류: {ex.Message}";
         }
+    }
+
+    private void SaveBirthYear(Unko2CharacterItem item)
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
+        {
+            StatusText = "파일을 찾을 수 없습니다";
+            return;
+        }
+
+        try
+        {
+            var backupPath = ExeFilePath + ".bak";
+            if (!File.Exists(backupPath))
+            {
+                File.Copy(ExeFilePath, backupPath);
+            }
+
+            int offsetValue = 1480 - item.BirthYear;  // 출생연도 → 오프셋 역변환
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(item.BirthYearOffset, SeekOrigin.Begin);
+            fs.Write(BitConverter.GetBytes(offsetValue), 0, 4);
+
+            StatusText = $"{item.Name} → 출생: {item.BirthYear}년 변경됨";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"저장 오류: {ex.Message}";
+        }
+    }
+
+    private void SaveAppearType(Unko2CharacterItem item)
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
+        {
+            StatusText = "파일을 찾을 수 없습니다";
+            return;
+        }
+
+        try
+        {
+            var backupPath = ExeFilePath + ".bak";
+            if (!File.Exists(backupPath))
+            {
+                File.Copy(ExeFilePath, backupPath);
+            }
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(item.AppearTypeOffset, SeekOrigin.Begin);
+            fs.Write(BitConverter.GetBytes(item.AppearType), 0, 4);
+
+            StatusText = $"{item.Name} → 등장조건: {item.AppearType} 변경됨";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"저장 오류: {ex.Message}";
+        }
+    }
+
+    private void SaveAppearCondition()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) { StatusText = "파일을 찾을 수 없습니다"; return; }
+        try
+        {
+            var backupPath = ExeFilePath + ".bak";
+            if (!File.Exists(backupPath)) File.Copy(ExeFilePath, backupPath);
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(AppearConditionOffset, SeekOrigin.Begin);
+            fs.Write(BitConverter.GetBytes(AppearConditionPatched), 0, 4);
+
+            AppearCondition = 1480 + AppearConditionPatched;
+            StatusText = $"등장 조건 → {AppearCondition}년으로 변경됨";
+        }
+        catch (Exception ex) { StatusText = $"저장 오류: {ex.Message}"; }
+    }
+
+    private void RestoreAppearCondition()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) { StatusText = "파일을 찾을 수 없습니다"; return; }
+        try
+        {
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(AppearConditionOffset, SeekOrigin.Begin);
+            fs.Write(BitConverter.GetBytes(AppearConditionOriginal), 0, 4);
+
+            AppearCondition = 1480 + AppearConditionOriginal;
+            StatusText = $"등장 조건 → 원본({AppearCondition}년)으로 복원됨";
+        }
+        catch (Exception ex) { StatusText = $"복원 오류: {ex.Message}"; }
+    }
+
+    private void SaveLongRestLimit()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) { StatusText = "파일을 찾을 수 없습니다"; return; }
+        if (LongRestLimit < 1 || LongRestLimit > 127) { StatusText = "장기휴양 기간은 1~127 사이 값이어야 합니다"; return; }
+        try
+        {
+            var backupPath = ExeFilePath + ".bak";
+            if (!File.Exists(backupPath)) File.Copy(ExeFilePath, backupPath);
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(LongRestLimitOffset, SeekOrigin.Begin);
+            fs.WriteByte((byte)LongRestLimit);
+
+            StatusText = $"장기휴양 기간 → {LongRestLimit}개월로 변경됨";
+        }
+        catch (Exception ex) { StatusText = $"저장 오류: {ex.Message}"; }
+    }
+
+    private void RestoreLongRestLimit()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) { StatusText = "파일을 찾을 수 없습니다"; return; }
+        try
+        {
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(LongRestLimitOffset, SeekOrigin.Begin);
+            fs.WriteByte(LongRestLimitOriginal);
+
+            LongRestLimit = LongRestLimitOriginal;
+            StatusText = $"장기휴양 기간 → 원본({LongRestLimitOriginal}개월)으로 복원됨";
+        }
+        catch (Exception ex) { StatusText = $"복원 오류: {ex.Message}"; }
     }
 
     private void RestoreOriginal()

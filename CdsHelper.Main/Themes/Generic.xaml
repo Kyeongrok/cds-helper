@@ -12,6 +12,5 @@
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/SphinxCalculatorContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/DiscoveryContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/ExePatchContent.xaml"></ResourceDictionary>
-        <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/ExeAppearPatchContent.xaml"></ResourceDictionary>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

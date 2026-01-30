@@ -12,6 +12,8 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
@@ -33,8 +35,41 @@
                                     Background="#FF9800" Foreground="White" BorderThickness="0"/>
                         </StackPanel>
 
+                        <!-- 등장 조건 -->
+                        <Border Grid.Row="2" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="등장 조건:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                <TextBlock Text="{Binding AppearCondition}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock Text="년" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                                <Button Content="적용(1681)" Command="{Binding SaveAppearConditionCommand}"
+                                        Width="90" Height="26" Margin="0,0,5,0"
+                                        Background="#4CAF50" Foreground="White" BorderThickness="0"/>
+                                <Button Content="원본(1671)" Command="{Binding RestoreAppearConditionCommand}"
+                                        Width="90" Height="26"
+                                        Background="#FF9800" Foreground="White" BorderThickness="0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 장기휴양 기간 설정 -->
+                        <Border Grid.Row="3" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="장기휴양 기간:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                <TextBox Text="{Binding LongRestLimit, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="60" Height="26" VerticalContentAlignment="Center"
+                                         TextAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock Text="개월" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                                <Button Content="적용" Command="{Binding SaveLongRestLimitCommand}"
+                                        Width="60" Height="26" Margin="0,0,5,0"
+                                        Background="#4CAF50" Foreground="White" BorderThickness="0"/>
+                                <Button Content="원본(12)" Command="{Binding RestoreLongRestLimitCommand}"
+                                        Width="90" Height="26"
+                                        Background="#FF9800" Foreground="White" BorderThickness="0"/>
+                                <TextBlock Text="(1~127)" VerticalAlignment="Center" Foreground="Gray" Margin="10,0,0,0"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- 데이터 그리드 -->
-                        <units:CdsDataGrid Grid.Row="2"
+                        <units:CdsDataGrid Grid.Row="4"
                                           ItemsSource="{Binding Characters}"
                                           AutoGenerateColumns="False">
                             <units:CdsDataGrid.RowStyle>
@@ -53,23 +88,15 @@
                             <units:CdsDataGrid.Columns>
                                 <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="35" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="160" IsReadOnly="True"/>
-                                <DataGridTemplateColumn Header="등장" Width="65">
+                                <DataGridTemplateColumn Header="출생" Width="55">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <TextBox Text="{Binding AppearYear, UpdateSourceTrigger=LostFocus}"
+                                            <TextBox Text="{Binding BirthYear, UpdateSourceTrigger=LostFocus}"
                                                      BorderThickness="0" Background="Transparent"
-                                                     Padding="2,0"/>
+                                                     Padding="2,0" TextAlignment="Center"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="성별" Binding="{Binding Gender}" Width="35" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="체력" Binding="{Binding Hp}" Width="40" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="지력" Binding="{Binding Intelligence}" Width="40" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="무력" Binding="{Binding Combat}" Width="40" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="매력" Binding="{Binding Charisma}" Width="40" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="운" Binding="{Binding Luck}" Width="35" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="항해" Binding="{Binding Navigation}" Width="40" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="측량" Binding="{Binding Surveying}" Width="40" IsReadOnly="True"/>
                                 <DataGridTemplateColumn Header="고용" Width="70">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
@@ -94,7 +121,7 @@
                         </units:CdsDataGrid>
 
                         <!-- 상태 바 -->
-                        <Border Grid.Row="3" Background="#F5F5F5" Padding="10,5" Margin="0,10,0,0">
+                        <Border Grid.Row="5" Background="#F5F5F5" Padding="10,5" Margin="0,10,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding StatusText}" />
                                 <TextBlock Text=" | " Foreground="Gray" Margin="10,0"/>

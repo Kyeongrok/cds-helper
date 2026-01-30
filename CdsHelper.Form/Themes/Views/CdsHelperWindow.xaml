@@ -131,6 +131,7 @@
                                     <MenuItem Header="이벤트 큐 보기" x:Name="PART_EventQueueMenu" />
                                     <MenuItem Header="DB 테이블 보기" x:Name="PART_DbTableViewerMenu" />
                                 </MenuItem>
+                                <MenuItem Header="도움말" x:Name="PART_HelpMenu" />
                             </Menu>
 
                             <!-- 세이브 파일 정보 바 -->
