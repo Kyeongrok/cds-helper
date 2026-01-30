@@ -109,6 +109,7 @@ public class SaveDataService
         CharacterData.OnLocationChanged = SaveCharacterLocation;
         CharacterData.OnAvailableChanged = SaveCharacterAvailable;
         CharacterData.OnBuildingChanged = SaveCharacterBuilding;
+        CharacterData.OnFameChanged = SaveCharacterFame;
 
         return saveInfo;
     }
@@ -186,6 +187,21 @@ public class SaveDataService
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
         stream.WriteByte(building);
+    }
+
+    /// <summary>
+    /// 캐릭터 명성을 세이브 파일에 저장
+    /// </summary>
+    public void SaveCharacterFame(int characterIndex, ushort fame)
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
+            return;
+
+        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x26;
+
+        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.Write(BitConverter.GetBytes(fame), 0, 2);
     }
 
     /// <summary>

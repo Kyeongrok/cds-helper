@@ -28,6 +28,8 @@
                         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
                             <TextBlock Text="파일: " VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding ExeFilePath}" VerticalAlignment="Center" Foreground="#1976D2" Margin="0,0,20,0"/>
+                            <Button Content="파일 선택" Command="{Binding BrowseFileCommand}"
+                                    Width="80" Height="28" Margin="0,0,10,0"/>
                             <Button Content="새로고침" Command="{Binding RefreshCommand}"
                                     Width="80" Height="28" Margin="0,0,10,0"/>
                             <Button Content="원본 복원" Command="{Binding RestoreOriginalCommand}"
@@ -39,13 +41,19 @@
                         <Border Grid.Row="2" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="등장 조건:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
-                                <TextBlock Text="{Binding AppearCondition}" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                <TextBlock Text="년" VerticalAlignment="Center" Margin="0,0,15,0"/>
-                                <Button Content="적용(1681)" Command="{Binding SaveAppearConditionCommand}"
-                                        Width="90" Height="26" Margin="0,0,5,0"
+                                <TextBlock Text="주소" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding AppearConditionAddress}" VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,12,0"/>
+                                <TextBlock Text="현재" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding AppearConditionCurrent}" VerticalAlignment="Center" FontFamily="Consolas" FontWeight="Bold" Margin="0,0,12,0"/>
+                                <TextBlock Text="원본" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding AppearConditionOriginalDisplay}" VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,12,0"/>
+                                <TextBlock Text="수정" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding AppearConditionPatchedDisplay}" VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,15,0"/>
+                                <Button Content="적용" Command="{Binding SaveAppearConditionCommand}"
+                                        Width="60" Height="26" Margin="0,0,5,0"
                                         Background="#4CAF50" Foreground="White" BorderThickness="0"/>
-                                <Button Content="원본(1671)" Command="{Binding RestoreAppearConditionCommand}"
-                                        Width="90" Height="26"
+                                <Button Content="원본" Command="{Binding RestoreAppearConditionCommand}"
+                                        Width="60" Height="26"
                                         Background="#FF9800" Foreground="White" BorderThickness="0"/>
                             </StackPanel>
                         </Border>

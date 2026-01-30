@@ -101,7 +101,17 @@
                                         </Style>
                                     </DataGridTextColumn.ElementStyle>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="명성" Binding="{Binding Fame}" Width="60" />
+                                <DataGridTemplateColumn Header="명성" Width="60">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding Fame, UpdateSourceTrigger=LostFocus, Mode=TwoWay}"
+                                                     BorderThickness="0"
+                                                     Background="Transparent"
+                                                     TextAlignment="Center"
+                                                     Width="50"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="소재" Width="100">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
