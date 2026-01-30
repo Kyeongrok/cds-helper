@@ -28,6 +28,10 @@ public class AppearPatchItem : BindableBase
 
 public class ExeAppearPatchContentViewModel : BindableBase
 {
+    // 장기휴양 기간 제한 오프셋 (push 0Ch 명령의 operand 위치)
+    private const int LongRestLimitOffset = 0x05FB83;
+    private const int LongRestLimitOriginal = 12;
+
     // 대항해시대2 인물 등장 패치 주소들
     private static readonly (int Address, int Length, byte[] Original, byte[] Patched, string Description)[] PatchData = new[]
     {
@@ -65,15 +69,26 @@ public class ExeAppearPatchContentViewModel : BindableBase
         set => SetProperty(ref _patchedCount, value);
     }
 
+    private int _longRestLimit;
+    public int LongRestLimit
+    {
+        get => _longRestLimit;
+        set => SetProperty(ref _longRestLimit, value);
+    }
+
     public ICommand RefreshCommand { get; }
     public ICommand ApplyPatchCommand { get; }
     public ICommand RestoreOriginalCommand { get; }
+    public ICommand SaveLongRestLimitCommand { get; }
+    public ICommand RestoreLongRestLimitCommand { get; }
 
     public ExeAppearPatchContentViewModel()
     {
         RefreshCommand = new DelegateCommand(LoadExeData);
         ApplyPatchCommand = new DelegateCommand(ApplyPatch);
         RestoreOriginalCommand = new DelegateCommand(RestoreOriginal);
+        SaveLongRestLimitCommand = new DelegateCommand(SaveLongRestLimit);
+        RestoreLongRestLimitCommand = new DelegateCommand(RestoreLongRestLimit);
 
         // 마지막 세이브 파일 경로에서 게임 폴더 추출
         var lastSavePath = AppSettings.LastSaveFilePath;
@@ -113,6 +128,7 @@ public class ExeAppearPatchContentViewModel : BindableBase
         try
         {
             var data = File.ReadAllBytes(ExeFilePath);
+            LoadLongRestLimit(data);
 
             for (int i = 0; i < PatchData.Length; i++)
             {
@@ -202,6 +218,71 @@ public class ExeAppearPatchContentViewModel : BindableBase
         catch (Exception ex)
         {
             StatusText = $"패치 오류: {ex.Message}";
+        }
+    }
+
+    private void LoadLongRestLimit(byte[] data)
+    {
+        if (LongRestLimitOffset < data.Length)
+        {
+            LongRestLimit = data[LongRestLimitOffset];
+        }
+    }
+
+    private void SaveLongRestLimit()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
+        {
+            StatusText = "파일을 찾을 수 없습니다";
+            return;
+        }
+
+        if (LongRestLimit < 1 || LongRestLimit > 127)
+        {
+            StatusText = "장기휴양 기간은 1~127 사이 값이어야 합니다";
+            return;
+        }
+
+        try
+        {
+            var backupPath = ExeFilePath + ".appear.bak";
+            if (!File.Exists(backupPath))
+            {
+                File.Copy(ExeFilePath, backupPath);
+            }
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(LongRestLimitOffset, SeekOrigin.Begin);
+            fs.WriteByte((byte)LongRestLimit);
+
+            StatusText = $"장기휴양 기간 → {LongRestLimit}개월로 변경됨";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"저장 오류: {ex.Message}";
+        }
+    }
+
+    private void RestoreLongRestLimit()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
+        {
+            StatusText = "파일을 찾을 수 없습니다";
+            return;
+        }
+
+        try
+        {
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(LongRestLimitOffset, SeekOrigin.Begin);
+            fs.WriteByte(LongRestLimitOriginal);
+
+            LongRestLimit = LongRestLimitOriginal;
+            StatusText = $"장기휴양 기간 → 원본({LongRestLimitOriginal}개월)으로 복원됨";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"복원 오류: {ex.Message}";
         }
     }
 

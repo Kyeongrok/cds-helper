@@ -53,7 +53,15 @@
                             <units:CdsDataGrid.Columns>
                                 <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="35" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="160" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="등장" Binding="{Binding AppearYear}" Width="55" IsReadOnly="True"/>
+                                <DataGridTemplateColumn Header="등장" Width="65">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding AppearYear, UpdateSourceTrigger=LostFocus}"
+                                                     BorderThickness="0" Background="Transparent"
+                                                     Padding="2,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="성별" Binding="{Binding Gender}" Width="35" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="체력" Binding="{Binding Hp}" Width="40" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="지력" Binding="{Binding Intelligence}" Width="40" IsReadOnly="True"/>

@@ -28,7 +28,23 @@ public class Unko2CharacterItem : BindableBase
     public string RecordAddress { get; set; } = "";
     public string PatchAddress { get; set; } = "";
     public string Name { get; set; } = "";
-    public string AppearYear { get; set; } = "";
+    public int AppearOffset { get; set; }  // 등장 지연값의 파일 내 오프셋
+
+    internal string _appearYear = "";
+    public string AppearYear
+    {
+        get => _appearYear;
+        set
+        {
+            if (SetProperty(ref _appearYear, value))
+            {
+                OnAppearYearChanged?.Invoke(this);
+            }
+        }
+    }
+
+    public Action<Unko2CharacterItem>? OnAppearYearChanged { get; set; }
+
     public string Gender { get; set; } = "";
     public int Hp { get; set; }
     public int Intelligence { get; set; }
@@ -254,10 +270,11 @@ public class ExePatchContentViewModel : BindableBase
                 {
                     Index = i + 1,
                     PatchOffset = patchAddr,
+                    AppearOffset = recAddr,  // delay는 레코드 시작(+0x00)
                     RecordAddress = $"0x{recAddr:X6}",
                     PatchAddress = $"0x{patchAddr:X6}",
                     Name = fullName,
-                    AppearYear = appearYear,
+                    _appearYear = appearYear,
                     Gender = genderStr,
                     Hp = hp,
                     Intelligence = stat1,
@@ -267,7 +284,8 @@ public class ExePatchContentViewModel : BindableBase
                     Navigation = stat5,
                     Surveying = stat6,
                     HireStatusValue = hireStatus,
-                    OnHireStatusChanged = SaveHireStatus
+                    OnHireStatusChanged = SaveHireStatus,
+                    OnAppearYearChanged = SaveAppearYear
                 };
 
                 Characters.Add(item);
@@ -309,6 +327,52 @@ public class ExePatchContentViewModel : BindableBase
             // TalkOnlyCount 업데이트
             TalkOnlyCount = Characters.Count(c => c.HireStatusValue == 1);
             StatusText = $"{item.Name} → {(item.HireStatusValue == 2 ? "고용" : "대화")} 변경됨";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"저장 오류: {ex.Message}";
+        }
+    }
+
+    private void SaveAppearYear(Unko2CharacterItem item)
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
+        {
+            StatusText = "파일을 찾을 수 없습니다";
+            return;
+        }
+
+        int delay;
+        string input = item.AppearYear.Trim();
+        if (input == "이벤트" || input.Equals("event", StringComparison.OrdinalIgnoreCase))
+        {
+            delay = unchecked((int)0xFFFFFFFF);
+        }
+        else if (int.TryParse(input, out int year) && year >= 1480 && year <= 1680)
+        {
+            delay = year - 1480;
+        }
+        else
+        {
+            StatusText = $"잘못된 등장연도: {input} (1480~1680 또는 '이벤트')";
+            return;
+        }
+
+        try
+        {
+            // 백업 생성 (최초 1회)
+            var backupPath = ExeFilePath + ".bak";
+            if (!File.Exists(backupPath))
+            {
+                File.Copy(ExeFilePath, backupPath);
+            }
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(item.AppearOffset, SeekOrigin.Begin);
+            fs.Write(BitConverter.GetBytes(delay), 0, 4);
+
+            string displayYear = delay == unchecked((int)0xFFFFFFFF) ? "이벤트" : $"{1480 + delay}";
+            StatusText = $"{item.Name} → 등장: {displayYear} 변경됨";
         }
         catch (Exception ex)
         {
