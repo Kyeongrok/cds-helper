@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Windows.Input;
 using CdsHelper.Support.Local.Settings;
+using Microsoft.Win32;
 using Prism.Commands;
 using Prism.Mvvm;
 
@@ -161,11 +162,15 @@ public class ExePatchContentViewModel : BindableBase
         set => SetProperty(ref _talkOnlyCount, value);
     }
 
-    private int _appearCondition;
-    public int AppearCondition
+    public string AppearConditionAddress => $"0x{AppearConditionOffset:X6}";
+    public string AppearConditionOriginalDisplay => $"0x{AppearConditionOriginal:X2} ({AppearConditionOriginal})";
+    public string AppearConditionPatchedDisplay => $"0x{AppearConditionPatched:X2} ({AppearConditionPatched})";
+
+    private string _appearConditionCurrent = "";
+    public string AppearConditionCurrent
     {
-        get => _appearCondition;
-        set => SetProperty(ref _appearCondition, value);
+        get => _appearConditionCurrent;
+        set => SetProperty(ref _appearConditionCurrent, value);
     }
 
     private int _longRestLimit;
@@ -181,6 +186,7 @@ public class ExePatchContentViewModel : BindableBase
     public ICommand RestoreAppearConditionCommand { get; }
     public ICommand SaveLongRestLimitCommand { get; }
     public ICommand RestoreLongRestLimitCommand { get; }
+    public ICommand BrowseFileCommand { get; }
 
     public ExePatchContentViewModel()
     {
@@ -193,6 +199,7 @@ public class ExePatchContentViewModel : BindableBase
         RestoreAppearConditionCommand = new DelegateCommand(RestoreAppearCondition);
         SaveLongRestLimitCommand = new DelegateCommand(SaveLongRestLimit);
         RestoreLongRestLimitCommand = new DelegateCommand(RestoreLongRestLimit);
+        BrowseFileCommand = new DelegateCommand(BrowseFile);
 
         // 마지막 세이브 파일 경로에서 게임 폴더 추출
         var lastSavePath = AppSettings.LastSaveFilePath;
@@ -265,6 +272,27 @@ public class ExePatchContentViewModel : BindableBase
         return eucKr.GetString(nb);
     }
 
+    private void BrowseFile()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "EXE 파일 선택",
+            Filter = "EXE 파일 (*.exe)|*.exe|모든 파일 (*.*)|*.*",
+            FileName = "cds_95.exe"
+        };
+
+        if (!string.IsNullOrEmpty(ExeFilePath) && File.Exists(ExeFilePath))
+        {
+            dialog.InitialDirectory = Path.GetDirectoryName(ExeFilePath);
+        }
+
+        if (dialog.ShowDialog() == true)
+        {
+            ExeFilePath = dialog.FileName;
+            LoadExeData();
+        }
+    }
+
     private void LoadExeData()
     {
         Characters.Clear();
@@ -285,7 +313,8 @@ public class ExePatchContentViewModel : BindableBase
             ParsePeHeaders(data);
 
             // 등장 조건, 장기휴양 로드
-            AppearCondition = 1480 + BitConverter.ToInt32(data, AppearConditionOffset);
+            var appearRaw = BitConverter.ToInt32(data, AppearConditionOffset);
+            AppearConditionCurrent = $"0x{appearRaw:X2} ({appearRaw})";
             if (LongRestLimitOffset < data.Length)
                 LongRestLimit = data[LongRestLimitOffset];
 
@@ -530,8 +559,8 @@ public class ExePatchContentViewModel : BindableBase
             fs.Seek(AppearConditionOffset, SeekOrigin.Begin);
             fs.Write(BitConverter.GetBytes(AppearConditionPatched), 0, 4);
 
-            AppearCondition = 1480 + AppearConditionPatched;
-            StatusText = $"등장 조건 → {AppearCondition}년으로 변경됨";
+            AppearConditionCurrent = $"0x{AppearConditionPatched:X2} ({AppearConditionPatched})";
+            StatusText = $"등장 조건 → 0x{AppearConditionPatched:X2} ({AppearConditionPatched})로 변경됨";
         }
         catch (Exception ex) { StatusText = $"저장 오류: {ex.Message}"; }
     }
@@ -545,8 +574,8 @@ public class ExePatchContentViewModel : BindableBase
             fs.Seek(AppearConditionOffset, SeekOrigin.Begin);
             fs.Write(BitConverter.GetBytes(AppearConditionOriginal), 0, 4);
 
-            AppearCondition = 1480 + AppearConditionOriginal;
-            StatusText = $"등장 조건 → 원본({AppearCondition}년)으로 복원됨";
+            AppearConditionCurrent = $"0x{AppearConditionOriginal:X2} ({AppearConditionOriginal})";
+            StatusText = $"등장 조건 → 원본 0x{AppearConditionOriginal:X2} ({AppearConditionOriginal})로 복원됨";
         }
         catch (Exception ex) { StatusText = $"복원 오류: {ex.Message}"; }
     }

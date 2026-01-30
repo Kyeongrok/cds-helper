@@ -39,6 +39,11 @@ public class CharacterData : INotifyPropertyChanged
     /// </summary>
     public static Action<int, byte>? OnBuildingChanged { get; set; }
 
+    /// <summary>
+    /// 명성 변경 시 호출되는 콜백 (characterIndex, fame)
+    /// </summary>
+    public static Action<int, ushort>? OnFameChanged { get; set; }
+
     protected void OnPropertyChanged(string propertyName)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -82,7 +87,22 @@ public class CharacterData : INotifyPropertyChanged
         var skillName = skill.Split(':')[0];
         return LanguageSkills.Contains(skillName);
     }
-    public ushort Fame { get; set; }
+    private ushort _fame;
+    public ushort Fame
+    {
+        get => _fame;
+        set
+        {
+            if (_fame != value)
+            {
+                OnBeforeFirstHireStatusChange?.Invoke();
+                _fame = value;
+                OnPropertyChanged(nameof(Fame));
+                OnPropertyChanged(nameof(CanRecruit));
+                OnFameChanged?.Invoke(Index, _fame);
+            }
+        }
+    }
 
     private byte _locationIndex;
     public byte LocationIndex
