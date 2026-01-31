@@ -101,6 +101,7 @@ internal class App : PrismApplication
         containerRegistry.RegisterSingleton<SaveDataService>();
         containerRegistry.RegisterSingleton<HintService>();
         containerRegistry.RegisterSingleton<DiscoveryService>();
+        containerRegistry.RegisterSingleton<AutoPlayService>();
 
         // ViewModel 등록
         containerRegistry.Register<CdsHelperViewModel>();
@@ -118,5 +119,6 @@ internal class App : PrismApplication
         containerRegistry.RegisterForNavigation<SphinxCalculatorContent>();
         containerRegistry.RegisterForNavigation<DiscoveryContent>();
         containerRegistry.RegisterForNavigation<ExePatchContent>();
+        containerRegistry.RegisterForNavigation<AutoPlayContent>();
     }
 }
