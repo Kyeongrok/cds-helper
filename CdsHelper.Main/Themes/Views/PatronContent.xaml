@@ -51,6 +51,10 @@
                                         <DataTrigger Binding="{Binding StatusDisplay}" Value="활동중">
                                             <Setter Property="Background" Value="#E8F5E9" />
                                         </DataTrigger>
+                                        <!-- 명성 충족: 내 명성 >= 후원자 명성 -->
+                                        <DataTrigger Binding="{Binding IsFameMet}" Value="True">
+                                            <Setter Property="Background" Value="#E3F2FD" />
+                                        </DataTrigger>
                                         <MultiTrigger>
                                             <MultiTrigger.Conditions>
                                                 <Condition Property="IsMouseOver" Value="True"/>

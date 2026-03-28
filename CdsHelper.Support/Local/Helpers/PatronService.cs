@@ -56,7 +56,7 @@ public class PatronService
         return filtered.ToList();
     }
 
-    public List<PatronDisplay> ToDisplayList(IEnumerable<Patron> patrons, int currentYear)
+    public List<PatronDisplay> ToDisplayList(IEnumerable<Patron> patrons, int currentYear, int playerFame = 0)
     {
         return patrons.Select(p => new PatronDisplay
         {
@@ -71,6 +71,7 @@ public class PatronService
             RetireYear = p.RetireYear,
             StatusDisplay = p.StatusDisplay(currentYear),
             Fame = p.Fame,
+            IsFameMet = playerFame > 0 && p.Fame <= playerFame,
             Wealth = p.Wealth,
             Power = p.Power,
             Preferences = p.PreferencesDisplay(),
