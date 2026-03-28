@@ -133,43 +133,47 @@
                         </GroupBox>
 
                         <!-- 능력치 리롤 -->
-                        <GroupBox Grid.Row="4" Header="능력치 리롤 (발굴자/사냥꾼 번갈아 클릭)" Padding="10" Margin="0,0,0,10">
+                        <GroupBox Grid.Row="4" Header="능력치 리롤 사냥꾼 클릭)" Padding="10" Margin="0,0,0,10">
                             <StackPanel>
-                                <!-- 목표/현재/시도 -->
-                                <Grid Margin="0,0,0,8">
+                                <!-- 목표치 (0=무시) -->
+                                <Grid Margin="0,0,0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="60"/>
-                                        <ColumnDefinition Width="30"/>
+                                        <ColumnDefinition Width="38"/>
                                         <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="50"/>
-                                        <ColumnDefinition Width="30"/>
+                                        <ColumnDefinition Width="38"/>
                                         <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="60"/>
-                                        <ColumnDefinition Width="30"/>
+                                        <ColumnDefinition Width="38"/>
                                         <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="60"/>
+                                        <ColumnDefinition Width="38"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="38"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="38"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-
-                                    <TextBlock Grid.Column="0" Text="목표 지력:" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                                    <TextBox Grid.Column="1" Text="{Binding TargetIntelligence, UpdateSourceTrigger=PropertyChanged}"
-                                             TextAlignment="Center" VerticalContentAlignment="Center" Height="26" Margin="5,0,0,0"/>
-
-                                    <TextBlock Grid.Column="3" Text="현재:" VerticalAlignment="Center" Foreground="Gray"/>
-                                    <TextBlock Grid.Column="4" Text="{Binding CurrentIntelligence}" VerticalAlignment="Center"
-                                               FontWeight="Bold" FontSize="14" TextAlignment="Center"/>
-
-                                    <TextBlock Grid.Column="6" Text="시도:" VerticalAlignment="Center" Foreground="Gray"/>
-                                    <TextBlock Grid.Column="7" Text="{Binding RerollAttempts}" VerticalAlignment="Center"
-                                               FontWeight="Bold" TextAlignment="Center"/>
-
-                                    <TextBlock Grid.Column="9" Text="최대시도:" VerticalAlignment="Center" Foreground="Gray"/>
-                                    <TextBox Grid.Column="10" Text="{Binding MaxAttempts, UpdateSourceTrigger=PropertyChanged}"
-                                             TextAlignment="Center" VerticalContentAlignment="Center" Height="26" Width="50"/>
-                                    <TextBlock Grid.Column="11" Text="회" VerticalAlignment="Center" Foreground="Gray" Margin="3,0,0,0"/>
+                                    <TextBlock Grid.Column="0" Text="체력" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                    <TextBox Grid.Column="1" Text="{Binding TargetHp, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" VerticalContentAlignment="Center" Height="24"/>
+                                    <TextBlock Grid.Column="2" Text="지력" VerticalAlignment="Center" Margin="6,0,3,0" FontWeight="SemiBold"/>
+                                    <TextBox Grid.Column="3" Text="{Binding TargetInt, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" VerticalContentAlignment="Center" Height="24"/>
+                                    <TextBlock Grid.Column="4" Text="무력" VerticalAlignment="Center" Margin="6,0,3,0"/>
+                                    <TextBox Grid.Column="5" Text="{Binding TargetStr, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" VerticalContentAlignment="Center" Height="24"/>
+                                    <TextBlock Grid.Column="6" Text="매력" VerticalAlignment="Center" Margin="6,0,3,0"/>
+                                    <TextBox Grid.Column="7" Text="{Binding TargetCha, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" VerticalContentAlignment="Center" Height="24"/>
+                                    <TextBlock Grid.Column="8" Text="운" VerticalAlignment="Center" Margin="6,0,3,0"/>
+                                    <TextBox Grid.Column="9" Text="{Binding TargetLuck, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" VerticalContentAlignment="Center" Height="24"/>
+                                    <TextBlock Grid.Column="10" Text="보너스" VerticalAlignment="Center" Margin="6,0,3,0"/>
+                                    <TextBox Grid.Column="11" Text="{Binding TargetBonus, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" VerticalContentAlignment="Center" Height="24"/>
+                                    <TextBlock Grid.Column="12" Text="(0=무시)" VerticalAlignment="Center" Foreground="Gray" Margin="8,0,0,0" FontSize="11"/>
                                 </Grid>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="시도:" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,3,0"/>
+                                    <TextBlock Text="{Binding RerollAttempts}" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,12,0"/>
+                                    <TextBlock Text="최대:" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,3,0"/>
+                                    <TextBox Text="{Binding MaxAttempts, UpdateSourceTrigger=PropertyChanged}"
+                                             TextAlignment="Center" VerticalContentAlignment="Center" Height="24" Width="50" Margin="0,0,3,0"/>
+                                    <TextBlock Text="회" VerticalAlignment="Center" Foreground="Gray"/>
+                                </StackPanel>
 
                                 <!-- 버튼 행 -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
@@ -193,7 +197,7 @@
                                         <Button Content="학습" Command="{Binding LearnDigitsCommand}"
                                                 Padding="15,4" MinWidth="60" Margin="0,0,10,0"
                                                 Background="#2196F3" Foreground="White" BorderThickness="0"/>
-                                        <TextBlock Text="화면의 능력치 입력 (체력,지력,무력,매력,운)"
+                                        <TextBlock Text="화면의 능력치 입력 (체력,지력,무력,매력,운,보너스)"
                                                    VerticalAlignment="Center" Foreground="Gray" FontSize="11"/>
                                     </StackPanel>
                                 </Border>

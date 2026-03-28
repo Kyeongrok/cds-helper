@@ -171,9 +171,11 @@ public class PatronContentViewModel : BindableBase
             ActivePatronsOnly,
             CurrentYear);
 
-        var displayList = _patronService.ToDisplayList(filtered, CurrentYear);
+        int playerFame = _saveDataService.CurrentPlayerData?.Fame ?? 0;
+        var displayList = _patronService.ToDisplayList(filtered, CurrentYear, playerFame);
         Patrons = new ObservableCollection<PatronDisplay>(displayList);
-        StatusText = $"후원자: {displayList.Count}명 (기준년도: {CurrentYear})";
+        var fameMsg = playerFame > 0 ? $", 내 명성: {playerFame}" : "";
+        StatusText = $"후원자: {displayList.Count}명 (기준년도: {CurrentYear}{fameMsg})";
     }
 
     private void ResetFilter()

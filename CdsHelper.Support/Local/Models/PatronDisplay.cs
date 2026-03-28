@@ -16,6 +16,7 @@ public class PatronDisplay
     public int? RetireYear { get; set; }
     public string StatusDisplay { get; set; } = "";
     public int Fame { get; set; }
+    public bool IsFameMet { get; set; } // 플레이어 명성 >= 후원자 명성
     public int Wealth { get; set; }
     public string Power { get; set; } = "";
     public string Preferences { get; set; } = "";

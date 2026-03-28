@@ -178,44 +178,28 @@ public class AutoPlayContentViewModel : BindableBase
         set => SetProperty(ref _isRerolling, value);
     }
 
-    private int _targetIntelligence = 76;
-    public int TargetIntelligence
-    {
-        get => _targetIntelligence;
-        set => SetProperty(ref _targetIntelligence, value);
-    }
-
-    private string _currentIntelligence = "-";
-    public string CurrentIntelligence
-    {
-        get => _currentIntelligence;
-        set => SetProperty(ref _currentIntelligence, value);
-    }
+    // 목표치 (0=무시)
+    private int _targetHp; public int TargetHp { get => _targetHp; set => SetProperty(ref _targetHp, value); }
+    private int _targetInt = 76; public int TargetInt { get => _targetInt; set => SetProperty(ref _targetInt, value); }
+    private int _targetStr; public int TargetStr { get => _targetStr; set => SetProperty(ref _targetStr, value); }
+    private int _targetCha; public int TargetCha { get => _targetCha; set => SetProperty(ref _targetCha, value); }
+    private int _targetLuck; public int TargetLuck { get => _targetLuck; set => SetProperty(ref _targetLuck, value); }
+    private int _targetBonus; public int TargetBonus { get => _targetBonus; set => SetProperty(ref _targetBonus, value); }
 
     private int _rerollAttempts;
-    public int RerollAttempts
-    {
-        get => _rerollAttempts;
-        set => SetProperty(ref _rerollAttempts, value);
-    }
+    public int RerollAttempts { get => _rerollAttempts; set => SetProperty(ref _rerollAttempts, value); }
 
     private string _rerollStatusText = "대기 중";
-    public string RerollStatusText
-    {
-        get => _rerollStatusText;
-        set => SetProperty(ref _rerollStatusText, value);
-    }
+    public string RerollStatusText { get => _rerollStatusText; set => SetProperty(ref _rerollStatusText, value); }
 
-    // 클릭 간격 (ms)
-    private int _clickDelay = 300;
+    private int _clickDelay = 50;
     public int ClickDelay { get => _clickDelay; set => SetProperty(ref _clickDelay, value); }
 
-    // 최대 시도 횟수
     private int _maxAttempts = 20;
     public int MaxAttempts { get => _maxAttempts; set => SetProperty(ref _maxAttempts, value); }
 
-    // 숫자 학습용: 5개 능력치 값 (체력,지력,무력,매력,운)
-    private string _learnStatValues = "79,50,74,59,80";
+    // 숫자 학습용: 5개 능력치 값 (체력,지력,무력,매력,운,보너스)
+    private string _learnStatValues = "79,50,74,59,80,15";
     public string LearnStatValues
     {
         get => _learnStatValues;
@@ -361,10 +345,11 @@ public class AutoPlayContentViewModel : BindableBase
     {
         IsRerolling = true;
         RerollAttempts = 0;
-        CurrentIntelligence = "-";
         RerollStatusText = "감지 중...";
 
-        _rerollService.Start(TargetIntelligence, ClickDelay, MaxAttempts);
+        _rerollService.Start(
+            new[] { TargetHp, TargetInt, TargetStr, TargetCha, TargetLuck, TargetBonus },
+            ClickDelay, MaxAttempts);
     }
 
     private void OnStopReroll()
@@ -376,8 +361,7 @@ public class AutoPlayContentViewModel : BindableBase
 
     private void OnTestReadStat()
     {
-        var value = _rerollService.TestRead();
-        CurrentIntelligence = value >= 0 ? value.ToString() : "실패";
+        _rerollService.TestRead();
     }
 
     private void OnLearnDigits()
@@ -389,7 +373,6 @@ public class AutoPlayContentViewModel : BindableBase
     {
         Application.Current?.Dispatcher.Invoke(() =>
         {
-            CurrentIntelligence = value.ToString();
             RerollAttempts = attempts;
             RerollStatusText = $"리롤 중... ({attempts}회)";
         });
@@ -399,7 +382,6 @@ public class AutoPlayContentViewModel : BindableBase
     {
         Application.Current?.Dispatcher.Invoke(() =>
         {
-            CurrentIntelligence = value.ToString();
             RerollAttempts = attempts;
             RerollStatusText = $"목표 달성! ({attempts}회)";
             IsRerolling = false;

@@ -40,12 +40,12 @@ public class StatRerollService : IDisposable
         LoadDigitTemplates();
     }
 
-    /// <summary>리롤을 시작한다.</summary>
-    public void Start(int targetStat, int clickDelay = 300, int maxAttempts = 50)
+    /// <summary>리롤을 시작한다. targets: 체력,지력,무력,매력,운,보너스 (0=무시)</summary>
+    public void Start(int[] targets, int clickDelay = 300, int maxAttempts = 50)
     {
         if (IsRunning) return;
         _cts = new CancellationTokenSource();
-        _runningTask = Task.Run(() => RunLoop(targetStat, clickDelay, maxAttempts, _cts.Token));
+        _runningTask = Task.Run(() => RunLoop(targets, clickDelay, maxAttempts, _cts.Token));
     }
 
     public void Stop()
@@ -55,7 +55,7 @@ public class StatRerollService : IDisposable
         Stopped?.Invoke();
     }
 
-    /// <summary>테스트: 지력값 읽기.</summary>
+    /// <summary>테스트: 모든 능력치 읽기.</summary>
     public int TestRead()
     {
         var (gray, bitmap, layout) = CaptureAndDetect();
@@ -64,9 +64,18 @@ public class StatRerollService : IDisposable
         using (gray) using (bitmap)
         {
             if (layout.StatRois.Length < 4) { Log("박스 부족"); return -1; }
-            var value = ReadTwoDigits(bitmap, layout.StatRois[2], layout.StatRois[3]);
-            Log(value >= 0 ? $"인식 결과: {value}" : "인식 실패");
-            return value;
+
+            string[] names = { "체력", "지력", "무력", "매력", "운", "보너스" };
+            var results = new List<string>();
+            for (int i = 0; i < Math.Min(6, layout.StatRois.Length / 2); i++)
+            {
+                int val = ReadTwoDigits(bitmap, layout.StatRois[i * 2], layout.StatRois[i * 2 + 1]);
+                results.Add($"{names[i]}={val}");
+            }
+            Log($"인식 결과: {string.Join(", ", results)}");
+
+            // 지력 값 반환
+            return ReadTwoDigits(bitmap, layout.StatRois[2], layout.StatRois[3]);
         }
     }
 
@@ -236,17 +245,26 @@ public class StatRerollService : IDisposable
         int digitW = Math.Max(1, (int)(dlg.Width * digitWPct));
         int digitH = Math.Max(1, (int)(dlg.Height * digitHPct));
 
+        // 보너스 포인트 위치 (다이얼로그 내)
+        double bonusTensXPct = 0.360;
+        double bonusOnesXPct = 0.388;
+        double bonusYPct = 0.81;
+
         var statRois = rowYPcts.SelectMany(yPct =>
         {
             int y = dlg.Y + (int)(dlg.Height * yPct);
             return new[]
             {
-                new Rect(tensX, y, digitW, digitH), // 십의 자리
-                new Rect(onesX, y, digitW, digitH), // 일의 자리
+                new Rect(tensX, y, digitW, digitH),
+                new Rect(onesX, y, digitW, digitH),
             };
+        }).Concat(new[] // 보너스 포인트 (인덱스 10, 11)
+        {
+            new Rect(dlg.X + (int)(dlg.Width * bonusTensXPct), dlg.Y + (int)(dlg.Height * bonusYPct), digitW, digitH),
+            new Rect(dlg.X + (int)(dlg.Width * bonusOnesXPct), dlg.Y + (int)(dlg.Height * bonusYPct), digitW, digitH),
         }).ToArray();
 
-        Log($"숫자 영역 5행 (다이얼로그 {dlg.Width}x{dlg.Height} 기준):");
+        Log($"숫자 영역 6행 (다이얼로그 {dlg.Width}x{dlg.Height} 기준):");
         for (int i = 0; i < statRois.Length; i++)
             Log($"  행{i}: ({statRois[i].X},{statRois[i].Y}) {statRois[i].Width}x{statRois[i].Height}");
 
@@ -264,7 +282,7 @@ public class StatRerollService : IDisposable
 
     #region 리롤 루프
 
-    private async Task RunLoop(int target, int delay, int maxAttempts, CancellationToken token)
+    private async Task RunLoop(int[] targets, int delay, int maxAttempts, CancellationToken token)
     {
         var hWnd = GameWindowHelper.FindGameWindow();
         if (hWnd == IntPtr.Zero) { Log("게임 윈도우를 찾을 수 없습니다."); return; }
@@ -294,9 +312,11 @@ public class StatRerollService : IDisposable
             return;
         }
 
-        var tensRoi = layout.StatRois[2];
-        var onesRoi = layout.StatRois[3];
-        Log($"리롤 시작 — 목표 지력: {target} 이상, 최대 {maxAttempts}회 (템플릿 {_digitTemplates.Count}종)");
+        string[] names = { "체력", "지력", "무력", "매력", "운", "보너스" };
+        var goalParts = new List<string>();
+        for (int i = 0; i < Math.Min(targets.Length, 6); i++)
+            if (targets[i] > 0) goalParts.Add($"{names[i]}>={targets[i]}");
+        Log($"리롤 시작 — 목표: {string.Join(", ", goalParts)}, 최대 {maxAttempts}회 (템플릿 {_digitTemplates.Count}종)");
 
         int attempts = 0;
 
@@ -324,24 +344,39 @@ public class StatRerollService : IDisposable
                 using var bitmap = GameWindowHelper.CaptureClient(hWnd);
                 if (bitmap == null) continue;
 
-                var value = ReadTwoDigits(bitmap, tensRoi, onesRoi);
-                if (value < 0)
+                // 모든 능력치 읽기
+                int statCount = Math.Min(6, layout.StatRois.Length / 2);
+                var readValues = new int[statCount];
+                var vals = new List<string>();
+                int totalSum = 0;
+                for (int i = 0; i < statCount; i++)
                 {
-                    if (attempts % 20 == 0) Log($"[{attempts}회] 인식 실패");
-                    continue;
+                    readValues[i] = ReadTwoDigits(bitmap, layout.StatRois[i * 2], layout.StatRois[i * 2 + 1]);
+                    vals.Add($"{names[i]}={readValues[i]}");
+                    if (readValues[i] > 0) totalSum += readValues[i];
+                }
+                vals.Add($"합계={totalSum}");
+
+                Progress?.Invoke(readValues.Length > 1 ? readValues[1] : -1, attempts);
+                Log($"[{attempts}회] {string.Join(", ", vals)}");
+
+                // 목표 달성 조건: 지정된 목표(>0) 모두 충족
+                // 인식 실패(-1)인 항목은 미충족 처리
+                bool hasTarget = false;
+                bool allMet = true;
+                for (int i = 0; i < Math.Min(targets.Length, statCount); i++)
+                {
+                    if (targets[i] <= 0) continue;
+                    hasTarget = true;
+                    if (readValues[i] < targets[i]) { allMet = false; break; }
                 }
 
-                Progress?.Invoke(value, attempts);
-
-                if (value >= target)
+                if (hasTarget && allMet)
                 {
-                    Log($"[{attempts}회] 목표 달성! 지력 = {value}");
-                    Completed?.Invoke(value, attempts);
+                    Log($"[{attempts}회] 목표 달성!");
+                    Completed?.Invoke(readValues.Length > 1 ? readValues[1] : 0, attempts);
                     return;
                 }
-
-                if (attempts % 50 == 0)
-                    Log($"[{attempts}회] 현재 지력 = {value}");
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
