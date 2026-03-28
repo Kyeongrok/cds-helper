@@ -27,9 +27,8 @@ public class StatRerollService : IDisposable
     /// <summary>감지된 레이아웃 정보.</summary>
     public record DetectedLayout(
         Rect Dialog,
-        Rect[] StatRois,       // 5행 (체력~운) 숫자 영역
-        OpenCvSharp.Point Btn1, // 발굴자 중심
-        OpenCvSharp.Point Btn2  // 사냥꾼 중심
+        Rect[] StatRois,            // 10개 박스 (5행 × 십/일의자리)
+        OpenCvSharp.Point HunterBtn // 사냥꾼 버튼 중심
     );
 
     public StatRerollService(string? templateBaseDir = null)
@@ -42,11 +41,11 @@ public class StatRerollService : IDisposable
     }
 
     /// <summary>리롤을 시작한다.</summary>
-    public void Start(int targetStat, int clickDelay = 300)
+    public void Start(int targetStat, int clickDelay = 300, int maxAttempts = 50)
     {
         if (IsRunning) return;
         _cts = new CancellationTokenSource();
-        _runningTask = Task.Run(() => RunLoop(targetStat, clickDelay, _cts.Token));
+        _runningTask = Task.Run(() => RunLoop(targetStat, clickDelay, maxAttempts, _cts.Token));
     }
 
     public void Stop()
@@ -173,8 +172,7 @@ public class StatRerollService : IDisposable
         Cv2.Rectangle(debugMat, layout.Dialog, new Scalar(0, 255, 0), 1);
         for (int i = 0; i < layout.StatRois.Length; i++)
             Cv2.Rectangle(debugMat, layout.StatRois[i], new Scalar(0, 0, 255), 1);
-        Cv2.Circle(debugMat, layout.Btn1, 5, new Scalar(255, 0, 0), 1);
-        Cv2.Circle(debugMat, layout.Btn2, 5, new Scalar(255, 0, 0), 1);
+        Cv2.Circle(debugMat, layout.HunterBtn, 5, new Scalar(255, 0, 0), 1);
 
         var debugPath = Path.Combine(_numberTemplateDir, $"debug_{DateTime.Now:HHmmss}.png");
         Cv2.ImWrite(debugPath, debugMat);
@@ -252,49 +250,21 @@ public class StatRerollService : IDisposable
         for (int i = 0; i < statRois.Length; i++)
             Log($"  행{i}: ({statRois[i].X},{statRois[i].Y}) {statRois[i].Width}x{statRois[i].Height}");
 
-        // 3) 직업 버튼 찾기 (우측 상단 75%)
-        int rightX = dlg.X + (int)(dlg.Width * 0.55);
-        int rightW = dlg.X + dlg.Width - rightX;
-        int btnRegionH = (int)(dlg.Height * 0.75);
-        if (rightW <= 0) return null;
+        // 3) 사냥꾼 버튼 위치: 고정 비율 (3번째 직업 버튼)
+        //    다이얼로그 우측 중앙, Y는 3번째 행 ≈ 무력과 같은 높이
+        var hunterBtn = new OpenCvSharp.Point(
+            dlg.X + (int)(dlg.Width * 0.75),
+            dlg.Y + (int)(dlg.Height * 0.47));
 
-        var rightRegion = ClampRect(new Rect(rightX, dlg.Y, rightW, btnRegionH), gray.Cols, gray.Rows);
-        using var rightRoi = new Mat(gray, rightRegion);
-        using var btnMask = new Mat();
-        Cv2.Threshold(rightRoi, btnMask, 100, 255, ThresholdTypes.Binary);
-
-        using var btnKernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(5, 3));
-        using var btnClean = new Mat();
-        Cv2.MorphologyEx(btnMask, btnClean, MorphTypes.Close, btnKernel);
-
-        Cv2.FindContours(btnClean, out var btnContours, out _,
-            RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-        var buttons = btnContours
-            .Select(Cv2.BoundingRect)
-            .Where(r => r.Width > rightW * 0.25 && r.Height >= 5 && r.Height < dlg.Height * 0.25)
-            .OrderBy(r => r.Y)
-            .Take(4) // 직업 버튼 4개만
-            .ToList();
-
-        if (buttons.Count < 3) { Log($"버튼 감지 실패 ({buttons.Count}개)"); return null; }
-
-        var btn1 = new OpenCvSharp.Point(
-            rightRegion.X + buttons[1].X + buttons[1].Width / 2,
-            rightRegion.Y + buttons[1].Y + buttons[1].Height / 2);
-        var btn2 = new OpenCvSharp.Point(
-            rightRegion.X + buttons[2].X + buttons[2].Width / 2,
-            rightRegion.Y + buttons[2].Y + buttons[2].Height / 2);
-
-        Log($"버튼 {buttons.Count}개 감지 (발굴자: {btn1}, 사냥꾼: {btn2})");
-        return new DetectedLayout(dlg, statRois, btn1, btn2);
+        Log($"사냥꾼 버튼: ({hunterBtn.X},{hunterBtn.Y})");
+        return new DetectedLayout(dlg, statRois, hunterBtn);
     }
 
     #endregion
 
     #region 리롤 루프
 
-    private async Task RunLoop(int target, int delay, CancellationToken token)
+    private async Task RunLoop(int target, int delay, int maxAttempts, CancellationToken token)
     {
         var hWnd = GameWindowHelper.FindGameWindow();
         if (hWnd == IntPtr.Zero) { Log("게임 윈도우를 찾을 수 없습니다."); return; }
@@ -323,25 +293,30 @@ public class StatRerollService : IDisposable
             Log("지력 박스를 감지할 수 없습니다.");
             return;
         }
-        // 지력 = 박스[2](십의자리) + 박스[3](일의자리)
+
         var tensRoi = layout.StatRois[2];
         var onesRoi = layout.StatRois[3];
-        Log($"리롤 시작 — 목표 지력: {target} 이상 (템플릿 {_digitTemplates.Count}종)");
-        Log($"지력 영역: 십({tensRoi.X},{tensRoi.Y}), 일({onesRoi.X},{onesRoi.Y})");
+        Log($"리롤 시작 — 목표 지력: {target} 이상, 최대 {maxAttempts}회 (템플릿 {_digitTemplates.Count}종)");
 
-        bool useBtn1 = true;
         int attempts = 0;
 
-        while (!token.IsCancellationRequested)
+        while (!token.IsCancellationRequested && attempts < maxAttempts)
         {
             try
             {
                 hWnd = GameWindowHelper.FindGameWindow();
                 if (hWnd == IntPtr.Zero) { await Task.Delay(2000, token); continue; }
 
-                var pos = useBtn1 ? layout.Btn1 : layout.Btn2;
-                GameWindowHelper.SendClickRelative(hWnd, pos.X, pos.Y);
-                useBtn1 = !useBtn1;
+                // 사냥꾼 버튼 클릭
+                var (ox, oy) = GameWindowHelper.GetClientOrigin(hWnd);
+                var (cw, ch) = GameWindowHelper.GetClientSize(hWnd);
+                int screenX = ox + layout.HunterBtn.X;
+                int screenY = oy + layout.HunterBtn.Y;
+                if (attempts == 0)
+                {
+                    Log($"클릭좌표: client({layout.HunterBtn.X},{layout.HunterBtn.Y}) origin({ox},{oy}) screen({screenX},{screenY}) clientSize({cw},{ch})");
+                }
+                GameWindowHelper.SendClickRelative(hWnd, layout.HunterBtn.X, layout.HunterBtn.Y);
                 attempts++;
 
                 await Task.Delay(delay, token);
@@ -374,6 +349,12 @@ public class StatRerollService : IDisposable
                 Log($"오류: {ex.Message}");
                 await Task.Delay(2000, token);
             }
+        }
+
+        if (attempts >= maxAttempts)
+        {
+            Log($"최대 시도 횟수({maxAttempts}회) 도달 — 중지");
+            Stopped?.Invoke();
         }
     }
 
@@ -450,6 +431,23 @@ public class StatRerollService : IDisposable
     #endregion
 
     #region 유틸
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    private static Mat? CaptureFullScreen()
+    {
+        try
+        {
+            int w = GetSystemMetrics(0); // SM_CXSCREEN
+            int h = GetSystemMetrics(1); // SM_CYSCREEN
+            using var bmp = new Bitmap(w, h);
+            using var g = Graphics.FromImage(bmp);
+            g.CopyFromScreen(0, 0, 0, 0, new System.Drawing.Size(w, h));
+            return BitmapConverter.ToMat(bmp);
+        }
+        catch { return null; }
+    }
 
     private static Rect ClampRect(Rect r, int maxW, int maxH)
     {

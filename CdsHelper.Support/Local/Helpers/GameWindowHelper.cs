@@ -37,6 +37,15 @@ public static class GameWindowHelper
     private static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, UIntPtr dwExtraInfo);
 
     [DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool LogicalToPhysicalPoint(IntPtr hWnd, ref POINT lpPoint);
+
+    [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
@@ -76,6 +85,9 @@ public static class GameWindowHelper
     private const int SW_RESTORE = 9;
     private const uint SRCCOPY = 0x00CC0020;
     private const uint PW_CLIENTONLY = 0x1;
+    private const uint WM_LBUTTONDOWN = 0x0201;
+    private const uint WM_LBUTTONUP = 0x0202;
+    private const uint MK_LBUTTON = 0x0001;
 
     #endregion
 
@@ -197,11 +209,39 @@ public static class GameWindowHelper
 
     /// <summary>
     /// 윈도우 상대좌표(클라이언트 좌표)에서 좌클릭을 수행한다.
+    /// LogicalToPhysicalPoint로 DPI 스케일링을 정확히 보정한다.
     /// </summary>
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr hMonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
     public static void SendClickRelative(IntPtr hWnd, int clientX, int clientY)
     {
         var (ox, oy) = GetClientOrigin(hWnd);
-        SendClick(ox + clientX, oy + clientY);
+
+        // 모니터 실제 DPI로 스케일 계산
+        var hMon = MonitorFromWindow(hWnd, 2); // MONITOR_DEFAULTTONEAREST
+        GetDpiForMonitor(hMon, 0, out uint dpiX, out _); // MDT_EFFECTIVE_DPI
+        double scale = dpiX / 96.0;
+
+        // origin은 이미 물리 좌표, client는 가상 좌표 → 곱해서 물리 오프셋으로 변환
+        int screenX = ox + (int)(clientX * scale);
+        int screenY = oy + (int)(clientY * scale);
+        SendClick(screenX, screenY);
+    }
+
+    /// <summary>
+    /// PostMessage로 클라이언트 좌표에 좌클릭을 보낸다.
+    /// DPI 스케일링과 무관하게 정확한 좌표에 클릭된다.
+    /// </summary>
+    public static void PostClickClient(IntPtr hWnd, int clientX, int clientY)
+    {
+        IntPtr lParam = (IntPtr)((clientY << 16) | (clientX & 0xFFFF));
+        PostMessage(hWnd, WM_LBUTTONDOWN, (IntPtr)MK_LBUTTON, lParam);
+        Thread.Sleep(20);
+        PostMessage(hWnd, WM_LBUTTONUP, IntPtr.Zero, lParam);
     }
 
     /// <summary>
