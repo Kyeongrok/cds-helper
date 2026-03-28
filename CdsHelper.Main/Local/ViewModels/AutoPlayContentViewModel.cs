@@ -178,7 +178,7 @@ public class AutoPlayContentViewModel : BindableBase
         set => SetProperty(ref _isRerolling, value);
     }
 
-    private int _targetIntelligence = 80;
+    private int _targetIntelligence = 76;
     public int TargetIntelligence
     {
         get => _targetIntelligence;
@@ -209,6 +209,10 @@ public class AutoPlayContentViewModel : BindableBase
     // 클릭 간격 (ms)
     private int _clickDelay = 300;
     public int ClickDelay { get => _clickDelay; set => SetProperty(ref _clickDelay, value); }
+
+    // 최대 시도 횟수
+    private int _maxAttempts = 20;
+    public int MaxAttempts { get => _maxAttempts; set => SetProperty(ref _maxAttempts, value); }
 
     // 숫자 학습용: 5개 능력치 값 (체력,지력,무력,매력,운)
     private string _learnStatValues = "79,50,74,59,80";
@@ -360,7 +364,7 @@ public class AutoPlayContentViewModel : BindableBase
         CurrentIntelligence = "-";
         RerollStatusText = "감지 중...";
 
-        _rerollService.Start(TargetIntelligence, ClickDelay);
+        _rerollService.Start(TargetIntelligence, ClickDelay, MaxAttempts);
     }
 
     private void OnStopReroll()

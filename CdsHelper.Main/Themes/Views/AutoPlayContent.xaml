@@ -165,10 +165,10 @@
                                     <TextBlock Grid.Column="7" Text="{Binding RerollAttempts}" VerticalAlignment="Center"
                                                FontWeight="Bold" TextAlignment="Center"/>
 
-                                    <TextBlock Grid.Column="9" Text="클릭간격:" VerticalAlignment="Center" Foreground="Gray"/>
-                                    <TextBox Grid.Column="10" Text="{Binding ClickDelay, UpdateSourceTrigger=PropertyChanged}"
-                                             TextAlignment="Center" VerticalContentAlignment="Center" Height="26"/>
-                                    <TextBlock Grid.Column="11" Text="ms" VerticalAlignment="Center" Foreground="Gray" Margin="3,0,0,0"/>
+                                    <TextBlock Grid.Column="9" Text="최대시도:" VerticalAlignment="Center" Foreground="Gray"/>
+                                    <TextBox Grid.Column="10" Text="{Binding MaxAttempts, UpdateSourceTrigger=PropertyChanged}"
+                                             TextAlignment="Center" VerticalContentAlignment="Center" Height="26" Width="50"/>
+                                    <TextBlock Grid.Column="11" Text="회" VerticalAlignment="Center" Foreground="Gray" Margin="3,0,0,0"/>
                                 </Grid>
 
                                 <!-- 버튼 행 -->
