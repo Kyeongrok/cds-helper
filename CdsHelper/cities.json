@@ -1117,12 +1117,12 @@
   },
   {
     "id": 93,
-    "name": "톰북투",
+    "name": "통북투",
     "latitude": 19,
     "longitude": -1,
     "hasLibrary": false,
-    "pixelX": 3686,
-    "pixelY": 1338,
+    "pixelX": 3700,
+    "pixelY": 1330,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": null
@@ -1553,8 +1553,8 @@
     "latitude": 29,
     "longitude": 52,
     "hasLibrary": false,
-    "pixelX": 4869,
-    "pixelY": 1110,
+    "pixelX": 4889,
+    "pixelY": 1109,
     "hasShipyard": false,
     "hasGuild": false,
     "culturalSphere": "이슬람"

@@ -127,6 +127,20 @@ public class ExePatchContentViewModel : BindableBase
     private const int LongRestLimitOffset = 0x05FB83;
     private const int LongRestLimitOriginal = 12;
 
+    // 직업버튼 능력치 갱신 패치 오프셋
+    private const int JobButtonPatchOffset = 0x0005CCDA;
+    private const int JobButtonPatchLength = 31;
+    private static readonly byte[] JobButtonOriginalBytes = new byte[]
+    {
+        0x8B, 0x45, 0xF0, 0x6A, 0x05, 0x83, 0xE8, 0x11, 0x89, 0x86, 0x50, 0x01, 0x00, 0x00, 0x8B, 0x0C,
+        0x85, 0x18, 0x27, 0x55, 0x00, 0x51, 0xB9, 0x48, 0x0C, 0x58, 0x00, 0xE8, 0xA6, 0x07, 0xFB
+    };
+    private static readonly byte[] JobButtonPatchedBytes = new byte[]
+    {
+        0x89, 0x86, 0x50, 0x01, 0x00, 0x00, 0xB9, 0x48, 0x0C, 0x58, 0x00, 0x6A, 0x05, 0xFF, 0x34, 0x85,
+        0x18, 0x27, 0x55, 0x00, 0xE8, 0xAD, 0x07, 0xFB, 0xFF, 0x8B, 0xCE, 0xE8, 0x56, 0xFB, 0xFF
+    };
+
     private ObservableCollection<Unko2CharacterItem> _characters = new();
     public ObservableCollection<Unko2CharacterItem> Characters
     {
@@ -180,12 +194,30 @@ public class ExePatchContentViewModel : BindableBase
         set => SetProperty(ref _longRestLimit, value);
     }
 
+    private bool _isJobButtonPatched;
+    public bool IsJobButtonPatched
+    {
+        get => _isJobButtonPatched;
+        set => SetProperty(ref _isJobButtonPatched, value);
+    }
+
+    private string _jobButtonPatchStatus = "";
+    public string JobButtonPatchStatus
+    {
+        get => _jobButtonPatchStatus;
+        set => SetProperty(ref _jobButtonPatchStatus, value);
+    }
+
+    public string JobButtonPatchAddress => $"0x{JobButtonPatchOffset:X6}";
+
     public ICommand RefreshCommand { get; }
     public ICommand RestoreOriginalCommand { get; }
     public ICommand SaveAppearConditionCommand { get; }
     public ICommand RestoreAppearConditionCommand { get; }
     public ICommand SaveLongRestLimitCommand { get; }
     public ICommand RestoreLongRestLimitCommand { get; }
+    public ICommand ApplyJobButtonPatchCommand { get; }
+    public ICommand RestoreJobButtonPatchCommand { get; }
     public ICommand BrowseFileCommand { get; }
 
     public ExePatchContentViewModel()
@@ -199,6 +231,8 @@ public class ExePatchContentViewModel : BindableBase
         RestoreAppearConditionCommand = new DelegateCommand(RestoreAppearCondition);
         SaveLongRestLimitCommand = new DelegateCommand(SaveLongRestLimit);
         RestoreLongRestLimitCommand = new DelegateCommand(RestoreLongRestLimit);
+        ApplyJobButtonPatchCommand = new DelegateCommand(ApplyJobButtonPatch);
+        RestoreJobButtonPatchCommand = new DelegateCommand(RestoreJobButtonPatch);
         BrowseFileCommand = new DelegateCommand(BrowseFile);
 
         // 마지막 세이브 파일 경로에서 게임 폴더 추출
@@ -317,6 +351,9 @@ public class ExePatchContentViewModel : BindableBase
             AppearConditionCurrent = $"0x{appearRaw:X2} ({appearRaw})";
             if (LongRestLimitOffset < data.Length)
                 LongRestLimit = data[LongRestLimitOffset];
+
+            // 직업버튼 패치 상태 확인
+            CheckJobButtonPatchStatus(data);
 
             for (int i = 0; i < MaxRecords; i++)
             {
@@ -609,6 +646,75 @@ public class ExePatchContentViewModel : BindableBase
 
             LongRestLimit = LongRestLimitOriginal;
             StatusText = $"장기휴양 기간 → 원본({LongRestLimitOriginal}개월)으로 복원됨";
+        }
+        catch (Exception ex) { StatusText = $"복원 오류: {ex.Message}"; }
+    }
+
+    private void CheckJobButtonPatchStatus(byte[] data)
+    {
+        if (JobButtonPatchOffset + JobButtonPatchLength > data.Length)
+        {
+            JobButtonPatchStatus = "오프셋 범위 초과";
+            IsJobButtonPatched = false;
+            return;
+        }
+
+        bool matchOriginal = true;
+        bool matchPatched = true;
+        for (int i = 0; i < JobButtonPatchLength; i++)
+        {
+            if (data[JobButtonPatchOffset + i] != JobButtonOriginalBytes[i]) matchOriginal = false;
+            if (data[JobButtonPatchOffset + i] != JobButtonPatchedBytes[i]) matchPatched = false;
+        }
+
+        if (matchPatched)
+        {
+            IsJobButtonPatched = true;
+            JobButtonPatchStatus = "적용됨";
+        }
+        else if (matchOriginal)
+        {
+            IsJobButtonPatched = false;
+            JobButtonPatchStatus = "미적용";
+        }
+        else
+        {
+            IsJobButtonPatched = false;
+            JobButtonPatchStatus = "알 수 없음";
+        }
+    }
+
+    private void ApplyJobButtonPatch()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) { StatusText = "파일을 찾을 수 없습니다"; return; }
+        try
+        {
+            var backupPath = ExeFilePath + ".bak";
+            if (!File.Exists(backupPath)) File.Copy(ExeFilePath, backupPath);
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(JobButtonPatchOffset, SeekOrigin.Begin);
+            fs.Write(JobButtonPatchedBytes, 0, JobButtonPatchLength);
+
+            IsJobButtonPatched = true;
+            JobButtonPatchStatus = "적용됨";
+            StatusText = "직업버튼 능력치 갱신 패치 적용됨";
+        }
+        catch (Exception ex) { StatusText = $"저장 오류: {ex.Message}"; }
+    }
+
+    private void RestoreJobButtonPatch()
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) { StatusText = "파일을 찾을 수 없습니다"; return; }
+        try
+        {
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(JobButtonPatchOffset, SeekOrigin.Begin);
+            fs.Write(JobButtonOriginalBytes, 0, JobButtonPatchLength);
+
+            IsJobButtonPatched = false;
+            JobButtonPatchStatus = "미적용";
+            StatusText = "직업버튼 능력치 갱신 패치 원본 복원됨";
         }
         catch (Exception ex) { StatusText = $"복원 오류: {ex.Message}"; }
     }
