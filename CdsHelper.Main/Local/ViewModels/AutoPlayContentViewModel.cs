@@ -12,6 +12,7 @@ namespace CdsHelper.Main.Local.ViewModels;
 public class AutoPlayContentViewModel : BindableBase
 {
     private readonly AutoPlayService _autoPlayService = new();
+    private readonly StatRerollService _rerollService = new();
     private readonly CityService _cityService;
     private readonly GameStateDetector _detector;
 
@@ -30,10 +31,22 @@ public class AutoPlayContentViewModel : BindableBase
             .ObservesProperty(() => IsRunning)
             .ObservesProperty(() => SelectedCaptureScene);
 
+        StartRerollCommand = new DelegateCommand(OnStartReroll, () => !IsRerolling)
+            .ObservesProperty(() => IsRerolling);
+        StopRerollCommand = new DelegateCommand(OnStopReroll, () => IsRerolling)
+            .ObservesProperty(() => IsRerolling);
+        TestReadStatCommand = new DelegateCommand(OnTestReadStat);
+        LearnDigitsCommand = new DelegateCommand(OnLearnDigits);
+
         _autoPlayService.StatusChanged += OnStatusChanged;
         _autoPlayService.LogMessage += OnLogMessage;
         _detector.StateChanged += OnGameStateChanged;
         _detector.LogMessage += OnLogMessage;
+
+        _rerollService.LogMessage += OnLogMessage;
+        _rerollService.Progress += OnRerollProgress;
+        _rerollService.Completed += OnRerollCompleted;
+        _rerollService.Stopped += () => Application.Current?.Dispatcher.Invoke(() => IsRerolling = false);
 
         LoadCities();
         LoadCaptureScenes();
@@ -156,11 +169,66 @@ public class AutoPlayContentViewModel : BindableBase
 
     #endregion
 
+    #region 능력치 리롤 Properties
+
+    private bool _isRerolling;
+    public bool IsRerolling
+    {
+        get => _isRerolling;
+        set => SetProperty(ref _isRerolling, value);
+    }
+
+    private int _targetIntelligence = 80;
+    public int TargetIntelligence
+    {
+        get => _targetIntelligence;
+        set => SetProperty(ref _targetIntelligence, value);
+    }
+
+    private string _currentIntelligence = "-";
+    public string CurrentIntelligence
+    {
+        get => _currentIntelligence;
+        set => SetProperty(ref _currentIntelligence, value);
+    }
+
+    private int _rerollAttempts;
+    public int RerollAttempts
+    {
+        get => _rerollAttempts;
+        set => SetProperty(ref _rerollAttempts, value);
+    }
+
+    private string _rerollStatusText = "대기 중";
+    public string RerollStatusText
+    {
+        get => _rerollStatusText;
+        set => SetProperty(ref _rerollStatusText, value);
+    }
+
+    // 클릭 간격 (ms)
+    private int _clickDelay = 300;
+    public int ClickDelay { get => _clickDelay; set => SetProperty(ref _clickDelay, value); }
+
+    // 숫자 학습용: 5개 능력치 값 (체력,지력,무력,매력,운)
+    private string _learnStatValues = "79,50,74,59,80";
+    public string LearnStatValues
+    {
+        get => _learnStatValues;
+        set => SetProperty(ref _learnStatValues, value);
+    }
+
+    #endregion
+
     #region Commands
 
     public ICommand StartCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand CaptureTemplateCommand { get; }
+    public ICommand StartRerollCommand { get; }
+    public ICommand StopRerollCommand { get; }
+    public ICommand TestReadStatCommand { get; }
+    public ICommand LearnDigitsCommand { get; }
 
     #endregion
 
@@ -282,6 +350,59 @@ public class AutoPlayContentViewModel : BindableBase
     {
         Application.Current?.Dispatcher.Invoke(() => AddLog(message));
     }
+
+    #region 능력치 리롤 핸들러
+
+    private void OnStartReroll()
+    {
+        IsRerolling = true;
+        RerollAttempts = 0;
+        CurrentIntelligence = "-";
+        RerollStatusText = "감지 중...";
+
+        _rerollService.Start(TargetIntelligence, ClickDelay);
+    }
+
+    private void OnStopReroll()
+    {
+        _rerollService.Stop();
+        IsRerolling = false;
+        RerollStatusText = "중지됨";
+    }
+
+    private void OnTestReadStat()
+    {
+        var value = _rerollService.TestRead();
+        CurrentIntelligence = value >= 0 ? value.ToString() : "실패";
+    }
+
+    private void OnLearnDigits()
+    {
+        _rerollService.LearnDigits(LearnStatValues);
+    }
+
+    private void OnRerollProgress(int value, int attempts)
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            CurrentIntelligence = value.ToString();
+            RerollAttempts = attempts;
+            RerollStatusText = $"리롤 중... ({attempts}회)";
+        });
+    }
+
+    private void OnRerollCompleted(int value, int attempts)
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            CurrentIntelligence = value.ToString();
+            RerollAttempts = attempts;
+            RerollStatusText = $"목표 달성! ({attempts}회)";
+            IsRerolling = false;
+        });
+    }
+
+    #endregion
 
     private void AddLog(string message)
     {
