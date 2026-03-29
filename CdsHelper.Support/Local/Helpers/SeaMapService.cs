@@ -14,14 +14,14 @@ public class SeaMapService : IDisposable
     private readonly string _templateDir;
 
     /// <summary>출력 그리드 크기. 게임 화면을 이 크기로 나눔.</summary>
-    public int GridCols { get; set; } = 64;
-    public int GridRows { get; set; } = 48;
+    public int GridCols { get; set; } = 128;
+    public int GridRows { get; set; } = 96;
 
-    /// <summary>상단바 높이 (픽셀). 상단바는 분류에서 제외.</summary>
-    public int TopBarHeight { get; set; } = 30;
+    /// <summary>상단바 비율 (화면 높이 대비). DPI 스케일링 무관.</summary>
+    public double TopBarRatio { get; set; } = 0.05;
 
-    /// <summary>하단바 높이 (픽셀).</summary>
-    public int BottomBarHeight { get; set; } = 25;
+    /// <summary>하단바 비율 (화면 높이 대비).</summary>
+    public double BottomBarRatio { get; set; } = 0.055;
 
     /// <summary>BGR에서 B-R 차이가 이 값 이상이면 바다 픽셀.</summary>
     public int SeaBRDiffThreshold { get; set; } = 10;
@@ -74,8 +74,8 @@ public class SeaMapService : IDisposable
         var grid = new int[GridRows, GridCols];
 
         // 게임 영역 (상단바, 하단바 제외)
-        var gameTop = Math.Min(TopBarHeight, full.Rows);
-        var gameBottom = Math.Max(0, full.Rows - BottomBarHeight);
+        var gameTop = (int)(full.Rows * TopBarRatio);
+        var gameBottom = (int)(full.Rows * (1.0 - BottomBarRatio));
         var gameHeight = gameBottom - gameTop;
 
         if (gameHeight <= 0 || full.Cols <= 0)
@@ -164,8 +164,8 @@ public class SeaMapService : IDisposable
     public (int x, int y)? FindShipScreen(Bitmap screenshot)
     {
         using var full = BitmapConverter.ToMat(screenshot);
-        var gameTop = Math.Min(TopBarHeight, full.Rows);
-        var gameBottom = Math.Max(0, full.Rows - BottomBarHeight);
+        var gameTop = (int)(full.Rows * TopBarRatio);
+        var gameBottom = (int)(full.Rows * (1.0 - BottomBarRatio));
         var gameHeight = gameBottom - gameTop;
         if (gameHeight <= 0) return null;
 
@@ -181,7 +181,7 @@ public class SeaMapService : IDisposable
     {
         var rows = grid.GetLength(0);
         var cols = grid.GetLength(1);
-        var cellSize = 10;
+        var cellSize = 6;
         var vis = new Mat(rows * cellSize, cols * cellSize, MatType.CV_8UC3);
 
         for (var r = 0; r < rows; r++)
