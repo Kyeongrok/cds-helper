@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using CdsHelper.Support.Local.Helpers;
@@ -37,6 +38,26 @@ public class AutoPlayContentViewModel : BindableBase
             .ObservesProperty(() => IsRerolling);
         TestReadStatCommand = new DelegateCommand(OnTestReadStat);
         LearnDigitsCommand = new DelegateCommand(OnLearnDigits);
+
+        StartCollectCoordsCommand = new DelegateCommand(OnStartCollectCoords, () => !IsCollectingCoords)
+            .ObservesProperty(() => IsCollectingCoords);
+        StopCollectCoordsCommand = new DelegateCommand(OnStopCollectCoords, () => IsCollectingCoords)
+            .ObservesProperty(() => IsCollectingCoords);
+        TrainCoordModelCommand = new DelegateCommand(OnTrainCoordModel, () => !IsTrainingCoords)
+            .ObservesProperty(() => IsTrainingCoords);
+        CapturePreviewCommand = new DelegateCommand(OnCapturePreview);
+        OpenCoordDataFolderCommand = new DelegateCommand(OnOpenCoordDataFolder);
+        AutoLabelCoordsCommand = new DelegateCommand(OnAutoLabelCoords);
+        AddCoordLabelCommand = new DelegateCommand(OnAddCoordLabel);
+        StartRecognizeCommand = new DelegateCommand(OnStartRecognize, () => !IsRecognizing)
+            .ObservesProperty(() => IsRecognizing);
+        StopRecognizeCommand = new DelegateCommand(OnStopRecognize, () => IsRecognizing)
+            .ObservesProperty(() => IsRecognizing);
+        StartNavCommand = new DelegateCommand(OnStartNav, () => !IsNavigating)
+            .ObservesProperty(() => IsNavigating);
+        StopNavCommand = new DelegateCommand(OnStopNav, () => IsNavigating)
+            .ObservesProperty(() => IsNavigating);
+        TestSeaMapCommand = new DelegateCommand(OnTestSeaMap);
 
         _autoPlayService.StatusChanged += OnStatusChanged;
         _autoPlayService.LogMessage += OnLogMessage;
@@ -208,6 +229,94 @@ public class AutoPlayContentViewModel : BindableBase
 
     #endregion
 
+    #region 좌표 인식 Properties
+
+    private bool _isCollectingCoords;
+    public bool IsCollectingCoords
+    {
+        get => _isCollectingCoords;
+        set => SetProperty(ref _isCollectingCoords, value);
+    }
+
+    private bool _isTrainingCoords;
+    public bool IsTrainingCoords
+    {
+        get => _isTrainingCoords;
+        set => SetProperty(ref _isTrainingCoords, value);
+    }
+
+    private string _coordStatusText = "대기 중";
+    public string CoordStatusText
+    {
+        get => _coordStatusText;
+        set => SetProperty(ref _coordStatusText, value);
+    }
+
+    private int _coordTrainEpochs = 50;
+    public int CoordTrainEpochs
+    {
+        get => _coordTrainEpochs;
+        set => SetProperty(ref _coordTrainEpochs, value);
+    }
+
+    // 수동 라벨링용 입력 (북위=0/남위=1, 위도값, 동경=0/서경=1, 경도값)
+    private string _coordLabelInput = "0,38,1,10";
+    public string CoordLabelInput
+    {
+        get => _coordLabelInput;
+        set => SetProperty(ref _coordLabelInput, value);
+    }
+
+    private int _recognizeInterval = 500;
+    public int RecognizeInterval
+    {
+        get => _recognizeInterval;
+        set => SetProperty(ref _recognizeInterval, value);
+    }
+
+    // 목표 좌표
+    private bool _targetIsNorth = true;
+    public bool TargetIsNorth { get => _targetIsNorth; set => SetProperty(ref _targetIsNorth, value); }
+
+    private int _targetLat;
+    public int TargetLat { get => _targetLat; set => SetProperty(ref _targetLat, value); }
+
+    private bool _targetIsEast = true;
+    public bool TargetIsEast { get => _targetIsEast; set => SetProperty(ref _targetIsEast, value); }
+
+    private int _targetLon;
+    public int TargetLon { get => _targetLon; set => SetProperty(ref _targetLon, value); }
+
+    private bool _isNavigating;
+    public bool IsNavigating
+    {
+        get => _isNavigating;
+        set => SetProperty(ref _isNavigating, value);
+    }
+
+    private string _navStatusText = "-";
+    public string NavStatusText
+    {
+        get => _navStatusText;
+        set => SetProperty(ref _navStatusText, value);
+    }
+
+    private bool _isRecognizing;
+    public bool IsRecognizing
+    {
+        get => _isRecognizing;
+        set => SetProperty(ref _isRecognizing, value);
+    }
+
+    private string _recognizedCoordText = "-";
+    public string RecognizedCoordText
+    {
+        get => _recognizedCoordText;
+        set => SetProperty(ref _recognizedCoordText, value);
+    }
+
+    #endregion
+
     #region Commands
 
     public ICommand StartCommand { get; }
@@ -217,6 +326,20 @@ public class AutoPlayContentViewModel : BindableBase
     public ICommand StopRerollCommand { get; }
     public ICommand TestReadStatCommand { get; }
     public ICommand LearnDigitsCommand { get; }
+
+    // 좌표 인식 커맨드
+    public ICommand StartCollectCoordsCommand { get; }
+    public ICommand StopCollectCoordsCommand { get; }
+    public ICommand TrainCoordModelCommand { get; }
+    public ICommand CapturePreviewCommand { get; }
+    public ICommand OpenCoordDataFolderCommand { get; }
+    public ICommand AutoLabelCoordsCommand { get; }
+    public ICommand AddCoordLabelCommand { get; }
+    public ICommand StartRecognizeCommand { get; }
+    public ICommand StopRecognizeCommand { get; }
+    public ICommand StartNavCommand { get; }
+    public ICommand StopNavCommand { get; }
+    public ICommand TestSeaMapCommand { get; }
 
     #endregion
 
@@ -386,6 +509,294 @@ public class AutoPlayContentViewModel : BindableBase
             RerollStatusText = $"목표 달성! ({attempts}회)";
             IsRerolling = false;
         });
+    }
+
+    #endregion
+
+    #region 좌표 인식 핸들러
+
+    private CancellationTokenSource? _recognizeCts;
+
+    private void OnStartRecognize()
+    {
+        IsRecognizing = true;
+        RecognizedCoordText = "인식 중...";
+        _recognizeCts = new CancellationTokenSource();
+
+        Task.Run(async () =>
+        {
+            var token = _recognizeCts.Token;
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var hWnd = GameWindowHelper.FindGameWindow();
+                    if (hWnd == IntPtr.Zero)
+                    {
+                        UpdateRecognizedText("게임 윈도우 없음");
+                        await Task.Delay(2000, token);
+                        continue;
+                    }
+
+                    using var bitmap = GameWindowHelper.CaptureClient(hWnd);
+                    if (bitmap == null)
+                    {
+                        await Task.Delay(RecognizeInterval, token);
+                        continue;
+                    }
+
+                    var prediction = await _autoPlayService.CoordinateOcr.PredictOcrAsync(bitmap);
+                    if (prediction != null)
+                        UpdateRecognizedText(prediction.ToString());
+                    else
+                        UpdateRecognizedText("인식 실패");
+
+                    await Task.Delay(RecognizeInterval, token);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    UpdateRecognizedText($"오류: {ex.Message}");
+                    await Task.Delay(2000, token);
+                }
+            }
+        });
+    }
+
+    private void OnStopRecognize()
+    {
+        _recognizeCts?.Cancel();
+        IsRecognizing = false;
+        RecognizedCoordText = "중지됨";
+    }
+
+    private CancellationTokenSource? _navCts;
+
+    private void OnStartNav()
+    {
+        IsNavigating = true;
+        NavStatusText = "항해 시작...";
+        _navCts = new CancellationTokenSource();
+
+        var destLat = TargetIsNorth ? TargetLat : -TargetLat;
+        var destLon = TargetIsEast ? TargetLon : -TargetLon;
+
+        Task.Run(async () =>
+        {
+            var token = _navCts.Token;
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var hWnd = GameWindowHelper.FindGameWindow();
+                    if (hWnd == IntPtr.Zero)
+                    {
+                        UpdateNavStatus("게임 윈도우 없음");
+                        await Task.Delay(2000, token);
+                        continue;
+                    }
+
+                    using var bitmap = GameWindowHelper.CaptureClient(hWnd);
+                    if (bitmap == null)
+                    {
+                        await Task.Delay(RecognizeInterval, token);
+                        continue;
+                    }
+
+                    var prediction = await _autoPlayService.CoordinateOcr.PredictOcrAsync(bitmap);
+                    if (prediction == null)
+                    {
+                        UpdateNavStatus("좌표 인식 실패");
+                        await Task.Delay(RecognizeInterval, token);
+                        continue;
+                    }
+
+                    var curLat = prediction.ToLat();
+                    var curLon = prediction.ToLon();
+
+                    // 도착 판정
+                    if (NavigationCalculator.IsNear(curLat, curLon, destLat, destLon, threshold: 2.0))
+                    {
+                        GameWindowHelper.SendNumpadKey(hWnd, 5); // 정지
+                        UpdateNavStatus($"도착! {prediction}");
+                        UpdateRecognizedText(prediction.ToString());
+                        Application.Current?.Dispatcher.Invoke(() => IsNavigating = false);
+                        AddLog($"목적지 도착: {prediction}");
+                        return;
+                    }
+
+                    // 방위각 → 숫자패드
+                    var bearing = NavigationCalculator.BearingDegrees(curLat, curLon, destLat, destLon);
+                    var numpad = GameWindowHelper.BearingToNumpad(bearing);
+
+                    GameWindowHelper.SendNumpadKey(hWnd, numpad);
+
+                    var dirLabel = numpad switch
+                    {
+                        8 => "N↑", 9 => "NE↗", 6 => "E→", 3 => "SE↘",
+                        2 => "S↓", 1 => "SW↙", 4 => "W←", 7 => "NW↖",
+                        _ => "?"
+                    };
+
+                    UpdateNavStatus($"{prediction} → {dirLabel} (방위 {bearing:F0}°, 키:{numpad})");
+                    UpdateRecognizedText(prediction.ToString());
+
+                    await Task.Delay(RecognizeInterval, token);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    UpdateNavStatus($"오류: {ex.Message}");
+                    await Task.Delay(2000, token);
+                }
+            }
+        });
+    }
+
+    private void OnStopNav()
+    {
+        _navCts?.Cancel();
+        IsNavigating = false;
+        NavStatusText = "중지됨";
+
+        // 정지 키 전송
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd != IntPtr.Zero)
+            GameWindowHelper.SendNumpadKey(hWnd, 5);
+    }
+
+    private void UpdateNavStatus(string text)
+    {
+        Application.Current?.Dispatcher.Invoke(() => NavStatusText = text);
+    }
+
+    private void OnTestSeaMap()
+    {
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd == IntPtr.Zero)
+        {
+            AddLog("게임 윈도우를 찾을 수 없습니다.");
+            return;
+        }
+
+        GameWindowHelper.BringToFront(hWnd);
+        Thread.Sleep(300);
+
+        using var bitmap = GameWindowHelper.CaptureClient(hWnd);
+        if (bitmap == null) return;
+
+        var dataDir = _autoPlayService.CoordinateOcr.DataDirectory;
+        var debugPath = Path.Combine(dataDir, "seamap_debug.png");
+        _autoPlayService.SeaMap.SaveDebugImage(bitmap, debugPath);
+
+        var grid = _autoPlayService.SeaMap.Analyze(bitmap);
+        var shipFound = false;
+        for (var r = 0; r < grid.GetLength(0) && !shipFound; r++)
+        for (var c = 0; c < grid.GetLength(1) && !shipFound; c++)
+            if (grid[r, c] == 2) shipFound = true;
+
+        AddLog($"해도 분석 완료: {debugPath}");
+        AddLog($"  배 감지: {(shipFound ? "성공" : "실패 — ship 템플릿 필요")}");
+        System.Diagnostics.Process.Start("explorer.exe", debugPath);
+    }
+
+    private void UpdateRecognizedText(string text)
+    {
+        Application.Current?.Dispatcher.Invoke(() => RecognizedCoordText = text);
+    }
+
+    private void OnStartCollectCoords()
+    {
+        IsCollectingCoords = true;
+        CoordStatusText = "데이터 수집 중...";
+        _autoPlayService.CoordinateOcr.StartCollecting();
+    }
+
+    private void OnStopCollectCoords()
+    {
+        _autoPlayService.CoordinateOcr.StopCollecting();
+        IsCollectingCoords = false;
+        var count = _autoPlayService.CoordinateOcr.GetCollectedCount();
+        CoordStatusText = $"수집 완료 ({count}장)";
+    }
+
+    private void OnTrainCoordModel()
+    {
+        IsTrainingCoords = true;
+        CoordStatusText = "모델 학습 중...";
+
+        Task.Run(() =>
+        {
+            _autoPlayService.CoordinateOcr.Train(epochs: CoordTrainEpochs);
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                IsTrainingCoords = false;
+                CoordStatusText = _autoPlayService.CoordinateOcr.IsModelLoaded ? "학습 완료" : "학습 실패";
+            });
+        });
+    }
+
+    private void OnCapturePreview()
+    {
+        var path = _autoPlayService.CoordinateOcr.CapturePreview();
+        if (path != null)
+            AddLog($"스크린샷 저장: {path}");
+        else
+            AddLog("캡처 실패 — 게임이 실행 중인지 확인하세요.");
+    }
+
+    private void OnAutoLabelCoords()
+    {
+        CoordStatusText = "자동 라벨링 중 (Windows OCR)...";
+
+        Task.Run(async () =>
+        {
+            var count = await _autoPlayService.CoordinateOcr.AutoLabelAsync();
+            var total = _autoPlayService.CoordinateOcr.GetLabeledCount();
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                CoordStatusText = $"자동 라벨링 완료: {count}장 (총 {total}장)";
+            });
+        });
+    }
+
+    private void OnOpenCoordDataFolder()
+    {
+        var folder = _autoPlayService.CoordinateOcr.DataDirectory;
+        Directory.CreateDirectory(folder);
+        System.Diagnostics.Process.Start("explorer.exe", folder);
+    }
+
+    private void OnAddCoordLabel()
+    {
+        // 가장 최근 수집 이미지에 라벨 추가
+        var parts = CoordLabelInput.Split(',');
+        if (parts.Length != 4)
+        {
+            AddLog("라벨 형식 오류: latDir,latVal,lonDir,lonVal (예: 0,38,1,10)");
+            return;
+        }
+
+        var imageDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "git", "ml", "cds-ai", "assets", "coordinate_data", "images");
+
+        if (!Directory.Exists(imageDir)) return;
+
+        var latest = Directory.GetFiles(imageDir, "*.png")
+            .OrderByDescending(f => f)
+            .FirstOrDefault();
+
+        if (latest == null)
+        {
+            AddLog("라벨링할 이미지가 없습니다.");
+            return;
+        }
+
+        _autoPlayService.CoordinateOcr.AddLabel(
+            Path.GetFileName(latest),
+            int.Parse(parts[0]), int.Parse(parts[1]),
+            int.Parse(parts[2]), int.Parse(parts[3]));
     }
 
     #endregion
