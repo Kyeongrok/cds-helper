@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0-windows</TargetFramework>
+        <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
         <Nullable>enable</Nullable>
         <UseWPF>true</UseWPF>
         <ImplicitUsings>enable</ImplicitUsings>
@@ -13,6 +13,7 @@
       <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
       <PackageReference Include="OpenCvSharp4.Extensions" Version="4.10.0.20241108" />
       <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
+      <PackageReference Include="TorchSharp-cuda-windows" Version="0.106.0" />
     </ItemGroup>
 
     <ItemGroup>

@@ -6,8 +6,10 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type views:AutoPlayContent}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <Grid Margin="20">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -132,8 +134,120 @@
                             </Grid>
                         </GroupBox>
 
+                        <!-- 좌표 인식 (TorchSharp) -->
+                        <GroupBox Grid.Row="4" Header="좌표 인식 (위도/경도 학습)" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <!-- 1단계: 캡처 + 수집 -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Button Content="스크린샷 캡처"
+                                            Command="{Binding CapturePreviewCommand}"
+                                            Padding="10,4" MinWidth="100" Margin="0,0,5,0"/>
+                                    <Button Content="폴더 열기"
+                                            Command="{Binding OpenCoordDataFolderCommand}"
+                                            Padding="10,4" MinWidth="70" Margin="0,0,5,0"/>
+                                    <Button Content="수집 시작"
+                                            Command="{Binding StartCollectCoordsCommand}"
+                                            Padding="10,4" MinWidth="80" Margin="0,0,5,0"
+                                            Background="#4CAF50" Foreground="White" BorderThickness="0"/>
+                                    <Button Content="수집 중지"
+                                            Command="{Binding StopCollectCoordsCommand}"
+                                            Padding="10,4" MinWidth="80" Margin="0,0,5,0"
+                                            Background="#F44336" Foreground="White" BorderThickness="0"/>
+                                </StackPanel>
+
+                                <!-- 2단계: 라벨링 -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Button Content="자동 라벨링 (OCR)"
+                                            Command="{Binding AutoLabelCoordsCommand}"
+                                            Padding="10,4" MinWidth="120" Margin="0,0,10,0"
+                                            Background="#FF9800" Foreground="White" BorderThickness="0"/>
+                                    <TextBlock Text="수동:" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                    <TextBox Text="{Binding CoordLabelInput, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="120" Height="26" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                                    <Button Content="추가"
+                                            Command="{Binding AddCoordLabelCommand}"
+                                            Padding="10,4" MinWidth="50" Margin="0,0,8,0"/>
+                                    <TextBlock Text="(0,38,1,10 = 북위38 서경10)"
+                                               VerticalAlignment="Center" Foreground="Gray" FontSize="11"/>
+                                </StackPanel>
+
+                                <!-- 3단계: 학습 -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="에포크:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <TextBox Text="{Binding CoordTrainEpochs, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="50" Height="26" TextAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                                    <Button Content="모델 학습"
+                                            Command="{Binding TrainCoordModelCommand}"
+                                            Padding="15,4" MinWidth="90" Margin="0,0,10,0"
+                                            Background="#2196F3" Foreground="White" BorderThickness="0"/>
+                                    <TextBlock Text="{Binding CoordStatusText}" VerticalAlignment="Center" Foreground="#1976D2"/>
+                                </StackPanel>
+
+                                <!-- 4단계: 실시간 인식 -->
+                                <Border Background="#E8F5E9" CornerRadius="4" Padding="8,4" Margin="0,0,0,6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBox Text="{Binding RecognizeInterval, UpdateSourceTrigger=PropertyChanged}"
+                                                Width="45" Height="26" TextAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,3,0"/>
+                                        <TextBlock Text="ms" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray"/>
+                                        <Button Content="인식 시작"
+                                                Command="{Binding StartRecognizeCommand}"
+                                                Padding="10,4" MinWidth="80" Margin="0,0,5,0"
+                                                Background="#4CAF50" Foreground="White" BorderThickness="0"/>
+                                        <Button Content="인식 중지"
+                                                Command="{Binding StopRecognizeCommand}"
+                                                Padding="10,4" MinWidth="80" Margin="0,0,12,0"
+                                                Background="#F44336" Foreground="White" BorderThickness="0"/>
+                                        <TextBlock Text="현재 좌표:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding RecognizedCoordText}" VerticalAlignment="Center"
+                                                   FontSize="14" FontWeight="Bold" Foreground="#1B5E20"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 5단계: 자동 항해 -->
+                                <Border Background="#E3F2FD" CornerRadius="4" Padding="8,4">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="목표:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,6,0"/>
+                                            <ComboBox SelectedIndex="{Binding TargetIsNorth, Converter={x:Static views:AutoPlayContent.BoolToIndexConverter}}"
+                                                      Width="55" Height="26" Margin="0,0,4,0">
+                                                <ComboBoxItem Content="북위"/>
+                                                <ComboBoxItem Content="남위"/>
+                                            </ComboBox>
+                                            <TextBox Text="{Binding TargetLat, UpdateSourceTrigger=PropertyChanged}"
+                                                     Width="40" Height="26" TextAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                                            <ComboBox SelectedIndex="{Binding TargetIsEast, Converter={x:Static views:AutoPlayContent.BoolToIndexConverter}}"
+                                                      Width="55" Height="26" Margin="0,0,4,0">
+                                                <ComboBoxItem Content="동경"/>
+                                                <ComboBoxItem Content="서경"/>
+                                            </ComboBox>
+                                            <TextBox Text="{Binding TargetLon, UpdateSourceTrigger=PropertyChanged}"
+                                                     Width="40" Height="26" TextAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                                            <Button Content="항해 시작"
+                                                    Command="{Binding StartNavCommand}"
+                                                    Padding="10,4" MinWidth="80" Margin="0,0,5,0"
+                                                    Background="#1565C0" Foreground="White" BorderThickness="0"/>
+                                            <Button Content="항해 중지"
+                                                    Command="{Binding StopNavCommand}"
+                                                    Padding="10,4" MinWidth="80"
+                                                    Background="#F44336" Foreground="White" BorderThickness="0"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding NavStatusText}" Foreground="#0D47A1" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 해도 분석 -->
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Content="해도 분석 테스트"
+                                            Command="{Binding TestSeaMapCommand}"
+                                            Padding="10,4" MinWidth="110" Margin="0,0,8,0"/>
+                                    <TextBlock Text="게임 화면의 바다/육지/배 분류 결과를 이미지로 저장"
+                                               VerticalAlignment="Center" Foreground="Gray" FontSize="11"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+
                         <!-- 능력치 리롤 -->
-                        <GroupBox Grid.Row="4" Header="능력치 리롤 사냥꾼 클릭)" Padding="10" Margin="0,0,0,10">
+                        <GroupBox Grid.Row="5" Header="능력치 리롤 (사냥꾼 클릭)" Padding="10" Margin="0,0,0,10">
                             <StackPanel>
                                 <!-- 목표치 (0=무시) -->
                                 <Grid Margin="0,0,0,4">
@@ -205,7 +319,7 @@
                         </GroupBox>
 
                         <!-- 로그 -->
-                        <GroupBox Grid.Row="5" Header="로그" Padding="5">
+                        <GroupBox Grid.Row="6" Header="로그" Padding="5">
                             <ListBox ItemsSource="{Binding LogMessages}"
                                      FontFamily="Consolas"
                                      FontSize="12"
@@ -213,6 +327,7 @@
                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
                         </GroupBox>
                     </Grid>
+                    </ScrollViewer>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

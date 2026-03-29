@@ -21,6 +21,12 @@ public class AutoPlayService : IDisposable
     private readonly Dictionary<int, Mat> _digitTemplates = new();
     private Mat? _minusTemplate;
 
+    /// <summary>좌표 인식 서비스 (Windows OCR).</summary>
+    public CoordinateOcrService CoordinateOcr { get; }
+
+    /// <summary>바다/육지/배 분류 서비스.</summary>
+    public SeaMapService SeaMap { get; }
+
     /// <summary>현재 실행 중 여부.</summary>
     public bool IsRunning => _runningTask is { IsCompleted: false };
 
@@ -38,6 +44,13 @@ public class AutoPlayService : IDisposable
 
         _menuTemplateDir = Path.Combine(baseDir, "menus");
         _numberTemplateDir = Path.Combine(baseDir, "numbers");
+
+        CoordinateOcr = new CoordinateOcrService();
+        CoordinateOcr.LogMessage += msg => LogMessage?.Invoke(msg);
+        CoordinateOcr.LoadModel();
+
+        SeaMap = new SeaMapService(baseDir);
+        SeaMap.LogMessage += msg => LogMessage?.Invoke(msg);
 
         LoadMenuTemplates();
         LoadDigitTemplates();
@@ -388,21 +401,14 @@ public class AutoPlayService : IDisposable
 
     #region 좌표 OCR
 
-    /// <summary>스크린샷에서 현재 좌표를 읽는다.</summary>
+    /// <summary>스크린샷에서 현재 좌표를 읽는다 (Windows OCR 사용).</summary>
     private (double lat, double lon, bool success) ReadCoordinatesFromScreen(Bitmap screenshot)
     {
-        if (_digitTemplates.Count == 0)
+        var prediction = CoordinateOcr.PredictOcrAsync(screenshot).GetAwaiter().GetResult();
+        if (prediction == null)
             return (0, 0, false);
 
-        using var screenMat = BitmapConverter.ToMat(screenshot);
-        using var gray = new Mat();
-        Cv2.CvtColor(screenMat, gray, ColorConversionCodes.BGR2GRAY);
-
-        // TODO: 좌표 영역(ROI) 위치는 게임 해상도에 따라 조정 필요
-        // 현재는 플레이스홀더 영역 사용
-        // lat_region, lon_region 설정 후 아래 코드 활성화
-
-        return (0, 0, false);
+        return (prediction.ToLat(), prediction.ToLon(), true);
     }
 
     private void LoadDigitTemplates()
@@ -459,6 +465,8 @@ public class AutoPlayService : IDisposable
         _digitTemplates.Clear();
 
         _minusTemplate?.Dispose();
+        CoordinateOcr.Dispose();
+        SeaMap.Dispose();
     }
 
     #endregion

@@ -88,6 +88,19 @@ public static class GameWindowHelper
     private const uint WM_LBUTTONDOWN = 0x0201;
     private const uint WM_LBUTTONUP = 0x0202;
     private const uint MK_LBUTTON = 0x0001;
+    private const uint WM_KEYDOWN = 0x0100;
+    private const uint WM_KEYUP = 0x0101;
+
+    // 숫자패드 Virtual Key Codes
+    private const int VK_NUMPAD1 = 0x61;
+    private const int VK_NUMPAD2 = 0x62;
+    private const int VK_NUMPAD3 = 0x63;
+    private const int VK_NUMPAD4 = 0x64;
+    private const int VK_NUMPAD5 = 0x65;
+    private const int VK_NUMPAD6 = 0x66;
+    private const int VK_NUMPAD7 = 0x67;
+    private const int VK_NUMPAD8 = 0x68;
+    private const int VK_NUMPAD9 = 0x69;
 
     #endregion
 
@@ -254,5 +267,39 @@ public static class GameWindowHelper
         mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
         Thread.Sleep(20);
         mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+    }
+
+    /// <summary>
+    /// 숫자패드 키(1~9)를 게임 윈도우에 전송한다.
+    /// 7=NW 8=N 9=NE / 4=W 5=Stop 6=E / 1=SW 2=S 3=SE
+    /// </summary>
+    public static void SendNumpadKey(IntPtr hWnd, int numpadNumber)
+    {
+        if (numpadNumber < 1 || numpadNumber > 9) return;
+        var vk = VK_NUMPAD1 + (numpadNumber - 1);
+        PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, IntPtr.Zero);
+        Thread.Sleep(30);
+        PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, IntPtr.Zero);
+    }
+
+    /// <summary>
+    /// 방위각(0~360)을 숫자패드 방향키로 변환.
+    /// 0°=N(8), 45°=NE(9), 90°=E(6), 135°=SE(3), 180°=S(2), 225°=SW(1), 270°=W(4), 315°=NW(7)
+    /// </summary>
+    public static int BearingToNumpad(double bearing)
+    {
+        bearing = ((bearing % 360) + 360) % 360;
+        // 8방향: 각 45° 구간, ±22.5° 범위
+        return bearing switch
+        {
+            >= 337.5 or < 22.5   => 8, // N
+            >= 22.5 and < 67.5   => 9, // NE
+            >= 67.5 and < 112.5  => 6, // E
+            >= 112.5 and < 157.5 => 3, // SE
+            >= 157.5 and < 202.5 => 2, // S
+            >= 202.5 and < 247.5 => 1, // SW
+            >= 247.5 and < 292.5 => 4, // W
+            _                    => 7  // NW
+        };
     }
 }
