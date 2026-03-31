@@ -92,8 +92,8 @@ public class SeaMapService : IDisposable
 
         using var lowSat = new Mat();
         using var highVal = new Mat();
-        Cv2.Threshold(sChannel, lowSat, 50, 255, ThresholdTypes.BinaryInv);  // 채도 < 50
-        Cv2.Threshold(vChannel, highVal, 150, 255, ThresholdTypes.Binary);    // 밝기 > 150
+        Cv2.Threshold(sChannel, lowSat, 80, 255, ThresholdTypes.BinaryInv);   // 채도 < 80
+        Cv2.Threshold(vChannel, highVal, 120, 255, ThresholdTypes.Binary);    // 밝기 > 120
         using var cloudMask = new Mat();
         Cv2.BitwiseAnd(lowSat, highVal, cloudMask);
         Cv2.BitwiseOr(seaMask, cloudMask, seaMask); // 구름 영역을 바다로 편입
