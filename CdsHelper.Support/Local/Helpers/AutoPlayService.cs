@@ -49,7 +49,7 @@ public class AutoPlayService : IDisposable
         CoordinateOcr.LogMessage += msg => LogMessage?.Invoke(msg);
         CoordinateOcr.LoadModel();
 
-        SeaMap = new SeaMapService(baseDir);
+        SeaMap = new SeaMapService();
         SeaMap.LogMessage += msg => LogMessage?.Invoke(msg);
 
         LoadMenuTemplates();
