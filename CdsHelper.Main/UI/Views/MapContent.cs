@@ -57,6 +57,8 @@ public class MapContent : ContentControl
 
     // 대기 중인 도시 네비게이션 (MapContent 로드 전 이벤트 수신 시)
     private static NavigateToCityEventArgs? _pendingNavigation = null;
+    // 사용자가 수동으로 추적을 끈 경우 true
+    private static bool _manuallyStoppedTracking = false;
 
     /// <summary>
     /// 대기 중인 네비게이션 설정 (MapContent 로드 전 호출됨)
@@ -330,6 +332,9 @@ public class MapContent : ContentControl
 
         // 초기 중심 좌표 표시
         UpdateCenterPosition();
+
+        // 게임이 켜져 있으면 자동으로 추적 시작
+        TryAutoStartTracking();
     }
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -358,11 +363,8 @@ public class MapContent : ContentControl
                     _mapScrollViewer.ScrollToVerticalOffset(_savedVerticalOffset);
                 }
 
-                // 추적 상태 복원
-                if (_viewModel != null && _btnTrackCoordinate != null)
-                {
-                    _btnTrackCoordinate.Content = _viewModel.IsTracking ? "추적 중지" : "좌표 추적";
-                }
+                // 게임이 켜져 있으면 자동으로 추적 시작
+                TryAutoStartTracking();
             }
         }
     }
@@ -544,9 +546,9 @@ public class MapContent : ContentControl
         const double refLat = 38;
         const double refLon = -9;
 
-        // 스케일 (픽셀 per 도)
-        const double pixelsPerDegreeLon = 24.0;
-        const double pixelsPerDegreeLat = 21.5;
+        // 스케일 (픽셀 per 도) — 리스본/미틀라 기준 보정
+        const double pixelsPerDegreeLon = 22.12;
+        const double pixelsPerDegreeLat = 22.05;
 
         var lon = refLon + (pixelX - refPixelX) / pixelsPerDegreeLon;
         var lat = refLat - (pixelY - refPixelY) / pixelsPerDegreeLat;
@@ -649,7 +651,7 @@ public class MapContent : ContentControl
     {
         const double refPixelY = 914;
         const double refLat = 38;
-        const double pixelsPerDegreeLat = 21.5;
+        const double pixelsPerDegreeLat = 22.05;
 
         return refPixelY - (lat - refLat) * pixelsPerDegreeLat;
     }
@@ -661,7 +663,7 @@ public class MapContent : ContentControl
     {
         const double refPixelX = 3525;
         const double refLon = -9;
-        const double pixelsPerDegreeLon = 24.0;
+        const double pixelsPerDegreeLon = 22.12;
 
         return refPixelX + (lon - refLon) * pixelsPerDegreeLon;
     }
@@ -780,6 +782,25 @@ public class MapContent : ContentControl
 
     #region 좌표 추적
 
+    private void TryAutoStartTracking()
+    {
+        if (_viewModel == null || _viewModel.IsTracking)
+        {
+            if (_viewModel?.IsTracking == true && _btnTrackCoordinate != null)
+                _btnTrackCoordinate.Content = "추적 중지";
+            return;
+        }
+
+        if (_manuallyStoppedTracking) return;
+
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd == IntPtr.Zero) return;
+
+        _viewModel.StartTracking();
+        if (_btnTrackCoordinate != null)
+            _btnTrackCoordinate.Content = "추적 중지";
+    }
+
     private void ToggleTracking()
     {
         if (_viewModel == null) return;
@@ -787,6 +808,7 @@ public class MapContent : ContentControl
         if (_viewModel.IsTracking)
         {
             _viewModel.StopTracking();
+            _manuallyStoppedTracking = true;
             if (_btnTrackCoordinate != null)
                 _btnTrackCoordinate.Content = "좌표 추적";
             if (_txtCurrentCoordinate != null)
@@ -806,6 +828,7 @@ public class MapContent : ContentControl
                 return;
             }
 
+            _manuallyStoppedTracking = false;
             _viewModel.StartTracking();
             if (_btnTrackCoordinate != null)
                 _btnTrackCoordinate.Content = "추적 중지";
@@ -882,7 +905,33 @@ public class MapContent : ContentControl
                 var lonDir = args.Longitude >= 0 ? "E" : "W";
                 _txtCurrentCoordinate.Text = $"현재: {Math.Abs(args.Latitude):F0}°{latDir}, {Math.Abs(args.Longitude):F0}°{lonDir}";
             }
+
+            // 마커가 뷰포트 80% 밖이면 스크롤
+            ScrollToMarkerIfNeeded(pixelX, pixelY);
         });
+    }
+
+    /// <summary>
+    /// 마커가 뷰포트 중심 기준 80% 밖에 있으면 마커 위치로 스크롤
+    /// </summary>
+    private void ScrollToMarkerIfNeeded(double pixelX, double pixelY)
+    {
+        if (_mapScrollViewer == null) return;
+
+        var screenX = (pixelX * _currentScale) - _mapScrollViewer.HorizontalOffset;
+        var screenY = (pixelY * _currentScale) - _mapScrollViewer.VerticalOffset;
+
+        var viewW = _mapScrollViewer.ViewportWidth;
+        var viewH = _mapScrollViewer.ViewportHeight;
+
+        var marginX = viewW * 0.1; // 좌우 10% 여백
+        var marginY = viewH * 0.1;
+
+        if (screenX < marginX || screenX > viewW - marginX ||
+            screenY < marginY || screenY > viewH - marginY)
+        {
+            ScrollToImagePosition(pixelX, pixelY);
+        }
     }
 
     #endregion
