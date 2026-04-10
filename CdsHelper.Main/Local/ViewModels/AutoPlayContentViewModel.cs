@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using Prism.Commands;
@@ -38,6 +39,8 @@ public class AutoPlayContentViewModel : BindableBase
             .ObservesProperty(() => IsRerolling);
         TestReadStatCommand = new DelegateCommand(OnTestReadStat);
         LearnDigitsCommand = new DelegateCommand(OnLearnDigits);
+        AutoLearnDigitsCommand = new DelegateCommand(OnAutoLearnDigits);
+        ClearTemplatesCommand = new DelegateCommand(OnClearTemplates);
 
         StartCollectCoordsCommand = new DelegateCommand(OnStartCollectCoords, () => !IsCollectingCoords)
             .ObservesProperty(() => IsCollectingCoords);
@@ -68,9 +71,11 @@ public class AutoPlayContentViewModel : BindableBase
         _rerollService.Progress += OnRerollProgress;
         _rerollService.Completed += OnRerollCompleted;
         _rerollService.Stopped += () => Application.Current?.Dispatcher.Invoke(() => IsRerolling = false);
+        _rerollService.TemplatesChanged += () => Application.Current?.Dispatcher.Invoke(RefreshDigitImages);
 
         LoadCities();
         LoadCaptureScenes();
+        RefreshDigitImages();
     }
 
     #region Game Detection Properties
@@ -227,6 +232,19 @@ public class AutoPlayContentViewModel : BindableBase
         set => SetProperty(ref _learnStatValues, value);
     }
 
+    // 학습된 숫자 이미지 (0~9)
+    private BitmapImage?[] _digitImages = new BitmapImage?[10];
+    public BitmapImage? Digit0 { get => _digitImages[0]; set => SetProperty(ref _digitImages[0], value); }
+    public BitmapImage? Digit1 { get => _digitImages[1]; set => SetProperty(ref _digitImages[1], value); }
+    public BitmapImage? Digit2 { get => _digitImages[2]; set => SetProperty(ref _digitImages[2], value); }
+    public BitmapImage? Digit3 { get => _digitImages[3]; set => SetProperty(ref _digitImages[3], value); }
+    public BitmapImage? Digit4 { get => _digitImages[4]; set => SetProperty(ref _digitImages[4], value); }
+    public BitmapImage? Digit5 { get => _digitImages[5]; set => SetProperty(ref _digitImages[5], value); }
+    public BitmapImage? Digit6 { get => _digitImages[6]; set => SetProperty(ref _digitImages[6], value); }
+    public BitmapImage? Digit7 { get => _digitImages[7]; set => SetProperty(ref _digitImages[7], value); }
+    public BitmapImage? Digit8 { get => _digitImages[8]; set => SetProperty(ref _digitImages[8], value); }
+    public BitmapImage? Digit9 { get => _digitImages[9]; set => SetProperty(ref _digitImages[9], value); }
+
     #endregion
 
     #region 좌표 인식 Properties
@@ -326,6 +344,8 @@ public class AutoPlayContentViewModel : BindableBase
     public ICommand StopRerollCommand { get; }
     public ICommand TestReadStatCommand { get; }
     public ICommand LearnDigitsCommand { get; }
+    public ICommand AutoLearnDigitsCommand { get; }
+    public ICommand ClearTemplatesCommand { get; }
 
     // 좌표 인식 커맨드
     public ICommand StartCollectCoordsCommand { get; }
@@ -490,6 +510,51 @@ public class AutoPlayContentViewModel : BindableBase
     private void OnLearnDigits()
     {
         _rerollService.LearnDigits(LearnStatValues);
+        RefreshDigitImages();
+    }
+
+    private void OnAutoLearnDigits()
+    {
+        _rerollService.AutoLearnDigits();
+        RefreshDigitImages();
+    }
+
+    private void OnClearTemplates()
+    {
+        _rerollService.ClearTemplates();
+        RefreshDigitImages();
+    }
+
+    private void RefreshDigitImages()
+    {
+        var dir = _rerollService.NumberTemplateDir;
+        for (int d = 0; d <= 9; d++)
+        {
+            var path = Path.Combine(dir, $"{d}.png");
+            BitmapImage? img = null;
+            if (File.Exists(path))
+            {
+                img = new BitmapImage();
+                img.BeginInit();
+                img.CacheOption = BitmapCacheOption.OnLoad;
+                img.UriSource = new Uri(path, UriKind.Absolute);
+                img.EndInit();
+                img.Freeze();
+            }
+            switch (d)
+            {
+                case 0: Digit0 = img; break;
+                case 1: Digit1 = img; break;
+                case 2: Digit2 = img; break;
+                case 3: Digit3 = img; break;
+                case 4: Digit4 = img; break;
+                case 5: Digit5 = img; break;
+                case 6: Digit6 = img; break;
+                case 7: Digit7 = img; break;
+                case 8: Digit8 = img; break;
+                case 9: Digit9 = img; break;
+            }
+        }
     }
 
     private void OnRerollProgress(int value, int attempts)
