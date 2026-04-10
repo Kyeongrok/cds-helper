@@ -22,6 +22,7 @@ public class MapContentViewModel : BindableBase
     private double _lastLat;
     private double _lastLon;
     private bool _hasLastCoord;
+    private string? _lastGameDate;
 
     // 자동이동
     private CancellationTokenSource? _navCts;
@@ -90,10 +91,13 @@ public class MapContentViewModel : BindableBase
             var bitmap = GameWindowHelper.CaptureClient(hWnd);
             if (bitmap == null) return;
 
-            var prediction = await Task.Run(() =>
-                _coordinateOcr.PredictOcrAsync(bitmap));
+            var (prediction, dateStr) = await Task.Run(() =>
+                _coordinateOcr.PredictAllAsync(bitmap));
 
             bitmap.Dispose();
+
+            if (dateStr != null)
+                _lastGameDate = dateStr;
 
             if (prediction != null)
             {
@@ -106,7 +110,8 @@ public class MapContentViewModel : BindableBase
                     {
                         Latitude = _lastLat,
                         Longitude = _lastLon,
-                        IsTracking = true
+                        IsTracking = true,
+                        GameDate = _lastGameDate
                     });
             }
             else if (_hasLastCoord)
@@ -118,7 +123,8 @@ public class MapContentViewModel : BindableBase
                         Latitude = _lastLat,
                         Longitude = _lastLon,
                         IsTracking = true,
-                        IsStale = true
+                        IsStale = true,
+                        GameDate = _lastGameDate
                     });
             }
         }

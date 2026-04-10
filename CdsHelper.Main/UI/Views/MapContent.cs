@@ -1079,7 +1079,10 @@ public class MapContent : ContentControl
                 var latDir = args.Latitude >= 0 ? "N" : "S";
                 var lonDir = args.Longitude >= 0 ? "E" : "W";
                 var prefix = args.IsStale ? "최근" : "현재";
-                _txtCurrentCoordinate.Text = $"{prefix}: {Math.Abs(args.Latitude):F0}°{latDir}, {Math.Abs(args.Longitude):F0}°{lonDir}";
+                var coordText = $"{prefix}: {Math.Abs(args.Latitude):F0}°{latDir}, {Math.Abs(args.Longitude):F0}°{lonDir}";
+                if (!string.IsNullOrEmpty(args.GameDate))
+                    coordText += $"  |  {args.GameDate}";
+                _txtCurrentCoordinate.Text = coordText;
                 _txtCurrentCoordinate.Foreground = new SolidColorBrush(args.IsStale ? Colors.Gray : Colors.Red);
             }
 

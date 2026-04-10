@@ -16,4 +16,6 @@ public class CurrentCoordinateEventArgs
     public bool IsTracking { get; set; }
     /// <summary>인식 실패로 마지막 좌표를 재사용하는 경우 true</summary>
     public bool IsStale { get; set; }
+    /// <summary>게임 내 날짜 (예: "1505년 9월 23일")</summary>
+    public string? GameDate { get; set; }
 }
