@@ -105,6 +105,7 @@ public class PlayerContent : ContentControl
         {
             bool meetsReq = CheckPartyMeetsRequirements(vm, language, required);
 
+            // 제목: "힌트이름 - 책제목"
             var titlePanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -112,7 +113,7 @@ public class PlayerContent : ContentControl
             };
             titlePanel.Children.Add(new TextBlock
             {
-                Text = $"■ {bookName}",
+                Text = $"■ {hint.Name} - {bookName}",
                 FontWeight = FontWeights.Bold,
                 FontSize = 14
             });
@@ -137,9 +138,9 @@ public class PlayerContent : ContentControl
             panel.Children.Add(titlePanel);
 
             if (!string.IsNullOrEmpty(language))
-                panel.Children.Add(CreateInfoLine("언어", language));
+                panel.Children.Add(CreateConditionLine("언어", language, vm, isLanguage: true));
             if (!string.IsNullOrEmpty(required))
-                panel.Children.Add(CreateInfoLine("필요", required));
+                panel.Children.Add(CreateConditionLine("필요", required, vm, isLanguage: false));
             if (!string.IsNullOrEmpty(condition))
                 panel.Children.Add(CreateInfoLine("선행", condition));
             if (cities.Count > 0)
@@ -164,35 +165,110 @@ public class PlayerContent : ContentControl
         };
     }
 
+    /// <summary>
+    /// 조건 충족 시 파란색으로 표시하는 라인
+    /// </summary>
+    private static UIElement CreateConditionLine(string label, string value, PlayerContentViewModel? vm, bool isLanguage)
+    {
+        if (vm == null)
+            return CreateInfoLine(label, value);
+
+        if (isLanguage)
+        {
+            bool met = FindPartyLevel(vm, value.Trim()) > 0;
+            return new TextBlock
+            {
+                Text = $"  {label}: {value}",
+                Foreground = met ? Brushes.Blue : Brushes.Black,
+                FontSize = 13,
+                Margin = new Thickness(0, 1, 0, 0)
+            };
+        }
+
+        // Required: 쉼표 구분 가능 ("회계2, 역사학1")
+        var parts = value.Split(',', StringSplitOptions.TrimEntries);
+        if (parts.Length <= 1)
+        {
+            bool met = CheckSingleRequirement(vm, value.Trim());
+            return new TextBlock
+            {
+                Text = $"  {label}: {value}",
+                Foreground = met ? Brushes.Blue : Brushes.Black,
+                FontSize = 13,
+                Margin = new Thickness(0, 1, 0, 0)
+            };
+        }
+
+        // 복합 조건: 각 조건별로 색상 적용
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 0) };
+        panel.Children.Add(new TextBlock { Text = $"  {label}: ", FontSize = 13 });
+        for (int i = 0; i < parts.Length; i++)
+        {
+            bool met = CheckSingleRequirement(vm, parts[i]);
+            if (i > 0) panel.Children.Add(new TextBlock { Text = ", ", FontSize = 13 });
+            panel.Children.Add(new TextBlock
+            {
+                Text = parts[i],
+                Foreground = met ? Brushes.Blue : Brushes.Black,
+                FontSize = 13
+            });
+        }
+        return panel;
+    }
+
+    private static bool CheckSingleRequirement(PlayerContentViewModel vm, string part)
+    {
+        int idx = part.Length;
+        while (idx > 0 && char.IsDigit(part[idx - 1]))
+            idx--;
+        string prefix = part[..idx].Trim();
+        int requiredLevel = idx < part.Length ? int.Parse(part[idx..]) : 1;
+        return FindPartyLevel(vm, prefix) >= requiredLevel;
+    }
+
     private static bool CheckPartyMeetsRequirements(PlayerContentViewModel? vm, string language, string required)
     {
         if (vm == null) return false;
 
-        bool langOk = string.IsNullOrEmpty(language) ||
-                      HasPartySkill(vm.CombinedLanguages, language, 1);
-        bool skillOk = string.IsNullOrEmpty(required) ||
-                       CheckRequiredSkill(vm.CombinedSkills, required);
+        bool langOk = string.IsNullOrEmpty(language?.Trim()) ||
+                      FindPartyLevel(vm, language!.Trim()) > 0;
+
+        bool skillOk = string.IsNullOrEmpty(required?.Trim()) ||
+                       CheckAllRequirements(vm, required!);
 
         return langOk && skillOk;
     }
 
-    private static bool HasPartySkill(ObservableCollection<SkillDisplayItem> items, string name, int minLevel)
+    /// <summary>
+    /// 스킬/언어 이름으로 파티 최고 레벨 조회 (CombinedSkills + CombinedLanguages 모두 검색)
+    /// </summary>
+    private static byte FindPartyLevel(PlayerContentViewModel vm, string name)
     {
-        var item = items.FirstOrDefault(i => i.Name == name);
-        return item != null && item.BestLevel >= minLevel;
+        var skill = vm.CombinedSkills.FirstOrDefault(i => i.Name == name || i.Name.StartsWith(name));
+        var lang = vm.CombinedLanguages.FirstOrDefault(i => i.Name == name || i.Name.StartsWith(name));
+        return Math.Max(skill?.BestLevel ?? 0, lang?.BestLevel ?? 0);
     }
 
-    private static bool CheckRequiredSkill(ObservableCollection<SkillDisplayItem> skills, string required)
+    /// <summary>
+    /// Required 필드 체크 ("회계2, 역사학1" 같은 복합 조건 지원)
+    /// </summary>
+    private static bool CheckAllRequirements(PlayerContentViewModel vm, string required)
     {
-        // "측량1" → prefix "측량", level 1
-        int idx = required.Length;
-        while (idx > 0 && char.IsDigit(required[idx - 1]))
-            idx--;
+        var parts = required.Split(',', StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            if (string.IsNullOrEmpty(part)) continue;
 
-        string prefix = required[..idx];
-        int requiredLevel = idx < required.Length ? int.Parse(required[idx..]) : 1;
+            int idx = part.Length;
+            while (idx > 0 && char.IsDigit(part[idx - 1]))
+                idx--;
 
-        var item = skills.FirstOrDefault(i => i.Name.StartsWith(prefix));
-        return item != null && item.BestLevel >= requiredLevel;
+            string prefix = part[..idx].Trim();
+            int requiredLevel = idx < part.Length ? int.Parse(part[idx..]) : 1;
+
+            if (FindPartyLevel(vm, prefix) < requiredLevel)
+                return false;
+        }
+        return true;
     }
 }
