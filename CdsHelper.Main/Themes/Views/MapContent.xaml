@@ -32,6 +32,12 @@
                                         Width="80" Height="25" />
                                 <Button x:Name="PART_BtnClearTrail" Content="경로 지우기"
                                         Width="80" Height="25" Margin="5,0,0,0" />
+                                <Button x:Name="PART_BtnSaveTrail" Content="경로 저장"
+                                        Width="80" Height="25" Margin="5,0,0,0" />
+                                <Button x:Name="PART_BtnLoadTrail" Content="경로 불러오기"
+                                        Width="90" Height="25" Margin="5,0,0,0" />
+                                <Button x:Name="PART_BtnMyLocation" Content="내 위치"
+                                        Width="70" Height="25" Margin="5,0,0,0" />
 
                                 <!-- 자동이동 -->
                                 <Border Margin="15,0,0,0" BorderBrush="#CCC" BorderThickness="1" CornerRadius="3"

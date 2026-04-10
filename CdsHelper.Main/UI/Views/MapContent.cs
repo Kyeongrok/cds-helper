@@ -1,3 +1,5 @@
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,6 +11,7 @@ using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
+using Microsoft.Win32;
 using Prism.Events;
 using Prism.Ioc;
 
@@ -50,6 +53,7 @@ public class MapContent : ContentControl
     // 이동 경로
     private Polyline? _trailLine;
     private static readonly PointCollection _trailPoints = new();
+    private static readonly List<DateTime> _trailTimestamps = new();
 
     // 목적지 마커
     private Ellipse? _destinationMarker;
@@ -61,6 +65,7 @@ public class MapContent : ContentControl
 
     private bool _isDragging;
     private Point _lastMousePosition;
+    private static bool _autoScrollEnabled = true;
 
     private MapContentViewModel? _viewModel;
 
@@ -193,7 +198,22 @@ public class MapContent : ContentControl
         }
         if (_btnClearTrail != null)
         {
-            _btnClearTrail.Click += (s, e) => _trailPoints.Clear();
+            _btnClearTrail.Click += (s, e) => { _trailPoints.Clear(); _trailTimestamps.Clear(); };
+        }
+        var btnSaveTrail = GetTemplateChild("PART_BtnSaveTrail") as Button;
+        if (btnSaveTrail != null)
+        {
+            btnSaveTrail.Click += (s, e) => SaveTrail();
+        }
+        var btnLoadTrail = GetTemplateChild("PART_BtnLoadTrail") as Button;
+        if (btnLoadTrail != null)
+        {
+            btnLoadTrail.Click += (s, e) => LoadTrail();
+        }
+        var btnMyLocation = GetTemplateChild("PART_BtnMyLocation") as Button;
+        if (btnMyLocation != null)
+        {
+            btnMyLocation.Click += (s, e) => GoToMyLocation();
         }
         if (_btnStartNav != null)
         {
@@ -517,6 +537,8 @@ public class MapContent : ContentControl
     private void MapScrollViewer_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (!_isDragging || _mapScrollViewer == null) return;
+
+        _autoScrollEnabled = false;
 
         var currentPosition = e.GetPosition(_mapScrollViewer);
         var delta = currentPosition - _lastMousePosition;
@@ -899,6 +921,77 @@ public class MapContent : ContentControl
         }
     }
 
+    private void SaveTrail()
+    {
+        if (_trailPoints.Count == 0)
+        {
+            MessageBox.Show("저장할 경로가 없습니다.", "경로 저장",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new SaveFileDialog
+        {
+            Filter = "경로 파일 (*.trail.json)|*.trail.json",
+            DefaultExt = ".trail.json",
+            FileName = $"trail_{DateTime.Now:yyyyMMdd_HHmmss}"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        var coords = _trailPoints.Select((p, i) =>
+        {
+            var (lat, lon) = PixelToLatLon(p.X, p.Y);
+            var time = i < _trailTimestamps.Count
+                ? _trailTimestamps[i].ToString("yyyy-MM-dd HH:mm:ss.fff")
+                : "";
+            return new { lat, lon, time };
+        }).ToList();
+
+        var json = JsonSerializer.Serialize(coords, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(dlg.FileName, json);
+    }
+
+    private void LoadTrail()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Filter = "경로 파일 (*.trail.json)|*.trail.json|JSON 파일 (*.json)|*.json"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var json = File.ReadAllText(dlg.FileName);
+            var coords = JsonSerializer.Deserialize<List<TrailCoord>>(json);
+            if (coords == null || coords.Count == 0)
+            {
+                MessageBox.Show("경로 데이터가 비어 있습니다.", "경로 불러오기",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _trailPoints.Clear();
+            _trailTimestamps.Clear();
+            foreach (var c in coords)
+            {
+                var px = LonToPixelX(c.lon);
+                var py = LatToPixelY(c.lat);
+                _trailPoints.Add(new Point(px, py));
+                _trailTimestamps.Add(
+                    DateTime.TryParse(c.time, out var t) ? t : DateTime.MinValue);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"경로 파일 로드 실패:\n{ex.Message}", "오류",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private record TrailCoord(double lat, double lon, string? time = null);
+
     private void CreateCurrentPositionMarker()
     {
         if (_mapCanvas == null) return;
@@ -962,6 +1055,7 @@ public class MapContent : ContentControl
             if (_trailPoints.Count == 0 || DistanceSq(_trailPoints[^1], newPoint) > 4)
             {
                 _trailPoints.Add(newPoint);
+                _trailTimestamps.Add(DateTime.Now);
             }
 
             // 마커 위치 업데이트
@@ -1094,12 +1188,24 @@ public class MapContent : ContentControl
         return dx * dx + dy * dy;
     }
 
+    private void GoToMyLocation()
+    {
+        if (_currentPositionMarker == null ||
+            _currentPositionMarker.Visibility != Visibility.Visible) return;
+
+        var pixelX = Canvas.GetLeft(_currentPositionMarker) + 5;
+        var pixelY = Canvas.GetTop(_currentPositionMarker) + 5;
+
+        _autoScrollEnabled = true;
+        ScrollToImagePosition(pixelX, pixelY);
+    }
+
     /// <summary>
     /// 마커가 뷰포트 중심 기준 80% 밖에 있으면 마커 위치로 스크롤
     /// </summary>
     private void ScrollToMarkerIfNeeded(double pixelX, double pixelY)
     {
-        if (_mapScrollViewer == null) return;
+        if (_mapScrollViewer == null || !_autoScrollEnabled) return;
 
         var screenX = (pixelX * _currentScale) - _mapScrollViewer.HorizontalOffset;
         var screenY = (pixelY * _currentScale) - _mapScrollViewer.VerticalOffset;
