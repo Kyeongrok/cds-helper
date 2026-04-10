@@ -120,6 +120,18 @@ public class BookRepository : IBookRepository
         _context.ChangeTracker.Clear();
     }
 
+    public async Task DeleteBookAsync(int bookId)
+    {
+        await _context.Database.ExecuteSqlRawAsync(
+            "DELETE FROM BookHints WHERE BookId = {0}", bookId);
+        await _context.Database.ExecuteSqlRawAsync(
+            "DELETE FROM BookCities WHERE BookId = {0}", bookId);
+        await _context.Database.ExecuteSqlRawAsync(
+            "DELETE FROM Books WHERE Id = {0}", bookId);
+
+        _context.ChangeTracker.Clear();
+    }
+
     public async Task<bool> HasAnyDataAsync()
     {
         return await _context.Books.AnyAsync();

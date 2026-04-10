@@ -225,6 +225,21 @@ public class BookService
             throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
 
         await _controller.UpdateBookCitiesAsync(bookId, cityIds);
+
+        // 캐시 갱신
+        await RefreshCacheAsync();
+    }
+
+    /// <summary>
+    /// 도서 삭제
+    /// </summary>
+    public async Task DeleteBookAsync(int bookId)
+    {
+        if (_controller == null)
+            throw new InvalidOperationException("BookService가 초기화되지 않았습니다.");
+
+        await _controller.DeleteBookAsync(bookId);
+        await RefreshCacheAsync();
     }
 
     /// <summary>
