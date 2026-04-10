@@ -115,6 +115,9 @@ public class BookRepository : IBookRepository
                 "INSERT INTO BookCities (BookId, CityId) VALUES ({0}, {1})",
                 bookId, cityId);
         }
+
+        // Raw SQL 실행 후 Change Tracker 초기화 (캐시된 엔티티가 반환되지 않도록)
+        _context.ChangeTracker.Clear();
     }
 
     public async Task<bool> HasAnyDataAsync()
