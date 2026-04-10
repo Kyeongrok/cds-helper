@@ -14,6 +14,7 @@ public class AppSettingsData
     public double MarkerSize { get; set; } = AppSettings.DefaultMarkerSize;
     public string DefaultView { get; set; } = AppSettings.DefaultDefaultView;
     public string? LastSaveFilePath { get; set; }
+    public string? TrailDirectory { get; set; }
     public HashSet<int> CheckedDiscoveryIds { get; set; } = new();
 }
 
@@ -33,6 +34,7 @@ public static class AppSettings
     private static string _defaultView = DefaultDefaultView;
     private static string? _lastSaveFilePath;
     private static HashSet<int> _checkedDiscoveryIds = new();
+    private static string _trailDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trails");
 
     static AppSettings()
     {
@@ -67,6 +69,16 @@ public static class AppSettings
         set
         {
             _lastSaveFilePath = value;
+            SaveSettings();
+        }
+    }
+
+    public static string TrailDirectory
+    {
+        get => _trailDirectory;
+        set
+        {
+            _trailDirectory = value;
             SaveSettings();
         }
     }
@@ -117,6 +129,8 @@ public static class AppSettings
                     _markerSize = data.MarkerSize;
                     _defaultView = data.DefaultView;
                     _lastSaveFilePath = data.LastSaveFilePath;
+                    if (!string.IsNullOrEmpty(data.TrailDirectory))
+                        _trailDirectory = data.TrailDirectory;
                     _checkedDiscoveryIds = data.CheckedDiscoveryIds ?? new();
                 }
             }
@@ -142,6 +156,7 @@ public static class AppSettings
                 MarkerSize = _markerSize,
                 DefaultView = _defaultView,
                 LastSaveFilePath = _lastSaveFilePath,
+                TrailDirectory = _trailDirectory,
                 CheckedDiscoveryIds = _checkedDiscoveryIds
             };
 

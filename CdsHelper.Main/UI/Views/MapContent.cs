@@ -930,14 +930,12 @@ public class MapContent : ContentControl
             return;
         }
 
-        var dlg = new SaveFileDialog
-        {
-            Filter = "경로 파일 (*.trail.json)|*.trail.json",
-            DefaultExt = ".trail.json",
-            FileName = $"trail_{DateTime.Now:yyyyMMdd_HHmmss}"
-        };
+        var dir = AppSettings.TrailDirectory;
+        if (!Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
 
-        if (dlg.ShowDialog() != true) return;
+        var fileName = $"trail_{DateTime.Now:yyyyMMdd_HHmmss}.trail.json";
+        var filePath = System.IO.Path.Combine(dir, fileName);
 
         var coords = _trailPoints.Select((p, i) =>
         {
@@ -949,21 +947,100 @@ public class MapContent : ContentControl
         }).ToList();
 
         var json = JsonSerializer.Serialize(coords, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(dlg.FileName, json);
+        File.WriteAllText(filePath, json);
+        MessageBox.Show($"저장 완료: {fileName}", "경로 저장",
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void LoadTrail()
     {
-        var dlg = new OpenFileDialog
+        var dir = AppSettings.TrailDirectory;
+        if (!Directory.Exists(dir))
         {
-            Filter = "경로 파일 (*.trail.json)|*.trail.json|JSON 파일 (*.json)|*.json"
+            MessageBox.Show("경로 디렉토리가 없습니다.", "경로 불러오기",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var files = Directory.GetFiles(dir, "*.trail.json")
+            .OrderByDescending(f => File.GetLastWriteTime(f))
+            .ToArray();
+
+        if (files.Length == 0)
+        {
+            MessageBox.Show("저장된 경로 파일이 없습니다.", "경로 불러오기",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // 파일 선택 다이얼로그
+        var selectWindow = new Window
+        {
+            Title = "경로 불러오기",
+            Width = 450,
+            Height = 350,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            ResizeMode = ResizeMode.NoResize
         };
 
-        if (dlg.ShowDialog() != true) return;
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var listBox = new ListBox { Margin = new Thickness(10, 10, 10, 5) };
+        foreach (var f in files)
+        {
+            var fi = new FileInfo(f);
+            var item = new ListBoxItem
+            {
+                Content = $"{fi.Name}  ({fi.LastWriteTime:yyyy-MM-dd HH:mm})",
+                Tag = f
+            };
+            listBox.Items.Add(item);
+        }
+        if (listBox.Items.Count > 0)
+            listBox.SelectedIndex = 0;
+
+        Grid.SetRow(listBox, 0);
+        grid.Children.Add(listBox);
+
+        var btnPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(10, 5, 10, 10)
+        };
+        var btnOk = new Button { Content = "열기", Width = 80, Height = 28, IsDefault = true };
+        var btnCancel = new Button { Content = "취소", Width = 80, Height = 28, Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+        btnPanel.Children.Add(btnOk);
+        btnPanel.Children.Add(btnCancel);
+        Grid.SetRow(btnPanel, 1);
+        grid.Children.Add(btnPanel);
+
+        selectWindow.Content = grid;
+
+        string? selectedFile = null;
+        btnOk.Click += (s, e) =>
+        {
+            if (listBox.SelectedItem is ListBoxItem sel)
+                selectedFile = sel.Tag as string;
+            selectWindow.DialogResult = true;
+        };
+
+        listBox.MouseDoubleClick += (s, e) =>
+        {
+            if (listBox.SelectedItem is ListBoxItem sel)
+            {
+                selectedFile = sel.Tag as string;
+                selectWindow.DialogResult = true;
+            }
+        };
+
+        if (selectWindow.ShowDialog() != true || selectedFile == null) return;
 
         try
         {
-            var json = File.ReadAllText(dlg.FileName);
+            var json = File.ReadAllText(selectedFile);
             var coords = JsonSerializer.Deserialize<List<TrailCoord>>(json);
             if (coords == null || coords.Count == 0)
             {
