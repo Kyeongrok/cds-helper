@@ -30,6 +30,33 @@
                             <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                 <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적"
                                         Width="80" Height="25" />
+                                <Button x:Name="PART_BtnClearTrail" Content="경로 지우기"
+                                        Width="80" Height="25" Margin="5,0,0,0" />
+
+                                <!-- 자동이동 -->
+                                <Border Margin="15,0,0,0" BorderBrush="#CCC" BorderThickness="1" CornerRadius="3"
+                                        Padding="5,2" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="목적지" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <ComboBox x:Name="PART_CmbNavLatDir" Width="55" Height="22" SelectedIndex="0">
+                                            <ComboBoxItem Content="북위" />
+                                            <ComboBoxItem Content="남위" />
+                                        </ComboBox>
+                                        <TextBox x:Name="PART_TxtNavLat" Width="35" Height="22" Margin="3,0,0,0"
+                                                 VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
+                                        <ComboBox x:Name="PART_CmbNavLonDir" Width="55" Height="22" Margin="5,0,0,0" SelectedIndex="0">
+                                            <ComboBoxItem Content="동경" />
+                                            <ComboBoxItem Content="서경" />
+                                        </ComboBox>
+                                        <TextBox x:Name="PART_TxtNavLon" Width="35" Height="22" Margin="3,0,0,0"
+                                                 VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
+                                        <Button x:Name="PART_BtnStartNav" Content="이동" Width="55" Height="22" Margin="5,0,0,0" />
+                                        <Button x:Name="PART_BtnStopNav" Content="중지" Width="55" Height="22" Margin="3,0,0,0"
+                                                Visibility="Collapsed" />
+                                        <TextBlock x:Name="PART_TxtNavStatus" Text="" VerticalAlignment="Center"
+                                                   Margin="8,0,0,0" FontFamily="Consolas" Foreground="Blue" />
+                                    </StackPanel>
+                                </Border>
                                 <TextBlock x:Name="PART_TxtCurrentCoordinate" Text="" VerticalAlignment="Center"
                                            Margin="10,0,0,0" FontFamily="Consolas" Foreground="Red" FontWeight="Bold" />
                                 <TextBlock x:Name="PART_TxtCenterPosition" Text="중심: -" VerticalAlignment="Center"

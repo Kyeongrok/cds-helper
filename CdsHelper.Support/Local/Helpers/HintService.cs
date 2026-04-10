@@ -109,6 +109,30 @@ public class HintService
     }
 
     /// <summary>
+    /// 특정 힌트를 수록한 도서 목록 조회
+    /// </summary>
+    public async Task<List<(string BookName, string Language, string Required, string Condition, List<string> Cities)>> GetBooksByHintIndexAsync(int hintIndex)
+    {
+        if (_dbContext == null) return new();
+
+        var bookHints = await _dbContext.BookHints
+            .Include(bh => bh.Book)
+                .ThenInclude(b => b.BookCities)
+                    .ThenInclude(bc => bc.City)
+            .Where(bh => bh.HintId == hintIndex)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return bookHints.Select(bh => (
+            bh.Book.Name,
+            bh.Book.Language ?? "",
+            bh.Book.Required ?? "",
+            bh.Book.Condition ?? "",
+            bh.Book.BookCities.Select(bc => bc.City.Name).ToList()
+        )).ToList();
+    }
+
+    /// <summary>
     /// 힌트별 책 정보 (언어, 필요 스킬, 개제조건) 조회
     /// </summary>
     public async Task<Dictionary<int, (string Language, string Required, string Condition)>> GetHintBookInfoAsync()

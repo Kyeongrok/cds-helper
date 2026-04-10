@@ -20,6 +20,7 @@ public class MapContent : ContentControl
     private Button? _btnZoomOut;
     private Button? _btnZoomReset;
     private Button? _btnTrackCoordinate;
+    private Button? _btnClearTrail;
     private CheckBox? _chkShowCityLabels;
     private CheckBox? _chkShowCoordinates;
     private CheckBox? _chkShowCulturalSpheres;
@@ -27,6 +28,13 @@ public class MapContent : ContentControl
     private TextBlock? _txtMapCoordinates;
     private TextBlock? _txtCenterPosition;
     private TextBlock? _txtCurrentCoordinate;
+    private TextBlock? _txtNavStatus;
+    private Button? _btnStartNav;
+    private Button? _btnStopNav;
+    private ComboBox? _cmbNavLatDir;
+    private ComboBox? _cmbNavLonDir;
+    private TextBox? _txtNavLat;
+    private TextBox? _txtNavLon;
     private ScrollViewer? _mapScrollViewer;
     private Image? _imgMap;
     private Canvas? _mapCanvas;
@@ -38,6 +46,13 @@ public class MapContent : ContentControl
     // 현재 위치 마커
     private Ellipse? _currentPositionMarker;
     private Ellipse? _currentPositionPulse;
+
+    // 이동 경로
+    private Polyline? _trailLine;
+    private static readonly PointCollection _trailPoints = new();
+
+    // 목적지 마커
+    private Ellipse? _destinationMarker;
 
     private double _currentScale = 1.0;
     private const double ScaleStep = 0.5;
@@ -163,10 +178,30 @@ public class MapContent : ContentControl
 
         // 좌표 추적 버튼
         _btnTrackCoordinate = GetTemplateChild("PART_BtnTrackCoordinate") as Button;
+        _btnClearTrail = GetTemplateChild("PART_BtnClearTrail") as Button;
+        _btnStartNav = GetTemplateChild("PART_BtnStartNav") as Button;
+        _btnStopNav = GetTemplateChild("PART_BtnStopNav") as Button;
+        _cmbNavLatDir = GetTemplateChild("PART_CmbNavLatDir") as ComboBox;
+        _cmbNavLonDir = GetTemplateChild("PART_CmbNavLonDir") as ComboBox;
+        _txtNavLat = GetTemplateChild("PART_TxtNavLat") as TextBox;
+        _txtNavLon = GetTemplateChild("PART_TxtNavLon") as TextBox;
         _txtCurrentCoordinate = GetTemplateChild("PART_TxtCurrentCoordinate") as TextBlock;
+        _txtNavStatus = GetTemplateChild("PART_TxtNavStatus") as TextBlock;
         if (_btnTrackCoordinate != null)
         {
             _btnTrackCoordinate.Click += (s, e) => ToggleTracking();
+        }
+        if (_btnClearTrail != null)
+        {
+            _btnClearTrail.Click += (s, e) => _trailPoints.Clear();
+        }
+        if (_btnStartNav != null)
+        {
+            _btnStartNav.Click += (s, e) => StartNavigationFromUI();
+        }
+        if (_btnStopNav != null)
+        {
+            _btnStopNav.Click += (s, e) => StopNavigation();
         }
 
         // CityMarker 이벤트 핸들러 등록
@@ -521,17 +556,46 @@ public class MapContent : ContentControl
 
     private void ImgMap_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_mapCanvas == null) return;
+        if (_mapCanvas == null || _viewModel == null) return;
 
         var pos = e.GetPosition(_mapCanvas);
         var (lat, lon) = PixelToLatLon(pos.X, pos.Y);
         var latDir = lat >= 0 ? "N" : "S";
         var lonDir = lon >= 0 ? "E" : "W";
+        var coordText = $"{Math.Abs(lat):F0}°{latDir}, {Math.Abs(lon):F0}°{lonDir}";
 
-        MessageBox.Show($"위도: {Math.Abs(lat):F1}°{latDir}\n경도: {Math.Abs(lon):F1}°{lonDir}",
-            "좌표 정보", MessageBoxButton.OK, MessageBoxImage.Information);
+        var menu = new ContextMenu();
 
+        var setDestItem = new MenuItem { Header = $"목적지 설정 ({coordText})" };
+        setDestItem.Click += (s, args) => SetNavigationDestination(lat, lon, pos.X, pos.Y);
+        menu.Items.Add(setDestItem);
+
+        var navItem = new MenuItem { Header = $"이 위치로 바로 이동 ({coordText})" };
+        navItem.Click += (s, args) =>
+        {
+            SetNavigationDestination(lat, lon, pos.X, pos.Y);
+            StartNavigationFromUI();
+        };
+        menu.Items.Add(navItem);
+
+        menu.IsOpen = true;
         e.Handled = true;
+    }
+
+    private void SetNavigationDestination(double lat, double lon, double pixelX, double pixelY)
+    {
+        // 위경도 방향 & 값 세팅
+        if (_cmbNavLatDir != null)
+            _cmbNavLatDir.SelectedIndex = lat >= 0 ? 0 : 1; // 0=북위, 1=남위
+        if (_cmbNavLonDir != null)
+            _cmbNavLonDir.SelectedIndex = lon >= 0 ? 0 : 1; // 0=동경, 1=서경
+        if (_txtNavLat != null)
+            _txtNavLat.Text = $"{Math.Abs(lat):F0}";
+        if (_txtNavLon != null)
+            _txtNavLon.Text = $"{Math.Abs(lon):F0}";
+
+        // 목적지 마커 표시
+        ShowDestinationMarker(pixelX, pixelY);
     }
 
     /// <summary>
@@ -839,6 +903,16 @@ public class MapContent : ContentControl
     {
         if (_mapCanvas == null) return;
 
+        // 이동 경로 선 (마커보다 먼저 추가해서 뒤에 표시)
+        _trailLine = new Polyline
+        {
+            Stroke = new SolidColorBrush(Color.FromArgb(180, 255, 80, 80)),
+            StrokeThickness = 2,
+            IsHitTestVisible = false,
+            Points = _trailPoints
+        };
+        _mapCanvas.Children.Add(_trailLine);
+
         // 외곽 펄스 원 (반투명)
         _currentPositionPulse = new Ellipse
         {
@@ -883,6 +957,13 @@ public class MapContent : ContentControl
             var pixelX = LonToPixelX(args.Longitude);
             var pixelY = LatToPixelY(args.Latitude);
 
+            // 이동 경로에 포인트 추가
+            var newPoint = new Point(pixelX, pixelY);
+            if (_trailPoints.Count == 0 || DistanceSq(_trailPoints[^1], newPoint) > 4)
+            {
+                _trailPoints.Add(newPoint);
+            }
+
             // 마커 위치 업데이트
             if (_currentPositionMarker != null)
             {
@@ -903,12 +984,114 @@ public class MapContent : ContentControl
             {
                 var latDir = args.Latitude >= 0 ? "N" : "S";
                 var lonDir = args.Longitude >= 0 ? "E" : "W";
-                _txtCurrentCoordinate.Text = $"현재: {Math.Abs(args.Latitude):F0}°{latDir}, {Math.Abs(args.Longitude):F0}°{lonDir}";
+                var prefix = args.IsStale ? "최근" : "현재";
+                _txtCurrentCoordinate.Text = $"{prefix}: {Math.Abs(args.Latitude):F0}°{latDir}, {Math.Abs(args.Longitude):F0}°{lonDir}";
+                _txtCurrentCoordinate.Foreground = new SolidColorBrush(args.IsStale ? Colors.Gray : Colors.Red);
             }
 
             // 마커가 뷰포트 80% 밖이면 스크롤
             ScrollToMarkerIfNeeded(pixelX, pixelY);
         });
+    }
+
+    private void StartNavigationFromUI()
+    {
+        if (_viewModel == null) return;
+
+        if (!int.TryParse(_txtNavLat?.Text, out var latVal) ||
+            !int.TryParse(_txtNavLon?.Text, out var lonVal))
+        {
+            MessageBox.Show("위도/경도를 숫자로 입력하세요.", "알림",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var isNorth = _cmbNavLatDir?.SelectedIndex == 0;
+        var isEast = _cmbNavLonDir?.SelectedIndex == 0;
+        var destLat = isNorth ? latVal : -latVal;
+        var destLon = isEast ? lonVal : -lonVal;
+
+        // 목적지 마커 표시
+        var pixelX = LonToPixelX(destLon);
+        var pixelY = LatToPixelY(destLat);
+        ShowDestinationMarker(pixelX, pixelY);
+
+        // 상태 이벤트 연결
+        _viewModel.NavigationStatusChanged += OnNavStatusChanged;
+        _viewModel.StartNavigation(destLat, destLon);
+
+        if (_btnStopNav != null)
+            _btnStopNav.Visibility = Visibility.Visible;
+        if (_btnStartNav != null)
+            _btnStartNav.Visibility = Visibility.Collapsed;
+    }
+
+    private void StopNavigation()
+    {
+        if (_viewModel == null) return;
+
+        _viewModel.StopNavigation();
+        _viewModel.NavigationStatusChanged -= OnNavStatusChanged;
+
+        if (_btnStopNav != null)
+            _btnStopNav.Visibility = Visibility.Collapsed;
+        if (_btnStartNav != null)
+            _btnStartNav.Visibility = Visibility.Visible;
+        if (_destinationMarker != null)
+            _destinationMarker.Visibility = Visibility.Collapsed;
+        if (_txtNavStatus != null)
+            _txtNavStatus.Text = "";
+    }
+
+    private void OnNavStatusChanged(string status)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_txtNavStatus != null)
+                _txtNavStatus.Text = status;
+
+            // 도착하면 UI 정리
+            if (_viewModel != null && !_viewModel.IsNavigating)
+            {
+                _viewModel.NavigationStatusChanged -= OnNavStatusChanged;
+                if (_btnStopNav != null)
+                    _btnStopNav.Visibility = Visibility.Collapsed;
+                if (_btnStartNav != null)
+                    _btnStartNav.Visibility = Visibility.Visible;
+                if (_destinationMarker != null)
+                    _destinationMarker.Visibility = Visibility.Collapsed;
+            }
+        });
+    }
+
+    private void ShowDestinationMarker(double pixelX, double pixelY)
+    {
+        if (_mapCanvas == null) return;
+
+        if (_destinationMarker == null)
+        {
+            _destinationMarker = new Ellipse
+            {
+                Width = 14,
+                Height = 14,
+                Fill = new SolidColorBrush(Color.FromArgb(100, 0, 120, 255)),
+                Stroke = new SolidColorBrush(Colors.Blue),
+                StrokeThickness = 2,
+                IsHitTestVisible = false
+            };
+            _mapCanvas.Children.Add(_destinationMarker);
+        }
+
+        Canvas.SetLeft(_destinationMarker, pixelX - 7);
+        Canvas.SetTop(_destinationMarker, pixelY - 7);
+        _destinationMarker.Visibility = Visibility.Visible;
+    }
+
+    private static double DistanceSq(Point a, Point b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return dx * dx + dy * dy;
     }
 
     /// <summary>
