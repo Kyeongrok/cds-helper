@@ -286,6 +286,73 @@ public class CoordinateOcrService : IDisposable
         }
     }
 
+    /// <summary>게임 화면 상단바에서 좌표 + 날짜를 한번에 OCR로 인식.</summary>
+    public async Task<(CoordinatePrediction? coord, string? date)> PredictAllAsync(Bitmap screenshot)
+    {
+        var engine = GetOcrEngine();
+        if (engine == null) return (null, null);
+
+        var topBar = CropTopBar(screenshot);
+        if (topBar == null) return (null, null);
+
+        try
+        {
+            using var mat = BitmapConverter.ToMat(topBar);
+            topBar.Dispose();
+            using var scaled = new Mat();
+            Cv2.Resize(mat, scaled, new OpenCvSharp.Size(mat.Cols * 3, mat.Rows * 3),
+                interpolation: InterpolationFlags.Cubic);
+
+            using var scaledBmp = BitmapConverter.ToBitmap(scaled);
+            using var ms = new MemoryStream();
+            scaledBmp.Save(ms, ImageFormat.Png);
+            ms.Position = 0;
+
+            using var ras = ms.AsRandomAccessStream();
+            var decoder = await BitmapDecoder.CreateAsync(ras);
+            var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
+
+            if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8
+                || softwareBitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
+            {
+                softwareBitmap = SoftwareBitmap.Convert(softwareBitmap,
+                    BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+            }
+
+            var ocrResult = await engine.RecognizeAsync(softwareBitmap);
+            softwareBitmap.Dispose();
+
+            var text = ocrResult.Text;
+            var parsed = ParseCoordinateText(text);
+            CoordinatePrediction? coord = parsed != null
+                ? new CoordinatePrediction(
+                    IsNorth: parsed.Value.latDir == 0,
+                    LatValue: parsed.Value.latVal,
+                    IsEast: parsed.Value.lonDir == 0,
+                    LonValue: parsed.Value.lonVal)
+                : null;
+
+            var date = ParseDateText(text);
+
+            return (coord, date);
+        }
+        catch
+        {
+            return (null, null);
+        }
+    }
+
+    /// <summary>
+    /// OCR 텍스트에서 게임 날짜를 파싱.
+    /// 예: "1505년 9월 23일" → "1505년 9월 23일"
+    /// </summary>
+    private static string? ParseDateText(string text)
+    {
+        var match = Regex.Match(text, @"(\d{3,4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일");
+        if (!match.Success) return null;
+        return $"{match.Groups[1].Value}년 {match.Groups[2].Value}월 {match.Groups[3].Value}일";
+    }
+
     /// <summary>
     /// OCR 텍스트에서 좌표를 파싱.
     /// 예: "북위 38 서경 10" → (0, 38, 1, 10)
