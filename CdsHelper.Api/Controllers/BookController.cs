@@ -121,4 +121,9 @@ public class BookController
     {
         await _repository.UpdateBookCitiesAsync(bookId, cityIds);
     }
+
+    public async Task DeleteBookAsync(int bookId)
+    {
+        await _repository.DeleteBookAsync(bookId);
+    }
 }

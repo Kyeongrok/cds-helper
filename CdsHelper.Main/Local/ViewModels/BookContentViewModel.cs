@@ -101,6 +101,7 @@ public class BookContentViewModel : BindableBase
 
     public ICommand ResetBookFilterCommand { get; }
     public ICommand EditLibraryMappingCommand { get; }
+    public ICommand DeleteBookCommand { get; }
     public ICommand NavigateToLibraryCommand { get; }
     // LoadSaveCommand와 RefreshCommand는 CdsHelperWindow의 공통 영역에서 처리
 
@@ -119,6 +120,8 @@ public class BookContentViewModel : BindableBase
 
         ResetBookFilterCommand = new DelegateCommand(ResetFilter);
         EditLibraryMappingCommand = new DelegateCommand(EditLibraryMapping, () => SelectedBook != null)
+            .ObservesProperty(() => SelectedBook);
+        DeleteBookCommand = new DelegateCommand(DeleteBook, () => SelectedBook != null)
             .ObservesProperty(() => SelectedBook);
         NavigateToLibraryCommand = new DelegateCommand<byte?>(NavigateToLibrary);
 
@@ -301,6 +304,29 @@ public class BookContentViewModel : BindableBase
             PixelX = city.PixelX,
             PixelY = city.PixelY
         });
+    }
+
+    private async void DeleteBook()
+    {
+        if (SelectedBook == null) return;
+
+        var result = MessageBox.Show(
+            $"'{SelectedBook.Name}' 도서를 삭제하시겠습니까?",
+            "도서 삭제", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        try
+        {
+            await _bookService.DeleteBookAsync(SelectedBook.Id);
+            await LoadBooksFromDbAsync();
+            StatusText = "도서 삭제 완료";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"도서 삭제 실패: {ex.Message}", "오류",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void EditLibraryMapping()
