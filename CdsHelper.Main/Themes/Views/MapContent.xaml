@@ -28,16 +28,42 @@
                                           VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적"
-                                        Width="80" Height="25" />
-                                <Button x:Name="PART_BtnClearTrail" Content="경로 지우기"
-                                        Width="80" Height="25" Margin="5,0,0,0" />
-                                <Button x:Name="PART_BtnSaveTrail" Content="경로 저장"
-                                        Width="80" Height="25" Margin="5,0,0,0" />
-                                <Button x:Name="PART_BtnLoadTrail" Content="경로 불러오기"
-                                        Width="90" Height="25" Margin="5,0,0,0" />
-                                <Button x:Name="PART_BtnMyLocation" Content="내 위치"
-                                        Width="70" Height="25" Margin="5,0,0,0" />
+                                <Button x:Name="PART_BtnTrackCoordinate" Width="30" Height="25"
+                                        ToolTip="좌표 추적">
+                                    <Viewbox Width="14" Height="14">
+                                        <Path x:Name="PART_TrackIcon"
+                                              Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                                              Fill="#555" />
+                                    </Viewbox>
+                                </Button>
+                                <Button x:Name="PART_BtnClearTrail" Width="30" Height="25" Margin="5,0,0,0"
+                                        ToolTip="경로 지우기">
+                                    <Viewbox Width="14" Height="14">
+                                        <Path Data="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                                              Fill="#555" />
+                                    </Viewbox>
+                                </Button>
+                                <Button x:Name="PART_BtnSaveTrail" Width="30" Height="25" Margin="5,0,0,0"
+                                        ToolTip="경로 저장">
+                                    <Viewbox Width="14" Height="14">
+                                        <Path Data="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
+                                              Fill="#555" />
+                                    </Viewbox>
+                                </Button>
+                                <Button x:Name="PART_BtnLoadTrail" Width="30" Height="25" Margin="5,0,0,0"
+                                        ToolTip="경로 불러오기">
+                                    <Viewbox Width="14" Height="14">
+                                        <Path Data="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"
+                                              Fill="#555" />
+                                    </Viewbox>
+                                </Button>
+                                <Button x:Name="PART_BtnMyLocation" Width="30" Height="25" Margin="5,0,0,0"
+                                        ToolTip="내 위치">
+                                    <Viewbox Width="14" Height="14">
+                                        <Path Data="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"
+                                              Fill="#555" />
+                                    </Viewbox>
+                                </Button>
 
                                 <!-- 자동이동 -->
                                 <Border Margin="15,0,0,0" BorderBrush="#CCC" BorderThickness="1" CornerRadius="3"

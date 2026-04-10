@@ -45,14 +45,24 @@ public class PlayerContent : ContentControl
             _filterCheckBox.Checked += FilterCheckBox_Changed;
             _filterCheckBox.Unchecked += FilterCheckBox_Changed;
         }
+
+        // ItemsSource 변경 시 필터 재적용
+        if (_hintsDataGrid != null)
+        {
+            var dpd = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(
+                System.Windows.Controls.ItemsControl.ItemsSourceProperty, typeof(DataGrid));
+            dpd?.AddValueChanged(_hintsDataGrid, (s, e) => ReapplyFilter());
+        }
     }
 
-    private void FilterCheckBox_Changed(object sender, RoutedEventArgs e)
+    private void FilterCheckBox_Changed(object sender, RoutedEventArgs e) => ReapplyFilter();
+
+    private void ReapplyFilter()
     {
-        if (_hintsDataGrid?.ItemsSource == null) return;
+        if (_hintsDataGrid?.ItemsSource == null || _filterCheckBox == null) return;
 
         var view = CollectionViewSource.GetDefaultView(_hintsDataGrid.ItemsSource);
-        if (_filterCheckBox?.IsChecked == true)
+        if (_filterCheckBox.IsChecked == true)
         {
             view.Filter = item => item is HintData hint && !hint.IsDiscovered;
         }
