@@ -222,14 +222,14 @@ public class StatRerollService : IDisposable
         var bitmap = GameWindowHelper.CaptureClient(hWnd);
         if (bitmap == null) { Log("화면 캡처 실패"); return (null, null, null); }
 
-        var mat = BitmapConverter.ToMat(bitmap);
+        var bgr = BitmapConverter.ToMat(bitmap);
         var gray = new Mat();
-        Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
+        Cv2.CvtColor(bgr, gray, ColorConversionCodes.BGR2GRAY);
 
         Directory.CreateDirectory(_numberTemplateDir);
-        mat.Dispose();
 
-        var layout = DetectLayout(gray);
+        var layout = DetectLayout(gray, bgr);
+        bgr.Dispose();
         if (layout == null) { gray.Dispose(); bitmap.Dispose(); return (null, null, null); }
 
         Log($"다이얼로그: ({layout.Dialog.X},{layout.Dialog.Y}) {layout.Dialog.Width}x{layout.Dialog.Height}");
@@ -241,15 +241,15 @@ public class StatRerollService : IDisposable
             Cv2.Rectangle(debugMat, layout.StatRois[i], new Scalar(0, 0, 255), 1);
         Cv2.Circle(debugMat, layout.HunterBtn, 5, new Scalar(255, 0, 0), 1);
 
-        var debugPath = Path.Combine(_numberTemplateDir, $"debug_{DateTime.Now:HHmmss}.png");
+        var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"debug_{DateTime.Now:HHmmss}.png");
         Cv2.ImWrite(debugPath, debugMat);
         Log($"디버그 이미지 저장: {debugPath}");
 
         return (gray, bitmap, layout);
     }
 
-    /// <summary>게임 화면에서 능력치 다이얼로그, 버튼, 5개 능력치 행 영역을 자동 감지한다.</summary>
-    private DetectedLayout? DetectLayout(Mat gray)
+    /// <summary>게임 화면에서 능력치 다이얼로그, 버튼, 숫자 영역을 자동 감지한다.</summary>
+    private DetectedLayout? DetectLayout(Mat gray, Mat bgr)
     {
         // 1) 어두운 다이얼로그 영역 찾기
         using var darkMask = new Mat();
@@ -262,8 +262,6 @@ public class StatRerollService : IDisposable
         Cv2.FindContours(closed, out var contours, out _,
             RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
-        // 적절한 크기/비율의 어두운 사각형 중 가장 큰 것 = 다이얼로그
-        // 위치 제한 없음 (다이얼로그는 화면 어디에나 있을 수 있음)
         Rect? dialogRect = null;
         double maxArea = 0;
 
@@ -273,10 +271,7 @@ public class StatRerollService : IDisposable
             var area = (double)r.Width * r.Height;
             var screenArea = (double)gray.Cols * gray.Rows;
 
-            // 크기: 화면의 1~40%
             if (area < screenArea * 0.01 || area > screenArea * 0.40) continue;
-
-            // 가로세로 비율: 1.0 ~ 2.5
             double aspect = (double)r.Width / r.Height;
             if (aspect < 1.0 || aspect > 2.5) continue;
 
@@ -290,50 +285,269 @@ public class StatRerollService : IDisposable
         }
         var dlg = dialogRect.Value;
 
-        // 2) 숫자 영역: 1자리씩 10개 박스 (5행 × 십의자리/일의자리)
-        //    실측: 다이얼로그(288x208) 내 십의자리 (79,24)-(87,38), 일의자리 (87,24)-(95,38)
-        double tensXPct = 0.277;  // 79/288
-        double onesXPct = 0.305;  // 87/288
-        double digitWPct = 0.028; // 8/288
-        double digitHPct = 0.080; // 14/208
-        double[] rowYPcts = { 0.116, 0.235, 0.350, 0.465, 0.580 };
+        // 2) 다이얼로그 영역에서 그레이 + R/G/B 채널별 다중 임계값 → ONNX로 숫자 필터
+        var dlgArea = ClampRect(dlg, gray.Cols, gray.Rows);
+        using var dlgGray = new Mat(gray, dlgArea);
+        using var dlgBgr = new Mat(bgr, dlgArea);
 
-        int tensX = dlg.X + (int)(dlg.Width * tensXPct);
-        int onesX = dlg.X + (int)(dlg.Width * onesXPct);
-        int digitW = Math.Max(1, (int)(dlg.Width * digitWPct));
-        int digitH = Math.Max(1, (int)(dlg.Height * digitHPct));
+        // B, G, R 채널 분리
+        var channels = new Mat[3];
+        Cv2.Split(dlgBgr, out channels);
 
-        // 보너스 포인트 위치 (다이얼로그 내)
-        double bonusTensXPct = 0.360;
-        double bonusOnesXPct = 0.388;
-        double bonusYPct = 0.81;
+        int[] thresholds = { 40, 60, 80, 100, 120, 140, 160, 180 };
+        string[] channelNames = { "B", "G", "R", "Gray" };
+        var channelMats = new[] { channels[0], channels[1], channels[2], dlgGray };
 
-        var statRois = rowYPcts.SelectMany(yPct =>
+        double minH = dlg.Height * 0.03;
+        double maxH = dlg.Height * 0.20;
+
+        var debugDir = AppDomain.CurrentDomain.BaseDirectory;
+        var ts = DateTime.Now.ToString("HHmmss");
+
+        var allDigitRects = new HashSet<(int X, int Y)>();
+        var digitRects = new List<Rect>();
+
+        for (int ch = 0; ch < channelMats.Length; ch++)
         {
-            int y = dlg.Y + (int)(dlg.Height * yPct);
-            return new[]
+            var chMat = channelMats[ch];
+            int chDigitCount = 0;
+
+            foreach (var thresh in thresholds)
             {
-                new Rect(tensX, y, digitW, digitH),
-                new Rect(onesX, y, digitW, digitH),
-            };
-        }).Concat(new[] // 보너스 포인트 (인덱스 10, 11)
+                using var mask = new Mat();
+                Cv2.Threshold(chMat, mask, thresh, 255, ThresholdTypes.Binary);
+
+                Cv2.FindContours(mask, out var contourArr, out _,
+                    RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+                var threshDigits = new List<Rect>();
+
+                foreach (var c in contourArr)
+                {
+                    var r = Cv2.BoundingRect(c);
+                    if (r.Height < minH || r.Height > maxH) continue;
+                    if (r.Width < 2) continue;
+                    if ((double)r.Width / r.Height > 2.0) continue;
+
+                    var roiClamped = ClampRect(r, chMat.Cols, chMat.Rows);
+                    if (roiClamped.Width <= 0 || roiClamped.Height <= 0) continue;
+
+                    using var roiMat = new Mat(chMat, roiClamped);
+                    using var binary = new Mat();
+                    Cv2.Threshold(roiMat, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
+
+                    try
+                    {
+                        var (digit, conf) = _onnx.Value.Recognize(binary, 0.3f);
+                        if (digit >= 0)
+                        {
+                            var absRect = new Rect(dlgArea.X + r.X, dlgArea.Y + r.Y, r.Width, r.Height);
+                            threshDigits.Add(absRect);
+
+                            int cx = absRect.X + absRect.Width / 2;
+                            int cy = absRect.Y + absRect.Height / 2;
+                            bool dup = allDigitRects.Any(p =>
+                                Math.Abs(p.X - cx) < 4 && Math.Abs(p.Y - cy) < 4);
+                            if (!dup)
+                            {
+                                allDigitRects.Add((cx, cy));
+                                digitRects.Add(absRect);
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                chDigitCount += threshDigits.Count;
+
+                // 채널별 디버그 이미지 저장
+                using var debugMat = new Mat();
+                Cv2.CvtColor(mask, debugMat, ColorConversionCodes.GRAY2BGR);
+                foreach (var r in threshDigits)
+                    Cv2.Rectangle(debugMat,
+                        new Rect(r.X - dlgArea.X, r.Y - dlgArea.Y, r.Width, r.Height),
+                        new Scalar(0, 0, 255), 1);
+                var threshPath = Path.Combine(debugDir, $"thresh_{channelNames[ch]}_{thresh}_{ts}.png");
+                Cv2.ImWrite(threshPath, debugMat);
+            }
+
+            Log($"  {channelNames[ch]} 채널: {chDigitCount}개 숫자");
+        }
+
+        foreach (var ch in channels) ch.Dispose();
+
+        Log($"다중 채널+임계값 결과: 총 {digitRects.Count}개 숫자 감지 (중복 제거)");
+
+        // 디버그: 후보 contour 표시
+        SaveContourDebugImage(gray, dlg, digitRects, "detect_digits");
+
+        if (digitRects.Count < 4)
         {
-            new Rect(dlg.X + (int)(dlg.Width * bonusTensXPct), dlg.Y + (int)(dlg.Height * bonusYPct), digitW, digitH),
-            new Rect(dlg.X + (int)(dlg.Width * bonusOnesXPct), dlg.Y + (int)(dlg.Height * bonusYPct), digitW, digitH),
-        }).ToArray();
+            Log($"숫자 후보가 너무 적습니다: {digitRects.Count}개");
+            return null;
+        }
 
-        Log($"숫자 영역 6행 (다이얼로그 {dlg.Width}x{dlg.Height} 기준):");
-        for (int i = 0; i < statRois.Length; i++)
-            Log($"  행{i}: ({statRois[i].X},{statRois[i].Y}) {statRois[i].Width}x{statRois[i].Height}");
+        // Y좌표 기준으로 행 그룹핑
+        digitRects = digitRects.OrderBy(r => r.Y).ThenBy(r => r.X).ToList();
+        var rows = new List<List<Rect>>();
+        foreach (var r in digitRects)
+        {
+            int centerY = r.Y + r.Height / 2;
+            var matched = rows.FirstOrDefault(row =>
+                Math.Abs(row[0].Y + row[0].Height / 2 - centerY) < maxH);
 
-        // 3) 사냥꾼 버튼 위치: 고정 비율 (3번째 직업 버튼)
-        //    다이얼로그 우측 중앙, Y는 3번째 행 ≈ 무력과 같은 높이
-        var hunterBtn = new OpenCvSharp.Point(
-            dlg.X + (int)(dlg.Width * 0.75),
-            dlg.Y + (int)(dlg.Height * 0.47));
+            if (matched != null) matched.Add(r);
+            else rows.Add(new List<Rect> { r });
+        }
 
-        Log($"사냥꾼 버튼: ({hunterBtn.X},{hunterBtn.Y})");
-        return new DetectedLayout(dlg, statRois, hunterBtn);
+        foreach (var row in rows) row.Sort((a, b) => a.X.CompareTo(b.X));
+
+        // 2개 이상 숫자가 있는 행 = 능력치 행
+        var statRows = rows.Where(row => row.Count >= 2).OrderBy(row => row[0].Y).ToList();
+
+        if (statRows.Count < 5)
+        {
+            Log($"능력치 행이 부족합니다: {statRows.Count}행 (최소 5행 필요, 숫자: {digitRects.Count}개)");
+            return null;
+        }
+
+        // 각 행의 마지막 2개 = 십의자리/일의자리
+        int padX = 1, padY = 1;
+        var statRois = new List<Rect>();
+        foreach (var row in statRows)
+        {
+            var tens = row[^2];
+            var ones = row[^1];
+            statRois.Add(ClampRect(new Rect(tens.X - padX, tens.Y - padY,
+                tens.Width + padX * 2, tens.Height + padY * 2), gray.Cols, gray.Rows));
+            statRois.Add(ClampRect(new Rect(ones.X - padX, ones.Y - padY,
+                ones.Width + padX * 2, ones.Height + padY * 2), gray.Cols, gray.Rows));
+        }
+
+        Log($"자동 감지: {statRows.Count}행, {statRois.Count}개 숫자 영역 (다이얼로그 {dlg.Width}x{dlg.Height})");
+        for (int i = 0; i < statRois.Count; i += 2)
+            Log($"  행{i / 2}: 십({statRois[i].X},{statRois[i].Y}) 일({statRois[i + 1].X},{statRois[i + 1].Y}) {statRois[i].Width}x{statRois[i].Height}");
+
+        // 3) 사냥꾼 버튼: 오른쪽 절반에서 텍스트 행 자동 감지 → 템플릿 매칭
+        var hunterBtn = FindHunterButton(gray, dlg);
+        if (hunterBtn == null)
+        {
+            Log("사냥꾼 버튼을 찾을 수 없습니다.");
+            return null;
+        }
+
+        Log($"사냥꾼 버튼: ({hunterBtn.Value.X},{hunterBtn.Value.Y})");
+        return new DetectedLayout(dlg, statRois.ToArray(), hunterBtn.Value);
+    }
+
+    /// <summary>다이얼로그 오른쪽에서 사냥꾼 버튼을 찾는다.</summary>
+    private OpenCvSharp.Point? FindHunterButton(Mat gray, Rect dlg)
+    {
+        var hunterTemplatePath = Path.Combine(_numberTemplateDir, "hunter_btn.png");
+
+        // 오른쪽 절반 ROI
+        var rightHalf = ClampRect(
+            new Rect(dlg.X + dlg.Width / 2, dlg.Y, dlg.Width / 2, dlg.Height),
+            gray.Cols, gray.Rows);
+        using var rightRoi = new Mat(gray, rightHalf);
+
+        // 저장된 사냥꾼 템플릿이 있으면 → 템플릿 매칭
+        if (File.Exists(hunterTemplatePath))
+        {
+            using var tmpl = Cv2.ImRead(hunterTemplatePath, ImreadModes.Grayscale);
+            if (!tmpl.Empty() && tmpl.Rows <= rightRoi.Rows && tmpl.Cols <= rightRoi.Cols)
+            {
+                using var matchResult = new Mat();
+                Cv2.MatchTemplate(rightRoi, tmpl, matchResult, TemplateMatchModes.CCoeffNormed);
+                Cv2.MinMaxLoc(matchResult, out _, out double maxVal, out _, out OpenCvSharp.Point maxLoc);
+
+                if (maxVal > 0.7)
+                {
+                    int cx = rightHalf.X + maxLoc.X + tmpl.Cols / 2;
+                    int cy = rightHalf.Y + maxLoc.Y + tmpl.Rows / 2;
+                    Log($"사냥꾼 템플릿 매칭: score={maxVal:F2}");
+                    return new OpenCvSharp.Point(cx, cy);
+                }
+                Log($"사냥꾼 템플릿 매칭 실패 (score={maxVal:F2}), 재감지...");
+            }
+        }
+
+        // 템플릿 없음 → 오른쪽 절반에서 텍스트 행 자동 감지
+        using var bright = new Mat();
+        Cv2.Threshold(rightRoi, bright, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
+
+        Cv2.FindContours(bright, out var btnContours, out _,
+            RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+        double minH = dlg.Height * 0.04;
+        double maxH = dlg.Height * 0.15;
+
+        var charRects = new List<Rect>();
+        foreach (var c in btnContours)
+        {
+            var r = Cv2.BoundingRect(c);
+            if (r.Height < minH || r.Height > maxH) continue;
+            if (r.Width < 2) continue;
+            charRects.Add(r);
+        }
+
+        // 디버그: 오른쪽 후보 contour 표시
+        var rightCharRectsAbs = charRects.Select(r =>
+            new Rect(rightHalf.X + r.X, rightHalf.Y + r.Y, r.Width, r.Height)).ToList();
+        SaveContourDebugImage(gray, dlg, rightCharRectsAbs, "detect_right");
+
+        if (charRects.Count == 0) return null;
+
+        // Y기준 행 그룹핑
+        charRects = charRects.OrderBy(r => r.Y).ToList();
+        var btnRows = new List<List<Rect>>();
+        foreach (var r in charRects)
+        {
+            int cy = r.Y + r.Height / 2;
+            var matched = btnRows.FirstOrDefault(row =>
+                Math.Abs(row[0].Y + row[0].Height / 2 - cy) < maxH);
+
+            if (matched != null) matched.Add(r);
+            else btnRows.Add(new List<Rect> { r });
+        }
+
+        // 글자 3개인 행 = 사냥꾼 (3글자) 후보
+        // 직업 목록: 항해사(3), 측량사(3), 사냥꾼(3), 의사(2), 회계사(3) 등
+        // 3글자 행 중 위에서 3번째 행 = 사냥꾼
+        var threeCharRows = btnRows
+            .Where(row => row.Count == 3)
+            .OrderBy(row => row[0].Y)
+            .ToList();
+
+        List<Rect>? hunterRow = null;
+        if (threeCharRows.Count >= 3)
+            hunterRow = threeCharRows[2]; // 3번째 3글자 행
+        else if (btnRows.Count >= 3)
+            hunterRow = btnRows.OrderBy(r => r[0].Y).ElementAtOrDefault(2); // 전체 3번째 행
+
+        if (hunterRow == null || hunterRow.Count == 0) return null;
+
+        // 행의 전체 bounding box → 사냥꾼 템플릿으로 저장
+        int minX = hunterRow.Min(r => r.X);
+        int minY = hunterRow.Min(r => r.Y);
+        int maxX = hunterRow.Max(r => r.X + r.Width);
+        int maxY = hunterRow.Max(r => r.Y + r.Height);
+        var hunterRect = new Rect(minX, minY, maxX - minX, maxY - minY);
+
+        // 여유 패딩
+        int pad = 2;
+        var padded = new Rect(hunterRect.X - pad, hunterRect.Y - pad,
+            hunterRect.Width + pad * 2, hunterRect.Height + pad * 2);
+        padded = ClampRect(padded, rightRoi.Cols, rightRoi.Rows);
+
+        using var hunterTemplate = new Mat(rightRoi, padded);
+        Directory.CreateDirectory(_numberTemplateDir);
+        Cv2.ImWrite(hunterTemplatePath, hunterTemplate);
+        Log($"사냥꾼 버튼 템플릿 저장: {hunterTemplatePath} ({hunterRow.Count}글자)");
+
+        int centerX = rightHalf.X + hunterRect.X + hunterRect.Width / 2;
+        int centerY = rightHalf.Y + hunterRect.Y + hunterRect.Height / 2;
+        return new OpenCvSharp.Point(centerX, centerY);
     }
 
     #endregion
@@ -396,11 +610,11 @@ public class StatRerollService : IDisposable
         using var initBitmap = GameWindowHelper.CaptureClient(hWnd);
         if (initBitmap == null) { Log("화면 캡처 실패"); return; }
 
-        using var initMat = BitmapConverter.ToMat(initBitmap);
+        using var initBgr = BitmapConverter.ToMat(initBitmap);
         using var initGray = new Mat();
-        Cv2.CvtColor(initMat, initGray, ColorConversionCodes.BGR2GRAY);
+        Cv2.CvtColor(initBgr, initGray, ColorConversionCodes.BGR2GRAY);
 
-        var layout = DetectLayout(initGray);
+        var layout = DetectLayout(initGray, initBgr);
         if (layout == null) { Log("다이얼로그 감지 실패. 직업 선택 화면이 열려 있는지 확인하세요."); return; }
 
         if (layout.StatRois.Length < 4)
@@ -661,6 +875,20 @@ public class StatRerollService : IDisposable
     }
 
     private void Log(string msg) => LogMessage?.Invoke($"[{DateTime.Now:HH:mm:ss}] {msg}");
+
+    /// <summary>contour 후보를 원본 위에 표시한 디버그 이미지를 exe 디렉토리에 저장.</summary>
+    private void SaveContourDebugImage(Mat gray, Rect dlg, List<Rect> rects, string prefix)
+    {
+        using var debug = new Mat();
+        Cv2.CvtColor(gray, debug, ColorConversionCodes.GRAY2BGR);
+        Cv2.Rectangle(debug, dlg, new Scalar(0, 255, 0), 1); // 다이얼로그: 녹색
+        foreach (var r in rects)
+            Cv2.Rectangle(debug, r, new Scalar(0, 0, 255), 1); // 후보: 빨간색
+
+        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{prefix}_{DateTime.Now:HHmmss}.png");
+        Cv2.ImWrite(path, debug);
+        Log($"디버그 이미지: {path} ({rects.Count}개 후보)");
+    }
 
     public void Dispose()
     {
