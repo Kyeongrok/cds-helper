@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using CdsHelper.Main.UI.ViewModels;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
@@ -18,12 +19,14 @@ public class MapContent : ContentControl
     private Button? _btnZoomIn;
     private Button? _btnZoomOut;
     private Button? _btnZoomReset;
+    private Button? _btnTrackCoordinate;
     private CheckBox? _chkShowCityLabels;
     private CheckBox? _chkShowCoordinates;
     private CheckBox? _chkShowCulturalSpheres;
     private CheckBox? _chkShowShipyards;
     private TextBlock? _txtMapCoordinates;
     private TextBlock? _txtCenterPosition;
+    private TextBlock? _txtCurrentCoordinate;
     private ScrollViewer? _mapScrollViewer;
     private Image? _imgMap;
     private Canvas? _mapCanvas;
@@ -31,6 +34,10 @@ public class MapContent : ContentControl
     private Canvas? _longitudeScale;
     private ScaleTransform? _mapScaleTransform;
     private ScaleTransform? _canvasScaleTransform;
+
+    // 현재 위치 마커
+    private Ellipse? _currentPositionMarker;
+    private Ellipse? _currentPositionPulse;
 
     private double _currentScale = 1.0;
     private const double ScaleStep = 0.5;
@@ -152,6 +159,14 @@ public class MapContent : ContentControl
             _mapCanvas.MouseRightButtonDown += ImgMap_MouseRightButtonDown;
         }
 
+        // 좌표 추적 버튼
+        _btnTrackCoordinate = GetTemplateChild("PART_BtnTrackCoordinate") as Button;
+        _txtCurrentCoordinate = GetTemplateChild("PART_TxtCurrentCoordinate") as TextBlock;
+        if (_btnTrackCoordinate != null)
+        {
+            _btnTrackCoordinate.Click += (s, e) => ToggleTracking();
+        }
+
         // CityMarker 이벤트 핸들러 등록
         if (_mapCanvas != null)
         {
@@ -163,10 +178,13 @@ public class MapContent : ContentControl
         LoadMapImage();
         // 도시 마커 로드
         LoadCityMarkers();
+        // 현재 위치 마커 생성
+        CreateCurrentPositionMarker();
 
-        // NavigateToCityEvent 구독
+        // 이벤트 구독
         var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
         eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
+        eventAggregator.GetEvent<CurrentCoordinateEvent>().Subscribe(OnCurrentCoordinateUpdated);
     }
 
     private void OnNavigateToCity(NavigateToCityEventArgs args)
@@ -263,6 +281,9 @@ public class MapContent : ContentControl
             }
 
             MapMarkerHelper.AddCityMarkers(_mapCanvas, cities, showLabels, showCoordinates, AppSettings.MarkerSize);
+
+            // 현재 위치 마커 다시 추가 (ClearMarkers로 삭제되므로)
+            CreateCurrentPositionMarker();
         }
         catch (Exception ex)
         {
@@ -335,6 +356,12 @@ public class MapContent : ContentControl
                     ApplyScale();
                     _mapScrollViewer.ScrollToHorizontalOffset(_savedHorizontalOffset);
                     _mapScrollViewer.ScrollToVerticalOffset(_savedVerticalOffset);
+                }
+
+                // 추적 상태 복원
+                if (_viewModel != null && _btnTrackCoordinate != null)
+                {
+                    _btnTrackCoordinate.Content = _viewModel.IsTracking ? "추적 중지" : "좌표 추적";
                 }
             }
         }
@@ -750,4 +777,113 @@ public class MapContent : ContentControl
             System.Diagnostics.Debug.WriteLine($"[MapContent] Library clicked: {marker.CityName}");
         }
     }
+
+    #region 좌표 추적
+
+    private void ToggleTracking()
+    {
+        if (_viewModel == null) return;
+
+        if (_viewModel.IsTracking)
+        {
+            _viewModel.StopTracking();
+            if (_btnTrackCoordinate != null)
+                _btnTrackCoordinate.Content = "좌표 추적";
+            if (_txtCurrentCoordinate != null)
+                _txtCurrentCoordinate.Text = "";
+            if (_currentPositionMarker != null)
+                _currentPositionMarker.Visibility = Visibility.Collapsed;
+            if (_currentPositionPulse != null)
+                _currentPositionPulse.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            var hWnd = GameWindowHelper.FindGameWindow();
+            if (hWnd == IntPtr.Zero)
+            {
+                MessageBox.Show("게임 창을 찾을 수 없습니다.", "알림",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _viewModel.StartTracking();
+            if (_btnTrackCoordinate != null)
+                _btnTrackCoordinate.Content = "추적 중지";
+        }
+    }
+
+    private void CreateCurrentPositionMarker()
+    {
+        if (_mapCanvas == null) return;
+
+        // 외곽 펄스 원 (반투명)
+        _currentPositionPulse = new Ellipse
+        {
+            Width = 20,
+            Height = 20,
+            Fill = new SolidColorBrush(Color.FromArgb(60, 255, 0, 0)),
+            Stroke = null,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false
+        };
+        _mapCanvas.Children.Add(_currentPositionPulse);
+
+        // 중심 점 (빨간색)
+        _currentPositionMarker = new Ellipse
+        {
+            Width = 10,
+            Height = 10,
+            Fill = new SolidColorBrush(Colors.Red),
+            Stroke = new SolidColorBrush(Colors.White),
+            StrokeThickness = 2,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false
+        };
+        _mapCanvas.Children.Add(_currentPositionMarker);
+    }
+
+    private void OnCurrentCoordinateUpdated(CurrentCoordinateEventArgs args)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (!args.IsTracking)
+            {
+                if (_currentPositionMarker != null)
+                    _currentPositionMarker.Visibility = Visibility.Collapsed;
+                if (_currentPositionPulse != null)
+                    _currentPositionPulse.Visibility = Visibility.Collapsed;
+                if (_txtCurrentCoordinate != null)
+                    _txtCurrentCoordinate.Text = "";
+                return;
+            }
+
+            var pixelX = LonToPixelX(args.Longitude);
+            var pixelY = LatToPixelY(args.Latitude);
+
+            // 마커 위치 업데이트
+            if (_currentPositionMarker != null)
+            {
+                Canvas.SetLeft(_currentPositionMarker, pixelX - 5);
+                Canvas.SetTop(_currentPositionMarker, pixelY - 5);
+                _currentPositionMarker.Visibility = Visibility.Visible;
+            }
+
+            if (_currentPositionPulse != null)
+            {
+                Canvas.SetLeft(_currentPositionPulse, pixelX - 10);
+                Canvas.SetTop(_currentPositionPulse, pixelY - 10);
+                _currentPositionPulse.Visibility = Visibility.Visible;
+            }
+
+            // 좌표 텍스트 업데이트
+            if (_txtCurrentCoordinate != null)
+            {
+                var latDir = args.Latitude >= 0 ? "N" : "S";
+                var lonDir = args.Longitude >= 0 ? "E" : "W";
+                _txtCurrentCoordinate.Text = $"현재: {Math.Abs(args.Latitude):F0}°{latDir}, {Math.Abs(args.Longitude):F0}°{lonDir}";
+            }
+        });
+    }
+
+    #endregion
 }
