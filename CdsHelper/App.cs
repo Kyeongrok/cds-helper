@@ -120,5 +120,6 @@ internal class App : PrismApplication
         containerRegistry.RegisterForNavigation<DiscoveryContent>();
         containerRegistry.RegisterForNavigation<ExePatchContent>();
         containerRegistry.RegisterForNavigation<AutoPlayContent>();
+        containerRegistry.RegisterForNavigation<WorldMapContent>();
     }
 }
