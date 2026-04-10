@@ -280,6 +280,16 @@ public class StatRerollService : IDisposable
 
         if (dialogRect == null)
         {
+            // 실패 시에도 전체 화면 디버그 이미지 저장
+            try
+            {
+                using var failDebug = new Mat();
+                Cv2.CvtColor(gray, failDebug, ColorConversionCodes.GRAY2BGR);
+                var failPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"detect_nodlg_{DateTime.Now:HHmmss}.png");
+                Cv2.ImWrite(failPath, failDebug);
+                Log($"다이얼로그 실패 디버그: {failPath}");
+            }
+            catch { }
             Log($"다이얼로그 영역을 찾을 수 없습니다. (후보 윤곽: {contours.Length}개)");
             return null;
         }
@@ -323,12 +333,10 @@ public class StatRerollService : IDisposable
         {
             if (r.Height < minH || r.Height > maxH) continue;
 
-            // 두 자리가 합쳐진 경우 반으로 분리 (가로/세로 비율 기준)
             double aspect = (double)r.Width / r.Height;
             var singles = new List<Rect>();
             if (aspect >= 0.8)
             {
-                // 두 자리 → 반으로 나눔
                 int halfW = r.Width / 2;
                 singles.Add(new Rect(r.X, r.Y, halfW, r.Height));
                 singles.Add(new Rect(r.X + halfW, r.Y, r.Width - halfW, r.Height));
@@ -349,7 +357,7 @@ public class StatRerollService : IDisposable
 
                 try
                 {
-                    var (digit, conf) = _onnx.Value.Recognize(binary, 0.3f);
+                    var (digit, conf) = _onnx.Value.Recognize(binary, 0.8f);
                     if (digit >= 0)
                         digitRects.Add(new Rect(dlgArea.X + s.X, dlgArea.Y + s.Y, s.Width, s.Height));
                 }
@@ -357,16 +365,10 @@ public class StatRerollService : IDisposable
             }
         }
 
-        Log($"숫자 감지: contour {contourArr.Length}개 → 머지 {merged.Count}개 → ONNX 숫자 {digitRects.Count}개");
+        Log($"숫자 감지: contour {contourArr.Length}개 → 머지 {merged.Count}개 → ONNX {digitRects.Count}개");
 
-        // 디버그: 후보 contour 표시
-        SaveContourDebugImage(gray, dlg, digitRects, "detect_digits");
-
-        if (digitRects.Count < 4)
-        {
-            Log($"숫자 후보가 너무 적습니다: {digitRects.Count}개");
-            return null;
-        }
+        // ONNX 통과한 모든 후보를 디버그 이미지로 저장 (행 그룹핑/필터 전)
+        SaveContourDebugImage(gray, dlg, digitRects, "detect_onnx");
 
         // Y좌표 기준으로 행 그룹핑
         digitRects = digitRects.OrderBy(r => r.Y).ThenBy(r => r.X).ToList();
@@ -380,34 +382,61 @@ public class StatRerollService : IDisposable
             if (matched != null) matched.Add(r);
             else rows.Add(new List<Rect> { r });
         }
-
         foreach (var row in rows) row.Sort((a, b) => a.X.CompareTo(b.X));
 
-        // 2개 이상 숫자가 있는 행 = 능력치 행
-        var statRows = rows.Where(row => row.Count >= 2).OrderBy(row => row[0].Y).ToList();
+        // 각 행에서 가장 가까운 인접 쌍 선택 (십의자리-일의자리는 붙어있고, 화살표/라벨은 떨어져 있음)
+        var statRows = new List<List<Rect>>();
+        foreach (var row in rows.OrderBy(r => r[0].Y))
+        {
+            if (row.Count < 2) continue;
+            int bestIdx = 0;
+            int bestGap = int.MaxValue;
+            for (int i = 0; i < row.Count - 1; i++)
+            {
+                int gap = row[i + 1].X - (row[i].X + row[i].Width);
+                if (gap < bestGap) { bestGap = gap; bestIdx = i; }
+            }
+            statRows.Add(new List<Rect> { row[bestIdx], row[bestIdx + 1] });
+        }
 
         if (statRows.Count < 5)
         {
-            Log($"능력치 행이 부족합니다: {statRows.Count}행 (최소 5행 필요, 숫자: {digitRects.Count}개)");
+            // 실패 시에도 디버그 이미지 저장
+            var failRects = statRows.SelectMany(r => r).ToList();
+            SaveContourDebugImage(gray, dlg, failRects, "detect_fail");
+            Log($"능력치 행이 부족합니다: {statRows.Count}행 (최소 5행 필요)");
             return null;
         }
 
-        // 각 행의 마지막 2개 = 십의자리/일의자리
-        int padX = 1, padY = 1;
+        // 각 숫자의 중심점 기준 고정 크기 ROI 생성 (겹침 방지)
+        // 십의자리와 일의자리 사이 간격의 절반을 폭으로 사용
         var statRois = new List<Rect>();
-        foreach (var row in statRows)
+        foreach (var pair in statRows)
         {
-            var tens = row[^2];
-            var ones = row[^1];
-            statRois.Add(ClampRect(new Rect(tens.X - padX, tens.Y - padY,
-                tens.Width + padX * 2, tens.Height + padY * 2), gray.Cols, gray.Rows));
-            statRois.Add(ClampRect(new Rect(ones.X - padX, ones.Y - padY,
-                ones.Width + padX * 2, ones.Height + padY * 2), gray.Cols, gray.Rows));
+            var tens = pair[0];
+            var ones = pair[1];
+            // 두 숫자 사이 간격 기준으로 개별 폭 결정
+            int gap = ones.X - (tens.X + tens.Width);
+            int digitW = Math.Max(tens.Width, ones.Width);
+            int digitH = Math.Max(tens.Height, ones.Height);
+            // 패딩: 상하 2px, 좌우는 간격의 절반 이하
+            int padY = 2;
+            int padX = Math.Max(1, Math.Min(2, gap / 2));
+
+            foreach (var r in pair)
+            {
+                int cx = r.X + r.Width / 2;
+                int cy = r.Y + r.Height / 2;
+                int roiW = digitW + padX * 2;
+                int roiH = digitH + padY * 2;
+                statRois.Add(ClampRect(
+                    new Rect(cx - roiW / 2, cy - roiH / 2, roiW, roiH),
+                    gray.Cols, gray.Rows));
+            }
         }
 
-        Log($"자동 감지: {statRows.Count}행, {statRois.Count}개 숫자 영역 (다이얼로그 {dlg.Width}x{dlg.Height})");
-        for (int i = 0; i < statRois.Count; i += 2)
-            Log($"  행{i / 2}: 십({statRois[i].X},{statRois[i].Y}) 일({statRois[i + 1].X},{statRois[i + 1].Y}) {statRois[i].Width}x{statRois[i].Height}");
+        SaveContourDebugImage(gray, dlg, statRois, "detect_digits");
+        Log($"자동 감지: {statRows.Count}행, {statRois.Count}개 숫자 (다이얼로그 {dlg.Width}x{dlg.Height})");
 
         // 3) 사냥꾼 버튼: 오른쪽 절반에서 텍스트 행 자동 감지 → 템플릿 매칭
         var hunterBtn = FindHunterButton(gray, dlg);
@@ -894,15 +923,23 @@ public class StatRerollService : IDisposable
     /// <summary>contour 후보를 원본 위에 표시한 디버그 이미지를 exe 디렉토리에 저장.</summary>
     private void SaveContourDebugImage(Mat gray, Rect dlg, List<Rect> rects, string prefix)
     {
-        using var debug = new Mat();
-        Cv2.CvtColor(gray, debug, ColorConversionCodes.GRAY2BGR);
-        Cv2.Rectangle(debug, dlg, new Scalar(0, 255, 0), 1); // 다이얼로그: 녹색
-        foreach (var r in rects)
-            Cv2.Rectangle(debug, r, new Scalar(0, 0, 255), 1); // 후보: 빨간색
+        try
+        {
+            using var debug = new Mat();
+            Cv2.CvtColor(gray, debug, ColorConversionCodes.GRAY2BGR);
+            Cv2.Rectangle(debug, dlg, new Scalar(0, 255, 0), 1); // 다이얼로그: 녹색
+            foreach (var r in rects)
+                Cv2.Rectangle(debug, r, new Scalar(0, 0, 255), 1); // 후보: 빨간색
 
-        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{prefix}_{DateTime.Now:HHmmss}.png");
-        Cv2.ImWrite(path, debug);
-        Log($"디버그 이미지: {path} ({rects.Count}개 후보)");
+            var dir = AppDomain.CurrentDomain.BaseDirectory;
+            var path = Path.Combine(dir, $"{prefix}_{DateTime.Now:HHmmss}.png");
+            bool ok = Cv2.ImWrite(path, debug);
+            Log($"디버그 이미지: {path} (저장={ok}, {rects.Count}개 후보)");
+        }
+        catch (Exception ex)
+        {
+            Log($"디버그 이미지 저장 실패: {ex.Message}");
+        }
     }
 
     public void Dispose()
