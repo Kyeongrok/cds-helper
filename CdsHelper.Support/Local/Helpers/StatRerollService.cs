@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.IO;
+using CdsHelper.Support.Local.Settings;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
@@ -16,13 +17,16 @@ public class StatRerollService : IDisposable
     private Task? _runningTask;
     private readonly Dictionary<int, Mat> _digitTemplates = new();
     private readonly string _numberTemplateDir;
+    private readonly Lazy<OnnxDigitRecognizer> _onnx = new(() => new OnnxDigitRecognizer());
 
     public bool IsRunning => _runningTask is { IsCompleted: false };
+    public string NumberTemplateDir => _numberTemplateDir;
 
     public event Action<string>? LogMessage;
     public event Action<int, int>? Progress;
     public event Action<int, int>? Completed;
     public event Action? Stopped;
+    public event Action? TemplatesChanged;
 
     /// <summary>감지된 레이아웃 정보.</summary>
     public record DetectedLayout(
@@ -34,8 +38,7 @@ public class StatRerollService : IDisposable
     public StatRerollService(string? templateBaseDir = null)
     {
         var baseDir = templateBaseDir
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "git", "ml", "cds-ai", "assets", "templates");
+            ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "templates");
         _numberTemplateDir = Path.Combine(baseDir, "numbers");
         LoadDigitTemplates();
     }
@@ -144,6 +147,61 @@ public class StatRerollService : IDisposable
             var missing = Enumerable.Range(0, 10).Where(d => !_digitTemplates.ContainsKey(d)).ToList();
             if (missing.Count > 0)
                 Log($"미학습 숫자: {string.Join(", ", missing)} — 다른 값이 보일 때 추가 학습하세요");
+        }
+    }
+
+    /// <summary>ONNX 모델로 화면의 숫자를 자동 인식하여 템플릿을 생성한다.</summary>
+    public void AutoLearnDigits()
+    {
+        var (gray, bitmap, layout) = CaptureAndDetect();
+        if (layout == null || gray == null || bitmap == null)
+        {
+            Log("게임 화면 감지 실패");
+            return;
+        }
+
+        using (gray) using (bitmap)
+        {
+            int count = layout.StatRois.Length;
+            Log($"자동 학습: {count}개 박스 감지, ONNX 인식 중...");
+            Directory.CreateDirectory(_numberTemplateDir);
+            int savedCount = 0;
+
+            for (int i = 0; i < count; i++)
+            {
+                var roi = ClampRect(layout.StatRois[i], gray.Cols, gray.Rows);
+                if (roi.Width <= 0 || roi.Height <= 0) continue;
+
+                using var roiMat = new Mat(gray, roi);
+                using var binary = new Mat();
+                Cv2.Threshold(roiMat, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
+
+                int digit;
+                float conf;
+                try { (digit, conf) = _onnx.Value.Recognize(binary, 0.5f); }
+                catch (Exception ex) { Log($"ONNX 오류: {ex.Message}"); return; }
+
+                if (digit < 0)
+                {
+                    Log($"  [{i}] 인식 실패 (conf={conf:P0})");
+                    continue;
+                }
+
+                Log($"  [{i}] → '{digit}' (conf={conf:P0})");
+
+                var path = Path.Combine(_numberTemplateDir, $"{digit}.png");
+                if (File.Exists(path))
+                    continue;
+                Cv2.ImWrite(path, binary);
+                savedCount++;
+            }
+
+            LoadDigitTemplates();
+            Log($"자동 학습 완료! {savedCount}개 저장, 총 {_digitTemplates.Count}종 템플릿");
+
+            var missing = Enumerable.Range(0, 10).Where(d => !_digitTemplates.ContainsKey(d)).ToList();
+            if (missing.Count > 0)
+                Log($"미학습 숫자: {string.Join(", ", missing)}");
         }
     }
 
@@ -282,8 +340,53 @@ public class StatRerollService : IDisposable
 
     #region 리롤 루프
 
+    // 직업버튼 능력치 갱신 패치 바이트
+    private const int JobButtonPatchOffset = 0x0005CCDA;
+    private const int JobButtonPatchLength = 31;
+    private static readonly byte[] JobButtonPatchedBytes = new byte[]
+    {
+        0x89, 0x86, 0x50, 0x01, 0x00, 0x00, 0xB9, 0x48, 0x0C, 0x58, 0x00, 0x6A, 0x05, 0xFF, 0x34, 0x85,
+        0x18, 0x27, 0x55, 0x00, 0xE8, 0xAD, 0x07, 0xFB, 0xFF, 0x8B, 0xCE, 0xE8, 0x56, 0xFB, 0xFF
+    };
+
+    private bool IsJobButtonPatchApplied()
+    {
+        var savePath = AppSettings.LastSaveFilePath;
+        if (string.IsNullOrEmpty(savePath)) return false;
+
+        var gameFolder = Path.GetDirectoryName(savePath);
+        if (string.IsNullOrEmpty(gameFolder)) return false;
+
+        var exePath = Path.Combine(gameFolder, "cds_95.exe");
+        if (!File.Exists(exePath)) return false;
+
+        try
+        {
+            using var fs = new FileStream(exePath, FileMode.Open, FileAccess.Read);
+            if (fs.Length < JobButtonPatchOffset + JobButtonPatchLength) return false;
+
+            fs.Seek(JobButtonPatchOffset, SeekOrigin.Begin);
+            var buf = new byte[JobButtonPatchLength];
+            fs.Read(buf, 0, JobButtonPatchLength);
+
+            for (int i = 0; i < JobButtonPatchLength; i++)
+                if (buf[i] != JobButtonPatchedBytes[i]) return false;
+            return true;
+        }
+        catch { return false; }
+    }
+
     private async Task RunLoop(int[] targets, int delay, int maxAttempts, CancellationToken token)
     {
+        // 직업버튼 능력치 갱신 패치 확인
+        if (!IsJobButtonPatchApplied())
+        {
+            Log("⚠ exe패치에서 '직업버튼 능력갱신' 패치가 적용되어 있지 않습니다.");
+            Log("  exe패치 탭에서 패치를 먼저 적용해주세요.");
+            Stopped?.Invoke();
+            return;
+        }
+
         var hWnd = GameWindowHelper.FindGameWindow();
         if (hWnd == IntPtr.Zero) { Log("게임 윈도우를 찾을 수 없습니다."); return; }
 
@@ -300,16 +403,50 @@ public class StatRerollService : IDisposable
         var layout = DetectLayout(initGray);
         if (layout == null) { Log("다이얼로그 감지 실패. 직업 선택 화면이 열려 있는지 확인하세요."); return; }
 
-        if (_digitTemplates.Count == 0)
-        {
-            Log("숫자 템플릿이 없습니다. 먼저 '학습'을 실행하세요.");
-            return;
-        }
-
         if (layout.StatRois.Length < 4)
         {
             Log("지력 박스를 감지할 수 없습니다.");
             return;
+        }
+
+        // 0~9 템플릿이 모두 없으면 사냥꾼 클릭 → 자동학습 반복 (최대 20회)
+        var missingDigits = Enumerable.Range(0, 10).Where(d => !_digitTemplates.ContainsKey(d)).ToList();
+        if (missingDigits.Count > 0)
+        {
+            Log($"미학습 숫자: {string.Join(", ", missingDigits)} — 자동 학습 시작");
+            for (int autoAttempt = 0; autoAttempt < 20 && !token.IsCancellationRequested; autoAttempt++)
+            {
+                if (IsHotkeyPressed())
+                {
+                    Log("Ctrl+Alt 감지 — 자동 학습 중지");
+                    Stopped?.Invoke();
+                    return;
+                }
+
+                // 사냥꾼 버튼 클릭 (새 능력치 생성)
+                GameWindowHelper.SendClickRelative(hWnd, layout.HunterBtn.X, layout.HunterBtn.Y);
+                await Task.Delay(delay > 0 ? delay : 100, token);
+
+                // 자동 학습
+                AutoLearnDigits();
+
+                TemplatesChanged?.Invoke();
+
+                missingDigits = Enumerable.Range(0, 10).Where(d => !_digitTemplates.ContainsKey(d)).ToList();
+                if (missingDigits.Count == 0)
+                {
+                    Log($"자동 학습 완료! ({autoAttempt + 1}회 시도) — 0~9 모두 확보");
+                    break;
+                }
+                Log($"[자동학습 {autoAttempt + 1}/20] 미학습: {string.Join(", ", missingDigits)}");
+            }
+
+            if (missingDigits.Count > 0)
+            {
+                Log($"20회 시도 후에도 미학습 숫자 존재: {string.Join(", ", missingDigits)} — 리롤 중단");
+                Stopped?.Invoke();
+                return;
+            }
         }
 
         string[] names = { "체력", "지력", "무력", "매력", "운", "보너스" };
@@ -324,6 +461,13 @@ public class StatRerollService : IDisposable
         {
             try
             {
+                if (IsHotkeyPressed())
+                {
+                    Log("Ctrl+Alt 감지 — 리롤 중지");
+                    Stopped?.Invoke();
+                    return;
+                }
+
                 hWnd = GameWindowHelper.FindGameWindow();
                 if (hWnd == IntPtr.Zero) { await Task.Delay(2000, token); continue; }
 
@@ -409,8 +553,6 @@ public class StatRerollService : IDisposable
     /// <summary>1개 박스에서 숫자 하나를 읽는다.</summary>
     private int ReadSingleDigit(Bitmap screenshot, Rect roi)
     {
-        if (_digitTemplates.Count == 0) return -1;
-
         using var screenMat = BitmapConverter.ToMat(screenshot);
         using var gray = new Mat();
         Cv2.CvtColor(screenMat, gray, ColorConversionCodes.BGR2GRAY);
@@ -427,6 +569,8 @@ public class StatRerollService : IDisposable
 
     private int MatchDigit(Mat digitMat)
     {
+        if (_digitTemplates.Count == 0) return -1;
+
         int bestDigit = -1;
         double bestScore = -1;
 
@@ -443,6 +587,19 @@ public class StatRerollService : IDisposable
         }
 
         return bestScore > 0.5 ? bestDigit : -1;
+    }
+
+    public void ClearTemplates()
+    {
+        foreach (var (_, m) in _digitTemplates) m.Dispose();
+        _digitTemplates.Clear();
+
+        if (Directory.Exists(_numberTemplateDir))
+        {
+            foreach (var f in Directory.GetFiles(_numberTemplateDir, "*.png"))
+                File.Delete(f);
+        }
+        Log("템플릿 초기화 완료");
     }
 
     private void LoadDigitTemplates()
@@ -466,6 +623,16 @@ public class StatRerollService : IDisposable
     #endregion
 
     #region 유틸
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    private const int VK_CONTROL = 0x11;
+    private const int VK_MENU = 0x12; // Alt
+
+    private bool IsHotkeyPressed()
+        => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+        && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
