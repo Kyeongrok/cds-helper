@@ -228,7 +228,7 @@ public class StatRerollService : IDisposable
 
         Directory.CreateDirectory(_numberTemplateDir);
 
-        var layout = DetectLayout(gray, bgr);
+        var layout = DetectLayout(gray);
         bgr.Dispose();
         if (layout == null) { gray.Dispose(); bitmap.Dispose(); return (null, null, null); }
 
@@ -249,7 +249,7 @@ public class StatRerollService : IDisposable
     }
 
     /// <summary>게임 화면에서 능력치 다이얼로그, 버튼, 숫자 영역을 자동 감지한다.</summary>
-    private DetectedLayout? DetectLayout(Mat gray, Mat bgr)
+    private DetectedLayout? DetectLayout(Mat gray)
     {
         // 1) 어두운 다이얼로그 영역 찾기
         using var darkMask = new Mat();
@@ -285,98 +285,79 @@ public class StatRerollService : IDisposable
         }
         var dlg = dialogRect.Value;
 
-        // 2) 다이얼로그 영역에서 그레이 + R/G/B 채널별 다중 임계값 → ONNX로 숫자 필터
-        var dlgArea = ClampRect(dlg, gray.Cols, gray.Rows);
+        // 2) 다이얼로그 왼쪽 절반에서 Gray 이진화 → contour → 겹침 머지 → ONNX 필터
+        //    능력치 숫자 + 보너스 포인트 모두 왼쪽 절반에 위치
+        var dlgArea = ClampRect(
+            new Rect(dlg.X, dlg.Y, dlg.Width / 2, dlg.Height),
+            gray.Cols, gray.Rows);
         using var dlgGray = new Mat(gray, dlgArea);
-        using var dlgBgr = new Mat(bgr, dlgArea);
-
-        // B, G, R 채널 분리
-        var channels = new Mat[3];
-        Cv2.Split(dlgBgr, out channels);
-
-        int[] thresholds = { 40, 60, 80, 100, 120, 140, 160, 180 };
-        string[] channelNames = { "B", "G", "R", "Gray" };
-        var channelMats = new[] { channels[0], channels[1], channels[2], dlgGray };
 
         double minH = dlg.Height * 0.03;
         double maxH = dlg.Height * 0.20;
+        double maxW = dlg.Width * 0.15; // 한 글자 최대 폭
 
-        var debugDir = AppDomain.CurrentDomain.BaseDirectory;
-        var ts = DateTime.Now.ToString("HHmmss");
+        using var mask = new Mat();
+        Cv2.Threshold(dlgGray, mask, 80, 255, ThresholdTypes.Binary);
 
-        var allDigitRects = new HashSet<(int X, int Y)>();
-        var digitRects = new List<Rect>();
+        // List: 하얀 테두리 안쪽 contour도 찾음
+        Cv2.FindContours(mask, out var contourArr, out _,
+            RetrievalModes.List, ContourApproximationModes.ApproxSimple);
 
-        for (int ch = 0; ch < channelMats.Length; ch++)
+        // 모든 contour의 bounding rect 수집 (최소 크기만 필터)
+        var rawRects = new List<Rect>();
+        foreach (var c in contourArr)
         {
-            var chMat = channelMats[ch];
-            int chDigitCount = 0;
-
-            foreach (var thresh in thresholds)
-            {
-                using var mask = new Mat();
-                Cv2.Threshold(chMat, mask, thresh, 255, ThresholdTypes.Binary);
-
-                Cv2.FindContours(mask, out var contourArr, out _,
-                    RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-                var threshDigits = new List<Rect>();
-
-                foreach (var c in contourArr)
-                {
-                    var r = Cv2.BoundingRect(c);
-                    if (r.Height < minH || r.Height > maxH) continue;
-                    if (r.Width < 2) continue;
-                    if ((double)r.Width / r.Height > 2.0) continue;
-
-                    var roiClamped = ClampRect(r, chMat.Cols, chMat.Rows);
-                    if (roiClamped.Width <= 0 || roiClamped.Height <= 0) continue;
-
-                    using var roiMat = new Mat(chMat, roiClamped);
-                    using var binary = new Mat();
-                    Cv2.Threshold(roiMat, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
-
-                    try
-                    {
-                        var (digit, conf) = _onnx.Value.Recognize(binary, 0.3f);
-                        if (digit >= 0)
-                        {
-                            var absRect = new Rect(dlgArea.X + r.X, dlgArea.Y + r.Y, r.Width, r.Height);
-                            threshDigits.Add(absRect);
-
-                            int cx = absRect.X + absRect.Width / 2;
-                            int cy = absRect.Y + absRect.Height / 2;
-                            bool dup = allDigitRects.Any(p =>
-                                Math.Abs(p.X - cx) < 4 && Math.Abs(p.Y - cy) < 4);
-                            if (!dup)
-                            {
-                                allDigitRects.Add((cx, cy));
-                                digitRects.Add(absRect);
-                            }
-                        }
-                    }
-                    catch { }
-                }
-
-                chDigitCount += threshDigits.Count;
-
-                // 채널별 디버그 이미지 저장
-                using var debugMat = new Mat();
-                Cv2.CvtColor(mask, debugMat, ColorConversionCodes.GRAY2BGR);
-                foreach (var r in threshDigits)
-                    Cv2.Rectangle(debugMat,
-                        new Rect(r.X - dlgArea.X, r.Y - dlgArea.Y, r.Width, r.Height),
-                        new Scalar(0, 0, 255), 1);
-                var threshPath = Path.Combine(debugDir, $"thresh_{channelNames[ch]}_{thresh}_{ts}.png");
-                Cv2.ImWrite(threshPath, debugMat);
-            }
-
-            Log($"  {channelNames[ch]} 채널: {chDigitCount}개 숫자");
+            var r = Cv2.BoundingRect(c);
+            if (r.Height < 2 || r.Width < 1) continue;
+            // 너무 큰 건 제외 (다이얼로그 전체, 하얀 테두리 등)
+            if (r.Height > maxH || r.Width > maxW) continue;
+            rawRects.Add(r);
         }
 
-        foreach (var ch in channels) ch.Dispose();
+        // 겹치는 rect만 머지 (gap=1: 1px 이내 = 같은 글자의 조각)
+        var merged = MergeCloseRects(rawRects, 1);
 
-        Log($"다중 채널+임계값 결과: 총 {digitRects.Count}개 숫자 감지 (중복 제거)");
+        // 머지 후 크기 필터 + 두 자리 분리 + ONNX 판별
+        var digitRects = new List<Rect>();
+        foreach (var r in merged)
+        {
+            if (r.Height < minH || r.Height > maxH) continue;
+
+            // 두 자리가 합쳐진 경우 반으로 분리 (가로/세로 비율 기준)
+            double aspect = (double)r.Width / r.Height;
+            var singles = new List<Rect>();
+            if (aspect >= 0.8)
+            {
+                // 두 자리 → 반으로 나눔
+                int halfW = r.Width / 2;
+                singles.Add(new Rect(r.X, r.Y, halfW, r.Height));
+                singles.Add(new Rect(r.X + halfW, r.Y, r.Width - halfW, r.Height));
+            }
+            else
+            {
+                singles.Add(r);
+            }
+
+            foreach (var s in singles)
+            {
+                var roiClamped = ClampRect(s, dlgGray.Cols, dlgGray.Rows);
+                if (roiClamped.Width <= 0 || roiClamped.Height <= 0) continue;
+
+                using var roiMat = new Mat(dlgGray, roiClamped);
+                using var binary = new Mat();
+                Cv2.Threshold(roiMat, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
+
+                try
+                {
+                    var (digit, conf) = _onnx.Value.Recognize(binary, 0.3f);
+                    if (digit >= 0)
+                        digitRects.Add(new Rect(dlgArea.X + s.X, dlgArea.Y + s.Y, s.Width, s.Height));
+                }
+                catch { }
+            }
+        }
+
+        Log($"숫자 감지: contour {contourArr.Length}개 → 머지 {merged.Count}개 → ONNX 숫자 {digitRects.Count}개");
 
         // 디버그: 후보 contour 표시
         SaveContourDebugImage(gray, dlg, digitRects, "detect_digits");
@@ -610,11 +591,11 @@ public class StatRerollService : IDisposable
         using var initBitmap = GameWindowHelper.CaptureClient(hWnd);
         if (initBitmap == null) { Log("화면 캡처 실패"); return; }
 
-        using var initBgr = BitmapConverter.ToMat(initBitmap);
+        using var initMat = BitmapConverter.ToMat(initBitmap);
         using var initGray = new Mat();
-        Cv2.CvtColor(initBgr, initGray, ColorConversionCodes.BGR2GRAY);
+        Cv2.CvtColor(initMat, initGray, ColorConversionCodes.BGR2GRAY);
 
-        var layout = DetectLayout(initGray, initBgr);
+        var layout = DetectLayout(initGray);
         if (layout == null) { Log("다이얼로그 감지 실패. 직업 선택 화면이 열려 있는지 확인하세요."); return; }
 
         if (layout.StatRois.Length < 4)
@@ -863,6 +844,40 @@ public class StatRerollService : IDisposable
             return BitmapConverter.ToMat(bmp);
         }
         catch { return null; }
+    }
+
+    /// <summary>가까운 Rect들을 하나로 합친다.</summary>
+    private static List<Rect> MergeCloseRects(List<Rect> rects, int gap)
+    {
+        if (rects.Count == 0) return rects;
+        var sorted = rects.OrderBy(r => r.Y).ThenBy(r => r.X).ToList();
+        var result = new List<Rect> { sorted[0] };
+
+        for (int i = 1; i < sorted.Count; i++)
+        {
+            var cur = sorted[i];
+            bool merged = false;
+            for (int j = 0; j < result.Count; j++)
+            {
+                var prev = result[j];
+                // 두 rect가 gap 이내로 가까우면 합침
+                if (cur.X <= prev.X + prev.Width + gap &&
+                    cur.X + cur.Width >= prev.X - gap &&
+                    cur.Y <= prev.Y + prev.Height + gap &&
+                    cur.Y + cur.Height >= prev.Y - gap)
+                {
+                    int x1 = Math.Min(prev.X, cur.X);
+                    int y1 = Math.Min(prev.Y, cur.Y);
+                    int x2 = Math.Max(prev.X + prev.Width, cur.X + cur.Width);
+                    int y2 = Math.Max(prev.Y + prev.Height, cur.Y + cur.Height);
+                    result[j] = new Rect(x1, y1, x2 - x1, y2 - y1);
+                    merged = true;
+                    break;
+                }
+            }
+            if (!merged) result.Add(cur);
+        }
+        return result;
     }
 
     private static Rect ClampRect(Rect r, int maxW, int maxH)
