@@ -13,5 +13,6 @@
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/DiscoveryContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/ExePatchContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/AutoPlayContent.xaml"></ResourceDictionary>
+        <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/WorldMapContent.xaml"></ResourceDictionary>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
