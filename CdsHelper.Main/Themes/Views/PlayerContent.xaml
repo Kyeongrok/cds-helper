@@ -186,18 +186,24 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="힌트 획득 현황 - " />
                                                 <TextBlock Text="{Binding HintSummary}" FontWeight="Bold" />
+                                                <CheckBox x:Name="PART_FilterUndiscovered"
+                                                          Content="미발견만"
+                                                          Margin="15,0,0,0"
+                                                          VerticalAlignment="Center" />
                                             </StackPanel>
                                         </GroupBox.Header>
-                                        <DataGrid ItemsSource="{Binding Hints}"
+                                        <DataGrid x:Name="PART_HintsDataGrid"
+                                                  ItemsSource="{Binding Hints}"
                                                   HorizontalAlignment="Left"
                                                   AutoGenerateColumns="False"
                                                   IsReadOnly="True"
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
-                                                  MaxHeight="400"
+                                                  MaxHeight="600"
                                                   MaxWidth="700"
                                                   FontSize="14"
-                                                  VerticalScrollBarVisibility="Auto">
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  Cursor="Hand">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="순번" Binding="{Binding Index}" Width="40" />
                                                 <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="200" />
