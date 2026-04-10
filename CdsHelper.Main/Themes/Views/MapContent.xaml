@@ -13,26 +13,30 @@
                         </Grid.RowDefinitions>
 
                         <!-- 상단 컨트롤 -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
-                            <TextBlock Text="대항해시대3 발견물 지도" FontSize="16" FontWeight="Bold"
-                                       VerticalAlignment="Center" />
-                            <Button x:Name="PART_BtnZoomReset" Content="원본" Width="60" Height="30" Margin="20,0,0,0" />
-                            <CheckBox x:Name="PART_ChkShowCityLabels" Content="도시명 표시"
-                                      VerticalAlignment="Center" Margin="20,0,0,0" IsChecked="False" />
-                            <CheckBox x:Name="PART_ChkShowCoordinates" Content="좌표 표시"
-                                      VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
-                            <CheckBox x:Name="PART_ChkShowCulturalSpheres" Content="문화권 표시"
-                                      VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
-                            <CheckBox x:Name="PART_ChkShowShipyards" Content="조선소 표시"
-                                      VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
-                            <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적"
-                                    Width="80" Height="30" Margin="20,0,0,0" />
-                            <TextBlock x:Name="PART_TxtCurrentCoordinate" Text="" VerticalAlignment="Center"
-                                       Margin="10,0,0,0" FontFamily="Consolas" Foreground="Red" FontWeight="Bold" />
-                            <TextBlock x:Name="PART_TxtCenterPosition" Text="중심: -" VerticalAlignment="Center"
-                                       Margin="15,0,0,0" FontFamily="Consolas" Foreground="#104F89" FontWeight="Bold" />
-                            <TextBlock x:Name="PART_TxtMapCoordinates" Text="마우스: -" VerticalAlignment="Center"
-                                       Margin="15,0,0,0" FontFamily="Consolas" Foreground="Gray" />
+                        <StackPanel Grid.Row="0" Margin="10">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="대항해시대3 발견물 지도" FontSize="16" FontWeight="Bold"
+                                           VerticalAlignment="Center" />
+                                <Button x:Name="PART_BtnZoomReset" Content="원본" Width="60" Height="30" Margin="20,0,0,0" />
+                                <CheckBox x:Name="PART_ChkShowCityLabels" Content="도시명 표시"
+                                          VerticalAlignment="Center" Margin="20,0,0,0" IsChecked="False" />
+                                <CheckBox x:Name="PART_ChkShowCoordinates" Content="좌표 표시"
+                                          VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
+                                <CheckBox x:Name="PART_ChkShowCulturalSpheres" Content="문화권 표시"
+                                          VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
+                                <CheckBox x:Name="PART_ChkShowShipyards" Content="조선소 표시"
+                                          VerticalAlignment="Center" Margin="10,0,0,0" IsChecked="False" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적"
+                                        Width="80" Height="25" />
+                                <TextBlock x:Name="PART_TxtCurrentCoordinate" Text="" VerticalAlignment="Center"
+                                           Margin="10,0,0,0" FontFamily="Consolas" Foreground="Red" FontWeight="Bold" />
+                                <TextBlock x:Name="PART_TxtCenterPosition" Text="중심: -" VerticalAlignment="Center"
+                                           Margin="15,0,0,0" FontFamily="Consolas" Foreground="#104F89" FontWeight="Bold" />
+                                <TextBlock x:Name="PART_TxtMapCoordinates" Text="마우스: -" VerticalAlignment="Center"
+                                           Margin="15,0,0,0" FontFamily="Consolas" Foreground="Gray" />
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- 지도 영역 (경도 눈금 + 위도 눈금 + 지도) -->
