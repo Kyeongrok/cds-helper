@@ -402,6 +402,14 @@ public class CdsHelperViewModel : BindableBase
         // NavigateToCityEvent 구독 - 지도 탭으로 전환
         _eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
 
+        // 5분마다 세이브 파일 자동 새로고침
+        var autoRefreshTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(5)
+        };
+        autoRefreshTimer.Tick += (_, _) => RefreshSaveFile();
+        autoRefreshTimer.Start();
+
         // 앱 시작 시 데이터 로드
         Initialize();
     }
