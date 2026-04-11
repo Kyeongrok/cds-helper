@@ -787,18 +787,7 @@ public class AutoPlayContentViewModel : BindableBase
 
     private void OnTrainCoordModel()
     {
-        IsTrainingCoords = true;
-        CoordStatusText = "모델 학습 중...";
-
-        Task.Run(() =>
-        {
-            _autoPlayService.CoordinateOcr.Train(epochs: CoordTrainEpochs);
-            Application.Current?.Dispatcher.Invoke(() =>
-            {
-                IsTrainingCoords = false;
-                CoordStatusText = _autoPlayService.CoordinateOcr.IsModelLoaded ? "학습 완료" : "학습 실패";
-            });
-        });
+        CoordStatusText = "학습 기능은 별도 프로젝트로 분리되었습니다.";
     }
 
     private void OnCapturePreview()

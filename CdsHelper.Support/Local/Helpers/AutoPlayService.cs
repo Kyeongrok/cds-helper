@@ -47,7 +47,6 @@ public class AutoPlayService : IDisposable
 
         CoordinateOcr = new CoordinateOcrService();
         CoordinateOcr.LogMessage += msg => LogMessage?.Invoke(msg);
-        CoordinateOcr.LoadModel();
 
         SeaMap = new SeaMapService();
         SeaMap.LogMessage += msg => LogMessage?.Invoke(msg);

@@ -4,11 +4,9 @@ using System.IO;
 using System.Text.RegularExpressions;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
-using TorchSharp;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using Windows.Storage.Streams;
-using static TorchSharp.torch;
 
 namespace CdsHelper.Support.Local.Helpers;
 
@@ -18,12 +16,9 @@ namespace CdsHelper.Support.Local.Helpers;
 /// </summary>
 public class CoordinateOcrService : IDisposable
 {
-    private CoordinateNet? _model;
-    private Device? _device;
     private readonly string _dataDir;
     private readonly string _imageDir;
     private readonly string _labelPath;
-    private readonly string _modelPath;
 
     private CancellationTokenSource? _collectCts;
     private Task? _collectTask;
@@ -32,9 +27,6 @@ public class CoordinateOcrService : IDisposable
     /// <summary>상단바 크롭 높이 (픽셀). 게임 해상도에 따라 조정.</summary>
     public int TopBarHeight { get; set; } = 30;
 
-    /// <summary>모델 로드 완료 여부.</summary>
-    public bool IsModelLoaded => _model != null;
-
     /// <summary>데이터 수집 중 여부.</summary>
     public bool IsCollecting => _collectTask is { IsCompleted: false };
 
@@ -42,25 +34,6 @@ public class CoordinateOcrService : IDisposable
     public string DataDirectory => _dataDir;
 
     public event Action<string>? LogMessage;
-
-    /// <summary>TorchSharp 디바이스를 지연 초기화.</summary>
-    private Device GetDevice()
-    {
-        if (_device != null) return _device;
-
-        try
-        {
-            _device = cuda.is_available() ? CUDA : CPU;
-        }
-        catch (Exception ex)
-        {
-            Log($"CUDA 초기화 실패, CPU 사용: {ex.Message}");
-            _device = CPU;
-        }
-
-        Log($"TorchSharp 디바이스: {_device}");
-        return _device;
-    }
 
     public CoordinateOcrService(string? baseDir = null)
     {
@@ -71,10 +44,8 @@ public class CoordinateOcrService : IDisposable
         _dataDir = Path.Combine(root, "coordinate_data");
         _imageDir = Path.Combine(_dataDir, "images");
         _labelPath = Path.Combine(_dataDir, "labels.csv");
-        _modelPath = Path.Combine(_dataDir, "model", "coordinate_net.pt");
 
         Directory.CreateDirectory(_imageDir);
-        Directory.CreateDirectory(Path.GetDirectoryName(_modelPath)!);
 
         Log("CoordinateOcrService 초기화 완료");
     }
@@ -394,173 +365,6 @@ public class CoordinateOcrService : IDisposable
 
     #endregion
 
-    #region 학습
-
-    /// <summary>라벨링된 데이터로 모델 학습.</summary>
-    public void Train(int epochs = 50, int batchSize = 16, double learningRate = 0.001)
-    {
-        var labels = LoadLabels();
-        if (labels.Count == 0)
-        {
-            Log("학습 데이터가 없습니다. 먼저 라벨링을 수행하세요.");
-            return;
-        }
-
-        var device = GetDevice();
-        Log($"학습 시작: {labels.Count}개 데이터, {epochs} 에포크, 디바이스: {device}");
-
-        var model = new CoordinateNet(device);
-        model.train();
-
-        var optimizer = optim.Adam(model.parameters(), lr: learningRate);
-        var ceLoss = nn.CrossEntropyLoss();
-
-        for (var epoch = 0; epoch < epochs; epoch++)
-        {
-            var shuffled = labels.OrderBy(_ => Random.Shared.Next()).ToList();
-            var totalLoss = 0.0;
-            var correct = 0;
-            var total = 0;
-
-            for (var i = 0; i < shuffled.Count; i += batchSize)
-            {
-                var batch = shuffled.Skip(i).Take(batchSize).ToList();
-                if (batch.Count == 0) break;
-
-                using var scope = NewDisposeScope();
-
-                var images = new List<Tensor>();
-                var latDirTargets = new List<long>();
-                var latValTargets = new List<long>();
-                var lonDirTargets = new List<long>();
-                var lonValTargets = new List<long>();
-
-                foreach (var label in batch)
-                {
-                    var tensor = LoadImageAsTensor(label.ImagePath);
-                    if (tensor is null) continue;
-
-                    images.Add(tensor!);
-                    latDirTargets.Add(label.LatDir);
-                    latValTargets.Add(label.LatValue);
-                    lonDirTargets.Add(label.LonDir);
-                    lonValTargets.Add(label.LonValue);
-                }
-
-                if (images.Count == 0) continue;
-
-                var xBatch = cat(images.Select(t => t).ToArray(), dim: 0).to(device);
-                var yLatDir = tensor(latDirTargets.ToArray(), dtype: int64).to(device);
-                var yLatVal = tensor(latValTargets.ToArray(), dtype: int64).to(device);
-                var yLonDir = tensor(lonDirTargets.ToArray(), dtype: int64).to(device);
-                var yLonVal = tensor(lonValTargets.ToArray(), dtype: int64).to(device);
-
-                var output = model.forward(xBatch);
-                var (predLd, predLv, predOd, predOv) = CoordinateNet.SplitOutput(output);
-
-                var loss = ceLoss.forward(predLd, yLatDir)
-                         + ceLoss.forward(predLv, yLatVal)
-                         + ceLoss.forward(predOd, yLonDir)
-                         + ceLoss.forward(predOv, yLonVal);
-
-                optimizer.zero_grad();
-                loss.backward();
-                optimizer.step();
-
-                totalLoss += loss.item<float>() * batch.Count;
-
-                var latValPred = predLv.argmax(1);
-                var lonValPred = predOv.argmax(1);
-                correct += (int)(latValPred.eq(yLatVal).sum().item<long>()
-                              + lonValPred.eq(yLonVal).sum().item<long>());
-                total += images.Count * 2;
-            }
-
-            var avgLoss = totalLoss / labels.Count;
-            var accuracy = total > 0 ? (double)correct / total * 100 : 0;
-
-            if ((epoch + 1) % 5 == 0 || epoch == 0)
-                Log($"에포크 {epoch + 1}/{epochs} — 손실: {avgLoss:F4}, 정확도: {accuracy:F1}%");
-        }
-
-        model.save(_modelPath);
-        _model = model;
-        Log($"모델 저장 완료: {_modelPath}");
-    }
-
-    /// <summary>저장된 모델 로드.</summary>
-    public bool LoadModel()
-    {
-        if (!File.Exists(_modelPath))
-            return false;
-
-        try
-        {
-            var device = GetDevice();
-            _model = new CoordinateNet(device);
-            _model.load(_modelPath);
-            _model.eval();
-            Log($"모델 로드 완료: {_modelPath} (디바이스: {device})");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log($"모델 로드 실패: {ex.Message}");
-            return false;
-        }
-    }
-
-    private List<CoordinateLabel> LoadLabels()
-    {
-        var labels = new List<CoordinateLabel>();
-        if (!File.Exists(_labelPath)) return labels;
-
-        foreach (var line in File.ReadLines(_labelPath).Skip(1))
-        {
-            var parts = line.Trim().Split(',');
-            if (parts.Length < 5) continue;
-
-            var imgPath = Path.Combine(_imageDir, parts[0]);
-            if (!File.Exists(imgPath)) continue;
-
-            labels.Add(new CoordinateLabel(
-                imgPath,
-                int.Parse(parts[1]),
-                int.Parse(parts[2]),
-                int.Parse(parts[3]),
-                int.Parse(parts[4])
-            ));
-        }
-
-        return labels;
-    }
-
-    private Tensor? LoadImageAsTensor(string imagePath)
-    {
-        using var mat = Cv2.ImRead(imagePath, ImreadModes.Grayscale);
-        if (mat.Empty()) return null;
-        return MatToTensor(mat);
-    }
-
-    /// <summary>OpenCV Mat → TorchSharp Tensor [1, 1, H, W] (0~1 정규화).</summary>
-    private Tensor MatToTensor(Mat grayMat)
-    {
-        using var resized = new Mat();
-        Cv2.Resize(grayMat, resized, new OpenCvSharp.Size(CoordinateNet.InputWidth, CoordinateNet.InputHeight));
-
-        var h = resized.Rows;
-        var w = resized.Cols;
-        var data = new float[h * w];
-
-        for (var y = 0; y < h; y++)
-        for (var x = 0; x < w; x++)
-            data[y * w + x] = resized.At<byte>(y, x) / 255f;
-
-        return tensor(data, [1, 1, h, w]);
-    }
-
-    #endregion
-
     #region 추론
 
     private OcrEngine? _ocrEngine;
@@ -649,7 +453,6 @@ public class CoordinateOcrService : IDisposable
     {
         _collectCts?.Cancel();
         _collectCts?.Dispose();
-        _model?.Dispose();
     }
 
     #endregion
