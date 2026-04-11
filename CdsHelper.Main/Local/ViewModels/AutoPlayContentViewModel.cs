@@ -395,6 +395,7 @@ public class AutoPlayContentViewModel : BindableBase
     {
         IsRunning = true;
         StatusText = "감지 시작...";
+        AddLog("Ctrl + Alt 키를 동시에 누르면 자동 플레이를 중지할 수 있습니다.");
 
         _detector.Start(2000);
 
