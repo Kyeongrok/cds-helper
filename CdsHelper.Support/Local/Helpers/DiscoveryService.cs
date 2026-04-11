@@ -42,8 +42,18 @@ public class DiscoveryService
                 HintId INTEGER,
                 AppearCondition TEXT,
                 BookName TEXT,
+                LatFrom INTEGER,
+                LatTo INTEGER,
+                LonFrom INTEGER,
+                LonTo INTEGER,
                 FOREIGN KEY (HintId) REFERENCES Hints(Id) ON DELETE SET NULL
             )");
+
+        // 기존 테이블에 좌표 컬럼이 없으면 추가
+        try { _dbContext?.Database.ExecuteSqlRaw("ALTER TABLE Discoveries ADD COLUMN LatFrom INTEGER"); } catch { }
+        try { _dbContext?.Database.ExecuteSqlRaw("ALTER TABLE Discoveries ADD COLUMN LatTo INTEGER"); } catch { }
+        try { _dbContext?.Database.ExecuteSqlRaw("ALTER TABLE Discoveries ADD COLUMN LonFrom INTEGER"); } catch { }
+        try { _dbContext?.Database.ExecuteSqlRaw("ALTER TABLE Discoveries ADD COLUMN LonTo INTEGER"); } catch { }
 
         _dbContext?.Database.ExecuteSqlRaw(@"
             CREATE TABLE IF NOT EXISTS DiscoveryParents (
@@ -82,7 +92,7 @@ public class DiscoveryService
 
         // CSV 파싱
         var lines = await File.ReadAllLinesAsync(csvPath, Encoding.UTF8);
-        var discoveries = new List<(int Id, string Name, string? HintName, string? Condition, string? AppearCondition, string? BookName)>();
+        var discoveries = new List<(int Id, string Name, string? HintName, string? Condition, string? AppearCondition, string? BookName, int? LatFrom, int? LatTo, int? LonFrom, int? LonTo)>();
 
         for (int i = 1; i < lines.Length; i++) // 헤더 스킵
         {
@@ -99,10 +109,14 @@ public class DiscoveryService
             var condition = fields.Count > 3 ? NullIfEmpty(fields[3].Trim()) : null;
             var appearCondition = fields.Count > 4 ? NullIfEmpty(fields[4].Trim()) : null;
             var bookName = fields.Count > 5 ? NullIfEmpty(fields[5].Trim()) : null;
+            var latFrom = fields.Count > 6 ? ParseNullableInt(fields[6].Trim()) : null;
+            var latTo = fields.Count > 7 ? ParseNullableInt(fields[7].Trim()) : null;
+            var lonFrom = fields.Count > 8 ? ParseNullableInt(fields[8].Trim()) : null;
+            var lonTo = fields.Count > 9 ? ParseNullableInt(fields[9].Trim()) : null;
 
             if (string.IsNullOrEmpty(name)) continue;
 
-            discoveries.Add((id, name, hintName, condition, appearCondition, bookName));
+            discoveries.Add((id, name, hintName, condition, appearCondition, bookName, latFrom, latTo, lonFrom, lonTo));
         }
 
         // 이름 -> ID 매핑 생성 (선행 발견물 매핑용)
@@ -125,14 +139,18 @@ public class DiscoveryService
 
             using var insertCmd = connection.CreateCommand();
             insertCmd.CommandText = @"
-                INSERT OR REPLACE INTO Discoveries (Id, Name, HintId, AppearCondition, BookName)
-                VALUES (@id, @name, @hintId, @appearCondition, @bookName)";
+                INSERT OR REPLACE INTO Discoveries (Id, Name, HintId, AppearCondition, BookName, LatFrom, LatTo, LonFrom, LonTo)
+                VALUES (@id, @name, @hintId, @appearCondition, @bookName, @latFrom, @latTo, @lonFrom, @lonTo)";
 
             AddParameter(insertCmd, "@id", d.Id);
             AddParameter(insertCmd, "@name", d.Name);
             AddParameter(insertCmd, "@hintId", hintId);
             AddParameter(insertCmd, "@appearCondition", d.AppearCondition);
             AddParameter(insertCmd, "@bookName", d.BookName);
+            AddParameter(insertCmd, "@latFrom", d.LatFrom);
+            AddParameter(insertCmd, "@latTo", d.LatTo);
+            AddParameter(insertCmd, "@lonFrom", d.LonFrom);
+            AddParameter(insertCmd, "@lonTo", d.LonTo);
 
             await insertCmd.ExecuteNonQueryAsync();
         }
@@ -279,6 +297,11 @@ public class DiscoveryService
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    private int? ParseNullableInt(string? value)
+    {
+        return int.TryParse(value, out var result) ? result : null;
+    }
+
     private void AddParameter(System.Data.Common.DbCommand cmd, string name, object? value)
     {
         var param = cmd.CreateParameter();
@@ -341,5 +364,29 @@ public class DiscoveryService
         return mappings
             .GroupBy(dp => dp.DiscoveryId)
             .ToDictionary(g => g.Key, g => g.Select(dp => dp.ParentDiscoveryId).ToList());
+    }
+
+    public async Task UpdateCoordinateAsync(int id, int? latFrom, int? latTo, int? lonFrom, int? lonTo)
+    {
+        if (_dbContext == null) return;
+
+        var entity = await _dbContext.Discoveries.FindAsync(id);
+        if (entity == null) return;
+
+        entity.LatFrom = latFrom;
+        entity.LatTo = latTo;
+        entity.LonFrom = lonFrom;
+        entity.LonTo = lonTo;
+
+        await _dbContext.SaveChangesAsync();
+
+        // 캐시 갱신
+        if (_discoveries.ContainsKey(id))
+        {
+            _discoveries[id].LatFrom = latFrom;
+            _discoveries[id].LatTo = latTo;
+            _discoveries[id].LonFrom = lonFrom;
+            _discoveries[id].LonTo = lonTo;
+        }
     }
 }

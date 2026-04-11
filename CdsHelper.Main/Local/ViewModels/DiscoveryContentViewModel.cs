@@ -191,6 +191,11 @@ public class DiscoveryContentViewModel : BindableBase
                 AppearCondition = d.AppearCondition ?? "",
                 BookName = d.BookName ?? "",
                 ParentNames = GetParentNames(d.Id),
+                CoordinateDisplay = FormatCoordinate(d.LatFrom, d.LatTo, d.LonFrom, d.LonTo),
+                LatFrom = d.LatFrom,
+                LatTo = d.LatTo,
+                LonFrom = d.LonFrom,
+                LonTo = d.LonTo,
                 IsHintObtained = d.HintId.HasValue && _hasHintIds?.Contains(d.HintId.Value) == true,
                 IsDiscoveryFound = d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true
             };
@@ -223,6 +228,33 @@ public class DiscoveryContentViewModel : BindableBase
         return string.Join(", ", parentNames);
     }
 
+    public static string FormatCoordinatePublic(int? latFrom, int? latTo, int? lonFrom, int? lonTo)
+        => FormatCoordinate(latFrom, latTo, lonFrom, lonTo);
+
+    private static string FormatCoordinate(int? latFrom, int? latTo, int? lonFrom, int? lonTo)
+    {
+        if (latFrom == null && lonFrom == null) return "";
+
+        var lat = FormatRange(latFrom, latTo, "N", "S");
+        var lon = FormatRange(lonFrom, lonTo, "E", "W");
+
+        if (!string.IsNullOrEmpty(lat) && !string.IsNullOrEmpty(lon))
+            return $"{lat}, {lon}";
+        return lat + lon;
+    }
+
+    private static string FormatRange(int? from, int? to, string positive, string negative)
+    {
+        if (from == null) return "";
+
+        string Format(int v) => v >= 0 ? $"{positive}{v}" : $"{negative}{Math.Abs(v)}";
+
+        if (to == null || from == to)
+            return Format(from.Value);
+
+        return $"{Format(from.Value)}~{Format(to.Value)}";
+    }
+
     private void ResetFilter()
     {
         NameSearch = "";
@@ -244,6 +276,11 @@ public class DiscoveryDisplayItem : INotifyPropertyChanged
     public string AppearCondition { get; set; } = "";
     public string BookName { get; set; } = "";
     public string ParentNames { get; set; } = "";
+    public string CoordinateDisplay { get; set; } = "";
+    public int? LatFrom { get; set; }
+    public int? LatTo { get; set; }
+    public int? LonFrom { get; set; }
+    public int? LonTo { get; set; }
 
     /// <summary>
     /// 힌트 획득 여부 (연한 초록색)
@@ -288,7 +325,7 @@ public class DiscoveryDisplayItem : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    public virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }

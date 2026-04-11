@@ -36,7 +36,7 @@
                         </WrapPanel>
 
                         <!-- 데이터 그리드 -->
-                        <units:CdsDataGrid Grid.Row="1"
+                        <units:CdsDataGrid x:Name="PART_DiscoveryGrid" Grid.Row="1"
                                   ItemsSource="{Binding Discoveries}"
                                   Margin="10">
                             <units:CdsDataGrid.RowStyle>
@@ -85,6 +85,7 @@
                                 <DataGridTextColumn Header="힌트" Binding="{Binding HintName}" Width="150" />
                                 <DataGridTextColumn Header="선행 발견물" Binding="{Binding ParentNames}" Width="250" />
                                 <DataGridTextColumn Header="등장조건" Binding="{Binding AppearCondition}" Width="80" />
+                                <DataGridTextColumn Header="좌표" Binding="{Binding CoordinateDisplay}" Width="150" />
                                 <DataGridTextColumn Header="도서명" Binding="{Binding BookName}" Width="*" />
                             </units:CdsDataGrid.Columns>
                         </units:CdsDataGrid>

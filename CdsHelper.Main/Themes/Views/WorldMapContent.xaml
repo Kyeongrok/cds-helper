@@ -27,6 +27,13 @@
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <CheckBox x:Name="PART_ShowCoast" Content="해안선 상세" VerticalAlignment="Center" Margin="6,0,8,0" IsChecked="True"/>
                             <CheckBox x:Name="PART_ShowWind" Content="해류/바람" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="PART_ShowDiscoveries" Content="발견물" VerticalAlignment="Center" Margin="0,0,8,0" IsChecked="True"/>
+                            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
+                            <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="게임 화면에서 좌표를 인식하여 지도에 표시"/>
+                            <Button x:Name="PART_BtnClearTrail" Content="경로 지우기" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="이동 경로 삭제"/>
+                            <Button x:Name="PART_BtnSaveTrail" Content="경로 저장" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="이동 경로를 파일로 저장"/>
+                            <Button x:Name="PART_BtnLoadTrail" Content="경로 불러오기" Height="28" Padding="8,0" Margin="0,0,6,0" ToolTip="저장된 경로 불러오기"/>
+                            <TextBlock x:Name="PART_TxtCurrentCoordinate" VerticalAlignment="Center" Foreground="#0078D4" FontWeight="Bold" Margin="0,0,8,0"/>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <TextBlock x:Name="PART_Status" VerticalAlignment="Center" Foreground="Gray" Margin="6,0,0,0"/>
                         </WrapPanel>
@@ -36,10 +43,13 @@
                             <ScrollViewer x:Name="PART_ScrollViewer"
                                           HorizontalScrollBarVisibility="Auto"
                                           VerticalScrollBarVisibility="Auto">
-                                <Image x:Name="PART_MapImage"
-                                       Stretch="None"
-                                       RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                       SnapsToDevicePixels="True"/>
+                                <Grid x:Name="PART_MapGrid">
+                                    <Image x:Name="PART_MapImage"
+                                           Stretch="None"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                           SnapsToDevicePixels="True"/>
+                                    <Canvas x:Name="PART_OverlayCanvas" IsHitTestVisible="False"/>
+                                </Grid>
                             </ScrollViewer>
                         </Border>
 

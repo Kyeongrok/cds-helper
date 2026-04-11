@@ -1,11 +1,19 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using Ellipse = System.Windows.Shapes.Ellipse;
+using Polyline = System.Windows.Shapes.Polyline;
+using Rectangle = System.Windows.Shapes.Rectangle;
+using CdsHelper.Api.Entities;
+using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
 using Microsoft.Win32;
+using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views;
 
@@ -22,6 +30,25 @@ public class WorldMapContent : ContentControl
     private Button? _btnZoomReset;
     private CheckBox? _chkShowCoast;
     private CheckBox? _chkShowWind;
+    private CheckBox? _chkShowDiscoveries;
+    private Button? _btnTrackCoordinate;
+    private TextBlock? _txtCurrentCoordinate;
+    private Canvas? _overlayCanvas;
+
+    // 좌표 추적
+    private readonly CoordinateOcrService _coordinateOcr = new();
+    private DispatcherTimer? _trackingTimer;
+    private bool _isTracking;
+    private bool _isProcessing;
+    private Ellipse? _positionMarker;
+    private Ellipse? _positionPulse;
+    private Polyline? _trailLine;
+    private readonly PointCollection _trailPoints = new();
+    private readonly List<DateTime> _trailTimestamps = new();
+
+    // 발견물 표시
+    private readonly List<UIElement> _discoveryMarkers = new();
+    private bool _discoveriesLoaded;
 
     private double _currentScale = 1.0;
     private const double ScaleStep = 0.25;
@@ -63,11 +90,11 @@ public class WorldMapContent : ContentControl
         _chkShowWind = GetTemplateChild("PART_ShowWind") as CheckBox;
 
         _scaleTransform = new ScaleTransform(1, 1);
+        var mapGrid = GetTemplateChild("PART_MapGrid") as Grid;
+        if (mapGrid != null)
+            mapGrid.LayoutTransform = _scaleTransform;
         if (_mapImage != null)
-        {
-            _mapImage.LayoutTransform = _scaleTransform;
             _mapImage.MouseMove += MapImage_MouseMove;
-        }
 
         if (_btnOpen != null) _btnOpen.Click += (_, _) => OpenFile();
         if (_btnZoomIn != null) _btnZoomIn.Click += (_, _) => Zoom(ScaleStep);
@@ -76,6 +103,22 @@ public class WorldMapContent : ContentControl
 
         if (_chkShowCoast != null) _chkShowCoast.Click += (_, _) => Rerender();
         if (_chkShowWind != null) _chkShowWind.Click += (_, _) => Rerender();
+
+        _chkShowDiscoveries = GetTemplateChild("PART_ShowDiscoveries") as CheckBox;
+        if (_chkShowDiscoveries != null) _chkShowDiscoveries.Click += (_, _) => ToggleDiscoveries();
+
+        _btnTrackCoordinate = GetTemplateChild("PART_BtnTrackCoordinate") as Button;
+        _txtCurrentCoordinate = GetTemplateChild("PART_TxtCurrentCoordinate") as TextBlock;
+        _overlayCanvas = GetTemplateChild("PART_OverlayCanvas") as Canvas;
+        if (_btnTrackCoordinate != null)
+            _btnTrackCoordinate.Click += (_, _) => ToggleTracking();
+
+        var btnClearTrail = GetTemplateChild("PART_BtnClearTrail") as Button;
+        var btnSaveTrail = GetTemplateChild("PART_BtnSaveTrail") as Button;
+        var btnLoadTrail = GetTemplateChild("PART_BtnLoadTrail") as Button;
+        if (btnClearTrail != null) btnClearTrail.Click += (_, _) => ClearTrail();
+        if (btnSaveTrail != null) btnSaveTrail.Click += (_, _) => SaveTrail();
+        if (btnLoadTrail != null) btnLoadTrail.Click += (_, _) => LoadTrail();
 
         if (_scrollViewer != null)
         {
@@ -240,6 +283,10 @@ public class WorldMapContent : ContentControl
             if (_txtStatus != null)
                 _txtStatus.Text = $"로드 완료: {Path.GetFileName(path)} (펼침: {UnfoldedW}x{CellH}, {RenderW}x{RenderH}px)";
             Rerender();
+
+            // 발견물 체크 되어 있으면 표시
+            if (_chkShowDiscoveries?.IsChecked == true)
+                ShowDiscoveries();
         }
         catch (Exception ex)
         {
@@ -436,4 +483,416 @@ public class WorldMapContent : ContentControl
         _scaleTransform.ScaleX = _currentScale;
         _scaleTransform.ScaleY = _currentScale;
     }
+
+    #region 발견물 표시
+
+    private void ToggleDiscoveries()
+    {
+        if (_chkShowDiscoveries?.IsChecked == true)
+            ShowDiscoveries();
+        else
+            HideDiscoveries();
+    }
+
+    private void ShowDiscoveries()
+    {
+        if (_overlayCanvas == null) return;
+
+        HideDiscoveries();
+
+        if (!_discoveriesLoaded)
+        {
+            try
+            {
+                var service = ContainerLocator.Container.Resolve<DiscoveryService>();
+                var discoveries = service.GetAllDiscoveries().Values;
+
+                foreach (var d in discoveries)
+                {
+                    if (d.LatFrom == null && d.LonFrom == null) continue;
+
+                    var isPoint = d.LatFrom == d.LatTo && d.LonFrom == d.LonTo;
+
+                    if (isPoint && d.LatFrom != null && d.LonFrom != null)
+                    {
+                        AddDiscoveryPoint(d);
+                    }
+                    else
+                    {
+                        AddDiscoveryArea(d);
+                    }
+                }
+
+                _discoveriesLoaded = true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WorldMap] Discovery load error: {ex.Message}");
+            }
+        }
+
+        foreach (var marker in _discoveryMarkers)
+            marker.Visibility = Visibility.Visible;
+    }
+
+    private void HideDiscoveries()
+    {
+        foreach (var marker in _discoveryMarkers)
+            marker.Visibility = Visibility.Collapsed;
+    }
+
+    private void AddDiscoveryPoint(DiscoveryEntity d)
+    {
+        if (_overlayCanvas == null) return;
+
+        var (px, py) = LatLonToPixel(d.LatFrom!.Value, d.LonFrom!.Value);
+
+        const double size = 6;
+        var dot = new Ellipse
+        {
+            Width = size,
+            Height = size,
+            Fill = new SolidColorBrush(Color.FromArgb(200, 220, 40, 40)),
+            Stroke = new SolidColorBrush(Color.FromArgb(220, 160, 20, 20)),
+            StrokeThickness = 1,
+            IsHitTestVisible = true,
+            ToolTip = d.Name
+        };
+
+        Canvas.SetLeft(dot, px - size / 2);
+        Canvas.SetTop(dot, py - size / 2);
+        _overlayCanvas.Children.Add(dot);
+        _discoveryMarkers.Add(dot);
+
+        var label = CreateDiscoveryLabel(d.Name);
+        Canvas.SetLeft(label, px + size / 2 + 2);
+        Canvas.SetTop(label, py - 6);
+        _overlayCanvas.Children.Add(label);
+        _discoveryMarkers.Add(label);
+    }
+
+    private void AddDiscoveryArea(DiscoveryEntity d)
+    {
+        if (_overlayCanvas == null) return;
+
+        var latFrom = d.LatFrom ?? 0;
+        var latTo = d.LatTo ?? latFrom;
+        var lonFrom = d.LonFrom ?? 0;
+        var lonTo = d.LonTo ?? lonFrom;
+
+        // 위도/경도 범위의 min/max 정리
+        var latMin = Math.Min(latFrom, latTo);
+        var latMax = Math.Max(latFrom, latTo);
+        var lonMin = Math.Min(lonFrom, lonTo);
+        var lonMax = Math.Max(lonFrom, lonTo);
+
+        var (x1, y1) = LatLonToPixel(latMax, lonMin); // 좌상단
+        var (x2, y2) = LatLonToPixel(latMin, lonMax); // 우하단
+
+        var w = Math.Max(x2 - x1, 2);
+        var h = Math.Max(y2 - y1, 2);
+
+        var rect = new Rectangle
+        {
+            Width = w,
+            Height = h,
+            Fill = new SolidColorBrush(Color.FromArgb(40, 50, 100, 220)),
+            Stroke = new SolidColorBrush(Color.FromArgb(160, 50, 100, 220)),
+            StrokeThickness = 1,
+            IsHitTestVisible = true,
+            ToolTip = d.Name
+        };
+
+        Canvas.SetLeft(rect, x1);
+        Canvas.SetTop(rect, y1);
+        _overlayCanvas.Children.Add(rect);
+        _discoveryMarkers.Add(rect);
+
+        var label = CreateDiscoveryLabel(d.Name);
+        Canvas.SetLeft(label, x2 + 2);
+        Canvas.SetTop(label, y1);
+        _overlayCanvas.Children.Add(label);
+        _discoveryMarkers.Add(label);
+    }
+
+    private static TextBlock CreateDiscoveryLabel(string name)
+    {
+        return new TextBlock
+        {
+            Text = name,
+            FontSize = 10,
+            Foreground = Brushes.Black,
+            IsHitTestVisible = false
+        };
+    }
+
+    #endregion
+
+    #region 좌표 추적
+
+    private void ToggleTracking()
+    {
+        if (_isTracking)
+        {
+            StopTracking();
+        }
+        else
+        {
+            var hWnd = GameWindowHelper.FindGameWindow();
+            if (hWnd == IntPtr.Zero)
+            {
+                MessageBox.Show("게임 창을 찾을 수 없습니다.", "알림",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            StartTracking();
+        }
+    }
+
+    private void StartTracking()
+    {
+        _isTracking = true;
+        _isProcessing = false;
+        if (_btnTrackCoordinate != null) _btnTrackCoordinate.Content = "추적 중지";
+
+        _trackingTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _trackingTimer.Tick += OnTrackingTick;
+        _trackingTimer.Start();
+    }
+
+    private void StopTracking()
+    {
+        _isTracking = false;
+        _trackingTimer?.Stop();
+        _trackingTimer = null;
+
+        if (_btnTrackCoordinate != null) _btnTrackCoordinate.Content = "좌표 추적";
+        if (_txtCurrentCoordinate != null) _txtCurrentCoordinate.Text = "";
+        if (_positionMarker != null) _positionMarker.Visibility = Visibility.Collapsed;
+        if (_positionPulse != null) _positionPulse.Visibility = Visibility.Collapsed;
+    }
+
+    private async void OnTrackingTick(object? sender, EventArgs e)
+    {
+        if (_isProcessing || _mapData == null) return;
+        _isProcessing = true;
+
+        try
+        {
+            var hWnd = GameWindowHelper.FindGameWindow();
+            if (hWnd == IntPtr.Zero) return;
+
+            using var bitmap = GameWindowHelper.CaptureClient(hWnd);
+            if (bitmap == null) return;
+
+            var prediction = await Task.Run(() => _coordinateOcr.PredictOcrAsync(bitmap));
+            if (prediction == null)
+            {
+                if (_txtCurrentCoordinate != null)
+                    _txtCurrentCoordinate.Text = "인식 실패";
+                return;
+            }
+
+            if (_txtCurrentCoordinate != null)
+                _txtCurrentCoordinate.Text = prediction.ToString();
+
+            UpdatePositionMarker(prediction.ToLat(), prediction.ToLon());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WorldMap] Tracking error: {ex.Message}");
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private (double px, double py) LatLonToPixel(double lat, double lon)
+    {
+        double cellX = (lon + 180.0) / 360.0 * UnfoldedW;
+        double cellY = (90.0 - lat) / 180.0 * CellH;
+        // 중앙 타일(index 1) 오프셋 적용
+        return (cellX + UnfoldedW, cellY);
+    }
+
+    private void UpdatePositionMarker(double lat, double lon)
+    {
+        if (_overlayCanvas == null) return;
+
+        var (px, py) = LatLonToPixel(lat, lon);
+
+        const double markerSize = 12;
+        const double pulseSize = 20;
+
+        if (_trailLine == null)
+        {
+            _trailLine = new Polyline
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(180, 255, 80, 80)),
+                StrokeThickness = 2,
+                IsHitTestVisible = false,
+                Points = _trailPoints
+            };
+            _overlayCanvas.Children.Add(_trailLine);
+        }
+
+        if (_positionMarker == null)
+        {
+            _positionPulse = new Ellipse
+            {
+                Width = pulseSize, Height = pulseSize,
+                Fill = Brushes.Transparent,
+                Stroke = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
+                StrokeThickness = 2,
+                Opacity = 0.5
+            };
+            _overlayCanvas.Children.Add(_positionPulse);
+
+            _positionMarker = new Ellipse
+            {
+                Width = markerSize, Height = markerSize,
+                Fill = new SolidColorBrush(Color.FromRgb(255, 50, 50)),
+                Stroke = Brushes.White,
+                StrokeThickness = 2
+            };
+            _overlayCanvas.Children.Add(_positionMarker);
+        }
+
+        // 경로에 포인트 추가
+        var newPoint = new Point(px, py);
+        if (_trailPoints.Count == 0 || DistanceSq(_trailPoints[^1], newPoint) > 4)
+        {
+            _trailPoints.Add(newPoint);
+            _trailTimestamps.Add(DateTime.Now);
+        }
+
+        _positionMarker.Visibility = Visibility.Visible;
+        _positionPulse!.Visibility = Visibility.Visible;
+
+        Canvas.SetLeft(_positionMarker, px - markerSize / 2);
+        Canvas.SetTop(_positionMarker, py - markerSize / 2);
+        Canvas.SetLeft(_positionPulse, px - pulseSize / 2);
+        Canvas.SetTop(_positionPulse, py - pulseSize / 2);
+    }
+
+    private static double DistanceSq(Point a, Point b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return dx * dx + dy * dy;
+    }
+
+    private void ClearTrail()
+    {
+        _trailPoints.Clear();
+        _trailTimestamps.Clear();
+    }
+
+    private record TrailCoord(double lat, double lon, string? time = null);
+
+    private void SaveTrail()
+    {
+        if (_trailPoints.Count == 0)
+        {
+            MessageBox.Show("저장할 경로가 없습니다.", "경로 저장",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dir = AppSettings.TrailDirectory;
+        if (!Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
+        var fileName = $"worldmap_trail_{DateTime.Now:yyyyMMdd_HHmmss}.trail.json";
+        var filePath = Path.Combine(dir, fileName);
+
+        var coords = _trailPoints.Select((p, i) =>
+        {
+            // 픽셀 → 경위도 역변환 (중앙 타일 기준)
+            double cellX = p.X - UnfoldedW;
+            double lon = cellX * 360.0 / UnfoldedW - 180;
+            double lat = 90.0 - p.Y * 180.0 / CellH;
+            var time = i < _trailTimestamps.Count
+                ? _trailTimestamps[i].ToString("yyyy-MM-dd HH:mm:ss.fff")
+                : "";
+            return new TrailCoord(lat, lon, time);
+        }).ToList();
+
+        var json = JsonSerializer.Serialize(coords, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(filePath, json);
+        MessageBox.Show($"저장 완료: {fileName}", "경로 저장",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void LoadTrail()
+    {
+        var dir = AppSettings.TrailDirectory;
+        if (!Directory.Exists(dir))
+        {
+            MessageBox.Show("경로 디렉토리가 없습니다.", "경로 불러오기",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var files = Directory.GetFiles(dir, "*.trail.json")
+            .OrderByDescending(f => File.GetLastWriteTime(f))
+            .ToArray();
+
+        if (files.Length == 0)
+        {
+            MessageBox.Show("저장된 경로 파일이 없습니다.", "경로 불러오기",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new OpenFileDialog
+        {
+            InitialDirectory = dir,
+            Filter = "Trail 파일 (*.trail.json)|*.trail.json",
+            Title = "경로 파일 선택"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var json = File.ReadAllText(dlg.FileName);
+            var coords = JsonSerializer.Deserialize<List<TrailCoord>>(json);
+            if (coords == null || coords.Count == 0) return;
+
+            _trailPoints.Clear();
+            _trailTimestamps.Clear();
+
+            foreach (var c in coords)
+            {
+                var (px, py) = LatLonToPixel(c.lat, c.lon);
+                _trailPoints.Add(new Point(px, py));
+                _trailTimestamps.Add(
+                    DateTime.TryParse(c.time, out var t) ? t : DateTime.Now);
+            }
+
+            // trailLine이 아직 없으면 생성
+            if (_trailLine == null && _overlayCanvas != null)
+            {
+                _trailLine = new Polyline
+                {
+                    Stroke = new SolidColorBrush(Color.FromArgb(180, 255, 80, 80)),
+                    StrokeThickness = 2,
+                    IsHitTestVisible = false,
+                    Points = _trailPoints
+                };
+                _overlayCanvas.Children.Add(_trailLine);
+            }
+
+            if (_txtStatus != null)
+                _txtStatus.Text = $"경로 로드: {coords.Count}개 포인트";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"경로 불러오기 실패: {ex.Message}", "오류",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    #endregion
 }
