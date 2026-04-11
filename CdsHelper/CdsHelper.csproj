@@ -50,6 +50,15 @@
       <ProjectReference Include="..\CdsHelper.Main\CdsHelper.Main.csproj" />
     </ItemGroup>
 
+    <!-- 사용하지 않는 OpenCV ffmpeg 모듈 제외 (25MB 절약) -->
+    <ItemGroup>
+      <Content Remove="**\opencv_videoio_ffmpeg*.dll" />
+      <None Remove="**\opencv_videoio_ffmpeg*.dll" />
+    </ItemGroup>
+    <Target Name="RemoveFFmpeg" AfterTargets="Publish">
+      <Delete Files="$(PublishDir)\opencv_videoio_ffmpeg4100_64.dll" />
+    </Target>
+
     <ItemGroup>
       <None Remove="대항해시대3 후원자.csv" />
     </ItemGroup>
