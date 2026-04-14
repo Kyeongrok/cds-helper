@@ -145,8 +145,7 @@ public class WorldMapContent : ContentControl
         if (_overlayCanvas != null)
         {
             _overlayCanvas.MouseRightButtonDown += OnMapRightClick;
-            // 좌클릭은 드래그용이므로 Canvas를 통과시킴
-            _overlayCanvas.MouseLeftButtonDown += (_, e) => e.Handled = false;
+            _overlayCanvas.MouseLeftButtonDown += OnOverlayLeftClick;
         }
         if (_btnTrackCoordinate != null)
             _btnTrackCoordinate.Click += (_, _) => ToggleTracking();
@@ -196,6 +195,8 @@ public class WorldMapContent : ContentControl
     private void ScrollViewer_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_scrollViewer == null) return;
+        // 좌표 선택 모드에서는 드래그 무시
+        if (_coordPickCallback != null) return;
         // 클릭 가능한 라벨(Border with Tag)에서 시작된 클릭은 드래그 무시
         if (e.OriginalSource is FrameworkElement fe &&
             (fe is Border { Tag: not null } || FindParent<Border>(fe) is { Tag: not null }))
@@ -400,8 +401,11 @@ public class WorldMapContent : ContentControl
         bmp.WritePixels(new Int32Rect(0, 0, RenderW, RenderH), pixels, RenderW * 4, 0);
         _mapImage.Source = bmp;
 
-        // Canvas는 명시적 크기 없이 Grid에서 Image와 동일 영역 차지
-        // (Width/Height를 설정하면 Grid 레이아웃에 간섭하여 렌더링 문제 발생)
+        if (_overlayCanvas != null)
+        {
+            _overlayCanvas.Width = RenderW;
+            _overlayCanvas.Height = RenderH;
+        }
 
         CenterScrollToMiddleTile();
     }
@@ -832,6 +836,9 @@ public class WorldMapContent : ContentControl
         return border;
     }
 
+    // 지도 좌표 선택 모드
+    private Action<double, double>? _coordPickCallback;
+
     private async void OnDiscoveryLabelClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border border || border.Tag is not int discoveryId) return;
@@ -847,14 +854,16 @@ public class WorldMapContent : ContentControl
         var dialog = new Window
         {
             Title = $"발견물 수정 (ID: {discoveryId})",
-            Width = 340, Height = 250,
+            Width = 400, Height = 280,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            ResizeMode = ResizeMode.NoResize
+            ResizeMode = ResizeMode.NoResize,
+            Topmost = true
         };
 
         var grid = new Grid { Margin = new Thickness(10) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         for (int r = 0; r < 6; r++)
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -875,16 +884,53 @@ public class WorldMapContent : ContentControl
             grid.Children.Add(boxes[r]);
         }
 
+        // "지도에서 선택" 버튼: From 좌표
+        var btnPickFrom = new Button { Content = "From ◎", Height = 24, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(4, 0, 0, 6), ToolTip = "지도 클릭으로 From 좌표 선택" };
+        Grid.SetRow(btnPickFrom, 1); Grid.SetColumn(btnPickFrom, 2);
+        grid.Children.Add(btnPickFrom);
+
+        // "지도에서 선택" 버튼: To 좌표
+        var btnPickTo = new Button { Content = "To ◎", Height = 24, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(4, 0, 0, 6), ToolTip = "지도 클릭으로 To 좌표 선택" };
+        Grid.SetRow(btnPickTo, 3); Grid.SetColumn(btnPickTo, 2);
+        grid.Children.Add(btnPickTo);
+
+        // 지도에서 좌표 선택 핸들러
+        void StartPick(TextBox tbLat, TextBox tbLon)
+        {
+            dialog.WindowState = WindowState.Minimized;
+            if (_overlayCanvas != null)
+                _overlayCanvas.Cursor = Cursors.Cross;
+            _coordPickCallback = (lat, lon) =>
+            {
+                tbLat.Text = ((int)Math.Round(lat)).ToString();
+                tbLon.Text = ((int)Math.Round(lon)).ToString();
+                _coordPickCallback = null;
+                if (_overlayCanvas != null)
+                    _overlayCanvas.Cursor = Cursors.Arrow;
+                dialog.WindowState = WindowState.Normal;
+                dialog.Activate();
+            };
+        }
+
+        btnPickFrom.Click += (_, _) => StartPick(tbLatFrom, tbLonFrom);
+        btnPickTo.Click += (_, _) => StartPick(tbLatTo, tbLonTo);
+
         var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
         var btnOk = new Button { Content = "확인", Width = 70, Margin = new Thickness(0, 0, 6, 0), IsDefault = true };
         var btnCancel = new Button { Content = "취소", Width = 70, IsCancel = true };
         btnOk.Click += (_, _) => dialog.DialogResult = true;
         btnPanel.Children.Add(btnOk);
         btnPanel.Children.Add(btnCancel);
-        Grid.SetRow(btnPanel, 5); Grid.SetColumnSpan(btnPanel, 2);
+        Grid.SetRow(btnPanel, 5); Grid.SetColumnSpan(btnPanel, 3);
         grid.Children.Add(btnPanel);
 
         dialog.Content = grid;
+        dialog.Closed += (_, _) =>
+        {
+            _coordPickCallback = null;
+            if (_overlayCanvas != null)
+                _overlayCanvas.Cursor = Cursors.Arrow;
+        };
         tbName.SelectAll();
         tbName.Focus();
 
@@ -1266,6 +1312,20 @@ public class WorldMapContent : ContentControl
         return (lat, lon);
     }
 
+    private void OnOverlayLeftClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_coordPickCallback != null && _overlayCanvas != null)
+        {
+            var pos = e.GetPosition(_overlayCanvas);
+            var (lat, lon) = PixelToLatLon(pos.X, pos.Y);
+            _coordPickCallback(lat, lon);
+            e.Handled = true;
+            return;
+        }
+        // 좌표 선택 모드가 아니면 드래그용으로 통과
+        e.Handled = false;
+    }
+
     private void OnMapRightClick(object sender, MouseButtonEventArgs e)
     {
         if (_overlayCanvas == null || _mapData == null) return;
@@ -1390,6 +1450,18 @@ public class WorldMapContent : ContentControl
 
                     // 다이얼로그/힌트 화면이 떠있으면 닫기
                     var screen = await _screenDetector.DetectScreenAsync(bitmap);
+                    if (screen is GameScreen.Battle)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (_txtCurrentCoordinate != null)
+                                _txtCurrentCoordinate.Text = "⚔ 전투 중 → 돌격!";
+                        });
+                        await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
+                        await Task.Delay(2000, token);
+                        continue;
+                    }
+
                     if (screen is GameScreen.HintList or GameScreen.InfoMenu or GameScreen.CommandMenu)
                     {
                         Dispatcher.Invoke(() =>
