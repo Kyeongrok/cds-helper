@@ -29,6 +29,7 @@
                             <CheckBox x:Name="PART_ShowWind" Content="해류/바람" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <CheckBox x:Name="PART_ShowDiscoveries" Content="발견물" VerticalAlignment="Center" Margin="0,0,8,0" IsChecked="True"/>
                             <CheckBox x:Name="PART_ShowCityLabels" Content="도시명" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="PART_HideFound" Content="미발견만" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <Button x:Name="PART_BtnLeaveCity" Content="탐험 떠나기" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="도시에서 성문을 통해 탐험을 떠남"/>
                             <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="게임 화면에서 좌표를 인식하여 지도에 표시"/>
@@ -51,7 +52,7 @@
                                            Stretch="None"
                                            RenderOptions.BitmapScalingMode="NearestNeighbor"
                                            SnapsToDevicePixels="True"/>
-                                    <Canvas x:Name="PART_OverlayCanvas" Background="Transparent"/>
+                                    <Canvas x:Name="PART_OverlayCanvas" Background="Transparent" IsHitTestVisible="True"/>
                                 </Grid>
                             </ScrollViewer>
                         </Border>
