@@ -34,13 +34,21 @@ public class WorldMapContent : ContentControl
     private Button? _btnLeaveCity;
     private Button? _btnTrackCoordinate;
     private TextBlock? _txtCurrentCoordinate;
+    private TextBlock? _txtZoomLabel;
     private Canvas? _overlayCanvas;
 
-    // 좌표 추적
+    // 좌표 추적 / 화면 감지
     private readonly CoordinateOcrService _coordinateOcr = new();
+    private readonly GameScreenDetector _screenDetector;
+
+    public WorldMapContent()
+    {
+        _screenDetector = new GameScreenDetector(_coordinateOcr);
+    }
     private DispatcherTimer? _trackingTimer;
     private bool _isTracking;
     private bool _isProcessing;
+    private bool _centerOnFirstPosition = true;
     private Ellipse? _positionMarker;
     private Ellipse? _positionPulse;
     private Polyline? _trailLine;
@@ -49,9 +57,11 @@ public class WorldMapContent : ContentControl
 
     // 발견물 표시
     private readonly List<UIElement> _discoveryMarkers = new();
+    private readonly List<UIElement> _cityLabels = new();
     private bool _discoveriesLoaded;
+    private CheckBox? _chkShowCityLabels;
 
-    private double _currentScale = 1.0;
+    private double _currentScale = 2.0;
     private const double ScaleStep = 0.25;
     private const double MinScale = 0.2;
     private const double MaxScale = 5.0;
@@ -67,6 +77,7 @@ public class WorldMapContent : ContentControl
 
     private bool _isDragging;
     private Point _lastMousePos;
+    private bool _autoScrollEnabled = true;
 
     // 자동이동
     private CancellationTokenSource? _navCts;
@@ -95,7 +106,7 @@ public class WorldMapContent : ContentControl
         _chkShowCoast = GetTemplateChild("PART_ShowCoast") as CheckBox;
         _chkShowWind = GetTemplateChild("PART_ShowWind") as CheckBox;
 
-        _scaleTransform = new ScaleTransform(1, 1);
+        _scaleTransform = new ScaleTransform(2, 2);
         var mapGrid = GetTemplateChild("PART_MapGrid") as Grid;
         if (mapGrid != null)
             mapGrid.LayoutTransform = _scaleTransform;
@@ -113,6 +124,9 @@ public class WorldMapContent : ContentControl
         _chkShowDiscoveries = GetTemplateChild("PART_ShowDiscoveries") as CheckBox;
         if (_chkShowDiscoveries != null) _chkShowDiscoveries.Click += (_, _) => ToggleDiscoveries();
 
+        _chkShowCityLabels = GetTemplateChild("PART_ShowCityLabels") as CheckBox;
+        if (_chkShowCityLabels != null) _chkShowCityLabels.Click += (_, _) => ToggleCityLabels();
+
         _btnLeaveCity = GetTemplateChild("PART_BtnLeaveCity") as Button;
         if (_btnLeaveCity != null)
             _btnLeaveCity.Click += (_, _) => LeaveCityForExploration();
@@ -120,6 +134,7 @@ public class WorldMapContent : ContentControl
         _btnTrackCoordinate = GetTemplateChild("PART_BtnTrackCoordinate") as Button;
         _txtCurrentCoordinate = GetTemplateChild("PART_TxtCurrentCoordinate") as TextBlock;
         _overlayCanvas = GetTemplateChild("PART_OverlayCanvas") as Canvas;
+        _txtZoomLabel = GetTemplateChild("PART_ZoomLabel") as TextBlock;
         if (_overlayCanvas != null)
         {
             _overlayCanvas.MouseRightButtonDown += OnMapRightClick;
@@ -135,6 +150,9 @@ public class WorldMapContent : ContentControl
         if (btnClearTrail != null) btnClearTrail.Click += (_, _) => ClearTrail();
         if (btnSaveTrail != null) btnSaveTrail.Click += (_, _) => SaveTrail();
         if (btnLoadTrail != null) btnLoadTrail.Click += (_, _) => LoadTrail();
+
+        var btnCenterPosition = GetTemplateChild("PART_BtnCenterPosition") as Button;
+        if (btnCenterPosition != null) btnCenterPosition.Click += (_, _) => GoToMyLocation();
 
         if (_scrollViewer != null)
         {
@@ -186,6 +204,7 @@ public class WorldMapContent : ContentControl
     private void ScrollViewer_MouseMove(object sender, MouseEventArgs e)
     {
         if (!_isDragging || _scrollViewer == null) return;
+        _autoScrollEnabled = false;
         var pos = e.GetPosition(_scrollViewer);
         var dx = pos.X - _lastMousePos.X;
         var dy = pos.Y - _lastMousePos.Y;
@@ -359,6 +378,14 @@ public class WorldMapContent : ContentControl
 
         bmp.WritePixels(new Int32Rect(0, 0, RenderW, RenderH), pixels, RenderW * 4, 0);
         _mapImage.Source = bmp;
+
+        // Canvas 크기를 Image와 동일하게 설정 (확대/축소 시 마커 위치 유지)
+        if (_overlayCanvas != null)
+        {
+            _overlayCanvas.Width = RenderW;
+            _overlayCanvas.Height = RenderH;
+        }
+
         CenterScrollToMiddleTile();
     }
 
@@ -484,6 +511,8 @@ public class WorldMapContent : ContentControl
 
         _scaleTransform.ScaleX = _currentScale;
         _scaleTransform.ScaleY = _currentScale;
+        if (_txtZoomLabel != null)
+            _txtZoomLabel.Text = $"x{_currentScale:F1}";
         _scrollViewer.UpdateLayout();
 
         _isWrapping = true;
@@ -503,6 +532,8 @@ public class WorldMapContent : ContentControl
         if (_scaleTransform == null) return;
         _scaleTransform.ScaleX = _currentScale;
         _scaleTransform.ScaleY = _currentScale;
+        if (_txtZoomLabel != null)
+            _txtZoomLabel.Text = $"x{_currentScale:F1}";
     }
 
     #region 발견물 표시
@@ -544,6 +575,22 @@ public class WorldMapContent : ContentControl
                     }
                 }
 
+                // 도시 좌표 표시 (파란색)
+                try
+                {
+                    var cityService = ContainerLocator.Container.Resolve<CityService>();
+                    var cities = cityService.GetCitiesWithCoordinatesFromDbAsync().Result;
+                    foreach (var city in cities)
+                    {
+                        if (city.Latitude == null || city.Longitude == null) continue;
+                        AddCityPoint(city.Name, city.Latitude.Value, city.Longitude.Value, city.HasLibrary);
+                    }
+                }
+                catch (Exception cityEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WorldMap] City load error: {cityEx.Message}");
+                }
+
                 _discoveriesLoaded = true;
             }
             catch (Exception ex)
@@ -552,14 +599,20 @@ public class WorldMapContent : ContentControl
             }
         }
 
+        var showLabels = _chkShowCityLabels?.IsChecked == true;
         foreach (var marker in _discoveryMarkers)
+        {
+            if (!showLabels && _cityLabels.Contains(marker))
+                continue;
             marker.Visibility = Visibility.Visible;
+        }
     }
 
     private void HideDiscoveries()
     {
         foreach (var marker in _discoveryMarkers)
             marker.Visibility = Visibility.Collapsed;
+        _cityLabels.Clear();
     }
 
     private void AddDiscoveryPoint(DiscoveryEntity d)
@@ -636,14 +689,79 @@ public class WorldMapContent : ContentControl
         _discoveryMarkers.Add(label);
     }
 
-    private static TextBlock CreateDiscoveryLabel(string name)
+    private void AddCityPoint(string name, int lat, int lon, bool hasLibrary = false)
     {
-        return new TextBlock
+        if (_overlayCanvas == null) return;
+
+        var (px, py) = LatLonToPixel(lat, lon);
+
+        const double size = 7;
+        var fillColor = hasLibrary
+            ? Color.FromArgb(230, 255, 200, 0)    // 노란색 (도서관)
+            : Color.FromArgb(220, 30, 120, 255);   // 파란색
+        var strokeColor = hasLibrary
+            ? Color.FromArgb(255, 180, 120, 0)
+            : Color.FromArgb(255, 0, 40, 140);
+
+        var dot = new Ellipse
         {
-            Text = name,
-            FontSize = 10,
-            Foreground = Brushes.Black,
-            IsHitTestVisible = false
+            Width = size,
+            Height = size,
+            Fill = new SolidColorBrush(fillColor),
+            Stroke = new SolidColorBrush(strokeColor),
+            StrokeThickness = 1.5,
+            IsHitTestVisible = true,
+            ToolTip = hasLibrary ? $"{name} (도서관)" : name
+        };
+
+        Canvas.SetLeft(dot, px - size / 2);
+        Canvas.SetTop(dot, py - size / 2);
+        _overlayCanvas.Children.Add(dot);
+        _discoveryMarkers.Add(dot);
+
+        // 라벨: 반투명 배경으로 가독성 확보
+        var label = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)),
+            CornerRadius = new CornerRadius(2),
+            Padding = new Thickness(2, 0, 2, 0),
+            IsHitTestVisible = false,
+            Visibility = _chkShowCityLabels?.IsChecked == true ? Visibility.Visible : Visibility.Collapsed,
+            Child = new TextBlock
+            {
+                Text = name,
+                FontSize = 7,
+                Foreground = new SolidColorBrush(hasLibrary ? Color.FromRgb(140, 90, 0) : Color.FromRgb(0, 30, 120)),
+            }
+        };
+        Canvas.SetLeft(label, px + size / 2 + 1);
+        Canvas.SetTop(label, py - 7);
+        _overlayCanvas.Children.Add(label);
+        _discoveryMarkers.Add(label);
+        _cityLabels.Add(label);
+    }
+
+    private void ToggleCityLabels()
+    {
+        var show = _chkShowCityLabels?.IsChecked == true;
+        foreach (var label in _cityLabels)
+            label.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static Border CreateDiscoveryLabel(string name)
+    {
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)),
+            CornerRadius = new CornerRadius(2),
+            Padding = new Thickness(2, 0, 2, 0),
+            IsHitTestVisible = false,
+            Child = new TextBlock
+            {
+                Text = name,
+                FontSize = 7,
+                Foreground = Brushes.Black
+            }
         };
     }
 
@@ -674,6 +792,7 @@ public class WorldMapContent : ContentControl
     {
         _isTracking = true;
         _isProcessing = false;
+        _centerOnFirstPosition = true;
         if (_btnTrackCoordinate != null) _btnTrackCoordinate.Content = "추적 중지";
 
         _trackingTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -706,28 +825,21 @@ public class WorldMapContent : ContentControl
             using var bitmap = GameWindowHelper.CaptureClient(hWnd);
             if (bitmap == null) return;
 
-            bool inCity = GameWindowHelper.IsInCity(bitmap);
+            bool inCity = GameScreenDetector.IsInCity(bitmap);
 
             var prediction = await Task.Run(() => _coordinateOcr.PredictOcrAsync(bitmap));
-
-            if (inCity)
-            {
-                if (_txtCurrentCoordinate != null)
-                    _txtCurrentCoordinate.Text = "📍 도시 안";
-                if (_positionMarker != null) _positionMarker.Visibility = Visibility.Collapsed;
-                if (_positionPulse != null) _positionPulse.Visibility = Visibility.Collapsed;
-                return;
-            }
 
             if (prediction == null)
             {
                 if (_txtCurrentCoordinate != null)
-                    _txtCurrentCoordinate.Text = "🧭 탐험 중 - 좌표 인식 실패";
+                    _txtCurrentCoordinate.Text = inCity ? "📍 도시 안" : "🧭 탐험 중 - 좌표 인식 실패";
                 return;
             }
 
             if (_txtCurrentCoordinate != null)
-                _txtCurrentCoordinate.Text = $"🧭 탐험 중 - {prediction}";
+                _txtCurrentCoordinate.Text = inCity
+                    ? $"📍 도시 안 ({prediction})"
+                    : $"🧭 탐험 중 - {prediction}";
 
             if (_mapData != null)
                 UpdatePositionMarker(prediction.ToLat(), prediction.ToLon());
@@ -756,8 +868,8 @@ public class WorldMapContent : ContentControl
 
         var (px, py) = LatLonToPixel(lat, lon);
 
-        const double markerSize = 12;
-        const double pulseSize = 20;
+        const double markerSize = 7;
+        const double pulseSize = 12;
 
         if (_trailLine == null)
         {
@@ -808,6 +920,60 @@ public class WorldMapContent : ContentControl
         Canvas.SetTop(_positionMarker, py - markerSize / 2);
         Canvas.SetLeft(_positionPulse, px - pulseSize / 2);
         Canvas.SetTop(_positionPulse, py - pulseSize / 2);
+
+        if (_centerOnFirstPosition)
+        {
+            _centerOnFirstPosition = false;
+            ScrollToImagePosition(px, py);
+        }
+        else
+        {
+            ScrollToMarkerIfNeeded(px, py);
+        }
+    }
+
+    private void GoToMyLocation()
+    {
+        if (_positionMarker == null || _positionMarker.Visibility != Visibility.Visible) return;
+
+        var px = Canvas.GetLeft(_positionMarker) + 3.5; // markerSize/2
+        var py = Canvas.GetTop(_positionMarker) + 3.5;
+
+        _autoScrollEnabled = true;
+        ScrollToImagePosition(px, py);
+    }
+
+    private void ScrollToImagePosition(double imageX, double imageY)
+    {
+        if (_scrollViewer == null) return;
+
+        var offsetX = (imageX * _currentScale) - (_scrollViewer.ViewportWidth / 2);
+        var offsetY = (imageY * _currentScale) - (_scrollViewer.ViewportHeight / 2);
+
+        _isWrapping = true;
+        _scrollViewer.ScrollToHorizontalOffset(Math.Max(0, offsetX));
+        _scrollViewer.ScrollToVerticalOffset(Math.Max(0, offsetY));
+        _isWrapping = false;
+    }
+
+    private void ScrollToMarkerIfNeeded(double pixelX, double pixelY)
+    {
+        if (_scrollViewer == null || !_autoScrollEnabled) return;
+
+        var screenX = (pixelX * _currentScale) - _scrollViewer.HorizontalOffset;
+        var screenY = (pixelY * _currentScale) - _scrollViewer.VerticalOffset;
+
+        var viewW = _scrollViewer.ViewportWidth;
+        var viewH = _scrollViewer.ViewportHeight;
+
+        var marginX = viewW * 0.1;
+        var marginY = viewH * 0.1;
+
+        if (screenX < marginX || screenX > viewW - marginX ||
+            screenY < marginY || screenY > viewH - marginY)
+        {
+            ScrollToImagePosition(pixelX, pixelY);
+        }
     }
 
     private static double DistanceSq(Point a, Point b)
@@ -1020,11 +1186,15 @@ public class WorldMapContent : ContentControl
         {
             var token = _navCts.Token;
 
+            // 게임 창 활성화
+            GameWindowHelper.BringToFront(hWnd);
+            await Task.Delay(300, token);
+
             // 도시 안인지 확인 → 탐험 떠나기 먼저 실행
             try
             {
                 using var checkBmp = GameWindowHelper.CaptureClient(hWnd);
-                if (checkBmp != null && GameWindowHelper.IsInCity(checkBmp))
+                if (checkBmp != null && GameScreenDetector.IsInCity(checkBmp))
                 {
                     Dispatcher.Invoke(() =>
                     {
@@ -1055,6 +1225,20 @@ public class WorldMapContent : ContentControl
                     using var bitmap = GameWindowHelper.CaptureClient(navHWnd);
                     if (bitmap == null)
                     {
+                        await Task.Delay(500, token);
+                        continue;
+                    }
+
+                    // 다이얼로그/힌트 화면이 떠있으면 닫기
+                    var screen = await _screenDetector.DetectScreenAsync(bitmap);
+                    if (screen is GameScreen.HintList or GameScreen.InfoMenu or GameScreen.CommandMenu)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (_txtCurrentCoordinate != null)
+                                _txtCurrentCoordinate.Text = $"📋 화면 닫는 중... ({screen})";
+                        });
+                        await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
                         await Task.Delay(500, token);
                         continue;
                     }
@@ -1139,32 +1323,42 @@ public class WorldMapContent : ContentControl
         GameWindowHelper.BringToFront(hWnd);
         await Task.Delay(300, token);
 
-        // 1. 아래 키를 누르면서 건물 이름을 OCR로 읽어 "성문"을 찾음
+        var debugDir = Path.Combine(Path.GetTempPath(), "cds_leave_city");
+        Directory.CreateDirectory(debugDir);
+
+        // 건물 목록은 순환 구조이므로 Down 키로 한 바퀴 돌며 "성문"을 찾음
         bool foundGate = false;
         for (int i = 0; i < 15; i++)
         {
-            GameWindowHelper.SendDownKey(hWnd);
-            await Task.Delay(600, token);
-
-            // 화면 캡처 → 건물 이름 영역 OCR
             using var bmp = GameWindowHelper.CaptureClient(hWnd);
-            if (bmp == null) continue;
-
-            // 건물 이름 라벨: 프레임 하단 영역 넓게 (화면의 25~75% 가로, 73~93% 세로)
-            int labelX = bmp.Width * 25 / 100;
-            int labelY = bmp.Height * 73 / 100;
-            int labelW = bmp.Width * 50 / 100;
-            int labelH = bmp.Height * 20 / 100;
-            var region = new System.Drawing.Rectangle(labelX, labelY, labelW, labelH);
-
-            var text = await _coordinateOcr.RecognizeRegionAsync(bmp, region);
-            System.Diagnostics.Debug.WriteLine($"[LeaveCity] OCR: '{text}'");
-
-            if (text != null && text.Contains("성문"))
+            if (bmp != null)
             {
-                foundGate = true;
-                break;
+                int regionY = Math.Min(20, bmp.Height - 1);
+                int regionH = Math.Max(bmp.Height * 70 / 100, 1);
+                var region = new System.Drawing.Rectangle(0, regionY, bmp.Width, regionH);
+
+                // 디버그 이미지 저장
+                try
+                {
+                    var debugPath = Path.Combine(debugDir, $"gate_{i}.png");
+                    using var cropped = bmp.Clone(region, bmp.PixelFormat);
+                    cropped.Save(debugPath);
+                    System.Diagnostics.Debug.WriteLine($"[LeaveCity] Debug image: {debugPath}");
+                }
+                catch { /* ignore */ }
+
+                var text = await _coordinateOcr.RecognizeRegionAsync(bmp, region);
+                System.Diagnostics.Debug.WriteLine($"[LeaveCity] OCR({i}): '{text}'");
+
+                if (text != null && text.Contains("성문"))
+                {
+                    foundGate = true;
+                    break;
+                }
             }
+
+            GameWindowHelper.SendDownKey(hWnd);
+            await Task.Delay(500, token);
         }
 
         if (!foundGate)

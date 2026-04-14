@@ -445,10 +445,12 @@ public class CoordinateOcrService : IDisposable
         {
             using var cropped = screenshot.Clone(region, screenshot.PixelFormat);
 
-            // 3배 확대
+            // 3배 확대 + 색상 반전 (어두운 배경에 밝은 글자 대응)
             using var mat = BitmapConverter.ToMat(cropped);
+            using var inverted = new Mat();
+            Cv2.BitwiseNot(mat, inverted);
             using var scaled = new Mat();
-            Cv2.Resize(mat, scaled, new OpenCvSharp.Size(mat.Cols * 3, mat.Rows * 3),
+            Cv2.Resize(inverted, scaled, new OpenCvSharp.Size(mat.Cols * 3, mat.Rows * 3),
                 interpolation: InterpolationFlags.Cubic);
 
             using var scaledBmp = BitmapConverter.ToBitmap(scaled);
