@@ -345,6 +345,13 @@ public enum GameScene
 
     // 대화
     Dialog,
+
+    // 탐험
+    Exploration,
+
+    // 정보/힌트 화면
+    InfoMenu,
+    HintList,
 }
 
 /// <summary>게임 상태 감지 결과.</summary>

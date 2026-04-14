@@ -113,6 +113,7 @@ public static class AppSettings
         new() { Name = "FigureheadContent", DisplayName = "선수상" },
         new() { Name = "ItemContent", DisplayName = "아이템" },
         new() { Name = "MapContent", DisplayName = "지도" },
+        new() { Name = "WorldMapContent", DisplayName = "세계지도" },
         new() { Name = "SphinxCalculatorContent", DisplayName = "스핑크스" }
     };
 
