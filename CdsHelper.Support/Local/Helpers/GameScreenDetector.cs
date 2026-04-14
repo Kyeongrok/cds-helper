@@ -21,11 +21,15 @@ public class GameScreenDetector
     /// </summary>
     public async Task<GameScreen> DetectScreenAsync(Bitmap bitmap)
     {
-        // 1. 도시 안인지 확인 (프레임 테두리 감지)
+        // 1. 전쟁 화면 감지 (대부분 검은 배경) — 도시보다 먼저 체크
+        if (IsBattleScreen(bitmap))
+            return GameScreen.Battle;
+
+        // 2. 도시 안인지 확인 (프레임 테두리 감지)
         if (IsInCity(bitmap))
             return GameScreen.City;
 
-        // 2. 다이얼로그/메뉴가 있는지 OCR로 확인
+        // 3. 다이얼로그/메뉴가 있는지 OCR로 확인
         var ocrResult = await OcrGameArea(bitmap);
         if (ocrResult != null)
         {
@@ -37,7 +41,7 @@ public class GameScreenDetector
                 return GameScreen.CommandMenu;
         }
 
-        // 3. 기본: 탐험 중
+        // 4. 기본: 탐험 중
         return GameScreen.Exploration;
     }
 
@@ -121,6 +125,12 @@ public class GameScreenDetector
                 GameWindowHelper.SendEscKey(hWnd);
                 await Task.Delay(500, token);
                 break;
+
+            case GameScreen.Battle:
+                // 전투 → 돌격 (첫 번째 옵션이므로 Enter)
+                GameWindowHelper.SendEnterKey(hWnd);
+                await Task.Delay(1000, token);
+                break;
         }
     }
 
@@ -138,6 +148,45 @@ public class GameScreenDetector
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// 전쟁 화면 감지: 화면 상단 중앙에 초승달 모양이 있는지 확인.
+    /// 상단 30% 영역에서 검은 배경 위에 밝은 픽셀(달)이 있으면 전쟁 화면.
+    /// </summary>
+    public static bool IsBattleScreen(Bitmap bitmap)
+    {
+        int w = bitmap.Width;
+        int h = bitmap.Height;
+        if (w < 100 || h < 100) return false;
+
+        // 상단 15~35% 영역, 좌우 30~70% 범위에서 달 모양 탐색
+        int darkCount = 0;
+        int brightCount = 0;
+        int totalSamples = 0;
+
+        for (int yPct = 15; yPct <= 35; yPct += 2)
+        {
+            for (int xPct = 30; xPct <= 70; xPct += 2)
+            {
+                int x = w * xPct / 100;
+                int y = h * yPct / 100;
+                if (x >= w || y >= h) continue;
+                totalSamples++;
+                var p = bitmap.GetPixel(x, y);
+                if (p.R < 30 && p.G < 30 && p.B < 30)
+                    darkCount++;
+                else if (p.R > 150 && p.G > 120 && p.B > 50)
+                    brightCount++;
+            }
+        }
+
+        if (totalSamples == 0) return false;
+
+        // 해당 영역에서 대부분 검은색(60%+)이고 밝은 픽셀(달)이 일부(3%+) 존재
+        double darkRatio = (double)darkCount / totalSamples;
+        double brightRatio = (double)brightCount / totalSamples;
+        return darkRatio >= 0.60 && brightRatio >= 0.03;
     }
 
     private static bool IsDarkAt(Bitmap bmp, int x, int y, int w, int h)
@@ -161,4 +210,6 @@ public enum GameScreen
     InfoMenu,
     /// <summary>커맨드 메뉴 표시 중</summary>
     CommandMenu,
+    /// <summary>전쟁/전투 화면</summary>
+    Battle,
 }

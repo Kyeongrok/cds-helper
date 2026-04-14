@@ -52,7 +52,8 @@
                                            Stretch="None"
                                            RenderOptions.BitmapScalingMode="NearestNeighbor"
                                            SnapsToDevicePixels="True"/>
-                                    <Canvas x:Name="PART_OverlayCanvas" Background="Transparent" IsHitTestVisible="True"/>
+                                    <Canvas x:Name="PART_OverlayCanvas" Background="Transparent" IsHitTestVisible="True"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"/>
                                 </Grid>
                             </ScrollViewer>
                         </Border>
