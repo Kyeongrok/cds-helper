@@ -102,6 +102,10 @@ public static class GameWindowHelper
     private const int VK_NUMPAD8 = 0x68;
     private const int VK_NUMPAD9 = 0x69;
 
+    private const int VK_RETURN = 0x0D;
+    private const int VK_UP     = 0x26;
+    private const int VK_DOWN   = 0x28;
+
     #endregion
 
     /// <summary>
@@ -280,6 +284,75 @@ public static class GameWindowHelper
         PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, IntPtr.Zero);
         Thread.Sleep(30);
         PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, IntPtr.Zero);
+    }
+
+    /// <summary>
+    /// 지정한 Virtual Key를 게임 윈도우에 전송한다.
+    /// </summary>
+    public static void SendKey(IntPtr hWnd, int vk)
+    {
+        PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, IntPtr.Zero);
+        Thread.Sleep(30);
+        PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, IntPtr.Zero);
+    }
+
+    /// <summary>Down 화살표 키 전송</summary>
+    public static void SendDownKey(IntPtr hWnd) => SendKey(hWnd, VK_DOWN);
+
+    /// <summary>Up 화살표 키 전송</summary>
+    public static void SendUpKey(IntPtr hWnd) => SendKey(hWnd, VK_UP);
+
+    /// <summary>Enter 키 전송</summary>
+    public static void SendEnterKey(IntPtr hWnd) => SendKey(hWnd, VK_RETURN);
+
+    /// <summary>
+    /// 캡처된 화면에서 도시 안인지 판별한다.
+    /// 도시 안이면 화면 중앙에 고정 크기의 장식 액자 프레임이 존재한다.
+    /// 프레임의 좌/우 세로 테두리 위치에서 어두운 픽셀을 샘플링하여 판정.
+    /// </summary>
+    public static bool IsInCity(Bitmap bitmap)
+    {
+        int w = bitmap.Width;
+        int h = bitmap.Height;
+        if (w < 200 || h < 200) return false;
+
+        // 프레임은 화면 중앙에 고정 크기로 위치
+        // 좌 테두리: x ≈ 27%, 우 테두리: x ≈ 77%
+        // 세로 범위: y 40%~75% (프레임 내부 영역)
+        int leftX = w * 27 / 100;
+        int rightX = w * 77 / 100;
+
+        int leftDark = 0;
+        int rightDark = 0;
+        int sampleCount = 0;
+
+        for (int pct = 40; pct <= 75; pct += 5)
+        {
+            int y = h * pct / 100;
+            sampleCount++;
+
+            // 좌 테두리: leftX 부근 ±3px 범위에서 어두운 픽셀 확인
+            if (IsDarkAt(bitmap, leftX, y, w, h) ||
+                IsDarkAt(bitmap, leftX - 2, y, w, h) ||
+                IsDarkAt(bitmap, leftX + 2, y, w, h))
+                leftDark++;
+
+            // 우 테두리
+            if (IsDarkAt(bitmap, rightX, y, w, h) ||
+                IsDarkAt(bitmap, rightX - 2, y, w, h) ||
+                IsDarkAt(bitmap, rightX + 2, y, w, h))
+                rightDark++;
+        }
+
+        // 좌/우 테두리 모두 절반 이상 샘플에서 감지되면 도시 안
+        return leftDark >= sampleCount / 2 && rightDark >= sampleCount / 2;
+    }
+
+    private static bool IsDarkAt(Bitmap bmp, int x, int y, int w, int h)
+    {
+        if (x < 0 || x >= w || y < 0 || y >= h) return false;
+        var p = bmp.GetPixel(x, y);
+        return p.R < 90 && p.G < 80 && p.B < 70;
     }
 
     /// <summary>
