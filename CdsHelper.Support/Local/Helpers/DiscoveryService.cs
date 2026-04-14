@@ -389,4 +389,24 @@ public class DiscoveryService
             _discoveries[id].LonTo = lonTo;
         }
     }
+
+    public async Task UpdateNameAsync(int id, string newName)
+    {
+        if (_dbContext == null) return;
+
+        var entity = await _dbContext.Discoveries.FindAsync(id);
+        if (entity == null) return;
+
+        var oldName = entity.Name;
+        entity.Name = newName;
+        await _dbContext.SaveChangesAsync();
+
+        // 캐시 갱신
+        if (_discoveries.ContainsKey(id))
+            _discoveries[id].Name = newName;
+
+        // 이름→ID 맵 갱신
+        _nameToIdMap.Remove(oldName);
+        _nameToIdMap[newName] = id;
+    }
 }

@@ -58,8 +58,12 @@ public class WorldMapContent : ContentControl
     // 발견물 표시
     private readonly List<UIElement> _discoveryMarkers = new();
     private readonly List<UIElement> _cityLabels = new();
+    private readonly List<UIElement> _foundMarkers = new();
     private bool _discoveriesLoaded;
     private CheckBox? _chkShowCityLabels;
+    private CheckBox? _chkHideFound;
+    private HashSet<int>? _discoveredHintIds;
+    private HashSet<int>? _hasHintIds;
 
     private double _currentScale = 2.0;
     private const double ScaleStep = 0.25;
@@ -127,6 +131,9 @@ public class WorldMapContent : ContentControl
         _chkShowCityLabels = GetTemplateChild("PART_ShowCityLabels") as CheckBox;
         if (_chkShowCityLabels != null) _chkShowCityLabels.Click += (_, _) => ToggleCityLabels();
 
+        _chkHideFound = GetTemplateChild("PART_HideFound") as CheckBox;
+        if (_chkHideFound != null) _chkHideFound.Click += (_, _) => ToggleHideFound();
+
         _btnLeaveCity = GetTemplateChild("PART_BtnLeaveCity") as Button;
         if (_btnLeaveCity != null)
             _btnLeaveCity.Click += (_, _) => LeaveCityForExploration();
@@ -189,10 +196,24 @@ public class WorldMapContent : ContentControl
     private void ScrollViewer_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_scrollViewer == null) return;
+        // 클릭 가능한 라벨(Border with Tag)에서 시작된 클릭은 드래그 무시
+        if (e.OriginalSource is FrameworkElement fe &&
+            (fe is Border { Tag: not null } || FindParent<Border>(fe) is { Tag: not null }))
+            return;
         _isDragging = true;
         _lastMousePos = e.GetPosition(_scrollViewer);
         _scrollViewer.Cursor = Cursors.Hand;
         e.Handled = true;
+    }
+
+    private static T? FindParent<T>(FrameworkElement? element) where T : FrameworkElement
+    {
+        while (element != null)
+        {
+            element = element.Parent as FrameworkElement ?? VisualTreeHelper.GetParent(element) as FrameworkElement;
+            if (element is T match) return match;
+        }
+        return null;
     }
 
     private void ScrollViewer_MouseUp(object sender, MouseButtonEventArgs e)
@@ -379,12 +400,8 @@ public class WorldMapContent : ContentControl
         bmp.WritePixels(new Int32Rect(0, 0, RenderW, RenderH), pixels, RenderW * 4, 0);
         _mapImage.Source = bmp;
 
-        // Canvas 크기를 Image와 동일하게 설정 (확대/축소 시 마커 위치 유지)
-        if (_overlayCanvas != null)
-        {
-            _overlayCanvas.Width = RenderW;
-            _overlayCanvas.Height = RenderH;
-        }
+        // Canvas는 명시적 크기 없이 Grid에서 Image와 동일 영역 차지
+        // (Width/Height를 설정하면 Grid 레이아웃에 간섭하여 렌더링 문제 발생)
 
         CenterScrollToMiddleTile();
     }
@@ -556,6 +573,24 @@ public class WorldMapContent : ContentControl
         {
             try
             {
+                // 발견 여부 로드
+                try
+                {
+                    var saveDataService = ContainerLocator.Container.Resolve<SaveDataService>();
+                    if (saveDataService.CurrentSaveGameInfo?.Hints != null)
+                    {
+                        _discoveredHintIds = saveDataService.CurrentSaveGameInfo.Hints
+                            .Where(h => h.IsDiscovered)
+                            .Select(h => h.Index - 1)
+                            .ToHashSet();
+                        _hasHintIds = saveDataService.CurrentSaveGameInfo.Hints
+                            .Where(h => h.HasHint)
+                            .Select(h => h.Index - 1)
+                            .ToHashSet();
+                    }
+                }
+                catch { /* 세이브 데이터 없으면 무시 */ }
+
                 var service = ContainerLocator.Container.Resolve<DiscoveryService>();
                 var discoveries = service.GetAllDiscoveries().Values;
 
@@ -563,15 +598,17 @@ public class WorldMapContent : ContentControl
                 {
                     if (d.LatFrom == null && d.LonFrom == null) continue;
 
+                    bool isFound = d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true;
+                    bool hasHint = d.HintId.HasValue && _hasHintIds?.Contains(d.HintId.Value) == true;
                     var isPoint = d.LatFrom == d.LatTo && d.LonFrom == d.LonTo;
 
                     if (isPoint && d.LatFrom != null && d.LonFrom != null)
                     {
-                        AddDiscoveryPoint(d);
+                        AddDiscoveryPoint(d, isFound, hasHint);
                     }
                     else
                     {
-                        AddDiscoveryArea(d);
+                        AddDiscoveryArea(d, isFound, hasHint);
                     }
                 }
 
@@ -600,9 +637,12 @@ public class WorldMapContent : ContentControl
         }
 
         var showLabels = _chkShowCityLabels?.IsChecked == true;
+        var hideFound = _chkHideFound?.IsChecked == true;
         foreach (var marker in _discoveryMarkers)
         {
             if (!showLabels && _cityLabels.Contains(marker))
+                continue;
+            if (hideFound && _foundMarkers.Contains(marker))
                 continue;
             marker.Visibility = Visibility.Visible;
         }
@@ -613,9 +653,17 @@ public class WorldMapContent : ContentControl
         foreach (var marker in _discoveryMarkers)
             marker.Visibility = Visibility.Collapsed;
         _cityLabels.Clear();
+        _foundMarkers.Clear();
     }
 
-    private void AddDiscoveryPoint(DiscoveryEntity d)
+    private void ToggleHideFound()
+    {
+        var hideFound = _chkHideFound?.IsChecked == true;
+        foreach (var marker in _foundMarkers)
+            marker.Visibility = hideFound ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void AddDiscoveryPoint(DiscoveryEntity d, bool isFound = false, bool hasHint = false)
     {
         if (_overlayCanvas == null) return;
 
@@ -626,26 +674,32 @@ public class WorldMapContent : ContentControl
         {
             Width = size,
             Height = size,
-            Fill = new SolidColorBrush(Color.FromArgb(200, 220, 40, 40)),
-            Stroke = new SolidColorBrush(Color.FromArgb(220, 160, 20, 20)),
+            Fill = new SolidColorBrush(isFound
+                ? Color.FromArgb(150, 100, 100, 100)
+                : Color.FromArgb(200, 220, 40, 40)),
+            Stroke = new SolidColorBrush(isFound
+                ? Color.FromArgb(180, 80, 80, 80)
+                : Color.FromArgb(220, 160, 20, 20)),
             StrokeThickness = 1,
             IsHitTestVisible = true,
-            ToolTip = d.Name
+            ToolTip = isFound ? $"{d.Name} (발견)" : d.Name
         };
 
         Canvas.SetLeft(dot, px - size / 2);
         Canvas.SetTop(dot, py - size / 2);
         _overlayCanvas.Children.Add(dot);
         _discoveryMarkers.Add(dot);
+        if (isFound) _foundMarkers.Add(dot);
 
-        var label = CreateDiscoveryLabel(d.Name);
+        var label = CreateDiscoveryLabel(d.Id, d.Name, hasHint);
         Canvas.SetLeft(label, px + size / 2 + 2);
         Canvas.SetTop(label, py - 6);
         _overlayCanvas.Children.Add(label);
         _discoveryMarkers.Add(label);
+        if (isFound) _foundMarkers.Add(label);
     }
 
-    private void AddDiscoveryArea(DiscoveryEntity d)
+    private void AddDiscoveryArea(DiscoveryEntity d, bool isFound = false, bool hasHint = false)
     {
         if (_overlayCanvas == null) return;
 
@@ -670,23 +724,29 @@ public class WorldMapContent : ContentControl
         {
             Width = w,
             Height = h,
-            Fill = new SolidColorBrush(Color.FromArgb(40, 50, 100, 220)),
-            Stroke = new SolidColorBrush(Color.FromArgb(160, 50, 100, 220)),
+            Fill = new SolidColorBrush(isFound
+                ? Color.FromArgb(20, 100, 100, 100)
+                : Color.FromArgb(40, 50, 100, 220)),
+            Stroke = new SolidColorBrush(isFound
+                ? Color.FromArgb(100, 80, 80, 80)
+                : Color.FromArgb(160, 50, 100, 220)),
             StrokeThickness = 1,
             IsHitTestVisible = true,
-            ToolTip = d.Name
+            ToolTip = isFound ? $"{d.Name} (발견)" : d.Name
         };
 
         Canvas.SetLeft(rect, x1);
         Canvas.SetTop(rect, y1);
         _overlayCanvas.Children.Add(rect);
         _discoveryMarkers.Add(rect);
+        if (isFound) _foundMarkers.Add(rect);
 
-        var label = CreateDiscoveryLabel(d.Name);
+        var label = CreateDiscoveryLabel(d.Id, d.Name, hasHint);
         Canvas.SetLeft(label, x2 + 2);
         Canvas.SetTop(label, y1);
         _overlayCanvas.Children.Add(label);
         _discoveryMarkers.Add(label);
+        if (isFound) _foundMarkers.Add(label);
     }
 
     private void AddCityPoint(string name, int lat, int lon, bool hasLibrary = false)
@@ -748,21 +808,120 @@ public class WorldMapContent : ContentControl
             label.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private static Border CreateDiscoveryLabel(string name)
+    private Border CreateDiscoveryLabel(int discoveryId, string name, bool hasHint = false)
     {
-        return new Border
+        var textBlock = new TextBlock
+        {
+            Text = name,
+            FontSize = 7,
+            Foreground = Brushes.Black
+        };
+        var border = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)),
             CornerRadius = new CornerRadius(2),
             Padding = new Thickness(2, 0, 2, 0),
-            IsHitTestVisible = false,
-            Child = new TextBlock
-            {
-                Text = name,
-                FontSize = 7,
-                Foreground = Brushes.Black
-            }
+            BorderBrush = hasHint ? new SolidColorBrush(Color.FromRgb(40, 160, 40)) : null,
+            BorderThickness = hasHint ? new Thickness(1) : new Thickness(0),
+            IsHitTestVisible = true,
+            Cursor = Cursors.Hand,
+            Tag = discoveryId,
+            Child = textBlock
         };
+        border.MouseLeftButtonDown += OnDiscoveryLabelClick;
+        return border;
+    }
+
+    private async void OnDiscoveryLabelClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border border || border.Tag is not int discoveryId) return;
+        var textBlock = border.Child as TextBlock;
+        if (textBlock == null) return;
+
+        e.Handled = true;
+
+        var service = ContainerLocator.Container.Resolve<DiscoveryService>();
+        var discovery = service.GetDiscovery(discoveryId);
+        if (discovery == null) return;
+
+        var dialog = new Window
+        {
+            Title = $"발견물 수정 (ID: {discoveryId})",
+            Width = 340, Height = 250,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            ResizeMode = ResizeMode.NoResize
+        };
+
+        var grid = new Grid { Margin = new Thickness(10) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        for (int r = 0; r < 6; r++)
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var tbName = new TextBox { Text = discovery.Name, FontSize = 13, Margin = new Thickness(0, 0, 0, 6) };
+        var tbLatFrom = new TextBox { Text = discovery.LatFrom?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
+        var tbLatTo = new TextBox { Text = discovery.LatTo?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
+        var tbLonFrom = new TextBox { Text = discovery.LonFrom?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
+        var tbLonTo = new TextBox { Text = discovery.LonTo?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
+
+        var labels = new[] { "이름", "위도 From", "위도 To", "경도 From", "경도 To" };
+        var boxes = new[] { tbName, tbLatFrom, tbLatTo, tbLonFrom, tbLonTo };
+        for (int r = 0; r < 5; r++)
+        {
+            var lbl = new TextBlock { Text = labels[r], VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) };
+            Grid.SetRow(lbl, r); Grid.SetColumn(lbl, 0);
+            Grid.SetRow(boxes[r], r); Grid.SetColumn(boxes[r], 1);
+            grid.Children.Add(lbl);
+            grid.Children.Add(boxes[r]);
+        }
+
+        var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
+        var btnOk = new Button { Content = "확인", Width = 70, Margin = new Thickness(0, 0, 6, 0), IsDefault = true };
+        var btnCancel = new Button { Content = "취소", Width = 70, IsCancel = true };
+        btnOk.Click += (_, _) => dialog.DialogResult = true;
+        btnPanel.Children.Add(btnOk);
+        btnPanel.Children.Add(btnCancel);
+        Grid.SetRow(btnPanel, 5); Grid.SetColumnSpan(btnPanel, 2);
+        grid.Children.Add(btnPanel);
+
+        dialog.Content = grid;
+        tbName.SelectAll();
+        tbName.Focus();
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var oldName = discovery.Name;
+            var newName = tbName.Text.Trim();
+
+            int? ParseInt(string s) => int.TryParse(s.Trim(), out var v) ? v : null;
+            var latFrom = ParseInt(tbLatFrom.Text);
+            var latTo = ParseInt(tbLatTo.Text);
+            var lonFrom = ParseInt(tbLonFrom.Text);
+            var lonTo = ParseInt(tbLonTo.Text);
+
+            if (!string.IsNullOrEmpty(newName) && newName != oldName)
+            {
+                await service.UpdateNameAsync(discoveryId, newName);
+                textBlock.Text = newName;
+                foreach (var marker in _discoveryMarkers)
+                {
+                    if (marker is FrameworkElement fe && fe.ToolTip as string == oldName)
+                        fe.ToolTip = newName;
+                }
+            }
+
+            if (latFrom != discovery.LatFrom || latTo != discovery.LatTo ||
+                lonFrom != discovery.LonFrom || lonTo != discovery.LonTo)
+            {
+                await service.UpdateCoordinateAsync(discoveryId, latFrom, latTo, lonFrom, lonTo);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"수정 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     #endregion
