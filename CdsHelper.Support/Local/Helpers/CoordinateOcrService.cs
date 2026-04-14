@@ -433,6 +433,51 @@ public class CoordinateOcrService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Bitmap의 지정 영역을 OCR로 인식하여 텍스트를 반환한다.
+    /// </summary>
+    public async Task<string?> RecognizeRegionAsync(Bitmap screenshot, System.Drawing.Rectangle region)
+    {
+        var engine = GetOcrEngine();
+        if (engine == null) return null;
+
+        try
+        {
+            using var cropped = screenshot.Clone(region, screenshot.PixelFormat);
+
+            // 3배 확대
+            using var mat = BitmapConverter.ToMat(cropped);
+            using var scaled = new Mat();
+            Cv2.Resize(mat, scaled, new OpenCvSharp.Size(mat.Cols * 3, mat.Rows * 3),
+                interpolation: InterpolationFlags.Cubic);
+
+            using var scaledBmp = BitmapConverter.ToBitmap(scaled);
+            using var ms = new MemoryStream();
+            scaledBmp.Save(ms, ImageFormat.Png);
+            ms.Position = 0;
+
+            using var ras = ms.AsRandomAccessStream();
+            var decoder = await BitmapDecoder.CreateAsync(ras);
+            var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
+
+            if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8
+                || softwareBitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
+            {
+                softwareBitmap = SoftwareBitmap.Convert(softwareBitmap,
+                    BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+            }
+
+            var ocrResult = await engine.RecognizeAsync(softwareBitmap);
+            softwareBitmap.Dispose();
+
+            return ocrResult.Text?.Trim();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     #endregion
 
     #region 유틸

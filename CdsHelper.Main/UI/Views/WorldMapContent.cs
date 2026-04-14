@@ -31,6 +31,7 @@ public class WorldMapContent : ContentControl
     private CheckBox? _chkShowCoast;
     private CheckBox? _chkShowWind;
     private CheckBox? _chkShowDiscoveries;
+    private Button? _btnLeaveCity;
     private Button? _btnTrackCoordinate;
     private TextBlock? _txtCurrentCoordinate;
     private Canvas? _overlayCanvas;
@@ -66,6 +67,11 @@ public class WorldMapContent : ContentControl
 
     private bool _isDragging;
     private Point _lastMousePos;
+
+    // 자동이동
+    private CancellationTokenSource? _navCts;
+    private bool _isNavigating;
+    private Ellipse? _destMarker;
 
     static WorldMapContent()
     {
@@ -107,9 +113,19 @@ public class WorldMapContent : ContentControl
         _chkShowDiscoveries = GetTemplateChild("PART_ShowDiscoveries") as CheckBox;
         if (_chkShowDiscoveries != null) _chkShowDiscoveries.Click += (_, _) => ToggleDiscoveries();
 
+        _btnLeaveCity = GetTemplateChild("PART_BtnLeaveCity") as Button;
+        if (_btnLeaveCity != null)
+            _btnLeaveCity.Click += (_, _) => LeaveCityForExploration();
+
         _btnTrackCoordinate = GetTemplateChild("PART_BtnTrackCoordinate") as Button;
         _txtCurrentCoordinate = GetTemplateChild("PART_TxtCurrentCoordinate") as TextBlock;
         _overlayCanvas = GetTemplateChild("PART_OverlayCanvas") as Canvas;
+        if (_overlayCanvas != null)
+        {
+            _overlayCanvas.MouseRightButtonDown += OnMapRightClick;
+            // 좌클릭은 드래그용이므로 Canvas를 통과시킴
+            _overlayCanvas.MouseLeftButtonDown += (_, e) => e.Handled = false;
+        }
         if (_btnTrackCoordinate != null)
             _btnTrackCoordinate.Click += (_, _) => ToggleTracking();
 
@@ -145,6 +161,11 @@ public class WorldMapContent : ContentControl
                     LoadAndRender(worldPath);
             }
         }
+
+        // 좌표 추적 자동 시작
+        var autoHWnd = GameWindowHelper.FindGameWindow();
+        if (autoHWnd != IntPtr.Zero)
+            StartTracking();
     }
 
     private void ScrollViewer_MouseDown(object sender, MouseButtonEventArgs e)
@@ -674,7 +695,7 @@ public class WorldMapContent : ContentControl
 
     private async void OnTrackingTick(object? sender, EventArgs e)
     {
-        if (_isProcessing || _mapData == null) return;
+        if (_isProcessing) return;
         _isProcessing = true;
 
         try
@@ -685,18 +706,31 @@ public class WorldMapContent : ContentControl
             using var bitmap = GameWindowHelper.CaptureClient(hWnd);
             if (bitmap == null) return;
 
+            bool inCity = GameWindowHelper.IsInCity(bitmap);
+
             var prediction = await Task.Run(() => _coordinateOcr.PredictOcrAsync(bitmap));
+
+            if (inCity)
+            {
+                if (_txtCurrentCoordinate != null)
+                    _txtCurrentCoordinate.Text = "📍 도시 안";
+                if (_positionMarker != null) _positionMarker.Visibility = Visibility.Collapsed;
+                if (_positionPulse != null) _positionPulse.Visibility = Visibility.Collapsed;
+                return;
+            }
+
             if (prediction == null)
             {
                 if (_txtCurrentCoordinate != null)
-                    _txtCurrentCoordinate.Text = "인식 실패";
+                    _txtCurrentCoordinate.Text = "🧭 탐험 중 - 좌표 인식 실패";
                 return;
             }
 
             if (_txtCurrentCoordinate != null)
-                _txtCurrentCoordinate.Text = prediction.ToString();
+                _txtCurrentCoordinate.Text = $"🧭 탐험 중 - {prediction}";
 
-            UpdatePositionMarker(prediction.ToLat(), prediction.ToLon());
+            if (_mapData != null)
+                UpdatePositionMarker(prediction.ToLat(), prediction.ToLon());
         }
         catch (Exception ex)
         {
@@ -891,6 +925,293 @@ public class WorldMapContent : ContentControl
         {
             MessageBox.Show($"경로 불러오기 실패: {ex.Message}", "오류",
                 MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    #endregion
+
+    #region 우클릭 메뉴 / 자동이동
+
+    private (double lat, double lon) PixelToLatLon(double px, double py)
+    {
+        // 중앙 타일 기준 오프셋 제거
+        double cellX = px - UnfoldedW;
+        double lon = cellX * 360.0 / UnfoldedW - 180;
+        double lat = 90.0 - py * 180.0 / CellH;
+        return (lat, lon);
+    }
+
+    private void OnMapRightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_overlayCanvas == null || _mapData == null) return;
+
+        var pos = e.GetPosition(_overlayCanvas);
+        var (lat, lon) = PixelToLatLon(pos.X, pos.Y);
+
+        var latDir = lat >= 0 ? "N" : "S";
+        var lonDir = lon >= 0 ? "E" : "W";
+        var coordText = $"{Math.Abs(lat):F0}{latDir} {Math.Abs(lon):F0}{lonDir}";
+
+        var menu = new ContextMenu();
+
+        var navItem = new MenuItem { Header = $"이 위치로 이동 ({coordText})" };
+        navItem.Click += (_, _) =>
+        {
+            ShowDestination(pos.X, pos.Y);
+            StartNavigation(lat, lon);
+        };
+        menu.Items.Add(navItem);
+
+        if (_isNavigating)
+        {
+            var stopItem = new MenuItem { Header = "이동 중지" };
+            stopItem.Click += (_, _) => StopNavigation();
+            menu.Items.Add(stopItem);
+        }
+
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private void ShowDestination(double px, double py)
+    {
+        if (_overlayCanvas == null) return;
+
+        const double size = 14;
+        if (_destMarker == null)
+        {
+            _destMarker = new Ellipse
+            {
+                Width = size,
+                Height = size,
+                Fill = new SolidColorBrush(Color.FromArgb(100, 0, 200, 0)),
+                Stroke = new SolidColorBrush(Color.FromRgb(0, 180, 0)),
+                StrokeThickness = 2,
+                IsHitTestVisible = false
+            };
+            _overlayCanvas.Children.Add(_destMarker);
+        }
+
+        _destMarker.Visibility = Visibility.Visible;
+        Canvas.SetLeft(_destMarker, px - size / 2);
+        Canvas.SetTop(_destMarker, py - size / 2);
+    }
+
+    private void StartNavigation(double destLat, double destLon)
+    {
+        StopNavigation();
+
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd == IntPtr.Zero)
+        {
+            MessageBox.Show("게임 창을 찾을 수 없습니다.", "알림",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // 추적이 꺼져 있으면 자동으로 켜기
+        if (!_isTracking)
+            StartTracking();
+
+        _isNavigating = true;
+        _navCts = new CancellationTokenSource();
+
+        Task.Run(async () =>
+        {
+            var token = _navCts.Token;
+
+            // 도시 안인지 확인 → 탐험 떠나기 먼저 실행
+            try
+            {
+                using var checkBmp = GameWindowHelper.CaptureClient(hWnd);
+                if (checkBmp != null && GameWindowHelper.IsInCity(checkBmp))
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (_txtCurrentCoordinate != null)
+                            _txtCurrentCoordinate.Text = "📍 도시 안 → 탐험 떠나는 중...";
+                    });
+
+                    await LeaveCityAsync(hWnd, token);
+
+                    // 탐험 출발 후 화면 전환 대기
+                    await Task.Delay(2000, token);
+                }
+            }
+            catch (OperationCanceledException) { return; }
+
+            // 이동 루프
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var navHWnd = GameWindowHelper.FindGameWindow();
+                    if (navHWnd == IntPtr.Zero)
+                    {
+                        await Task.Delay(2000, token);
+                        continue;
+                    }
+
+                    using var bitmap = GameWindowHelper.CaptureClient(navHWnd);
+                    if (bitmap == null)
+                    {
+                        await Task.Delay(500, token);
+                        continue;
+                    }
+
+                    var prediction = await _coordinateOcr.PredictOcrAsync(bitmap);
+                    if (prediction == null)
+                    {
+                        await Task.Delay(500, token);
+                        continue;
+                    }
+
+                    var curLat = prediction.ToLat();
+                    var curLon = prediction.ToLon();
+
+                    // 도착 판정
+                    if (NavigationCalculator.IsNear(curLat, curLon, destLat, destLon, threshold: 2.0))
+                    {
+                        GameWindowHelper.SendNumpadKey(navHWnd, 5);
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (_txtCurrentCoordinate != null)
+                                _txtCurrentCoordinate.Text = $"{prediction} - 도착!";
+                            _isNavigating = false;
+                            if (_destMarker != null) _destMarker.Visibility = Visibility.Collapsed;
+                        });
+                        return;
+                    }
+
+                    // 방위각 → 숫자패드
+                    var bearing = NavigationCalculator.BearingDegrees(curLat, curLon, destLat, destLon);
+                    var numpad = GameWindowHelper.BearingToNumpad(bearing);
+                    GameWindowHelper.SendNumpadKey(navHWnd, numpad);
+
+                    var dirLabel = numpad switch
+                    {
+                        8 => "N", 9 => "NE", 6 => "E", 3 => "SE",
+                        2 => "S", 1 => "SW", 4 => "W", 7 => "NW",
+                        _ => "?"
+                    };
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (_txtCurrentCoordinate != null)
+                            _txtCurrentCoordinate.Text = $"🧭 탐험 중 - {prediction} → {dirLabel}";
+                    });
+
+                    await Task.Delay(500, token);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WorldMap] Nav error: {ex.Message}");
+                    await Task.Delay(2000, token);
+                }
+            }
+        });
+    }
+
+    private void StopNavigation()
+    {
+        _navCts?.Cancel();
+        _navCts = null;
+        _isNavigating = false;
+
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd != IntPtr.Zero)
+            GameWindowHelper.SendNumpadKey(hWnd, 5);
+
+        if (_destMarker != null) _destMarker.Visibility = Visibility.Collapsed;
+    }
+
+    #endregion
+
+    #region 탐험 떠나기
+
+    /// <summary>
+    /// 도시에서 성문 → 탐험을 떠난다 → YES 순서로 키를 전송한다.
+    /// 건물 이름을 OCR로 인식하여 "성문"을 찾을 때까지 아래 키를 누른다.
+    /// </summary>
+    private async Task LeaveCityAsync(IntPtr hWnd, CancellationToken token = default)
+    {
+        GameWindowHelper.BringToFront(hWnd);
+        await Task.Delay(300, token);
+
+        // 1. 아래 키를 누르면서 건물 이름을 OCR로 읽어 "성문"을 찾음
+        bool foundGate = false;
+        for (int i = 0; i < 15; i++)
+        {
+            GameWindowHelper.SendDownKey(hWnd);
+            await Task.Delay(600, token);
+
+            // 화면 캡처 → 건물 이름 영역 OCR
+            using var bmp = GameWindowHelper.CaptureClient(hWnd);
+            if (bmp == null) continue;
+
+            // 건물 이름 라벨: 프레임 하단 영역 넓게 (화면의 25~75% 가로, 73~93% 세로)
+            int labelX = bmp.Width * 25 / 100;
+            int labelY = bmp.Height * 73 / 100;
+            int labelW = bmp.Width * 50 / 100;
+            int labelH = bmp.Height * 20 / 100;
+            var region = new System.Drawing.Rectangle(labelX, labelY, labelW, labelH);
+
+            var text = await _coordinateOcr.RecognizeRegionAsync(bmp, region);
+            System.Diagnostics.Debug.WriteLine($"[LeaveCity] OCR: '{text}'");
+
+            if (text != null && text.Contains("성문"))
+            {
+                foundGate = true;
+                break;
+            }
+        }
+
+        if (!foundGate)
+        {
+            System.Diagnostics.Debug.WriteLine("[LeaveCity] 성문을 찾지 못함");
+            return;
+        }
+
+        // 2. 성문 선택
+        await Task.Delay(200, token);
+        GameWindowHelper.SendEnterKey(hWnd);
+        await Task.Delay(500, token);
+
+        // 3. "탐험을 떠난다" (첫 번째 옵션)
+        GameWindowHelper.SendEnterKey(hWnd);
+        await Task.Delay(500, token);
+
+        // 4. "탐험을 떠납니까?" → YES
+        GameWindowHelper.SendEnterKey(hWnd);
+        await Task.Delay(300, token);
+    }
+
+    private async void LeaveCityForExploration()
+    {
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd == IntPtr.Zero)
+        {
+            MessageBox.Show("게임 창을 찾을 수 없습니다.", "알림",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (_btnLeaveCity != null) _btnLeaveCity.IsEnabled = false;
+        if (_txtStatus != null) _txtStatus.Text = "도시에서 탐험 떠나는 중...";
+
+        try
+        {
+            await LeaveCityAsync(hWnd);
+            if (_txtStatus != null) _txtStatus.Text = "탐험 출발 완료";
+        }
+        catch (Exception ex)
+        {
+            if (_txtStatus != null) _txtStatus.Text = $"탐험 떠나기 실패: {ex.Message}";
+        }
+        finally
+        {
+            if (_btnLeaveCity != null) _btnLeaveCity.IsEnabled = true;
         }
     }
 
