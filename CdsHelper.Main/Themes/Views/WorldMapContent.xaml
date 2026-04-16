@@ -30,6 +30,7 @@
                             <CheckBox x:Name="PART_ShowDiscoveries" Content="발견물" VerticalAlignment="Center" Margin="0,0,8,0" IsChecked="True"/>
                             <CheckBox x:Name="PART_ShowCityLabels" Content="도시명" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <CheckBox x:Name="PART_HideFound" Content="미발견만" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="PART_ShowSpeed" Content="속도" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="이동 경로에 구간 속도 표시"/>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <Button x:Name="PART_BtnLeaveCity" Content="탐험 떠나기" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="도시에서 성문을 통해 탐험을 떠남"/>
                             <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="게임 화면에서 좌표를 인식하여 지도에 표시"/>
@@ -72,8 +73,16 @@
 
                         <!-- Cell info bar -->
                         <Border Grid.Row="3" Background="#222" Padding="6,4" Margin="0,4,0,0">
-                            <TextBlock x:Name="PART_CellInfo" Foreground="#CCC" FontFamily="Consolas" FontSize="12"
-                                       Text="마우스를 지도 위에 올리면 셀 정보가 표시됩니다"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" x:Name="PART_CellInfo" Foreground="#CCC" FontFamily="Consolas" FontSize="12"
+                                           Text="마우스를 지도 위에 올리면 셀 정보가 표시됩니다"/>
+                                <TextBlock Grid.Column="1" x:Name="PART_TxtEventStatus" Foreground="#FFD54F"
+                                           FontFamily="Consolas" FontSize="12" FontWeight="Bold" Margin="12,0,0,0"/>
+                            </Grid>
                         </Border>
                     </Grid>
                 </ControlTemplate>

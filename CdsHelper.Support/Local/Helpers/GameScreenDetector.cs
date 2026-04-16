@@ -49,6 +49,12 @@ public class GameScreenDetector
                 return new ScreenDetection(GameScreen.InfoMenu, ocrResult);
             if (ocrResult.Contains("커맨드") && ocrResult.Contains("취소"))
                 return new ScreenDetection(GameScreen.CommandMenu, ocrResult);
+            // 전투/도망 선택 다이얼로그 → 자동으로 "도망간다" 선택
+            // 2옵션: "싸운다 / 도망간다"
+            // 3옵션: "교섭한다 / 도망간다 / 응전한다"
+            if (ocrResult.Contains("도망") &&
+                (ocrResult.Contains("싸운") || ocrResult.Contains("응전") || ocrResult.Contains("교섭")))
+                return new ScreenDetection(GameScreen.FleeChoice, ocrResult);
             // 이벤트 다이얼로그: "확인" 버튼만 있는 알림 (예: 이슬람 함대 조우)
             // 다른 메뉴 패턴에 매칭 안 될 때만 감지
             if (ocrResult.Contains("확인"))
@@ -151,6 +157,14 @@ public class GameScreenDetector
                 GameWindowHelper.SendEnterKey(hWnd);
                 await Task.Delay(500, token);
                 break;
+
+            case GameScreen.FleeChoice:
+                // 싸운다/도망간다 선택 다이얼로그 → 아래로 이동 후 도망간다 선택
+                GameWindowHelper.SendDownKey(hWnd);
+                await Task.Delay(150, token);
+                GameWindowHelper.SendEnterKey(hWnd);
+                await Task.Delay(500, token);
+                break;
         }
     }
 
@@ -237,4 +251,6 @@ public enum GameScreen
     Battle,
     /// <summary>"확인" 버튼만 있는 이벤트 알림 다이얼로그 (예: 이슬람 함대 조우)</summary>
     EventDialog,
+    /// <summary>"싸운다 / 도망간다" 선택 다이얼로그 (예: 이슬람 함대 조우 이후)</summary>
+    FleeChoice,
 }
