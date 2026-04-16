@@ -26,6 +26,7 @@ public class WorldMapOptions
     public bool ShowDiscoveries { get; set; } = true;
     public bool ShowCityLabels { get; set; } = false;
     public bool HideFound { get; set; } = false;
+    public bool ShowSpeed { get; set; } = false;
     public double Zoom { get; set; } = 2.0;
 }
 

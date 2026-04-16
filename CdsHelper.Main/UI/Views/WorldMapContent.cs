@@ -10,6 +10,7 @@ using Ellipse = System.Windows.Shapes.Ellipse;
 using Polyline = System.Windows.Shapes.Polyline;
 using Rectangle = System.Windows.Shapes.Rectangle;
 using CdsHelper.Api.Entities;
+using CdsHelper.Main.Local.ViewModels;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -39,6 +40,7 @@ public class WorldMapContent : ContentControl
     private Button? _btnTrackCoordinate;
     private TextBlock? _txtCurrentCoordinate;
     private TextBlock? _txtNavStatus;
+    private TextBlock? _txtEventStatus;
     private Button? _btnStopNav;
     private TextBlock? _txtZoomLabel;
     private Canvas? _overlayCanvas;
@@ -73,6 +75,7 @@ public class WorldMapContent : ContentControl
     private string? _loadedSavePath;
     private CheckBox? _chkShowCityLabels;
     private CheckBox? _chkHideFound;
+    private CheckBox? _chkShowSpeed;
     private HashSet<int>? _discoveredHintIds;
     private HashSet<int>? _hasHintIds;
     private HashSet<int>? _foundDiscoveryIds;
@@ -128,6 +131,7 @@ public class WorldMapContent : ContentControl
         _chkShowDiscoveries = GetTemplateChild("PART_ShowDiscoveries") as CheckBox;
         _chkShowCityLabels = GetTemplateChild("PART_ShowCityLabels") as CheckBox;
         _chkHideFound = GetTemplateChild("PART_HideFound") as CheckBox;
+        _chkShowSpeed = GetTemplateChild("PART_ShowSpeed") as CheckBox;
 
         // 저장된 옵션 불러오기 (Click 핸들러 연결 전에 수행하여 Rerender 방지)
         var opts = AppSettings.WorldMap;
@@ -136,6 +140,7 @@ public class WorldMapContent : ContentControl
         if (_chkShowDiscoveries != null) _chkShowDiscoveries.IsChecked = opts.ShowDiscoveries;
         if (_chkShowCityLabels != null) _chkShowCityLabels.IsChecked = opts.ShowCityLabels;
         if (_chkHideFound != null) _chkHideFound.IsChecked = opts.HideFound;
+        if (_chkShowSpeed != null) _chkShowSpeed.IsChecked = opts.ShowSpeed;
         _currentScale = Math.Clamp(opts.Zoom, MinScale, MaxScale);
 
         _scaleTransform = new ScaleTransform(_currentScale, _currentScale);
@@ -155,6 +160,7 @@ public class WorldMapContent : ContentControl
         if (_chkShowDiscoveries != null) _chkShowDiscoveries.Click += (_, _) => { ToggleDiscoveries(); SaveWorldMapOptions(); };
         if (_chkShowCityLabels != null) _chkShowCityLabels.Click += (_, _) => { ToggleCityLabels(); SaveWorldMapOptions(); };
         if (_chkHideFound != null) _chkHideFound.Click += (_, _) => { ToggleHideFound(); SaveWorldMapOptions(); };
+        if (_chkShowSpeed != null) _chkShowSpeed.Click += (_, _) => { ToggleSpeedLabels(); SaveWorldMapOptions(); };
 
         _btnLeaveCity = GetTemplateChild("PART_BtnLeaveCity") as Button;
         if (_btnLeaveCity != null)
@@ -163,6 +169,7 @@ public class WorldMapContent : ContentControl
         _btnTrackCoordinate = GetTemplateChild("PART_BtnTrackCoordinate") as Button;
         _txtCurrentCoordinate = GetTemplateChild("PART_TxtCurrentCoordinate") as TextBlock;
         _txtNavStatus = GetTemplateChild("PART_TxtNavStatus") as TextBlock;
+        _txtEventStatus = GetTemplateChild("PART_TxtEventStatus") as TextBlock;
         _btnStopNav = GetTemplateChild("PART_BtnStopNav") as Button;
         if (_btnStopNav != null) _btnStopNav.Click += (_, _) => StopNavigation();
         _overlayCanvas = GetTemplateChild("PART_OverlayCanvas") as Canvas;
@@ -236,8 +243,6 @@ public class WorldMapContent : ContentControl
     private void ScrollViewer_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_scrollViewer == null) return;
-        // 좌표 선택 모드에서는 드래그 무시
-        if (_coordPickCallback != null) return;
         // 클릭 가능한 요소(Border/Ellipse with Tag)에서 시작된 클릭은 드래그 무시
         if (e.OriginalSource is FrameworkElement fe &&
             (fe is Border { Tag: not null } || fe is Ellipse { Tag: not null }
@@ -609,6 +614,7 @@ public class WorldMapContent : ContentControl
         opts.ShowDiscoveries = _chkShowDiscoveries?.IsChecked == true;
         opts.ShowCityLabels = _chkShowCityLabels?.IsChecked == true;
         opts.HideFound = _chkHideFound?.IsChecked == true;
+        opts.ShowSpeed = _chkShowSpeed?.IsChecked == true;
         opts.Zoom = _currentScale;
         AppSettings.SaveWorldMapOptions();
     }
@@ -1067,137 +1073,47 @@ public class WorldMapContent : ContentControl
         return border;
     }
 
-    // 지도 좌표 선택 모드
-    private Action<double, double>? _coordPickCallback;
-
     private async void OnDiscoveryLabelClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border border || border.Tag is not int discoveryId) return;
-        var textBlock = border.Child as TextBlock;
-        if (textBlock == null) return;
 
+        // 단일 클릭은 드래그 방지만 하고 다이얼로그는 더블클릭에서만 연다
         e.Handled = true;
+        if (e.ClickCount != 2) return;
 
         var service = ContainerLocator.Container.Resolve<DiscoveryService>();
         var discovery = service.GetDiscovery(discoveryId);
         if (discovery == null) return;
 
-        var dialog = new Window
+        var item = new DiscoveryDisplayItem
         {
-            Title = $"발견물 수정 (ID: {discoveryId})",
-            Width = 400, Height = 280,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            ResizeMode = ResizeMode.NoResize,
-            Topmost = true
+            Id = discovery.Id,
+            Name = discovery.Name,
+            LatFrom = discovery.LatFrom,
+            LatTo = discovery.LatTo,
+            LonFrom = discovery.LonFrom,
+            LonTo = discovery.LonTo
         };
 
-        var grid = new Grid { Margin = new Thickness(10) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        for (int r = 0; r < 6; r++)
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var tbName = new TextBox { Text = discovery.Name, FontSize = 13, Margin = new Thickness(0, 0, 0, 6) };
-        var tbLatFrom = new TextBox { Text = discovery.LatFrom?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
-        var tbLatTo = new TextBox { Text = discovery.LatTo?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
-        var tbLonFrom = new TextBox { Text = discovery.LonFrom?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
-        var tbLonTo = new TextBox { Text = discovery.LonTo?.ToString() ?? "", Margin = new Thickness(0, 0, 0, 6) };
-
-        var labels = new[] { "이름", "위도 From", "위도 To", "경도 From", "경도 To" };
-        var boxes = new[] { tbName, tbLatFrom, tbLatTo, tbLonFrom, tbLonTo };
-        for (int r = 0; r < 5; r++)
+        var dialog = new EditDiscoveryDialog(item)
         {
-            var lbl = new TextBlock { Text = labels[r], VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) };
-            Grid.SetRow(lbl, r); Grid.SetColumn(lbl, 0);
-            Grid.SetRow(boxes[r], r); Grid.SetColumn(boxes[r], 1);
-            grid.Children.Add(lbl);
-            grid.Children.Add(boxes[r]);
-        }
-
-        // "지도에서 선택" 버튼: From 좌표
-        var btnPickFrom = new Button { Content = "From ◎", Height = 24, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(4, 0, 0, 6), ToolTip = "지도 클릭으로 From 좌표 선택" };
-        Grid.SetRow(btnPickFrom, 1); Grid.SetColumn(btnPickFrom, 2);
-        grid.Children.Add(btnPickFrom);
-
-        // "지도에서 선택" 버튼: To 좌표
-        var btnPickTo = new Button { Content = "To ◎", Height = 24, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(4, 0, 0, 6), ToolTip = "지도 클릭으로 To 좌표 선택" };
-        Grid.SetRow(btnPickTo, 3); Grid.SetColumn(btnPickTo, 2);
-        grid.Children.Add(btnPickTo);
-
-        // 지도에서 좌표 선택 핸들러
-        void StartPick(TextBox tbLat, TextBox tbLon)
-        {
-            dialog.WindowState = WindowState.Minimized;
-            if (_overlayCanvas != null)
-                _overlayCanvas.Cursor = Cursors.Cross;
-            _coordPickCallback = (lat, lon) =>
-            {
-                tbLat.Text = ((int)Math.Round(lat)).ToString();
-                tbLon.Text = ((int)Math.Round(lon)).ToString();
-                _coordPickCallback = null;
-                if (_overlayCanvas != null)
-                    _overlayCanvas.Cursor = Cursors.Arrow;
-                dialog.WindowState = WindowState.Normal;
-                dialog.Activate();
-            };
-        }
-
-        btnPickFrom.Click += (_, _) => StartPick(tbLatFrom, tbLonFrom);
-        btnPickTo.Click += (_, _) => StartPick(tbLatTo, tbLonTo);
-
-        var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
-        var btnOk = new Button { Content = "확인", Width = 70, Margin = new Thickness(0, 0, 6, 0), IsDefault = true };
-        var btnCancel = new Button { Content = "취소", Width = 70, IsCancel = true };
-        btnOk.Click += (_, _) => dialog.DialogResult = true;
-        btnPanel.Children.Add(btnOk);
-        btnPanel.Children.Add(btnCancel);
-        Grid.SetRow(btnPanel, 5); Grid.SetColumnSpan(btnPanel, 3);
-        grid.Children.Add(btnPanel);
-
-        dialog.Content = grid;
-        dialog.Closed += (_, _) =>
-        {
-            _coordPickCallback = null;
-            if (_overlayCanvas != null)
-                _overlayCanvas.Cursor = Cursors.Arrow;
+            Owner = Window.GetWindow(this)
         };
-        tbName.SelectAll();
-        tbName.Focus();
-
         if (dialog.ShowDialog() != true) return;
 
         try
         {
-            var oldName = discovery.Name;
-            var newName = tbName.Text.Trim();
-
-            int? ParseInt(string s) => int.TryParse(s.Trim(), out var v) ? v : null;
-            var latFrom = ParseInt(tbLatFrom.Text);
-            var latTo = ParseInt(tbLatTo.Text);
-            var lonFrom = ParseInt(tbLonFrom.Text);
-            var lonTo = ParseInt(tbLonTo.Text);
-
-            if (!string.IsNullOrEmpty(newName) && newName != oldName)
+            if (dialog.LatFrom != discovery.LatFrom || dialog.LatTo != discovery.LatTo ||
+                dialog.LonFrom != discovery.LonFrom || dialog.LonTo != discovery.LonTo)
             {
-                await service.UpdateNameAsync(discoveryId, newName);
-                textBlock.Text = newName;
-                foreach (var marker in _discoveryMarkers)
-                {
-                    if (marker is FrameworkElement fe && fe.ToolTip as string == oldName)
-                        fe.ToolTip = newName;
-                }
-            }
-
-            if (latFrom != discovery.LatFrom || latTo != discovery.LatTo ||
-                lonFrom != discovery.LonFrom || lonTo != discovery.LonTo)
-            {
-                await service.UpdateCoordinateAsync(discoveryId, latFrom, latTo, lonFrom, lonTo);
+                await service.UpdateCoordinateAsync(discoveryId,
+                    dialog.LatFrom, dialog.LatTo, dialog.LonFrom, dialog.LonTo);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"수정 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"수정 실패: {ex.Message}", "오류",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1274,13 +1190,19 @@ public class WorldMapContent : ContentControl
                 if (detection.Screen == GameScreen.EventDialog)
                 {
                     var preview = PreviewOcr(detection.OcrText);
-                    SetNavStatus($"📢 이벤트 감지: {preview}");
+                    SetEventStatus($"📢 이벤트 감지: {preview}");
+                    await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
+                    return;
+                }
+                if (detection.Screen == GameScreen.FleeChoice)
+                {
+                    SetEventStatus("🏃 도망간다 선택!");
                     await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
                     return;
                 }
                 if (detection.Screen == GameScreen.Battle)
                 {
-                    SetNavStatus("⚔ 전투 감지 → 돌격!");
+                    SetEventStatus("⚔ 전투 감지 → 돌격!");
                     await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
                     return;
                 }
@@ -1349,7 +1271,8 @@ public class WorldMapContent : ContentControl
                 Foreground = Brushes.Black,
                 Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)),
                 Padding = new Thickness(1, 0, 1, 0),
-                IsHitTestVisible = false
+                IsHitTestVisible = false,
+                Visibility = _chkShowSpeed?.IsChecked == true ? Visibility.Visible : Visibility.Collapsed
             };
             Canvas.SetLeft(tb, point.X + TileOffsets[i] + 3);
             Canvas.SetTop(tb, point.Y + 2);
@@ -1490,8 +1413,9 @@ public class WorldMapContent : ContentControl
         var viewW = _scrollViewer.ViewportWidth;
         var viewH = _scrollViewer.ViewportHeight;
 
-        var marginX = viewW * 0.1;
-        var marginY = viewH * 0.1;
+        // 뷰포트 중앙 50% 안에 있으면 스크롤하지 않고, 그 영역을 벗어나면 해당 방향으로 재중앙 정렬
+        var marginX = viewW * 0.25;
+        var marginY = viewH * 0.25;
 
         if (screenX < marginX || screenX > viewW - marginX ||
             screenY < marginY || screenY > viewH - marginY)
@@ -1669,15 +1593,7 @@ public class WorldMapContent : ContentControl
 
     private void OnOverlayLeftClick(object sender, MouseButtonEventArgs e)
     {
-        if (_coordPickCallback != null && _overlayCanvas != null)
-        {
-            var pos = e.GetPosition(_overlayCanvas);
-            var (lat, lon) = PixelToLatLon(pos.X, pos.Y);
-            _coordPickCallback(lat, lon);
-            e.Handled = true;
-            return;
-        }
-        // 좌표 선택 모드가 아니면 드래그용으로 통과
+        // 드래그용으로 통과
         e.Handled = false;
     }
 
@@ -1743,6 +1659,19 @@ public class WorldMapContent : ContentControl
     private void SetNavStatus(string text)
     {
         if (_txtNavStatus != null) _txtNavStatus.Text = text;
+    }
+
+    private void SetEventStatus(string text)
+    {
+        if (_txtEventStatus != null) _txtEventStatus.Text = text;
+    }
+
+    private void ToggleSpeedLabels()
+    {
+        var visible = _chkShowSpeed?.IsChecked == true;
+        foreach (var labels in _trailSpeedLabels)
+            foreach (var tb in labels)
+                tb.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -1847,7 +1776,7 @@ public class WorldMapContent : ContentControl
                     var screen = detection.Screen;
                     if (screen is GameScreen.Battle)
                     {
-                        Dispatcher.Invoke(() => SetNavStatus("⚔ 전투 중 → 돌격!"));
+                        Dispatcher.Invoke(() => SetEventStatus("⚔ 전투 중 → 돌격!"));
                         await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
                         await Task.Delay(2000, token);
                         continue;
@@ -1864,7 +1793,15 @@ public class WorldMapContent : ContentControl
                     if (screen is GameScreen.EventDialog)
                     {
                         var preview = PreviewOcr(detection.OcrText);
-                        Dispatcher.Invoke(() => SetNavStatus($"📢 이벤트 감지: {preview}"));
+                        Dispatcher.Invoke(() => SetEventStatus($"📢 이벤트 감지: {preview}"));
+                        await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
+                        await Task.Delay(500, token);
+                        continue;
+                    }
+
+                    if (screen is GameScreen.FleeChoice)
+                    {
+                        Dispatcher.Invoke(() => SetEventStatus("🏃 도망간다 선택!"));
                         await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
                         await Task.Delay(500, token);
                         continue;
