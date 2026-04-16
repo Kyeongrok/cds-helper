@@ -38,6 +38,10 @@
                             <Button x:Name="PART_BtnLoadTrail" Content="경로 불러오기" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="저장된 경로 불러오기"/>
                             <Button x:Name="PART_BtnCenterPosition" Content="◎" Width="28" Height="28" FontSize="16" FontWeight="Bold" Margin="0,0,6,0" ToolTip="내 위치로 이동"/>
                             <TextBlock x:Name="PART_TxtCurrentCoordinate" VerticalAlignment="Center" Foreground="#0078D4" FontWeight="Bold" Margin="0,0,8,0"/>
+                            <Button x:Name="PART_BtnStopNav" Content="자동이동 중지" Height="28" Padding="8,0" Margin="0,0,6,0"
+                                    Background="#DC3545" Foreground="White" FontWeight="Bold" Visibility="Collapsed"/>
+                            <TextBlock x:Name="PART_TxtNavStatus" VerticalAlignment="Center" FontFamily="Consolas" FontWeight="Bold"
+                                       Foreground="#1565C0" Margin="0,0,8,0"/>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <TextBlock x:Name="PART_Status" VerticalAlignment="Center" Foreground="Gray" Margin="6,0,0,0"/>
                         </WrapPanel>

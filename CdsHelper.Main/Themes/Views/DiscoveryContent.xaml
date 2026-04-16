@@ -33,6 +33,9 @@
 
                             <units:ResetButton Margin="10,0,0,0"
                                                Command="{Binding ResetFilterCommand}"/>
+
+                            <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
+                                       Margin="20,0,0,0" FontWeight="Bold" Foreground="#104F89"/>
                         </WrapPanel>
 
                         <!-- 데이터 그리드 -->
@@ -71,14 +74,6 @@
                                 </Style>
                             </units:CdsDataGrid.RowStyle>
                             <units:CdsDataGrid.Columns>
-                                <DataGridTemplateColumn Header="✓" Width="40">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="번호" Binding="{Binding Id}" Width="50" />
                                 <DataGridTextColumn Header="발견물명" Binding="{Binding Name}" Width="180" />
                                 <DataGridTextColumn Header="발견" Binding="{Binding DiscoveryStatusDisplay}" Width="45" />
