@@ -8,7 +8,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type views:NavigationMenu}">
                     <Grid>
-                        <units:AccordionControl x:Name="PART_InnerAccordion">
+                        <units:AccordionControl x:Name="PART_InnerAccordion"
+                                                IsMinimized="{Binding IsMinimized, RelativeSource={RelativeSource TemplatedParent}}">
                             <units:AccordionItem Header="데이터" IsGroup="True" IsExpanded="True">
                                 <units:AccordionItem Header="플레이어" Tag="PlayerContent">
                                     <units:AccordionItem.Icon>

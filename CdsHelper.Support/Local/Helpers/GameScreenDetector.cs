@@ -21,28 +21,42 @@ public class GameScreenDetector
     /// </summary>
     public async Task<GameScreen> DetectScreenAsync(Bitmap bitmap)
     {
+        var result = await DetectScreenWithOcrAsync(bitmap);
+        return result.Screen;
+    }
+
+    /// <summary>
+    /// 캡처된 화면에서 현재 게임 화면 종류를 판별하고, OCR 결과도 함께 반환한다.
+    /// 이벤트 다이얼로그 감지 시 어떤 텍스트로 판정됐는지 표시할 때 사용.
+    /// </summary>
+    public async Task<ScreenDetection> DetectScreenWithOcrAsync(Bitmap bitmap)
+    {
         // 1. 전쟁 화면 감지 (대부분 검은 배경) — 도시보다 먼저 체크
         if (IsBattleScreen(bitmap))
-            return GameScreen.Battle;
+            return new ScreenDetection(GameScreen.Battle, null);
 
         // 2. 도시 안인지 확인 (프레임 테두리 감지)
         if (IsInCity(bitmap))
-            return GameScreen.City;
+            return new ScreenDetection(GameScreen.City, null);
 
         // 3. 다이얼로그/메뉴가 있는지 OCR로 확인
         var ocrResult = await OcrGameArea(bitmap);
         if (ocrResult != null)
         {
             if (ocrResult.Contains("중단") || ocrResult.Contains("힌트"))
-                return GameScreen.HintList;
+                return new ScreenDetection(GameScreen.HintList, ocrResult);
             if (ocrResult.Contains("돌아간다") && ocrResult.Contains("정보"))
-                return GameScreen.InfoMenu;
+                return new ScreenDetection(GameScreen.InfoMenu, ocrResult);
             if (ocrResult.Contains("커맨드") && ocrResult.Contains("취소"))
-                return GameScreen.CommandMenu;
+                return new ScreenDetection(GameScreen.CommandMenu, ocrResult);
+            // 이벤트 다이얼로그: "확인" 버튼만 있는 알림 (예: 이슬람 함대 조우)
+            // 다른 메뉴 패턴에 매칭 안 될 때만 감지
+            if (ocrResult.Contains("확인"))
+                return new ScreenDetection(GameScreen.EventDialog, ocrResult);
         }
 
         // 4. 기본: 탐험 중
-        return GameScreen.Exploration;
+        return new ScreenDetection(GameScreen.Exploration, ocrResult);
     }
 
     /// <summary>
@@ -131,6 +145,12 @@ public class GameScreenDetector
                 GameWindowHelper.SendEnterKey(hWnd);
                 await Task.Delay(1000, token);
                 break;
+
+            case GameScreen.EventDialog:
+                // 이벤트 다이얼로그 → 확인 (Enter)
+                GameWindowHelper.SendEnterKey(hWnd);
+                await Task.Delay(500, token);
+                break;
         }
     }
 
@@ -197,6 +217,9 @@ public class GameScreenDetector
     }
 }
 
+/// <summary>화면 감지 결과 (화면 종류 + OCR 텍스트).</summary>
+public record ScreenDetection(GameScreen Screen, string? OcrText);
+
 /// <summary>게임 화면 종류 (경량 감지용).</summary>
 public enum GameScreen
 {
@@ -212,4 +235,6 @@ public enum GameScreen
     CommandMenu,
     /// <summary>전쟁/전투 화면</summary>
     Battle,
+    /// <summary>"확인" 버튼만 있는 이벤트 알림 다이얼로그 (예: 이슬람 함대 조우)</summary>
+    EventDialog,
 }

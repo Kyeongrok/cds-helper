@@ -16,6 +16,17 @@ public class AppSettingsData
     public string? LastSaveFilePath { get; set; }
     public string? TrailDirectory { get; set; }
     public HashSet<int> CheckedDiscoveryIds { get; set; } = new();
+    public WorldMapOptions WorldMap { get; set; } = new();
+}
+
+public class WorldMapOptions
+{
+    public bool ShowCoast { get; set; } = true;
+    public bool ShowWind { get; set; } = false;
+    public bool ShowDiscoveries { get; set; } = true;
+    public bool ShowCityLabels { get; set; } = false;
+    public bool HideFound { get; set; } = false;
+    public double Zoom { get; set; } = 2.0;
 }
 
 public static class AppSettings
@@ -35,6 +46,7 @@ public static class AppSettings
     private static string? _lastSaveFilePath;
     private static HashSet<int> _checkedDiscoveryIds = new();
     private static string _trailDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trails");
+    private static WorldMapOptions _worldMap = new();
 
     static AppSettings()
     {
@@ -103,6 +115,13 @@ public static class AppSettings
         return _checkedDiscoveryIds.Contains(discoveryId);
     }
 
+    public static WorldMapOptions WorldMap => _worldMap;
+
+    public static void SaveWorldMapOptions()
+    {
+        SaveSettings();
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -133,6 +152,7 @@ public static class AppSettings
                     if (!string.IsNullOrEmpty(data.TrailDirectory))
                         _trailDirectory = data.TrailDirectory;
                     _checkedDiscoveryIds = data.CheckedDiscoveryIds ?? new();
+                    _worldMap = data.WorldMap ?? new();
                 }
             }
         }
@@ -158,7 +178,8 @@ public static class AppSettings
                 DefaultView = _defaultView,
                 LastSaveFilePath = _lastSaveFilePath,
                 TrailDirectory = _trailDirectory,
-                CheckedDiscoveryIds = _checkedDiscoveryIds
+                CheckedDiscoveryIds = _checkedDiscoveryIds,
+                WorldMap = _worldMap
             };
 
             var json = JsonSerializer.Serialize(data, new JsonSerializerOptions

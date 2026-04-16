@@ -176,7 +176,7 @@ public class CdsHelperWindow : CdsWindow
         if (_isMenuCollapsed)
         {
             // 메뉴 최소화 (아이콘만)
-            _menuColumn.Width = new GridLength(45);
+            _menuColumn.Width = new GridLength(50);
             _menuToggleButton.Margin = new Thickness(-12, 5, 0, 0);
 
             // 화살표 방향 변경 (오른쪽으로)
