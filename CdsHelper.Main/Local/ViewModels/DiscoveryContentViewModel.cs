@@ -140,7 +140,6 @@ public class DiscoveryContentViewModel : BindableBase
             UpdateHintStatus();
 
             ApplyFilter();
-            StatusText = $"발견물 로드 완료: {_allDiscoveries.Count}개";
         }
         catch (Exception ex)
         {

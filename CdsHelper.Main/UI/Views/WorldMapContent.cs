@@ -12,7 +12,9 @@ using Rectangle = System.Windows.Shapes.Rectangle;
 using CdsHelper.Api.Entities;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Support.UI.Views;
 using Microsoft.Win32;
 using Prism.Events;
 using Prism.Ioc;
@@ -60,6 +62,8 @@ public class WorldMapContent : ContentControl
     private readonly PointCollection[] _trailPointsByTile = { new(), new(), new() };
     private readonly PointCollection _trailPoints = new(); // 논리적 위치 (중앙 타일 기준)
     private readonly List<DateTime> _trailTimestamps = new();
+    // 궤적 각 점마다 구간 속도 라벨 (한 항목 = 3개 타일 사본)
+    private readonly List<TextBlock[]> _trailSpeedLabels = new();
 
     // 발견물 표시
     private readonly List<UIElement> _discoveryMarkers = new();
@@ -121,8 +125,20 @@ public class WorldMapContent : ContentControl
         _btnZoomReset = GetTemplateChild("PART_BtnZoomReset") as Button;
         _chkShowCoast = GetTemplateChild("PART_ShowCoast") as CheckBox;
         _chkShowWind = GetTemplateChild("PART_ShowWind") as CheckBox;
+        _chkShowDiscoveries = GetTemplateChild("PART_ShowDiscoveries") as CheckBox;
+        _chkShowCityLabels = GetTemplateChild("PART_ShowCityLabels") as CheckBox;
+        _chkHideFound = GetTemplateChild("PART_HideFound") as CheckBox;
 
-        _scaleTransform = new ScaleTransform(2, 2);
+        // 저장된 옵션 불러오기 (Click 핸들러 연결 전에 수행하여 Rerender 방지)
+        var opts = AppSettings.WorldMap;
+        if (_chkShowCoast != null) _chkShowCoast.IsChecked = opts.ShowCoast;
+        if (_chkShowWind != null) _chkShowWind.IsChecked = opts.ShowWind;
+        if (_chkShowDiscoveries != null) _chkShowDiscoveries.IsChecked = opts.ShowDiscoveries;
+        if (_chkShowCityLabels != null) _chkShowCityLabels.IsChecked = opts.ShowCityLabels;
+        if (_chkHideFound != null) _chkHideFound.IsChecked = opts.HideFound;
+        _currentScale = Math.Clamp(opts.Zoom, MinScale, MaxScale);
+
+        _scaleTransform = new ScaleTransform(_currentScale, _currentScale);
         var mapGrid = GetTemplateChild("PART_MapGrid") as Grid;
         if (mapGrid != null)
             mapGrid.LayoutTransform = _scaleTransform;
@@ -132,19 +148,13 @@ public class WorldMapContent : ContentControl
         if (_btnOpen != null) _btnOpen.Click += (_, _) => OpenFile();
         if (_btnZoomIn != null) _btnZoomIn.Click += (_, _) => Zoom(ScaleStep);
         if (_btnZoomOut != null) _btnZoomOut.Click += (_, _) => Zoom(-ScaleStep);
-        if (_btnZoomReset != null) _btnZoomReset.Click += (_, _) => { _currentScale = 1.0; ApplyScale(); };
+        if (_btnZoomReset != null) _btnZoomReset.Click += (_, _) => { _currentScale = 1.0; ApplyScale(); SaveWorldMapOptions(); };
 
-        if (_chkShowCoast != null) _chkShowCoast.Click += (_, _) => Rerender();
-        if (_chkShowWind != null) _chkShowWind.Click += (_, _) => Rerender();
-
-        _chkShowDiscoveries = GetTemplateChild("PART_ShowDiscoveries") as CheckBox;
-        if (_chkShowDiscoveries != null) _chkShowDiscoveries.Click += (_, _) => ToggleDiscoveries();
-
-        _chkShowCityLabels = GetTemplateChild("PART_ShowCityLabels") as CheckBox;
-        if (_chkShowCityLabels != null) _chkShowCityLabels.Click += (_, _) => ToggleCityLabels();
-
-        _chkHideFound = GetTemplateChild("PART_HideFound") as CheckBox;
-        if (_chkHideFound != null) _chkHideFound.Click += (_, _) => ToggleHideFound();
+        if (_chkShowCoast != null) _chkShowCoast.Click += (_, _) => { Rerender(); SaveWorldMapOptions(); };
+        if (_chkShowWind != null) _chkShowWind.Click += (_, _) => { Rerender(); SaveWorldMapOptions(); };
+        if (_chkShowDiscoveries != null) _chkShowDiscoveries.Click += (_, _) => { ToggleDiscoveries(); SaveWorldMapOptions(); };
+        if (_chkShowCityLabels != null) _chkShowCityLabels.Click += (_, _) => { ToggleCityLabels(); SaveWorldMapOptions(); };
+        if (_chkHideFound != null) _chkHideFound.Click += (_, _) => { ToggleHideFound(); SaveWorldMapOptions(); };
 
         _btnLeaveCity = GetTemplateChild("PART_BtnLeaveCity") as Button;
         if (_btnLeaveCity != null)
@@ -157,6 +167,7 @@ public class WorldMapContent : ContentControl
         if (_btnStopNav != null) _btnStopNav.Click += (_, _) => StopNavigation();
         _overlayCanvas = GetTemplateChild("PART_OverlayCanvas") as Canvas;
         _txtZoomLabel = GetTemplateChild("PART_ZoomLabel") as TextBlock;
+        if (_txtZoomLabel != null) _txtZoomLabel.Text = $"x{_currentScale:F1}";
         if (_overlayCanvas != null)
         {
             _overlayCanvas.MouseRightButtonDown += OnMapRightClick;
@@ -227,9 +238,10 @@ public class WorldMapContent : ContentControl
         if (_scrollViewer == null) return;
         // 좌표 선택 모드에서는 드래그 무시
         if (_coordPickCallback != null) return;
-        // 클릭 가능한 라벨(Border with Tag)에서 시작된 클릭은 드래그 무시
+        // 클릭 가능한 요소(Border/Ellipse with Tag)에서 시작된 클릭은 드래그 무시
         if (e.OriginalSource is FrameworkElement fe &&
-            (fe is Border { Tag: not null } || FindParent<Border>(fe) is { Tag: not null }))
+            (fe is Border { Tag: not null } || fe is Ellipse { Tag: not null }
+             || FindParent<Border>(fe) is { Tag: not null }))
             return;
         _isDragging = true;
         _lastMousePos = e.GetPosition(_scrollViewer);
@@ -570,12 +582,14 @@ public class WorldMapContent : ContentControl
         _scrollViewer.ScrollToHorizontalOffset(pointX * ratio - mousePos.X);
         _scrollViewer.ScrollToVerticalOffset(pointY * ratio - mousePos.Y);
         _isWrapping = false;
+        SaveWorldMapOptions();
     }
 
     private void Zoom(double delta)
     {
         _currentScale = Math.Clamp(_currentScale + delta, MinScale, MaxScale);
         ApplyScale();
+        SaveWorldMapOptions();
     }
 
     private void ApplyScale()
@@ -585,6 +599,18 @@ public class WorldMapContent : ContentControl
         _scaleTransform.ScaleY = _currentScale;
         if (_txtZoomLabel != null)
             _txtZoomLabel.Text = $"x{_currentScale:F1}";
+    }
+
+    private void SaveWorldMapOptions()
+    {
+        var opts = AppSettings.WorldMap;
+        opts.ShowCoast = _chkShowCoast?.IsChecked == true;
+        opts.ShowWind = _chkShowWind?.IsChecked == true;
+        opts.ShowDiscoveries = _chkShowDiscoveries?.IsChecked == true;
+        opts.ShowCityLabels = _chkShowCityLabels?.IsChecked == true;
+        opts.HideFound = _chkHideFound?.IsChecked == true;
+        opts.Zoom = _currentScale;
+        AppSettings.SaveWorldMapOptions();
     }
 
     #region 발견물 표시
@@ -843,6 +869,56 @@ public class WorldMapContent : ContentControl
         }
     }
 
+    /// <summary>
+    /// 도시 ID로 편집 다이얼로그 열기. 저장 성공 시 상태 텍스트로 안내.
+    /// 지도에 반영하려면 맵을 다시 로드하거나 재진입 필요.
+    /// </summary>
+    private async void EditCityById(byte cityId)
+    {
+        try
+        {
+            var cityService = ContainerLocator.Container.Resolve<CityService>();
+            var city = cityService.GetCachedCities().FirstOrDefault(c => c.Id == cityId);
+            if (city == null)
+            {
+                if (_txtStatus != null) _txtStatus.Text = $"도시 ID {cityId}를 찾을 수 없습니다.";
+                return;
+            }
+
+            var dialog = new EditCityPixelDialog(
+                city.Name,
+                city.PixelX,
+                city.PixelY,
+                city.HasLibrary,
+                city.Latitude,
+                city.Longitude,
+                city.CulturalSphere)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                city.Name = dialog.CityName;
+                city.PixelX = dialog.PixelX;
+                city.PixelY = dialog.PixelY;
+                city.HasLibrary = dialog.HasLibrary;
+                city.Latitude = dialog.Latitude;
+                city.Longitude = dialog.Longitude;
+                city.CulturalSphere = dialog.CulturalSphere;
+
+                await cityService.UpdateCityAsync(city);
+                if (_txtStatus != null)
+                    _txtStatus.Text = $"도시 '{city.Name}' 수정 완료 (지도 반영은 재로드 필요)";
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"도시 정보 수정 실패: {ex.Message}", "오류",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void AddCityPoint(byte cityId, string name, int lat, int lon, bool hasLibrary = false)
     {
         if (_overlayCanvas == null) return;
@@ -865,7 +941,14 @@ public class WorldMapContent : ContentControl
                 Stroke = new SolidColorBrush(strokeColor),
                 StrokeThickness = 1.5,
                 IsHitTestVisible = true,
-                ToolTip = name
+                Cursor = Cursors.Hand,
+                ToolTip = $"{name} (클릭하여 편집)",
+                Tag = cityId   // ScrollViewer_MouseDown이 Tag 있는 Ellipse 클릭은 드래그 무시
+            };
+            dot.MouseLeftButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                EditCityById(cityId);
             };
 
             Canvas.SetLeft(dot, px + ox - size / 2);
@@ -1183,6 +1266,26 @@ public class WorldMapContent : ContentControl
 
             bool inCity = GameScreenDetector.IsInCity(bitmap);
 
+            // 이벤트 다이얼로그 감지 (수동 이동 중에도 자동 확인)
+            // 자동이동 중이면 nav 루프에서 처리하므로 생략
+            if (!_isNavigating)
+            {
+                var detection = await _screenDetector.DetectScreenWithOcrAsync(bitmap);
+                if (detection.Screen == GameScreen.EventDialog)
+                {
+                    var preview = PreviewOcr(detection.OcrText);
+                    SetNavStatus($"📢 이벤트 감지: {preview}");
+                    await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
+                    return;
+                }
+                if (detection.Screen == GameScreen.Battle)
+                {
+                    SetNavStatus("⚔ 전투 감지 → 돌격!");
+                    await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
+                    return;
+                }
+            }
+
             var prediction = await Task.Run(() => _coordinateOcr.PredictOcrAsync(bitmap));
 
             if (prediction == null)
@@ -1216,6 +1319,44 @@ public class WorldMapContent : ContentControl
         double cellY = (90.0 - lat) / 180.0 * CellH;
         // 중앙 타일(index 1) 오프셋 적용
         return (cellX + UnfoldedW, cellY);
+    }
+
+    /// <summary>두 점 사이 구간 속도 (°/분) 계산.</summary>
+    private static string ComputeSegmentSpeed(Point prev, Point cur, DateTime tPrev, DateTime tCur)
+    {
+        var span = tCur - tPrev;
+        if (span.TotalSeconds < 0.5) return "";
+
+        const double degPerPixel = 360.0 / UnfoldedW;
+        double dxDeg = (cur.X - prev.X) * degPerPixel;
+        double dyDeg = (cur.Y - prev.Y) * degPerPixel;
+        double distDeg = Math.Sqrt(dxDeg * dxDeg + dyDeg * dyDeg);
+        double degPerMin = distDeg / span.TotalMinutes;
+        return $"{degPerMin:F1}°/분";
+    }
+
+    /// <summary>새 궤적 점에 구간 속도 라벨을 좌/중/우 타일 각각에 추가.</summary>
+    private void AddTrailSpeedLabel(Point point, string text)
+    {
+        if (_overlayCanvas == null) return;
+        var labels = new TextBlock[3];
+        for (int i = 0; i < 3; i++)
+        {
+            var tb = new TextBlock
+            {
+                Text = text,
+                FontSize = 6,
+                Foreground = Brushes.Black,
+                Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)),
+                Padding = new Thickness(1, 0, 1, 0),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(tb, point.X + TileOffsets[i] + 3);
+            Canvas.SetTop(tb, point.Y + 2);
+            _overlayCanvas.Children.Add(tb);
+            labels[i] = tb;
+        }
+        _trailSpeedLabels.Add(labels);
     }
 
     private void UpdatePositionMarker(double lat, double lon)
@@ -1272,8 +1413,18 @@ public class WorldMapContent : ContentControl
         var newPoint = new Point(px, py);
         if (_trailPoints.Count == 0 || DistanceSq(_trailPoints[^1], newPoint) > 4)
         {
+            var now = DateTime.Now;
+            // 새 점에 대한 구간 속도 라벨 (이전 점이 있을 때만)
+            if (_trailPoints.Count >= 1)
+            {
+                var speedText = ComputeSegmentSpeed(_trailPoints[^1], newPoint,
+                    _trailTimestamps[^1], now);
+                if (!string.IsNullOrEmpty(speedText))
+                    AddTrailSpeedLabel(newPoint, speedText);
+            }
+
             _trailPoints.Add(newPoint);
-            _trailTimestamps.Add(DateTime.Now);
+            _trailTimestamps.Add(now);
             for (int i = 0; i < 3; i++)
             {
                 _trailPointsByTile[i].Add(new Point(newPoint.X + TileOffsets[i], newPoint.Y));
@@ -1360,6 +1511,14 @@ public class WorldMapContent : ContentControl
     {
         _trailPoints.Clear();
         _trailTimestamps.Clear();
+        for (int i = 0; i < 3; i++) _trailPointsByTile[i].Clear();
+        if (_overlayCanvas != null)
+        {
+            foreach (var labels in _trailSpeedLabels)
+                foreach (var tb in labels)
+                    _overlayCanvas.Children.Remove(tb);
+        }
+        _trailSpeedLabels.Clear();
     }
 
     private record TrailCoord(double lat, double lon, string? time = null);
@@ -1436,13 +1595,30 @@ public class WorldMapContent : ContentControl
             _trailPoints.Clear();
             _trailTimestamps.Clear();
             for (int i = 0; i < 3; i++) _trailPointsByTile[i].Clear();
+            if (_overlayCanvas != null)
+            {
+                foreach (var labels in _trailSpeedLabels)
+                    foreach (var tb in labels)
+                        _overlayCanvas.Children.Remove(tb);
+            }
+            _trailSpeedLabels.Clear();
 
             foreach (var c in coords)
             {
                 var (px, py) = LatLonToPixel(c.lat, c.lon);
-                _trailPoints.Add(new Point(px, py));
-                _trailTimestamps.Add(
-                    DateTime.TryParse(c.time, out var t) ? t : DateTime.Now);
+                var newPoint = new Point(px, py);
+                var t = DateTime.TryParse(c.time, out var parsed) ? parsed : DateTime.Now;
+
+                if (_trailPoints.Count >= 1)
+                {
+                    var speedText = ComputeSegmentSpeed(_trailPoints[^1], newPoint,
+                        _trailTimestamps[^1], t);
+                    if (!string.IsNullOrEmpty(speedText))
+                        AddTrailSpeedLabel(newPoint, speedText);
+                }
+
+                _trailPoints.Add(newPoint);
+                _trailTimestamps.Add(t);
                 for (int i = 0; i < 3; i++)
                 {
                     _trailPointsByTile[i].Add(new Point(px + TileOffsets[i], py));
@@ -1569,6 +1745,16 @@ public class WorldMapContent : ContentControl
         if (_txtNavStatus != null) _txtNavStatus.Text = text;
     }
 
+    /// <summary>
+    /// OCR 결과를 상태 표시용으로 줄임 (공백/개행 정리, 최대 40자)
+    /// </summary>
+    private static string PreviewOcr(string? ocrText)
+    {
+        if (string.IsNullOrWhiteSpace(ocrText)) return "(텍스트 없음)";
+        var cleaned = System.Text.RegularExpressions.Regex.Replace(ocrText, @"\s+", " ").Trim();
+        return cleaned.Length > 40 ? cleaned.Substring(0, 40) + "…" : cleaned;
+    }
+
     private void ShowArrivedStatus(CoordinatePrediction prediction)
     {
         SetNavStatus($"✅ 도착! ({prediction})");
@@ -1657,7 +1843,8 @@ public class WorldMapContent : ContentControl
                     }
 
                     // 다이얼로그/힌트 화면이 떠있으면 닫기
-                    var screen = await _screenDetector.DetectScreenAsync(bitmap);
+                    var detection = await _screenDetector.DetectScreenWithOcrAsync(bitmap);
+                    var screen = detection.Screen;
                     if (screen is GameScreen.Battle)
                     {
                         Dispatcher.Invoke(() => SetNavStatus("⚔ 전투 중 → 돌격!"));
@@ -1669,6 +1856,15 @@ public class WorldMapContent : ContentControl
                     if (screen is GameScreen.HintList or GameScreen.InfoMenu or GameScreen.CommandMenu)
                     {
                         Dispatcher.Invoke(() => SetNavStatus($"📋 화면 닫는 중... ({screen})"));
+                        await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
+                        await Task.Delay(500, token);
+                        continue;
+                    }
+
+                    if (screen is GameScreen.EventDialog)
+                    {
+                        var preview = PreviewOcr(detection.OcrText);
+                        Dispatcher.Invoke(() => SetNavStatus($"📢 이벤트 감지: {preview}"));
                         await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
                         await Task.Delay(500, token);
                         continue;
