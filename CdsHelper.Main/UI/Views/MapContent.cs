@@ -860,9 +860,22 @@ public class MapContent : ContentControl
 
     private void OnLibraryClicked(object sender, RoutedEventArgs e)
     {
-        if (e.OriginalSource is CityMarker marker)
+        if (e.OriginalSource is not CityMarker marker) return;
+
+        try
         {
-            System.Diagnostics.Debug.WriteLine($"[MapContent] Library clicked: {marker.CityName}");
+            var bookService = ContainerLocator.Container.Resolve<BookService>();
+            var dialog = new LibraryBookListDialog(marker.CityId, marker.CityName, bookService)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            dialog.ShowDialog();
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MapContent] Library dialog error: {ex.Message}");
+            MessageBox.Show($"도서 목록을 표시할 수 없습니다: {ex.Message}", "오류",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

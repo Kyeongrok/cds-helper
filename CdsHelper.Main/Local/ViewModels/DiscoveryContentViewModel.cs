@@ -212,7 +212,13 @@ public class DiscoveryContentViewModel : BindableBase
         }
 
         Discoveries = new ObservableCollection<DiscoveryDisplayItem>(displayItems);
-        StatusText = $"발견물: {displayItems.Count}개";
+
+        // 전체 통계: 발견 개수 / 전체 개수 (퍼센트)
+        var totalCount = _allDiscoveries.Count;
+        var totalFound = _allDiscoveries.Count(d =>
+            d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true);
+        var percent = totalCount == 0 ? 0 : (double)totalFound / totalCount * 100;
+        StatusText = $"발견: {totalFound} / {totalCount} ({percent:F1}%)   |   표시: {displayItems.Count}개";
     }
 
     private string GetParentNames(int discoveryId)
