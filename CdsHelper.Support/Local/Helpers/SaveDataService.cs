@@ -40,6 +40,11 @@ public class SaveDataService
     private const int HINT_STATUS_OFFSET = 4;  // 6바이트 블록 내 상태 바이트 위치
     private const int HINT_COUNT = 186;
 
+    // 발견물 슬롯 테이블 (행 0 = 발견물 ID 0, 첫 바이트 = state)
+    private const int DISCOVERY_START_OFFSET = 0x19E6A;
+    private const int DISCOVERY_SIZE = 164;
+    private const int DISCOVERY_COUNT = 250;
+
     private static readonly Dictionary<int, string> SkillsMap = new()
     {
         { 1, "항" }, { 2, "운" }, { 3, "검" }, { 4, "포" }, { 5, "사" },
@@ -98,6 +103,9 @@ public class SaveDataService
 
         // 힌트 데이터 읽기
         saveInfo.Hints = ReadHintData(data);
+
+        // 발견물 슬롯 데이터 읽기
+        saveInfo.Discoveries = ReadDiscoveryData(data);
 
         // 현재 로드된 데이터 캐싱
         CurrentSaveGameInfo = saveInfo;
@@ -225,6 +233,29 @@ public class SaveDataService
         }
 
         return hints;
+    }
+
+    /// <summary>
+    /// 발견물 슬롯 데이터 읽기 (ID 0~249, 각 슬롯 첫 바이트의 bit 6 = 발견, bit 7 = 발표)
+    /// </summary>
+    private List<DiscoveryData> ReadDiscoveryData(byte[] data)
+    {
+        var discoveries = new List<DiscoveryData>();
+
+        for (int i = 0; i < DISCOVERY_COUNT; i++)
+        {
+            int offset = DISCOVERY_START_OFFSET + (i * DISCOVERY_SIZE);
+            if (offset >= data.Length)
+                break;
+
+            discoveries.Add(new DiscoveryData
+            {
+                Id = i,
+                State = data[offset]
+            });
+        }
+
+        return discoveries;
     }
 
     private CharacterData? ReadCharacterData(byte[] data, int offset)
