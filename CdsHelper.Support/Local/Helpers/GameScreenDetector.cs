@@ -6,14 +6,17 @@ namespace CdsHelper.Support.Local.Helpers;
 /// <summary>
 /// 게임 화면을 캡처하여 현재 어떤 화면인지 판별하는 경량 감지기.
 /// 템플릿 매칭 없이 픽셀 분석 + OCR로 동작한다.
+/// 이벤트성 다이얼로그(확인/도망/보급 등)는 <see cref="GameEventRecognizer"/>에 위임.
 /// </summary>
 public class GameScreenDetector
 {
     private readonly CoordinateOcrService _ocrService;
+    private readonly GameEventRecognizer _eventRecognizer;
 
     public GameScreenDetector(CoordinateOcrService ocrService)
     {
         _ocrService = ocrService;
+        _eventRecognizer = new GameEventRecognizer();
     }
 
     /// <summary>
@@ -26,8 +29,8 @@ public class GameScreenDetector
     }
 
     /// <summary>
-    /// 캡처된 화면에서 현재 게임 화면 종류를 판별하고, OCR 결과도 함께 반환한다.
-    /// 이벤트 다이얼로그 감지 시 어떤 텍스트로 판정됐는지 표시할 때 사용.
+    /// 캡처된 화면에서 현재 게임 화면 종류를 판별하고, OCR 결과와 이벤트를 함께 반환한다.
+    /// 이벤트성 다이얼로그라면 <see cref="ScreenDetection.Event"/>가 채워져있다.
     /// </summary>
     public async Task<ScreenDetection> DetectScreenWithOcrAsync(Bitmap bitmap)
     {
@@ -49,16 +52,11 @@ public class GameScreenDetector
                 return new ScreenDetection(GameScreen.InfoMenu, ocrResult);
             if (ocrResult.Contains("커맨드") && ocrResult.Contains("취소"))
                 return new ScreenDetection(GameScreen.CommandMenu, ocrResult);
-            // 전투/도망 선택 다이얼로그 → 자동으로 "도망간다" 선택
-            // 2옵션: "싸운다 / 도망간다"
-            // 3옵션: "교섭한다 / 도망간다 / 응전한다"
-            if (ocrResult.Contains("도망") &&
-                (ocrResult.Contains("싸운") || ocrResult.Contains("응전") || ocrResult.Contains("교섭")))
-                return new ScreenDetection(GameScreen.FleeChoice, ocrResult);
-            // 이벤트 다이얼로그: "확인" 버튼만 있는 알림 (예: 이슬람 함대 조우)
-            // 다른 메뉴 패턴에 매칭 안 될 때만 감지
-            if (ocrResult.Contains("확인"))
-                return new ScreenDetection(GameScreen.EventDialog, ocrResult);
+
+            // 이벤트 다이얼로그 계열은 Recognizer에 위임
+            var evt = _eventRecognizer.Recognize(ocrResult);
+            if (evt != null)
+                return new ScreenDetection(GameScreen.Event, ocrResult, evt);
         }
 
         // 4. 기본: 탐험 중
@@ -118,8 +116,8 @@ public class GameScreenDetector
     }
 
     /// <summary>
-    /// 힌트/정보 화면에서 자동으로 빠져나온다.
-    /// HintList → ESC로 닫기, InfoMenu → "돌아간다" 선택
+    /// 힌트/정보/커맨드/전투 화면을 자동으로 빠져나온다.
+    /// 이벤트성 다이얼로그(Event)는 <see cref="IGameEvent.HandleAsync"/>를 직접 호출한다.
     /// </summary>
     public static async Task DismissDialogAsync(IntPtr hWnd, GameScreen screen, CancellationToken token = default)
     {
@@ -150,20 +148,6 @@ public class GameScreenDetector
                 // 전투 → 돌격 (첫 번째 옵션이므로 Enter)
                 GameWindowHelper.SendEnterKey(hWnd);
                 await Task.Delay(1000, token);
-                break;
-
-            case GameScreen.EventDialog:
-                // 이벤트 다이얼로그 → 확인 (Enter)
-                GameWindowHelper.SendEnterKey(hWnd);
-                await Task.Delay(500, token);
-                break;
-
-            case GameScreen.FleeChoice:
-                // 싸운다/도망간다 선택 다이얼로그 → 아래로 이동 후 도망간다 선택
-                GameWindowHelper.SendDownKey(hWnd);
-                await Task.Delay(150, token);
-                GameWindowHelper.SendEnterKey(hWnd);
-                await Task.Delay(500, token);
                 break;
         }
     }
@@ -231,8 +215,8 @@ public class GameScreenDetector
     }
 }
 
-/// <summary>화면 감지 결과 (화면 종류 + OCR 텍스트).</summary>
-public record ScreenDetection(GameScreen Screen, string? OcrText);
+/// <summary>화면 감지 결과 (화면 종류 + OCR 텍스트 + 인식된 이벤트).</summary>
+public record ScreenDetection(GameScreen Screen, string? OcrText, IGameEvent? Event = null);
 
 /// <summary>게임 화면 종류 (경량 감지용).</summary>
 public enum GameScreen
@@ -249,8 +233,6 @@ public enum GameScreen
     CommandMenu,
     /// <summary>전쟁/전투 화면</summary>
     Battle,
-    /// <summary>"확인" 버튼만 있는 이벤트 알림 다이얼로그 (예: 이슬람 함대 조우)</summary>
-    EventDialog,
-    /// <summary>"싸운다 / 도망간다" 선택 다이얼로그 (예: 이슬람 함대 조우 이후)</summary>
-    FleeChoice,
+    /// <summary>이벤트성 다이얼로그 (확인/도망/보급 등) — 세부는 <see cref="ScreenDetection.Event"/>에 담김</summary>
+    Event,
 }

@@ -76,6 +76,7 @@ public class WorldMapContent : ContentControl
     private CheckBox? _chkShowCityLabels;
     private CheckBox? _chkHideFound;
     private CheckBox? _chkShowSpeed;
+    private ComboBox? _cmbAutoScrollThreshold;
     private HashSet<int>? _discoveredHintIds;
     private HashSet<int>? _hasHintIds;
     private HashSet<int>? _foundDiscoveryIds;
@@ -132,6 +133,7 @@ public class WorldMapContent : ContentControl
         _chkShowCityLabels = GetTemplateChild("PART_ShowCityLabels") as CheckBox;
         _chkHideFound = GetTemplateChild("PART_HideFound") as CheckBox;
         _chkShowSpeed = GetTemplateChild("PART_ShowSpeed") as CheckBox;
+        _cmbAutoScrollThreshold = GetTemplateChild("PART_AutoScrollThreshold") as ComboBox;
 
         // 저장된 옵션 불러오기 (Click 핸들러 연결 전에 수행하여 Rerender 방지)
         var opts = AppSettings.WorldMap;
@@ -141,6 +143,7 @@ public class WorldMapContent : ContentControl
         if (_chkShowCityLabels != null) _chkShowCityLabels.IsChecked = opts.ShowCityLabels;
         if (_chkHideFound != null) _chkHideFound.IsChecked = opts.HideFound;
         if (_chkShowSpeed != null) _chkShowSpeed.IsChecked = opts.ShowSpeed;
+        SelectAutoScrollThresholdItem(opts.AutoScrollThreshold);
         _currentScale = Math.Clamp(opts.Zoom, MinScale, MaxScale);
 
         _scaleTransform = new ScaleTransform(_currentScale, _currentScale);
@@ -161,6 +164,7 @@ public class WorldMapContent : ContentControl
         if (_chkShowCityLabels != null) _chkShowCityLabels.Click += (_, _) => { ToggleCityLabels(); SaveWorldMapOptions(); };
         if (_chkHideFound != null) _chkHideFound.Click += (_, _) => { ToggleHideFound(); SaveWorldMapOptions(); };
         if (_chkShowSpeed != null) _chkShowSpeed.Click += (_, _) => { ToggleSpeedLabels(); SaveWorldMapOptions(); };
+        if (_cmbAutoScrollThreshold != null) _cmbAutoScrollThreshold.SelectionChanged += (_, _) => SaveWorldMapOptions();
 
         _btnLeaveCity = GetTemplateChild("PART_BtnLeaveCity") as Button;
         if (_btnLeaveCity != null)
@@ -615,6 +619,7 @@ public class WorldMapContent : ContentControl
         opts.ShowCityLabels = _chkShowCityLabels?.IsChecked == true;
         opts.HideFound = _chkHideFound?.IsChecked == true;
         opts.ShowSpeed = _chkShowSpeed?.IsChecked == true;
+        opts.AutoScrollThreshold = GetAutoScrollThreshold();
         opts.Zoom = _currentScale;
         AppSettings.SaveWorldMapOptions();
     }
@@ -1187,17 +1192,11 @@ public class WorldMapContent : ContentControl
             if (!_isNavigating)
             {
                 var detection = await _screenDetector.DetectScreenWithOcrAsync(bitmap);
-                if (detection.Screen == GameScreen.EventDialog)
+                if (detection.Event != null)
                 {
                     var preview = PreviewOcr(detection.OcrText);
-                    SetEventStatus($"📢 이벤트 감지: {preview}");
-                    await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
-                    return;
-                }
-                if (detection.Screen == GameScreen.FleeChoice)
-                {
-                    SetEventStatus("🏃 도망간다 선택!");
-                    await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
+                    SetEventStatus($"{detection.Event.Icon} {detection.Event.Name}: {preview}");
+                    await detection.Event.HandleAsync(hWnd);
                     return;
                 }
                 if (detection.Screen == GameScreen.Battle)
@@ -1413,9 +1412,11 @@ public class WorldMapContent : ContentControl
         var viewW = _scrollViewer.ViewportWidth;
         var viewH = _scrollViewer.ViewportHeight;
 
-        // 뷰포트 중앙 50% 안에 있으면 스크롤하지 않고, 그 영역을 벗어나면 해당 방향으로 재중앙 정렬
-        var marginX = viewW * 0.25;
-        var marginY = viewH * 0.25;
+        // 마커가 중심에서 (viewport_half × threshold)만큼 벗어나면 재중앙 정렬
+        // threshold=0.5 → 뷰포트 중앙 50% 안전영역 (marginX = viewW * 0.25)
+        var threshold = Math.Clamp(GetAutoScrollThreshold(), 0.0, 1.0);
+        var marginX = viewW * (1.0 - threshold) / 2.0;
+        var marginY = viewH * (1.0 - threshold) / 2.0;
 
         if (screenX < marginX || screenX > viewW - marginX ||
             screenY < marginY || screenY > viewH - marginY)
@@ -1674,6 +1675,41 @@ public class WorldMapContent : ContentControl
                 tb.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private double GetAutoScrollThreshold()
+    {
+        if (_cmbAutoScrollThreshold?.SelectedItem is ComboBoxItem item &&
+            item.Tag is string tag &&
+            double.TryParse(tag, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+            return v;
+        return 0.5;
+    }
+
+    private void SelectAutoScrollThresholdItem(double value)
+    {
+        if (_cmbAutoScrollThreshold == null) return;
+        foreach (var obj in _cmbAutoScrollThreshold.Items)
+        {
+            if (obj is ComboBoxItem item && item.Tag is string tag &&
+                double.TryParse(tag, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v) &&
+                Math.Abs(v - value) < 0.001)
+            {
+                _cmbAutoScrollThreshold.SelectedItem = item;
+                return;
+            }
+        }
+        // 일치하는 항목이 없으면 기본 50%
+        foreach (var obj in _cmbAutoScrollThreshold.Items)
+        {
+            if (obj is ComboBoxItem item && (item.Tag as string) == "0.5")
+            {
+                _cmbAutoScrollThreshold.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
     /// <summary>
     /// OCR 결과를 상태 표시용으로 줄임 (공백/개행 정리, 최대 40자)
     /// </summary>
@@ -1790,19 +1826,12 @@ public class WorldMapContent : ContentControl
                         continue;
                     }
 
-                    if (screen is GameScreen.EventDialog)
+                    if (detection.Event != null)
                     {
+                        var evt = detection.Event;
                         var preview = PreviewOcr(detection.OcrText);
-                        Dispatcher.Invoke(() => SetEventStatus($"📢 이벤트 감지: {preview}"));
-                        await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
-                        await Task.Delay(500, token);
-                        continue;
-                    }
-
-                    if (screen is GameScreen.FleeChoice)
-                    {
-                        Dispatcher.Invoke(() => SetEventStatus("🏃 도망간다 선택!"));
-                        await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
+                        Dispatcher.Invoke(() => SetEventStatus($"{evt.Icon} {evt.Name}: {preview}"));
+                        await evt.HandleAsync(navHWnd, token);
                         await Task.Delay(500, token);
                         continue;
                     }
