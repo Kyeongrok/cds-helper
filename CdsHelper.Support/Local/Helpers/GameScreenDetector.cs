@@ -99,13 +99,15 @@ public class GameScreenDetector
     private static bool IsBlueGray(Color p)
     {
         // 실제 측정값 기준: RGB(67-72, 86-91, 122-127)
-        // 넓은 범위로 확장
+        // 탐험 중 해안 근처의 바다색(예: 45,91,164)이 오감지되지 않도록 채도를 제한.
+        // 바다색은 B값이 크고 B-R 차이도 커서(>70) 구분 가능.
+        int diff = p.B - p.R;
         return p.B > p.R &&
                p.B > p.G &&
-               (p.B - p.R) >= 20 &&
-               p.R >= 40 && p.R <= 130 &&
-               p.G >= 55 && p.G <= 140 &&
-               p.B >= 90 && p.B <= 180;
+               diff >= 30 && diff <= 70 &&
+               p.R >= 50 && p.R <= 95 &&
+               p.G >= 65 && p.G <= 115 &&
+               p.B >= 100 && p.B <= 145;
     }
 
     private static Color GetPixelSafe(Bitmap bmp, int x, int y)
