@@ -712,10 +712,10 @@ public class WorldMapContent : ContentControl
                 {
                     if (d.LatFrom == null && d.LonFrom == null) continue;
 
-                    // 발견 여부: 발견물 슬롯 테이블(0x19E6A, 164바이트/행)의 state 바이트 bit 6.
-                    // HintId가 있는 발견물은 힌트 발견 플래그도 OR로 합쳐 안전하게 처리.
-                    bool isFound = _foundDiscoveryIds?.Contains(d.Id) == true
-                                || (d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true);
+                    // 발견 여부의 source of truth는 발견물 슬롯 테이블(0x19E6A, 164바이트/행)의
+                    // state 바이트 bit 6만 사용. 힌트 발견 플래그는 공유/매핑 어긋남으로
+                    // 실제 미발견 항목을 오감지시킬 수 있어 제외.
+                    bool isFound = _foundDiscoveryIds?.Contains(d.Id) == true;
                     bool hasHint = d.HintId.HasValue && _hasHintIds?.Contains(d.HintId.Value) == true;
                     var isPoint = d.LatFrom == d.LatTo && d.LonFrom == d.LonTo;
 
@@ -1773,17 +1773,22 @@ public class WorldMapContent : ContentControl
             await Task.Delay(300, token);
 
             // 도시 안인지 확인 → 탐험 떠나기 먼저 실행
+            // IsInCity 단독은 해안가 바다색에 오감지될 수 있으므로 전체 화면 감지로 확정
             try
             {
                 using var checkBmp = GameWindowHelper.CaptureClient(hWnd);
-                if (checkBmp != null && GameScreenDetector.IsInCity(checkBmp))
+                if (checkBmp != null)
                 {
-                    Dispatcher.Invoke(() => SetNavStatus("📍 도시 안 → 탐험 떠나는 중..."));
+                    var preflight = await _screenDetector.DetectScreenWithOcrAsync(checkBmp);
+                    if (preflight.Screen == GameScreen.City)
+                    {
+                        Dispatcher.Invoke(() => SetNavStatus("📍 도시 안 → 탐험 떠나는 중..."));
 
-                    await LeaveCityAsync(hWnd, token);
+                        await LeaveCityAsync(hWnd, token);
 
-                    // 탐험 출발 후 화면 전환 대기
-                    await Task.Delay(2000, token);
+                        // 탐험 출발 후 화면 전환 대기
+                        await Task.Delay(2000, token);
+                    }
                 }
             }
             catch (OperationCanceledException) { return; }
