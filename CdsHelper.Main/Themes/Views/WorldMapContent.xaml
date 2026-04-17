@@ -31,6 +31,14 @@
                             <CheckBox x:Name="PART_ShowCityLabels" Content="도시명" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <CheckBox x:Name="PART_HideFound" Content="미발견만" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <CheckBox x:Name="PART_ShowSpeed" Content="속도" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="이동 경로에 구간 속도 표시"/>
+                            <TextBlock Text="자동스크롤:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox x:Name="PART_AutoScrollThreshold" VerticalAlignment="Center" Width="80" Margin="0,0,8,0"
+                                      ToolTip="마커가 중심에서 이 비율만큼 벗어나면 스크롤">
+                                <ComboBoxItem Content="30%" Tag="0.3"/>
+                                <ComboBoxItem Content="50%" Tag="0.5"/>
+                                <ComboBoxItem Content="70%" Tag="0.7"/>
+                                <ComboBoxItem Content="90%" Tag="0.9"/>
+                            </ComboBox>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <Button x:Name="PART_BtnLeaveCity" Content="탐험 떠나기" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="도시에서 성문을 통해 탐험을 떠남"/>
                             <Button x:Name="PART_BtnTrackCoordinate" Content="좌표 추적" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="게임 화면에서 좌표를 인식하여 지도에 표시"/>

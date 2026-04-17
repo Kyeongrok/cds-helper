@@ -28,6 +28,12 @@ public class WorldMapOptions
     public bool HideFound { get; set; } = false;
     public bool ShowSpeed { get; set; } = false;
     public double Zoom { get; set; } = 2.0;
+    /// <summary>
+    /// 자동 스크롤 임계 비율 (0.0~1.0). 마커가 뷰포트 중심에서
+    /// (viewport_half × 이 비율)만큼 벗어나면 재중앙 정렬한다.
+    /// 0.5 = 뷰포트 중앙 50% 안전영역 (기본), 1.0 = 가장자리까지 가야 스크롤.
+    /// </summary>
+    public double AutoScrollThreshold { get; set; } = 0.5;
 }
 
 public static class AppSettings
