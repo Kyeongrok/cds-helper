@@ -600,7 +600,7 @@ public partial class CdsHelperViewModel : ObservableObject
     #region City Edit Methods
 
     [RelayCommand]
-    private async void ExportCitiesToJson()
+    private async Task ExportCitiesToJson()
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
@@ -626,7 +626,7 @@ public partial class CdsHelperViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async void EditCityPixel(City? city)
+    private async Task EditCityPixel(City? city)
     {
         if (city == null) return;
 
