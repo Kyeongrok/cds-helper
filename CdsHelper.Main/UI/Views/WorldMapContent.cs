@@ -44,6 +44,8 @@ public class WorldMapContent : ContentControl
     private Button? _btnStopNav;
     private TextBlock? _txtZoomLabel;
     private Canvas? _overlayCanvas;
+    private DiscoveryVisualHost? _discoveryVisualHost;
+    private CanvasVisualHost? _speedLabelHost;
     private DispatcherTimer? _arrivalClearTimer;
 
     // 좌표 추적 / 화면 감지
@@ -64,8 +66,6 @@ public class WorldMapContent : ContentControl
     private readonly PointCollection[] _trailPointsByTile = { new(), new(), new() };
     private readonly PointCollection _trailPoints = new(); // 논리적 위치 (중앙 타일 기준)
     private readonly List<DateTime> _trailTimestamps = new();
-    // 궤적 각 점마다 구간 속도 라벨 (한 항목 = 3개 타일 사본)
-    private readonly List<TextBlock[]> _trailSpeedLabels = new();
 
     // 발견물 표시
     private readonly List<UIElement> _discoveryMarkers = new();
@@ -183,6 +183,29 @@ public class WorldMapContent : ContentControl
         {
             _overlayCanvas.MouseRightButtonDown += OnMapRightClick;
             _overlayCanvas.MouseLeftButtonDown += OnOverlayLeftClick;
+
+            // 발견물 점/영역 DrawingVisual 호스트 — 라벨/도시 마커보다 뒤에 렌더되도록 첫 자식으로 삽입
+            _discoveryVisualHost = new DiscoveryVisualHost
+            {
+                Width = RenderW,
+                Height = RenderH,
+                FoundVisible = _chkHideFound?.IsChecked != true
+            };
+            Canvas.SetLeft(_discoveryVisualHost, 0);
+            Canvas.SetTop(_discoveryVisualHost, 0);
+            _overlayCanvas.Children.Insert(0, _discoveryVisualHost);
+
+            // 속도 라벨 호스트 — 항상 최상단에 렌더되도록 ZIndex 높게 설정
+            _speedLabelHost = new CanvasVisualHost
+            {
+                Width = RenderW,
+                Height = RenderH,
+                Visibility = _chkShowSpeed?.IsChecked == true ? Visibility.Visible : Visibility.Collapsed
+            };
+            Canvas.SetLeft(_speedLabelHost, 0);
+            Canvas.SetTop(_speedLabelHost, 0);
+            Panel.SetZIndex(_speedLabelHost, 1000);
+            _overlayCanvas.Children.Add(_speedLabelHost);
         }
         if (_btnTrackCoordinate != null)
             _btnTrackCoordinate.Click += (_, _) => ToggleTracking();
@@ -314,8 +337,11 @@ public class WorldMapContent : ContentControl
     {
         if (_scrollViewer == null) return;
         _scrollViewer.UpdateLayout();
-        double tileW = UnfoldedW * _currentScale;
-        _scrollViewer.ScrollToHorizontalOffset(tileW);
+        // 초기 뷰는 리스본(38°N, 9°W)이 중앙에 오도록 스크롤
+        const double lisbonLat = 38;
+        const double lisbonLon = -9;
+        var (px, py) = LatLonToPixel(lisbonLat, lisbonLon);
+        ScrollToImagePosition(px, py);
     }
 
     private void MapImage_MouseMove(object sender, MouseEventArgs e)
@@ -646,6 +672,7 @@ public class WorldMapContent : ContentControl
             _discoveryMarkers.Clear();
             _foundMarkers.Clear();
             _cityLabels.Clear();
+            _discoveryVisualHost?.Clear();
             _discoveriesLoaded = false;
             _loadedSavePath = null;
         }
@@ -669,6 +696,7 @@ public class WorldMapContent : ContentControl
             _discoveryMarkers.Clear();
             _foundMarkers.Clear();
             _cityLabels.Clear();
+            _discoveryVisualHost?.Clear();
             _discoveriesLoaded = false;
         }
 
@@ -762,12 +790,19 @@ public class WorldMapContent : ContentControl
                        || (hideFound && _foundMarkers.Contains(marker));
             marker.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
         }
+        if (_discoveryVisualHost != null)
+        {
+            _discoveryVisualHost.Visibility = Visibility.Visible;
+            _discoveryVisualHost.FoundVisible = !hideFound;
+        }
     }
 
     private void HideDiscoveries()
     {
         foreach (var marker in _discoveryMarkers)
             marker.Visibility = Visibility.Collapsed;
+        if (_discoveryVisualHost != null)
+            _discoveryVisualHost.Visibility = Visibility.Collapsed;
         // _foundMarkers/_cityLabels는 분류 정보이므로 비우면 안 됨 (다시 보일 때 필터링이 망가짐)
     }
 
@@ -776,45 +811,57 @@ public class WorldMapContent : ContentControl
         var hideFound = _chkHideFound?.IsChecked == true;
         foreach (var marker in _foundMarkers)
             marker.Visibility = hideFound ? Visibility.Collapsed : Visibility.Visible;
+        if (_discoveryVisualHost != null)
+            _discoveryVisualHost.FoundVisible = !hideFound;
+    }
+
+    // 발견물 마커 공유 브러시/펜 (Freeze → 수천 개 마커가 같은 인스턴스를 참조)
+    private static readonly SolidColorBrush DotFillFound = CreateFrozenBrush(150, 100, 100, 100);
+    private static readonly SolidColorBrush DotFillUnfound = CreateFrozenBrush(200, 220, 40, 40);
+    private static readonly Pen DotPenFound = CreateFrozenPen(180, 80, 80, 80, 1.0);
+    private static readonly Pen DotPenUnfound = CreateFrozenPen(220, 160, 20, 20, 1.0);
+
+    private static readonly SolidColorBrush AreaFillFound = CreateFrozenBrush(20, 100, 100, 100);
+    private static readonly SolidColorBrush AreaFillUnfound = CreateFrozenBrush(40, 50, 100, 220);
+    private static readonly Pen AreaPenFound = CreateFrozenPen(100, 80, 80, 80, 1.0);
+    private static readonly Pen AreaPenUnfound = CreateFrozenPen(160, 50, 100, 220, 1.0);
+
+    private static SolidColorBrush CreateFrozenBrush(byte a, byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    private static Pen CreateFrozenPen(byte a, byte r, byte g, byte b, double thickness)
+    {
+        var pen = new Pen(CreateFrozenBrush(a, r, g, b), thickness);
+        pen.Freeze();
+        return pen;
     }
 
     private void AddDiscoveryPoint(DiscoveryEntity d, bool isFound = false, bool hasHint = false)
     {
-        if (_overlayCanvas == null) return;
+        if (_overlayCanvas == null || _discoveryVisualHost == null) return;
 
         var (px, py) = LatLonToPixel(d.LatFrom!.Value, d.LonFrom!.Value);
 
-        const double size = 6;
-        var fillColor = isFound
-            ? Color.FromArgb(150, 100, 100, 100)
-            : Color.FromArgb(200, 220, 40, 40);
-        var strokeColor = isFound
-            ? Color.FromArgb(180, 80, 80, 80)
-            : Color.FromArgb(220, 160, 20, 20);
-        var tooltip = isFound ? $"{d.Name} (발견)" : d.Name;
+        const double radius = 3.0; // 기존 size=6 기준 지름의 절반
+        var fill = isFound ? DotFillFound : DotFillUnfound;
+        var pen = isFound ? DotPenFound : DotPenUnfound;
 
         // 좌/중/우 타일에 동일 마커 복제
         foreach (var ox in TileOffsets)
         {
-            var dot = new Ellipse
+            var dotVisual = new DrawingVisual();
+            using (var dc = dotVisual.RenderOpen())
             {
-                Width = size,
-                Height = size,
-                Fill = new SolidColorBrush(fillColor),
-                Stroke = new SolidColorBrush(strokeColor),
-                StrokeThickness = 1,
-                IsHitTestVisible = true,
-                ToolTip = tooltip
-            };
-
-            Canvas.SetLeft(dot, px + ox - size / 2);
-            Canvas.SetTop(dot, py - size / 2);
-            _overlayCanvas.Children.Add(dot);
-            _discoveryMarkers.Add(dot);
-            if (isFound) _foundMarkers.Add(dot);
+                dc.DrawEllipse(fill, pen, new Point(px + ox, py), radius, radius);
+            }
+            _discoveryVisualHost.AddVisual(dotVisual, isFound);
 
             var label = CreateDiscoveryLabel(d.Id, d.Name, hasHint);
-            Canvas.SetLeft(label, px + ox + size / 2 + 2);
+            Canvas.SetLeft(label, px + ox + radius + 2);
             Canvas.SetTop(label, py - 6);
             _overlayCanvas.Children.Add(label);
             _discoveryMarkers.Add(label);
@@ -824,7 +871,7 @@ public class WorldMapContent : ContentControl
 
     private void AddDiscoveryArea(DiscoveryEntity d, bool isFound = false, bool hasHint = false)
     {
-        if (_overlayCanvas == null) return;
+        if (_overlayCanvas == null || _discoveryVisualHost == null) return;
 
         var latFrom = d.LatFrom ?? 0;
         var latTo = d.LatTo ?? latFrom;
@@ -843,33 +890,18 @@ public class WorldMapContent : ContentControl
         var w = Math.Max(x2 - x1, 2);
         var h = Math.Max(y2 - y1, 2);
 
-        var fillColor = isFound
-            ? Color.FromArgb(20, 100, 100, 100)
-            : Color.FromArgb(40, 50, 100, 220);
-        var strokeColor = isFound
-            ? Color.FromArgb(100, 80, 80, 80)
-            : Color.FromArgb(160, 50, 100, 220);
-        var tooltip = isFound ? $"{d.Name} (발견)" : d.Name;
+        var fill = isFound ? AreaFillFound : AreaFillUnfound;
+        var pen = isFound ? AreaPenFound : AreaPenUnfound;
 
         // 좌/중/우 타일에 동일 마커 복제
         foreach (var ox in TileOffsets)
         {
-            var rect = new Rectangle
+            var rectVisual = new DrawingVisual();
+            using (var dc = rectVisual.RenderOpen())
             {
-                Width = w,
-                Height = h,
-                Fill = new SolidColorBrush(fillColor),
-                Stroke = new SolidColorBrush(strokeColor),
-                StrokeThickness = 1,
-                IsHitTestVisible = true,
-                ToolTip = tooltip
-            };
-
-            Canvas.SetLeft(rect, x1 + ox);
-            Canvas.SetTop(rect, y1);
-            _overlayCanvas.Children.Add(rect);
-            _discoveryMarkers.Add(rect);
-            if (isFound) _foundMarkers.Add(rect);
+                dc.DrawRectangle(fill, pen, new Rect(x1 + ox, y1, w, h));
+            }
+            _discoveryVisualHost.AddVisual(rectVisual, isFound);
 
             var label = CreateDiscoveryLabel(d.Id, d.Name, hasHint);
             Canvas.SetLeft(label, x2 + ox + 2);
@@ -1256,29 +1288,42 @@ public class WorldMapContent : ContentControl
         return $"{degPerMin:F1}°/분";
     }
 
+    // 속도 라벨 공유 리소스 (Freeze → 모든 라벨이 공유)
+    private static readonly SolidColorBrush SpeedLabelBgBrush = CreateFrozenBrush(180, 255, 255, 255);
+    private static readonly Typeface SpeedLabelTypeface = new("Segoe UI");
+    private const double SpeedLabelFontSize = 6;
+    private const double SpeedLabelPadX = 1;
+
     /// <summary>새 궤적 점에 구간 속도 라벨을 좌/중/우 타일 각각에 추가.</summary>
     private void AddTrailSpeedLabel(Point point, string text)
     {
-        if (_overlayCanvas == null) return;
-        var labels = new TextBlock[3];
+        if (_speedLabelHost == null) return;
+
+        var pixelsPerDip = VisualTreeHelper.GetDpi(_speedLabelHost).PixelsPerDip;
+        var formatted = new FormattedText(
+            text,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            SpeedLabelTypeface,
+            SpeedLabelFontSize,
+            Brushes.Black,
+            pixelsPerDip);
+
+        var bgW = formatted.Width + SpeedLabelPadX * 2;
+        var bgH = formatted.Height;
+
         for (int i = 0; i < 3; i++)
         {
-            var tb = new TextBlock
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
             {
-                Text = text,
-                FontSize = 6,
-                Foreground = Brushes.Black,
-                Background = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)),
-                Padding = new Thickness(1, 0, 1, 0),
-                IsHitTestVisible = false,
-                Visibility = _chkShowSpeed?.IsChecked == true ? Visibility.Visible : Visibility.Collapsed
-            };
-            Canvas.SetLeft(tb, point.X + TileOffsets[i] + 3);
-            Canvas.SetTop(tb, point.Y + 2);
-            _overlayCanvas.Children.Add(tb);
-            labels[i] = tb;
+                var x = point.X + TileOffsets[i] + 3;
+                var y = point.Y + 2;
+                dc.DrawRectangle(SpeedLabelBgBrush, null, new Rect(x, y, bgW, bgH));
+                dc.DrawText(formatted, new Point(x + SpeedLabelPadX, y));
+            }
+            _speedLabelHost.AddVisual(visual);
         }
-        _trailSpeedLabels.Add(labels);
     }
 
     private void UpdatePositionMarker(double lat, double lon)
@@ -1437,13 +1482,7 @@ public class WorldMapContent : ContentControl
         _trailPoints.Clear();
         _trailTimestamps.Clear();
         for (int i = 0; i < 3; i++) _trailPointsByTile[i].Clear();
-        if (_overlayCanvas != null)
-        {
-            foreach (var labels in _trailSpeedLabels)
-                foreach (var tb in labels)
-                    _overlayCanvas.Children.Remove(tb);
-        }
-        _trailSpeedLabels.Clear();
+        _speedLabelHost?.Clear();
     }
 
     private record TrailCoord(double lat, double lon, string? time = null);
@@ -1520,13 +1559,7 @@ public class WorldMapContent : ContentControl
             _trailPoints.Clear();
             _trailTimestamps.Clear();
             for (int i = 0; i < 3; i++) _trailPointsByTile[i].Clear();
-            if (_overlayCanvas != null)
-            {
-                foreach (var labels in _trailSpeedLabels)
-                    foreach (var tb in labels)
-                        _overlayCanvas.Children.Remove(tb);
-            }
-            _trailSpeedLabels.Clear();
+            _speedLabelHost?.Clear();
 
             foreach (var c in coords)
             {
@@ -1669,10 +1702,9 @@ public class WorldMapContent : ContentControl
 
     private void ToggleSpeedLabels()
     {
+        if (_speedLabelHost == null) return;
         var visible = _chkShowSpeed?.IsChecked == true;
-        foreach (var labels in _trailSpeedLabels)
-            foreach (var tb in labels)
-                tb.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        _speedLabelHost.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private double GetAutoScrollThreshold()
