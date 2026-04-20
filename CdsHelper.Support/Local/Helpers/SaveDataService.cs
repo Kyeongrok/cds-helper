@@ -123,6 +123,29 @@ public class SaveDataService
     }
 
     /// <summary>
+    /// 발견물 슬롯의 state 바이트를 세이브 파일에 저장 (bit 6=발견, bit 7=발표)
+    /// </summary>
+    public void SaveDiscoveryState(int slotIndex, byte state)
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
+            return;
+        if (slotIndex < 0 || slotIndex >= DISCOVERY_COUNT) return;
+
+        int offset = DISCOVERY_START_OFFSET + (slotIndex * DISCOVERY_SIZE);
+
+        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.WriteByte(state);
+
+        // 캐시 동기화
+        if (CurrentSaveGameInfo?.Discoveries != null)
+        {
+            var entry = CurrentSaveGameInfo.Discoveries.FirstOrDefault(d => d.Id == slotIndex);
+            if (entry != null) entry.State = state;
+        }
+    }
+
+    /// <summary>
     /// 캐릭터 고용 상태를 세이브 파일에 저장
     /// </summary>
     public void SaveCharacterHireStatus(int characterIndex, byte hireStatus)

@@ -61,6 +61,9 @@ public partial class DiscoveryContentViewModel : ObservableObject
 
         eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
 
+        // 슬롯 상태 ComboBox 변경 시 즉시 세이브 파일에 기록
+        DiscoveryDisplayItem.OnSlotStateChanged = _saveDataService.SaveDiscoveryState;
+
         Initialize();
     }
 
@@ -127,6 +130,9 @@ public partial class DiscoveryContentViewModel : ObservableObject
         else if (DiscoveryFilterIndex == 2)
             filtered = filtered.Where(d => !d.HintId.HasValue || _discoveredHintIds?.Contains(d.HintId.Value) != true);
 
+        var slotStateMap = _saveDataService.CurrentSaveGameInfo?.Discoveries
+            .ToDictionary(x => x.Id, x => x.State);
+
         var displayItems = filtered.Select(d =>
         {
             var item = new DiscoveryDisplayItem
@@ -147,6 +153,8 @@ public partial class DiscoveryContentViewModel : ObservableObject
                 IsDiscoveryFound = d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true
             };
             item.SetCheckedWithoutSave(AppSettings.IsDiscoveryChecked(d.Id));
+            if (slotStateMap != null && slotStateMap.TryGetValue(d.Id, out var stateByte))
+                item.SetSlotStateWithoutSave(stateByte);
             return item;
         }).ToList();
 
@@ -253,5 +261,48 @@ public partial class DiscoveryDisplayItem : ObservableObject
     public void SetCheckedWithoutSave(bool value)
     {
         _isChecked = value;
+    }
+
+    // 슬롯 상태 편집 — 선택 시 세이브 파일에 즉시 반영
+    public const string StateUndiscovered = "미발견";
+    public const string StateFound = "발견";
+    public const string StateAnnounced = "발표";
+    public static IReadOnlyList<string> SlotStateOptions { get; } = new[]
+    {
+        StateUndiscovered, StateFound, StateAnnounced
+    };
+
+    // (slotIndex, newStateByte) → 세이브 파일에 저장
+    public static Action<int, byte>? OnSlotStateChanged;
+
+    // 현재 슬롯 state 바이트 (하위 6비트 = 카테고리 base, 변경 시 보존)
+    public byte CurrentStateByte { get; set; }
+
+    private string _slotState = StateUndiscovered;
+    public string SlotState
+    {
+        get => _slotState;
+        set
+        {
+            if (!SetProperty(ref _slotState, value)) return;
+            byte baseBits = (byte)(CurrentStateByte & 0x3F);
+            byte newByte = value switch
+            {
+                StateAnnounced => (byte)(baseBits | 0xC0),
+                StateFound => (byte)(baseBits | 0x40),
+                _ => baseBits
+            };
+            CurrentStateByte = newByte;
+            OnSlotStateChanged?.Invoke(Id, newByte);
+        }
+    }
+
+    public void SetSlotStateWithoutSave(byte stateByte)
+    {
+        CurrentStateByte = stateByte;
+        bool announced = (stateByte & 0x80) != 0;
+        bool found = (stateByte & 0x40) != 0;
+        _slotState = announced ? StateAnnounced : (found ? StateFound : StateUndiscovered);
+        OnPropertyChanged(nameof(SlotState));
     }
 }
