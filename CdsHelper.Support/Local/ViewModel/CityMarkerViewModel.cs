@@ -35,7 +35,7 @@ public partial class CityMarkerViewModel
     }
 
     [RelayCommand]
-    private async void LibraryClick()
+    private async Task LibraryClick()
     {
         try
         {

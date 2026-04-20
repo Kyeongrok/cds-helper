@@ -229,7 +229,7 @@ public partial class BookContentViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedBook))]
-    private async void EditLibraryMapping()
+    private async Task EditLibraryMapping()
     {
         if (SelectedBook == null) return;
 
@@ -262,7 +262,7 @@ public partial class BookContentViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedBook))]
-    private async void DeleteBook()
+    private async Task DeleteBook()
     {
         if (SelectedBook == null) return;
 
