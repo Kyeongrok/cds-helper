@@ -1,15 +1,11 @@
 using System.Globalization;
-using System.Windows.Data;
 using System.Windows.Media;
 
 namespace CdsHelper.Support.Local.Converters;
 
-/// <summary>
-/// 문자열 색상 코드를 Brush로 변환
-/// </summary>
-public class StringToBrushConverter : IValueConverter
+public sealed class StringToBrushConverter : ConverterMarkupExtension<StringToBrushConverter>
 {
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public override object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is string colorString)
         {
@@ -24,10 +20,5 @@ public class StringToBrushConverter : IValueConverter
             }
         }
         return Brushes.Gray;
-    }
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        throw new NotImplementedException();
     }
 }

@@ -4,8 +4,6 @@
                     xmlns:units="clr-namespace:CdsHelper.Support.UI.Units;assembly=CdsHelper.Support"
                     xmlns:converters="clr-namespace:CdsHelper.Main.Local.Converters">
 
-    <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-
     <Style TargetType="{x:Type views:CharacterContent}">
         <Setter Property="Template">
             <Setter.Value>
@@ -51,7 +49,7 @@
                                 Margin="0,50,0,0"
                                 Background="#323232" CornerRadius="5"
                                 Padding="20,10"
-                                Visibility="{Binding IsToastVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                                Visibility="{Binding IsToastVisible, Converter={converters:BoolToVisibilityConverter}}">
                             <TextBlock Text="{Binding ToastMessage}" Foreground="White" FontSize="14"/>
                         </Border>
 

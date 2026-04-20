@@ -1,24 +1,13 @@
 using System.Globalization;
-using System.Windows.Data;
+using CdsHelper.Support.Local.Converters;
 
 namespace CdsHelper.Main.Local.Converters;
 
-/// <summary>
-/// true이면 O, false이면 X
-/// </summary>
-public class BoolToOXConverter : IValueConverter
+public sealed class BoolToOXConverter : ConverterMarkupExtension<BoolToOXConverter>
 {
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is bool b)
-            return b ? "O" : "X";
-        return "X";
-    }
+    public override object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is bool b && b ? "O" : "X";
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is string s)
-            return s == "O";
-        return false;
-    }
+    public override object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is string s && s == "O";
 }
