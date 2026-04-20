@@ -1,13 +1,12 @@
 using System.Collections.ObjectModel;
-using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
-using Prism.Commands;
-using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
 
-public class FigureheadContentViewModel : BindableBase
+public partial class FigureheadContentViewModel : ObservableObject
 {
     private readonly FigureheadService _figureheadService;
 
@@ -15,37 +14,20 @@ public class FigureheadContentViewModel : BindableBase
 
     #region Collections
 
-    private ObservableCollection<Figurehead> _figureheads = new();
-    public ObservableCollection<Figurehead> Figureheads
-    {
-        get => _figureheads;
-        set => SetProperty(ref _figureheads, value);
-    }
+    [ObservableProperty] private ObservableCollection<Figurehead> _figureheads = new();
 
     #endregion
 
     #region Filter Properties
 
-    private string _figureheadNameSearch = "";
-    public string FigureheadNameSearch
-    {
-        get => _figureheadNameSearch;
-        set { SetProperty(ref _figureheadNameSearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _figureheadNameSearch = "";
+    partial void OnFigureheadNameSearchChanged(string value) => ApplyFilter();
 
-    private string? _selectedFigureheadFunction;
-    public string? SelectedFigureheadFunction
-    {
-        get => _selectedFigureheadFunction;
-        set { SetProperty(ref _selectedFigureheadFunction, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string? _selectedFigureheadFunction;
+    partial void OnSelectedFigureheadFunctionChanged(string? value) => ApplyFilter();
 
-    private string? _selectedFigureheadLevel;
-    public string? SelectedFigureheadLevel
-    {
-        get => _selectedFigureheadLevel;
-        set { SetProperty(ref _selectedFigureheadLevel, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string? _selectedFigureheadLevel;
+    partial void OnSelectedFigureheadLevelChanged(string? value) => ApplyFilter();
 
     public ObservableCollection<string> FigureheadFunctions { get; } = new();
     public ObservableCollection<string> FigureheadLevels { get; } = new();
@@ -54,27 +36,13 @@ public class FigureheadContentViewModel : BindableBase
 
     #region Status Properties
 
-    private string _statusText = "준비됨";
-    public string StatusText
-    {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
-    }
-
-    #endregion
-
-    #region Commands
-
-    public ICommand ResetFilterCommand { get; }
+    [ObservableProperty] private string _statusText = "준비됨";
 
     #endregion
 
     public FigureheadContentViewModel(FigureheadService figureheadService)
     {
         _figureheadService = figureheadService;
-
-        ResetFilterCommand = new DelegateCommand(ResetFilter);
-
         Initialize();
     }
 
@@ -132,6 +100,7 @@ public class FigureheadContentViewModel : BindableBase
         StatusText = $"선수상: {filtered.Count}개";
     }
 
+    [RelayCommand]
     private void ResetFilter()
     {
         FigureheadNameSearch = "";

@@ -1,18 +1,17 @@
 using System.Collections.ObjectModel;
 using System.Windows;
-using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Main.UI.Views;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
-using Prism.Commands;
 using Prism.Events;
-using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModel;
 
-public class BookContentViewModel : BindableBase
+public partial class BookContentViewModel : ObservableObject
 {
     private readonly BookService _bookService;
     private readonly CityService _cityService;
@@ -24,12 +23,7 @@ public class BookContentViewModel : BindableBase
 
     #region Collections
 
-    private ObservableCollection<Book> _books = new();
-    public ObservableCollection<Book> Books
-    {
-        get => _books;
-        set => SetProperty(ref _books, value);
-    }
+    [ObservableProperty] private ObservableCollection<Book> _books = new();
 
     public ObservableCollection<string> Languages { get; } = new();
     public ObservableCollection<string> RequiredSkills { get; } = new();
@@ -38,72 +32,34 @@ public class BookContentViewModel : BindableBase
 
     #region Selected Item
 
-    private Book? _selectedBook;
-    public Book? SelectedBook
-    {
-        get => _selectedBook;
-        set => SetProperty(ref _selectedBook, value);
-    }
+    [NotifyCanExecuteChangedFor(nameof(EditLibraryMappingCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteBookCommand))]
+    [ObservableProperty] private Book? _selectedBook;
 
     #endregion
 
     #region Filter Properties
 
-    private string _bookNameSearch = "";
-    public string BookNameSearch
-    {
-        get => _bookNameSearch;
-        set { SetProperty(ref _bookNameSearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _bookNameSearch = "";
+    partial void OnBookNameSearchChanged(string value) => ApplyFilter();
 
-    private string _librarySearch = "";
-    public string LibrarySearch
-    {
-        get => _librarySearch;
-        set { SetProperty(ref _librarySearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _librarySearch = "";
+    partial void OnLibrarySearchChanged(string value) => ApplyFilter();
 
-    private string _hintSearch = "";
-    public string HintSearch
-    {
-        get => _hintSearch;
-        set { SetProperty(ref _hintSearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _hintSearch = "";
+    partial void OnHintSearchChanged(string value) => ApplyFilter();
 
-    private string? _selectedLanguage;
-    public string? SelectedLanguage
-    {
-        get => _selectedLanguage;
-        set { SetProperty(ref _selectedLanguage, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string? _selectedLanguage;
+    partial void OnSelectedLanguageChanged(string? value) => ApplyFilter();
 
-    private string? _selectedRequiredSkill;
-    public string? SelectedRequiredSkill
-    {
-        get => _selectedRequiredSkill;
-        set { SetProperty(ref _selectedRequiredSkill, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string? _selectedRequiredSkill;
+    partial void OnSelectedRequiredSkillChanged(string? value) => ApplyFilter();
 
     #endregion
 
     #region Status
 
-    private string _statusText = "";
-    public string StatusText
-    {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
-    }
-
-    #endregion
-
-    #region Commands
-
-    public ICommand ResetBookFilterCommand { get; }
-    public ICommand EditLibraryMappingCommand { get; }
-    public ICommand DeleteBookCommand { get; }
-    public ICommand NavigateToLibraryCommand { get; }
-    // LoadSaveCommand와 RefreshCommand는 CdsHelperWindow의 공통 영역에서 처리
+    [ObservableProperty] private string _statusText = "";
 
     #endregion
 
@@ -118,34 +74,20 @@ public class BookContentViewModel : BindableBase
         _saveDataService = saveDataService;
         _eventAggregator = eventAggregator;
 
-        ResetBookFilterCommand = new DelegateCommand(ResetFilter);
-        EditLibraryMappingCommand = new DelegateCommand(EditLibraryMapping, () => SelectedBook != null)
-            .ObservesProperty(() => SelectedBook);
-        DeleteBookCommand = new DelegateCommand(DeleteBook, () => SelectedBook != null)
-            .ObservesProperty(() => SelectedBook);
-        NavigateToLibraryCommand = new DelegateCommand<byte?>(NavigateToLibrary);
-
         Initialize();
 
-        // 세이브 데이터 로드 이벤트 구독
         eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
 
-        // 이미 로드된 데이터가 있으면 표시
         if (saveDataService.CurrentPlayerData != null)
-        {
             LoadSaveData(saveDataService.CurrentPlayerData);
-        }
     }
 
     private void OnSaveDataLoaded(SaveDataLoadedEventArgs args)
     {
         if (args.PlayerData != null)
-        {
             LoadSaveData(args.PlayerData);
-        }
     }
 
-    // 중앙에서 세이브 데이터 로드 시 호출될 메서드
     public void LoadSaveData(PlayerData playerData)
     {
         try
@@ -168,21 +110,19 @@ public class BookContentViewModel : BindableBase
     {
         if (_playerData == null) return;
 
-        // 발견된 힌트 ID 목록 가져오기 (IsDiscovered)
         HashSet<int>? discoveredHintIds = null;
-        // 힌트 보유 ID 목록 가져오기 (HasHint)
         HashSet<int>? hasHintIds = null;
 
         if (_saveDataService.CurrentSaveGameInfo?.Hints != null)
         {
             discoveredHintIds = _saveDataService.CurrentSaveGameInfo.Hints
                 .Where(h => h.IsDiscovered)
-                .Select(h => h.Index - 1) // 1-based -> 0-based (Hint ID)
+                .Select(h => h.Index - 1)
                 .ToHashSet();
 
             hasHintIds = _saveDataService.CurrentSaveGameInfo.Hints
                 .Where(h => h.HasHint)
-                .Select(h => h.Index - 1) // 1-based -> 0-based (Hint ID)
+                .Select(h => h.Index - 1)
                 .ToHashSet();
         }
 
@@ -197,18 +137,15 @@ public class BookContentViewModel : BindableBase
 
     private async void Initialize()
     {
-        // App.OnStartup에서 이미 초기화됨 - 캐시된 데이터 사용
         _allCities = _cityService.GetCachedCities();
         _allBooks = _bookService.GetCachedBooks();
 
         if (_allBooks.Count > 0)
         {
-            // 캐시가 있으면 바로 사용
             LoadFromCache();
         }
         else
         {
-            // 캐시가 없으면 DB에서 로드
             await LoadCitiesFromDbAsync();
             await LoadBooksFromDbAsync();
         }
@@ -281,7 +218,8 @@ public class BookContentViewModel : BindableBase
         StatusText = $"도서: {filtered.Count}개";
     }
 
-    private void ResetFilter()
+    [RelayCommand]
+    private void ResetBookFilter()
     {
         BookNameSearch = "";
         LibrarySearch = "";
@@ -290,22 +228,40 @@ public class BookContentViewModel : BindableBase
         SelectedRequiredSkill = null;
     }
 
-    private void NavigateToLibrary(byte? cityId)
+    [RelayCommand(CanExecute = nameof(HasSelectedBook))]
+    private async void EditLibraryMapping()
     {
-        if (!cityId.HasValue) return;
+        if (SelectedBook == null) return;
 
-        var city = _allCities.FirstOrDefault(c => c.Id == cityId.Value);
-        if (city == null) return;
+        MessageBox.Show($"Book Id: {SelectedBook.Id}, Name: {SelectedBook.Name}");
 
-        _eventAggregator.GetEvent<NavigateToCityEvent>().Publish(new NavigateToCityEventArgs
+        var dialog = new BookCityMappingDialog
         {
-            CityId = city.Id,
-            CityName = city.Name,
-            PixelX = city.PixelX,
-            PixelY = city.PixelY
-        });
+            Owner = Application.Current.MainWindow
+        };
+
+        dialog.Initialize(SelectedBook, _allCities);
+
+        if (dialog.ShowDialog() == true)
+        {
+            var selectedCityIds = dialog.GetSelectedCityIds();
+            var selectedCityNames = dialog.GetSelectedCityNames();
+
+            try
+            {
+                await _bookService.UpdateBookCitiesAsync(SelectedBook.Id, selectedCityIds);
+                await LoadBooksFromDbAsync();
+                StatusText = $"{SelectedBook.Name} 도서관 매핑 업데이트 완료";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"매핑 저장 실패: {ex.Message}\n\n{ex.StackTrace}", "오류",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
     }
 
+    [RelayCommand(CanExecute = nameof(HasSelectedBook))]
     private async void DeleteBook()
     {
         if (SelectedBook == null) return;
@@ -329,40 +285,22 @@ public class BookContentViewModel : BindableBase
         }
     }
 
-    private async void EditLibraryMapping()
+    [RelayCommand]
+    private void NavigateToLibrary(byte? cityId)
     {
-        if (SelectedBook == null) return;
+        if (!cityId.HasValue) return;
 
-        // 디버그: 선택된 책 정보 확인
-        MessageBox.Show($"Book Id: {SelectedBook.Id}, Name: {SelectedBook.Name}");
+        var city = _allCities.FirstOrDefault(c => c.Id == cityId.Value);
+        if (city == null) return;
 
-        var dialog = new BookCityMappingDialog
+        _eventAggregator.GetEvent<NavigateToCityEvent>().Publish(new NavigateToCityEventArgs
         {
-            Owner = Application.Current.MainWindow
-        };
-
-        dialog.Initialize(SelectedBook, _allCities);
-
-        if (dialog.ShowDialog() == true)
-        {
-            var selectedCityIds = dialog.GetSelectedCityIds();
-            var selectedCityNames = dialog.GetSelectedCityNames();
-
-            try
-            {
-                // DB 업데이트
-                await _bookService.UpdateBookCitiesAsync(SelectedBook.Id, selectedCityIds);
-
-                // DB에서 다시 로드
-                await LoadBooksFromDbAsync();
-
-                StatusText = $"{SelectedBook.Name} 도서관 매핑 업데이트 완료";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"매핑 저장 실패: {ex.Message}\n\n{ex.StackTrace}", "오류",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+            CityId = city.Id,
+            CityName = city.Name,
+            PixelX = city.PixelX,
+            PixelY = city.PixelY
+        });
     }
+
+    private bool HasSelectedBook() => SelectedBook != null;
 }

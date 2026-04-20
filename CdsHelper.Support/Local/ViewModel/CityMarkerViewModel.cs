@@ -1,14 +1,13 @@
 using System.Windows;
-using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.UI.Views;
-using Prism.Commands;
 using Prism.Ioc;
 
 namespace CdsHelper.Support.Local.ViewModel;
 
-public class CityMarkerViewModel
+public partial class CityMarkerViewModel
 {
     public byte CityId { get; set; }
     public string CityName { get; set; } = string.Empty;
@@ -21,14 +20,9 @@ public class CityMarkerViewModel
     public bool ShowLabel { get; set; }
     public bool ShowCoordinates { get; set; }
 
-    public ICommand LibraryClickCommand { get; }
+    public CityMarkerViewModel() { }
 
-    public CityMarkerViewModel()
-    {
-        LibraryClickCommand = new DelegateCommand(OnLibraryClick);
-    }
-
-    public CityMarkerViewModel(City city, double markerSize) : this()
+    public CityMarkerViewModel(City city, double markerSize)
     {
         CityId = city.Id;
         CityName = city.Name;
@@ -40,7 +34,8 @@ public class CityMarkerViewModel
         MarkerSize = markerSize;
     }
 
-    private async void OnLibraryClick()
+    [RelayCommand]
+    private async void LibraryClick()
     {
         try
         {
@@ -56,9 +51,7 @@ public class CityMarkerViewModel
             dialog.Title = $"{CityName} Library";
 
             foreach (var book in books)
-            {
                 dialog.Books.Add(book);
-            }
 
             dialog.ShowDialog();
         }

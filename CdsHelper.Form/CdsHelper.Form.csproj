@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.*" />
       <PackageReference Include="Prism.DryIoc" Version="9.0.537" />
     </ItemGroup>
 

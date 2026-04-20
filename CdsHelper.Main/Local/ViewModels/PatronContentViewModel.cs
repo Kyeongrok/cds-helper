@@ -1,14 +1,13 @@
 using System.Collections.ObjectModel;
-using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
-using Prism.Commands;
-using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
 
-public class PatronContentViewModel : BindableBase
+public partial class PatronContentViewModel : ObservableObject
 {
     private readonly PatronService _patronService;
     private readonly SaveDataService _saveDataService;
@@ -18,44 +17,23 @@ public class PatronContentViewModel : BindableBase
 
     #region Collections
 
-    private ObservableCollection<PatronDisplay> _patrons = new();
-    public ObservableCollection<PatronDisplay> Patrons
-    {
-        get => _patrons;
-        set => SetProperty(ref _patrons, value);
-    }
+    [ObservableProperty] private ObservableCollection<PatronDisplay> _patrons = new();
 
     #endregion
 
     #region Filter Properties
 
-    private string _patronNameSearch = "";
-    public string PatronNameSearch
-    {
-        get => _patronNameSearch;
-        set { SetProperty(ref _patronNameSearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _patronNameSearch = "";
+    partial void OnPatronNameSearchChanged(string value) => ApplyFilter();
 
-    private string _patronCitySearch = "";
-    public string PatronCitySearch
-    {
-        get => _patronCitySearch;
-        set { SetProperty(ref _patronCitySearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _patronCitySearch = "";
+    partial void OnPatronCitySearchChanged(string value) => ApplyFilter();
 
-    private string? _selectedNationality;
-    public string? SelectedNationality
-    {
-        get => _selectedNationality;
-        set { SetProperty(ref _selectedNationality, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string? _selectedNationality;
+    partial void OnSelectedNationalityChanged(string? value) => ApplyFilter();
 
-    private bool _activePatronsOnly = true;
-    public bool ActivePatronsOnly
-    {
-        get => _activePatronsOnly;
-        set { SetProperty(ref _activePatronsOnly, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private bool _activePatronsOnly = true;
+    partial void OnActivePatronsOnlyChanged(bool value) => ApplyFilter();
 
     public ObservableCollection<string> Nationalities { get; } = new();
 
@@ -63,21 +41,9 @@ public class PatronContentViewModel : BindableBase
 
     #region Status Properties
 
-    private string _statusText = "준비됨";
-    public string StatusText
-    {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
-    }
+    [ObservableProperty] private string _statusText = "준비됨";
 
     public int CurrentYear => _saveGameInfo?.Year ?? 1480;
-
-    #endregion
-
-    #region Commands
-
-    public ICommand ResetFilterCommand { get; }
-    public ICommand LoadSaveCommand { get; }
 
     #endregion
 
@@ -87,9 +53,6 @@ public class PatronContentViewModel : BindableBase
     {
         _patronService = patronService;
         _saveDataService = saveDataService;
-
-        ResetFilterCommand = new DelegateCommand(ResetFilter);
-        LoadSaveCommand = new DelegateCommand(LoadSaveFile);
 
         Initialize();
     }
@@ -102,7 +65,6 @@ public class PatronContentViewModel : BindableBase
         if (System.IO.File.Exists(patronsPath))
             LoadPatrons(patronsPath);
 
-        // 기본 세이브 파일 로드
         var savePath = @"C:\Users\ocean\Desktop\대항해시대3\savedata.cds";
         if (System.IO.File.Exists(savePath))
             LoadSaveFile(savePath);
@@ -129,7 +91,8 @@ public class PatronContentViewModel : BindableBase
         }
     }
 
-    public void LoadSaveFile()
+    [RelayCommand]
+    private void LoadSave()
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
@@ -138,9 +101,7 @@ public class PatronContentViewModel : BindableBase
         };
 
         if (dialog.ShowDialog() == true)
-        {
             LoadSaveFile(dialog.FileName);
-        }
     }
 
     public void LoadSaveFile(string filePath)
@@ -148,7 +109,7 @@ public class PatronContentViewModel : BindableBase
         try
         {
             _saveGameInfo = _saveDataService.ReadSaveFile(filePath);
-            RaisePropertyChanged(nameof(CurrentYear));
+            OnPropertyChanged(nameof(CurrentYear));
             ApplyFilter();
         }
         catch (Exception ex)
@@ -178,6 +139,7 @@ public class PatronContentViewModel : BindableBase
         StatusText = $"후원자: {displayList.Count}명 (기준년도: {CurrentYear}{fameMsg})";
     }
 
+    [RelayCommand]
     private void ResetFilter()
     {
         PatronNameSearch = "";

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
-using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -8,7 +9,7 @@ using Prism.Events;
 
 namespace CdsHelper.Form.Local.ViewModels;
 
-public class CdsHelperViewModel : BindableBase
+public partial class CdsHelperViewModel : ObservableObject
 {
     private readonly IRegionManager _regionManager;
     private readonly IEventAggregator _eventAggregator;
@@ -31,86 +32,31 @@ public class CdsHelperViewModel : BindableBase
 
     #region Collections for DataGrid
 
-    private ObservableCollection<CharacterData> _characters = new();
-    public ObservableCollection<CharacterData> Characters
-    {
-        get => _characters;
-        set => SetProperty(ref _characters, value);
-    }
-
-    private ObservableCollection<Book> _books = new();
-    public ObservableCollection<Book> Books
-    {
-        get => _books;
-        set => SetProperty(ref _books, value);
-    }
-
-    private ObservableCollection<City> _cities = new();
-    public ObservableCollection<City> Cities
-    {
-        get => _cities;
-        set => SetProperty(ref _cities, value);
-    }
-
-    private ObservableCollection<PatronDisplay> _patrons = new();
-    public ObservableCollection<PatronDisplay> Patrons
-    {
-        get => _patrons;
-        set => SetProperty(ref _patrons, value);
-    }
-
-    private ObservableCollection<Figurehead> _figureheads = new();
-    public ObservableCollection<Figurehead> Figureheads
-    {
-        get => _figureheads;
-        set => SetProperty(ref _figureheads, value);
-    }
-
-    private ObservableCollection<Item> _items = new();
-    public ObservableCollection<Item> Items
-    {
-        get => _items;
-        set => SetProperty(ref _items, value);
-    }
+    [ObservableProperty] private ObservableCollection<CharacterData> _characters = new();
+    [ObservableProperty] private ObservableCollection<Book> _books = new();
+    [ObservableProperty] private ObservableCollection<City> _cities = new();
+    [ObservableProperty] private ObservableCollection<PatronDisplay> _patrons = new();
+    [ObservableProperty] private ObservableCollection<Figurehead> _figureheads = new();
+    [ObservableProperty] private ObservableCollection<Item> _items = new();
 
     #endregion
 
     #region Character Filter Properties
 
-    private bool _showGrayCharacters;
-    public bool ShowGrayCharacters
-    {
-        get => _showGrayCharacters;
-        set { SetProperty(ref _showGrayCharacters, value); ApplyCharacterFilter(); }
-    }
+    [ObservableProperty] private bool _showGrayCharacters;
+    partial void OnShowGrayCharactersChanged(bool value) => ApplyCharacterFilter();
 
-    private string _characterNameSearch = "";
-    public string CharacterNameSearch
-    {
-        get => _characterNameSearch;
-        set { SetProperty(ref _characterNameSearch, value); ApplyCharacterFilter(); }
-    }
+    [ObservableProperty] private string _characterNameSearch = "";
+    partial void OnCharacterNameSearchChanged(string value) => ApplyCharacterFilter();
 
-    private bool _filterBySkill;
-    public bool FilterBySkill
-    {
-        get => _filterBySkill;
-        set { SetProperty(ref _filterBySkill, value); ApplyCharacterFilter(); }
-    }
+    [ObservableProperty] private bool _filterBySkill;
+    partial void OnFilterBySkillChanged(bool value) => ApplyCharacterFilter();
 
-    private int _selectedSkillIndex = 0;
-    public int SelectedSkillIndex
-    {
-        get => _selectedSkillIndex;
-        set { SetProperty(ref _selectedSkillIndex, value); if (FilterBySkill) ApplyCharacterFilter(); }
-    }
+    [ObservableProperty] private int _selectedSkillIndex = 0;
+    partial void OnSelectedSkillIndexChanged(int value) { if (FilterBySkill) ApplyCharacterFilter(); }
 
-    private byte _selectedSkillLevel = 3;
-    public byte SelectedSkillLevel
-    {
-        get => _selectedSkillLevel;
-        set { SetProperty(ref _selectedSkillLevel, value); if (FilterBySkill) ApplyCharacterFilter(); }
-    }
+    [ObservableProperty] private byte _selectedSkillLevel = 3;
+    partial void OnSelectedSkillLevelChanged(byte value) { if (FilterBySkill) ApplyCharacterFilter(); }
 
     public List<string> SkillNames { get; } = CharacterService.SkillNames.Values.ToList();
     public List<byte> SkillLevels { get; } = new() { 1, 2, 3, 4, 5 };
@@ -119,40 +65,20 @@ public class CdsHelperViewModel : BindableBase
 
     #region Book Filter Properties
 
-    private string _bookNameSearch = "";
-    public string BookNameSearch
-    {
-        get => _bookNameSearch;
-        set { SetProperty(ref _bookNameSearch, value); ApplyBookFilter(); }
-    }
+    [ObservableProperty] private string _bookNameSearch = "";
+    partial void OnBookNameSearchChanged(string value) => ApplyBookFilter();
 
-    private string _librarySearch = "";
-    public string LibrarySearch
-    {
-        get => _librarySearch;
-        set { SetProperty(ref _librarySearch, value); ApplyBookFilter(); }
-    }
+    [ObservableProperty] private string _librarySearch = "";
+    partial void OnLibrarySearchChanged(string value) => ApplyBookFilter();
 
-    private string _hintSearch = "";
-    public string HintSearch
-    {
-        get => _hintSearch;
-        set { SetProperty(ref _hintSearch, value); ApplyBookFilter(); }
-    }
+    [ObservableProperty] private string _hintSearch = "";
+    partial void OnHintSearchChanged(string value) => ApplyBookFilter();
 
-    private string? _selectedLanguage;
-    public string? SelectedLanguage
-    {
-        get => _selectedLanguage;
-        set { SetProperty(ref _selectedLanguage, value); ApplyBookFilter(); }
-    }
+    [ObservableProperty] private string? _selectedLanguage;
+    partial void OnSelectedLanguageChanged(string? value) => ApplyBookFilter();
 
-    private string? _selectedRequiredSkill;
-    public string? SelectedRequiredSkill
-    {
-        get => _selectedRequiredSkill;
-        set { SetProperty(ref _selectedRequiredSkill, value); ApplyBookFilter(); }
-    }
+    [ObservableProperty] private string? _selectedRequiredSkill;
+    partial void OnSelectedRequiredSkillChanged(string? value) => ApplyBookFilter();
 
     public ObservableCollection<string> Languages { get; } = new();
     public ObservableCollection<string> RequiredSkills { get; } = new();
@@ -161,70 +87,30 @@ public class CdsHelperViewModel : BindableBase
 
     #region City Filter Properties
 
-    private string _cityNameSearch = "";
-    public string CityNameSearch
-    {
-        get => _cityNameSearch;
-        set { SetProperty(ref _cityNameSearch, value); ApplyCityFilter(); }
-    }
+    [ObservableProperty] private string _cityNameSearch = "";
+    partial void OnCityNameSearchChanged(string value) => ApplyCityFilter();
 
-    private string? _selectedCulturalSphere;
-    public string? SelectedCulturalSphere
-    {
-        get => _selectedCulturalSphere;
-        set { SetProperty(ref _selectedCulturalSphere, value); ApplyCityFilter(); }
-    }
+    [ObservableProperty] private string? _selectedCulturalSphere;
+    partial void OnSelectedCulturalSphereChanged(string? value) => ApplyCityFilter();
 
-    private bool _libraryOnly;
-    public bool LibraryOnly
-    {
-        get => _libraryOnly;
-        set { SetProperty(ref _libraryOnly, value); ApplyCityFilter(); }
-    }
+    [ObservableProperty] private bool _libraryOnly;
+    partial void OnLibraryOnlyChanged(bool value) => ApplyCityFilter();
 
-    private bool _shipyardOnly;
-    public bool ShipyardOnly
-    {
-        get => _shipyardOnly;
-        set { SetProperty(ref _shipyardOnly, value); ApplyCityFilter(); }
-    }
+    [ObservableProperty] private bool _shipyardOnly;
+    partial void OnShipyardOnlyChanged(bool value) => ApplyCityFilter();
 
     public ObservableCollection<string> CulturalSpheres { get; } = new();
 
-    private City? _selectedCity;
-    public City? SelectedCity
-    {
-        get => _selectedCity;
-        set => SetProperty(ref _selectedCity, value);
-    }
+    [ObservableProperty] private City? _selectedCity;
 
-    private bool _groupByCulturalSphere;
-    public bool GroupByCulturalSphere
-    {
-        get => _groupByCulturalSphere;
-        set { SetProperty(ref _groupByCulturalSphere, value); UpdateCityGrouping(); }
-    }
+    [ObservableProperty] private bool _groupByCulturalSphere;
+    partial void OnGroupByCulturalSphereChanged(bool value) => UpdateCityGrouping();
 
-    private bool _groupByLibrary;
-    public bool GroupByLibrary
-    {
-        get => _groupByLibrary;
-        set { SetProperty(ref _groupByLibrary, value); UpdateCityGrouping(); }
-    }
+    [ObservableProperty] private bool _groupByLibrary;
+    partial void OnGroupByLibraryChanged(bool value) => UpdateCityGrouping();
 
-    private string? _cityGroupPropertyNames;
-    public string? CityGroupPropertyNames
-    {
-        get => _cityGroupPropertyNames;
-        private set => SetProperty(ref _cityGroupPropertyNames, value);
-    }
-
-    private bool _isCityGroupingEnabled;
-    public bool IsCityGroupingEnabled
-    {
-        get => _isCityGroupingEnabled;
-        private set => SetProperty(ref _isCityGroupingEnabled, value);
-    }
+    [ObservableProperty] private string? _cityGroupPropertyNames;
+    [ObservableProperty] private bool _isCityGroupingEnabled;
 
     private void UpdateCityGrouping()
     {
@@ -240,33 +126,17 @@ public class CdsHelperViewModel : BindableBase
 
     #region Patron Filter Properties
 
-    private string _patronNameSearch = "";
-    public string PatronNameSearch
-    {
-        get => _patronNameSearch;
-        set { SetProperty(ref _patronNameSearch, value); ApplyPatronFilter(); }
-    }
+    [ObservableProperty] private string _patronNameSearch = "";
+    partial void OnPatronNameSearchChanged(string value) => ApplyPatronFilter();
 
-    private string _patronCitySearch = "";
-    public string PatronCitySearch
-    {
-        get => _patronCitySearch;
-        set { SetProperty(ref _patronCitySearch, value); ApplyPatronFilter(); }
-    }
+    [ObservableProperty] private string _patronCitySearch = "";
+    partial void OnPatronCitySearchChanged(string value) => ApplyPatronFilter();
 
-    private string? _selectedNationality;
-    public string? SelectedNationality
-    {
-        get => _selectedNationality;
-        set { SetProperty(ref _selectedNationality, value); ApplyPatronFilter(); }
-    }
+    [ObservableProperty] private string? _selectedNationality;
+    partial void OnSelectedNationalityChanged(string? value) => ApplyPatronFilter();
 
-    private bool _activePatronsOnly;
-    public bool ActivePatronsOnly
-    {
-        get => _activePatronsOnly;
-        set { SetProperty(ref _activePatronsOnly, value); ApplyPatronFilter(); }
-    }
+    [ObservableProperty] private bool _activePatronsOnly;
+    partial void OnActivePatronsOnlyChanged(bool value) => ApplyPatronFilter();
 
     public ObservableCollection<string> Nationalities { get; } = new();
 
@@ -274,26 +144,14 @@ public class CdsHelperViewModel : BindableBase
 
     #region Figurehead Filter Properties
 
-    private string _figureheadNameSearch = "";
-    public string FigureheadNameSearch
-    {
-        get => _figureheadNameSearch;
-        set { SetProperty(ref _figureheadNameSearch, value); ApplyFigureheadFilter(); }
-    }
+    [ObservableProperty] private string _figureheadNameSearch = "";
+    partial void OnFigureheadNameSearchChanged(string value) => ApplyFigureheadFilter();
 
-    private string? _selectedFigureheadFunction;
-    public string? SelectedFigureheadFunction
-    {
-        get => _selectedFigureheadFunction;
-        set { SetProperty(ref _selectedFigureheadFunction, value); ApplyFigureheadFilter(); }
-    }
+    [ObservableProperty] private string? _selectedFigureheadFunction;
+    partial void OnSelectedFigureheadFunctionChanged(string? value) => ApplyFigureheadFilter();
 
-    private string? _selectedFigureheadLevel;
-    public string? SelectedFigureheadLevel
-    {
-        get => _selectedFigureheadLevel;
-        set { SetProperty(ref _selectedFigureheadLevel, value); ApplyFigureheadFilter(); }
-    }
+    [ObservableProperty] private string? _selectedFigureheadLevel;
+    partial void OnSelectedFigureheadLevelChanged(string? value) => ApplyFigureheadFilter();
 
     public ObservableCollection<string> FigureheadFunctions { get; } = new();
     public ObservableCollection<string> FigureheadLevels { get; } = new();
@@ -302,26 +160,14 @@ public class CdsHelperViewModel : BindableBase
 
     #region Item Filter Properties
 
-    private string _itemNameSearch = "";
-    public string ItemNameSearch
-    {
-        get => _itemNameSearch;
-        set { SetProperty(ref _itemNameSearch, value); ApplyItemFilter(); }
-    }
+    [ObservableProperty] private string _itemNameSearch = "";
+    partial void OnItemNameSearchChanged(string value) => ApplyItemFilter();
 
-    private string? _selectedItemCategory;
-    public string? SelectedItemCategory
-    {
-        get => _selectedItemCategory;
-        set { SetProperty(ref _selectedItemCategory, value); ApplyItemFilter(); }
-    }
+    [ObservableProperty] private string? _selectedItemCategory;
+    partial void OnSelectedItemCategoryChanged(string? value) => ApplyItemFilter();
 
-    private string _itemDiscoverySearch = "";
-    public string ItemDiscoverySearch
-    {
-        get => _itemDiscoverySearch;
-        set { SetProperty(ref _itemDiscoverySearch, value); ApplyItemFilter(); }
-    }
+    [ObservableProperty] private string _itemDiscoverySearch = "";
+    partial void OnItemDiscoverySearchChanged(string value) => ApplyItemFilter();
 
     public ObservableCollection<string> ItemCategories { get; } = new();
 
@@ -329,42 +175,11 @@ public class CdsHelperViewModel : BindableBase
 
     #region Status Properties
 
-    private string _statusText = "준비됨";
-    public string StatusText
-    {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
-    }
-
-    private string _filePath = "파일 경로: 없음";
-    public string FilePath
-    {
-        get => _filePath;
-        set => SetProperty(ref _filePath, value);
-    }
-
-    private string _windowTitle = "대항해시대3 세이브 뷰어";
-    public string WindowTitle
-    {
-        get => _windowTitle;
-        set => SetProperty(ref _windowTitle, value);
-    }
+    [ObservableProperty] private string _statusText = "준비됨";
+    [ObservableProperty] private string _filePath = "파일 경로: 없음";
+    [ObservableProperty] private string _windowTitle = "대항해시대3 세이브 뷰어";
 
     public int CurrentYear => _saveGameInfo?.Year ?? 1480;
-
-    #endregion
-
-    #region Commands
-
-    public ICommand LoadSaveCommand { get; }
-    public ICommand RefreshSaveCommand { get; }
-    public ICommand ResetBookFilterCommand { get; }
-    public ICommand ResetCityFilterCommand { get; }
-    public ICommand ResetPatronFilterCommand { get; }
-    public ICommand ResetFigureheadFilterCommand { get; }
-    public ICommand ResetItemFilterCommand { get; }
-    public ICommand EditCityPixelCommand { get; }
-    public ICommand ExportCitiesToJsonCommand { get; }
 
     #endregion
 
@@ -389,17 +204,6 @@ public class CdsHelperViewModel : BindableBase
         _itemService = itemService;
         _saveDataService = saveDataService;
 
-        LoadSaveCommand = new DelegateCommand(LoadSaveFile);
-        RefreshSaveCommand = new DelegateCommand(RefreshSaveFile, CanRefreshSaveFile);
-        ResetBookFilterCommand = new DelegateCommand(ResetBookFilter);
-        ResetCityFilterCommand = new DelegateCommand(ResetCityFilter);
-        ResetPatronFilterCommand = new DelegateCommand(ResetPatronFilter);
-        ResetFigureheadFilterCommand = new DelegateCommand(ResetFigureheadFilter);
-        ResetItemFilterCommand = new DelegateCommand(ResetItemFilter);
-        EditCityPixelCommand = new DelegateCommand<City>(EditCityPixel);
-        ExportCitiesToJsonCommand = new DelegateCommand(ExportCitiesToJson);
-
-        // NavigateToCityEvent 구독 - 지도 탭으로 전환
         _eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
 
         // 5분마다 세이브 파일 자동 새로고침
@@ -410,16 +214,12 @@ public class CdsHelperViewModel : BindableBase
         autoRefreshTimer.Tick += (_, _) => RefreshSaveFile();
         autoRefreshTimer.Start();
 
-        // 앱 시작 시 데이터 로드
         Initialize();
     }
 
     private void OnNavigateToCity(NavigateToCityEventArgs args)
     {
-        // 네비게이션 정보 저장 (MapContent가 로드될 때 처리)
         CdsHelper.Main.UI.Views.MapContent.SetPendingNavigation(args);
-
-        // 지도 탭으로 전환
         NavigateToContent("MapContent");
     }
 
@@ -434,7 +234,6 @@ public class CdsHelperViewModel : BindableBase
         var figureheadsPath = System.IO.Path.Combine(basePath, "figurehead.json");
         var itemsPath = System.IO.Path.Combine(basePath, "item.json");
 
-        // DB 초기화 및 도시/도서 로드 (DB 우선, JSON은 마이그레이션용)
         await _cityService.InitializeAsync(dbPath, citiesPath);
         await LoadCitiesFromDbAsync();
 
@@ -450,7 +249,6 @@ public class CdsHelperViewModel : BindableBase
         if (System.IO.File.Exists(itemsPath))
             LoadItems(itemsPath);
 
-        // 마지막 세이브 파일 로드
         if (!string.IsNullOrEmpty(AppSettings.LastSaveFilePath) &&
             System.IO.File.Exists(AppSettings.LastSaveFilePath))
         {
@@ -512,7 +310,8 @@ public class CdsHelperViewModel : BindableBase
 
     #region Load Methods
 
-    public void LoadSaveFile()
+    [RelayCommand]
+    private void LoadSave()
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
@@ -521,10 +320,11 @@ public class CdsHelperViewModel : BindableBase
         };
 
         if (dialog.ShowDialog() == true)
-        {
             LoadSaveFile(dialog.FileName);
-        }
     }
+
+    [RelayCommand(CanExecute = nameof(CanRefreshSaveFile))]
+    private void RefreshSave() => RefreshSaveFile();
 
     public void LoadSaveFile(string filePath)
     {
@@ -539,13 +339,11 @@ public class CdsHelperViewModel : BindableBase
             FilePath = $"파일 경로: {filePath}";
             WindowTitle = $"대항해시대3 세이브 뷰어 - {_saveGameInfo.DateString}";
 
-            // 마지막 로드한 파일 경로 저장
             AppSettings.LastSaveFilePath = filePath;
 
             ApplyCharacterFilter();
             ApplyPatronFilter();
 
-            // 세이브 데이터 로드 이벤트 발생
             _eventAggregator.GetEvent<SaveDataLoadedEvent>().Publish(new SaveDataLoadedEventArgs
             {
                 SaveGameInfo = _saveGameInfo,
@@ -554,7 +352,7 @@ public class CdsHelperViewModel : BindableBase
             });
 
             StatusText = $"로드 완료: {_saveGameInfo.DateString}";
-            ((DelegateCommand)RefreshSaveCommand).RaiseCanExecuteChanged();
+            RefreshSaveCommand.NotifyCanExecuteChanged();
         }
         catch (Exception ex)
         {
@@ -573,9 +371,7 @@ public class CdsHelperViewModel : BindableBase
     private void RefreshSaveFile()
     {
         if (CanRefreshSaveFile())
-        {
             LoadSaveFile(AppSettings.LastSaveFilePath!);
-        }
     }
 
     public void LoadPatrons(string filePath)
@@ -755,6 +551,7 @@ public class CdsHelperViewModel : BindableBase
 
     #region Reset Methods
 
+    [RelayCommand]
     private void ResetBookFilter()
     {
         BookNameSearch = "";
@@ -764,6 +561,7 @@ public class CdsHelperViewModel : BindableBase
         SelectedRequiredSkill = null;
     }
 
+    [RelayCommand]
     private void ResetCityFilter()
     {
         CityNameSearch = "";
@@ -772,6 +570,7 @@ public class CdsHelperViewModel : BindableBase
         ShipyardOnly = false;
     }
 
+    [RelayCommand]
     private void ResetPatronFilter()
     {
         PatronNameSearch = "";
@@ -780,6 +579,7 @@ public class CdsHelperViewModel : BindableBase
         ActivePatronsOnly = false;
     }
 
+    [RelayCommand]
     private void ResetFigureheadFilter()
     {
         FigureheadNameSearch = "";
@@ -787,6 +587,7 @@ public class CdsHelperViewModel : BindableBase
         SelectedFigureheadLevel = null;
     }
 
+    [RelayCommand]
     private void ResetItemFilter()
     {
         ItemNameSearch = "";
@@ -798,6 +599,7 @@ public class CdsHelperViewModel : BindableBase
 
     #region City Edit Methods
 
+    [RelayCommand]
     private async void ExportCitiesToJson()
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
@@ -823,6 +625,7 @@ public class CdsHelperViewModel : BindableBase
         }
     }
 
+    [RelayCommand]
     private async void EditCityPixel(City? city)
     {
         if (city == null) return;
@@ -841,7 +644,6 @@ public class CdsHelperViewModel : BindableBase
 
             if (result)
             {
-                // UI 갱신
                 city.Name = dialog.CityName;
                 city.PixelX = dialog.PixelX;
                 city.PixelY = dialog.PixelY;
@@ -873,10 +675,7 @@ public class CdsHelperViewModel : BindableBase
     {
         if (string.IsNullOrEmpty(viewName)) return;
         System.Diagnostics.Debug.WriteLine($"[Navigate] Requesting: {viewName}");
-        _regionManager.RequestNavigate("MainContentRegion", viewName, result =>
-        {
-            // System.Diagnostics.Debug.WriteLine($"[Navigate] Result: {result.Result}, Error: {result.Error?.Message}");
-        });
+        _regionManager.RequestNavigate("MainContentRegion", viewName, result => { });
     }
 
     #endregion
