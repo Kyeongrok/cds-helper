@@ -153,7 +153,7 @@ public partial class DiscoveryContentViewModel : ObservableObject
                 IsDiscoveryFound = d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true
             };
             item.SetCheckedWithoutSave(AppSettings.IsDiscoveryChecked(d.Id));
-            if (slotStateMap != null && slotStateMap.TryGetValue(d.Id, out var stateByte))
+            if (slotStateMap != null && slotStateMap.TryGetValue(item.SaveSlotIndex, out var stateByte))
                 item.SetSlotStateWithoutSave(stateByte);
             return item;
         }).ToList();
@@ -272,6 +272,10 @@ public partial class DiscoveryDisplayItem : ObservableObject
         StateUndiscovered, StateFound, StateAnnounced
     };
 
+    // DB Id와 세이브 슬롯 인덱스 사이 오프셋 (세이브 슬롯 1~18은 특수 슬롯으로 추정)
+    public const int SaveSlotOffset = 18;
+    public int SaveSlotIndex => Id + SaveSlotOffset;
+
     // (slotIndex, newStateByte) → 세이브 파일에 저장
     public static Action<int, byte>? OnSlotStateChanged;
 
@@ -293,7 +297,7 @@ public partial class DiscoveryDisplayItem : ObservableObject
                 _ => baseBits
             };
             CurrentStateByte = newByte;
-            OnSlotStateChanged?.Invoke(Id, newByte);
+            OnSlotStateChanged?.Invoke(SaveSlotIndex, newByte);
         }
     }
 
