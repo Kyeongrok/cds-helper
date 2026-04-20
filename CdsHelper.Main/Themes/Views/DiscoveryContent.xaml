@@ -56,8 +56,8 @@
                                         <DataTrigger Binding="{Binding IsHintObtained}" Value="True">
                                             <Setter Property="Background" Value="#E8F5E9" />
                                         </DataTrigger>
-                                        <!-- 발견물 발견 (연한 파란색) -->
-                                        <DataTrigger Binding="{Binding IsDiscoveryFound}" Value="True">
+                                        <!-- 슬롯 상태 = 발표 (연한 파란색) -->
+                                        <DataTrigger Binding="{Binding SlotState}" Value="발표">
                                             <Setter Property="Background" Value="#E3F2FD" />
                                         </DataTrigger>
                                         <MultiTrigger>
