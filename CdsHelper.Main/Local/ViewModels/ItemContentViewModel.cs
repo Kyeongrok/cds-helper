@@ -1,13 +1,12 @@
 using System.Collections.ObjectModel;
-using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
-using Prism.Commands;
-using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
 
-public class ItemContentViewModel : BindableBase
+public partial class ItemContentViewModel : ObservableObject
 {
     private readonly ItemService _itemService;
 
@@ -15,37 +14,20 @@ public class ItemContentViewModel : BindableBase
 
     #region Collections
 
-    private ObservableCollection<Item> _items = new();
-    public ObservableCollection<Item> Items
-    {
-        get => _items;
-        set => SetProperty(ref _items, value);
-    }
+    [ObservableProperty] private ObservableCollection<Item> _items = new();
 
     #endregion
 
     #region Filter Properties
 
-    private string _itemNameSearch = "";
-    public string ItemNameSearch
-    {
-        get => _itemNameSearch;
-        set { SetProperty(ref _itemNameSearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _itemNameSearch = "";
+    partial void OnItemNameSearchChanged(string value) => ApplyFilter();
 
-    private string? _selectedItemCategory;
-    public string? SelectedItemCategory
-    {
-        get => _selectedItemCategory;
-        set { SetProperty(ref _selectedItemCategory, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string? _selectedItemCategory;
+    partial void OnSelectedItemCategoryChanged(string? value) => ApplyFilter();
 
-    private string _itemDiscoverySearch = "";
-    public string ItemDiscoverySearch
-    {
-        get => _itemDiscoverySearch;
-        set { SetProperty(ref _itemDiscoverySearch, value); ApplyFilter(); }
-    }
+    [ObservableProperty] private string _itemDiscoverySearch = "";
+    partial void OnItemDiscoverySearchChanged(string value) => ApplyFilter();
 
     public ObservableCollection<string> ItemCategories { get; } = new();
 
@@ -53,27 +35,13 @@ public class ItemContentViewModel : BindableBase
 
     #region Status Properties
 
-    private string _statusText = "준비됨";
-    public string StatusText
-    {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
-    }
-
-    #endregion
-
-    #region Commands
-
-    public ICommand ResetFilterCommand { get; }
+    [ObservableProperty] private string _statusText = "준비됨";
 
     #endregion
 
     public ItemContentViewModel(ItemService itemService)
     {
         _itemService = itemService;
-
-        ResetFilterCommand = new DelegateCommand(ResetFilter);
-
         Initialize();
     }
 
@@ -120,6 +88,7 @@ public class ItemContentViewModel : BindableBase
         StatusText = $"아이템: {filtered.Count}개";
     }
 
+    [RelayCommand]
     private void ResetFilter()
     {
         ItemNameSearch = "";

@@ -67,7 +67,6 @@ public class DiscoveryContent : ContentControl
             item.LonTo = dialog.LonTo;
             item.CoordinateDisplay = DiscoveryContentViewModel.FormatCoordinatePublic(
                 dialog.LatFrom, dialog.LatTo, dialog.LonFrom, dialog.LonTo);
-            item.OnPropertyChanged(nameof(item.CoordinateDisplay));
         }
     }
 }

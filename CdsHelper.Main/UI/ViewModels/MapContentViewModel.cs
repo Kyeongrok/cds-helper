@@ -1,53 +1,35 @@
 using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using Prism.Events;
 using Prism.Ioc;
-using Prism.Mvvm;
 
 namespace CdsHelper.Main.UI.ViewModels;
 
-public class MapContentViewModel : BindableBase
+public partial class MapContentViewModel : ObservableObject
 {
     private readonly CityService _cityService;
     private readonly CoordinateOcrService _coordinateOcr;
     private readonly IEventAggregator _eventAggregator;
     private List<City> _allCities = new();
     private DispatcherTimer? _trackingTimer;
-    private bool _isTracking;
     private bool _isProcessing;
     private double _lastLat;
     private double _lastLon;
     private bool _hasLastCoord;
     private string? _lastGameDate;
 
-    // 자동이동
     private CancellationTokenSource? _navCts;
-    private bool _isNavigating;
 
-    public bool IsTracking
-    {
-        get => _isTracking;
-        set => SetProperty(ref _isTracking, value);
-    }
-
-    public bool IsNavigating
-    {
-        get => _isNavigating;
-        set => SetProperty(ref _isNavigating, value);
-    }
+    [ObservableProperty] private bool _isTracking;
+    [ObservableProperty] private bool _isNavigating;
+    [ObservableProperty] private ObservableCollection<City> _cities = new();
 
     public event Action<string>? NavigationStatusChanged;
-
-    private ObservableCollection<City> _cities = new();
-    public ObservableCollection<City> Cities
-    {
-        get => _cities;
-        set => SetProperty(ref _cities, value);
-    }
 
     public MapContentViewModel(CityService cityService)
     {
@@ -59,7 +41,7 @@ public class MapContentViewModel : BindableBase
 
     public void StartTracking()
     {
-        if (_isTracking) return;
+        if (IsTracking) return;
         IsTracking = true;
         _isProcessing = false;
 
@@ -116,7 +98,6 @@ public class MapContentViewModel : BindableBase
             }
             else if (_hasLastCoord)
             {
-                // 인식 실패 시 마지막 좌표를 stale로 표시
                 _eventAggregator.GetEvent<CurrentCoordinateEvent>().Publish(
                     new CurrentCoordinateEventArgs
                     {
@@ -144,9 +125,7 @@ public class MapContentViewModel : BindableBase
         var citiesPath = System.IO.Path.Combine(basePath, "cities.json");
 
         if (System.IO.File.Exists(citiesPath))
-        {
             LoadCities(citiesPath);
-        }
     }
 
     private void LoadCities(string filePath)
@@ -162,20 +141,12 @@ public class MapContentViewModel : BindableBase
         }
     }
 
-    /// <summary>
-    /// 마커로 표시할 도시 목록 (PixelX, PixelY가 있는 도시만)
-    /// DB 캐시에서 최신 데이터를 가져옴
-    /// </summary>
     public IEnumerable<City> GetCitiesWithCoordinates()
     {
-        // DB 캐시에서 최신 데이터 가져오기
         var cities = _cityService.GetCachedCities();
         if (cities.Count > 0)
-        {
             return cities.Where(c => c.PixelX.HasValue && c.PixelY.HasValue && c.PixelX > 0 && c.PixelY > 0);
-        }
 
-        // 캐시가 없으면 메모리 데이터 사용
         return _allCities.Where(c => c.PixelX.HasValue && c.PixelY.HasValue && c.PixelX > 0 && c.PixelY > 0);
     }
 
@@ -183,7 +154,7 @@ public class MapContentViewModel : BindableBase
 
     public void StartNavigation(double destLat, double destLon)
     {
-        if (_isNavigating) return;
+        if (IsNavigating) return;
 
         var hWnd = GameWindowHelper.FindGameWindow();
         if (hWnd == IntPtr.Zero)
@@ -192,8 +163,7 @@ public class MapContentViewModel : BindableBase
             return;
         }
 
-        // 추적이 꺼져 있으면 자동으로 켜기
-        if (!_isTracking)
+        if (!IsTracking)
             StartTracking();
 
         IsNavigating = true;
@@ -232,7 +202,6 @@ public class MapContentViewModel : BindableBase
                     var curLat = prediction.ToLat();
                     var curLon = prediction.ToLon();
 
-                    // 좌표 추적 이벤트도 발행
                     _eventAggregator.GetEvent<CurrentCoordinateEvent>().Publish(
                         new CurrentCoordinateEventArgs
                         {
@@ -241,7 +210,6 @@ public class MapContentViewModel : BindableBase
                             IsTracking = true
                         });
 
-                    // 도착 판정
                     if (NavigationCalculator.IsNear(curLat, curLon, destLat, destLon, threshold: 2.0))
                     {
                         GameWindowHelper.SendNumpadKey(gameHwnd, 5);
@@ -250,7 +218,6 @@ public class MapContentViewModel : BindableBase
                         return;
                     }
 
-                    // 방위각 → 숫자패드
                     var bearing = NavigationCalculator.BearingDegrees(curLat, curLon, destLat, destLon);
                     var numpad = GameWindowHelper.BearingToNumpad(bearing);
                     GameWindowHelper.SendNumpadKey(gameHwnd, numpad);

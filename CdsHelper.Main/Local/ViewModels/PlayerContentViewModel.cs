@@ -1,22 +1,19 @@
 using System.Collections.ObjectModel;
-using System.Windows.Input;
-using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Events;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
-using Prism.Commands;
 using Prism.Events;
-using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
 
-public class PlayerContentViewModel : BindableBase
+public partial class PlayerContentViewModel : ObservableObject
 {
     private readonly SaveDataService _saveDataService;
     private readonly HintService _hintService;
 
-    // 스킬 인덱스 -> 스킬명 매핑
     private static readonly Dictionary<int, string> SkillIndexToName = new()
     {
         { 1, "항해술" }, { 2, "운용술" }, { 3, "검술" }, { 4, "포술" }, { 5, "사격술" },
@@ -28,119 +25,33 @@ public class PlayerContentViewModel : BindableBase
         { 26, "동남아시아어" }, { 27, "동아시아어" }
     };
 
-    // 전체 캐릭터 목록 (시뮬레이션용)
     private List<CharacterData> _allCharacters = new();
-    private ObservableCollection<CharacterData> _availableCharacters = new();
-    public ObservableCollection<CharacterData> AvailableCharacters
-    {
-        get => _availableCharacters;
-        set => SetProperty(ref _availableCharacters, value);
-    }
 
-    // 시뮬레이션 모드
-    private bool _isSimulationMode;
-    public bool IsSimulationMode
-    {
-        get => _isSimulationMode;
-        set
-        {
-            if (SetProperty(ref _isSimulationMode, value))
-                BuildCombinedSkills();
-        }
-    }
+    [ObservableProperty] private ObservableCollection<CharacterData> _availableCharacters = new();
 
-    // 시뮬레이션용 선택된 캐릭터
-    private CharacterData? _simAdjutant;
-    public CharacterData? SimAdjutant
-    {
-        get => _simAdjutant;
-        set { if (SetProperty(ref _simAdjutant, value)) BuildCombinedSkills(); }
-    }
+    [ObservableProperty] private bool _isSimulationMode;
+    partial void OnIsSimulationModeChanged(bool value) => BuildCombinedSkills();
 
-    private CharacterData? _simNavigator;
-    public CharacterData? SimNavigator
-    {
-        get => _simNavigator;
-        set { if (SetProperty(ref _simNavigator, value)) BuildCombinedSkills(); }
-    }
+    [ObservableProperty] private CharacterData? _simAdjutant;
+    partial void OnSimAdjutantChanged(CharacterData? value) => BuildCombinedSkills();
 
-    private CharacterData? _simSurveyor;
-    public CharacterData? SimSurveyor
-    {
-        get => _simSurveyor;
-        set { if (SetProperty(ref _simSurveyor, value)) BuildCombinedSkills(); }
-    }
+    [ObservableProperty] private CharacterData? _simNavigator;
+    partial void OnSimNavigatorChanged(CharacterData? value) => BuildCombinedSkills();
 
-    private CharacterData? _simInterpreter;
-    public CharacterData? SimInterpreter
-    {
-        get => _simInterpreter;
-        set { if (SetProperty(ref _simInterpreter, value)) BuildCombinedSkills(); }
-    }
+    [ObservableProperty] private CharacterData? _simSurveyor;
+    partial void OnSimSurveyorChanged(CharacterData? value) => BuildCombinedSkills();
 
-    private PlayerData? _player;
-    public PlayerData? Player
-    {
-        get => _player;
-        set => SetProperty(ref _player, value);
-    }
+    [ObservableProperty] private CharacterData? _simInterpreter;
+    partial void OnSimInterpreterChanged(CharacterData? value) => BuildCombinedSkills();
 
-    // 선택된 동료 정보
-    private CharacterData? _selectedCrewMember;
-    public CharacterData? SelectedCrewMember
-    {
-        get => _selectedCrewMember;
-        set => SetProperty(ref _selectedCrewMember, value);
-    }
-
-    // 통합 스킬 목록
-    private ObservableCollection<SkillDisplayItem> _combinedSkills = new();
-    public ObservableCollection<SkillDisplayItem> CombinedSkills
-    {
-        get => _combinedSkills;
-        set => SetProperty(ref _combinedSkills, value);
-    }
-
-    // 통합 언어 목록
-    private ObservableCollection<SkillDisplayItem> _combinedLanguages = new();
-    public ObservableCollection<SkillDisplayItem> CombinedLanguages
-    {
-        get => _combinedLanguages;
-        set => SetProperty(ref _combinedLanguages, value);
-    }
-
-    // 힌트 목록
-    private ObservableCollection<HintData> _hints = new();
-    public ObservableCollection<HintData> Hints
-    {
-        get => _hints;
-        set => SetProperty(ref _hints, value);
-    }
-
-    // 힌트 요약
-    private string _hintSummary = "";
-    public string HintSummary
-    {
-        get => _hintSummary;
-        set => SetProperty(ref _hintSummary, value);
-    }
-
-    private string _statusText = "세이브 파일을 로드하세요";
-    public string StatusText
-    {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
-    }
-
-    private string _filePath = "";
-    public string FilePath
-    {
-        get => _filePath;
-        set => SetProperty(ref _filePath, value);
-    }
-
-    // LoadSaveCommand와 RefreshCommand는 CdsHelperWindow의 공통 영역에서 처리
-    public ICommand ShowCrewMemberCommand { get; }
+    [ObservableProperty] private PlayerData? _player;
+    [ObservableProperty] private CharacterData? _selectedCrewMember;
+    [ObservableProperty] private ObservableCollection<SkillDisplayItem> _combinedSkills = new();
+    [ObservableProperty] private ObservableCollection<SkillDisplayItem> _combinedLanguages = new();
+    [ObservableProperty] private ObservableCollection<HintData> _hints = new();
+    [ObservableProperty] private string _hintSummary = "";
+    [ObservableProperty] private string _statusText = "세이브 파일을 로드하세요";
+    [ObservableProperty] private string _filePath = "";
 
     public PlayerContentViewModel(
         SaveDataService saveDataService,
@@ -149,27 +60,19 @@ public class PlayerContentViewModel : BindableBase
     {
         _saveDataService = saveDataService;
         _hintService = hintService;
-        ShowCrewMemberCommand = new DelegateCommand<string>(ShowCrewMember);
 
-        // 세이브 데이터 로드 이벤트 구독
         eventAggregator.GetEvent<SaveDataLoadedEvent>().Subscribe(OnSaveDataLoaded);
 
-        // 이미 로드된 데이터가 있으면 표시
         if (saveDataService.CurrentSaveGameInfo != null && saveDataService.CurrentPlayerData != null)
-        {
             LoadSaveData(saveDataService.CurrentSaveGameInfo, saveDataService.CurrentPlayerData);
-        }
     }
 
     private void OnSaveDataLoaded(SaveDataLoadedEventArgs args)
     {
         if (args.PlayerData != null)
-        {
             LoadSaveData(args.SaveGameInfo, args.PlayerData);
-        }
     }
 
-    // 중앙에서 세이브 데이터 로드 시 호출될 메서드
     public void LoadSaveData(SaveGameInfo saveGameInfo, PlayerData playerData)
     {
         try
@@ -179,38 +82,32 @@ public class PlayerContentViewModel : BindableBase
             Player = playerData;
             SelectedCrewMember = null;
 
-            // 전체 캐릭터 목록 로드 (시뮬레이션용)
             _allCharacters = saveGameInfo.Characters
-                .Where(c => !c.IsGray) // 등장한 캐릭터만
+                .Where(c => !c.IsGray)
                 .OrderBy(c => c.Name)
                 .ToList();
 
-            // 플레이어 명성 설정
             if (Player != null)
             {
                 foreach (var c in _allCharacters)
                     c.PlayerFame = Player.Fame;
             }
 
-            // 고용 가능한 캐릭터만 (HireStatus == 2, 함대소속 아님)
             var hirableCharacters = _allCharacters
                 .Where(c => c.HireStatus == 2 && c.Location != "함대소속")
                 .ToList();
             AvailableCharacters = new ObservableCollection<CharacterData>(hirableCharacters);
 
-            // 시뮬레이션 초기값을 현재 동료로 설정
             SimAdjutant = _allCharacters.FirstOrDefault(c => c.Name == Player?.AdjutantName);
             SimNavigator = _allCharacters.FirstOrDefault(c => c.Name == Player?.NavigatorName);
             SimSurveyor = _allCharacters.FirstOrDefault(c => c.Name == Player?.SurveyorName);
             SimInterpreter = _allCharacters.FirstOrDefault(c => c.Name == Player?.InterpreterName);
 
-            // 힌트 데이터 로드 (이름 설정)
             var hintBookInfo = Task.Run(() => _hintService.GetHintBookInfoAsync()).GetAwaiter().GetResult();
             foreach (var hint in saveGameInfo.Hints)
             {
-                hint.Name = _hintService.GetHintName(hint.Index - 1); // 0부터 시작하는 인덱스로 변환
+                hint.Name = _hintService.GetHintName(hint.Index - 1);
 
-                // 책 정보 설정
                 if (hintBookInfo.TryGetValue(hint.Index - 1, out var bookInfo))
                 {
                     hint.BookLanguage = bookInfo.Language;
@@ -239,6 +136,7 @@ public class PlayerContentViewModel : BindableBase
         }
     }
 
+    [RelayCommand]
     private void ShowCrewMember(string role)
     {
         if (Player == null) return;
@@ -260,13 +158,11 @@ public class PlayerContentViewModel : BindableBase
         var skills = new ObservableCollection<SkillDisplayItem>();
         var languages = new ObservableCollection<SkillDisplayItem>();
 
-        // 시뮬레이션 모드일 때 사용할 캐릭터
         var adjutant = IsSimulationMode ? SimAdjutant : Player.AdjutantData;
         var navigator = IsSimulationMode ? SimNavigator : Player.NavigatorData;
         var surveyor = IsSimulationMode ? SimSurveyor : Player.SurveyorData;
         var interpreter = IsSimulationMode ? SimInterpreter : Player.InterpreterData;
 
-        // 기능 스킬 (1-13)
         for (int i = 1; i <= 13; i++)
         {
             if (!SkillIndexToName.TryGetValue(i, out var skillName)) continue;
@@ -283,7 +179,6 @@ public class PlayerContentViewModel : BindableBase
             skills.Add(item);
         }
 
-        // 언어 스킬 (14-27)
         for (int i = 14; i <= 27; i++)
         {
             if (!SkillIndexToName.TryGetValue(i, out var skillName)) continue;

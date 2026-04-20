@@ -1,17 +1,16 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
-using Prism.Commands;
 using Prism.Ioc;
-using Prism.Mvvm;
 
 namespace CdsHelper.Main.Local.ViewModels;
 
-public class AutoPlayContentViewModel : BindableBase
+public partial class AutoPlayContentViewModel : ObservableObject
 {
     private readonly AutoPlayService _autoPlayService = new();
     private readonly StatRerollService _rerollService = new();
@@ -22,45 +21,6 @@ public class AutoPlayContentViewModel : BindableBase
     {
         _cityService = ContainerLocator.Container.Resolve<CityService>();
         _detector = new GameStateDetector();
-
-        StartCommand = new DelegateCommand(OnStart, () => !IsRunning)
-            .ObservesProperty(() => IsRunning);
-
-        StopCommand = new DelegateCommand(OnStop, () => IsRunning)
-            .ObservesProperty(() => IsRunning);
-
-        CaptureTemplateCommand = new DelegateCommand(OnCaptureTemplate, () => IsRunning && SelectedCaptureScene != null)
-            .ObservesProperty(() => IsRunning)
-            .ObservesProperty(() => SelectedCaptureScene);
-
-        StartRerollCommand = new DelegateCommand(OnStartReroll, () => !IsRerolling)
-            .ObservesProperty(() => IsRerolling);
-        StopRerollCommand = new DelegateCommand(OnStopReroll, () => IsRerolling)
-            .ObservesProperty(() => IsRerolling);
-        TestReadStatCommand = new DelegateCommand(OnTestReadStat);
-        LearnDigitsCommand = new DelegateCommand(OnLearnDigits);
-        AutoLearnDigitsCommand = new DelegateCommand(OnAutoLearnDigits);
-        ClearTemplatesCommand = new DelegateCommand(OnClearTemplates);
-
-        StartCollectCoordsCommand = new DelegateCommand(OnStartCollectCoords, () => !IsCollectingCoords)
-            .ObservesProperty(() => IsCollectingCoords);
-        StopCollectCoordsCommand = new DelegateCommand(OnStopCollectCoords, () => IsCollectingCoords)
-            .ObservesProperty(() => IsCollectingCoords);
-        TrainCoordModelCommand = new DelegateCommand(OnTrainCoordModel, () => !IsTrainingCoords)
-            .ObservesProperty(() => IsTrainingCoords);
-        CapturePreviewCommand = new DelegateCommand(OnCapturePreview);
-        OpenCoordDataFolderCommand = new DelegateCommand(OnOpenCoordDataFolder);
-        AutoLabelCoordsCommand = new DelegateCommand(OnAutoLabelCoords);
-        AddCoordLabelCommand = new DelegateCommand(OnAddCoordLabel);
-        StartRecognizeCommand = new DelegateCommand(OnStartRecognize, () => !IsRecognizing)
-            .ObservesProperty(() => IsRecognizing);
-        StopRecognizeCommand = new DelegateCommand(OnStopRecognize, () => IsRecognizing)
-            .ObservesProperty(() => IsRecognizing);
-        StartNavCommand = new DelegateCommand(OnStartNav, () => !IsNavigating)
-            .ObservesProperty(() => IsNavigating);
-        StopNavCommand = new DelegateCommand(OnStopNav, () => IsNavigating)
-            .ObservesProperty(() => IsNavigating);
-        TestSeaMapCommand = new DelegateCommand(OnTestSeaMap);
 
         _autoPlayService.StatusChanged += OnStatusChanged;
         _autoPlayService.LogMessage += OnLogMessage;
@@ -80,286 +40,102 @@ public class AutoPlayContentViewModel : BindableBase
 
     #region Game Detection Properties
 
-    private bool _isGameRunning;
-    public bool IsGameRunning
-    {
-        get => _isGameRunning;
-        set => SetProperty(ref _isGameRunning, value);
-    }
-
-    private string _gameRunningDisplay = "-";
-    public string GameRunningDisplay
-    {
-        get => _gameRunningDisplay;
-        set => SetProperty(ref _gameRunningDisplay, value);
-    }
-
-    private string _gameSceneDisplay = "-";
-    public string GameSceneDisplay
-    {
-        get => _gameSceneDisplay;
-        set => SetProperty(ref _gameSceneDisplay, value);
-    }
-
-    private string _gameSceneIcon = "⏹️";
-    public string GameSceneIcon
-    {
-        get => _gameSceneIcon;
-        set => SetProperty(ref _gameSceneIcon, value);
-    }
+    [ObservableProperty] private bool _isGameRunning;
+    [ObservableProperty] private string _gameRunningDisplay = "-";
+    [ObservableProperty] private string _gameSceneDisplay = "-";
+    [ObservableProperty] private string _gameSceneIcon = "⏹️";
 
     #endregion
 
     #region Capture Template Properties
 
-    private ObservableCollection<CaptureSceneItem> _captureScenes = new();
-    public ObservableCollection<CaptureSceneItem> CaptureScenes
-    {
-        get => _captureScenes;
-        set => SetProperty(ref _captureScenes, value);
-    }
+    [ObservableProperty] private ObservableCollection<CaptureSceneItem> _captureScenes = new();
 
-    private CaptureSceneItem? _selectedCaptureScene;
-    public CaptureSceneItem? SelectedCaptureScene
-    {
-        get => _selectedCaptureScene;
-        set => SetProperty(ref _selectedCaptureScene, value);
-    }
+    [NotifyCanExecuteChangedFor(nameof(CaptureTemplateCommand))]
+    [ObservableProperty] private CaptureSceneItem? _selectedCaptureScene;
 
     #endregion
 
     #region AutoPlay Properties
 
-    private ObservableCollection<City> _cities = new();
-    public ObservableCollection<City> Cities
-    {
-        get => _cities;
-        set => SetProperty(ref _cities, value);
-    }
+    [ObservableProperty] private ObservableCollection<City> _cities = new();
+    [ObservableProperty] private City? _selectedCity;
 
-    private City? _selectedCity;
-    public City? SelectedCity
-    {
-        get => _selectedCity;
-        set => SetProperty(ref _selectedCity, value);
-    }
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CaptureTemplateCommand))]
+    [ObservableProperty] private bool _isRunning;
 
-    private bool _isRunning;
-    public bool IsRunning
-    {
-        get => _isRunning;
-        set => SetProperty(ref _isRunning, value);
-    }
-
-    private string _statusText = "대기 중";
-    public string StatusText
-    {
-        get => _statusText;
-        set => SetProperty(ref _statusText, value);
-    }
-
-    private string _currentLatDisplay = "-";
-    public string CurrentLatDisplay
-    {
-        get => _currentLatDisplay;
-        set => SetProperty(ref _currentLatDisplay, value);
-    }
-
-    private string _currentLonDisplay = "-";
-    public string CurrentLonDisplay
-    {
-        get => _currentLonDisplay;
-        set => SetProperty(ref _currentLonDisplay, value);
-    }
-
-    private string _bearingDisplay = "-";
-    public string BearingDisplay
-    {
-        get => _bearingDisplay;
-        set => SetProperty(ref _bearingDisplay, value);
-    }
-
-    private string _destinationDisplay = "-";
-    public string DestinationDisplay
-    {
-        get => _destinationDisplay;
-        set => SetProperty(ref _destinationDisplay, value);
-    }
-
-    private ObservableCollection<string> _logMessages = new();
-    public ObservableCollection<string> LogMessages
-    {
-        get => _logMessages;
-        set => SetProperty(ref _logMessages, value);
-    }
+    [ObservableProperty] private string _statusText = "대기 중";
+    [ObservableProperty] private string _currentLatDisplay = "-";
+    [ObservableProperty] private string _currentLonDisplay = "-";
+    [ObservableProperty] private string _bearingDisplay = "-";
+    [ObservableProperty] private string _destinationDisplay = "-";
+    [ObservableProperty] private ObservableCollection<string> _logMessages = new();
 
     #endregion
 
     #region 능력치 리롤 Properties
 
-    private bool _isRerolling;
-    public bool IsRerolling
-    {
-        get => _isRerolling;
-        set => SetProperty(ref _isRerolling, value);
-    }
+    [NotifyCanExecuteChangedFor(nameof(StartRerollCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopRerollCommand))]
+    [ObservableProperty] private bool _isRerolling;
 
-    // 목표치 (0=무시)
-    private int _targetHp; public int TargetHp { get => _targetHp; set => SetProperty(ref _targetHp, value); }
-    private int _targetInt = 76; public int TargetInt { get => _targetInt; set => SetProperty(ref _targetInt, value); }
-    private int _targetStr; public int TargetStr { get => _targetStr; set => SetProperty(ref _targetStr, value); }
-    private int _targetCha; public int TargetCha { get => _targetCha; set => SetProperty(ref _targetCha, value); }
-    private int _targetLuck; public int TargetLuck { get => _targetLuck; set => SetProperty(ref _targetLuck, value); }
-    private int _targetBonus; public int TargetBonus { get => _targetBonus; set => SetProperty(ref _targetBonus, value); }
+    [ObservableProperty] private int _targetHp;
+    [ObservableProperty] private int _targetInt = 76;
+    [ObservableProperty] private int _targetStr;
+    [ObservableProperty] private int _targetCha;
+    [ObservableProperty] private int _targetLuck;
+    [ObservableProperty] private int _targetBonus;
+    [ObservableProperty] private int _rerollAttempts;
+    [ObservableProperty] private string _rerollStatusText = "대기 중";
+    [ObservableProperty] private int _clickDelay = 50;
+    [ObservableProperty] private int _maxAttempts = 20;
+    [ObservableProperty] private string _learnStatValues = "79,50,74,59,80,15";
 
-    private int _rerollAttempts;
-    public int RerollAttempts { get => _rerollAttempts; set => SetProperty(ref _rerollAttempts, value); }
-
-    private string _rerollStatusText = "대기 중";
-    public string RerollStatusText { get => _rerollStatusText; set => SetProperty(ref _rerollStatusText, value); }
-
-    private int _clickDelay = 50;
-    public int ClickDelay { get => _clickDelay; set => SetProperty(ref _clickDelay, value); }
-
-    private int _maxAttempts = 20;
-    public int MaxAttempts { get => _maxAttempts; set => SetProperty(ref _maxAttempts, value); }
-
-    // 숫자 학습용: 5개 능력치 값 (체력,지력,무력,매력,운,보너스)
-    private string _learnStatValues = "79,50,74,59,80,15";
-    public string LearnStatValues
-    {
-        get => _learnStatValues;
-        set => SetProperty(ref _learnStatValues, value);
-    }
-
-    // 학습된 숫자 이미지 (0~9)
-    private BitmapImage?[] _digitImages = new BitmapImage?[10];
-    public BitmapImage? Digit0 { get => _digitImages[0]; set => SetProperty(ref _digitImages[0], value); }
-    public BitmapImage? Digit1 { get => _digitImages[1]; set => SetProperty(ref _digitImages[1], value); }
-    public BitmapImage? Digit2 { get => _digitImages[2]; set => SetProperty(ref _digitImages[2], value); }
-    public BitmapImage? Digit3 { get => _digitImages[3]; set => SetProperty(ref _digitImages[3], value); }
-    public BitmapImage? Digit4 { get => _digitImages[4]; set => SetProperty(ref _digitImages[4], value); }
-    public BitmapImage? Digit5 { get => _digitImages[5]; set => SetProperty(ref _digitImages[5], value); }
-    public BitmapImage? Digit6 { get => _digitImages[6]; set => SetProperty(ref _digitImages[6], value); }
-    public BitmapImage? Digit7 { get => _digitImages[7]; set => SetProperty(ref _digitImages[7], value); }
-    public BitmapImage? Digit8 { get => _digitImages[8]; set => SetProperty(ref _digitImages[8], value); }
-    public BitmapImage? Digit9 { get => _digitImages[9]; set => SetProperty(ref _digitImages[9], value); }
+    [ObservableProperty] private BitmapImage? _digit0;
+    [ObservableProperty] private BitmapImage? _digit1;
+    [ObservableProperty] private BitmapImage? _digit2;
+    [ObservableProperty] private BitmapImage? _digit3;
+    [ObservableProperty] private BitmapImage? _digit4;
+    [ObservableProperty] private BitmapImage? _digit5;
+    [ObservableProperty] private BitmapImage? _digit6;
+    [ObservableProperty] private BitmapImage? _digit7;
+    [ObservableProperty] private BitmapImage? _digit8;
+    [ObservableProperty] private BitmapImage? _digit9;
 
     #endregion
 
     #region 좌표 인식 Properties
 
-    private bool _isCollectingCoords;
-    public bool IsCollectingCoords
-    {
-        get => _isCollectingCoords;
-        set => SetProperty(ref _isCollectingCoords, value);
-    }
+    [NotifyCanExecuteChangedFor(nameof(StartCollectCoordsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopCollectCoordsCommand))]
+    [ObservableProperty] private bool _isCollectingCoords;
 
-    private bool _isTrainingCoords;
-    public bool IsTrainingCoords
-    {
-        get => _isTrainingCoords;
-        set => SetProperty(ref _isTrainingCoords, value);
-    }
+    [NotifyCanExecuteChangedFor(nameof(TrainCoordModelCommand))]
+    [ObservableProperty] private bool _isTrainingCoords;
 
-    private string _coordStatusText = "대기 중";
-    public string CoordStatusText
-    {
-        get => _coordStatusText;
-        set => SetProperty(ref _coordStatusText, value);
-    }
+    [ObservableProperty] private string _coordStatusText = "대기 중";
+    [ObservableProperty] private int _coordTrainEpochs = 50;
+    [ObservableProperty] private string _coordLabelInput = "0,38,1,10";
+    [ObservableProperty] private int _recognizeInterval = 500;
 
-    private int _coordTrainEpochs = 50;
-    public int CoordTrainEpochs
-    {
-        get => _coordTrainEpochs;
-        set => SetProperty(ref _coordTrainEpochs, value);
-    }
+    [ObservableProperty] private bool _targetIsNorth = true;
+    [ObservableProperty] private int _targetLat;
+    [ObservableProperty] private bool _targetIsEast = true;
+    [ObservableProperty] private int _targetLon;
 
-    // 수동 라벨링용 입력 (북위=0/남위=1, 위도값, 동경=0/서경=1, 경도값)
-    private string _coordLabelInput = "0,38,1,10";
-    public string CoordLabelInput
-    {
-        get => _coordLabelInput;
-        set => SetProperty(ref _coordLabelInput, value);
-    }
+    [NotifyCanExecuteChangedFor(nameof(StartNavCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopNavCommand))]
+    [ObservableProperty] private bool _isNavigating;
 
-    private int _recognizeInterval = 500;
-    public int RecognizeInterval
-    {
-        get => _recognizeInterval;
-        set => SetProperty(ref _recognizeInterval, value);
-    }
+    [ObservableProperty] private string _navStatusText = "-";
 
-    // 목표 좌표
-    private bool _targetIsNorth = true;
-    public bool TargetIsNorth { get => _targetIsNorth; set => SetProperty(ref _targetIsNorth, value); }
+    [NotifyCanExecuteChangedFor(nameof(StartRecognizeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopRecognizeCommand))]
+    [ObservableProperty] private bool _isRecognizing;
 
-    private int _targetLat;
-    public int TargetLat { get => _targetLat; set => SetProperty(ref _targetLat, value); }
-
-    private bool _targetIsEast = true;
-    public bool TargetIsEast { get => _targetIsEast; set => SetProperty(ref _targetIsEast, value); }
-
-    private int _targetLon;
-    public int TargetLon { get => _targetLon; set => SetProperty(ref _targetLon, value); }
-
-    private bool _isNavigating;
-    public bool IsNavigating
-    {
-        get => _isNavigating;
-        set => SetProperty(ref _isNavigating, value);
-    }
-
-    private string _navStatusText = "-";
-    public string NavStatusText
-    {
-        get => _navStatusText;
-        set => SetProperty(ref _navStatusText, value);
-    }
-
-    private bool _isRecognizing;
-    public bool IsRecognizing
-    {
-        get => _isRecognizing;
-        set => SetProperty(ref _isRecognizing, value);
-    }
-
-    private string _recognizedCoordText = "-";
-    public string RecognizedCoordText
-    {
-        get => _recognizedCoordText;
-        set => SetProperty(ref _recognizedCoordText, value);
-    }
-
-    #endregion
-
-    #region Commands
-
-    public ICommand StartCommand { get; }
-    public ICommand StopCommand { get; }
-    public ICommand CaptureTemplateCommand { get; }
-    public ICommand StartRerollCommand { get; }
-    public ICommand StopRerollCommand { get; }
-    public ICommand TestReadStatCommand { get; }
-    public ICommand LearnDigitsCommand { get; }
-    public ICommand AutoLearnDigitsCommand { get; }
-    public ICommand ClearTemplatesCommand { get; }
-
-    // 좌표 인식 커맨드
-    public ICommand StartCollectCoordsCommand { get; }
-    public ICommand StopCollectCoordsCommand { get; }
-    public ICommand TrainCoordModelCommand { get; }
-    public ICommand CapturePreviewCommand { get; }
-    public ICommand OpenCoordDataFolderCommand { get; }
-    public ICommand AutoLabelCoordsCommand { get; }
-    public ICommand AddCoordLabelCommand { get; }
-    public ICommand StartRecognizeCommand { get; }
-    public ICommand StopRecognizeCommand { get; }
-    public ICommand StartNavCommand { get; }
-    public ICommand StopNavCommand { get; }
-    public ICommand TestSeaMapCommand { get; }
+    [ObservableProperty] private string _recognizedCoordText = "-";
 
     #endregion
 
@@ -391,7 +167,8 @@ public class AutoPlayContentViewModel : BindableBase
         };
     }
 
-    private void OnStart()
+    [RelayCommand(CanExecute = nameof(CanStart))]
+    private void Start()
     {
         IsRunning = true;
         StatusText = "감지 시작...";
@@ -405,8 +182,10 @@ public class AutoPlayContentViewModel : BindableBase
             _autoPlayService.Start(SelectedCity, _detector);
         }
     }
+    private bool CanStart() => !IsRunning;
 
-    private void OnStop()
+    [RelayCommand(CanExecute = nameof(CanStop))]
+    private void Stop()
     {
         _detector.Stop();
         _autoPlayService.Stop();
@@ -418,8 +197,10 @@ public class AutoPlayContentViewModel : BindableBase
         GameSceneDisplay = "-";
         GameSceneIcon = "⏹️";
     }
+    private bool CanStop() => IsRunning;
 
-    private void OnCaptureTemplate()
+    [RelayCommand(CanExecute = nameof(CanCaptureTemplate))]
+    private void CaptureTemplate()
     {
         if (SelectedCaptureScene == null) return;
 
@@ -429,6 +210,7 @@ public class AutoPlayContentViewModel : BindableBase
         else
             AddLog($"템플릿 캡처 실패: {SelectedCaptureScene.DisplayName}");
     }
+    private bool CanCaptureTemplate() => IsRunning && SelectedCaptureScene != null;
 
     private void OnGameStateChanged(GameDetectionResult result)
     {
@@ -485,7 +267,8 @@ public class AutoPlayContentViewModel : BindableBase
 
     #region 능력치 리롤 핸들러
 
-    private void OnStartReroll()
+    [RelayCommand(CanExecute = nameof(CanStartReroll))]
+    private void StartReroll()
     {
         IsRerolling = true;
         RerollAttempts = 0;
@@ -495,32 +278,36 @@ public class AutoPlayContentViewModel : BindableBase
             new[] { TargetHp, TargetInt, TargetStr, TargetCha, TargetLuck, TargetBonus },
             ClickDelay, MaxAttempts);
     }
+    private bool CanStartReroll() => !IsRerolling;
 
-    private void OnStopReroll()
+    [RelayCommand(CanExecute = nameof(CanStopReroll))]
+    private void StopReroll()
     {
         _rerollService.Stop();
         IsRerolling = false;
         RerollStatusText = "중지됨";
     }
+    private bool CanStopReroll() => IsRerolling;
 
-    private void OnTestReadStat()
-    {
-        _rerollService.TestRead();
-    }
+    [RelayCommand]
+    private void TestReadStat() => _rerollService.TestRead();
 
-    private void OnLearnDigits()
+    [RelayCommand]
+    private void LearnDigits()
     {
         _rerollService.LearnDigits(LearnStatValues);
         RefreshDigitImages();
     }
 
-    private void OnAutoLearnDigits()
+    [RelayCommand]
+    private void AutoLearnDigits()
     {
         _rerollService.AutoLearnDigits();
         RefreshDigitImages();
     }
 
-    private void OnClearTemplates()
+    [RelayCommand]
+    private void ClearTemplates()
     {
         _rerollService.ClearTemplates();
         RefreshDigitImages();
@@ -583,7 +370,8 @@ public class AutoPlayContentViewModel : BindableBase
 
     private CancellationTokenSource? _recognizeCts;
 
-    private void OnStartRecognize()
+    [RelayCommand(CanExecute = nameof(CanStartRecognize))]
+    private void StartRecognize()
     {
         IsRecognizing = true;
         RecognizedCoordText = "인식 중...";
@@ -628,17 +416,21 @@ public class AutoPlayContentViewModel : BindableBase
             }
         });
     }
+    private bool CanStartRecognize() => !IsRecognizing;
 
-    private void OnStopRecognize()
+    [RelayCommand(CanExecute = nameof(CanStopRecognize))]
+    private void StopRecognize()
     {
         _recognizeCts?.Cancel();
         IsRecognizing = false;
         RecognizedCoordText = "중지됨";
     }
+    private bool CanStopRecognize() => IsRecognizing;
 
     private CancellationTokenSource? _navCts;
 
-    private void OnStartNav()
+    [RelayCommand(CanExecute = nameof(CanStartNav))]
+    private void StartNav()
     {
         IsNavigating = true;
         NavStatusText = "항해 시작...";
@@ -680,10 +472,9 @@ public class AutoPlayContentViewModel : BindableBase
                     var curLat = prediction.ToLat();
                     var curLon = prediction.ToLon();
 
-                    // 도착 판정
                     if (NavigationCalculator.IsNear(curLat, curLon, destLat, destLon, threshold: 2.0))
                     {
-                        GameWindowHelper.SendNumpadKey(hWnd, 5); // 정지
+                        GameWindowHelper.SendNumpadKey(hWnd, 5);
                         UpdateNavStatus($"도착! {prediction}");
                         UpdateRecognizedText(prediction.ToString());
                         Application.Current?.Dispatcher.Invoke(() => IsNavigating = false);
@@ -691,7 +482,6 @@ public class AutoPlayContentViewModel : BindableBase
                         return;
                     }
 
-                    // 방위각 → 숫자패드
                     var bearing = NavigationCalculator.BearingDegrees(curLat, curLon, destLat, destLon);
                     var numpad = GameWindowHelper.BearingToNumpad(bearing);
 
@@ -718,25 +508,28 @@ public class AutoPlayContentViewModel : BindableBase
             }
         });
     }
+    private bool CanStartNav() => !IsNavigating;
 
-    private void OnStopNav()
+    [RelayCommand(CanExecute = nameof(CanStopNav))]
+    private void StopNav()
     {
         _navCts?.Cancel();
         IsNavigating = false;
         NavStatusText = "중지됨";
 
-        // 정지 키 전송
         var hWnd = GameWindowHelper.FindGameWindow();
         if (hWnd != IntPtr.Zero)
             GameWindowHelper.SendNumpadKey(hWnd, 5);
     }
+    private bool CanStopNav() => IsNavigating;
 
     private void UpdateNavStatus(string text)
     {
         Application.Current?.Dispatcher.Invoke(() => NavStatusText = text);
     }
 
-    private void OnTestSeaMap()
+    [RelayCommand]
+    private void TestSeaMap()
     {
         var hWnd = GameWindowHelper.FindGameWindow();
         if (hWnd == IntPtr.Zero)
@@ -771,27 +564,34 @@ public class AutoPlayContentViewModel : BindableBase
         Application.Current?.Dispatcher.Invoke(() => RecognizedCoordText = text);
     }
 
-    private void OnStartCollectCoords()
+    [RelayCommand(CanExecute = nameof(CanStartCollectCoords))]
+    private void StartCollectCoords()
     {
         IsCollectingCoords = true;
         CoordStatusText = "데이터 수집 중...";
         _autoPlayService.CoordinateOcr.StartCollecting();
     }
+    private bool CanStartCollectCoords() => !IsCollectingCoords;
 
-    private void OnStopCollectCoords()
+    [RelayCommand(CanExecute = nameof(CanStopCollectCoords))]
+    private void StopCollectCoords()
     {
         _autoPlayService.CoordinateOcr.StopCollecting();
         IsCollectingCoords = false;
         var count = _autoPlayService.CoordinateOcr.GetCollectedCount();
         CoordStatusText = $"수집 완료 ({count}장)";
     }
+    private bool CanStopCollectCoords() => IsCollectingCoords;
 
-    private void OnTrainCoordModel()
+    [RelayCommand(CanExecute = nameof(CanTrainCoordModel))]
+    private void TrainCoordModel()
     {
         CoordStatusText = "학습 기능은 별도 프로젝트로 분리되었습니다.";
     }
+    private bool CanTrainCoordModel() => !IsTrainingCoords;
 
-    private void OnCapturePreview()
+    [RelayCommand]
+    private void CapturePreview()
     {
         var path = _autoPlayService.CoordinateOcr.CapturePreview();
         if (path != null)
@@ -800,7 +600,8 @@ public class AutoPlayContentViewModel : BindableBase
             AddLog("캡처 실패 — 게임이 실행 중인지 확인하세요.");
     }
 
-    private void OnAutoLabelCoords()
+    [RelayCommand]
+    private void AutoLabelCoords()
     {
         CoordStatusText = "자동 라벨링 중 (Windows OCR)...";
 
@@ -815,16 +616,17 @@ public class AutoPlayContentViewModel : BindableBase
         });
     }
 
-    private void OnOpenCoordDataFolder()
+    [RelayCommand]
+    private void OpenCoordDataFolder()
     {
         var folder = _autoPlayService.CoordinateOcr.DataDirectory;
         Directory.CreateDirectory(folder);
         System.Diagnostics.Process.Start("explorer.exe", folder);
     }
 
-    private void OnAddCoordLabel()
+    [RelayCommand]
+    private void AddCoordLabel()
     {
-        // 가장 최근 수집 이미지에 라벨 추가
         var parts = CoordLabelInput.Split(',');
         if (parts.Length != 4)
         {
@@ -867,7 +669,6 @@ public class AutoPlayContentViewModel : BindableBase
     }
 }
 
-/// <summary>캡처 장면 선택용 항목.</summary>
 public class CaptureSceneItem
 {
     public GameScene Scene { get; }

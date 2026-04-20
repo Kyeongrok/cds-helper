@@ -1,8 +1,8 @@
-using Prism.Mvvm;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CdsHelper.Main.Local.ViewModels;
 
-public class SphinxCalculatorContentViewModel : BindableBase
+public partial class SphinxCalculatorContentViewModel : ObservableObject
 {
     // === Type 1: 기본형 ===
     private int _legsPerTypeA = 4;
@@ -18,7 +18,7 @@ public class SphinxCalculatorContentViewModel : BindableBase
     private int _t2_initialLegsB = 2;
     private int _t2_initialTotalLegs = 42;
     private int _t2_afterLegsA = 2;
-    private int _t2_transformCountB = 3;  // B 중 변환되는 마리 수
+    private int _t2_transformCountB = 3;
     private int _t2_afterLegsB = 3;
     private int _t2_finalTotalLegs = 33;
     private int _t2_typeACount;
@@ -30,65 +30,37 @@ public class SphinxCalculatorContentViewModel : BindableBase
     private int _t3_initialLegsB = 2;
     private int _t3_initialTotalLegs = 42;
     private int _t3_afterLegsA = 2;
-    private int _t3_transformCountB = 4;  // B 중 변환되는 마리 수
+    private int _t3_transformCountB = 4;
     private int _t3_afterLegsB = 3;
-    private int _t3_newCreatureMultiplier = 2;  // 신규 괴물 배수
-    private int _t3_newCreatureLegs = 4;  // 신규 괴물 다리 수
+    private int _t3_newCreatureMultiplier = 2;
+    private int _t3_newCreatureLegs = 4;
     private int _t3_finalTotalLegs = 94;
     private int _t3_typeACount;
     private int _t3_typeBCount;
     private string _t3_solutionText = "";
 
-    /// <summary>
-    /// A 타입 괴물의 다리 수 (기본값: 4)
-    /// </summary>
     public int LegsPerTypeA
     {
         get => _legsPerTypeA;
-        set
-        {
-            if (SetProperty(ref _legsPerTypeA, value))
-                Calculate();
-        }
+        set { if (SetProperty(ref _legsPerTypeA, value)) Calculate(); }
     }
 
-    /// <summary>
-    /// B 타입 괴물의 다리 수 (기본값: 2)
-    /// </summary>
     public int LegsPerTypeB
     {
         get => _legsPerTypeB;
-        set
-        {
-            if (SetProperty(ref _legsPerTypeB, value))
-                Calculate();
-        }
+        set { if (SetProperty(ref _legsPerTypeB, value)) Calculate(); }
     }
 
-    /// <summary>
-    /// 괴물의 총 수
-    /// </summary>
     public int TotalCreatures
     {
         get => _totalCreatures;
-        set
-        {
-            if (SetProperty(ref _totalCreatures, value))
-                Calculate();
-        }
+        set { if (SetProperty(ref _totalCreatures, value)) Calculate(); }
     }
 
-    /// <summary>
-    /// 다리의 총 수
-    /// </summary>
     public int TotalLegs
     {
         get => _totalLegs;
-        set
-        {
-            if (SetProperty(ref _totalLegs, value))
-                Calculate();
-        }
+        set { if (SetProperty(ref _totalLegs, value)) Calculate(); }
     }
 
     public int TypeACount
@@ -252,15 +224,6 @@ public class SphinxCalculatorContentViewModel : BindableBase
 
     private void Calculate()
     {
-        // x + y = TotalCreatures
-        // Ax + By = TotalLegs
-        //
-        // y = TotalCreatures - x
-        // Ax + B(TotalCreatures - x) = TotalLegs
-        // Ax + B*TotalCreatures - Bx = TotalLegs
-        // (A - B)x = TotalLegs - B*TotalCreatures
-        // x = (TotalLegs - B*TotalCreatures) / (A - B)
-
         var a = LegsPerTypeA;
         var b = LegsPerTypeB;
 
@@ -319,21 +282,11 @@ public class SphinxCalculatorContentViewModel : BindableBase
 
     private void CalculateType2()
     {
-        // 초기: Ax + By = InitialTotalLegs
-        // 변환 후: A'x + B(y-n) + B'n = FinalTotalLegs
-        //        → A'x + By - Bn + B'n = FinalTotalLegs
-        //        → A'x + By = FinalTotalLegs + Bn - B'n
-        //        → A'x + By = FinalTotalLegs + n(B - B')
-        //
-        // 두 식을 빼면:
-        // (A - A')x = InitialTotalLegs - FinalTotalLegs - n(B - B')
-        // x = (InitialTotalLegs - FinalTotalLegs + n(B' - B)) / (A - A')
-
-        var a = T2_InitialLegsA;      // 초기 A 다리 수
-        var b = T2_InitialLegsB;      // 초기 B 다리 수
-        var a2 = T2_AfterLegsA;       // 변환 후 A 다리 수
-        var n = T2_TransformCountB;   // B 중 변환되는 마리 수
-        var b2 = T2_AfterLegsB;       // 변환 후 B 다리 수
+        var a = T2_InitialLegsA;
+        var b = T2_InitialLegsB;
+        var a2 = T2_AfterLegsA;
+        var n = T2_TransformCountB;
+        var b2 = T2_AfterLegsB;
         var initLegs = T2_InitialTotalLegs;
         var finalLegs = T2_FinalTotalLegs;
 
@@ -358,7 +311,6 @@ public class SphinxCalculatorContentViewModel : BindableBase
 
         var x = numerator / denominator;
 
-        // y 계산: Ax + By = InitialTotalLegs → By = InitialTotalLegs - Ax
         var byValue = initLegs - a * x;
         if (byValue % b != 0 || byValue < 0)
         {
@@ -370,7 +322,7 @@ public class SphinxCalculatorContentViewModel : BindableBase
 
         var y = byValue / b;
 
-        if (x < 0 || y < n) // y는 최소 n 이상 (n마리가 변환되므로)
+        if (x < 0 || y < n)
         {
             T2_SolutionText = "해가 없습니다. (조건 불만족)";
             T2_TypeACount = 0;
@@ -381,7 +333,6 @@ public class SphinxCalculatorContentViewModel : BindableBase
         T2_TypeACount = x;
         T2_TypeBCount = y;
 
-        // 검증
         var verifyFinal = a2 * x + b * (y - n) + b2 * n;
 
         T2_SolutionText = $"""
@@ -417,24 +368,6 @@ public class SphinxCalculatorContentViewModel : BindableBase
 
     private void CalculateType3()
     {
-        // 초기: Ax + By = InitialTotalLegs
-        // 변환 후:
-        //   - A다리 괴물 x마리 → A'다리가 됨: A'x
-        //   - B다리 괴물 중 n마리 → B'다리가 됨: B'n
-        //   - B다리 괴물 나머지: B(y-n)
-        //   - 신규 탄생: (배수*x)마리의 C다리 괴물: C*배수*x
-        //
-        // 최종: A'x + B(y-n) + B'n + C*배수*x = FinalTotalLegs
-        //     = (A' + C*배수)x + By - Bn + B'n
-        //     = (A' + C*배수)x + By + n(B' - B)
-        //
-        // 두 식:
-        // Ax + By = InitialTotalLegs
-        // (A' + C*배수)x + By = FinalTotalLegs - n(B' - B)
-        //
-        // 빼면:
-        // (A - A' - C*배수)x = InitialTotalLegs - FinalTotalLegs + n(B' - B)
-
         var a = T3_InitialLegsA;
         var b = T3_InitialLegsB;
         var a2 = T3_AfterLegsA;
