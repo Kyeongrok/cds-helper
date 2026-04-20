@@ -3,8 +3,6 @@
                     xmlns:units="clr-namespace:CdsHelper.Support.UI.Units"
                     xmlns:converters="clr-namespace:CdsHelper.Support.Local.Converters">
 
-    <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
-
     <Style TargetType="{x:Type units:SkillGroupBox}">
         <Setter Property="Template">
             <Setter.Value>
@@ -14,27 +12,27 @@
                             <!-- 범례 -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <Rectangle Width="12" Height="12"
-                                           Fill="{Binding Column1Color, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource StringToBrushConverter}}"
+                                           Fill="{Binding Column1Color, RelativeSource={RelativeSource TemplatedParent}, Converter={converters:StringToBrushConverter}}"
                                            Margin="0,0,3,0" />
                                 <TextBlock Text="{TemplateBinding Column1Label}" FontSize="10" Margin="0,0,10,0" />
 
                                 <Rectangle Width="12" Height="12"
-                                           Fill="{Binding Column2Color, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource StringToBrushConverter}}"
+                                           Fill="{Binding Column2Color, RelativeSource={RelativeSource TemplatedParent}, Converter={converters:StringToBrushConverter}}"
                                            Margin="0,0,3,0" />
                                 <TextBlock Text="{TemplateBinding Column2Label}" FontSize="10" Margin="0,0,10,0" />
 
                                 <Rectangle Width="12" Height="12"
-                                           Fill="{Binding Column3Color, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource StringToBrushConverter}}"
+                                           Fill="{Binding Column3Color, RelativeSource={RelativeSource TemplatedParent}, Converter={converters:StringToBrushConverter}}"
                                            Margin="0,0,3,0" />
                                 <TextBlock Text="{TemplateBinding Column3Label}" FontSize="10" Margin="0,0,10,0" />
 
                                 <Rectangle Width="12" Height="12"
-                                           Fill="{Binding Column4Color, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource StringToBrushConverter}}"
+                                           Fill="{Binding Column4Color, RelativeSource={RelativeSource TemplatedParent}, Converter={converters:StringToBrushConverter}}"
                                            Margin="0,0,3,0" />
                                 <TextBlock Text="{TemplateBinding Column4Label}" FontSize="10" Margin="0,0,10,0" />
 
                                 <Rectangle Width="12" Height="12"
-                                           Fill="{Binding Column5Color, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource StringToBrushConverter}}"
+                                           Fill="{Binding Column5Color, RelativeSource={RelativeSource TemplatedParent}, Converter={converters:StringToBrushConverter}}"
                                            Margin="0,0,3,0" />
                                 <TextBlock Text="{TemplateBinding Column5Label}" FontSize="10" />
                             </StackPanel>
@@ -61,7 +59,7 @@
                                                     <TextBlock Grid.Column="1" Text="{Binding BestLevel}" FontWeight="Bold" VerticalAlignment="Center" />
                                                     <ProgressBar Grid.Column="2" Value="{Binding BestLevel, Mode=OneWay}" Maximum="3"
                                                                  Height="12" Margin="3,0,0,0"
-                                                                 Foreground="{Binding BestColor, Converter={StaticResource StringToBrushConverter}}"
+                                                                 Foreground="{Binding BestColor, Converter={converters:StringToBrushConverter}}"
                                                                  ToolTip="{Binding ToolTipText}" />
                                                 </Grid>
                                             </DataTemplate>
@@ -85,7 +83,7 @@
                                                     <TextBlock Grid.Column="1" Text="{Binding BestLevel}" FontWeight="Bold" VerticalAlignment="Center" />
                                                     <ProgressBar Grid.Column="2" Value="{Binding BestLevel, Mode=OneWay}" Maximum="3"
                                                                  Height="12" Margin="3,0,0,0"
-                                                                 Foreground="{Binding BestColor, Converter={StaticResource StringToBrushConverter}}"
+                                                                 Foreground="{Binding BestColor, Converter={converters:StringToBrushConverter}}"
                                                                  ToolTip="{Binding ToolTipText}" />
                                                 </Grid>
                                             </DataTemplate>

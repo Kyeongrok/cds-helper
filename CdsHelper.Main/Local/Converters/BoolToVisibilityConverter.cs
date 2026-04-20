@@ -1,25 +1,14 @@
 using System.Globalization;
 using System.Windows;
-using System.Windows.Data;
+using CdsHelper.Support.Local.Converters;
 
 namespace CdsHelper.Main.Local.Converters;
 
-/// <summary>
-/// true이면 Visible, false이면 Collapsed
-/// </summary>
-public class BoolToVisibilityConverter : IValueConverter
+public sealed class BoolToVisibilityConverter : ConverterMarkupExtension<BoolToVisibilityConverter>
 {
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is bool b)
-            return b ? Visibility.Visible : Visibility.Collapsed;
-        return Visibility.Collapsed;
-    }
+    public override object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is bool b && b ? Visibility.Visible : Visibility.Collapsed;
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is Visibility v)
-            return v == Visibility.Visible;
-        return false;
-    }
+    public override object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is Visibility v && v == Visibility.Visible;
 }

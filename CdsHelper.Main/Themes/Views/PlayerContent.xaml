@@ -4,10 +4,6 @@
                     xmlns:units="clr-namespace:CdsHelper.Support.UI.Units;assembly=CdsHelper.Support"
                     xmlns:converters="clr-namespace:CdsHelper.Main.Local.Converters">
 
-    <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
-    <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-    <converters:BoolToOXConverter x:Key="BoolToOXConverter" />
-
     <!-- 링크 스타일 버튼 -->
     <Style x:Key="LinkButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
@@ -127,7 +123,7 @@
                                             <!-- 스킬 시뮬레이션 -->
                                             <CheckBox Content="스킬 시뮬레이션" IsChecked="{Binding IsSimulationMode}"
                                                       Margin="0,15,0,5" FontWeight="Bold" />
-                                            <Grid Visibility="{Binding IsSimulationMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <Grid Visibility="{Binding IsSimulationMode, Converter={converters:BoolToVisibilityConverter}}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="80" />
                                                     <ColumnDefinition Width="*" />
@@ -213,7 +209,7 @@
                                                 <DataGridTemplateColumn Header="힌트" Width="40">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>
-                                                            <TextBlock Text="{Binding HasHint, Converter={StaticResource BoolToOXConverter}}"
+                                                            <TextBlock Text="{Binding HasHint, Converter={converters:BoolToOXConverter}}"
                                                                        HorizontalAlignment="Center">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="TextBlock">
@@ -232,7 +228,7 @@
                                                 <DataGridTemplateColumn Header="발견" Width="40">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>
-                                                            <TextBlock Text="{Binding IsDiscovered, Converter={StaticResource BoolToOXConverter}}"
+                                                            <TextBlock Text="{Binding IsDiscovered, Converter={converters:BoolToOXConverter}}"
                                                                        HorizontalAlignment="Center">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="TextBlock">
@@ -254,7 +250,7 @@
 
                                     <!-- 선택된 동료 정보 -->
                                     <GroupBox Header="동료 상세" Padding="10"
-                                              Visibility="{Binding SelectedCrewMember, Converter={StaticResource NullToVisibilityConverter}}">
+                                              Visibility="{Binding SelectedCrewMember, Converter={converters:NullToVisibilityConverter}}">
                                         <StackPanel>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
