@@ -77,8 +77,6 @@ public class WorldMapContent : ContentControl
     private CheckBox? _chkHideFound;
     private CheckBox? _chkShowSpeed;
     private ComboBox? _cmbAutoScrollThreshold;
-    private HashSet<int>? _discoveredHintIds;
-    private HashSet<int>? _hasHintIds;
     private HashSet<int>? _foundDiscoveryIds;
     private SubscriptionToken? _saveDataLoadedToken;
 
@@ -712,17 +710,6 @@ public class WorldMapContent : ContentControl
                 try
                 {
                     var saveDataService = ContainerLocator.Container.Resolve<SaveDataService>();
-                    if (saveDataService.CurrentSaveGameInfo?.Hints != null)
-                    {
-                        _discoveredHintIds = saveDataService.CurrentSaveGameInfo.Hints
-                            .Where(h => h.IsDiscovered)
-                            .Select(h => h.Index - 1)
-                            .ToHashSet();
-                        _hasHintIds = saveDataService.CurrentSaveGameInfo.Hints
-                            .Where(h => h.HasHint)
-                            .Select(h => h.Index - 1)
-                            .ToHashSet();
-                    }
                     if (saveDataService.CurrentSaveGameInfo?.Discoveries != null)
                     {
                         _foundDiscoveryIds = saveDataService.CurrentSaveGameInfo.Discoveries
@@ -740,20 +727,18 @@ public class WorldMapContent : ContentControl
                 {
                     if (d.LatFrom == null && d.LonFrom == null) continue;
 
-                    // 발견 여부의 source of truth는 발견물 슬롯 테이블(0x19E6A, 164바이트/행)의
-                    // state 바이트 bit 6만 사용. 힌트 발견 플래그는 공유/매핑 어긋남으로
-                    // 실제 미발견 항목을 오감지시킬 수 있어 제외.
-                    bool isFound = _foundDiscoveryIds?.Contains(d.Id) == true;
-                    bool hasHint = d.HintId.HasValue && _hasHintIds?.Contains(d.HintId.Value) == true;
+                    // 세이브 슬롯 인덱스 = DB Id + SaveSlotOffset
+                    int slotIndex = d.Id + DiscoveryDisplayItem.SaveSlotOffset;
+                    bool isFound = _foundDiscoveryIds?.Contains(slotIndex) == true;
                     var isPoint = d.LatFrom == d.LatTo && d.LonFrom == d.LonTo;
 
                     if (isPoint && d.LatFrom != null && d.LonFrom != null)
                     {
-                        AddDiscoveryPoint(d, isFound, hasHint);
+                        AddDiscoveryPoint(d, isFound);
                     }
                     else
                     {
-                        AddDiscoveryArea(d, isFound, hasHint);
+                        AddDiscoveryArea(d, isFound);
                     }
                 }
 
@@ -840,7 +825,7 @@ public class WorldMapContent : ContentControl
         return pen;
     }
 
-    private void AddDiscoveryPoint(DiscoveryEntity d, bool isFound = false, bool hasHint = false)
+    private void AddDiscoveryPoint(DiscoveryEntity d, bool isFound = false)
     {
         if (_overlayCanvas == null || _discoveryVisualHost == null) return;
 
@@ -860,7 +845,7 @@ public class WorldMapContent : ContentControl
             }
             _discoveryVisualHost.AddVisual(dotVisual, isFound);
 
-            var label = CreateDiscoveryLabel(d.Id, d.Name, hasHint);
+            var label = CreateDiscoveryLabel(d.Id, d.Name);
             Canvas.SetLeft(label, px + ox + radius + 2);
             Canvas.SetTop(label, py - 6);
             _overlayCanvas.Children.Add(label);
@@ -869,7 +854,7 @@ public class WorldMapContent : ContentControl
         }
     }
 
-    private void AddDiscoveryArea(DiscoveryEntity d, bool isFound = false, bool hasHint = false)
+    private void AddDiscoveryArea(DiscoveryEntity d, bool isFound = false)
     {
         if (_overlayCanvas == null || _discoveryVisualHost == null) return;
 
@@ -903,7 +888,7 @@ public class WorldMapContent : ContentControl
             }
             _discoveryVisualHost.AddVisual(rectVisual, isFound);
 
-            var label = CreateDiscoveryLabel(d.Id, d.Name, hasHint);
+            var label = CreateDiscoveryLabel(d.Id, d.Name);
             Canvas.SetLeft(label, x2 + ox + 2);
             Canvas.SetTop(label, y1);
             _overlayCanvas.Children.Add(label);
@@ -1086,7 +1071,7 @@ public class WorldMapContent : ContentControl
         }
     }
 
-    private Border CreateDiscoveryLabel(int discoveryId, string name, bool hasHint = false)
+    private Border CreateDiscoveryLabel(int discoveryId, string name)
     {
         var textBlock = new TextBlock
         {
@@ -1099,8 +1084,6 @@ public class WorldMapContent : ContentControl
             Background = new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)),
             CornerRadius = new CornerRadius(2),
             Padding = new Thickness(2, 0, 2, 0),
-            BorderBrush = hasHint ? new SolidColorBrush(Color.FromRgb(40, 160, 40)) : null,
-            BorderThickness = hasHint ? new Thickness(1) : new Thickness(0),
             IsHitTestVisible = true,
             Cursor = Cursors.Hand,
             Tag = discoveryId,
