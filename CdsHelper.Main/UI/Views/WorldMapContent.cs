@@ -91,11 +91,13 @@ public class WorldMapContent : ContentControl
     private const int CellH = 1250;       // unfolded rows (2500 raw / 2)
     private const int UnfoldedW = 2500;   // unfolded width (left half + right half)
     private const int TileCount = 3;      // 3 copies for infinite horizontal scroll
-    private const int RenderW = 2500 * TileCount; // 7500 total width
-    private const int RenderH = 1250;     // display height
+    private const int RenderScale = 2;    // pixels per cell in output bitmap
+    private const int RenderTileW = UnfoldedW * RenderScale;  // 5000
+    private const int RenderW = RenderTileW * TileCount;      // 15000
+    private const int RenderH = CellH * RenderScale;          // 2500
 
     // 마커를 모든 타일에 복제하기 위한 X 오프셋 (왼쪽/중앙/오른쪽)
-    private static readonly double[] TileOffsets = { -(double)UnfoldedW, 0.0, (double)UnfoldedW };
+    private static readonly double[] TileOffsets = { -(double)RenderTileW, 0.0, (double)RenderTileW };
 
     private bool _isDragging;
     private Point _lastMousePos;
@@ -313,7 +315,7 @@ public class WorldMapContent : ContentControl
     {
         if (_isWrapping || _scrollViewer == null || _mapData == null) return;
 
-        double tileW = UnfoldedW * _currentScale;
+        double tileW = RenderTileW * _currentScale;
         double offset = _scrollViewer.HorizontalOffset;
 
         // Keep scroll within the middle tile (tile index 1)
@@ -352,20 +354,20 @@ public class WorldMapContent : ContentControl
         if (rx < 0 || rx >= RenderW || ry < 0 || ry >= RenderH) return;
 
         // Map render pixel to unfolded coordinate (wrap within one tile)
-        int tileX = rx % UnfoldedW;
-        bool isRightHalf = tileX >= CellW;
-        int cx = isRightHalf ? tileX - CellW : tileX;
-        if (cx >= CellW) cx = CellW - 1;
-        if (ry >= CellH) ry = CellH - 1;
+        int tileX = rx % RenderTileW;
+        bool isRightHalf = tileX >= CellW * RenderScale;
+        int cx = isRightHalf ? tileX - CellW * RenderScale : tileX;
+        int cellCx = Math.Min(cx / RenderScale, CellW - 1);
+        int cellRy = Math.Min(ry / RenderScale, CellH - 1);
 
-        int rawRow = isRightHalf ? ry * 2 + 1 : ry * 2;
-        int off = rawRow * RawStride + cx * 2;
+        int rawRow = isRightHalf ? cellRy * 2 + 1 : cellRy * 2;
+        int off = rawRow * RawStride + cellCx * 2;
         byte terrain = (byte)(_mapData[off] & 0x7F);
         byte attr = _mapData[off + 1];
 
-        int unfoldedX = isRightHalf ? cx + CellW : cx;
+        int unfoldedX = isRightHalf ? cellCx + CellW : cellCx;
         double lon = unfoldedX * 360.0 / UnfoldedW - 180;
-        double lat = 90.0 - ry * 180.0 / CellH;
+        double lat = 90.0 - cellRy * 180.0 / CellH;
 
         string terrainName = terrain switch
         {
@@ -391,7 +393,7 @@ public class WorldMapContent : ContentControl
 
         string latDir = lat >= 0 ? "N" : "S";
         string lonDir = lon >= 0 ? "E" : "W";
-        _txtCellInfo.Text = $"셀({unfoldedX},{ry}) | {Math.Abs(lat):F1}°{latDir}, {Math.Abs(lon):F1}°{lonDir} | {terrainName} | {attrName} | 0x{_mapData[off]:X2} 0x{attr:X2}";
+        _txtCellInfo.Text = $"셀({unfoldedX},{cellRy}) | {Math.Abs(lat):F1}°{latDir}, {Math.Abs(lon):F1}°{lonDir} | {terrainName} | {attrName} | 0x{_mapData[off]:X2} 0x{attr:X2}";
     }
 
     private void OpenFile()
@@ -439,8 +441,8 @@ public class WorldMapContent : ContentControl
         bool showCoast = _chkShowCoast?.IsChecked == true;
         bool showWind = _chkShowWind?.IsChecked == true;
 
-        // Render one tile (2500 wide), then copy 3x for infinite scroll
-        var tilePixels = new int[UnfoldedW * RenderH];
+        // Render one tile at RenderScale px/cell, then copy 3x for infinite scroll
+        var tilePixels = new int[RenderTileW * RenderH];
 
         for (int ry = 0; ry < CellH; ry++)
         {
@@ -457,8 +459,18 @@ public class WorldMapContent : ContentControl
                 byte tO = (byte)(_mapData[offO] & 0x7F);
                 byte aO = _mapData[offO + 1];
 
-                tilePixels[ry * UnfoldedW + cx] = ColorToInt(GetCellColor(tE, aE, showWind, showCoast));
-                tilePixels[ry * UnfoldedW + cx + CellW] = ColorToInt(GetCellColor(tO, aO, showWind, showCoast));
+                int colorLeft = ColorToInt(GetCellColor(tE, aE, showWind, showCoast));
+                int colorRight = ColorToInt(GetCellColor(tO, aO, showWind, showCoast));
+
+                for (int dy = 0; dy < RenderScale; dy++)
+                {
+                    int rowBase = (ry * RenderScale + dy) * RenderTileW;
+                    for (int dx = 0; dx < RenderScale; dx++)
+                    {
+                        tilePixels[rowBase + cx * RenderScale + dx] = colorLeft;
+                        tilePixels[rowBase + (cx + CellW) * RenderScale + dx] = colorRight;
+                    }
+                }
             }
         }
 
@@ -469,7 +481,7 @@ public class WorldMapContent : ContentControl
         {
             for (int t = 0; t < TileCount; t++)
             {
-                Array.Copy(tilePixels, ry * UnfoldedW, pixels, ry * RenderW + t * UnfoldedW, UnfoldedW);
+                Array.Copy(tilePixels, ry * RenderTileW, pixels, ry * RenderW + t * RenderTileW, RenderTileW);
             }
         }
 
@@ -1251,10 +1263,10 @@ public class WorldMapContent : ContentControl
 
     private (double px, double py) LatLonToPixel(double lat, double lon)
     {
-        double cellX = (lon + 180.0) / 360.0 * UnfoldedW;
-        double cellY = (90.0 - lat) / 180.0 * CellH;
+        double cellX = (lon + 180.0) / 360.0 * RenderTileW;
+        double cellY = (90.0 - lat) / 180.0 * RenderH;
         // 중앙 타일(index 1) 오프셋 적용
-        return (cellX + UnfoldedW, cellY);
+        return (cellX + RenderTileW, cellY);
     }
 
     /// <summary>두 점 사이 구간 속도 (°/분) 계산.</summary>
@@ -1489,9 +1501,9 @@ public class WorldMapContent : ContentControl
         var coords = _trailPoints.Select((p, i) =>
         {
             // 픽셀 → 경위도 역변환 (중앙 타일 기준)
-            double cellX = p.X - UnfoldedW;
-            double lon = cellX * 360.0 / UnfoldedW - 180;
-            double lat = 90.0 - p.Y * 180.0 / CellH;
+            double cellX = p.X - RenderTileW;
+            double lon = cellX * 360.0 / RenderTileW - 180;
+            double lat = 90.0 - p.Y * 180.0 / RenderH;
             var time = i < _trailTimestamps.Count
                 ? _trailTimestamps[i].ToString("yyyy-MM-dd HH:mm:ss.fff")
                 : "";
@@ -1602,9 +1614,9 @@ public class WorldMapContent : ContentControl
     private (double lat, double lon) PixelToLatLon(double px, double py)
     {
         // 중앙 타일 기준 오프셋 제거
-        double cellX = px - UnfoldedW;
-        double lon = cellX * 360.0 / UnfoldedW - 180;
-        double lat = 90.0 - py * 180.0 / CellH;
+        double cellX = px - RenderTileW;
+        double lon = cellX * 360.0 / RenderTileW - 180;
+        double lat = 90.0 - py * 180.0 / RenderH;
         return (lat, lon);
     }
 
