@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -232,7 +233,7 @@ public class MapContent : ContentControl
         }
 
         // 지도 이미지 로드
-        LoadMapImage();
+        _ = LoadMapImageAsync();
         // 도시 마커 로드
         LoadCityMarkers();
         // 현재 위치 마커 생성
@@ -269,14 +270,41 @@ public class MapContent : ContentControl
         });
     }
 
-    private void LoadMapImage()
+    private const string MapImageFileName = "대항해시대3-지도(발견물-이름-기준).jpg";
+    private const string MapImageDownloadUrl = "https://github.com/Kyeongrok/cds-helper/releases/download/map-assets/3-.-.-.jpg";
+
+    private async Task LoadMapImageAsync()
     {
         if (_imgMap == null) return;
 
-        var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var mapPath = System.IO.Path.Combine(basePath, "대항해시대3-지도(발견물-이름-기준).jpg");
+        var mapPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, MapImageFileName);
 
-        if (System.IO.File.Exists(mapPath))
+        if (!System.IO.File.Exists(mapPath))
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (_txtNavStatus != null)
+                    _txtNavStatus.Text = "지도 이미지 다운로드 중...";
+            });
+
+            try
+            {
+                using var client = new HttpClient();
+                var data = await client.GetByteArrayAsync(MapImageDownloadUrl);
+                await System.IO.File.WriteAllBytesAsync(mapPath, data);
+            }
+            catch
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (_txtNavStatus != null)
+                        _txtNavStatus.Text = "지도 이미지 다운로드 실패";
+                });
+                return;
+            }
+        }
+
+        Dispatcher.Invoke(() =>
         {
             try
             {
@@ -287,15 +315,17 @@ public class MapContent : ContentControl
                 bitmap.EndInit();
                 _imgMap.Source = bitmap;
 
-                // Canvas 크기를 이미지 크기에 맞춤
                 if (_mapCanvas != null)
                 {
                     _mapCanvas.Width = bitmap.PixelWidth;
                     _mapCanvas.Height = bitmap.PixelHeight;
                 }
+
+                if (_txtNavStatus != null)
+                    _txtNavStatus.Text = string.Empty;
             }
             catch { }
-        }
+        });
     }
 
     private void LoadCityMarkers()
