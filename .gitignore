@@ -67,3 +67,6 @@ ehthumbs.db
 Thumbs.db
 
 .seoro-attachments/
+
+# Large map image (downloaded at runtime from GitHub Releases)
+**/대항해시대3-지도(발견물-이름-기준).jpg
