@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Events;
@@ -663,6 +664,53 @@ public partial class CdsHelperViewModel : ObservableObject
         catch (Exception ex)
         {
             System.Windows.MessageBox.Show($"업데이트 실패: {ex.Message}", "오류",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    #endregion
+
+    #region Native Deps Download
+
+    private static readonly (string Name, string Url)[] NativeDependencies =
+    [
+        ("OpenCvSharpExtern.dll", "https://github.com/Kyeongrok/cds-helper/releases/download/native-deps/OpenCvSharpExtern.dll"),
+        ("onnxruntime.dll", "https://github.com/Kyeongrok/cds-helper/releases/download/native-deps/onnxruntime.dll"),
+        ("onnxruntime_providers_shared.dll", "https://github.com/Kyeongrok/cds-helper/releases/download/native-deps/onnxruntime_providers_shared.dll"),
+    ];
+
+    public async Task CheckAndDownloadNativeDepsAsync()
+    {
+        var basePath = AppDomain.CurrentDomain.BaseDirectory;
+        var missing = NativeDependencies
+            .Where(d => !System.IO.File.Exists(System.IO.Path.Combine(basePath, d.Name)))
+            .ToList();
+
+        if (missing.Count == 0) return;
+
+        var result = System.Windows.MessageBox.Show(
+            $"지도/자동진행 기능에 필요한 라이브러리({missing.Count}개)가 없습니다.\n다운로드하시겠습니까? (약 70MB)",
+            "라이브러리 다운로드",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Question);
+
+        if (result != System.Windows.MessageBoxResult.Yes) return;
+
+        try
+        {
+            using var client = new HttpClient();
+            foreach (var (name, url) in missing)
+            {
+                StatusText = $"다운로드 중: {name}...";
+                var data = await client.GetByteArrayAsync(url);
+                await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(basePath, name), data);
+            }
+            StatusText = "라이브러리 다운로드 완료";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "라이브러리 다운로드 실패";
+            System.Windows.MessageBox.Show($"다운로드 실패:\n{ex.Message}", "오류",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }

@@ -110,6 +110,13 @@ public class CdsHelperWindow : CdsWindow
         // NavigateToCityEvent 구독 - 아코디언 메뉴 동기화
         var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
         eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
+
+        // 창 로드 후 네이티브 DLL 다운로드 확인
+        Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            if (_viewModel != null)
+                await _viewModel.CheckAndDownloadNativeDepsAsync();
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void OnNavigateToCity(NavigateToCityEventArgs args)

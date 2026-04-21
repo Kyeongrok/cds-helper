@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using System.Net.Http;
 using System.Text;
 using System.Windows;
 using CdsHelper.Api.Data;
@@ -82,44 +81,7 @@ internal class App : PrismApplication
         // EUC-KR 인코딩 지원 등록
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-        DownloadNativeDependencies();
-
         base.OnStartup(e);
-    }
-
-    private static readonly (string Name, string Url)[] NativeDependencies =
-    [
-        ("OpenCvSharpExtern.dll", "https://github.com/Kyeongrok/cds-helper/releases/download/native-deps/OpenCvSharpExtern.dll"),
-        ("onnxruntime.dll", "https://github.com/Kyeongrok/cds-helper/releases/download/native-deps/onnxruntime.dll"),
-        ("onnxruntime_providers_shared.dll", "https://github.com/Kyeongrok/cds-helper/releases/download/native-deps/onnxruntime_providers_shared.dll"),
-    ];
-
-    private void DownloadNativeDependencies()
-    {
-        var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var missing = NativeDependencies
-            .Where(d => !File.Exists(Path.Combine(basePath, d.Name)))
-            .ToList();
-
-        if (missing.Count == 0) return;
-
-        MessageBox.Show(
-            $"필요한 라이브러리를 다운로드합니다. ({missing.Count}개)\n처음 한 번만 실행되며, 잠시 기다려주세요.",
-            "초기화", MessageBoxButton.OK, MessageBoxImage.Information);
-
-        try
-        {
-            using var client = new HttpClient();
-            foreach (var (name, url) in missing)
-            {
-                var data = Task.Run(() => client.GetByteArrayAsync(url)).GetAwaiter().GetResult();
-                File.WriteAllBytes(Path.Combine(basePath, name), data);
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"라이브러리 다운로드 실패:\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
     }
 
     protected override void RegisterTypes(IContainerRegistry containerRegistry)
