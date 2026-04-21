@@ -21,6 +21,8 @@ public partial class CdsHelperViewModel : ObservableObject
     private readonly FigureheadService _figureheadService;
     private readonly ItemService _itemService;
     private readonly SaveDataService _saveDataService;
+    private readonly HintService _hintService;
+    private readonly DiscoveryService _discoveryService;
 
     // Raw data
     private List<CharacterData> _allCharacters = new();
@@ -193,7 +195,9 @@ public partial class CdsHelperViewModel : ObservableObject
         PatronService patronService,
         FigureheadService figureheadService,
         ItemService itemService,
-        SaveDataService saveDataService)
+        SaveDataService saveDataService,
+        HintService hintService,
+        DiscoveryService discoveryService)
     {
         _regionManager = regionManager;
         _eventAggregator = eventAggregator;
@@ -204,6 +208,8 @@ public partial class CdsHelperViewModel : ObservableObject
         _figureheadService = figureheadService;
         _itemService = itemService;
         _saveDataService = saveDataService;
+        _hintService = hintService;
+        _discoveryService = discoveryService;
 
         _eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
 
@@ -228,36 +234,60 @@ public partial class CdsHelperViewModel : ObservableObject
     {
         var basePath = AppDomain.CurrentDomain.BaseDirectory;
         var dbPath = System.IO.Path.Combine(basePath, "cdshelper.db");
+        var isNewDb = !System.IO.File.Exists(dbPath);
 
-        var booksPath = System.IO.Path.Combine(basePath, "books.json");
+        if (isNewDb)
+            StatusText = "DB 초기화 중...";
+
         var citiesPath = System.IO.Path.Combine(basePath, "cities.json");
+        var hintPath = System.IO.Path.Combine(basePath, "hint.json");
+        var discoveryCsvPath = System.IO.Path.Combine(basePath, "발견물힌트.csv");
+        var booksPath = System.IO.Path.Combine(basePath, "books.json");
         var patronsPath = System.IO.Path.Combine(basePath, "patrons.json");
         var figureheadsPath = System.IO.Path.Combine(basePath, "figurehead.json");
         var itemsPath = System.IO.Path.Combine(basePath, "item.json");
 
-        await _cityService.InitializeAsync(dbPath, citiesPath);
-        await LoadCitiesFromDbAsync();
-
-        await _bookService.InitializeAsync(dbPath, booksPath);
-        await LoadBooksFromDbAsync();
-
-        if (System.IO.File.Exists(patronsPath))
-            LoadPatrons(patronsPath);
-
-        if (System.IO.File.Exists(figureheadsPath))
-            LoadFigureheads(figureheadsPath);
-
-        if (System.IO.File.Exists(itemsPath))
-            LoadItems(itemsPath);
-
-        if (!string.IsNullOrEmpty(AppSettings.LastSaveFilePath) &&
-            System.IO.File.Exists(AppSettings.LastSaveFilePath))
+        try
         {
-            LoadSaveFile(AppSettings.LastSaveFilePath);
+            StatusText = "도시 데이터 로드 중...";
+            await _cityService.InitializeAsync(dbPath, citiesPath);
+            await LoadCitiesFromDbAsync();
+
+            // HintService는 BookService보다 먼저 (BookHints가 Hints를 참조)
+            StatusText = "힌트 데이터 로드 중...";
+            await _hintService.InitializeAsync(dbPath, hintPath);
+
+            StatusText = "발견물 데이터 로드 중...";
+            await _discoveryService.InitializeAsync(dbPath, discoveryCsvPath);
+
+            StatusText = "도서 데이터 로드 중...";
+            await _bookService.InitializeAsync(dbPath, booksPath);
+            await LoadBooksFromDbAsync();
+
+            if (System.IO.File.Exists(patronsPath))
+                LoadPatrons(patronsPath);
+
+            if (System.IO.File.Exists(figureheadsPath))
+                LoadFigureheads(figureheadsPath);
+
+            if (System.IO.File.Exists(itemsPath))
+                LoadItems(itemsPath);
+
+            if (!string.IsNullOrEmpty(AppSettings.LastSaveFilePath) &&
+                System.IO.File.Exists(AppSettings.LastSaveFilePath))
+            {
+                LoadSaveFile(AppSettings.LastSaveFilePath);
+            }
+            else
+            {
+                StatusText = isNewDb ? "DB 초기화 완료" : "준비됨";
+            }
         }
-        else
+        catch (Exception ex)
         {
-            StatusText = "준비됨";
+            StatusText = "초기화 실패";
+            System.Windows.MessageBox.Show($"초기화 오류:\n{ex.Message}", "오류",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }
 
