@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Net.Http;
+using CdsHelper.Form.Local.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Events;
@@ -23,6 +24,7 @@ public partial class CdsHelperViewModel : ObservableObject
     private readonly SaveDataService _saveDataService;
     private readonly HintService _hintService;
     private readonly DiscoveryService _discoveryService;
+    private readonly UpdateService _updateService;
 
     // Raw data
     private List<CharacterData> _allCharacters = new();
@@ -197,7 +199,8 @@ public partial class CdsHelperViewModel : ObservableObject
         ItemService itemService,
         SaveDataService saveDataService,
         HintService hintService,
-        DiscoveryService discoveryService)
+        DiscoveryService discoveryService,
+        UpdateService updateService)
     {
         _regionManager = regionManager;
         _eventAggregator = eventAggregator;
@@ -210,6 +213,7 @@ public partial class CdsHelperViewModel : ObservableObject
         _saveDataService = saveDataService;
         _hintService = hintService;
         _discoveryService = discoveryService;
+        _updateService = updateService;
 
         _eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
 
@@ -743,6 +747,30 @@ public partial class CdsHelperViewModel : ObservableObject
             System.Windows.MessageBox.Show($"다운로드 실패:\n{ex.Message}", "오류",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
+    }
+
+    #endregion
+
+    #region Auto Update
+
+    public async Task CheckForUpdateAsync()
+    {
+        var newVersion = await _updateService.CheckForUpdateAsync();
+        if (newVersion == null) return;
+
+        StatusText = $"새 버전 {newVersion} 다운로드 중...";
+        await _updateService.DownloadUpdateAsync(p => StatusText = $"업데이트 다운로드 중... {p}%");
+
+        var result = System.Windows.MessageBox.Show(
+            $"버전 {newVersion}으로 업데이트할 준비가 됐습니다.\n지금 재시작하시겠습니까?",
+            "업데이트 완료",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Information);
+
+        if (result == System.Windows.MessageBoxResult.Yes)
+            _updateService.ApplyUpdateAndRestart();
+        else
+            StatusText = "업데이트 준비 완료 (다음 재시작 시 적용)";
     }
 
     #endregion

@@ -2,6 +2,7 @@
 using System.Text;
 using System.Windows;
 using CdsHelper.Api.Data;
+using CdsHelper.Form.Local.Services;
 using CdsHelper.Form.Local.ViewModels;
 using CdsHelper.Form.UI.Views;
 using CdsHelper.Main.Local.ViewModels;
@@ -46,6 +47,7 @@ internal class App : PrismApplication
         containerRegistry.RegisterSingleton<AppDbContext>(() => AppDbContextFactory.Create(dbPath));
 
         // Services 등록
+        containerRegistry.RegisterSingleton<UpdateService>();
         containerRegistry.RegisterSingleton<CharacterService>();
         containerRegistry.RegisterSingleton<BookService>();
         containerRegistry.RegisterSingleton<CityService>();
