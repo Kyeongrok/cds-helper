@@ -47,13 +47,13 @@
       <ProjectReference Include="..\CdsHelper.Main\CdsHelper.Main.csproj" />
     </ItemGroup>
 
-    <!-- 사용하지 않는 OpenCV ffmpeg 모듈 제외 (25MB 절약) -->
+    <!-- 런타임 다운로드 대상 대용량 네이티브 DLL 제외 -->
     <ItemGroup>
       <Content Remove="**\opencv_videoio_ffmpeg*.dll" />
       <None Remove="**\opencv_videoio_ffmpeg*.dll" />
     </ItemGroup>
-    <Target Name="RemoveFFmpeg" AfterTargets="Publish">
-      <Delete Files="$(PublishDir)\opencv_videoio_ffmpeg4100_64.dll" />
+    <Target Name="RemoveNativeDeps" AfterTargets="Publish">
+      <Delete Files="$(PublishDir)\opencv_videoio_ffmpeg4100_64.dll;$(PublishDir)\OpenCvSharpExtern.dll;$(PublishDir)\onnxruntime.dll;$(PublishDir)\onnxruntime_providers_shared.dll" />
     </Target>
 
     <ItemGroup>
