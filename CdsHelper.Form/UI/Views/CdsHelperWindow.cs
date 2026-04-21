@@ -111,11 +111,12 @@ public class CdsHelperWindow : CdsWindow
         var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
         eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
 
-        // 창 로드 후 네이티브 DLL 다운로드 확인
+        // 창 로드 후 네이티브 DLL 다운로드 확인 → 업데이트 확인
         Dispatcher.BeginInvoke(new Action(async () =>
         {
-            if (_viewModel != null)
-                await _viewModel.CheckAndDownloadNativeDepsAsync();
+            if (_viewModel == null) return;
+            await _viewModel.CheckAndDownloadNativeDepsAsync();
+            await _viewModel.CheckForUpdateAsync();
         }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 

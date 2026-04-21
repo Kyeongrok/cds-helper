@@ -19,16 +19,33 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Get version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          $parts = $version.Split('.')
+          while ($parts.Count -lt 3) { $parts += '0' }
+          $version = $parts -join '.'
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
       - name: Restore
         run: dotnet restore CdsHelper/CdsHelper.csproj
 
       - name: Publish
         run: dotnet publish CdsHelper/CdsHelper.csproj -c Release -o publish --no-restore
 
-      - name: Zip
-        run: Compress-Archive -Path publish\* -DestinationPath cds-helper.zip
+      - name: Install vpk
+        run: dotnet tool install -g vpk
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: cds-helper.zip
+      - name: Download previous release for delta updates
+        shell: pwsh
+        run: vpk download github --repoUrl https://github.com/Kyeongrok/cds-helper --token ${{ secrets.GITHUB_TOKEN }} --outputDir releases
+        continue-on-error: true
+
+      - name: Pack with Velopack
+        run: vpk pack --packId CdsHelper --packVersion ${{ steps.version.outputs.version }} --packDir publish --outputDir releases --icon CdsHelper/app.ico
+
+      - name: Upload to GitHub Releases
+        run: vpk upload github --repoUrl https://github.com/Kyeongrok/cds-helper --token ${{ secrets.GITHUB_TOKEN }} --tag ${{ github.ref_name }} --releaseName "${{ github.ref_name }}" --outputDir releases
