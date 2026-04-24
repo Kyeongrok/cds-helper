@@ -713,9 +713,35 @@ public partial class CdsHelperViewModel : ObservableObject
         ("onnxruntime_providers_shared.dll", "https://github.com/Kyeongrok/cds-helper/releases/download/native-deps/onnxruntime_providers_shared.dll"),
     ];
 
+    /// <summary>
+    /// 네이티브 DLL의 버전-독립적 공유 캐시 경로.
+    /// Velopack 업데이트마다 BaseDirectory가 바뀌어 DLL을 매번 재다운로드하던 문제 해결.
+    /// </summary>
+    private static string GetNativeCacheDir() => System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CdsHelper",
+        "native");
+
     public async Task CheckAndDownloadNativeDepsAsync()
     {
         var basePath = AppDomain.CurrentDomain.BaseDirectory;
+        var cacheDir = GetNativeCacheDir();
+        System.IO.Directory.CreateDirectory(cacheDir);
+
+        // 1단계: basePath에 없으면 캐시에서 복사 (업데이트 직후 시나리오)
+        foreach (var (name, _) in NativeDependencies)
+        {
+            var baseDll = System.IO.Path.Combine(basePath, name);
+            if (System.IO.File.Exists(baseDll)) continue;
+            var cacheDll = System.IO.Path.Combine(cacheDir, name);
+            if (System.IO.File.Exists(cacheDll))
+            {
+                try { System.IO.File.Copy(cacheDll, baseDll, overwrite: false); }
+                catch { /* 복사 실패해도 다음 단계에서 재다운로드로 폴백 */ }
+            }
+        }
+
+        // 2단계: 여전히 없는 것만 원격에서 다운로드
         var missing = NativeDependencies
             .Where(d => !System.IO.File.Exists(System.IO.Path.Combine(basePath, d.Name)))
             .ToList();
@@ -737,6 +763,8 @@ public partial class CdsHelperViewModel : ObservableObject
             {
                 StatusText = $"다운로드 중: {name}...";
                 var data = await client.GetByteArrayAsync(url);
+                // 공유 캐시와 현재 버전 폴더 양쪽에 저장 → 다음 버전부터는 캐시에서 복사만
+                await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(cacheDir, name), data);
                 await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(basePath, name), data);
             }
             StatusText = "라이브러리 다운로드 완료";
