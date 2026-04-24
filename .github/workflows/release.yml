@@ -45,7 +45,10 @@ jobs:
         continue-on-error: true
 
       - name: Pack with Velopack
-        run: vpk pack --packId CdsHelper --packVersion ${{ steps.version.outputs.version }} --packDir publish --outputDir releases --icon CdsHelper/app.ico
+        # --mainExe: Velopack이 Setup.exe bootstrapper를 만들려면 entry point exe를 명시해야 함.
+        #   누락 시 Setup.exe 생성이 skip되고 nupkg/RELEASES만 만들어짐.
+        # --packTitle / --packAuthors: 설치 UI와 시작 메뉴 등에 표시되는 이름.
+        run: vpk pack --packId CdsHelper --packTitle "CdsHelper" --packAuthors "Kyeongrok" --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe CdsHelper.exe --outputDir releases --icon CdsHelper/app.ico
 
       - name: Upload to GitHub Releases
         run: vpk upload github --repoUrl https://github.com/Kyeongrok/cds-helper --token ${{ secrets.GITHUB_TOKEN }} --tag ${{ github.ref_name }} --releaseName "${{ github.ref_name }}" --outputDir releases
