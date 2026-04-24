@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Ellipse = System.Windows.Shapes.Ellipse;
+using Line = System.Windows.Shapes.Line;
 using Polyline = System.Windows.Shapes.Polyline;
 using Rectangle = System.Windows.Shapes.Rectangle;
 using CdsHelper.Api.Entities;
@@ -65,6 +66,8 @@ public class WorldMapContent : ContentControl
     private readonly Ellipse?[] _positionPulses = new Ellipse?[3];
     private readonly Polyline?[] _trailLines = new Polyline?[3];
     private readonly PointCollection[] _trailPointsByTile = { new(), new(), new() };
+    // 속도별 색상 세그먼트 라인 (좌/중/우 타일 각각 Line 리스트)
+    private readonly List<Line>[] _trailSegmentLines = { new(), new(), new() };
     private readonly PointCollection _trailPoints = new(); // 논리적 위치 (중앙 타일 기준)
     private readonly List<DateTime> _trailTimestamps = new();
 
@@ -1251,15 +1254,57 @@ public class WorldMapContent : ContentControl
     /// <summary>두 점 사이 구간 속도 (°/분) 계산.</summary>
     private static string ComputeSegmentSpeed(Point prev, Point cur, DateTime tPrev, DateTime tCur)
     {
+        double degPerMin = ComputeSegmentSpeedValue(prev, cur, tPrev, tCur);
+        return degPerMin > 0 ? $"{degPerMin:F1}°/분" : "";
+    }
+
+    /// <summary>구간 속도(°/분) 반환. 시간 간격이 너무 짧으면 0.</summary>
+    private static double ComputeSegmentSpeedValue(Point prev, Point cur, DateTime tPrev, DateTime tCur)
+    {
         var span = tCur - tPrev;
-        if (span.TotalSeconds < 0.5) return "";
+        if (span.TotalSeconds < 0.5) return 0;
 
         const double degPerPixel = 360.0 / UnfoldedW;
         double dxDeg = (cur.X - prev.X) * degPerPixel;
         double dyDeg = (cur.Y - prev.Y) * degPerPixel;
         double distDeg = Math.Sqrt(dxDeg * dxDeg + dyDeg * dyDeg);
-        double degPerMin = distDeg / span.TotalMinutes;
-        return $"{degPerMin:F1}°/분";
+        return distDeg / span.TotalMinutes;
+    }
+
+    /// <summary>속도(°/분) → 색상. 0~SpeedMax 범위를 회색→빨강으로 보간.</summary>
+    private const double SpeedColorMax = 300.0;
+    private static Color SpeedToColor(double degPerMin)
+    {
+        double t = Math.Clamp(degPerMin / SpeedColorMax, 0.0, 1.0);
+        // 회색 #888888 ~ 빨강 #FF3C3C 보간
+        byte r = (byte)(0x88 + (0xFF - 0x88) * t);
+        byte g = (byte)(0x88 + (0x3C - 0x88) * t);
+        byte b = (byte)(0x88 + (0x3C - 0x88) * t);
+        return Color.FromArgb(200, r, g, b);
+    }
+
+    /// <summary>이전 점에서 현재 점까지 좌/중/우 타일에 속도별 색상 Line segment 추가.</summary>
+    private void AddTrailSegment(Point prev, Point cur, double speed)
+    {
+        if (_overlayCanvas == null) return;
+        var brush = new SolidColorBrush(SpeedToColor(speed));
+        brush.Freeze();
+        for (int i = 0; i < 3; i++)
+        {
+            var ox = TileOffsets[i];
+            var line = new Line
+            {
+                X1 = prev.X + ox,
+                Y1 = prev.Y,
+                X2 = cur.X + ox,
+                Y2 = cur.Y,
+                Stroke = brush,
+                StrokeThickness = 2,
+                IsHitTestVisible = false,
+            };
+            _overlayCanvas.Children.Add(line);
+            _trailSegmentLines[i].Add(line);
+        }
     }
 
     // 속도 라벨 공유 리소스 (Freeze → 모든 라벨이 공유)
@@ -1309,21 +1354,9 @@ public class WorldMapContent : ContentControl
         const double markerSize = 7;
         const double pulseSize = 12;
 
-        // 좌/중/우 타일에 trail line, pulse, marker 각각 생성
+        // 좌/중/우 타일에 pulse, marker 생성 (trail은 segment 단위로 동적 생성)
         for (int i = 0; i < 3; i++)
         {
-            if (_trailLines[i] == null)
-            {
-                _trailLines[i] = new Polyline
-                {
-                    Stroke = new SolidColorBrush(Color.FromArgb(180, 255, 80, 80)),
-                    StrokeThickness = 2,
-                    IsHitTestVisible = false,
-                    Points = _trailPointsByTile[i]
-                };
-                _overlayCanvas.Children.Add(_trailLines[i]!);
-            }
-
             if (_positionPulses[i] == null)
             {
                 _positionPulses[i] = new Ellipse
@@ -1355,13 +1388,17 @@ public class WorldMapContent : ContentControl
         if (_trailPoints.Count == 0 || DistanceSq(_trailPoints[^1], newPoint) > 4)
         {
             var now = DateTime.Now;
-            // 새 점에 대한 구간 속도 라벨 (이전 점이 있을 때만)
+            // 새 점에 대한 구간 속도 계산 및 segment line / 라벨 생성 (이전 점이 있을 때만)
             if (_trailPoints.Count >= 1)
             {
-                var speedText = ComputeSegmentSpeed(_trailPoints[^1], newPoint,
-                    _trailTimestamps[^1], now);
-                if (!string.IsNullOrEmpty(speedText))
-                    AddTrailSpeedLabel(newPoint, speedText);
+                var prev = _trailPoints[^1];
+                var tPrev = _trailTimestamps[^1];
+                double speed = ComputeSegmentSpeedValue(prev, newPoint, tPrev, now);
+                if (speed > 0)
+                {
+                    AddTrailSegment(prev, newPoint, speed);
+                    AddTrailSpeedLabel(newPoint, $"{speed:F1}°/분");
+                }
             }
 
             _trailPoints.Add(newPoint);
@@ -1455,7 +1492,16 @@ public class WorldMapContent : ContentControl
     {
         _trailPoints.Clear();
         _trailTimestamps.Clear();
-        for (int i = 0; i < 3; i++) _trailPointsByTile[i].Clear();
+        for (int i = 0; i < 3; i++)
+        {
+            _trailPointsByTile[i].Clear();
+            if (_overlayCanvas != null)
+            {
+                foreach (var line in _trailSegmentLines[i])
+                    _overlayCanvas.Children.Remove(line);
+            }
+            _trailSegmentLines[i].Clear();
+        }
         _speedLabelHost?.Clear();
     }
 
@@ -1530,10 +1576,8 @@ public class WorldMapContent : ContentControl
             var coords = JsonSerializer.Deserialize<List<TrailCoord>>(json);
             if (coords == null || coords.Count == 0) return;
 
-            _trailPoints.Clear();
-            _trailTimestamps.Clear();
-            for (int i = 0; i < 3; i++) _trailPointsByTile[i].Clear();
-            _speedLabelHost?.Clear();
+            // 기존 경로 완전히 초기화 (segment line 포함)
+            ClearTrail();
 
             foreach (var c in coords)
             {
@@ -1543,10 +1587,14 @@ public class WorldMapContent : ContentControl
 
                 if (_trailPoints.Count >= 1)
                 {
-                    var speedText = ComputeSegmentSpeed(_trailPoints[^1], newPoint,
-                        _trailTimestamps[^1], t);
-                    if (!string.IsNullOrEmpty(speedText))
-                        AddTrailSpeedLabel(newPoint, speedText);
+                    var prev = _trailPoints[^1];
+                    var tPrev = _trailTimestamps[^1];
+                    double speed = ComputeSegmentSpeedValue(prev, newPoint, tPrev, t);
+                    if (speed > 0)
+                    {
+                        AddTrailSegment(prev, newPoint, speed);
+                        AddTrailSpeedLabel(newPoint, $"{speed:F1}°/분");
+                    }
                 }
 
                 _trailPoints.Add(newPoint);
@@ -1554,25 +1602,6 @@ public class WorldMapContent : ContentControl
                 for (int i = 0; i < 3; i++)
                 {
                     _trailPointsByTile[i].Add(new Point(px + TileOffsets[i], py));
-                }
-            }
-
-            // trailLine이 아직 없으면 좌/중/우 타일에 생성
-            if (_overlayCanvas != null)
-            {
-                for (int i = 0; i < 3; i++)
-                {
-                    if (_trailLines[i] == null)
-                    {
-                        _trailLines[i] = new Polyline
-                        {
-                            Stroke = new SolidColorBrush(Color.FromArgb(180, 255, 80, 80)),
-                            StrokeThickness = 2,
-                            IsHitTestVisible = false,
-                            Points = _trailPointsByTile[i]
-                        };
-                        _overlayCanvas.Children.Add(_trailLines[i]!);
-                    }
                 }
             }
 
