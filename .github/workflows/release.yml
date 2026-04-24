@@ -37,7 +37,8 @@ jobs:
         run: dotnet publish CdsHelper/CdsHelper.csproj -c Release -o publish --no-restore -p:Version=${{ steps.version.outputs.version }} -p:AssemblyVersion=${{ steps.version.outputs.version }} -p:FileVersion=${{ steps.version.outputs.version }}
 
       - name: Install vpk
-        run: dotnet tool install -g vpk
+        # CLI와 라이브러리(Velopack 0.0.1298) 버전 일치시켜 호환성 문제 회피
+        run: dotnet tool install -g vpk --version 0.0.1298
 
       - name: Download previous release for delta updates
         shell: pwsh
@@ -50,5 +51,16 @@ jobs:
         # --packTitle / --packAuthors: 설치 UI와 시작 메뉴 등에 표시되는 이름.
         run: vpk pack --packId CdsHelper --packTitle "CdsHelper" --packAuthors "Kyeongrok" --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe CdsHelper.exe --outputDir releases --icon CdsHelper/app.ico
 
+      - name: List releases folder (debug)
+        shell: pwsh
+        run: |
+          Write-Host "=== releases 폴더 내용 ==="
+          Get-ChildItem -Path releases -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+          Write-Host "=== Setup.exe 존재 여부 ==="
+          $setup = Get-ChildItem -Path releases -Filter "*Setup.exe" -Recurse
+          if ($setup) { Write-Host "✓ Setup.exe 발견: $($setup.FullName)" } else { Write-Host "✗ Setup.exe 없음" }
+
       - name: Upload to GitHub Releases
-        run: vpk upload github --repoUrl https://github.com/Kyeongrok/cds-helper --token ${{ secrets.GITHUB_TOKEN }} --tag ${{ github.ref_name }} --releaseName "${{ github.ref_name }}" --outputDir releases
+        # --publish: draft가 아니라 정식 릴리즈로 업로드 (없으면 Setup.exe 포함 에셋이 전부 draft에 묻힘)
+        # --merge: tag push로 자동 생성된 빈 릴리즈가 있으면 그쪽에 에셋을 병합
+        run: vpk upload github --repoUrl https://github.com/Kyeongrok/cds-helper --token ${{ secrets.GITHUB_TOKEN }} --tag ${{ github.ref_name }} --releaseName "${{ github.ref_name }}" --outputDir releases --publish --merge
