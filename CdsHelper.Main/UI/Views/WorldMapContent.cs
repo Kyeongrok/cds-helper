@@ -86,6 +86,7 @@ public class WorldMapContent : ContentControl
     private CheckBox? _chkHideFound;
     private CheckBox? _chkShowSpeed;
     private ComboBox? _cmbAutoScrollThreshold;
+    private ComboBox? _cmbTrackingInterval;
     private HashSet<int>? _foundDiscoveryIds;
     private SubscriptionToken? _saveDataLoadedToken;
 
@@ -143,6 +144,7 @@ public class WorldMapContent : ContentControl
         _chkHideFound = GetTemplateChild("PART_HideFound") as CheckBox;
         _chkShowSpeed = GetTemplateChild("PART_ShowSpeed") as CheckBox;
         _cmbAutoScrollThreshold = GetTemplateChild("PART_AutoScrollThreshold") as ComboBox;
+        _cmbTrackingInterval = GetTemplateChild("PART_TrackingInterval") as ComboBox;
 
         // 저장된 옵션 불러오기 (Click 핸들러 연결 전에 수행하여 Rerender 방지)
         var opts = AppSettings.WorldMap;
@@ -153,6 +155,7 @@ public class WorldMapContent : ContentControl
         if (_chkHideFound != null) _chkHideFound.IsChecked = opts.HideFound;
         if (_chkShowSpeed != null) _chkShowSpeed.IsChecked = opts.ShowSpeed;
         SelectAutoScrollThresholdItem(opts.AutoScrollThreshold);
+        SelectTrackingIntervalItem(opts.TrackingIntervalSeconds);
         _currentScale = Math.Clamp(opts.Zoom, MinScale, MaxScale);
 
         _scaleTransform = new ScaleTransform(_currentScale, _currentScale);
@@ -179,6 +182,7 @@ public class WorldMapContent : ContentControl
         if (_chkHideFound != null) _chkHideFound.Click += (_, _) => { ToggleHideFound(); SaveWorldMapOptions(); };
         if (_chkShowSpeed != null) _chkShowSpeed.Click += (_, _) => { ToggleSpeedLabels(); SaveWorldMapOptions(); };
         if (_cmbAutoScrollThreshold != null) _cmbAutoScrollThreshold.SelectionChanged += (_, _) => SaveWorldMapOptions();
+        if (_cmbTrackingInterval != null) _cmbTrackingInterval.SelectionChanged += (_, _) => { SaveWorldMapOptions(); ApplyTrackingInterval(); };
 
         _btnLeaveCity = GetTemplateChild("PART_BtnLeaveCity") as Button;
         if (_btnLeaveCity != null)
@@ -471,8 +475,9 @@ public class WorldMapContent : ContentControl
     {
         if (_mapData == null || _mapImage == null) return;
 
-        bool showCoast = _chkShowCoast?.IsChecked == true;
-        bool showWind = _chkShowWind?.IsChecked == true;
+        // 해안선 상세/해류 토글 UI는 제거됨. 해안선 상세는 항상 켜진 상태로 고정.
+        bool showCoast = true;
+        bool showWind = false;
 
         // Render one tile at RenderScale px/cell, then copy 3x for infinite scroll
         var tilePixels = new int[RenderTileW * RenderH];
@@ -643,6 +648,7 @@ public class WorldMapContent : ContentControl
         opts.HideFound = _chkHideFound?.IsChecked == true;
         opts.ShowSpeed = _chkShowSpeed?.IsChecked == true;
         opts.AutoScrollThreshold = GetAutoScrollThreshold();
+        opts.TrackingIntervalSeconds = GetTrackingInterval();
         opts.Zoom = _currentScale;
         AppSettings.SaveWorldMapOptions();
     }
@@ -1297,7 +1303,7 @@ public class WorldMapContent : ContentControl
         _centerOnFirstPosition = true;
         if (_btnTrackCoordinate != null) _btnTrackCoordinate.Content = "추적 중지";
 
-        _trackingTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _trackingTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(GetTrackingInterval()) };
         _trackingTimer.Tick += OnTrackingTick;
         _trackingTimer.Start();
     }
@@ -1534,9 +1540,9 @@ public class WorldMapContent : ContentControl
 
         // 경로에 포인트 추가 (각 타일에 오프셋 적용)
         var newPoint = new Point(px, py);
+        var now = DateTime.Now;
         if (_trailPoints.Count == 0 || DistanceSq(_trailPoints[^1], newPoint) > 4)
         {
-            var now = DateTime.Now;
             // 새 점에 대한 구간 속도 계산 및 segment line / 라벨 생성 (이전 점이 있을 때만)
             if (_trailPoints.Count >= 1)
             {
@@ -1561,6 +1567,12 @@ public class WorldMapContent : ContentControl
                 _trailPointsByTile[i].Add(new Point(newPoint.X + TileOffsets[i], newPoint.Y));
             }
             AppendTrailPointToSession(newPoint, now);
+        }
+        else if (_trailTimestamps.Count > 0)
+        {
+            // 같은 자리에 머물러도 세션이 계속 살아있다는 신호로 마지막 타임스탬프 갱신.
+            // → 정지 후 재이동 시 TrailSegmentGapMinutes 가드에 걸려 선이 끊기는 문제 방지.
+            _trailTimestamps[_trailTimestamps.Count - 1] = now;
         }
 
         for (int i = 0; i < 3; i++)
@@ -1614,13 +1626,22 @@ public class WorldMapContent : ContentControl
 
     private void ScrollToMarkerIfNeeded(double pixelX, double pixelY)
     {
-        if (_scrollViewer == null || !_autoScrollEnabled) return;
+        if (_scrollViewer == null) return;
 
         var screenX = (pixelX * _currentScale) - _scrollViewer.HorizontalOffset;
         var screenY = (pixelY * _currentScale) - _scrollViewer.VerticalOffset;
 
         var viewW = _scrollViewer.ViewportWidth;
         var viewH = _scrollViewer.ViewportHeight;
+
+        // 드래그로 자동스크롤이 꺼졌어도, 마커가 뷰포트 밖으로 완전히 나가면 강제 재활성화
+        if (!_autoScrollEnabled &&
+            (screenX < 0 || screenX > viewW || screenY < 0 || screenY > viewH))
+        {
+            _autoScrollEnabled = true;
+        }
+
+        if (!_autoScrollEnabled) return;
 
         // 마커가 중심에서 (viewport_half × threshold)만큼 벗어나면 재중앙 정렬
         // threshold=0.5 → 뷰포트 중앙 50% 안전영역 (marginX = viewW * 0.25)
@@ -1909,6 +1930,48 @@ public class WorldMapContent : ContentControl
                 System.Globalization.CultureInfo.InvariantCulture, out var v))
             return v;
         return 0.5;
+    }
+
+    private double GetTrackingInterval()
+    {
+        if (_cmbTrackingInterval?.SelectedItem is ComboBoxItem item &&
+            item.Tag is string tag &&
+            double.TryParse(tag, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+            return v;
+        return 2.0;
+    }
+
+    private void SelectTrackingIntervalItem(double value)
+    {
+        if (_cmbTrackingInterval == null) return;
+        foreach (var obj in _cmbTrackingInterval.Items)
+        {
+            if (obj is ComboBoxItem item && item.Tag is string tag &&
+                double.TryParse(tag, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v) &&
+                Math.Abs(v - value) < 0.001)
+            {
+                _cmbTrackingInterval.SelectedItem = item;
+                return;
+            }
+        }
+        // 일치 없으면 2초 기본값 선택
+        foreach (var obj in _cmbTrackingInterval.Items)
+        {
+            if (obj is ComboBoxItem item && (item.Tag as string) == "2")
+            {
+                _cmbTrackingInterval.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
+    /// <summary>추적 중일 때 주기 설정이 바뀌면 기존 타이머에 새 간격 적용.</summary>
+    private void ApplyTrackingInterval()
+    {
+        if (_trackingTimer != null)
+            _trackingTimer.Interval = TimeSpan.FromSeconds(GetTrackingInterval());
     }
 
     private void SelectAutoScrollThresholdItem(double value)

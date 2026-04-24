@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
@@ -17,30 +18,31 @@ using Prism.Ioc;
 namespace CdsHelper.Form.UI.Views;
 
 [TemplatePart(Name = PART_SettingsMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_SphinxMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_AccordionMenu, Type = typeof(NavigationMenu))]
 [TemplatePart(Name = PART_ContentRegion, Type = typeof(ContentControl))]
-[TemplatePart(Name = PART_MenuToggleButton, Type = typeof(Button))]
-[TemplatePart(Name = PART_MenuColumn, Type = typeof(ColumnDefinition))]
+[TemplatePart(Name = PART_HamburgerButton, Type = typeof(Button))]
+[TemplatePart(Name = PART_MenuPopup, Type = typeof(Popup))]
 public class CdsHelperWindow : CdsWindow
 {
     private const string PART_SettingsMenu = "PART_SettingsMenu";
+    private const string PART_SphinxMenu = "PART_SphinxMenu";
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_HelpMenu = "PART_HelpMenu";
     private const string PART_AccordionMenu = "PART_AccordionMenu";
     private const string PART_ContentRegion = "PART_ContentRegion";
-    private const string PART_MenuToggleButton = "PART_MenuToggleButton";
-    private const string PART_MenuColumn = "PART_MenuColumn";
+    private const string PART_HamburgerButton = "PART_HamburgerButton";
+    private const string PART_MenuPopup = "PART_MenuPopup";
 
     private CdsHelperViewModel? _viewModel;
     private readonly IRegionManager _regionManager;
-    private ColumnDefinition? _menuColumn;
-    private Button? _menuToggleButton;
+    private Button? _hamburgerButton;
+    private Popup? _menuPopup;
     private NavigationMenu? _accordionMenu;
-    private bool _isMenuCollapsed;
 
     static CdsHelperWindow()
     {
@@ -65,6 +67,11 @@ public class CdsHelperWindow : CdsWindow
             settingsMenu.Click += OnSettingsMenuClick;
         }
 
+        if (GetTemplateChild(PART_SphinxMenu) is MenuItem sphinxMenu)
+        {
+            sphinxMenu.Click += OnSphinxMenuClick;
+        }
+
         if (GetTemplateChild(PART_EventQueueMenu) is MenuItem eventQueueMenu)
         {
             eventQueueMenu.Click += OnEventQueueMenuClick;
@@ -87,11 +94,11 @@ public class CdsHelperWindow : CdsWindow
             _accordionMenu.SelectItemByTag(AppSettings.DefaultView);
         }
 
-        _menuColumn = GetTemplateChild(PART_MenuColumn) as ColumnDefinition;
-        _menuToggleButton = GetTemplateChild(PART_MenuToggleButton) as Button;
-        if (_menuToggleButton != null)
+        _menuPopup = GetTemplateChild(PART_MenuPopup) as Popup;
+        _hamburgerButton = GetTemplateChild(PART_HamburgerButton) as Button;
+        if (_hamburgerButton != null && _menuPopup != null)
         {
-            _menuToggleButton.Click += OnMenuToggleClick;
+            _hamburgerButton.Click += (_, _) => _menuPopup.IsOpen = !_menuPopup.IsOpen;
         }
 
         // ControlTemplate 내의 ContentControl에 Region 설정
@@ -135,6 +142,8 @@ public class CdsHelperWindow : CdsWindow
         if (!string.IsNullOrEmpty(viewName))
         {
             _viewModel?.NavigateToContent(viewName);
+            // 네비게이션 후 햄버거 팝업 닫기
+            if (_menuPopup != null) _menuPopup.IsOpen = false;
         }
     }
 
@@ -145,6 +154,11 @@ public class CdsHelperWindow : CdsWindow
             Owner = this
         };
         dialog.ShowDialog();
+    }
+
+    private void OnSphinxMenuClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel?.NavigateToContent("SphinxCalculatorContent");
     }
 
     private void OnEventQueueMenuClick(object sender, RoutedEventArgs e)
@@ -174,41 +188,4 @@ public class CdsHelperWindow : CdsWindow
         dialog.ShowDialog();
     }
 
-    private void OnMenuToggleClick(object sender, RoutedEventArgs e)
-    {
-        if (_menuColumn == null || _accordionMenu == null || _menuToggleButton == null) return;
-
-        _isMenuCollapsed = !_isMenuCollapsed;
-        _accordionMenu.IsMinimized = _isMenuCollapsed;
-
-        if (_isMenuCollapsed)
-        {
-            // 메뉴 최소화 (아이콘만)
-            _menuColumn.Width = new GridLength(50);
-            _menuToggleButton.Margin = new Thickness(-12, 5, 0, 0);
-
-            // 화살표 방향 변경 (오른쪽으로)
-            UpdateToggleArrow(false);
-        }
-        else
-        {
-            // 메뉴 펼치기
-            _menuColumn.Width = new GridLength(200);
-            _menuToggleButton.Margin = new Thickness(-12, 5, 0, 0);
-
-            // 화살표 방향 변경 (왼쪽으로)
-            UpdateToggleArrow(true);
-        }
-    }
-
-    private void UpdateToggleArrow(bool pointLeft)
-    {
-        if (_menuToggleButton?.Template.FindName("arrow", _menuToggleButton) is Path arrow)
-        {
-            // 왼쪽: M 6 0 L 0 5 L 6 10, 오른쪽: M 0 0 L 6 5 L 0 10
-            arrow.Data = pointLeft
-                ? Geometry.Parse("M 6 0 L 0 5 L 6 10")
-                : Geometry.Parse("M 0 0 L 6 5 L 0 10");
-        }
-    }
 }
