@@ -1350,6 +1350,13 @@ public class WorldMapContent : ContentControl
                     await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
                     return;
                 }
+                // 메뉴가 떠 있으면 좌표 OCR이 가려짐. 사용자가 연 것일 수 있으니 닫지는 않고 상태만 표시
+                if (detection.Screen is GameScreen.CommandMenu or GameScreen.HintList or GameScreen.InfoMenu)
+                {
+                    if (_txtCurrentCoordinate != null)
+                        _txtCurrentCoordinate.Text = $"📋 메뉴 열림 ({detection.Screen}) - 추적 대기";
+                    return;
+                }
             }
 
             var prediction = await Task.Run(() => _coordinateOcr.PredictOcrAsync(bitmap));
