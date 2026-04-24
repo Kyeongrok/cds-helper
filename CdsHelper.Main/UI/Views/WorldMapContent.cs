@@ -1409,6 +1409,12 @@ public class WorldMapContent : ContentControl
 
     /// <summary>속도(°/분) → 색상. 0~SpeedMax 범위를 회색→빨강으로 보간.</summary>
     private const double SpeedColorMax = 300.0;
+
+    /// <summary>
+    /// 두 trail 점 사이 시간 간격이 이 값(분)을 넘으면 segment 선을 그리지 않음.
+    /// 불러온 경로의 마지막 점 ↔ 다음 추적 세션 첫 점 사이 대각선 생기는 문제 방지.
+    /// </summary>
+    private const double TrailSegmentGapMinutes = 1.0;
     private static Color SpeedToColor(double degPerMin)
     {
         double t = Math.Clamp(degPerMin / SpeedColorMax, 0.0, 1.0);
@@ -1529,11 +1535,15 @@ public class WorldMapContent : ContentControl
             {
                 var prev = _trailPoints[^1];
                 var tPrev = _trailTimestamps[^1];
-                double speed = ComputeSegmentSpeedValue(prev, newPoint, tPrev, now);
-                if (speed > 0)
+                // 시간 간격이 너무 크면(불러온 경로의 마지막 점 ↔ 세션 재개 등) 구간 연결 스킵
+                if ((now - tPrev).TotalMinutes <= TrailSegmentGapMinutes)
                 {
-                    AddTrailSegment(prev, newPoint, speed);
-                    AddTrailSpeedLabel(newPoint, $"{speed:F1}°/분");
+                    double speed = ComputeSegmentSpeedValue(prev, newPoint, tPrev, now);
+                    if (speed > 0)
+                    {
+                        AddTrailSegment(prev, newPoint, speed);
+                        AddTrailSpeedLabel(newPoint, $"{speed:F1}°/분");
+                    }
                 }
             }
 
@@ -1758,11 +1768,15 @@ public class WorldMapContent : ContentControl
                 {
                     var prev = _trailPoints[^1];
                     var tPrev = _trailTimestamps[^1];
-                    double speed = ComputeSegmentSpeedValue(prev, newPoint, tPrev, t);
-                    if (speed > 0)
+                    // 세션 간 큰 시간 간격은 연결 선 생략 (불러온 경로 안에서도 별도 세션이면 자연스럽게 끊김)
+                    if ((t - tPrev).TotalMinutes <= TrailSegmentGapMinutes)
                     {
-                        AddTrailSegment(prev, newPoint, speed);
-                        AddTrailSpeedLabel(newPoint, $"{speed:F1}°/분");
+                        double speed = ComputeSegmentSpeedValue(prev, newPoint, tPrev, t);
+                        if (speed > 0)
+                        {
+                            AddTrailSegment(prev, newPoint, speed);
+                            AddTrailSpeedLabel(newPoint, $"{speed:F1}°/분");
+                        }
                     }
                 }
 
