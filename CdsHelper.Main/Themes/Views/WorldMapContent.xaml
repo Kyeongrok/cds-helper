@@ -20,6 +20,8 @@
                         <!-- Toolbar -->
                         <WrapPanel Grid.Row="1" Margin="0,0,0,8">
                             <Button x:Name="PART_BtnOpen" Content="파일 열기" Padding="8,4" Margin="0,0,6,0"/>
+                            <Button x:Name="PART_BtnReloadPalette" Content="팔레트" Padding="8,4" Margin="0,0,6,0"
+                                    ToolTip="지도 색상 팔레트를 편집합니다 (컬러 피커 다이얼로그)"/>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <Button x:Name="PART_BtnZoomIn" Content="+" Width="28" Height="28" FontSize="16" FontWeight="Bold" Margin="4,0,2,0" ToolTip="확대"/>
                             <Button x:Name="PART_BtnZoomOut" Content="-" Width="28" Height="28" FontSize="16" FontWeight="Bold" Margin="2,0,2,0" ToolTip="축소"/>

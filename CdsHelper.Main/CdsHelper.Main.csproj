@@ -4,12 +4,19 @@
         <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
         <Nullable>enable</Nullable>
         <UseWPF>true</UseWPF>
+        <UseWindowsForms>true</UseWindowsForms>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.*" />
       <PackageReference Include="Prism.Core" Version="9.0.537" />
+    </ItemGroup>
+
+    <!-- UseWindowsForms가 System.Windows.Forms를 글로벌 using으로 추가하면 WPF 타입과 충돌하므로 제거 -->
+    <ItemGroup>
+      <Using Remove="System.Windows.Forms" />
+      <Using Remove="System.Drawing" />
     </ItemGroup>
 
     <ItemGroup>
