@@ -34,6 +34,9 @@ public class WorldMapOptions
     /// 0.5 = 뷰포트 중앙 50% 안전영역 (기본), 1.0 = 가장자리까지 가야 스크롤.
     /// </summary>
     public double AutoScrollThreshold { get; set; } = 0.5;
+
+    /// <summary>수동 좌표추적 주기 (초). 매 N초마다 화면 캡처 + OCR.</summary>
+    public double TrackingIntervalSeconds { get; set; } = 2.0;
 }
 
 public static class AppSettings

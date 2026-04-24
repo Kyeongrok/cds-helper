@@ -27,8 +27,6 @@
                             <Button x:Name="PART_BtnZoomOut" Content="-" Width="28" Height="28" FontSize="16" FontWeight="Bold" Margin="2,0,2,0" ToolTip="축소"/>
                             <Button x:Name="PART_BtnZoomReset" Content="1:1" Height="28" Padding="6,0" Margin="2,0,6,0" ToolTip="원본 크기"/>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
-                            <CheckBox x:Name="PART_ShowCoast" Content="해안선 상세" VerticalAlignment="Center" Margin="6,0,8,0" IsChecked="True"/>
-                            <CheckBox x:Name="PART_ShowWind" Content="해류/바람" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <CheckBox x:Name="PART_ShowDiscoveries" Content="발견물" VerticalAlignment="Center" Margin="0,0,8,0" IsChecked="True"/>
                             <CheckBox x:Name="PART_ShowCityLabels" Content="도시명" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <CheckBox x:Name="PART_HideFound" Content="미발견만" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -40,6 +38,15 @@
                                 <ComboBoxItem Content="50%" Tag="0.5"/>
                                 <ComboBoxItem Content="70%" Tag="0.7"/>
                                 <ComboBoxItem Content="90%" Tag="0.9"/>
+                            </ComboBox>
+                            <TextBlock Text="추적주기:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox x:Name="PART_TrackingInterval" VerticalAlignment="Center" Width="70" Margin="0,0,8,0"
+                                      ToolTip="수동 좌표추적 주기 (매 N초마다 화면 캡처)">
+                                <ComboBoxItem Content="0.5초" Tag="0.5"/>
+                                <ComboBoxItem Content="1초" Tag="1"/>
+                                <ComboBoxItem Content="2초" Tag="2"/>
+                                <ComboBoxItem Content="3초" Tag="3"/>
+                                <ComboBoxItem Content="5초" Tag="5"/>
                             </ComboBox>
                             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
                             <Button x:Name="PART_BtnLeaveCity" Content="탐험 떠나기" Height="28" Padding="8,0" Margin="0,0,4,0" ToolTip="도시에서 성문을 통해 탐험을 떠남"/>
@@ -85,13 +92,13 @@
                         <Border Grid.Row="3" Background="#222" Padding="6,4" Margin="0,4,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" x:Name="PART_CellInfo" Foreground="#CCC" FontFamily="Consolas" FontSize="12"
+                                <TextBlock Grid.Column="0" x:Name="PART_TxtEventStatus" Foreground="#FFD54F"
+                                           FontFamily="Consolas" FontSize="12" FontWeight="Bold" Margin="0,0,12,0"/>
+                                <TextBlock Grid.Column="1" x:Name="PART_CellInfo" Foreground="#CCC" FontFamily="Consolas" FontSize="12"
                                            Text="마우스를 지도 위에 올리면 셀 정보가 표시됩니다"/>
-                                <TextBlock Grid.Column="1" x:Name="PART_TxtEventStatus" Foreground="#FFD54F"
-                                           FontFamily="Consolas" FontSize="12" FontWeight="Bold" Margin="12,0,0,0"/>
                             </Grid>
                         </Border>
                     </Grid>

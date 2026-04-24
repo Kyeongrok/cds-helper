@@ -122,17 +122,53 @@
                             </Border>
 
                             <!-- 메뉴바 -->
-                            <Menu Grid.Row="1" Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
-                                <MenuItem Header="파일">
-                                    <MenuItem Header="세이브 파일 열기" Command="{Binding LoadSaveCommand}"/>
-                                </MenuItem>
-                                <MenuItem Header="설정" x:Name="PART_SettingsMenu" />
-                                <MenuItem Header="도구">
-                                    <MenuItem Header="이벤트 큐 보기" x:Name="PART_EventQueueMenu" />
-                                    <MenuItem Header="DB 테이블 보기" x:Name="PART_DbTableViewerMenu" />
-                                </MenuItem>
-                                <MenuItem Header="도움말" x:Name="PART_HelpMenu" />
-                            </Menu>
+                            <Grid Grid.Row="1" Background="#FAFAFA">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 햄버거 버튼 (클릭 시 네비게이션 팝업) -->
+                                <Button Grid.Column="0" x:Name="PART_HamburgerButton"
+                                        Background="Transparent" BorderThickness="0"
+                                        Padding="10,4" Cursor="Hand"
+                                        ToolTip="탐색 메뉴">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="M 0 0 H 16 M 0 5 H 16 M 0 10 H 16"
+                                              Stroke="#333" StrokeThickness="2"
+                                              Width="16" Height="12"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Text="메뉴" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Menu Grid.Column="1" Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+                                    <MenuItem Header="파일">
+                                        <MenuItem Header="세이브 파일 열기" Command="{Binding LoadSaveCommand}"/>
+                                    </MenuItem>
+                                    <MenuItem Header="설정" x:Name="PART_SettingsMenu" />
+                                    <MenuItem Header="도구">
+                                        <MenuItem Header="스핑크스" x:Name="PART_SphinxMenu" />
+                                        <MenuItem Header="이벤트 큐 보기" x:Name="PART_EventQueueMenu" />
+                                        <MenuItem Header="DB 테이블 보기" x:Name="PART_DbTableViewerMenu" />
+                                    </MenuItem>
+                                    <MenuItem Header="도움말" x:Name="PART_HelpMenu" />
+                                </Menu>
+
+                                <!-- 네비게이션 플로팅 팝업 (햄버거 버튼 클릭 시 펼쳐짐) -->
+                                <Popup x:Name="PART_MenuPopup" Grid.Column="0"
+                                       PlacementTarget="{Binding ElementName=PART_HamburgerButton}"
+                                       Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                                       PopupAnimation="Fade">
+                                    <Border Background="White" BorderBrush="#1A6BB5" BorderThickness="1"
+                                            CornerRadius="4" Width="220">
+                                        <Border.Effect>
+                                            <DropShadowEffect ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
+                                        </Border.Effect>
+                                        <nav:NavigationMenu x:Name="PART_AccordionMenu"/>
+                                    </Border>
+                                </Popup>
+                            </Grid>
 
                             <!-- 세이브 파일 정보 바 -->
                             <Border Grid.Row="2" Background="#E3F2FD" BorderBrush="#90CAF9" BorderThickness="0,0,0,1" Padding="10,5">
@@ -193,47 +229,9 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- 메인 컨텐츠 영역 -->
-                            <Grid Grid.Row="3">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition x:Name="PART_MenuColumn" Width="200"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- 아코디언 사이드 메뉴 -->
-                                <Grid Grid.Column="0">
-                                    <nav:NavigationMenu x:Name="PART_AccordionMenu" />
-                                </Grid>
-
-                                <!-- 컨텐츠 영역 (Region) -->
-                                <Grid Grid.Column="1" Background="#F5F5F5">
-                                    <!-- 토글 버튼 (왼쪽 경계에 위치, 아코디언 위로 겹침) -->
-                                    <Button x:Name="PART_MenuToggleButton"
-                                            Width="24" Height="24"
-                                            HorizontalAlignment="Left" VerticalAlignment="Top"
-                                            Margin="-12,5,0,0"
-                                            Cursor="Hand" ToolTip="메뉴 접기/펼치기">
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="border" Background="#1A6BB5"
-                                                        CornerRadius="12" Width="24" Height="24">
-                                                    <Path x:Name="arrow" Data="M 6 0 L 0 5 L 6 10"
-                                                          Stroke="White" StrokeThickness="2"
-                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                          Width="6" Height="10" Stretch="Uniform"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="border" Property="Background" Value="#3A6EA5"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                    </Button>
-
-                                    <ContentControl x:Name="PART_ContentRegion"
-                                                    Margin="5"/>
-                                </Grid>
+                            <!-- 메인 컨텐츠 영역 (사이드 메뉴는 햄버거 팝업으로 이동) -->
+                            <Grid Grid.Row="3" Background="#F5F5F5">
+                                <ContentControl x:Name="PART_ContentRegion" Margin="5"/>
                             </Grid>
 
                             <!-- 하단 상태바 -->
