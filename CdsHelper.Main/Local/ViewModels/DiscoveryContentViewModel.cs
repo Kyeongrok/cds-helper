@@ -165,8 +165,18 @@ public partial class DiscoveryContentViewModel : ObservableObject
         Discoveries = new ObservableCollection<DiscoveryDisplayItem>(displayItems);
 
         var totalCount = _allDiscoveries.Count;
-        var totalFound = _allDiscoveries.Count(d =>
-            d.HintId.HasValue && _discoveredHintIds?.Contains(d.HintId.Value) == true);
+        // 발표(세이브 슬롯 state bit 7 = 0x80) 기준으로 카운트.
+        // 힌트 발견 플래그(_discoveredHintIds)는 공유/매핑 문제로 오카운트될 수 있음.
+        int totalFound = 0;
+        if (slotStateMap != null)
+        {
+            foreach (var d in _allDiscoveries)
+            {
+                var slotIdx = d.Id + DiscoveryDisplayItem.SaveSlotOffset;
+                if (slotStateMap.TryGetValue(slotIdx, out var state) && (state & 0x80) != 0)
+                    totalFound++;
+            }
+        }
         var percent = totalCount == 0 ? 0 : (double)totalFound / totalCount * 100;
         StatusText = $"발견: {totalFound} / {totalCount} ({percent:F1}%)   |   표시: {displayItems.Count}개";
     }

@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -70,6 +71,8 @@ public class WorldMapContent : ContentControl
     private readonly List<Line>[] _trailSegmentLines = { new(), new(), new() };
     // 세션 단위 자동 저장 파일 경로 (첫 점 추가 시 lazy 생성, 앱 종료까지 같은 파일에 append)
     private string? _sessionTrailPath;
+    // 발견물 클릭 시 도서/필요스킬 정보를 표시하는 팝업
+    private Popup? _discoveryInfoPopup;
     private readonly PointCollection _trailPoints = new(); // 논리적 위치 (중앙 타일 기준)
     private readonly List<DateTime> _trailTimestamps = new();
 
@@ -1093,13 +1096,20 @@ public class WorldMapContent : ContentControl
     {
         if (sender is not Border border || border.Tag is not int discoveryId) return;
 
-        // 단일 클릭은 드래그 방지만 하고 다이얼로그는 더블클릭에서만 연다
         e.Handled = true;
-        if (e.ClickCount != 2) return;
 
         var service = ContainerLocator.Container.Resolve<DiscoveryService>();
         var discovery = service.GetDiscovery(discoveryId);
         if (discovery == null) return;
+
+        // 단일 클릭: 도서/필요스킬 정보 팝업 표시
+        if (e.ClickCount == 1)
+        {
+            ShowDiscoveryInfoPopup(border, discovery);
+            return;
+        }
+
+        // 더블클릭: 좌표 편집 다이얼로그
 
         var item = new DiscoveryDisplayItem
         {
@@ -1131,6 +1141,130 @@ public class WorldMapContent : ContentControl
             MessageBox.Show($"수정 실패: {ex.Message}", "오류",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>
+    /// 발견물 라벨 클릭 시 관련 도서/언어/필요스킬/소재 도서관 도시를 팝업으로 표시.
+    /// 우측 상단 X 버튼으로 닫는다 (StaysOpen=true 이므로 다른 곳 클릭해도 유지).
+    /// </summary>
+    private void ShowDiscoveryInfoPopup(UIElement target, DiscoveryEntity discovery)
+    {
+        // 도서 정보 찾기 (쉼표 구분된 여러 도서명일 수 있음)
+        var bookNames = string.IsNullOrWhiteSpace(discovery.BookName)
+            ? new List<string>()
+            : discovery.BookName.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+        var bookService = ContainerLocator.Container.Resolve<BookService>();
+        var cached = bookService.GetCachedBooks();
+        var matchedBooks = bookNames
+            .Select(n => cached.FirstOrDefault(b => string.Equals(b.Name, n, StringComparison.OrdinalIgnoreCase)))
+            .Where(b => b != null)
+            .Cast<Book>()
+            .ToList();
+
+        // 최상단 헤더 (이름 + X 버튼)
+        var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var titleBlock = new TextBlock
+        {
+            Text = discovery.Name,
+            FontWeight = FontWeights.Bold,
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap
+        };
+        Grid.SetColumn(titleBlock, 0);
+        headerGrid.Children.Add(titleBlock);
+
+        var btnClose = new Button
+        {
+            Content = "✕",
+            Width = 20,
+            Height = 20,
+            Padding = new Thickness(0),
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            FontSize = 11,
+            Cursor = Cursors.Hand,
+            Background = Brushes.Transparent,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
+            BorderThickness = new Thickness(1),
+            ToolTip = "닫기"
+        };
+        btnClose.Click += (_, _) =>
+        {
+            if (_discoveryInfoPopup != null) _discoveryInfoPopup.IsOpen = false;
+        };
+        Grid.SetColumn(btnClose, 1);
+        headerGrid.Children.Add(btnClose);
+
+        var panel = new StackPanel { Margin = new Thickness(10, 8, 10, 8) };
+        panel.Children.Add(headerGrid);
+
+        if (matchedBooks.Count == 0 && bookNames.Count == 0)
+        {
+            panel.Children.Add(new TextBlock { Text = "관련 도서 없음", Foreground = Brushes.Gray, FontSize = 11 });
+        }
+        else if (matchedBooks.Count == 0)
+        {
+            // DB에서 못찾았지만 이름은 있음
+            panel.Children.Add(new TextBlock { Text = $"도서: {string.Join(", ", bookNames)}", FontSize = 11 });
+        }
+        else
+        {
+            foreach (var b in matchedBooks)
+            {
+                var bookPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 2) };
+                bookPanel.Children.Add(new TextBlock { Text = $"📖 {b.Name}", FontWeight = FontWeights.SemiBold, FontSize = 12 });
+                if (!string.IsNullOrWhiteSpace(b.Language))
+                    bookPanel.Children.Add(new TextBlock { Text = $"  언어: {b.Language}", FontSize = 11, Foreground = Brushes.DimGray });
+                if (!string.IsNullOrWhiteSpace(b.Required))
+                    bookPanel.Children.Add(new TextBlock { Text = $"  필요스킬: {b.Required}", FontSize = 11, Foreground = Brushes.DimGray });
+                if (b.LibraryCityNames?.Count > 0)
+                {
+                    bookPanel.Children.Add(new TextBlock
+                    {
+                        Text = $"  소재 도시: {string.Join(", ", b.LibraryCityNames)}",
+                        FontSize = 11,
+                        Foreground = Brushes.DimGray,
+                        TextWrapping = TextWrapping.Wrap,
+                        MaxWidth = 320
+                    });
+                }
+                panel.Children.Add(bookPanel);
+            }
+        }
+
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(245, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Child = panel,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                ShadowDepth = 2,
+                BlurRadius = 6,
+                Opacity = 0.3
+            }
+        };
+
+        if (_discoveryInfoPopup == null)
+        {
+            _discoveryInfoPopup = new Popup
+            {
+                Placement = PlacementMode.Right,
+                StaysOpen = true, // 다른 곳 클릭해도 유지. X 버튼으로만 닫힘
+                AllowsTransparency = true
+            };
+        }
+
+        _discoveryInfoPopup.PlacementTarget = target;
+        _discoveryInfoPopup.Child = border;
+        _discoveryInfoPopup.IsOpen = true;
     }
 
     #endregion

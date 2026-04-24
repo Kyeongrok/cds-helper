@@ -32,6 +32,17 @@ public class EditDiscoveryDialog : Window
     private Ellipse? _toMarker;
     private Rectangle? _rangeRect;
 
+    // 줌/팬 상태
+    private readonly ScaleTransform _scaleTransform = new(1.0, 1.0);
+    private Point _mouseDownPos;
+    private double _mouseDownHOffset;
+    private double _mouseDownVOffset;
+    private bool _isDragging;
+    private const double DragThreshold = 4.0;
+    private const double MinScale = 0.3;
+    private const double MaxScale = 6.0;
+    private const double ScaleFactor = 1.2;
+
     public int? LatFrom { get; private set; }
     public int? LatTo { get; private set; }
     public int? LonFrom { get; private set; }
@@ -123,7 +134,8 @@ public class EditDiscoveryDialog : Window
         var mapLayer = new Grid
         {
             Width = WorldMapRenderer.UnfoldedW,
-            Height = WorldMapRenderer.CellH
+            Height = WorldMapRenderer.CellH,
+            LayoutTransform = _scaleTransform
         };
         mapLayer.Children.Add(_mapImage);
         mapLayer.Children.Add(_overlayCanvas);
@@ -138,9 +150,15 @@ public class EditDiscoveryDialog : Window
         Grid.SetRow(_scrollViewer, 3);
         root.Children.Add(_scrollViewer);
 
-        _overlayCanvas.MouseLeftButtonDown += (_, e) => OnMapClick(e, isFrom: true);
-        _overlayCanvas.MouseRightButtonDown += (_, e) => OnMapClick(e, isFrom: false);
+        // 드래그 팬: 버튼 다운에서 시작, 일정 거리 이상 움직이면 드래그로 판정, 그 외엔 클릭으로 From/To 설정
+        _overlayCanvas.MouseLeftButtonDown += (_, e) => OnMouseDownStartDrag(e);
+        _overlayCanvas.MouseRightButtonDown += (_, e) => OnMouseDownStartDrag(e);
         _overlayCanvas.MouseMove += OnOverlayMouseMove;
+        _overlayCanvas.MouseLeftButtonUp += (_, e) => OnMouseUpFinishDrag(e, isFrom: true);
+        _overlayCanvas.MouseRightButtonUp += (_, e) => OnMouseUpFinishDrag(e, isFrom: false);
+
+        // 휠 줌
+        _scrollViewer.PreviewMouseWheel += OnPreviewMouseWheel;
 
         // 4행: 버튼
         var btnPanel = new StackPanel
@@ -204,36 +222,91 @@ public class EditDiscoveryDialog : Window
         _scrollViewer.ScrollToVerticalOffset(Math.Max(0, py - _scrollViewer.ViewportHeight / 2));
     }
 
-    private void OnMapClick(MouseButtonEventArgs e, bool isFrom)
+    private void OnMouseDownStartDrag(MouseButtonEventArgs e)
     {
-        var pos = e.GetPosition(_overlayCanvas);
-        var (lat, lon) = WorldMapRenderer.PixelToLatLon(pos.X, pos.Y);
-        var latI = (int)Math.Round(lat);
-        var lonI = (int)Math.Round(lon);
-
-        if (isFrom)
-        {
-            _txtLatFrom.Text = latI.ToString();
-            _txtLonFrom.Text = lonI.ToString();
-            // From만 있고 To가 비어있으면 동일값(점 좌표)으로 자동 설정
-            if (string.IsNullOrWhiteSpace(_txtLatTo.Text)) _txtLatTo.Text = latI.ToString();
-            if (string.IsNullOrWhiteSpace(_txtLonTo.Text)) _txtLonTo.Text = lonI.ToString();
-        }
-        else
-        {
-            _txtLatTo.Text = latI.ToString();
-            _txtLonTo.Text = lonI.ToString();
-        }
+        _mouseDownPos = e.GetPosition(_scrollViewer);
+        _mouseDownHOffset = _scrollViewer.HorizontalOffset;
+        _mouseDownVOffset = _scrollViewer.VerticalOffset;
+        _isDragging = false;
+        _overlayCanvas.CaptureMouse();
         e.Handled = true;
     }
 
     private void OnOverlayMouseMove(object sender, MouseEventArgs e)
     {
-        var pos = e.GetPosition(_overlayCanvas);
-        var (lat, lon) = WorldMapRenderer.PixelToLatLon(pos.X, pos.Y);
+        // 좌표 프리뷰 업데이트
+        var posOverlay = e.GetPosition(_overlayCanvas);
+        var (lat, lon) = WorldMapRenderer.PixelToLatLon(posOverlay.X, posOverlay.Y);
         var latDir = lat >= 0 ? "N" : "S";
         var lonDir = lon >= 0 ? "E" : "W";
         _txtCoordPreview.Text = $"커서: {Math.Abs(lat):F0}°{latDir}, {Math.Abs(lon):F0}°{lonDir}";
+
+        // 마우스 캡처 중이면 드래그 팬 처리
+        if (!_overlayCanvas.IsMouseCaptured) return;
+        var posScroll = e.GetPosition(_scrollViewer);
+        var dx = posScroll.X - _mouseDownPos.X;
+        var dy = posScroll.Y - _mouseDownPos.Y;
+        if (_isDragging || Math.Abs(dx) > DragThreshold || Math.Abs(dy) > DragThreshold)
+        {
+            _isDragging = true;
+            _scrollViewer.ScrollToHorizontalOffset(_mouseDownHOffset - dx);
+            _scrollViewer.ScrollToVerticalOffset(_mouseDownVOffset - dy);
+        }
+    }
+
+    private void OnMouseUpFinishDrag(MouseButtonEventArgs e, bool isFrom)
+    {
+        if (!_overlayCanvas.IsMouseCaptured) return;
+        _overlayCanvas.ReleaseMouseCapture();
+
+        // 드래그 임계치 미만이면 클릭으로 간주 → From/To 좌표 설정
+        if (!_isDragging)
+        {
+            var pos = e.GetPosition(_overlayCanvas);
+            var (lat, lon) = WorldMapRenderer.PixelToLatLon(pos.X, pos.Y);
+            var latI = (int)Math.Round(lat);
+            var lonI = (int)Math.Round(lon);
+
+            if (isFrom)
+            {
+                _txtLatFrom.Text = latI.ToString();
+                _txtLonFrom.Text = lonI.ToString();
+                if (string.IsNullOrWhiteSpace(_txtLatTo.Text)) _txtLatTo.Text = latI.ToString();
+                if (string.IsNullOrWhiteSpace(_txtLonTo.Text)) _txtLonTo.Text = lonI.ToString();
+            }
+            else
+            {
+                _txtLatTo.Text = latI.ToString();
+                _txtLonTo.Text = lonI.ToString();
+            }
+        }
+
+        _isDragging = false;
+        e.Handled = true;
+    }
+
+    private void OnPreviewMouseWheel(object? sender, MouseWheelEventArgs e)
+    {
+        // 커서 위치를 맵 기준으로 먼저 캡처 (줌 전)
+        var viewportPos = e.GetPosition(_scrollViewer);
+        double mapX = _scrollViewer.HorizontalOffset + viewportPos.X;
+        double mapY = _scrollViewer.VerticalOffset + viewportPos.Y;
+
+        var oldScale = _scaleTransform.ScaleX;
+        var factor = e.Delta > 0 ? ScaleFactor : 1.0 / ScaleFactor;
+        var newScale = Math.Clamp(oldScale * factor, MinScale, MaxScale);
+        if (Math.Abs(newScale - oldScale) < 1e-6) { e.Handled = true; return; }
+
+        _scaleTransform.ScaleX = newScale;
+        _scaleTransform.ScaleY = newScale;
+
+        // 커서 아래 지점을 그대로 유지하도록 스크롤 오프셋 보정
+        _scrollViewer.UpdateLayout();
+        double ratio = newScale / oldScale;
+        _scrollViewer.ScrollToHorizontalOffset(mapX * ratio - viewportPos.X);
+        _scrollViewer.ScrollToVerticalOffset(mapY * ratio - viewportPos.Y);
+
+        e.Handled = true;
     }
 
     private void RefreshOverlay()
