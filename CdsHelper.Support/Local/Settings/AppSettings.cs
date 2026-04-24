@@ -46,6 +46,15 @@ public static class AppSettings
         "CdsHelper",
         "settings.json");
 
+    /// <summary>
+    /// 세계지도 색상 팔레트 JSON 파일 경로 (%APPDATA%\CdsHelper\map_palette.json).
+    /// 사용자가 직접 수정 후 세계지도에서 "팔레트 다시 불러오기" 버튼으로 반영.
+    /// </summary>
+    public static string MapPaletteFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "CdsHelper",
+        "map_palette.json");
+
     public static event Action? SettingsChanged;
 
     private static double _markerSize = DefaultMarkerSize;
