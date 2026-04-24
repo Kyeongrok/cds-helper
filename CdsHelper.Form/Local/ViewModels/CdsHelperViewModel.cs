@@ -756,7 +756,15 @@ public partial class CdsHelperViewModel : ObservableObject
     public async Task CheckForUpdateAsync()
     {
         var newVersion = await _updateService.CheckForUpdateAsync();
-        if (newVersion == null) return;
+        if (newVersion == null)
+        {
+            // 진단 메시지를 상태바에 노출 → 왜 감지 안 되는지 원인 확인 가능
+            var diag = _updateService.LastDiagnostic;
+            var cur = _updateService.CurrentVersion;
+            if (!string.IsNullOrEmpty(diag))
+                StatusText = $"[업데이트] {diag} (현재 {cur ?? "unknown"})";
+            return;
+        }
 
         StatusText = $"새 버전 {newVersion} 다운로드 중...";
         await _updateService.DownloadUpdateAsync(p => StatusText = $"업데이트 다운로드 중... {p}%");

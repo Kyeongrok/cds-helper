@@ -9,7 +9,8 @@
         <UseWPF>true</UseWPF>
         <ApplicationIcon>app.ico</ApplicationIcon>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-        <Version>1.5</Version>
+        <!-- 로컬 빌드 기본값. CI에서는 -p:Version=$tag 로 오버라이드됨 (아래 workflow 참고) -->
+        <Version>0.0.1</Version>
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 
