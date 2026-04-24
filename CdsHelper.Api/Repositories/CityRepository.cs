@@ -93,6 +93,11 @@ public class CityRepository : ICityRepository
         return await _context.Cities.AnyAsync(c => c.Id == id);
     }
 
+    public async Task<bool> AnyAsync()
+    {
+        return await _context.Cities.AnyAsync();
+    }
+
     public async Task AddRangeAsync(IEnumerable<CityEntity> cities)
     {
         await _context.Cities.AddRangeAsync(cities);
