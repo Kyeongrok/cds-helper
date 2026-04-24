@@ -68,6 +68,8 @@ public class WorldMapContent : ContentControl
     private readonly PointCollection[] _trailPointsByTile = { new(), new(), new() };
     // 속도별 색상 세그먼트 라인 (좌/중/우 타일 각각 Line 리스트)
     private readonly List<Line>[] _trailSegmentLines = { new(), new(), new() };
+    // 세션 단위 자동 저장 파일 경로 (첫 점 추가 시 lazy 생성, 앱 종료까지 같은 파일에 append)
+    private string? _sessionTrailPath;
     private readonly PointCollection _trailPoints = new(); // 논리적 위치 (중앙 타일 기준)
     private readonly List<DateTime> _trailTimestamps = new();
 
@@ -1407,6 +1409,7 @@ public class WorldMapContent : ContentControl
             {
                 _trailPointsByTile[i].Add(new Point(newPoint.X + TileOffsets[i], newPoint.Y));
             }
+            AppendTrailPointToSession(newPoint, now);
         }
 
         for (int i = 0; i < 3; i++)
@@ -1506,6 +1509,38 @@ public class WorldMapContent : ContentControl
     }
 
     private record TrailCoord(double lat, double lon, string? time = null);
+
+    /// <summary>
+    /// 세션 시작 시 첫 점이 들어올 때 lazy 생성. 같은 세션 동안 같은 파일에 append.
+    /// </summary>
+    private string GetOrCreateSessionTrailPath()
+    {
+        if (_sessionTrailPath != null) return _sessionTrailPath;
+
+        var dir = AppSettings.TrailDirectory;
+        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+        var fileName = $"session_{DateTime.Now:yyyyMMdd_HHmmss}.trail.jsonl";
+        _sessionTrailPath = Path.Combine(dir, fileName);
+        return _sessionTrailPath;
+    }
+
+    /// <summary>현재 세션 파일에 좌표 한 줄을 append. 실패는 조용히 무시 (추적 동작에 영향 없도록).</summary>
+    private void AppendTrailPointToSession(Point point, DateTime time)
+    {
+        try
+        {
+            // 픽셀 → 경위도 (3-타일 무한 스크롤 정규화)
+            double cellX = ((point.X % RenderTileW) + RenderTileW) % RenderTileW;
+            double lon = cellX * 360.0 / RenderTileW - 180;
+            double lat = 90.0 - point.Y * 180.0 / RenderH;
+
+            var coord = new TrailCoord(lat, lon, time.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+            var line = JsonSerializer.Serialize(coord);
+            File.AppendAllText(GetOrCreateSessionTrailPath(), line + Environment.NewLine);
+        }
+        catch { /* 자동 저장 실패는 추적 흐름을 막지 않음 */ }
+    }
 
     private void SaveTrail()
     {
