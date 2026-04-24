@@ -16,5 +16,6 @@ public interface ICityRepository
     Task DeleteAsync(byte id);
     Task<List<string>> GetDistinctCulturalSpheresAsync();
     Task<bool> ExistsAsync(byte id);
+    Task<bool> AnyAsync();
     Task AddRangeAsync(IEnumerable<CityEntity> cities);
 }

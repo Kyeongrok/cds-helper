@@ -114,11 +114,12 @@ public class CityController
     }
 
     /// <summary>
-    /// DB에 도시 데이터가 있는지 확인
+    /// DB에 도시 데이터가 하나라도 있는지 확인.
+    /// 이전엔 Id=0만 확인해서 0이 지워진 경우 오감지 문제가 있었으므로 AnyAsync 사용.
     /// </summary>
     public async Task<bool> HasAnyDataAsync()
     {
-        return await _repository.ExistsAsync(0);
+        return await _repository.AnyAsync();
     }
 
     /// <summary>

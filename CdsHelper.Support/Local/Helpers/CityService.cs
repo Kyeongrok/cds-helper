@@ -11,6 +11,10 @@ public class CityService
     private CityController? _controller;
     private List<City> _cachedCities = new();
     private bool _initialized;
+    // 여러 ViewModel(CdsHelperViewModel, CityContentViewModel 등)이 동시에 InitializeAsync를
+    // 호출해서 마이그레이션이 이중으로 돌면 EF Core tracker가 같은 Id 엔티티 두 번을 추적해 예외.
+    // 첫 호출만 실제 초기화하고 나머지는 대기 후 빠져나오게 serialize.
+    private readonly SemaphoreSlim _initLock = new(1, 1);
 
     /// <summary>
     /// Controller 초기화 및 데이터 마이그레이션
@@ -18,22 +22,31 @@ public class CityService
     public async Task InitializeAsync(string dbPath, string? jsonPath = null)
     {
         if (_initialized) return;
-
-        _controller = CityController.Create(dbPath);
-
-        // JSON 파일이 있으면 마이그레이션 시도
-        if (!string.IsNullOrEmpty(jsonPath) && System.IO.File.Exists(jsonPath))
+        await _initLock.WaitAsync();
+        try
         {
-            await DataMigrator.MigrateCitiesFromJsonAsync(
-                _controller,
-                jsonPath,
-                onSkipped: msg => EventQueueService.Instance.MigrationSkipped("CityService", msg),
-                onMigrated: msg => EventQueueService.Instance.DataLoaded("CityService", msg));
-        }
+            if (_initialized) return;
 
-        // 캐시 로드
-        await RefreshCacheAsync();
-        _initialized = true;
+            _controller = CityController.Create(dbPath);
+
+            // JSON 파일이 있으면 마이그레이션 시도
+            if (!string.IsNullOrEmpty(jsonPath) && System.IO.File.Exists(jsonPath))
+            {
+                await DataMigrator.MigrateCitiesFromJsonAsync(
+                    _controller,
+                    jsonPath,
+                    onSkipped: msg => EventQueueService.Instance.MigrationSkipped("CityService", msg),
+                    onMigrated: msg => EventQueueService.Instance.DataLoaded("CityService", msg));
+            }
+
+            // 캐시 로드
+            await RefreshCacheAsync();
+            _initialized = true;
+        }
+        finally
+        {
+            _initLock.Release();
+        }
     }
 
     /// <summary>
