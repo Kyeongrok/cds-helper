@@ -27,6 +27,9 @@ public class AutoPlayService : IDisposable
     /// <summary>바다/육지/배 분류 서비스.</summary>
     public SeaMapService SeaMap { get; }
 
+    /// <summary>게임 메모리 직접 읽기 (OCR 대체용 — 분 단위 정밀도, 메뉴 가림 무관).</summary>
+    private readonly GameMemoryReader _gameMemoryReader = new();
+
     /// <summary>현재 실행 중 여부.</summary>
     public bool IsRunning => _runningTask is { IsCompleted: false };
 
@@ -400,9 +403,18 @@ public class AutoPlayService : IDisposable
 
     #region 좌표 OCR
 
-    /// <summary>스크린샷에서 현재 좌표를 읽는다 (Windows OCR 사용).</summary>
+    /// <summary>현재 좌표를 읽는다. 1순위: 게임 메모리 (분 단위 정밀), 2순위: OCR.</summary>
     private (double lat, double lon, bool success) ReadCoordinatesFromScreen(Bitmap screenshot)
     {
+        // 1차: 메모리 직접 읽기 (사실상 항상 성공)
+        var memCoord = _gameMemoryReader.TryReadLatLon();
+        if (memCoord.HasValue)
+        {
+            var (lat, lon) = memCoord.Value;
+            return (lat, lon, true);
+        }
+
+        // 2차 폴백: OCR
         var prediction = CoordinateOcr.PredictOcrAsync(screenshot).GetAwaiter().GetResult();
         if (prediction == null)
             return (0, 0, false);
@@ -466,6 +478,7 @@ public class AutoPlayService : IDisposable
         _minusTemplate?.Dispose();
         CoordinateOcr.Dispose();
         SeaMap.Dispose();
+        _gameMemoryReader.Dispose();
     }
 
     #endregion
