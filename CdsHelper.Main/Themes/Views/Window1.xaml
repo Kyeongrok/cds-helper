@@ -11,7 +11,15 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="DarkSlateBlue" CornerRadius="10" Padding="12,6">
+                        <Border Background="DarkSlateBlue" CornerRadius="10" Padding="12,6"
+                                BorderThickness="2">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#FF8A2BE2" Offset="0.0" />
+                                    <GradientStop Color="#FF00BFFF" Offset="0.5" />
+                                    <GradientStop Color="#FFFF1493" Offset="1.0" />
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
                             <ContentPresenter TextElement.Foreground="White" HorizontalAlignment="Center"
                                               VerticalAlignment="Center"></ContentPresenter>
                         </Border>
