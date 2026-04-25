@@ -32,9 +32,6 @@ public class WorldMapContent : ContentControl
     private TextBlock? _txtStatus;
     private TextBlock? _txtCellInfo;
     private Button? _btnOpen;
-    private Button? _btnZoomIn;
-    private Button? _btnZoomOut;
-    private Button? _btnZoomReset;
     private CheckBox? _chkShowCoast;
     private CheckBox? _chkShowWind;
     private CheckBox? _chkShowDiscoveries;
@@ -134,9 +131,6 @@ public class WorldMapContent : ContentControl
         _txtStatus = GetTemplateChild("PART_Status") as TextBlock;
         _txtCellInfo = GetTemplateChild("PART_CellInfo") as TextBlock;
         _btnOpen = GetTemplateChild("PART_BtnOpen") as Button;
-        _btnZoomIn = GetTemplateChild("PART_BtnZoomIn") as Button;
-        _btnZoomOut = GetTemplateChild("PART_BtnZoomOut") as Button;
-        _btnZoomReset = GetTemplateChild("PART_BtnZoomReset") as Button;
         _chkShowCoast = GetTemplateChild("PART_ShowCoast") as CheckBox;
         _chkShowWind = GetTemplateChild("PART_ShowWind") as CheckBox;
         _chkShowDiscoveries = GetTemplateChild("PART_ShowDiscoveries") as CheckBox;
@@ -171,9 +165,6 @@ public class WorldMapContent : ContentControl
         if (_btnOpen != null) _btnOpen.Click += (_, _) => OpenFile();
         var btnReloadPalette = GetTemplateChild("PART_BtnReloadPalette") as Button;
         if (btnReloadPalette != null) btnReloadPalette.Click += (_, _) => ReloadPalette();
-        if (_btnZoomIn != null) _btnZoomIn.Click += (_, _) => Zoom(ScaleStep);
-        if (_btnZoomOut != null) _btnZoomOut.Click += (_, _) => Zoom(-ScaleStep);
-        if (_btnZoomReset != null) _btnZoomReset.Click += (_, _) => { _currentScale = 1.0; ApplyScale(); SaveWorldMapOptions(); };
 
         if (_chkShowCoast != null) _chkShowCoast.Click += (_, _) => { Rerender(); SaveWorldMapOptions(); };
         if (_chkShowWind != null) _chkShowWind.Click += (_, _) => { Rerender(); SaveWorldMapOptions(); };
