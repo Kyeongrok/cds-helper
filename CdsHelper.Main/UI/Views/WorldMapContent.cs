@@ -51,6 +51,8 @@ public class WorldMapContent : ContentControl
     // 좌표 추적 / 화면 감지
     private readonly CoordinateOcrService _coordinateOcr = new();
     private readonly GameScreenDetector _screenDetector;
+    private readonly GameMemoryReader _gameMemoryReader = new();
+    private List<City>? _cityCache;
 
     public WorldMapContent()
     {
@@ -1356,6 +1358,44 @@ public class WorldMapContent : ContentControl
                 }
             }
 
+            // 1차: 메모리 직접 읽기 (분 단위 정밀, 메뉴 가림 무관)
+            var location = _gameMemoryReader.DetectLocation();
+            if (location == GameMemoryReader.Location.AtSea)
+            {
+                var memCoord = _gameMemoryReader.TryReadLatLon();
+                if (memCoord.HasValue)
+                {
+                    var (memLat, memLon) = memCoord.Value;
+                    string coordText = $"{(memLat >= 0 ? "북위" : "남위")} {Math.Abs(memLat):F1}  {(memLon >= 0 ? "동경" : "서경")} {Math.Abs(memLon):F1}";
+                    if (_txtCurrentCoordinate != null)
+                        _txtCurrentCoordinate.Text = $"🧭 {coordText}";
+                    if (_mapData != null)
+                        UpdatePositionMarker(memLat, memLon);
+                    return;
+                }
+            }
+            if (location == GameMemoryReader.Location.NotAtSea)
+            {
+                // 도시/이벤트/메뉴 등. inCity 이미지 감지가 실패해도
+                // 메모리의 도시 ID가 유효 범위면 도시로 판단.
+                var cityId = _gameMemoryReader.TryReadCurrentCityId();
+                var city = ResolveCity(cityId);
+
+                if (_txtCurrentCoordinate != null)
+                {
+                    _txtCurrentCoordinate.Text = city != null
+                        ? $"📍 {city.Name}"
+                        : (inCity ? "📍 도시 안" : "📋 이벤트/메뉴 진행 중");
+                }
+
+                // 도시 위도/경도 알면 그 위치에 마커 표시
+                if (city != null && city.Latitude.HasValue && city.Longitude.HasValue && _mapData != null)
+                    UpdatePositionMarker(city.Latitude.Value, city.Longitude.Value);
+
+                return;
+            }
+
+            // 2차 폴백: 게임 프로세스 못 찾을 때만 OCR
             var prediction = await Task.Run(() => _coordinateOcr.PredictOcrAsync(bitmap));
 
             if (prediction == null)
@@ -1389,6 +1429,22 @@ public class WorldMapContent : ContentControl
         double cellY = (90.0 - lat) / 180.0 * RenderH;
         // 중앙 타일(index 1) 오프셋 적용
         return (cellX + RenderTileW, cellY);
+    }
+
+    /// <summary>도시 ID → City 객체. 캐시 미스 시 동기 로드 시도 후 한 번만 캐싱.</summary>
+    private City? ResolveCity(byte? id)
+    {
+        if (id == null) return null;
+        if (_cityCache == null)
+        {
+            try
+            {
+                var svc = ContainerLocator.Container.Resolve<CityService>();
+                _cityCache = svc.GetCitiesWithCoordinatesFromDbAsync().GetAwaiter().GetResult();
+            }
+            catch { return null; }
+        }
+        return _cityCache.FirstOrDefault(c => c.Id == id.Value);
     }
 
     /// <summary>두 점 사이 구간 속도 (°/분) 계산.</summary>
@@ -1433,6 +1489,15 @@ public class WorldMapContent : ContentControl
     private void AddTrailSegment(Point prev, Point cur, double speed)
     {
         if (_overlayCanvas == null) return;
+
+        // 세계 래핑 보정: X 차이가 지도 폭의 절반 이상이면 반대편 경계로 넘어간 것.
+        // cur를 ±RenderTileW 평행이동해 맵 밖으로 짧게 연장시키고, 3-tile 복제가 반대편 경계를 그려줌.
+        double dx = cur.X - prev.X;
+        if (dx > RenderTileW / 2.0)
+            cur = new Point(cur.X - RenderTileW, cur.Y);
+        else if (dx < -RenderTileW / 2.0)
+            cur = new Point(cur.X + RenderTileW, cur.Y);
+
         var brush = new SolidColorBrush(SpeedToColor(speed));
         brush.Freeze();
         for (int i = 0; i < 3; i++)
