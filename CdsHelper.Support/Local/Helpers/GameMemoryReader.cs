@@ -22,6 +22,10 @@ public sealed class GameMemoryReader : IDisposable
     // cities.json의 City.Id와 매핑. 해상에서는 stale/이전 값.
     private static readonly IntPtr CurrentCityIdAddress = (IntPtr)0x005B6154;
 
+    // 서경 51° 이서(대서양 서쪽)에서 cellY 메모리(0x19EEE4)가 다른 용도로 재사용되어 손상.
+    // 그 영역에서는 메모리 사용을 포기하고 OCR 폴백. 경계 cellX = (180-51) × 6.944 = 897.
+    private const int SafeMinCellX = 898;
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
 
@@ -55,7 +59,10 @@ public sealed class GameMemoryReader : IDisposable
         return _handle != IntPtr.Zero;
     }
 
-    /// <summary>현재 위치(위도/경도)를 메모리에서 읽어 반환. 실패 시 null.</summary>
+    /// <summary>
+    /// 현재 위치(위도/경도)를 메모리에서 읽어 반환. 실패 시 null → 호출 측은 OCR 폴백.
+    /// 서경 51° 이서 영역에서는 cellY 손상으로 항상 null 반환 (의도된 동작).
+    /// </summary>
     public (double lat, double lon)? TryReadLatLon()
     {
         if (!IsAttached && !TryAttach()) return null;
@@ -67,8 +74,9 @@ public sealed class GameMemoryReader : IDisposable
         if (!ReadProcessMemory(_handle, CellYAddress, buf, 4, out int ry) || ry != 4) return Detach();
         int cellY = BitConverter.ToInt32(buf, 0);
 
-        // 셀 범위 검증 (월드 안에 있어야 함)
-        if (cellX < 0 || cellX >= 2500 || cellY < 0 || cellY >= 1250) return null;
+        if (cellX < 0 || cellX >= 2500) return null;
+        if (cellX < SafeMinCellX) return null;     // 서경 51°↑ 메모리 불안정 영역 → OCR로
+        if (cellY < 0 || cellY >= 1250) return null;
 
         double lon = cellX * 360.0 / WorldMapRenderer.UnfoldedW - 180.0;
         double lat = 90.0 - cellY * 180.0 / WorldMapRenderer.CellH;
@@ -86,23 +94,24 @@ public sealed class GameMemoryReader : IDisposable
         NotAtSea,
     }
 
-    /// <summary>현재 위치가 바다인지 도시/이벤트인지 빠르게 판단. OCR/이미지 분석보다 훨씬 가벼움.</summary>
+    /// <summary>
+    /// 현재 위치가 바다인지 도시/이벤트인지 판단. cellX만으로 판단(cellY는 일부 영역에서 손상).
+    /// </summary>
     public Location DetectLocation()
     {
         if (!IsAttached && !TryAttach()) return Location.GameNotFound;
 
-        var buf = new byte[8];
-        if (!ReadProcessMemory(_handle, CellXAddress, buf, 8, out int read) || read != 8)
+        var buf = new byte[4];
+        if (!ReadProcessMemory(_handle, CellXAddress, buf, 4, out int read) || read != 4)
         {
             DetachHandle();
             return Location.GameNotFound;
         }
 
         int cellX = BitConverter.ToInt32(buf, 0);
-        int cellY = BitConverter.ToInt32(buf, 4);
 
-        // 도시 진입 시 음수 또는 범위 밖 sentinel 값으로 변함 (검증된 동작)
-        if (cellX < 0 || cellX >= 2500 || cellY < 0 || cellY >= 1250)
+        // 도시/이벤트 진입 시 cellX가 음수 또는 범위 밖 sentinel 값으로 변함 (검증된 동작)
+        if (cellX < 0 || cellX >= 2500)
             return Location.NotAtSea;
 
         return Location.AtSea;
