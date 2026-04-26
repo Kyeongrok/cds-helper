@@ -1686,10 +1686,10 @@
     "condition": null,
     "appearCondition": null,
     "bookName": null,
-    "latFrom": 37,
-    "latTo": 3,
-    "lonFrom": 48,
-    "lonTo": 56
+    "latFrom": 46,
+    "latTo": 35,
+    "lonFrom": 51,
+    "lonTo": 55
   },
   {
     "id": 142,
