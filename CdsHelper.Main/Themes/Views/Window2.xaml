@@ -65,8 +65,60 @@
                 </Setter.Value>
             </Setter>
         </Style>
+    <Style x:Key="StepButton" TargetType="Button">
+        <Setter Property="Width" Value="86" />
+        <Setter Property="Height" Value="62" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border CornerRadius="4" BorderThickness="1" BorderBrush="#3A7BA8" Margin="0,0,4,4">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#404040" BlurRadius="6" ShadowDepth="3" Direction="315" Opacity="0.5" />
+                        </Border.Effect>
+                        <Border CornerRadius="5" BorderThickness="1">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#BDE0F3" Offset="0.0" />
+                                    <GradientStop Color="#6FB2D8" Offset="1.0" />
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#7FC3E6" Offset="0.0" />
+                                    <GradientStop Color="#5AA5D0" Offset="0.5" />
+                                    <GradientStop Color="#4E97C2" Offset="1.0" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+
+                            <Grid>
+                                
+                                <Border Height="20" VerticalAlignment="Top" CornerRadius="4,4,0,0" Margin="1">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#99FFFFFF" Offset="0.0" /> <GradientStop Color="#00FFFFFF" Offset="1.0" /> </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <ContentPresenter.Effect>
+                                        <DropShadowEffect Color="#205070" BlurRadius="2" ShadowDepth="1" Direction="315" Opacity="0.8" />
+                                    </ContentPresenter.Effect>
+                                </ContentPresenter>
+                                
+                            </Grid>
+                        </Border>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     </Window.Resources>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
         <Button Content="시스템" FontSize="17" Foreground="White" Style="{StaticResource Button1}" />
+        <Button Content="1 단" Style="{StaticResource StepButton}" Margin="20,0,0,0" />
+        <Button Content="2 단" Style="{StaticResource StepButton}" Margin="20,0,0,0" />
     </StackPanel>
 </Window>
