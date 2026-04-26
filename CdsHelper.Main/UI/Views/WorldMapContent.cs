@@ -778,6 +778,70 @@ public class WorldMapContent : ContentControl
             _discoveryVisualHost.Visibility = Visibility.Visible;
             _discoveryVisualHost.FoundVisible = !hideFound;
         }
+
+        // 보이는 레이블만 모아서 겹침 해소 (다음 layout 패스 후 실제 사이즈 알 수 있으니 BeginInvoke)
+        Dispatcher.BeginInvoke(new Action(ResolveDiscoveryLabelOverlap),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// 발견물/도시 레이블이 겹치면 아래쪽으로 밀어내서 가독성 확보.
+    /// Y 좌표 기준으로 정렬한 뒤, X 범위가 겹치는 이전 레이블들과 비교하여
+    /// 충돌이 없을 때까지 newTop을 아래로 조정.
+    /// </summary>
+    private void ResolveDiscoveryLabelOverlap()
+    {
+        if (_overlayCanvas == null) return;
+        _overlayCanvas.UpdateLayout();
+
+        // discovery 레이블은 Border + Tag(int discoveryId), city 레이블도 동일 형태
+        var labels = _discoveryMarkers
+            .OfType<Border>()
+            .Where(b => b.Visibility == Visibility.Visible &&
+                        b.ActualWidth > 0 && b.ActualHeight > 0 &&
+                        !double.IsNaN(Canvas.GetLeft(b)) && !double.IsNaN(Canvas.GetTop(b)))
+            .Select(b => new
+            {
+                Label = b,
+                Left = Canvas.GetLeft(b),
+                OriginalTop = Canvas.GetTop(b),
+                Width = b.ActualWidth,
+                Height = b.ActualHeight,
+            })
+            .OrderBy(r => r.OriginalTop)
+            .ThenBy(r => r.Left)
+            .ToList();
+
+        if (labels.Count == 0) return;
+
+        var placed = new List<(double Left, double Top, double Width, double Height)>();
+        const double Padding = 1.0;
+        const int MaxIter = 20;
+
+        foreach (var r in labels)
+        {
+            double newTop = r.OriginalTop;
+            for (int iter = 0; iter < MaxIter; iter++)
+            {
+                bool moved = false;
+                foreach (var p in placed)
+                {
+                    bool xOverlap = r.Left < p.Left + p.Width && r.Left + r.Width > p.Left;
+                    if (!xOverlap) continue;
+                    bool yOverlap = newTop < p.Top + p.Height && newTop + r.Height > p.Top;
+                    if (yOverlap)
+                    {
+                        newTop = p.Top + p.Height + Padding;
+                        moved = true;
+                    }
+                }
+                if (!moved) break;
+            }
+
+            if (Math.Abs(newTop - r.OriginalTop) > 0.1)
+                Canvas.SetTop(r.Label, newTop);
+            placed.Add((r.Left, newTop, r.Width, r.Height));
+        }
     }
 
     private void HideDiscoveries()
