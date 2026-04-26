@@ -18,30 +18,6 @@ public class ConfirmOnlyEvent : IGameEvent
 }
 
 /// <summary>
-/// 전투/도망 선택 다이얼로그 → 자동으로 "도망간다" 선택.
-/// 2옵션: "싸운다 / 도망간다"
-/// 3옵션: "교섭한다 / 도망간다 / 응전한다"
-/// 두 경우 모두 "도망간다"는 두 번째 옵션이므로 ↓ 1회 + Enter.
-/// </summary>
-public class FleeChoiceEvent : IGameEvent
-{
-    public string Name => "도망간다 선택";
-    public string Icon => "🏃";
-
-    public bool Matches(string ocrText) =>
-        ocrText.Contains("도망") &&
-        (ocrText.Contains("싸운") || ocrText.Contains("응전") || ocrText.Contains("교섭"));
-
-    public async Task HandleAsync(IntPtr hWnd, CancellationToken token = default)
-    {
-        GameWindowHelper.SendDownKey(hWnd);
-        await Task.Delay(150, token);
-        GameWindowHelper.SendEnterKey(hWnd);
-        await Task.Delay(500, token);
-    }
-}
-
-/// <summary>
 /// 보급 화면 → "최대" 버튼 → "결정" 버튼 자동 클릭.
 /// 화면 하단의 버튼 좌표는 클라이언트 영역 크기에 대한 비율로 추정.
 /// </summary>

@@ -35,9 +35,9 @@
                             <units:ResetButton Margin="10,0,0,0"
                                                Command="{Binding ResetFilterCommand}"/>
 
-                            <Button Content="JSONL 내보내기" Margin="10,0,0,0" Padding="8,4"
-                                    Command="{Binding ExportJsonlCommand}"
-                                    ToolTip="수정한 발견물 정보 전체를 JSONL 파일로 저장"/>
+                            <Button Content="JSON 내보내기" Margin="10,0,0,0" Padding="8,4"
+                                    Command="{Binding ExportJsonCommand}"
+                                    ToolTip="발견물.json과 동일한 포맷의 JSON 배열로 저장"/>
 
                             <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
                                        Margin="20,0,0,0" FontWeight="Bold" Foreground="#104F89"/>
