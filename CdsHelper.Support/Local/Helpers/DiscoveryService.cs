@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -20,6 +21,8 @@ public class DiscoveryService
         DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
 
+    private const string MetaKeyBundledHash = "BundledJsonHash";
+
     private AppDbContext? _dbContext;
     private Dictionary<int, DiscoveryEntity> _discoveries = new();
     private Dictionary<string, int> _nameToIdMap = new(); // 발견물 이름 -> ID 매핑
@@ -29,8 +32,8 @@ public class DiscoveryService
 
     /// <summary>
     /// 발견물 데이터 초기화.
-    /// 사용자 JSON(<paramref name="userJsonPath"/>)이 source of truth. 없으면 번들 JSON을 사용자 위치로 복사한다.
-    /// 이후 좌표/이름 편집은 사용자 JSON에 즉시 반영되어 앱 업데이트에도 보존된다.
+    /// 사용자 JSON(<paramref name="userJsonPath"/>)이 평소엔 source of truth. 번들 JSON 해시가 바뀌면(앱 업데이트로 새 좌표가 들어온 경우)
+    /// 사용자 JSON을 번들로 덮어쓰고 Discoveries 테이블을 비운 뒤 재마이그레이션한다.
     /// </summary>
     public async Task InitializeAsync(string dbPath, string bundledJsonPath, string userJsonPath)
     {
@@ -42,21 +45,29 @@ public class DiscoveryService
 
         _userJsonPath = userJsonPath;
 
-        // 사용자 JSON이 없으면 번들에서 복사 (최초 실행)
-        if (!File.Exists(userJsonPath) && File.Exists(bundledJsonPath))
+        // 번들 JSON 해시 변경 감지: 변경되었으면 사용자 JSON과 DB를 강제 갱신
+        var bundledHash = File.Exists(bundledJsonPath) ? ComputeFileHash(bundledJsonPath) : null;
+        var storedHash = await GetMetaAsync(MetaKeyBundledHash);
+        var bundleChanged = bundledHash != null && bundledHash != storedHash;
+
+        // 사용자 JSON이 없거나 번들이 갱신되었으면 번들에서 복사
+        if (File.Exists(bundledJsonPath) && (!File.Exists(userJsonPath) || bundleChanged))
         {
             var dir = Path.GetDirectoryName(userJsonPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
-            File.Copy(bundledJsonPath, userJsonPath);
+            File.Copy(bundledJsonPath, userJsonPath, overwrite: true);
         }
 
-        // 사용자 JSON 로드 → DB 마이그레이션
+        // 사용자 JSON 로드 → DB 마이그레이션 (번들이 갱신되었으면 강제 재이식)
         if (File.Exists(userJsonPath))
         {
             await LoadJsonAsync(userJsonPath);
-            await MigrateFromJsonAsync();
+            await MigrateFromJsonAsync(force: bundleChanged);
         }
+
+        if (bundledHash != null && bundleChanged)
+            await SetMetaAsync(MetaKeyBundledHash, bundledHash);
 
         // 캐시 로드
         await RefreshCacheAsync();
@@ -93,6 +104,12 @@ public class DiscoveryService
                 FOREIGN KEY (DiscoveryId) REFERENCES Discoveries(Id) ON DELETE CASCADE,
                 FOREIGN KEY (ParentDiscoveryId) REFERENCES Discoveries(Id) ON DELETE RESTRICT
             )");
+
+        _dbContext?.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS DiscoveryMeta (
+                Key TEXT PRIMARY KEY,
+                Value TEXT NOT NULL
+            )");
     }
 
     private async Task LoadJsonAsync(string jsonPath)
@@ -102,7 +119,7 @@ public class DiscoveryService
         _jsonRecords = records ?? new List<DiscoveryJsonRecord>();
     }
 
-    private async Task MigrateFromJsonAsync()
+    private async Task MigrateFromJsonAsync(bool force = false)
     {
         if (_dbContext == null || _jsonRecords.Count == 0) return;
 
@@ -110,9 +127,17 @@ public class DiscoveryService
         if (connection.State != System.Data.ConnectionState.Open)
             await connection.OpenAsync();
 
-        // 기존 데이터 확인
-        using (var countCmd = connection.CreateCommand())
+        if (force)
         {
+            // 번들 갱신: 기존 행을 비우고 재이식 (DiscoveryParents는 FK CASCADE로 함께 삭제)
+            using var deleteCmd = connection.CreateCommand();
+            deleteCmd.CommandText = "DELETE FROM Discoveries";
+            await deleteCmd.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            // 기존 데이터 확인
+            using var countCmd = connection.CreateCommand();
             countCmd.CommandText = "SELECT COUNT(*) FROM Discoveries";
             var count = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
             if (count > 0) return; // 이미 데이터가 있으면 스킵
@@ -189,7 +214,44 @@ public class DiscoveryService
             }
         }
 
-        EventQueueService.Instance.DataLoaded("DiscoveryService", $"발견물 {_jsonRecords.Count}개 마이그레이션 완료");
+        var label = force ? "재이식" : "마이그레이션";
+        EventQueueService.Instance.DataLoaded("DiscoveryService", $"발견물 {_jsonRecords.Count}개 {label} 완료");
+    }
+
+    private static string ComputeFileHash(string path)
+    {
+        using var sha = SHA256.Create();
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(sha.ComputeHash(stream));
+    }
+
+    private async Task<string?> GetMetaAsync(string key)
+    {
+        if (_dbContext == null) return null;
+
+        var connection = _dbContext.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync();
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Value FROM DiscoveryMeta WHERE Key = @key";
+        AddParameter(cmd, "@key", key);
+        return await cmd.ExecuteScalarAsync() as string;
+    }
+
+    private async Task SetMetaAsync(string key, string value)
+    {
+        if (_dbContext == null) return;
+
+        var connection = _dbContext.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync();
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "INSERT OR REPLACE INTO DiscoveryMeta (Key, Value) VALUES (@key, @value)";
+        AddParameter(cmd, "@key", key);
+        AddParameter(cmd, "@value", value);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     /// <summary>

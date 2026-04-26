@@ -18,10 +18,10 @@
     "condition": null,
     "appearCondition": "1483",
     "bookName": "세계지도",
-    "latFrom": 75,
-    "latTo": -32,
-    "lonFrom": -53,
-    "lonTo": -122
+    "latFrom": 17,
+    "latTo": 20,
+    "lonFrom": -64,
+    "lonTo": -74
   },
   {
     "id": 3,
@@ -594,10 +594,10 @@
     "condition": null,
     "appearCondition": null,
     "bookName": null,
-    "latFrom": 49,
-    "latTo": 49,
-    "lonFrom": -10,
-    "lonTo": -10
+    "latFrom": 38,
+    "latTo": 38,
+    "lonFrom": -9,
+    "lonTo": -9
   },
   {
     "id": 51,
@@ -1256,8 +1256,8 @@
     "bookName": "영국교회사",
     "latFrom": 53,
     "latTo": 53,
-    "lonFrom": 0,
-    "lonTo": 0
+    "lonFrom": 1,
+    "lonTo": 1
   },
   {
     "id": 106,
