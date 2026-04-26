@@ -17,6 +17,7 @@ public class AppSettingsData
     public string? TrailDirectory { get; set; }
     public HashSet<int> CheckedDiscoveryIds { get; set; } = new();
     public WorldMapOptions WorldMap { get; set; } = new();
+    public bool AutoConfirmDialog { get; set; } = true;
 }
 
 public class WorldMapOptions
@@ -75,6 +76,7 @@ public static class AppSettings
     private static HashSet<int> _checkedDiscoveryIds = new();
     private static string _trailDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trails");
     private static WorldMapOptions _worldMap = new();
+    private static bool _autoConfirmDialog = true;
 
     static AppSettings()
     {
@@ -150,6 +152,21 @@ public static class AppSettings
         SaveSettings();
     }
 
+    /// <summary>
+    /// 자동 항해 중 대화창 "확인" 버튼을 OCR/템플릿 매칭으로 자동 클릭할지 여부.
+    /// 끄면 다이얼로그가 떠도 클릭하지 않고 사용자가 수동으로 처리하게 둔다.
+    /// </summary>
+    public static bool AutoConfirmDialog
+    {
+        get => _autoConfirmDialog;
+        set
+        {
+            _autoConfirmDialog = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -181,6 +198,7 @@ public static class AppSettings
                         _trailDirectory = data.TrailDirectory;
                     _checkedDiscoveryIds = data.CheckedDiscoveryIds ?? new();
                     _worldMap = data.WorldMap ?? new();
+                    _autoConfirmDialog = data.AutoConfirmDialog;
                 }
             }
         }
@@ -207,7 +225,8 @@ public static class AppSettings
                 LastSaveFilePath = _lastSaveFilePath,
                 TrailDirectory = _trailDirectory,
                 CheckedDiscoveryIds = _checkedDiscoveryIds,
-                WorldMap = _worldMap
+                WorldMap = _worldMap,
+                AutoConfirmDialog = _autoConfirmDialog
             };
 
             var json = JsonSerializer.Serialize(data, new JsonSerializerOptions

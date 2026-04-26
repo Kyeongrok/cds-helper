@@ -115,10 +115,183 @@
             </Setter.Value>
         </Setter>
     </Style>
+        <Style x:Key="AdvancedSettingButton" TargetType="Button">
+            <Setter Property="Width" Value="110" />
+            <Setter Property="Height" Value="110" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="OuterBorder" CornerRadius="10" BorderThickness="1" BorderBrush="#3A7BA8" Margin="0,0,4,4">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#404040" BlurRadius="6" ShadowDepth="3" Direction="315" Opacity="0.5" />
+                            </Border.Effect>
+                            <Border x:Name="InnerBorder" CornerRadius="10" BorderThickness="1">
+                                <Border.BorderBrush>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#D8ECF7" Offset="0.0" />
+                                        <GradientStop Color="#9BC8E2" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.BorderBrush>
+                                <Border.Background>
+                                    <LinearGradientBrush x:Name="BackgroundBrush" StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#BDE0F3" Offset="0.0" />
+                                        <GradientStop Color="#9CCDE6" Offset="0.5" />
+                                        <GradientStop Color="#86BDD8" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Grid>
+                                    <Border Height="36" VerticalAlignment="Top" CornerRadius="10,10,0,0" Margin="1">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#AAFFFFFF" Offset="0.0" />
+                                                <GradientStop Color="#00FFFFFF" Offset="1.0" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <Grid Margin="10,12,10,14">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <ContentPresenter Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <ContentPresenter.Effect>
+                                                <DropShadowEffect Color="#205070" BlurRadius="2" ShadowDepth="1" Direction="315" Opacity="0.8" />
+                                            </ContentPresenter.Effect>
+                                        </ContentPresenter>
+                                        <Border x:Name="BottomBar" Grid.Row="1" Height="14" CornerRadius="3" BorderThickness="1" BorderBrush="#5A6068">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                    <GradientStop Color="#7C8088" Offset="0.0" />
+                                                    <GradientStop Color="#A8ACB2" Offset="1.0" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                        </Border>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="InnerBorder" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#7FC3E6" Offset="0.0" />
+                                            <GradientStop Color="#5AA5D0" Offset="0.5" />
+                                            <GradientStop Color="#4E97C2" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="BottomBar" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#1F4A75" Offset="0.0" />
+                                            <GradientStop Color="#2E6A9C" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="BottomBar" Property="BorderBrush" Value="#173A5E" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Hover">
+                                <Setter TargetName="InnerBorder" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#7FC3E6" Offset="0.0" />
+                                            <GradientStop Color="#5AA5D0" Offset="0.5" />
+                                            <GradientStop Color="#4E97C2" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="BottomBar" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#1F4A75" Offset="0.0" />
+                                            <GradientStop Color="#2E6A9C" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="BottomBar" Property="BorderBrush" Value="#173A5E" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BackArrowButton" TargetType="Button">
+            <Setter Property="Width" Value="100" />
+            <Setter Property="Height" Value="100" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border CornerRadius="10" BorderThickness="1" BorderBrush="#3A7BA8" Margin="0,0,4,4">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#404040" BlurRadius="6" ShadowDepth="3" Direction="315" Opacity="0.5" />
+                            </Border.Effect>
+                            <Border x:Name="InnerBorder" CornerRadius="10" BorderThickness="1">
+                                <Border.BorderBrush>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#D8ECF7" Offset="0.0" />
+                                        <GradientStop Color="#9BC8E2" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.BorderBrush>
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#BDE0F3" Offset="0.0" />
+                                        <GradientStop Color="#9CCDE6" Offset="0.5" />
+                                        <GradientStop Color="#86BDD8" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Grid>
+                                    <Border Height="36" VerticalAlignment="Top" CornerRadius="10,10,0,0" Margin="1">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#AAFFFFFF" Offset="0.0" />
+                                                <GradientStop Color="#00FFFFFF" Offset="1.0" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <Viewbox Margin="20" Stretch="Uniform">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="#3A7BA8"
+                                                  Stroke="#1F4A75"
+                                                  StrokeThickness="0.5"
+                                                  StrokeLineJoin="Round"
+                                                  Data="M4,12 L12,4 L12,8 L20,8 L20,16 L12,16 L12,20 Z">
+                                                <Path.Effect>
+                                                    <DropShadowEffect Color="#205070" BlurRadius="2" ShadowDepth="1" Direction="315" Opacity="0.6" />
+                                                </Path.Effect>
+                                            </Path>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Grid>
+                            </Border>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="InnerBorder" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#7FC3E6" Offset="0.0" />
+                                            <GradientStop Color="#5AA5D0" Offset="0.5" />
+                                            <GradientStop Color="#4E97C2" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
         <Button Content="시스템" FontSize="17" Foreground="White" Style="{StaticResource Button1}" />
         <Button Content="1 단" Style="{StaticResource StepButton}" Margin="20,0,0,0" />
         <Button Content="2 단" Style="{StaticResource StepButton}" Margin="20,0,0,0" />
+        <Button Content="고급 설정" Style="{StaticResource AdvancedSettingButton}" Margin="20,0,0,0" />
+        <Button Content="고급 설정" Style="{StaticResource AdvancedSettingButton}" Margin="20,0,0,0" Tag="Hover" />
+        <Button Style="{StaticResource BackArrowButton}" Margin="20,0,0,0" />
     </StackPanel>
 </Window>
