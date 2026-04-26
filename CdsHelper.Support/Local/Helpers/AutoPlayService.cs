@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
@@ -270,6 +271,13 @@ public class AutoPlayService : IDisposable
     /// <summary>대화창: 확인 버튼 찾아 클릭, 없으면 화면 중앙 클릭.</summary>
     private async Task HandleDialog(IntPtr hWnd, int centerX, int centerY, CancellationToken token)
     {
+        if (!AppSettings.AutoConfirmDialog)
+        {
+            Log("대화창 — 자동 확인 꺼짐 (수동 처리 대기)");
+            await Task.Delay(1000, token);
+            return;
+        }
+
         Log("대화창 — 확인 버튼 검색...");
 
         var target = FindMenuButton(hWnd, "confirm_button");
