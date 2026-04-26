@@ -1343,12 +1343,6 @@ public class WorldMapContent : ContentControl
                     await detection.Event.HandleAsync(hWnd);
                     return;
                 }
-                if (detection.Screen == GameScreen.Battle)
-                {
-                    SetEventStatus("⚔ 전투 감지 → 돌격!");
-                    await GameScreenDetector.DismissDialogAsync(hWnd, detection.Screen);
-                    return;
-                }
                 // 메뉴가 떠 있으면 좌표 OCR이 가려짐. 사용자가 연 것일 수 있으니 닫지는 않고 상태만 표시
                 if (detection.Screen is GameScreen.CommandMenu or GameScreen.HintList or GameScreen.InfoMenu)
                 {
@@ -2117,27 +2111,6 @@ public class WorldMapContent : ContentControl
             GameWindowHelper.BringToFront(hWnd);
             await Task.Delay(300, token);
 
-            // 도시 안인지 확인 → 탐험 떠나기 먼저 실행
-            // IsInCity 단독은 해안가 바다색에 오감지될 수 있으므로 전체 화면 감지로 확정
-            try
-            {
-                using var checkBmp = GameWindowHelper.CaptureClient(hWnd);
-                if (checkBmp != null)
-                {
-                    var preflight = await _screenDetector.DetectScreenWithOcrAsync(checkBmp);
-                    if (preflight.Screen == GameScreen.City)
-                    {
-                        Dispatcher.Invoke(() => SetNavStatus("📍 도시 안 → 탐험 떠나는 중..."));
-
-                        await LeaveCityAsync(hWnd, token);
-
-                        // 탐험 출발 후 화면 전환 대기
-                        await Task.Delay(2000, token);
-                    }
-                }
-            }
-            catch (OperationCanceledException) { return; }
-
             // 이동 루프
             while (!token.IsCancellationRequested)
             {
@@ -2160,14 +2133,6 @@ public class WorldMapContent : ContentControl
                     // 다이얼로그/힌트 화면이 떠있으면 닫기
                     var detection = await _screenDetector.DetectScreenWithOcrAsync(bitmap);
                     var screen = detection.Screen;
-                    if (screen is GameScreen.Battle)
-                    {
-                        Dispatcher.Invoke(() => SetEventStatus("⚔ 전투 중 → 돌격!"));
-                        await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
-                        await Task.Delay(2000, token);
-                        continue;
-                    }
-
                     if (screen is GameScreen.HintList or GameScreen.InfoMenu or GameScreen.CommandMenu)
                     {
                         Dispatcher.Invoke(() => SetNavStatus($"📋 화면 닫는 중... ({screen})"));

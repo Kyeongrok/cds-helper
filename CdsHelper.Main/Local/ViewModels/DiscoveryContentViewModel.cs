@@ -231,59 +231,32 @@ public partial class DiscoveryContentViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 현재 전체 발견물 목록을 JSONL 파일로 내보낸다.
-    /// 수정한 좌표/이름이 DB에 반영된 상태 그대로 직렬화된다.
+    /// 현재 발견물 마스터를 발견물.json 포맷(JSON 배열)으로 내보낸다.
+    /// 앱이 사용하는 사용자 JSON과 동일한 구조라 그대로 백업/공유 가능.
     /// </summary>
     [RelayCommand]
-    private void ExportJsonl()
+    private async Task ExportJsonAsync()
     {
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "발견물 JSONL로 내보내기",
-            FileName = $"discoveries_{DateTime.Now:yyyyMMdd_HHmmss}.jsonl",
-            DefaultExt = ".jsonl",
-            Filter = "JSON Lines (*.jsonl)|*.jsonl|All files (*.*)|*.*",
+            Title = "발견물 JSON으로 내보내기",
+            FileName = $"발견물_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+            DefaultExt = ".json",
+            Filter = "JSON (*.json)|*.json|All files (*.*)|*.*",
         };
         if (dlg.ShowDialog() != true) return;
 
         try
         {
-            // 모든 발견물을 DB에서 최신 상태로 가져와서 파일로 기록
-            var all = _discoveryService.GetAllDiscoveries().Values
-                .OrderBy(d => d.Id)
-                .ToList();
-
-            var options = new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = false, // JSONL은 한 줄에 한 객체
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-            };
-
-            using var writer = new System.IO.StreamWriter(dlg.FileName, false, new System.Text.UTF8Encoding(false));
-            foreach (var d in all)
-            {
-                var row = new
-                {
-                    id = d.Id,
-                    name = d.Name,
-                    hintId = d.HintId,
-                    appearCondition = d.AppearCondition,
-                    bookName = d.BookName,
-                    latFrom = d.LatFrom,
-                    latTo = d.LatTo,
-                    lonFrom = d.LonFrom,
-                    lonTo = d.LonTo,
-                };
-                writer.WriteLine(System.Text.Json.JsonSerializer.Serialize(row, options));
-            }
-
-            StatusText = $"{all.Count}개 발견물을 JSONL로 내보냈습니다: {dlg.FileName}";
+            await _discoveryService.ExportJsonAsync(dlg.FileName);
+            StatusText = $"{_discoveryService.RecordCount}개 발견물을 JSON으로 내보냈습니다: {dlg.FileName}";
         }
         catch (Exception ex)
         {
             StatusText = $"내보내기 실패: {ex.Message}";
         }
     }
+
 }
 
 public partial class DiscoveryDisplayItem : ObservableObject

@@ -15,7 +15,6 @@ public class GameEventRecognizer
         _events = new IGameEvent[]
         {
             new SupplyMaxEvent(),
-            new FleeChoiceEvent(),
             new ConfirmOnlyEvent(),
         };
     }

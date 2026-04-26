@@ -145,12 +145,6 @@ public class GameScreenDetector
                 GameWindowHelper.SendEscKey(hWnd);
                 await Task.Delay(500, token);
                 break;
-
-            case GameScreen.Battle:
-                // 전투 → 돌격 (첫 번째 옵션이므로 Enter)
-                GameWindowHelper.SendEnterKey(hWnd);
-                await Task.Delay(1000, token);
-                break;
         }
     }
 

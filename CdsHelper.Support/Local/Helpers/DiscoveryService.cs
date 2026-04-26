@@ -403,12 +403,27 @@ public class DiscoveryService
     private async Task SaveJsonAsync()
     {
         if (string.IsNullOrEmpty(_userJsonPath)) return;
+        await WriteJsonToAsync(_userJsonPath);
+    }
 
-        var dir = Path.GetDirectoryName(_userJsonPath);
+    /// <summary>
+    /// 현재 발견물 마스터를 임의 경로에 발견물.json 포맷으로 내보낸다.
+    /// </summary>
+    public async Task ExportJsonAsync(string targetPath)
+    {
+        await WriteJsonToAsync(targetPath);
+    }
+
+    /// <summary>현재 내보내기 대상 레코드 수.</summary>
+    public int RecordCount => _jsonRecords.Count;
+
+    private async Task WriteJsonToAsync(string targetPath)
+    {
+        var dir = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        await using var stream = File.Create(_userJsonPath);
+        await using var stream = File.Create(targetPath);
         await JsonSerializer.SerializeAsync(stream, _jsonRecords, JsonOpts);
     }
 
