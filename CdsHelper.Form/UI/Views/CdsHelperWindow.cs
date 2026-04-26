@@ -22,6 +22,8 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_DiscoveryMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_WorldMapMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_AccordionMenu, Type = typeof(NavigationMenu))]
 [TemplatePart(Name = PART_ContentRegion, Type = typeof(ContentControl))]
 [TemplatePart(Name = PART_HamburgerButton, Type = typeof(Button))]
@@ -33,6 +35,8 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_HelpMenu = "PART_HelpMenu";
+    private const string PART_DiscoveryMenu = "PART_DiscoveryMenu";
+    private const string PART_WorldMapMenu = "PART_WorldMapMenu";
     private const string PART_AccordionMenu = "PART_AccordionMenu";
     private const string PART_ContentRegion = "PART_ContentRegion";
     private const string PART_HamburgerButton = "PART_HamburgerButton";
@@ -87,6 +91,16 @@ public class CdsHelperWindow : CdsWindow
             helpMenu.Click += OnHelpMenuClick;
         }
 
+        if (GetTemplateChild(PART_DiscoveryMenu) is MenuItem discoveryMenu)
+        {
+            discoveryMenu.Click += (_, _) => NavigateAndSync("DiscoveryContent");
+        }
+
+        if (GetTemplateChild(PART_WorldMapMenu) is MenuItem worldMapMenu)
+        {
+            worldMapMenu.Click += (_, _) => NavigateAndSync("WorldMapContent");
+        }
+
         _accordionMenu = GetTemplateChild(PART_AccordionMenu) as NavigationMenu;
         if (_accordionMenu != null)
         {
@@ -99,6 +113,16 @@ public class CdsHelperWindow : CdsWindow
         if (_hamburgerButton != null && _menuPopup != null)
         {
             _hamburgerButton.Click += (_, _) => _menuPopup.IsOpen = !_menuPopup.IsOpen;
+            // AllowsTransparency=True + PopupAnimation 조합에서 첫 프레임이
+            // 화면 (0,0)에 잠깐 잡혔다가 제 위치로 점프하는 WPF 버그 회피.
+            // 오프셋을 한 픽셀 흔들어 재배치를 강제한다.
+            _menuPopup.Opened += (_, _) =>
+            {
+                if (_menuPopup == null) return;
+                var off = _menuPopup.HorizontalOffset;
+                _menuPopup.HorizontalOffset = off + 1;
+                _menuPopup.HorizontalOffset = off;
+            };
         }
 
         // ControlTemplate 내의 ContentControl에 Region 설정
@@ -145,6 +169,12 @@ public class CdsHelperWindow : CdsWindow
             // 네비게이션 후 햄버거 팝업 닫기
             if (_menuPopup != null) _menuPopup.IsOpen = false;
         }
+    }
+
+    private void NavigateAndSync(string viewName)
+    {
+        _viewModel?.NavigateToContent(viewName);
+        _accordionMenu?.SelectItemByTag(viewName);
     }
 
     private void OnSettingsMenuClick(object sender, RoutedEventArgs e)

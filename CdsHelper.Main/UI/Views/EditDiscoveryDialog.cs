@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using CdsHelper.Main.Local.ViewModels;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
 using Ellipse = System.Windows.Shapes.Ellipse;
 using Rectangle = System.Windows.Shapes.Rectangle;
@@ -34,6 +35,8 @@ public class EditDiscoveryDialog : Window
 
     // 줌/팬 상태
     private readonly ScaleTransform _scaleTransform = new(1.0, 1.0);
+    // 마커가 줌과 무관하게 화면상 크기를 유지하도록 1/scale로 역보정
+    private readonly ScaleTransform _markerCounterScale = new(1.0, 1.0);
     private Point _mouseDownPos;
     private double _mouseDownHOffset;
     private double _mouseDownVOffset;
@@ -209,7 +212,8 @@ public class EditDiscoveryDialog : Window
         var worldPath = Path.Combine(dir, "WORLD.CDS");
         var data = WorldMapRenderer.LoadWorldData(worldPath);
         if (data == null) return;
-        _mapImage.Source = WorldMapRenderer.RenderSingleTile(data, showCoast: true, showWind: false);
+        var palette = MapPalette.LoadOrDefault(AppSettings.MapPaletteFilePath);
+        _mapImage.Source = WorldMapRenderer.RenderSingleTile(data, palette, showCoast: true, showWind: false);
     }
 
     private void CenterOnExistingCoord()
@@ -299,6 +303,8 @@ public class EditDiscoveryDialog : Window
 
         _scaleTransform.ScaleX = newScale;
         _scaleTransform.ScaleY = newScale;
+        _markerCounterScale.ScaleX = 1.0 / newScale;
+        _markerCounterScale.ScaleY = 1.0 / newScale;
 
         // 커서 아래 지점을 그대로 유지하도록 스크롤 오프셋 보정
         _scrollViewer.UpdateLayout();
@@ -349,16 +355,7 @@ public class EditDiscoveryDialog : Window
         if (latFrom.HasValue && lonFrom.HasValue)
         {
             var (px, py) = WorldMapRenderer.LatLonToPixel(latFrom.Value, lonFrom.Value);
-            _fromMarker = new Ellipse
-            {
-                Width = MarkerSize,
-                Height = MarkerSize,
-                Fill = new SolidColorBrush(Color.FromRgb(30, 120, 255)),
-                Stroke = Brushes.White,
-                StrokeThickness = 2,
-                IsHitTestVisible = false,
-                ToolTip = "From"
-            };
+            _fromMarker = CreateMarker(Color.FromRgb(30, 120, 255), "From");
             Canvas.SetLeft(_fromMarker, px - MarkerSize / 2);
             Canvas.SetTop(_fromMarker, py - MarkerSize / 2);
             _overlayCanvas.Children.Add(_fromMarker);
@@ -368,20 +365,27 @@ public class EditDiscoveryDialog : Window
         if (latTo.HasValue && lonTo.HasValue && (latTo != latFrom || lonTo != lonFrom))
         {
             var (px, py) = WorldMapRenderer.LatLonToPixel(latTo.Value, lonTo.Value);
-            _toMarker = new Ellipse
-            {
-                Width = MarkerSize,
-                Height = MarkerSize,
-                Fill = new SolidColorBrush(Color.FromRgb(230, 60, 60)),
-                Stroke = Brushes.White,
-                StrokeThickness = 2,
-                IsHitTestVisible = false,
-                ToolTip = "To"
-            };
+            _toMarker = CreateMarker(Color.FromRgb(230, 60, 60), "To");
             Canvas.SetLeft(_toMarker, px - MarkerSize / 2);
             Canvas.SetTop(_toMarker, py - MarkerSize / 2);
             _overlayCanvas.Children.Add(_toMarker);
         }
+    }
+
+    private Ellipse CreateMarker(Color fill, string tooltip)
+    {
+        return new Ellipse
+        {
+            Width = MarkerSize,
+            Height = MarkerSize,
+            Fill = new SolidColorBrush(fill),
+            Stroke = Brushes.White,
+            StrokeThickness = 2,
+            IsHitTestVisible = false,
+            ToolTip = tooltip,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = _markerCounterScale,
+        };
     }
 
     private void ClearAll()

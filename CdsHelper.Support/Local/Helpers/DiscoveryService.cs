@@ -129,7 +129,15 @@ public class DiscoveryService
 
         if (force)
         {
-            // 번들 갱신: 기존 행을 비우고 재이식 (DiscoveryParents는 FK CASCADE로 함께 삭제)
+            // 번들 갱신: 기존 행을 비우고 재이식.
+            // DiscoveryParents.ParentDiscoveryId가 ON DELETE RESTRICT라서
+            // Discoveries를 먼저 지우면 부모로 참조되는 행에서 FK가 막힌다.
+            // 따라서 자식 매핑 테이블을 먼저 비운 뒤 Discoveries를 삭제한다.
+            using (var clearChildCmd = connection.CreateCommand())
+            {
+                clearChildCmd.CommandText = "DELETE FROM DiscoveryParents";
+                await clearChildCmd.ExecuteNonQueryAsync();
+            }
             using var deleteCmd = connection.CreateCommand();
             deleteCmd.CommandText = "DELETE FROM Discoveries";
             await deleteCmd.ExecuteNonQueryAsync();

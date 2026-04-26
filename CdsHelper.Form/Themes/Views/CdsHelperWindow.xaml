@@ -146,6 +146,8 @@
                                     <MenuItem Header="파일">
                                         <MenuItem Header="세이브 파일 열기" Command="{Binding LoadSaveCommand}"/>
                                     </MenuItem>
+                                    <MenuItem Header="발견물" x:Name="PART_DiscoveryMenu" />
+                                    <MenuItem Header="세계지도" x:Name="PART_WorldMapMenu" />
                                     <MenuItem Header="설정" x:Name="PART_SettingsMenu" />
                                     <MenuItem Header="도구">
                                         <MenuItem Header="스핑크스" x:Name="PART_SphinxMenu" />
