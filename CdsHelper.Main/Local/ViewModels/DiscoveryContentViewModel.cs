@@ -240,7 +240,7 @@ public partial class DiscoveryContentViewModel : ObservableObject
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Title = "발견물 JSON으로 내보내기",
-            FileName = $"발견물_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+            FileName = "발견물.json",
             DefaultExt = ".json",
             Filter = "JSON (*.json)|*.json|All files (*.*)|*.*",
         };

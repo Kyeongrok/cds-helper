@@ -1172,7 +1172,8 @@ public class WorldMapContent : ContentControl
             return;
         }
 
-        // 더블클릭: 좌표 편집 다이얼로그
+        // 더블클릭: 첫 클릭에서 열린 팝업이 남아있으면 닫고 좌표 편집 다이얼로그만 띄움
+        if (_discoveryInfoPopup != null) _discoveryInfoPopup.IsOpen = false;
 
         var item = new DiscoveryDisplayItem
         {
@@ -1740,7 +1741,7 @@ public class WorldMapContent : ContentControl
 
     private void ScrollToMarkerIfNeeded(double pixelX, double pixelY)
     {
-        if (_scrollViewer == null) return;
+        if (_scrollViewer == null || !_autoScrollEnabled) return;
 
         var screenX = (pixelX * _currentScale) - _scrollViewer.HorizontalOffset;
         var screenY = (pixelY * _currentScale) - _scrollViewer.VerticalOffset;
@@ -1748,14 +1749,9 @@ public class WorldMapContent : ContentControl
         var viewW = _scrollViewer.ViewportWidth;
         var viewH = _scrollViewer.ViewportHeight;
 
-        // 드래그로 자동스크롤이 꺼졌어도, 마커가 뷰포트 밖으로 완전히 나가면 강제 재활성화
-        if (!_autoScrollEnabled &&
-            (screenX < 0 || screenX > viewW || screenY < 0 || screenY > viewH))
-        {
-            _autoScrollEnabled = true;
-        }
-
-        if (!_autoScrollEnabled) return;
+        // 사용자가 드래그한 후엔 _autoScrollEnabled=false로 자동스크롤이 멈추고,
+        // 사용자가 ◎(내 위치로) 버튼을 눌러야 다시 활성화됨 (Google Maps 패턴).
+        // 마커가 뷰포트 밖으로 나가도 강제 재활성화하지 않음 — 사용자가 다른 지역을 보는 중일 수 있음.
 
         // 마커가 중심에서 (viewport_half × threshold)만큼 벗어나면 재중앙 정렬
         // threshold=0.5 → 뷰포트 중앙 50% 안전영역 (marginX = viewW * 0.25)
@@ -2215,26 +2211,44 @@ public class WorldMapContent : ContentControl
                         continue;
                     }
 
-                    var prediction = await _coordinateOcr.PredictOcrAsync(bitmap);
-                    if (prediction == null)
+                    // 1차: 메모리 직접 읽기 (서경 51° 이서는 손상되어 null)
+                    double curLat, curLon;
+                    string coordLabel;
+                    var memCoord = _gameMemoryReader.TryReadLatLon();
+                    CoordinatePrediction? prediction = null;
+                    if (memCoord.HasValue)
                     {
-                        await Task.Delay(500, token);
-                        continue;
+                        (curLat, curLon) = memCoord.Value;
+                        coordLabel = $"{(curLat >= 0 ? "북위" : "남위")} {Math.Abs(curLat):F1}  {(curLon >= 0 ? "동경" : "서경")} {Math.Abs(curLon):F1}";
                     }
-
-                    var curLat = prediction.ToLat();
-                    var curLon = prediction.ToLon();
+                    else
+                    {
+                        // 2차 폴백: OCR
+                        prediction = await _coordinateOcr.PredictOcrAsync(bitmap);
+                        if (prediction == null)
+                        {
+                            await Task.Delay(500, token);
+                            continue;
+                        }
+                        curLat = prediction.ToLat();
+                        curLon = prediction.ToLon();
+                        coordLabel = prediction.ToString();
+                    }
 
                     // 도착 판정
                     if (NavigationCalculator.IsNear(curLat, curLon, destLat, destLon, threshold: 2.0))
                     {
                         GameWindowHelper.SendNumpadKey(navHWnd, 5);
+                        // OCR로 받은 게 없으면 메모리 좌표로 합성
+                        var arrivalPrediction = prediction ?? new CoordinatePrediction(
+                            curLat >= 0, (int)Math.Round(Math.Abs(curLat)),
+                            curLon >= 0, (int)Math.Round(Math.Abs(curLon)));
                         Dispatcher.Invoke(() =>
                         {
                             _isNavigating = false;
                             for (int i = 0; i < 3; i++)
                                 if (_destMarkers[i] != null) _destMarkers[i]!.Visibility = Visibility.Collapsed;
-                            ShowArrivedStatus(prediction);
+                            ShowArrivedStatus(arrivalPrediction);
                         });
                         return;
                     }
@@ -2251,7 +2265,7 @@ public class WorldMapContent : ContentControl
                         _ => "?"
                     };
 
-                    Dispatcher.Invoke(() => SetNavStatus($"🎯 자동이동 중 - {prediction} → {dirLabel}"));
+                    Dispatcher.Invoke(() => SetNavStatus($"🎯 자동이동 중 - {coordLabel} → {dirLabel}"));
 
                     await Task.Delay(500, token);
                 }
