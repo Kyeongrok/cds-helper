@@ -245,7 +245,8 @@ public partial class CdsHelperViewModel : ObservableObject
 
         var citiesPath = System.IO.Path.Combine(basePath, "cities.json");
         var hintPath = System.IO.Path.Combine(basePath, "hint.json");
-        var discoveryCsvPath = System.IO.Path.Combine(basePath, "발견물힌트.csv");
+        var bundledDiscoveryJsonPath = System.IO.Path.Combine(basePath, "발견물.json");
+        var userDiscoveryJsonPath = AppSettings.DiscoveryFilePath;
         var booksPath = System.IO.Path.Combine(basePath, "books.json");
         var patronsPath = System.IO.Path.Combine(basePath, "patrons.json");
         var figureheadsPath = System.IO.Path.Combine(basePath, "figurehead.json");
@@ -262,7 +263,7 @@ public partial class CdsHelperViewModel : ObservableObject
             await _hintService.InitializeAsync(dbPath, hintPath);
 
             StatusText = "발견물 데이터 로드 중...";
-            await _discoveryService.InitializeAsync(dbPath, discoveryCsvPath);
+            await _discoveryService.InitializeAsync(dbPath, bundledDiscoveryJsonPath, userDiscoveryJsonPath);
 
             StatusText = "도서 데이터 로드 중...";
             await _bookService.InitializeAsync(dbPath, booksPath);

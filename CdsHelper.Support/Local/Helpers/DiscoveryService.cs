@@ -1,5 +1,8 @@
 using System.IO;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using CdsHelper.Api.Data;
 using CdsHelper.Api.Entities;
@@ -9,12 +12,27 @@ namespace CdsHelper.Support.Local.Helpers;
 
 public class DiscoveryService
 {
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never
+    };
+
     private AppDbContext? _dbContext;
     private Dictionary<int, DiscoveryEntity> _discoveries = new();
     private Dictionary<string, int> _nameToIdMap = new(); // 발견물 이름 -> ID 매핑
+    private List<DiscoveryJsonRecord> _jsonRecords = new();
+    private string? _userJsonPath;
     private bool _initialized;
 
-    public async Task InitializeAsync(string dbPath, string? csvPath = null)
+    /// <summary>
+    /// 발견물 데이터 초기화.
+    /// 사용자 JSON(<paramref name="userJsonPath"/>)이 source of truth. 없으면 번들 JSON을 사용자 위치로 복사한다.
+    /// 이후 좌표/이름 편집은 사용자 JSON에 즉시 반영되어 앱 업데이트에도 보존된다.
+    /// </summary>
+    public async Task InitializeAsync(string dbPath, string bundledJsonPath, string userJsonPath)
     {
         if (_initialized) return;
 
@@ -22,10 +40,22 @@ public class DiscoveryService
         _dbContext.Database.EnsureCreated();
         EnsureTablesExist();
 
-        // CSV 파일이 있으면 마이그레이션
-        if (!string.IsNullOrEmpty(csvPath) && File.Exists(csvPath))
+        _userJsonPath = userJsonPath;
+
+        // 사용자 JSON이 없으면 번들에서 복사 (최초 실행)
+        if (!File.Exists(userJsonPath) && File.Exists(bundledJsonPath))
         {
-            await MigrateFromCsvAsync(csvPath);
+            var dir = Path.GetDirectoryName(userJsonPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.Copy(bundledJsonPath, userJsonPath);
+        }
+
+        // 사용자 JSON 로드 → DB 마이그레이션
+        if (File.Exists(userJsonPath))
+        {
+            await LoadJsonAsync(userJsonPath);
+            await MigrateFromJsonAsync();
         }
 
         // 캐시 로드
@@ -65,9 +95,16 @@ public class DiscoveryService
             )");
     }
 
-    private async Task MigrateFromCsvAsync(string csvPath)
+    private async Task LoadJsonAsync(string jsonPath)
     {
-        if (_dbContext == null) return;
+        await using var stream = File.OpenRead(jsonPath);
+        var records = await JsonSerializer.DeserializeAsync<List<DiscoveryJsonRecord>>(stream, JsonOpts);
+        _jsonRecords = records ?? new List<DiscoveryJsonRecord>();
+    }
+
+    private async Task MigrateFromJsonAsync()
+    {
+        if (_dbContext == null || _jsonRecords.Count == 0) return;
 
         var connection = _dbContext.Database.GetDbConnection();
         if (connection.State != System.Data.ConnectionState.Open)
@@ -90,51 +127,25 @@ public class DiscoveryService
                 hintNameToId[hint.Name] = hint.Id;
         }
 
-        // CSV 파싱
-        var lines = await File.ReadAllLinesAsync(csvPath, Encoding.UTF8);
-        var discoveries = new List<(int Id, string Name, string? HintName, string? Condition, string? AppearCondition, string? BookName, int? LatFrom, int? LatTo, int? LonFrom, int? LonTo)>();
-
-        for (int i = 1; i < lines.Length; i++) // 헤더 스킵
-        {
-            var line = lines[i];
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            var fields = ParseCsvLine(line);
-            if (fields.Count < 2) continue;
-
-            if (!int.TryParse(fields[0].Trim(), out var id)) continue;
-
-            var name = fields.Count > 1 ? fields[1].Trim() : "";
-            var hintName = fields.Count > 2 ? NullIfEmpty(fields[2].Trim()) : null;
-            var condition = fields.Count > 3 ? NullIfEmpty(fields[3].Trim()) : null;
-            var appearCondition = fields.Count > 4 ? NullIfEmpty(fields[4].Trim()) : null;
-            var bookName = fields.Count > 5 ? NullIfEmpty(fields[5].Trim()) : null;
-            var latFrom = fields.Count > 6 ? ParseNullableInt(fields[6].Trim()) : null;
-            var latTo = fields.Count > 7 ? ParseNullableInt(fields[7].Trim()) : null;
-            var lonFrom = fields.Count > 8 ? ParseNullableInt(fields[8].Trim()) : null;
-            var lonTo = fields.Count > 9 ? ParseNullableInt(fields[9].Trim()) : null;
-
-            if (string.IsNullOrEmpty(name)) continue;
-
-            discoveries.Add((id, name, hintName, condition, appearCondition, bookName, latFrom, latTo, lonFrom, lonTo));
-        }
-
         // 이름 -> ID 매핑 생성 (선행 발견물 매핑용)
         var nameToId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var d in discoveries)
+        foreach (var d in _jsonRecords)
         {
+            if (string.IsNullOrEmpty(d.Name)) continue;
             if (!nameToId.ContainsKey(d.Name))
                 nameToId[d.Name] = d.Id;
         }
 
         // 발견물 INSERT
-        foreach (var d in discoveries)
+        foreach (var d in _jsonRecords)
         {
+            if (string.IsNullOrEmpty(d.Name)) continue;
+
             // 힌트 이름으로 힌트 ID 찾기
             int? hintId = null;
-            if (!string.IsNullOrEmpty(d.HintName))
+            if (!string.IsNullOrEmpty(d.Hint))
             {
-                hintId = FindHintId(d.HintName, hintNameToId);
+                hintId = FindHintId(d.Hint, hintNameToId);
             }
 
             using var insertCmd = connection.CreateCommand();
@@ -156,14 +167,13 @@ public class DiscoveryService
         }
 
         // 선행 발견물 매핑 INSERT
-        foreach (var d in discoveries)
+        foreach (var d in _jsonRecords)
         {
             if (string.IsNullOrEmpty(d.Condition)) continue;
 
             var parentNames = ParseCondition(d.Condition);
             foreach (var parentName in parentNames)
             {
-                // 발견물 이름으로 ID 찾기
                 var parentId = FindDiscoveryId(parentName, nameToId);
                 if (parentId == null) continue;
 
@@ -179,7 +189,7 @@ public class DiscoveryService
             }
         }
 
-        EventQueueService.Instance.DataLoaded("DiscoveryService", $"발견물 {discoveries.Count}개 마이그레이션 완료");
+        EventQueueService.Instance.DataLoaded("DiscoveryService", $"발견물 {_jsonRecords.Count}개 마이그레이션 완료");
     }
 
     /// <summary>
@@ -261,45 +271,6 @@ public class DiscoveryService
         }
 
         return null;
-    }
-
-    private List<string> ParseCsvLine(string line)
-    {
-        var result = new List<string>();
-        var current = new StringBuilder();
-        bool inQuotes = false;
-
-        for (int i = 0; i < line.Length; i++)
-        {
-            char c = line[i];
-
-            if (c == '"')
-            {
-                inQuotes = !inQuotes;
-            }
-            else if (c == ',' && !inQuotes)
-            {
-                result.Add(current.ToString());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(c);
-            }
-        }
-
-        result.Add(current.ToString());
-        return result;
-    }
-
-    private string? NullIfEmpty(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
-
-    private int? ParseNullableInt(string? value)
-    {
-        return int.TryParse(value, out var result) ? result : null;
     }
 
     private void AddParameter(System.Data.Common.DbCommand cmd, string name, object? value)
@@ -388,6 +359,17 @@ public class DiscoveryService
             _discoveries[id].LonFrom = lonFrom;
             _discoveries[id].LonTo = lonTo;
         }
+
+        // JSON 백업 갱신 (앱 업데이트로 install 폴더가 갈려도 보존)
+        var rec = _jsonRecords.FirstOrDefault(r => r.Id == id);
+        if (rec != null)
+        {
+            rec.LatFrom = latFrom;
+            rec.LatTo = latTo;
+            rec.LonFrom = lonFrom;
+            rec.LonTo = lonTo;
+            await SaveJsonAsync();
+        }
     }
 
     public async Task UpdateNameAsync(int id, string newName)
@@ -408,5 +390,39 @@ public class DiscoveryService
         // 이름→ID 맵 갱신
         _nameToIdMap.Remove(oldName);
         _nameToIdMap[newName] = id;
+
+        // JSON 백업 갱신
+        var rec = _jsonRecords.FirstOrDefault(r => r.Id == id);
+        if (rec != null)
+        {
+            rec.Name = newName;
+            await SaveJsonAsync();
+        }
+    }
+
+    private async Task SaveJsonAsync()
+    {
+        if (string.IsNullOrEmpty(_userJsonPath)) return;
+
+        var dir = Path.GetDirectoryName(_userJsonPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
+        await using var stream = File.Create(_userJsonPath);
+        await JsonSerializer.SerializeAsync(stream, _jsonRecords, JsonOpts);
+    }
+
+    private sealed class DiscoveryJsonRecord
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Hint { get; set; }
+        public string? Condition { get; set; }
+        public string? AppearCondition { get; set; }
+        public string? BookName { get; set; }
+        public int? LatFrom { get; set; }
+        public int? LatTo { get; set; }
+        public int? LonFrom { get; set; }
+        public int? LonTo { get; set; }
     }
 }

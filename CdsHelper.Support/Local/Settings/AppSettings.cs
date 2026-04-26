@@ -58,6 +58,15 @@ public static class AppSettings
         "CdsHelper",
         "map_palette.json");
 
+    /// <summary>
+    /// 발견물 마스터 JSON 파일 경로 (%APPDATA%\CdsHelper\발견물.json).
+    /// CSV를 대체하는 source of truth. 좌표/이름 편집이 즉시 저장되며 앱 업데이트로 install 폴더가 갈려도 보존된다.
+    /// </summary>
+    public static string DiscoveryFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "CdsHelper",
+        "발견물.json");
+
     public static event Action? SettingsChanged;
 
     private static double _markerSize = DefaultMarkerSize;
