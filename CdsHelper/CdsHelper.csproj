@@ -39,7 +39,7 @@
       <Content Include="hint.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
-      <Content Include="발견물힌트.csv">
+      <Content Include="발견물.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
     </ItemGroup>
