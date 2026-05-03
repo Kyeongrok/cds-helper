@@ -110,7 +110,6 @@ public class WorldMapContent : ContentControl
 
     private bool _isDragging;
     private Point _lastMousePos;
-    private bool _autoScrollEnabled = true;
 
     // 자동이동
     private CancellationTokenSource? _navCts;
@@ -311,7 +310,6 @@ public class WorldMapContent : ContentControl
     private void ScrollViewer_MouseMove(object sender, MouseEventArgs e)
     {
         if (!_isDragging || _scrollViewer == null) return;
-        _autoScrollEnabled = false;
         var pos = e.GetPosition(_scrollViewer);
         var dx = pos.X - _lastMousePos.X;
         var dy = pos.Y - _lastMousePos.Y;
@@ -1722,7 +1720,6 @@ public class WorldMapContent : ContentControl
         var px = Canvas.GetLeft(marker) + 3.5; // markerSize/2
         var py = Canvas.GetTop(marker) + 3.5;
 
-        _autoScrollEnabled = true;
         ScrollToImagePosition(px, py);
     }
 
@@ -1741,25 +1738,32 @@ public class WorldMapContent : ContentControl
 
     private void ScrollToMarkerIfNeeded(double pixelX, double pixelY)
     {
-        if (_scrollViewer == null || !_autoScrollEnabled) return;
-
-        var screenX = (pixelX * _currentScale) - _scrollViewer.HorizontalOffset;
-        var screenY = (pixelY * _currentScale) - _scrollViewer.VerticalOffset;
+        if (_scrollViewer == null) return;
 
         var viewW = _scrollViewer.ViewportWidth;
         var viewH = _scrollViewer.ViewportHeight;
 
-        // 사용자가 드래그한 후엔 _autoScrollEnabled=false로 자동스크롤이 멈추고,
-        // 사용자가 ◎(내 위치로) 버튼을 눌러야 다시 활성화됨 (Google Maps 패턴).
-        // 마커가 뷰포트 밖으로 나가도 강제 재활성화하지 않음 — 사용자가 다른 지역을 보는 중일 수 있음.
+        // 마커는 좌/중/우 3타일에 복제 표시되므로, 뷰포트 중심에 가장 가까운 복제본을 기준으로 검사.
+        var bestScreenX = double.NaN;
+        var bestDistFromCenter = double.PositiveInfinity;
+        foreach (var ox in TileOffsets)
+        {
+            var sx = (pixelX + ox) * _currentScale - _scrollViewer.HorizontalOffset;
+            var dist = Math.Abs(sx - viewW / 2.0);
+            if (dist < bestDistFromCenter)
+            {
+                bestDistFromCenter = dist;
+                bestScreenX = sx;
+            }
+        }
+        var screenY = (pixelY * _currentScale) - _scrollViewer.VerticalOffset;
 
-        // 마커가 중심에서 (viewport_half × threshold)만큼 벗어나면 재중앙 정렬
-        // threshold=0.5 → 뷰포트 중앙 50% 안전영역 (marginX = viewW * 0.25)
+        // threshold = 안전영역 폭 비율. 0.5 → 뷰포트 가운데 50%가 안전영역 (marginX = viewW * 0.25)
         var threshold = Math.Clamp(GetAutoScrollThreshold(), 0.0, 1.0);
         var marginX = viewW * (1.0 - threshold) / 2.0;
         var marginY = viewH * (1.0 - threshold) / 2.0;
 
-        if (screenX < marginX || screenX > viewW - marginX ||
+        if (bestScreenX < marginX || bestScreenX > viewW - marginX ||
             screenY < marginY || screenY > viewH - marginY)
         {
             ScrollToImagePosition(pixelX, pixelY);
