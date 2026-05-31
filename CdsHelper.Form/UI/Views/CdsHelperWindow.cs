@@ -113,15 +113,18 @@ public class CdsHelperWindow : CdsWindow
         if (_hamburgerButton != null && _menuPopup != null)
         {
             _hamburgerButton.Click += (_, _) => _menuPopup.IsOpen = !_menuPopup.IsOpen;
-            // AllowsTransparency=True + PopupAnimation 조합에서 첫 프레임이
-            // 화면 (0,0)에 잠깐 잡혔다가 제 위치로 점프하는 WPF 버그 회피.
-            // 오프셋을 한 픽셀 흔들어 재배치를 강제한다.
+            // AllowsTransparency=True + PopupAnimation 조합에서 첫 오픈 시
+            // 팝업이 화면 (0,0)에 떴다가 제 위치로 점프하는 WPF 버그 회피.
+            // off+1 로 바꾼 뒤 "다음 디스패처 사이클"에 off 로 되돌려야 실제 재배치가 일어난다.
+            // (같은 호출 안에서 off+1; off; 하면 두 변경이 상쇄되어 재배치가 트리거되지 않음)
             _menuPopup.Opened += (_, _) =>
             {
-                if (_menuPopup == null) return;
-                var off = _menuPopup.HorizontalOffset;
-                _menuPopup.HorizontalOffset = off + 1;
-                _menuPopup.HorizontalOffset = off;
+                var popup = _menuPopup;
+                if (popup == null) return;
+                var off = popup.HorizontalOffset;
+                popup.HorizontalOffset = off + 1;
+                popup.Dispatcher.BeginInvoke(new Action(() => popup.HorizontalOffset = off),
+                    System.Windows.Threading.DispatcherPriority.Background);
             };
         }
 

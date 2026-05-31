@@ -34,7 +34,7 @@ jobs:
         run: dotnet restore CdsHelper/CdsHelper.csproj
 
       - name: Publish
-        run: dotnet publish CdsHelper/CdsHelper.csproj -c Release -o publish --no-restore -p:Version=${{ steps.version.outputs.version }} -p:AssemblyVersion=${{ steps.version.outputs.version }} -p:FileVersion=${{ steps.version.outputs.version }}
+        run: dotnet publish CdsHelper/CdsHelper.csproj -c Release -o publish --no-restore -p:Version=${{ steps.version.outputs.version }} -p:AssemblyVersion=${{ steps.version.outputs.version }} -p:FileVersion=${{ steps.version.outputs.version }} -p:InformationalVersion=${{ steps.version.outputs.version }}
 
       - name: Install vpk
         # CLI와 라이브러리(Velopack 0.0.1298) 버전 일치시켜 호환성 문제 회피

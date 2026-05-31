@@ -23,4 +23,9 @@
       <ProjectReference Include="..\CdsHelper.Support\CdsHelper.Support.csproj" />
     </ItemGroup>
 
+    <!-- 커스텀 패치 기본값 (첫 실행 시드용) -->
+    <ItemGroup>
+      <EmbeddedResource Include="Local\Assets\default_custom_patches.json" />
+    </ItemGroup>
+
 </Project>

@@ -15,6 +15,8 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
@@ -38,64 +40,237 @@
                                     Background="#FF9800" Foreground="White" BorderThickness="0"/>
                         </StackPanel>
 
-                        <!-- 등장 조건 -->
-                        <Border Grid.Row="2" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="등장 조건:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
-                                <TextBlock Text="주소" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
-                                <TextBlock Text="{Binding AppearConditionAddress}" VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,12,0"/>
-                                <TextBlock Text="현재" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
-                                <TextBlock Text="{Binding AppearConditionCurrent}" VerticalAlignment="Center" FontFamily="Consolas" FontWeight="Bold" Margin="0,0,12,0"/>
-                                <TextBlock Text="원본" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
-                                <TextBlock Text="{Binding AppearConditionOriginalDisplay}" VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,12,0"/>
-                                <TextBlock Text="수정" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
-                                <TextBlock Text="{Binding AppearConditionPatchedDisplay}" VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,15,0"/>
-                                <Button Content="적용" Command="{Binding SaveAppearConditionCommand}"
-                                        Width="60" Height="26" Margin="0,0,5,0"
-                                        Background="#4CAF50" Foreground="White" BorderThickness="0"/>
-                                <Button Content="원본" Command="{Binding RestoreAppearConditionCommand}"
-                                        Width="60" Height="26"
-                                        Background="#FF9800" Foreground="White" BorderThickness="0"/>
+                        <!-- 커스텀 패치 -->
+                        <Border Grid.Row="5" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="커스텀 패치" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,15,0"/>
+                                    <ToggleButton x:Name="PART_RegisterToggle" Content="등록하기"
+                                                  Width="80" Height="26" Margin="0,0,15,0" Cursor="Hand"/>
+                                    <Button Content="저장(위치 지정)" Command="{Binding SaveCustomPatchesCommand}"
+                                            Width="100" Height="26" Margin="0,0,5,0"/>
+                                    <Button Content="불러오기" Command="{Binding LoadCustomPatchesCommand}"
+                                            Width="80" Height="26"/>
+                                    <TextBlock Text="입력/수정 시 자동 저장됩니다. [저장]은 원하는 위치로 내보내기"
+                                               VerticalAlignment="Center" Foreground="Gray" Margin="15,0,0,0"/>
+                                </StackPanel>
+
+                                <!-- 입력 영역 : '등록하기' 토글 시에만 표시 (2줄) -->
+                                <StackPanel Margin="0,0,0,6">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsChecked, ElementName=PART_RegisterToggle}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+
+                                    <!-- 1줄: 이름 / 주소 / 바이트 / 범위 / + -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="이름" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding NewPatchName, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="270" Height="26" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                                        <TextBlock Text="주소(hex)" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding NewPatchAddress, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="90" Height="26" FontFamily="Consolas" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                                        <TextBlock Text="바이트" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                        <ComboBox ItemsSource="{x:Static vm:CustomPatchItem.ByteSizeOptions}"
+                                                  SelectedItem="{Binding NewPatchByteSize}"
+                                                  Width="50" Height="26" Margin="0,0,10,0"/>
+                                        <Button Content="+" Command="{Binding AddCustomPatchCommand}"
+                                                Width="32" Height="26" FontWeight="Bold" FontSize="16"
+                                                Background="#4CAF50" Foreground="White" BorderThickness="0"/>
+                                    </StackPanel>
+
+                                    <!-- 2줄: 설명 (가로 전체로 길게) -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="설명" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
+                                        <TextBox Grid.Column="1" Text="{Binding NewPatchDescription, UpdateSourceTrigger=PropertyChanged}"
+                                                 Height="26" VerticalContentAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- 커스텀 패치 목록 -->
+                                <units:CdsDataGrid x:Name="PART_CustomPatchGrid"
+                                                  ItemsSource="{Binding CustomPatches}"
+                                                  AutoGenerateColumns="False"
+                                                  CanUserAddRows="False"
+                                                  HeadersVisibility="Column"
+                                                  MaxHeight="180">
+                                    <!-- 행 선택 시 색이 바뀌지 않도록 RowStyle/CellStyle 재정의 -->
+                                    <units:CdsDataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow">
+                                            <Setter Property="Background" Value="White"/>
+                                        </Style>
+                                    </units:CdsDataGrid.RowStyle>
+                                    <units:CdsDataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Setter Property="Foreground" Value="Black"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="DataGridCell">
+                                                        <Border Background="{TemplateBinding Background}" Padding="8,4">
+                                                            <ContentPresenter VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </units:CdsDataGrid.CellStyle>
+                                    <units:CdsDataGrid.Columns>
+                                        <DataGridTemplateColumn Header="이름" Width="200">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                                                             BorderThickness="0" Background="Transparent" Padding="2,0"
+                                                             VerticalContentAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="설명" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <!-- 평소엔 한 줄로 말줄임 표시, 클릭하면 팝업에서 전체 내용 보기/편집 -->
+                                                        <ToggleButton x:Name="DescToggle" Cursor="Hand"
+                                                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                                      ToolTip="클릭하면 전체 설명 보기/편집">
+                                                            <ToggleButton.Template>
+                                                                <ControlTemplate TargetType="ToggleButton">
+                                                                    <Border Background="Transparent" Padding="2,0">
+                                                                        <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </ToggleButton.Template>
+                                                            <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis"/>
+                                                        </ToggleButton>
+                                                        <Popup IsOpen="{Binding IsChecked, ElementName=DescToggle}"
+                                                               PlacementTarget="{Binding ElementName=DescToggle}"
+                                                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                                            <Border Background="White" BorderBrush="#1A6BB5" BorderThickness="1"
+                                                                    CornerRadius="4" Padding="6" MinWidth="260" MaxWidth="420">
+                                                                <Border.Effect>
+                                                                    <DropShadowEffect ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
+                                                                </Border.Effect>
+                                                                <TextBox Text="{Binding Description, UpdateSourceTrigger=LostFocus}"
+                                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                                         BorderThickness="0" Background="Transparent"
+                                                                         MaxHeight="220" VerticalScrollBarVisibility="Auto"/>
+                                                            </Border>
+                                                        </Popup>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="주소" Width="90">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding AddressHex, UpdateSourceTrigger=LostFocus}"
+                                                             FontFamily="Consolas" BorderThickness="0" Background="Transparent" Padding="2,0"
+                                                             VerticalContentAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="값" Width="80">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" Tag="ValueCell"
+                                                             FontWeight="Bold" TextAlignment="Center"
+                                                             Foreground="Black" Background="White"
+                                                             BorderBrush="#BBBBBB" BorderThickness="1"
+                                                             Padding="2,1" Margin="2" VerticalContentAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="" Width="40">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="✕" Width="24" Height="22"
+                                                            Command="{Binding DataContext.RemoveCustomPatchCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ExePatchContent}}}"
+                                                            CommandParameter="{Binding}"
+                                                            Background="#F44336" Foreground="White" BorderThickness="0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <!-- 수정: 클릭하면 전체 항목 편집 팝업 -->
+                                        <DataGridTemplateColumn Header="" Width="60">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <ToggleButton x:Name="EditToggle" Content="수정" Cursor="Hand"
+                                                                      Width="48" Height="22"
+                                                                      Background="#1976D2" Foreground="White" BorderThickness="0"/>
+                                                        <Popup IsOpen="{Binding IsChecked, ElementName=EditToggle}"
+                                                               PlacementTarget="{Binding ElementName=EditToggle}"
+                                                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                                            <Border Background="White" BorderBrush="#1A6BB5" BorderThickness="1"
+                                                                    CornerRadius="4" Padding="10" Width="320">
+                                                                <Border.Effect>
+                                                                    <DropShadowEffect ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
+                                                                </Border.Effect>
+                                                                <StackPanel>
+                                                                    <TextBlock Text="패치 수정" FontWeight="Bold" Margin="0,0,0,8"/>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="64"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                        </Grid.RowDefinitions>
+
+                                                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="이름" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,6,4"/>
+                                                                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,4"/>
+
+                                                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="설명" VerticalAlignment="Top" Foreground="Gray" Margin="0,4,6,4"/>
+                                                                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Description, UpdateSourceTrigger=LostFocus}"
+                                                                                 TextWrapping="Wrap" AcceptsReturn="True" MinHeight="44" MaxHeight="120"
+                                                                                 VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"/>
+
+                                                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="주소(hex)" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,6,4"/>
+                                                                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding AddressHex, UpdateSourceTrigger=LostFocus}" FontFamily="Consolas" Margin="0,0,0,4"/>
+
+                                                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="바이트" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,6,4"/>
+                                                                        <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{x:Static vm:CustomPatchItem.ByteSizeOptions}"
+                                                                                  SelectedItem="{Binding ByteSize}" HorizontalAlignment="Left" Width="60" Margin="0,0,0,4"/>
+
+                                                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="값" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,6,0"/>
+                                                                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=LostFocus}" FontWeight="Bold" HorizontalAlignment="Left" Width="110"/>
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </Popup>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </units:CdsDataGrid.Columns>
+                                </units:CdsDataGrid>
                             </StackPanel>
                         </Border>
 
-                        <!-- 장기휴양 기간 설정 -->
-                        <Border Grid.Row="3" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="장기휴양 기간:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
-                                <TextBox Text="{Binding LongRestLimit, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="60" Height="26" VerticalContentAlignment="Center"
-                                         TextAlignment="Center" Margin="0,0,5,0"/>
-                                <TextBlock Text="개월" VerticalAlignment="Center" Margin="0,0,15,0"/>
-                                <Button Content="적용" Command="{Binding SaveLongRestLimitCommand}"
-                                        Width="60" Height="26" Margin="0,0,5,0"
-                                        Background="#4CAF50" Foreground="White" BorderThickness="0"/>
-                                <Button Content="원본(12)" Command="{Binding RestoreLongRestLimitCommand}"
-                                        Width="90" Height="26"
-                                        Background="#FF9800" Foreground="White" BorderThickness="0"/>
-                                <TextBlock Text="(1~127)" VerticalAlignment="Center" Foreground="Gray" Margin="10,0,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- 직업버튼 능력치 갱신 -->
-                        <Border Grid.Row="4" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="직업버튼 능력치 갱신:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
-                                <TextBlock Text="주소" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
-                                <TextBlock Text="{Binding JobButtonPatchAddress}" VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,12,0"/>
-                                <TextBlock Text="상태" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,4,0"/>
-                                <TextBlock Text="{Binding JobButtonPatchStatus}" VerticalAlignment="Center" FontFamily="Consolas" FontWeight="Bold" Margin="0,0,15,0"/>
-                                <Button Content="적용" Command="{Binding ApplyJobButtonPatchCommand}"
-                                        Width="60" Height="26" Margin="0,0,5,0"
-                                        Background="#4CAF50" Foreground="White" BorderThickness="0"/>
-                                <Button Content="원본" Command="{Binding RestoreJobButtonPatchCommand}"
-                                        Width="60" Height="26"
-                                        Background="#FF9800" Foreground="White" BorderThickness="0"/>
-                            </StackPanel>
-                        </Border>
+                        <!-- 항해사 등장/고용 수정 제목 -->
+                        <StackPanel Grid.Row="6" Margin="2,4,0,6">
+                            <TextBlock Text="항해사 등장여부 / 고용 수정" FontSize="15" FontWeight="Bold"/>
+                            <TextBlock Text="출생연도·고용 가능 여부를 수정합니다 (대화만 가능한 인물을 고용 가능하게)"
+                                       Foreground="Gray" FontSize="11" Margin="0,2,0,0"/>
+                        </StackPanel>
 
                         <!-- 데이터 그리드 -->
-                        <units:CdsDataGrid Grid.Row="5"
+                        <units:CdsDataGrid Grid.Row="7"
                                           ItemsSource="{Binding Characters}"
                                           AutoGenerateColumns="False">
                             <units:CdsDataGrid.RowStyle>
@@ -147,7 +322,7 @@
                         </units:CdsDataGrid>
 
                         <!-- 상태 바 -->
-                        <Border Grid.Row="6" Background="#F5F5F5" Padding="10,5" Margin="0,10,0,0">
+                        <Border Grid.Row="8" Background="#F5F5F5" Padding="10,5" Margin="0,10,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding StatusText}" />
                                 <TextBlock Text=" | " Foreground="Gray" Margin="10,0"/>
