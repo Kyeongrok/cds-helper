@@ -1,0 +1,29 @@
+﻿[
+  {
+    "Name": "대항해시대2 항해사 등장 조건 ",
+    "Description": "191:등장 안함 201:등장",
+    "Address": "0x30F6D",
+    "ByteSize": 2,
+    "Min": 0,
+    "Max": 65535,
+    "Value": 201
+  },
+  {
+    "Name": "직업버튼 능력치 갱신",
+    "Description": "캐릭터 생성시 능력치 리롤을 직업버튼에 바인딩. 적용:137",
+    "Address": "0x5CCDA",
+    "ByteSize": 1,
+    "Min": 0,
+    "Max": 255,
+    "Value": 137
+  },
+  {
+    "Name": "장기 휴양 기간",
+    "Description": "120을 입력 하면 장기 휴향 기간이 최대 120개월까지 됩니다.",
+    "Address": "0x5FB83",
+    "ByteSize": 1,
+    "Min": 0,
+    "Max": 255,
+    "Value": 120
+  }
+]

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Windows.Input;
 using CdsHelper.Support.Local.Settings;
 using Microsoft.Win32;
@@ -20,6 +21,121 @@ public class HireStatusOption
         new() { Value = 1, Display = "대화" },
         new() { Value = 2, Display = "고용" }
     };
+}
+
+/// <summary>
+/// 사용자가 직접 정의하는 헥스 패치 한 줄. (.cds 파일로 저장/불러오기)
+/// 주소(hex) + 바이트 수 + 허용 범위(min~max) + 현재 값.
+/// </summary>
+public class CustomPatchItem : BindableBase
+{
+    public static IReadOnlyList<int> ByteSizeOptions { get; } = new[] { 1, 2, 4 };
+
+    private string _name = "";
+    public string Name
+    {
+        get => _name;
+        set => SetProperty(ref _name, value);
+    }
+
+    private string _description = "";
+    public string Description
+    {
+        get => _description;
+        set => SetProperty(ref _description, value);
+    }
+
+    private string _addressHex = "";
+    public string AddressHex
+    {
+        get => _addressHex;
+        set
+        {
+            if (SetProperty(ref _addressHex, value))
+                OnDefinitionChanged?.Invoke(this);
+        }
+    }
+
+    /// <summary>바이트 수별 최대값 (부호 없는 정수 기준).</summary>
+    public static long MaxForByteSize(int byteSize) => byteSize switch
+    {
+        1 => 255,
+        2 => 65535,
+        _ => 4294967295L,
+    };
+
+    private int _byteSize = 1;
+    public int ByteSize
+    {
+        get => _byteSize;
+        set
+        {
+            if (SetProperty(ref _byteSize, value))
+            {
+                // 바이트 수에 따라 허용 범위 자동 결정
+                MinValue = 0;
+                MaxValue = MaxForByteSize(value);
+                OnDefinitionChanged?.Invoke(this);
+            }
+        }
+    }
+
+    private long _minValue;
+    public long MinValue
+    {
+        get => _minValue;
+        set => SetProperty(ref _minValue, value);
+    }
+
+    private long _maxValue = 255;
+    public long MaxValue
+    {
+        get => _maxValue;
+        set => SetProperty(ref _maxValue, value);
+    }
+
+    private long _value;
+    public long Value
+    {
+        get => _value;
+        set
+        {
+            if (SetProperty(ref _value, value))
+                OnValueChanged?.Invoke(this);
+        }
+    }
+
+    private string _statusText = "";
+    public string StatusText
+    {
+        get => _statusText;
+        set => SetProperty(ref _statusText, value);
+    }
+
+    /// <summary>값이 사용자 입력으로 바뀌면 EXE에 기록하기 위한 콜백.</summary>
+    public Action<CustomPatchItem>? OnValueChanged { get; set; }
+
+    /// <summary>주소/바이트 수가 바뀌면 현재 값을 다시 읽기 위한 콜백.</summary>
+    public Action<CustomPatchItem>? OnDefinitionChanged { get; set; }
+
+    /// <summary>EXE에 기록하지 않고 값만 갱신(현재 값 표시용).</summary>
+    public void SetValueSilent(long v)
+    {
+        _value = v;
+        RaisePropertyChanged(nameof(Value));
+    }
+}
+
+/// <summary>커스텀 패치 .cds 파일 직렬화용 DTO.</summary>
+public class CustomPatchDto
+{
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Address { get; set; } = "";
+    public int ByteSize { get; set; } = 1;
+    public long Min { get; set; }
+    public long Max { get; set; }
+    public long Value { get; set; }
 }
 
 public class Unko2CharacterItem : BindableBase
@@ -210,6 +326,79 @@ public class ExePatchContentViewModel : BindableBase
 
     public string JobButtonPatchAddress => $"0x{JobButtonPatchOffset:X6}";
 
+    // ===== 커스텀 패치 =====
+    private ObservableCollection<CustomPatchItem> _customPatches = new();
+    public ObservableCollection<CustomPatchItem> CustomPatches
+    {
+        get => _customPatches;
+        set => SetProperty(ref _customPatches, value);
+    }
+
+    private string _newPatchName = "";
+    public string NewPatchName
+    {
+        get => _newPatchName;
+        set => SetProperty(ref _newPatchName, value);
+    }
+
+    private string _newPatchDescription = "";
+    public string NewPatchDescription
+    {
+        get => _newPatchDescription;
+        set => SetProperty(ref _newPatchDescription, value);
+    }
+
+    private string _newPatchAddress = "";
+    public string NewPatchAddress
+    {
+        get => _newPatchAddress;
+        set => SetProperty(ref _newPatchAddress, value);
+    }
+
+    private int _newPatchByteSize = 1;
+    public int NewPatchByteSize
+    {
+        get => _newPatchByteSize;
+        set
+        {
+            if (SetProperty(ref _newPatchByteSize, value))
+            {
+                // 바이트 수에 따라 최소/최대 자동 결정
+                NewPatchMin = 0;
+                NewPatchMax = CustomPatchItem.MaxForByteSize(value);
+            }
+        }
+    }
+
+    private long _newPatchMin;
+    public long NewPatchMin
+    {
+        get => _newPatchMin;
+        set => SetProperty(ref _newPatchMin, value);
+    }
+
+    private long _newPatchMax = 255;
+    public long NewPatchMax
+    {
+        get => _newPatchMax;
+        set => SetProperty(ref _newPatchMax, value);
+    }
+
+    // 커스텀 패치 자동 저장 파일 경로 (%APPDATA%\CdsHelper\custom_patches.json)
+    private static string CustomPatchAutoSavePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "CdsHelper",
+        "custom_patches.json");
+
+    private static readonly JsonSerializerOptions PatchJsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    // 일괄 로드/현재값 읽기 중에는 자동 저장을 막는다
+    private bool _suppressAutoSave;
+
     public ICommand RefreshCommand { get; }
     public ICommand RestoreOriginalCommand { get; }
     public ICommand SaveAppearConditionCommand { get; }
@@ -219,6 +408,10 @@ public class ExePatchContentViewModel : BindableBase
     public ICommand ApplyJobButtonPatchCommand { get; }
     public ICommand RestoreJobButtonPatchCommand { get; }
     public ICommand BrowseFileCommand { get; }
+    public ICommand AddCustomPatchCommand { get; }
+    public ICommand RemoveCustomPatchCommand { get; }
+    public ICommand SaveCustomPatchesCommand { get; }
+    public ICommand LoadCustomPatchesCommand { get; }
 
     public ExePatchContentViewModel()
     {
@@ -234,6 +427,13 @@ public class ExePatchContentViewModel : BindableBase
         ApplyJobButtonPatchCommand = new DelegateCommand(ApplyJobButtonPatch);
         RestoreJobButtonPatchCommand = new DelegateCommand(RestoreJobButtonPatch);
         BrowseFileCommand = new DelegateCommand(BrowseFile);
+        AddCustomPatchCommand = new DelegateCommand(AddCustomPatch);
+        RemoveCustomPatchCommand = new DelegateCommand<CustomPatchItem>(RemoveCustomPatch);
+        SaveCustomPatchesCommand = new DelegateCommand(SaveCustomPatches);
+        LoadCustomPatchesCommand = new DelegateCommand(LoadCustomPatches);
+
+        // 자동 저장된 커스텀 패치 목록 복원
+        LoadAutoSavedCustomPatches();
 
         // 마지막 세이브 파일 경로에서 게임 폴더 추출
         var lastSavePath = AppSettings.LastSaveFilePath;
@@ -354,6 +554,9 @@ public class ExePatchContentViewModel : BindableBase
 
             // 직업버튼 패치 상태 확인
             CheckJobButtonPatchStatus(data);
+
+            // 커스텀 패치 현재 값 갱신
+            RefreshCustomPatchValues(data);
 
             for (int i = 0; i < MaxRecords; i++)
             {
@@ -717,6 +920,321 @@ public class ExePatchContentViewModel : BindableBase
             StatusText = "직업버튼 능력치 갱신 패치 원본 복원됨";
         }
         catch (Exception ex) { StatusText = $"복원 오류: {ex.Message}"; }
+    }
+
+    // ===== 커스텀 패치 =====
+
+    private void EnsureBackup()
+    {
+        var backupPath = ExeFilePath + ".bak";
+        if (!File.Exists(backupPath)) File.Copy(ExeFilePath, backupPath);
+    }
+
+    private static bool TryParseAddress(string text, out int addr)
+    {
+        addr = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var s = text.Trim();
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s.Substring(2);
+        return int.TryParse(s, System.Globalization.NumberStyles.HexNumber,
+            System.Globalization.CultureInfo.InvariantCulture, out addr) && addr >= 0;
+    }
+
+    private static long ReadValueAt(byte[] data, int addr, int byteSize) => byteSize switch
+    {
+        1 => data[addr],
+        2 => BitConverter.ToUInt16(data, addr),
+        _ => BitConverter.ToUInt32(data, addr),
+    };
+
+    private void WireCustomPatch(CustomPatchItem item)
+    {
+        item.OnValueChanged = WriteCustomPatch;
+        item.OnDefinitionChanged = i => LoadCustomPatchValue(i);
+        item.PropertyChanged += OnPatchItemPropertyChanged;
+    }
+
+    private void OnPatchItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // 상태 텍스트는 표시용이라 저장 대상이 아니다
+        if (e.PropertyName == nameof(CustomPatchItem.StatusText)) return;
+        AutoSaveCustomPatches();
+    }
+
+    private List<CustomPatchDto> BuildPatchDtos() => CustomPatches.Select(p => new CustomPatchDto
+    {
+        Name = p.Name,
+        Description = p.Description,
+        Address = p.AddressHex,
+        ByteSize = p.ByteSize,
+        Min = p.MinValue,
+        Max = p.MaxValue,
+        Value = p.Value
+    }).ToList();
+
+    private void WritePatchesToPath(string path)
+    {
+        var json = JsonSerializer.Serialize(BuildPatchDtos(), PatchJsonOptions);
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        File.WriteAllText(path, json, Encoding.UTF8);
+    }
+
+    /// <summary>입력/수정 즉시 기본 경로(%APPDATA%)에 자동 저장.</summary>
+    private void AutoSaveCustomPatches()
+    {
+        if (_suppressAutoSave) return;
+        try { WritePatchesToPath(CustomPatchAutoSavePath); }
+        catch { /* 자동 저장 실패는 무시 */ }
+    }
+
+    /// <summary>EXE에서 읽은 값을 표시만 한다(자동 저장 트리거 안 함).</summary>
+    private void SetValueSilentNoSave(CustomPatchItem item, long value)
+    {
+        var prev = _suppressAutoSave;
+        _suppressAutoSave = true;
+        try { item.SetValueSilent(value); }
+        finally { _suppressAutoSave = prev; }
+    }
+
+    private void ApplyPatchDtos(List<CustomPatchDto> dtos)
+    {
+        var prev = _suppressAutoSave;
+        _suppressAutoSave = true;
+        try
+        {
+            foreach (var old in CustomPatches.ToList())
+                old.PropertyChanged -= OnPatchItemPropertyChanged;
+            CustomPatches.Clear();
+
+            foreach (var d in dtos)
+            {
+                var item = new CustomPatchItem
+                {
+                    Name = d.Name,
+                    Description = d.Description,
+                    AddressHex = d.Address,
+                    ByteSize = (d.ByteSize == 2 || d.ByteSize == 4) ? d.ByteSize : 1,
+                    // 최소/최대는 ByteSize 설정 시 자동 결정 (저장된 Min/Max는 무시)
+                };
+                WireCustomPatch(item);
+                LoadCustomPatchValue(item);   // 현재 EXE 값 표시
+                CustomPatches.Add(item);
+            }
+        }
+        finally { _suppressAutoSave = prev; }
+    }
+
+    /// <summary>앱 시작 시 목록 복원. 사용자 파일이 없으면(첫 실행) 번들 기본값으로 시드한다.</summary>
+    private void LoadAutoSavedCustomPatches()
+    {
+        try
+        {
+            bool firstRun = !File.Exists(CustomPatchAutoSavePath);
+
+            // 사용자 파일이 있으면 그걸, 없으면(첫 실행) 번들 기본값을 사용
+            var json = firstRun
+                ? ReadBundledDefaultPatchesJson()
+                : File.ReadAllText(CustomPatchAutoSavePath, Encoding.UTF8);
+
+            if (string.IsNullOrWhiteSpace(json)) return;
+
+            var dtos = JsonSerializer.Deserialize<List<CustomPatchDto>>(json) ?? new List<CustomPatchDto>();
+            ApplyPatchDtos(dtos);
+
+            // 첫 실행이면 기본값을 사용자 파일(%APPDATA%)로 저장해 둔다
+            if (firstRun && CustomPatches.Count > 0)
+                WritePatchesToPath(CustomPatchAutoSavePath);
+        }
+        catch { /* 복원 실패는 무시 */ }
+    }
+
+    /// <summary>어셈블리에 임베드된 기본 커스텀 패치 JSON을 읽는다.</summary>
+    private static string? ReadBundledDefaultPatchesJson()
+    {
+        try
+        {
+            var asm = typeof(ExePatchContentViewModel).Assembly;
+            var name = asm.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith("default_custom_patches.json", StringComparison.OrdinalIgnoreCase));
+            if (name == null) return null;
+
+            using var stream = asm.GetManifestResourceStream(name);
+            if (stream == null) return null;
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            return reader.ReadToEnd();
+        }
+        catch { return null; }
+    }
+
+    /// <summary>EXE에서 해당 항목의 현재 값을 읽어 표시(기록하지 않음).</summary>
+    private void LoadCustomPatchValue(CustomPatchItem item)
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) return;
+        if (!TryParseAddress(item.AddressHex, out int addr)) { item.StatusText = "주소 오류"; return; }
+        try
+        {
+            var data = File.ReadAllBytes(ExeFilePath);
+            if (addr + item.ByteSize > data.Length) { item.StatusText = "범위 초과"; return; }
+            SetValueSilentNoSave(item, ReadValueAt(data, addr, item.ByteSize));
+            item.StatusText = $"현재 0x{addr:X}";
+        }
+        catch (Exception ex) { item.StatusText = ex.Message; }
+    }
+
+    private void RefreshCustomPatchValues(byte[] data)
+    {
+        foreach (var p in CustomPatches)
+        {
+            if (TryParseAddress(p.AddressHex, out int addr) && addr + p.ByteSize <= data.Length)
+            {
+                SetValueSilentNoSave(p, ReadValueAt(data, addr, p.ByteSize));
+                p.StatusText = $"현재 0x{addr:X}";
+            }
+            else
+            {
+                p.StatusText = "범위 초과";
+            }
+        }
+    }
+
+    private void AddCustomPatch()
+    {
+        if (!TryParseAddress(NewPatchAddress, out int addr))
+        {
+            StatusText = $"잘못된 헥스 주소: {NewPatchAddress}";
+            return;
+        }
+
+        int byteSize = (NewPatchByteSize == 2 || NewPatchByteSize == 4) ? NewPatchByteSize : 1;
+
+        var item = new CustomPatchItem
+        {
+            Name = NewPatchName,
+            Description = NewPatchDescription,
+            AddressHex = $"0x{addr:X}",
+            ByteSize = byteSize,   // ByteSize 설정 시 최소/최대 자동 결정
+        };
+
+        WireCustomPatch(item);
+        LoadCustomPatchValue(item);   // 현재 EXE 값 읽어오기
+        CustomPatches.Add(item);
+        AutoSaveCustomPatches();      // 추가 즉시 자동 저장
+
+        StatusText = $"커스텀 패치 추가: 0x{addr:X} ({byteSize}바이트, {NewPatchMin}~{NewPatchMax})";
+
+        // 입력란 초기화 (범위/바이트 수는 다음 입력 편의를 위해 유지)
+        NewPatchName = "";
+        NewPatchDescription = "";
+        NewPatchAddress = "";
+    }
+
+    private void RemoveCustomPatch(CustomPatchItem? item)
+    {
+        if (item == null) return;
+        item.PropertyChanged -= OnPatchItemPropertyChanged;
+        CustomPatches.Remove(item);
+        AutoSaveCustomPatches();      // 삭제 즉시 자동 저장
+        StatusText = $"커스텀 패치 삭제: {item.AddressHex}";
+    }
+
+    private void WriteCustomPatch(CustomPatchItem item)
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
+        {
+            item.StatusText = "파일 없음";
+            StatusText = "파일을 찾을 수 없습니다";
+            return;
+        }
+        if (!TryParseAddress(item.AddressHex, out int addr))
+        {
+            item.StatusText = "주소 오류";
+            return;
+        }
+        if (item.Value < item.MinValue || item.Value > item.MaxValue)
+        {
+            item.StatusText = $"범위({item.MinValue}~{item.MaxValue}) 초과";
+            StatusText = $"값이 허용 범위({item.MinValue}~{item.MaxValue})를 벗어났습니다";
+            return;
+        }
+
+        try
+        {
+            EnsureBackup();
+
+            byte[] bytes = item.ByteSize switch
+            {
+                1 => new[] { (byte)item.Value },
+                2 => BitConverter.GetBytes((ushort)item.Value),
+                _ => BitConverter.GetBytes((uint)item.Value),
+            };
+
+            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+            fs.Seek(addr, SeekOrigin.Begin);
+            fs.Write(bytes, 0, item.ByteSize);
+
+            item.StatusText = $"적용됨 (0x{addr:X})";
+            var label = string.IsNullOrEmpty(item.Name) ? item.AddressHex : item.Name;
+            StatusText = $"커스텀 패치 적용: {label} = {item.Value}";
+        }
+        catch (Exception ex)
+        {
+            item.StatusText = "오류";
+            StatusText = $"저장 오류: {ex.Message}";
+        }
+    }
+
+    private void SaveCustomPatches()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "커스텀 패치 저장",
+            Filter = "패치 파일 (*.json)|*.json|모든 파일 (*.*)|*.*",
+            FileName = "custom_patches.json",
+            DefaultExt = ".json"
+        };
+        if (!string.IsNullOrEmpty(ExeFilePath) && File.Exists(ExeFilePath))
+            dialog.InitialDirectory = Path.GetDirectoryName(ExeFilePath);
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            WritePatchesToPath(dialog.FileName);
+            StatusText = $"커스텀 패치 {CustomPatches.Count}개 저장: {Path.GetFileName(dialog.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"저장 오류: {ex.Message}";
+        }
+    }
+
+    private void LoadCustomPatches()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "커스텀 패치 불러오기",
+            Filter = "패치 파일 (*.json)|*.json|모든 파일 (*.*)|*.*"
+        };
+        if (!string.IsNullOrEmpty(ExeFilePath) && File.Exists(ExeFilePath))
+            dialog.InitialDirectory = Path.GetDirectoryName(ExeFilePath);
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var json = File.ReadAllText(dialog.FileName, Encoding.UTF8);
+            var dtos = JsonSerializer.Deserialize<List<CustomPatchDto>>(json) ?? new List<CustomPatchDto>();
+
+            ApplyPatchDtos(dtos);
+            AutoSaveCustomPatches();   // 불러온 목록을 자동 저장 파일에도 반영
+
+            StatusText = $"커스텀 패치 {CustomPatches.Count}개 불러옴: {Path.GetFileName(dialog.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"불러오기 오류: {ex.Message}";
+        }
     }
 
     private void RestoreOriginal()

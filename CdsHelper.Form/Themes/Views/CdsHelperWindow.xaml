@@ -161,7 +161,7 @@
                                 <Popup x:Name="PART_MenuPopup" Grid.Column="0"
                                        PlacementTarget="{Binding ElementName=PART_HamburgerButton}"
                                        Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
-                                       PopupAnimation="Fade">
+                                       >
                                     <Border Background="White" BorderBrush="#1A6BB5" BorderThickness="1"
                                             CornerRadius="4" Width="220">
                                         <Border.Effect>
