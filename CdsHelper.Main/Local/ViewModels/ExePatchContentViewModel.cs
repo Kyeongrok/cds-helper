@@ -997,15 +997,18 @@ public class ExePatchContentViewModel : BindableBase
         finally { _suppressAutoSave = prev; }
     }
 
-    private void ApplyPatchDtos(List<CustomPatchDto> dtos)
+    private void ApplyPatchDtos(List<CustomPatchDto> dtos, bool replace = true)
     {
         var prev = _suppressAutoSave;
         _suppressAutoSave = true;
         try
         {
-            foreach (var old in CustomPatches.ToList())
-                old.PropertyChanged -= OnPatchItemPropertyChanged;
-            CustomPatches.Clear();
+            if (replace)
+            {
+                foreach (var old in CustomPatches.ToList())
+                    old.PropertyChanged -= OnPatchItemPropertyChanged;
+                CustomPatches.Clear();
+            }
 
             foreach (var d in dtos)
             {
@@ -1226,10 +1229,10 @@ public class ExePatchContentViewModel : BindableBase
             var json = File.ReadAllText(dialog.FileName, Encoding.UTF8);
             var dtos = JsonSerializer.Deserialize<List<CustomPatchDto>>(json) ?? new List<CustomPatchDto>();
 
-            ApplyPatchDtos(dtos);
-            AutoSaveCustomPatches();   // 불러온 목록을 자동 저장 파일에도 반영
+            ApplyPatchDtos(dtos, replace: false);   // 기존 목록에 추가(append)
+            AutoSaveCustomPatches();   // 합쳐진 목록을 자동 저장 파일에도 반영
 
-            StatusText = $"커스텀 패치 {CustomPatches.Count}개 불러옴: {Path.GetFileName(dialog.FileName)}";
+            StatusText = $"커스텀 패치 {dtos.Count}개 추가됨 (총 {CustomPatches.Count}개): {Path.GetFileName(dialog.FileName)}";
         }
         catch (Exception ex)
         {
