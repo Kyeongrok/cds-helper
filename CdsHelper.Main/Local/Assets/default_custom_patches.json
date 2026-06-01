@@ -25,5 +25,68 @@
     "Min": 0,
     "Max": 255,
     "Value": 120
+  },
+  {
+    "Name": "명성 한계",
+    "Description": "명성(평판) 상한값. push 99999의 imm32 위치(0x7F4E6, 4바이트). 99999→원하는 값(예: 100만=1000000)",
+    "Address": "0x7F4E6",
+    "ByteSize": 4,
+    "Min": 0,
+    "Max": 4294967295,
+    "Value": 1000000
+  },
+  {
+    "Name": "소지금 한계",
+    "Description": "소지금 상한값. push imm32 (0x7BFC8, 4바이트). 100만→1억(100000000)",
+    "Address": "0x7BFC8",
+    "ByteSize": 4,
+    "Min": 0,
+    "Max": 4294967295,
+    "Value": 100000000
+  },
+  {
+    "Name": "저금 한계 (1/5)",
+    "Description": "저금 상한값 cmp edi (0x5FECB, 4바이트). 5군데 모두 같은 값. 100만→1억",
+    "Address": "0x5FECB",
+    "ByteSize": 4,
+    "Min": 0,
+    "Max": 4294967295,
+    "Value": 100000000
+  },
+  {
+    "Name": "저금 한계 (2/5)",
+    "Description": "저금 상한값 mov eax (0x5FED4, 4바이트). 5군데 모두 같은 값. 100만→1억",
+    "Address": "0x5FED4",
+    "ByteSize": 4,
+    "Min": 0,
+    "Max": 4294967295,
+    "Value": 100000000
+  },
+  {
+    "Name": "저금 한계 (3/5)",
+    "Description": "저금 상한값 cmp esi (0x5FF61, 4바이트). 5군데 모두 같은 값. 100만→1억",
+    "Address": "0x5FF61",
+    "ByteSize": 4,
+    "Min": 0,
+    "Max": 4294967295,
+    "Value": 100000000
+  },
+  {
+    "Name": "저금 한계 (4/5)",
+    "Description": "저금 상한값 mov eax (0x5FF6A, 4바이트). 5군데 모두 같은 값. 100만→1억",
+    "Address": "0x5FF6A",
+    "ByteSize": 4,
+    "Min": 0,
+    "Max": 4294967295,
+    "Value": 100000000
+  },
+  {
+    "Name": "저금 한계 (5/5)",
+    "Description": "저금 상한값 push imm32 (0x7C008, 4바이트). 5군데 모두 같은 값. 100만→1억",
+    "Address": "0x7C008",
+    "ByteSize": 4,
+    "Min": 0,
+    "Max": 4294967295,
+    "Value": 100000000
   }
 ]
