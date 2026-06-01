@@ -112,6 +112,14 @@ public class CustomPatchItem : BindableBase
         set => SetProperty(ref _statusText, value);
     }
 
+    /// <summary>내보내기 대상 선택용 체크박스 (저장/직렬화 대상 아님).</summary>
+    private bool _isChecked;
+    public bool IsChecked
+    {
+        get => _isChecked;
+        set => SetProperty(ref _isChecked, value);
+    }
+
     /// <summary>값이 사용자 입력으로 바뀌면 EXE에 기록하기 위한 콜백.</summary>
     public Action<CustomPatchItem>? OnValueChanged { get; set; }
 
@@ -334,6 +342,14 @@ public class ExePatchContentViewModel : BindableBase
         set => SetProperty(ref _customPatches, value);
     }
 
+    // 하나라도 체크되면 내보내기 버튼 표시
+    private bool _hasAnyChecked;
+    public bool HasAnyChecked
+    {
+        get => _hasAnyChecked;
+        set => SetProperty(ref _hasAnyChecked, value);
+    }
+
     private string _newPatchName = "";
     public string NewPatchName
     {
@@ -412,6 +428,7 @@ public class ExePatchContentViewModel : BindableBase
     public ICommand RemoveCustomPatchCommand { get; }
     public ICommand SaveCustomPatchesCommand { get; }
     public ICommand LoadCustomPatchesCommand { get; }
+    public ICommand ExportSelectedCustomPatchesCommand { get; }
 
     public ExePatchContentViewModel()
     {
@@ -431,6 +448,7 @@ public class ExePatchContentViewModel : BindableBase
         RemoveCustomPatchCommand = new DelegateCommand<CustomPatchItem>(RemoveCustomPatch);
         SaveCustomPatchesCommand = new DelegateCommand(SaveCustomPatches);
         LoadCustomPatchesCommand = new DelegateCommand(LoadCustomPatches);
+        ExportSelectedCustomPatchesCommand = new DelegateCommand(ExportSelectedCustomPatches);
 
         // 자동 저장된 커스텀 패치 목록 복원
         LoadAutoSavedCustomPatches();
@@ -958,7 +976,20 @@ public class ExePatchContentViewModel : BindableBase
     {
         // 상태 텍스트는 표시용이라 저장 대상이 아니다
         if (e.PropertyName == nameof(CustomPatchItem.StatusText)) return;
+
+        // 체크는 내보내기 선택용 — 저장 대상이 아니고, 버튼 표시 여부만 갱신
+        if (e.PropertyName == nameof(CustomPatchItem.IsChecked))
+        {
+            UpdateHasAnyChecked();
+            return;
+        }
+
         AutoSaveCustomPatches();
+    }
+
+    private void UpdateHasAnyChecked()
+    {
+        HasAnyChecked = CustomPatches.Any(p => p.IsChecked);
     }
 
     private List<CustomPatchDto> BuildPatchDtos() => CustomPatches.Select(p => new CustomPatchDto
@@ -978,6 +1009,52 @@ public class ExePatchContentViewModel : BindableBase
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
         File.WriteAllText(path, json, Encoding.UTF8);
+    }
+
+    /// <summary>체크된 항목만 위치를 지정해 별도 파일로 내보낸다.</summary>
+    private void ExportSelectedCustomPatches()
+    {
+        var selected = CustomPatches.Where(p => p.IsChecked).ToList();
+        if (selected.Count == 0)
+        {
+            StatusText = "내보낼 항목을 체크하세요";
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "선택 패치 내보내기",
+            Filter = "패치 파일 (*.json)|*.json|모든 파일 (*.*)|*.*",
+            FileName = "custom_patches_export.json",
+            DefaultExt = ".json"
+        };
+        if (!string.IsNullOrEmpty(ExeFilePath) && File.Exists(ExeFilePath))
+            dialog.InitialDirectory = Path.GetDirectoryName(ExeFilePath);
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var dtos = selected.Select(p => new CustomPatchDto
+            {
+                Name = p.Name,
+                Description = p.Description,
+                Address = p.AddressHex,
+                ByteSize = p.ByteSize,
+                Min = p.MinValue,
+                Max = p.MaxValue,
+                Value = p.Value
+            }).ToList();
+
+            var json = JsonSerializer.Serialize(dtos, PatchJsonOptions);
+            File.WriteAllText(dialog.FileName, json, Encoding.UTF8);
+
+            StatusText = $"선택 {dtos.Count}개 내보냄: {Path.GetFileName(dialog.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"내보내기 오류: {ex.Message}";
+        }
     }
 
     /// <summary>입력/수정 즉시 기본 경로(%APPDATA%)에 자동 저장.</summary>
@@ -1026,6 +1103,8 @@ public class ExePatchContentViewModel : BindableBase
             }
         }
         finally { _suppressAutoSave = prev; }
+
+        UpdateHasAnyChecked();
     }
 
     /// <summary>앱 시작 시 목록 복원. 사용자 파일이 없으면(첫 실행) 번들 기본값으로 시드한다.</summary>
@@ -1137,6 +1216,7 @@ public class ExePatchContentViewModel : BindableBase
         if (item == null) return;
         item.PropertyChanged -= OnPatchItemPropertyChanged;
         CustomPatches.Remove(item);
+        UpdateHasAnyChecked();
         AutoSaveCustomPatches();      // 삭제 즉시 자동 저장
         StatusText = $"커스텀 패치 삭제: {item.AddressHex}";
     }
