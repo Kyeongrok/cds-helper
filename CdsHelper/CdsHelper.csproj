@@ -10,7 +10,7 @@
         <ApplicationIcon>app.ico</ApplicationIcon>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <!-- 로컬 빌드 기본값. CI에서는 -p:Version=$tag 로 오버라이드됨 (아래 workflow 참고) -->
-        <Version>1.10.9</Version>
+        <Version>1.10.10</Version>
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 

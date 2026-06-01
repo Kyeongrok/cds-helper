@@ -50,8 +50,23 @@
                                     <Button Content="저장(위치 지정)" Command="{Binding SaveCustomPatchesCommand}"
                                             Width="100" Height="26" Margin="0,0,5,0"/>
                                     <Button Content="불러오기" Command="{Binding LoadCustomPatchesCommand}"
-                                            Width="80" Height="26"/>
-                                    <TextBlock Text="입력/수정 시 자동 저장됩니다. [저장]은 원하는 위치로 내보내기"
+                                            Width="80" Height="26" Margin="0,0,5,0"/>
+                                    <!-- 내보내기: 체크된 항목이 하나라도 있을 때만 표시 -->
+                                    <Button Content="내보내기" Command="{Binding ExportSelectedCustomPatchesCommand}"
+                                            Width="80" Height="26"
+                                            Background="#1976D2" Foreground="White" BorderThickness="0">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasAnyChecked}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock Text="입력/수정 시 자동 저장됩니다. 체크 후 [내보내기]로 선택 항목만 저장"
                                                VerticalAlignment="Center" Foreground="Gray" Margin="15,0,0,0"/>
                                 </StackPanel>
 
@@ -127,6 +142,14 @@
                                         </Style>
                                     </units:CdsDataGrid.CellStyle>
                                     <units:CdsDataGrid.Columns>
+                                        <DataGridTemplateColumn Header="" Width="34">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                         <DataGridTemplateColumn Header="이름" Width="200">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
