@@ -45,15 +45,43 @@ public class CustomPatchItem : BindableBase
         set => SetProperty(ref _description, value);
     }
 
-    private string _addressHex = "";
-    public string AddressHex
+    /// <summary>
+    /// 같은 값을 동시에 기록할 주소들(콤마/공백/줄바꿈 구분). 단일 주소도 여기에 보관.
+    /// 예: "0x5FECB, 0x5FED4, 0x5FF61"
+    /// </summary>
+    private string _addressesText = "";
+    public string AddressesText
     {
-        get => _addressHex;
+        get => _addressesText;
         set
         {
-            if (SetProperty(ref _addressHex, value))
+            if (SetProperty(ref _addressesText, value))
+            {
+                RaisePropertyChanged(nameof(AddressSummary));
+                RaisePropertyChanged(nameof(AddressCount));
+                RaisePropertyChanged(nameof(AddressHex));
                 OnDefinitionChanged?.Invoke(this);
+            }
         }
+    }
+
+    /// <summary>하위호환용: 첫 주소(단일 주소처럼 다룰 때).</summary>
+    public string AddressHex => AddressList.Count > 0 ? AddressList[0] : "";
+
+    /// <summary>파싱된 주소 문자열 목록(원본 표기 유지).</summary>
+    public IReadOnlyList<string> AddressList => SplitAddresses(_addressesText);
+    public int AddressCount => AddressList.Count;
+
+    /// <summary>목록에 보여줄 주소 요약. 여러 곳이면 "0x... 외 N곳".</summary>
+    public string AddressSummary => AddressCount <= 1
+        ? (AddressCount == 1 ? AddressList[0] : "")
+        : $"{AddressList[0]} 외 {AddressCount - 1}곳";
+
+    public static IReadOnlyList<string> SplitAddresses(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
+        return text.Split(new[] { ',', ' ', '\t', '\r', '\n', ';' },
+            StringSplitOptions.RemoveEmptyEntries);
     }
 
     /// <summary>바이트 수별 최대값 (부호 없는 정수 기준).</summary>
@@ -105,6 +133,62 @@ public class CustomPatchItem : BindableBase
         }
     }
 
+    // ===== 패치 종류 =====
+    /// <summary>패치 종류: "number"(값 입력) | "toggle"(적용/해제). 직렬화 기준 필드.</summary>
+    private string _patchType = "number";
+    public string PatchType
+    {
+        get => _patchType;
+        set
+        {
+            var v = string.Equals(value, "toggle", StringComparison.OrdinalIgnoreCase) ? "toggle" : "number";
+            if (SetProperty(ref _patchType, v))
+            {
+                RaisePropertyChanged(nameof(IsToggle));
+                RaisePropertyChanged(nameof(IsValueMode));
+                OnDefinitionChanged?.Invoke(this);
+            }
+        }
+    }
+
+    /// <summary>토글 종류 여부(UI 바인딩·분기용 접근자). set 시 PatchType을 바꾼다.</summary>
+    public bool IsToggle
+    {
+        get => _patchType == "toggle";
+        set => PatchType = value ? "toggle" : "number";
+    }
+
+    /// <summary>값 입력 종류 여부(값 입력칸 표시용).</summary>
+    public bool IsValueMode => _patchType != "toggle";
+
+    /// <summary>토글 OFF(해제)일 때 기록할 원본 값.</summary>
+    private long _originalValue;
+    public long OriginalValue
+    {
+        get => _originalValue;
+        set => SetProperty(ref _originalValue, value);
+    }
+
+    /// <summary>토글 ON(적용)일 때 기록할 패치 값.</summary>
+    private long _patchedValue;
+    public long PatchedValue
+    {
+        get => _patchedValue;
+        set => SetProperty(ref _patchedValue, value);
+    }
+
+    /// <summary>현재 적용 상태(토글). true=적용값 기록됨.</summary>
+    private bool _isApplied;
+    public bool IsApplied
+    {
+        get => _isApplied;
+        set
+        {
+            if (SetProperty(ref _isApplied, value))
+                OnToggleChanged?.Invoke(this);
+        }
+    }
+
     private string _statusText = "";
     public string StatusText
     {
@@ -123,6 +207,9 @@ public class CustomPatchItem : BindableBase
     /// <summary>값이 사용자 입력으로 바뀌면 EXE에 기록하기 위한 콜백.</summary>
     public Action<CustomPatchItem>? OnValueChanged { get; set; }
 
+    /// <summary>토글 적용 상태가 바뀌면 EXE에 기록하기 위한 콜백.</summary>
+    public Action<CustomPatchItem>? OnToggleChanged { get; set; }
+
     /// <summary>주소/바이트 수가 바뀌면 현재 값을 다시 읽기 위한 콜백.</summary>
     public Action<CustomPatchItem>? OnDefinitionChanged { get; set; }
 
@@ -132,6 +219,13 @@ public class CustomPatchItem : BindableBase
         _value = v;
         RaisePropertyChanged(nameof(Value));
     }
+
+    /// <summary>EXE에 기록하지 않고 적용 상태만 갱신(현재 상태 표시용).</summary>
+    public void SetAppliedSilent(bool v)
+    {
+        _isApplied = v;
+        RaisePropertyChanged(nameof(IsApplied));
+    }
 }
 
 /// <summary>커스텀 패치 .cds 파일 직렬화용 DTO.</summary>
@@ -139,11 +233,18 @@ public class CustomPatchDto
 {
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
-    public string Address { get; set; } = "";
+    public string Address { get; set; } = "";          // 단일 주소(하위호환)
+    public List<string>? Addresses { get; set; }        // 다중 주소(신규, 있으면 우선)
     public int ByteSize { get; set; } = 1;
     public long Min { get; set; }
     public long Max { get; set; }
     public long Value { get; set; }
+
+    /// <summary>패치 종류: "number"(값 입력) | "toggle"(적용/해제). 기본 number.</summary>
+    public string Type { get; set; } = "number";
+
+    public long OriginalValue { get; set; }             // 토글 해제 시 값
+    public long PatchedValue { get; set; }              // 토글 적용 시 값
 }
 
 public class Unko2CharacterItem : BindableBase
@@ -398,6 +499,30 @@ public class ExePatchContentViewModel : BindableBase
     {
         get => _newPatchMax;
         set => SetProperty(ref _newPatchMax, value);
+    }
+
+    // 새 패치를 토글(적용/해제)로 등록할지 여부
+    private bool _newPatchIsToggle;
+    public bool NewPatchIsToggle
+    {
+        get => _newPatchIsToggle;
+        set => SetProperty(ref _newPatchIsToggle, value);
+    }
+
+    // 토글 패치 등록 시 원본값(해제 시)
+    private long _newPatchOriginalValue;
+    public long NewPatchOriginalValue
+    {
+        get => _newPatchOriginalValue;
+        set => SetProperty(ref _newPatchOriginalValue, value);
+    }
+
+    // 토글 패치 등록 시 적용값(적용 시)
+    private long _newPatchPatchedValue;
+    public long NewPatchPatchedValue
+    {
+        get => _newPatchPatchedValue;
+        set => SetProperty(ref _newPatchPatchedValue, value);
     }
 
     // 커스텀 패치 자동 저장 파일 경로 (%APPDATA%\CdsHelper\custom_patches.json)
@@ -968,6 +1093,7 @@ public class ExePatchContentViewModel : BindableBase
     private void WireCustomPatch(CustomPatchItem item)
     {
         item.OnValueChanged = WriteCustomPatch;
+        item.OnToggleChanged = WriteTogglePatch;
         item.OnDefinitionChanged = i => LoadCustomPatchValue(i);
         item.PropertyChanged += OnPatchItemPropertyChanged;
     }
@@ -976,6 +1102,9 @@ public class ExePatchContentViewModel : BindableBase
     {
         // 상태 텍스트는 표시용이라 저장 대상이 아니다
         if (e.PropertyName == nameof(CustomPatchItem.StatusText)) return;
+
+        // 적용 상태(토글)는 EXE에서 읽어오는 런타임 상태 — 저장 대상 아님
+        if (e.PropertyName == nameof(CustomPatchItem.IsApplied)) return;
 
         // 체크는 내보내기 선택용 — 저장 대상이 아니고, 버튼 표시 여부만 갱신
         if (e.PropertyName == nameof(CustomPatchItem.IsChecked))
@@ -987,21 +1116,66 @@ public class ExePatchContentViewModel : BindableBase
         AutoSaveCustomPatches();
     }
 
+    /// <summary>항목의 주소 문자열들을 파싱한다. 하나라도 실패하면 false.</summary>
+    private static bool TryParseAddresses(CustomPatchItem item, out List<int> addrs)
+    {
+        addrs = new List<int>();
+        var list = item.AddressList;
+        if (list.Count == 0) return false;
+        foreach (var s in list)
+        {
+            if (!TryParseAddress(s, out int a)) return false;
+            addrs.Add(a);
+        }
+        return true;
+    }
+
+    /// <summary>지정 값을 항목의 모든 주소에 (리틀엔디안 ByteSize 바이트로) 기록한다.</summary>
+    private bool WriteValueToAllAddresses(CustomPatchItem item, long value, out int count, out string error)
+    {
+        count = 0;
+        error = "";
+        if (!TryParseAddresses(item, out var addrs)) { error = "주소 오류"; return false; }
+
+        byte[] bytes = item.ByteSize switch
+        {
+            1 => new[] { (byte)value },
+            2 => BitConverter.GetBytes((ushort)value),
+            _ => BitConverter.GetBytes((uint)value),
+        };
+
+        EnsureBackup();
+        using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
+        foreach (var a in addrs)
+        {
+            fs.Seek(a, SeekOrigin.Begin);
+            fs.Write(bytes, 0, item.ByteSize);
+            count++;
+        }
+        return true;
+    }
+
     private void UpdateHasAnyChecked()
     {
         HasAnyChecked = CustomPatches.Any(p => p.IsChecked);
     }
 
-    private List<CustomPatchDto> BuildPatchDtos() => CustomPatches.Select(p => new CustomPatchDto
+    private static CustomPatchDto ToDto(CustomPatchItem p) => new()
     {
         Name = p.Name,
         Description = p.Description,
         Address = p.AddressHex,
+        Addresses = p.AddressList.ToList(),
         ByteSize = p.ByteSize,
         Min = p.MinValue,
         Max = p.MaxValue,
-        Value = p.Value
-    }).ToList();
+        Value = p.Value,
+        Type = p.PatchType,
+        OriginalValue = p.OriginalValue,
+        PatchedValue = p.PatchedValue
+    };
+
+    private List<CustomPatchDto> BuildPatchDtos() => CustomPatches.Select(ToDto).ToList();
 
     private void WritePatchesToPath(string path)
     {
@@ -1035,16 +1209,7 @@ public class ExePatchContentViewModel : BindableBase
 
         try
         {
-            var dtos = selected.Select(p => new CustomPatchDto
-            {
-                Name = p.Name,
-                Description = p.Description,
-                Address = p.AddressHex,
-                ByteSize = p.ByteSize,
-                Min = p.MinValue,
-                Max = p.MaxValue,
-                Value = p.Value
-            }).ToList();
+            var dtos = selected.Select(ToDto).ToList();
 
             var json = JsonSerializer.Serialize(dtos, PatchJsonOptions);
             File.WriteAllText(dialog.FileName, json, Encoding.UTF8);
@@ -1074,6 +1239,15 @@ public class ExePatchContentViewModel : BindableBase
         finally { _suppressAutoSave = prev; }
     }
 
+    /// <summary>EXE에서 읽은 적용 상태를 표시만 한다(EXE 기록 안 함).</summary>
+    private void SetAppliedSilentNoSave(CustomPatchItem item, bool applied)
+    {
+        var prev = _suppressAutoSave;
+        _suppressAutoSave = true;
+        try { item.SetAppliedSilent(applied); }
+        finally { _suppressAutoSave = prev; }
+    }
+
     private void ApplyPatchDtos(List<CustomPatchDto> dtos, bool replace = true)
     {
         var prev = _suppressAutoSave;
@@ -1089,16 +1263,24 @@ public class ExePatchContentViewModel : BindableBase
 
             foreach (var d in dtos)
             {
+                // Addresses(다중)가 있으면 우선, 없으면 Address(단일, 하위호환)
+                var addresses = (d.Addresses != null && d.Addresses.Count > 0)
+                    ? d.Addresses
+                    : (string.IsNullOrWhiteSpace(d.Address) ? new List<string>() : new List<string> { d.Address });
+
                 var item = new CustomPatchItem
                 {
                     Name = d.Name,
                     Description = d.Description,
-                    AddressHex = d.Address,
+                    AddressesText = string.Join(", ", addresses),
                     ByteSize = (d.ByteSize == 2 || d.ByteSize == 4) ? d.ByteSize : 1,
                     // 최소/최대는 ByteSize 설정 시 자동 결정 (저장된 Min/Max는 무시)
+                    PatchType = d.Type,
+                    OriginalValue = d.OriginalValue,
+                    PatchedValue = d.PatchedValue,
                 };
                 WireCustomPatch(item);
-                LoadCustomPatchValue(item);   // 현재 EXE 값 표시
+                LoadCustomPatchValue(item);   // 현재 EXE 값/적용 상태 표시
                 CustomPatches.Add(item);
             }
         }
@@ -1149,40 +1331,52 @@ public class ExePatchContentViewModel : BindableBase
         catch { return null; }
     }
 
-    /// <summary>EXE에서 해당 항목의 현재 값을 읽어 표시(기록하지 않음).</summary>
+    /// <summary>EXE에서 해당 항목의 현재 값/적용 상태를 읽어 표시(기록하지 않음).</summary>
     private void LoadCustomPatchValue(CustomPatchItem item)
     {
         if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath)) return;
-        if (!TryParseAddress(item.AddressHex, out int addr)) { item.StatusText = "주소 오류"; return; }
         try
         {
             var data = File.ReadAllBytes(ExeFilePath);
-            if (addr + item.ByteSize > data.Length) { item.StatusText = "범위 초과"; return; }
-            SetValueSilentNoSave(item, ReadValueAt(data, addr, item.ByteSize));
-            item.StatusText = $"현재 0x{addr:X}";
+            ReadCurrentInto(item, data);
         }
         catch (Exception ex) { item.StatusText = ex.Message; }
+    }
+
+    /// <summary>첫 주소의 현재 값을 읽어 항목 상태에 반영한다(EXE 기록 안 함).</summary>
+    private void ReadCurrentInto(CustomPatchItem item, byte[] data)
+    {
+        if (!TryParseAddresses(item, out var addrs)) { item.StatusText = "주소 오류"; return; }
+        int addr = addrs[0];
+        if (addr + item.ByteSize > data.Length) { item.StatusText = "범위 초과"; return; }
+
+        long cur = ReadValueAt(data, addr, item.ByteSize);
+        string where = item.AddressCount > 1 ? $" (외 {item.AddressCount - 1}곳)" : "";
+
+        if (item.IsToggle)
+        {
+            bool applied = cur == item.PatchedValue;
+            SetAppliedSilentNoSave(item, applied);
+            item.StatusText = applied ? $"적용됨{where}"
+                : (cur == item.OriginalValue ? $"해제됨{where}" : $"현재 {cur}{where}");
+        }
+        else
+        {
+            SetValueSilentNoSave(item, cur);
+            item.StatusText = $"현재 0x{addr:X}{where}";
+        }
     }
 
     private void RefreshCustomPatchValues(byte[] data)
     {
         foreach (var p in CustomPatches)
-        {
-            if (TryParseAddress(p.AddressHex, out int addr) && addr + p.ByteSize <= data.Length)
-            {
-                SetValueSilentNoSave(p, ReadValueAt(data, addr, p.ByteSize));
-                p.StatusText = $"현재 0x{addr:X}";
-            }
-            else
-            {
-                p.StatusText = "범위 초과";
-            }
-        }
+            ReadCurrentInto(p, data);
     }
 
     private void AddCustomPatch()
     {
-        if (!TryParseAddress(NewPatchAddress, out int addr))
+        var addrList = CustomPatchItem.SplitAddresses(NewPatchAddress);
+        if (addrList.Count == 0 || !addrList.All(s => TryParseAddress(s, out _)))
         {
             StatusText = $"잘못된 헥스 주소: {NewPatchAddress}";
             return;
@@ -1194,18 +1388,22 @@ public class ExePatchContentViewModel : BindableBase
         {
             Name = NewPatchName,
             Description = NewPatchDescription,
-            AddressHex = $"0x{addr:X}",
+            AddressesText = string.Join(", ", addrList),
             ByteSize = byteSize,   // ByteSize 설정 시 최소/최대 자동 결정
+            IsToggle = NewPatchIsToggle,
+            OriginalValue = NewPatchOriginalValue,
+            PatchedValue = NewPatchPatchedValue,
         };
 
         WireCustomPatch(item);
-        LoadCustomPatchValue(item);   // 현재 EXE 값 읽어오기
+        LoadCustomPatchValue(item);   // 현재 EXE 값/상태 읽어오기
         CustomPatches.Add(item);
         AutoSaveCustomPatches();      // 추가 즉시 자동 저장
 
-        StatusText = $"커스텀 패치 추가: 0x{addr:X} ({byteSize}바이트, {NewPatchMin}~{NewPatchMax})";
+        string kind = NewPatchIsToggle ? $"토글 {NewPatchOriginalValue}↔{NewPatchPatchedValue}" : $"{byteSize}바이트";
+        StatusText = $"커스텀 패치 추가: {addrList.Count}곳 ({kind})";
 
-        // 입력란 초기화 (범위/바이트 수는 다음 입력 편의를 위해 유지)
+        // 입력란 초기화 (범위/바이트 수/토글 옵션은 다음 입력 편의를 위해 유지)
         NewPatchName = "";
         NewPatchDescription = "";
         NewPatchAddress = "";
@@ -1218,20 +1416,17 @@ public class ExePatchContentViewModel : BindableBase
         CustomPatches.Remove(item);
         UpdateHasAnyChecked();
         AutoSaveCustomPatches();      // 삭제 즉시 자동 저장
-        StatusText = $"커스텀 패치 삭제: {item.AddressHex}";
+        StatusText = $"커스텀 패치 삭제: {item.AddressSummary}";
     }
 
+    /// <summary>값 입력형 패치: Value를 모든 주소에 기록.</summary>
     private void WriteCustomPatch(CustomPatchItem item)
     {
+        if (item.IsToggle) return;   // 토글형은 WriteTogglePatch가 처리
         if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
         {
             item.StatusText = "파일 없음";
             StatusText = "파일을 찾을 수 없습니다";
-            return;
-        }
-        if (!TryParseAddress(item.AddressHex, out int addr))
-        {
-            item.StatusText = "주소 오류";
             return;
         }
         if (item.Value < item.MinValue || item.Value > item.MaxValue)
@@ -1243,22 +1438,45 @@ public class ExePatchContentViewModel : BindableBase
 
         try
         {
-            EnsureBackup();
-
-            byte[] bytes = item.ByteSize switch
+            if (!WriteValueToAllAddresses(item, item.Value, out int count, out string error))
             {
-                1 => new[] { (byte)item.Value },
-                2 => BitConverter.GetBytes((ushort)item.Value),
-                _ => BitConverter.GetBytes((uint)item.Value),
-            };
-
-            using var fs = new FileStream(ExeFilePath, FileMode.Open, FileAccess.Write);
-            fs.Seek(addr, SeekOrigin.Begin);
-            fs.Write(bytes, 0, item.ByteSize);
-
-            item.StatusText = $"적용됨 (0x{addr:X})";
-            var label = string.IsNullOrEmpty(item.Name) ? item.AddressHex : item.Name;
+                item.StatusText = error;
+                return;
+            }
+            string where = count > 1 ? $" ({count}곳)" : $" (0x{item.AddressHex})";
+            item.StatusText = $"적용됨{where}";
+            var label = string.IsNullOrEmpty(item.Name) ? item.AddressSummary : item.Name;
             StatusText = $"커스텀 패치 적용: {label} = {item.Value}";
+        }
+        catch (Exception ex)
+        {
+            item.StatusText = "오류";
+            StatusText = $"저장 오류: {ex.Message}";
+        }
+    }
+
+    /// <summary>토글형 패치: 적용 시 PatchedValue, 해제 시 OriginalValue를 모든 주소에 기록.</summary>
+    private void WriteTogglePatch(CustomPatchItem item)
+    {
+        if (string.IsNullOrEmpty(ExeFilePath) || !File.Exists(ExeFilePath))
+        {
+            item.StatusText = "파일 없음";
+            StatusText = "파일을 찾을 수 없습니다";
+            return;
+        }
+
+        long value = item.IsApplied ? item.PatchedValue : item.OriginalValue;
+        try
+        {
+            if (!WriteValueToAllAddresses(item, value, out int count, out string error))
+            {
+                item.StatusText = error;
+                return;
+            }
+            string where = count > 1 ? $" ({count}곳)" : "";
+            item.StatusText = (item.IsApplied ? "적용됨" : "해제됨") + where;
+            var label = string.IsNullOrEmpty(item.Name) ? item.AddressSummary : item.Name;
+            StatusText = $"커스텀 패치 {(item.IsApplied ? "적용" : "해제")}: {label} = {value}";
         }
         catch (Exception ex)
         {
