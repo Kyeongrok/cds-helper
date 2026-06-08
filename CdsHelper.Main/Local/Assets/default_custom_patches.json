@@ -1,4 +1,4 @@
-﻿[
+[
   {
     "Name": "대항해시대2 항해사 등장 조건 ",
     "Description": "191:등장 안함 201:등장",
@@ -6,6 +6,7 @@
     "ByteSize": 2,
     "Min": 0,
     "Max": 65535,
+    "Type": "number",
     "Value": 201
   },
   {
@@ -15,6 +16,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 137
   },
   {
@@ -24,6 +26,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 120
   },
   {
@@ -33,6 +36,7 @@
     "ByteSize": 4,
     "Min": 0,
     "Max": 4294967295,
+    "Type": "number",
     "Value": 1000000
   },
   {
@@ -42,51 +46,23 @@
     "ByteSize": 4,
     "Min": 0,
     "Max": 4294967295,
+    "Type": "number",
     "Value": 100000000
   },
   {
-    "Name": "저금 한계 (1/5)",
-    "Description": "저금 상한값 cmp edi (0x5FECB, 4바이트). 5군데 모두 같은 값. 100만→1억",
-    "Address": "0x5FECB",
+    "Name": "저금 한계 (5곳 일괄)",
+    "Description": "저금 상한값. 같은 값을 5곳에 동시 기록. 100만→1억. 값 하나만 바꾸면 5곳 모두 적용됨",
+    "Addresses": [
+      "0x5FECB",
+      "0x5FED4",
+      "0x5FF61",
+      "0x5FF6A",
+      "0x7C008"
+    ],
     "ByteSize": 4,
     "Min": 0,
     "Max": 4294967295,
-    "Value": 100000000
-  },
-  {
-    "Name": "저금 한계 (2/5)",
-    "Description": "저금 상한값 mov eax (0x5FED4, 4바이트). 5군데 모두 같은 값. 100만→1억",
-    "Address": "0x5FED4",
-    "ByteSize": 4,
-    "Min": 0,
-    "Max": 4294967295,
-    "Value": 100000000
-  },
-  {
-    "Name": "저금 한계 (3/5)",
-    "Description": "저금 상한값 cmp esi (0x5FF61, 4바이트). 5군데 모두 같은 값. 100만→1억",
-    "Address": "0x5FF61",
-    "ByteSize": 4,
-    "Min": 0,
-    "Max": 4294967295,
-    "Value": 100000000
-  },
-  {
-    "Name": "저금 한계 (4/5)",
-    "Description": "저금 상한값 mov eax (0x5FF6A, 4바이트). 5군데 모두 같은 값. 100만→1억",
-    "Address": "0x5FF6A",
-    "ByteSize": 4,
-    "Min": 0,
-    "Max": 4294967295,
-    "Value": 100000000
-  },
-  {
-    "Name": "저금 한계 (5/5)",
-    "Description": "저금 상한값 push imm32 (0x7C008, 4바이트). 5군데 모두 같은 값. 100만→1억",
-    "Address": "0x7C008",
-    "ByteSize": 4,
-    "Min": 0,
-    "Max": 4294967295,
+    "Type": "number",
     "Value": 100000000
   },
   {
@@ -96,6 +72,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 5
   },
   {
@@ -105,6 +82,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 20
   },
   {
@@ -114,6 +92,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 10
   },
   {
@@ -123,6 +102,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 25
   },
   {
@@ -132,6 +112,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 35
   },
   {
@@ -141,6 +122,7 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 30
   },
   {
@@ -150,6 +132,26 @@
     "ByteSize": 1,
     "Min": 0,
     "Max": 255,
+    "Type": "number",
     "Value": 15
+  },
+  {
+    "Name": "중단저장 .TMP→.CDS (7곳 토글)",
+    "Description": "적용 시 중단(임시저장)이 SAVEDATA.CDS로 바로 저장. 파일명 포인터 .TMP→.CDS를 7곳에 일괄. 적용/해제 토글(124↔120). ※두기 무설치판 전용 오프셋",
+    "Addresses": [
+      "0x77BE6",
+      "0x77C92",
+      "0x7851B",
+      "0x78849",
+      "0x78866",
+      "0x788C4",
+      "0x788D3"
+    ],
+    "ByteSize": 1,
+    "Min": 0,
+    "Max": 255,
+    "Type": "toggle",
+    "OriginalValue": 124,
+    "PatchedValue": 120
   }
 ]
