@@ -342,7 +342,7 @@
                                                                                   SelectedItem="{Binding ByteSize}" HorizontalAlignment="Left" Width="60" Margin="0,0,0,4"/>
 
                                                                         <CheckBox Grid.Row="4" Grid.Column="1" Content="토글(적용/해제) 패치"
-                                                                                  IsChecked="{Binding IsToggle}" Margin="0,2,0,6"/>
+                                                                                  IsChecked="{Binding IsToggle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,6"/>
 
                                                                         <!-- 값 입력형: 토글 OFF일 때만 -->
                                                                         <TextBlock Grid.Row="5" Grid.Column="0" Text="값" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,6,0"

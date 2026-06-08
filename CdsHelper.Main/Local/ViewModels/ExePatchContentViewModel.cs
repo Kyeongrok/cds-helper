@@ -134,32 +134,31 @@ public class CustomPatchItem : BindableBase
     }
 
     // ===== 패치 종류 =====
-    /// <summary>패치 종류: "number"(값 입력) | "toggle"(적용/해제). 직렬화 기준 필드.</summary>
-    private string _patchType = "number";
-    public string PatchType
+    /// <summary>토글 종류 여부. UI 체크박스가 양방향 바인딩하는 실제 backing 필드.</summary>
+    private bool _isToggle;
+    public bool IsToggle
     {
-        get => _patchType;
+        get => _isToggle;
         set
         {
-            var v = string.Equals(value, "toggle", StringComparison.OrdinalIgnoreCase) ? "toggle" : "number";
-            if (SetProperty(ref _patchType, v))
+            if (SetProperty(ref _isToggle, value))
             {
-                RaisePropertyChanged(nameof(IsToggle));
                 RaisePropertyChanged(nameof(IsValueMode));
+                RaisePropertyChanged(nameof(PatchType));
                 OnDefinitionChanged?.Invoke(this);
             }
         }
     }
 
-    /// <summary>토글 종류 여부(UI 바인딩·분기용 접근자). set 시 PatchType을 바꾼다.</summary>
-    public bool IsToggle
-    {
-        get => _patchType == "toggle";
-        set => PatchType = value ? "toggle" : "number";
-    }
-
     /// <summary>값 입력 종류 여부(값 입력칸 표시용).</summary>
-    public bool IsValueMode => _patchType != "toggle";
+    public bool IsValueMode => !_isToggle;
+
+    /// <summary>패치 종류: "number"(값 입력) | "toggle"(적용/해제). 직렬화용 표현(IsToggle 기반).</summary>
+    public string PatchType
+    {
+        get => _isToggle ? "toggle" : "number";
+        set => IsToggle = string.Equals(value, "toggle", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>토글 OFF(해제)일 때 기록할 원본 값.</summary>
     private long _originalValue;
