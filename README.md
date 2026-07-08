@@ -1,5 +1,6 @@
 # 대항해시대3 세이브 뷰어
 
+[![Release](https://img.shields.io/github/v/release/Kyeongrok/cds-helper?logo=github)](https://github.com/Kyeongrok/cds-helper/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Kyeongrok/cds-helper/total?color=brightgreen)](https://github.com/Kyeongrok/cds-helper/releases)
 
 <img width="272" height="384" alt="image" src="https://github.com/user-attachments/assets/59015153-9700-4752-815e-68093774bfc2" />
