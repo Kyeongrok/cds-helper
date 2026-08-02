@@ -270,14 +270,11 @@ public class MapContent : ContentControl
         });
     }
 
-    private const string MapImageFileName = "대항해시대3-지도(발견물-이름-기준).jpg";
-    private const string MapImageDownloadUrl = "https://github.com/Kyeongrok/cds-helper/releases/download/map-assets/3-.-.-.jpg";
-
     private async Task LoadMapImageAsync()
     {
         if (_imgMap == null) return;
 
-        var mapPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, MapImageFileName);
+        var mapPath = MapImageAsset.FilePath;
 
         if (!System.IO.File.Exists(mapPath))
         {
@@ -287,13 +284,7 @@ public class MapContent : ContentControl
                     _txtNavStatus.Text = "지도 이미지 다운로드 중...";
             });
 
-            try
-            {
-                using var client = new HttpClient();
-                var data = await client.GetByteArrayAsync(MapImageDownloadUrl);
-                await System.IO.File.WriteAllBytesAsync(mapPath, data);
-            }
-            catch
+            if (!await MapImageAsset.TryDownloadAsync())
             {
                 Dispatcher.Invoke(() =>
                 {

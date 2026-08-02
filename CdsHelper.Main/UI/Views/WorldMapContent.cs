@@ -39,7 +39,6 @@ public class WorldMapContent : ContentControl
     private Button? _btnTrackCoordinate;
     private TextBlock? _txtCurrentCoordinate;
     private TextBlock? _txtNavStatus;
-    private TextBlock? _txtEventStatus;
     private Button? _btnStopNav;
     private TextBlock? _txtZoomLabel;
     private Canvas? _overlayCanvas;
@@ -183,7 +182,6 @@ public class WorldMapContent : ContentControl
         _btnTrackCoordinate = GetTemplateChild("PART_BtnTrackCoordinate") as Button;
         _txtCurrentCoordinate = GetTemplateChild("PART_TxtCurrentCoordinate") as TextBlock;
         _txtNavStatus = GetTemplateChild("PART_TxtNavStatus") as TextBlock;
-        _txtEventStatus = GetTemplateChild("PART_TxtEventStatus") as TextBlock;
         _btnStopNav = GetTemplateChild("PART_BtnStopNav") as Button;
         if (_btnStopNav != null) _btnStopNav.Click += (_, _) => StopNavigation();
         _overlayCanvas = GetTemplateChild("PART_OverlayCanvas") as Canvas;
@@ -1394,18 +1392,10 @@ public class WorldMapContent : ContentControl
 
             bool inCity = GameScreenDetector.IsInCity(bitmap);
 
-            // 이벤트 다이얼로그 감지 (수동 이동 중에도 자동 확인)
             // 자동이동 중이면 nav 루프에서 처리하므로 생략
             if (!_isNavigating)
             {
                 var detection = await _screenDetector.DetectScreenWithOcrAsync(bitmap);
-                if (detection.Event != null)
-                {
-                    var preview = PreviewOcr(detection.OcrText);
-                    SetEventStatus($"{detection.Event.Icon} {detection.Event.Name}: {preview}");
-                    await detection.Event.HandleAsync(hWnd);
-                    return;
-                }
                 // 메뉴가 떠 있으면 좌표 OCR이 가려짐. 사용자가 연 것일 수 있으니 닫지는 않고 상태만 표시
                 if (detection.Screen is GameScreen.CommandMenu or GameScreen.HintList or GameScreen.InfoMenu)
                 {
@@ -2024,11 +2014,6 @@ public class WorldMapContent : ContentControl
         if (_txtNavStatus != null) _txtNavStatus.Text = text;
     }
 
-    private void SetEventStatus(string text)
-    {
-        if (_txtEventStatus != null) _txtEventStatus.Text = text;
-    }
-
     private void ToggleSpeedLabels()
     {
         if (_speedLabelHost == null) return;
@@ -2113,16 +2098,6 @@ public class WorldMapContent : ContentControl
         }
     }
 
-    /// <summary>
-    /// OCR 결과를 상태 표시용으로 줄임 (공백/개행 정리, 최대 40자)
-    /// </summary>
-    private static string PreviewOcr(string? ocrText)
-    {
-        if (string.IsNullOrWhiteSpace(ocrText)) return "(텍스트 없음)";
-        var cleaned = System.Text.RegularExpressions.Regex.Replace(ocrText, @"\s+", " ").Trim();
-        return cleaned.Length > 40 ? cleaned.Substring(0, 40) + "…" : cleaned;
-    }
-
     private void ShowArrivedStatus(CoordinatePrediction prediction)
     {
         SetNavStatus($"✅ 도착! ({prediction})");
@@ -2201,16 +2176,6 @@ public class WorldMapContent : ContentControl
                     {
                         Dispatcher.Invoke(() => SetNavStatus($"📋 화면 닫는 중... ({screen})"));
                         await GameScreenDetector.DismissDialogAsync(navHWnd, screen, token);
-                        await Task.Delay(500, token);
-                        continue;
-                    }
-
-                    if (detection.Event != null)
-                    {
-                        var evt = detection.Event;
-                        var preview = PreviewOcr(detection.OcrText);
-                        Dispatcher.Invoke(() => SetEventStatus($"{evt.Icon} {evt.Name}: {preview}"));
-                        await evt.HandleAsync(navHWnd, token);
                         await Task.Delay(500, token);
                         continue;
                     }

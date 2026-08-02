@@ -58,16 +58,25 @@
 
                         <!-- 중앙: 지도 -->
                         <Border Grid.Row="1" BorderBrush="Gray" BorderThickness="1">
-                            <ScrollViewer x:Name="PART_MapScrollViewer"
-                                          HorizontalScrollBarVisibility="Auto"
-                                          VerticalScrollBarVisibility="Auto">
-                                <Grid HorizontalAlignment="Left" VerticalAlignment="Top">
-                                    <Image x:Name="PART_MapImage" Stretch="None" Cursor="Cross" />
-                                    <Canvas x:Name="PART_MapCanvas"
-                                            HorizontalAlignment="Left" VerticalAlignment="Top"
-                                            IsHitTestVisible="False" />
-                                </Grid>
-                            </ScrollViewer>
+                            <Grid>
+                                <ScrollViewer x:Name="PART_MapScrollViewer"
+                                              HorizontalScrollBarVisibility="Auto"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <Grid HorizontalAlignment="Left" VerticalAlignment="Top">
+                                        <Image x:Name="PART_MapImage" Stretch="None" Cursor="Cross" />
+                                        <Canvas x:Name="PART_MapCanvas"
+                                                HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                IsHitTestVisible="False" />
+                                    </Grid>
+                                </ScrollViewer>
+
+                                <!-- 지도 이미지가 없거나 로드 실패했을 때의 안내 (모달 대신 인라인 표시) -->
+                                <TextBlock x:Name="PART_MapMessage"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           TextAlignment="Center" TextWrapping="Wrap"
+                                           Foreground="DimGray" FontSize="13"
+                                           Visibility="Collapsed" />
+                            </Grid>
                         </Border>
 
                         <!-- 하단: 버튼 -->

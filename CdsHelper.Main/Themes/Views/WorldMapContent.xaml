@@ -108,16 +108,8 @@
 
                         <!-- Cell info bar -->
                         <Border Grid.Row="3" Background="#222" Padding="6,4" Margin="0,4,0,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" x:Name="PART_TxtEventStatus" Foreground="#FFD54F"
-                                           FontFamily="Consolas" FontSize="12" FontWeight="Bold" Margin="0,0,12,0"/>
-                                <TextBlock Grid.Column="1" x:Name="PART_CellInfo" Foreground="#CCC" FontFamily="Consolas" FontSize="12"
-                                           Text="마우스를 지도 위에 올리면 셀 정보가 표시됩니다"/>
-                            </Grid>
+                            <TextBlock x:Name="PART_CellInfo" Foreground="#CCC" FontFamily="Consolas" FontSize="12"
+                                       Text="마우스를 지도 위에 올리면 셀 정보가 표시됩니다"/>
                         </Border>
                     </Grid>
                 </ControlTemplate>
