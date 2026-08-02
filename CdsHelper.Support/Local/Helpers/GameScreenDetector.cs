@@ -6,17 +6,14 @@ namespace CdsHelper.Support.Local.Helpers;
 /// <summary>
 /// 게임 화면을 캡처하여 현재 어떤 화면인지 판별하는 경량 감지기.
 /// 템플릿 매칭 없이 픽셀 분석 + OCR로 동작한다.
-/// 이벤트성 다이얼로그(확인/도망/보급 등)는 <see cref="GameEventRecognizer"/>에 위임.
 /// </summary>
 public class GameScreenDetector
 {
     private readonly CoordinateOcrService _ocrService;
-    private readonly GameEventRecognizer _eventRecognizer;
 
     public GameScreenDetector(CoordinateOcrService ocrService)
     {
         _ocrService = ocrService;
-        _eventRecognizer = new GameEventRecognizer();
     }
 
     /// <summary>
@@ -29,8 +26,7 @@ public class GameScreenDetector
     }
 
     /// <summary>
-    /// 캡처된 화면에서 현재 게임 화면 종류를 판별하고, OCR 결과와 이벤트를 함께 반환한다.
-    /// 이벤트성 다이얼로그라면 <see cref="ScreenDetection.Event"/>가 채워져있다.
+    /// 캡처된 화면에서 현재 게임 화면 종류를 판별하고, OCR 결과를 함께 반환한다.
     /// </summary>
     public async Task<ScreenDetection> DetectScreenWithOcrAsync(Bitmap bitmap)
     {
@@ -52,11 +48,6 @@ public class GameScreenDetector
                 return new ScreenDetection(GameScreen.InfoMenu, ocrResult);
             if (ocrResult.Contains("커맨드") && ocrResult.Contains("취소"))
                 return new ScreenDetection(GameScreen.CommandMenu, ocrResult);
-
-            // 이벤트 다이얼로그 계열은 Recognizer에 위임
-            var evt = _eventRecognizer.Recognize(ocrResult);
-            if (evt != null)
-                return new ScreenDetection(GameScreen.Event, ocrResult, evt);
         }
 
         // 4. 기본: 탐험 중
@@ -119,7 +110,6 @@ public class GameScreenDetector
 
     /// <summary>
     /// 힌트/정보/커맨드/전투 화면을 자동으로 빠져나온다.
-    /// 이벤트성 다이얼로그(Event)는 <see cref="IGameEvent.HandleAsync"/>를 직접 호출한다.
     /// </summary>
     public static async Task DismissDialogAsync(IntPtr hWnd, GameScreen screen, CancellationToken token = default)
     {
@@ -211,8 +201,8 @@ public class GameScreenDetector
     }
 }
 
-/// <summary>화면 감지 결과 (화면 종류 + OCR 텍스트 + 인식된 이벤트).</summary>
-public record ScreenDetection(GameScreen Screen, string? OcrText, IGameEvent? Event = null);
+/// <summary>화면 감지 결과 (화면 종류 + OCR 텍스트).</summary>
+public record ScreenDetection(GameScreen Screen, string? OcrText);
 
 /// <summary>게임 화면 종류 (경량 감지용).</summary>
 public enum GameScreen
@@ -229,6 +219,4 @@ public enum GameScreen
     CommandMenu,
     /// <summary>전쟁/전투 화면</summary>
     Battle,
-    /// <summary>이벤트성 다이얼로그 (확인/도망/보급 등) — 세부는 <see cref="ScreenDetection.Event"/>에 담김</summary>
-    Event,
 }

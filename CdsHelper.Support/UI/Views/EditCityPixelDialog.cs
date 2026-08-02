@@ -5,7 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
-using IOPath = System.IO.Path;
+using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Support.UI.Views;
 
@@ -19,6 +19,7 @@ namespace CdsHelper.Support.UI.Views;
 [TemplatePart(Name = PART_MapScrollViewer, Type = typeof(ScrollViewer))]
 [TemplatePart(Name = PART_MapImage, Type = typeof(Image))]
 [TemplatePart(Name = PART_MapCanvas, Type = typeof(Canvas))]
+[TemplatePart(Name = PART_MapMessage, Type = typeof(TextBlock))]
 [TemplatePart(Name = PART_OkButton, Type = typeof(Button))]
 [TemplatePart(Name = PART_CancelButton, Type = typeof(Button))]
 public class EditCityPixelDialog : Window
@@ -33,6 +34,7 @@ public class EditCityPixelDialog : Window
     private const string PART_MapScrollViewer = "PART_MapScrollViewer";
     private const string PART_MapImage = "PART_MapImage";
     private const string PART_MapCanvas = "PART_MapCanvas";
+    private const string PART_MapMessage = "PART_MapMessage";
     private const string PART_OkButton = "PART_OkButton";
     private const string PART_CancelButton = "PART_CancelButton";
 
@@ -46,7 +48,9 @@ public class EditCityPixelDialog : Window
     private ScrollViewer? _mapScrollViewer;
     private Image? _mapImage;
     private Canvas? _mapCanvas;
+    private TextBlock? _mapMessage;
     private Ellipse? _currentMarker;
+    private bool _mapInitStarted;
 
     public static readonly DependencyProperty CityNameProperty =
         DependencyProperty.Register(nameof(CityName), typeof(string), typeof(EditCityPixelDialog),
@@ -156,6 +160,7 @@ public class EditCityPixelDialog : Window
         _mapScrollViewer = GetTemplateChild(PART_MapScrollViewer) as ScrollViewer;
         _mapImage = GetTemplateChild(PART_MapImage) as Image;
         _mapCanvas = GetTemplateChild(PART_MapCanvas) as Canvas;
+        _mapMessage = GetTemplateChild(PART_MapMessage) as TextBlock;
 
         if (GetTemplateChild(PART_OkButton) is Button okButton)
             okButton.Click += OnOkClick;
@@ -187,44 +192,76 @@ public class EditCityPixelDialog : Window
         if (_culturalSphereTextBox != null)
             _culturalSphereTextBox.Text = CulturalSphere ?? "";
 
-        LoadMapImage();
+        // OnApplyTemplate은 레이아웃 패스(Dispatcher 처리가 중단된 구간) 안에서 호출된다.
+        // 이 안에서 MessageBox/ShowDialog 같은 모달 UI를 띄우거나 메시지 펌핑이 일어나면
+        // "디스패처 처리는 일시 중단되었지만 메시지가 여전히 처리되고 있습니다" 예외가 난다.
+        // 지도 로딩(파일 없으면 다운로드)과 포커스 이동은 레이아웃이 끝난 뒤로 미룬다.
+        if (!_mapInitStarted)
+        {
+            _mapInitStarted = true;
+            Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                _cityNameTextBox?.Focus();
+                _cityNameTextBox?.SelectAll();
+                await InitMapAsync();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+    }
+
+    private async Task InitMapAsync()
+    {
+        if (_mapImage == null || _mapCanvas == null) return;
+
+        var mapPath = MapImageAsset.FilePath;
+
+        if (!File.Exists(mapPath))
+        {
+            SetMapMessage("지도 이미지를 내려받는 중입니다...");
+            if (!await MapImageAsset.TryDownloadAsync())
+            {
+                SetMapMessage($"지도 이미지를 불러올 수 없습니다.\n" +
+                              $"실행 폴더에 {MapImageAsset.FileName} 파일을 넣어주세요.\n" +
+                              $"(좌표는 위/경도 입력란으로 직접 수정할 수 있습니다)");
+                return;
+            }
+        }
+
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(mapPath, UriKind.Absolute);
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+
+            _mapImage.Source = bitmap;
+            _mapImage.Width = bitmap.PixelWidth;
+            _mapImage.Height = bitmap.PixelHeight;
+
+            _mapCanvas.Width = bitmap.PixelWidth;
+            _mapCanvas.Height = bitmap.PixelHeight;
+        }
+        catch (Exception ex)
+        {
+            SetMapMessage($"지도 이미지 로드 실패: {ex.Message}");
+            return;
+        }
+
+        SetMapMessage(null);
 
         if (PixelX.HasValue && PixelY.HasValue)
         {
             AddMarkerAt(PixelX.Value, PixelY.Value);
             ScrollToPosition(PixelX.Value, PixelY.Value);
         }
-
-        _cityNameTextBox?.Focus();
-        _cityNameTextBox?.SelectAll();
     }
 
-    private void LoadMapImage()
+    /// <summary>지도 영역에 안내 문구를 표시한다. null이면 감춘다.</summary>
+    private void SetMapMessage(string? message)
     {
-        if (_mapImage == null || _mapCanvas == null) return;
-
-        var basePath = AppDomain.CurrentDomain.BaseDirectory;
-        var mapPath = IOPath.Combine(basePath, "대항해시대3-지도(발견물-이름-기준).jpg");
-
-        if (!File.Exists(mapPath))
-        {
-            MessageBox.Show($"지도 파일을 찾을 수 없습니다:\n{mapPath}", "오류",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.UriSource = new Uri(mapPath, UriKind.Absolute);
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.EndInit();
-
-        _mapImage.Source = bitmap;
-        _mapImage.Width = bitmap.PixelWidth;
-        _mapImage.Height = bitmap.PixelHeight;
-
-        _mapCanvas.Width = bitmap.PixelWidth;
-        _mapCanvas.Height = bitmap.PixelHeight;
+        if (_mapMessage == null) return;
+        _mapMessage.Text = message ?? string.Empty;
+        _mapMessage.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void ScrollToPosition(int x, int y)
