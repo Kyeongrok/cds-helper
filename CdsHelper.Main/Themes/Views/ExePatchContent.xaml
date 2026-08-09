@@ -41,6 +41,24 @@
                                     Background="#FF9800" Foreground="White" BorderThickness="0"/>
                         </StackPanel>
 
+                        <!-- 직업버튼 능력갱신 (31바이트 코드 패치 — 커스텀 패치로는 적용 불가) -->
+                        <Border Grid.Row="2" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="직업버튼 능력갱신" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock Text="{Binding JobButtonPatchAddress}" FontFamily="Consolas"
+                                           Foreground="Gray" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock Text="{Binding JobButtonPatchStatus}" FontWeight="Bold"
+                                           Foreground="#1976D2" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                                <Button Content="적용" Command="{Binding ApplyJobButtonPatchCommand}"
+                                        Width="70" Height="26" Margin="0,0,5,0"
+                                        Background="#4CAF50" Foreground="White" BorderThickness="0"/>
+                                <Button Content="원본 복원" Command="{Binding RestoreJobButtonPatchCommand}"
+                                        Width="80" Height="26" Margin="0,0,15,0"/>
+                                <TextBlock Text="캐릭터 생성 시 직업 버튼을 누르면 능력치가 다시 굴러갑니다 (자동플레이 능력치 리롤에 필요). 31바이트 코드 패치라 커스텀 패치로는 적용할 수 없습니다."
+                                           VerticalAlignment="Center" Foreground="Gray" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- 커스텀 패치 -->
                         <Border Grid.Row="5" Background="#F5F5F5" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
                             <Grid>

@@ -18,6 +18,19 @@ public class AppSettingsData
     public HashSet<int> CheckedDiscoveryIds { get; set; } = new();
     public WorldMapOptions WorldMap { get; set; } = new();
     public bool AutoConfirmDialog { get; set; } = true;
+    public RerollOptions Reroll { get; set; } = new();
+}
+
+/// <summary>능력치 리롤 옵션.</summary>
+public class RerollOptions
+{
+    /// <summary>true면 자동 감지한 사냥꾼 버튼 대신 사용자가 지정한 좌표를 클릭한다.</summary>
+    public bool UseCustomClickPoint { get; set; }
+
+    /// <summary>사용자 지정 클릭 좌표 (게임 클라이언트 기준).</summary>
+    public int ClickX { get; set; }
+
+    public int ClickY { get; set; }
 }
 
 public class WorldMapOptions
@@ -77,6 +90,7 @@ public static class AppSettings
     private static string _trailDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trails");
     private static WorldMapOptions _worldMap = new();
     private static bool _autoConfirmDialog = true;
+    private static RerollOptions _reroll = new();
 
     static AppSettings()
     {
@@ -152,6 +166,13 @@ public static class AppSettings
         SaveSettings();
     }
 
+    public static RerollOptions Reroll => _reroll;
+
+    public static void SaveRerollOptions()
+    {
+        SaveSettings();
+    }
+
     /// <summary>
     /// 자동 항해 중 대화창 "확인" 버튼을 OCR/템플릿 매칭으로 자동 클릭할지 여부.
     /// 끄면 다이얼로그가 떠도 클릭하지 않고 사용자가 수동으로 처리하게 둔다.
@@ -199,6 +220,7 @@ public static class AppSettings
                     _checkedDiscoveryIds = data.CheckedDiscoveryIds ?? new();
                     _worldMap = data.WorldMap ?? new();
                     _autoConfirmDialog = data.AutoConfirmDialog;
+                    _reroll = data.Reroll ?? new();
                 }
             }
         }
@@ -226,7 +248,8 @@ public static class AppSettings
                 TrailDirectory = _trailDirectory,
                 CheckedDiscoveryIds = _checkedDiscoveryIds,
                 WorldMap = _worldMap,
-                AutoConfirmDialog = _autoConfirmDialog
+                AutoConfirmDialog = _autoConfirmDialog,
+                Reroll = _reroll
             };
 
             var json = JsonSerializer.Serialize(data, new JsonSerializerOptions

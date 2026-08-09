@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.IO;
-using CdsHelper.Support.Local.Settings;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
@@ -21,6 +20,11 @@ public class StatRerollService : IDisposable
 
     public bool IsRunning => _runningTask is { IsCompleted: false };
     public string NumberTemplateDir => _numberTemplateDir;
+
+    /// <summary>
+    /// 사용자가 지정한 클릭 좌표 (게임 클라이언트 기준). null이면 자동 감지한 사냥꾼 버튼을 클릭한다.
+    /// </summary>
+    public (int X, int Y)? CustomClickPoint { get; set; }
 
     public event Action<string>? LogMessage;
     public event Action<int, int>? Progress;
@@ -43,10 +47,24 @@ public class StatRerollService : IDisposable
         LoadDigitTemplates();
     }
 
+    /// <summary>
+    /// 마지막으로 리롤이 끝난 이유. <see cref="Stopped"/> 직전에 채워지므로
+    /// UI가 "중지됨" 대신 실제 원인을 그대로 보여줄 수 있다.
+    /// </summary>
+    public string LastStopReason { get; private set; } = "중지됨";
+
     /// <summary>리롤을 시작한다. targets: 체력,지력,무력,매력,운,보너스 (0=무시)</summary>
     public void Start(int[] targets, int clickDelay = 300, int maxAttempts = 50)
     {
-        if (IsRunning) return;
+        // 이전 실행이 아직 살아 있으면 조용히 무시하지 않고 중지 이벤트를 돌려준다.
+        // (그냥 return하면 UI가 "감지 중..." 상태로 굳고 시작 버튼이 영영 안 풀린다)
+        if (IsRunning)
+        {
+            Fail("이전 리롤이 아직 실행 중입니다. 잠시 후 다시 시도하세요.");
+            Stopped?.Invoke();
+            return;
+        }
+
         _cts = new CancellationTokenSource();
         _runningTask = Task.Run(() => RunLoop(targets, clickDelay, maxAttempts, _cts.Token));
     }
@@ -54,8 +72,16 @@ public class StatRerollService : IDisposable
     public void Stop()
     {
         _cts?.Cancel();
+        LastStopReason = "사용자 중지";
         Log("리롤 중지됨");
         Stopped?.Invoke();
+    }
+
+    /// <summary>중지 사유를 로그와 <see cref="LastStopReason"/>에 함께 남긴다.</summary>
+    private void Fail(string reason)
+    {
+        LastStopReason = reason;
+        Log(reason);
     }
 
     /// <summary>테스트: 모든 능력치 읽기.</summary>
@@ -80,6 +106,61 @@ public class StatRerollService : IDisposable
             // 지력 값 반환
             return ReadTwoDigits(bitmap, layout.StatRois[2], layout.StatRois[3]);
         }
+    }
+
+    /// <summary>
+    /// 사용자가 게임 화면에서 클릭할 위치를 직접 찍게 한다.
+    /// 반환값은 게임 클라이언트 기준 좌표이며, 취소/시간초과 시 null.
+    /// </summary>
+    public async Task<(int x, int y)?> PickClickPointAsync(int timeoutMs = 15000)
+    {
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd == IntPtr.Zero) { Log("게임 윈도우를 찾을 수 없습니다."); return null; }
+
+        GameWindowHelper.BringToFront(hWnd);
+        Log($"게임 화면에서 리롤에 사용할 버튼을 좌클릭하세요. (ESC 또는 {timeoutMs / 1000}초 경과 시 취소)");
+
+        var point = await GameWindowHelper.WaitForClientClickAsync(hWnd, timeoutMs);
+        if (point == null)
+        {
+            Log("좌표 지정이 취소되었습니다.");
+            return null;
+        }
+
+        Log($"클릭 좌표 지정됨: ({point.Value.x},{point.Value.y})");
+        return point;
+    }
+
+    /// <summary>지정된 클릭 좌표(없으면 자동 감지 사냥꾼 버튼)를 한 번 클릭해 본다.</summary>
+    public void TestClickPoint()
+    {
+        var hWnd = GameWindowHelper.FindGameWindow();
+        if (hWnd == IntPtr.Zero) { Log("게임 윈도우를 찾을 수 없습니다."); return; }
+
+        (int X, int Y) point;
+        if (CustomClickPoint is { } custom)
+        {
+            point = custom;
+            GameWindowHelper.BringToFront(hWnd);
+            Thread.Sleep(300);
+        }
+        else
+        {
+            var (gray, bitmap, layout) = CaptureAndDetect();
+            if (layout == null) return;
+            using (gray) using (bitmap) { point = (layout.HunterBtn.X, layout.HunterBtn.Y); }
+        }
+
+        Log($"테스트 클릭: ({point.X},{point.Y})");
+        GameWindowHelper.SendClickRelative(hWnd, point.X, point.Y);
+    }
+
+    /// <summary>자동 감지한 사냥꾼 버튼 좌표를 반환한다. 감지 실패 시 null.</summary>
+    public (int x, int y)? GetDetectedHunterPoint()
+    {
+        var (gray, bitmap, layout) = CaptureAndDetect();
+        if (layout == null) return null;
+        using (gray) using (bitmap) { return (layout.HunterBtn.X, layout.HunterBtn.Y); }
     }
 
     /// <summary>5개 능력치를 한 번에 학습한다. 입력: "79,50,74,59,80" (체력,지력,무력,매력,운).</summary>
@@ -240,6 +321,9 @@ public class StatRerollService : IDisposable
         for (int i = 0; i < layout.StatRois.Length; i++)
             Cv2.Rectangle(debugMat, layout.StatRois[i], new Scalar(0, 0, 255), 1);
         Cv2.Circle(debugMat, layout.HunterBtn, 5, new Scalar(255, 0, 0), 1);
+        if (CustomClickPoint is { } custom)
+            Cv2.Circle(debugMat, new OpenCvSharp.Point(custom.X, custom.Y),
+                5, new Scalar(0, 255, 255), 1); // 사용자 지정 좌표 (노랑)
 
         var debugPath = Path.Combine(_numberTemplateDir, $"debug_{DateTime.Now:HHmmss}.png");
         Cv2.ImWrite(debugPath, debugMat);
@@ -340,74 +424,58 @@ public class StatRerollService : IDisposable
 
     #region 리롤 루프
 
-    // 직업버튼 능력치 갱신 패치 바이트
-    private const int JobButtonPatchOffset = 0x0005CCDA;
-    private const int JobButtonPatchLength = 31;
-    private static readonly byte[] JobButtonPatchedBytes = new byte[]
-    {
-        0x89, 0x86, 0x50, 0x01, 0x00, 0x00, 0xB9, 0x48, 0x0C, 0x58, 0x00, 0x6A, 0x05, 0xFF, 0x34, 0x85,
-        0x18, 0x27, 0x55, 0x00, 0xE8, 0xAD, 0x07, 0xFB, 0xFF, 0x8B, 0xCE, 0xE8, 0x56, 0xFB, 0xFF
-    };
-
-    private bool IsJobButtonPatchApplied()
-    {
-        var savePath = AppSettings.LastSaveFilePath;
-        if (string.IsNullOrEmpty(savePath)) return false;
-
-        var gameFolder = Path.GetDirectoryName(savePath);
-        if (string.IsNullOrEmpty(gameFolder)) return false;
-
-        var exePath = Path.Combine(gameFolder, "cds_95.exe");
-        if (!File.Exists(exePath)) return false;
-
-        try
-        {
-            using var fs = new FileStream(exePath, FileMode.Open, FileAccess.Read);
-            if (fs.Length < JobButtonPatchOffset + JobButtonPatchLength) return false;
-
-            fs.Seek(JobButtonPatchOffset, SeekOrigin.Begin);
-            var buf = new byte[JobButtonPatchLength];
-            fs.Read(buf, 0, JobButtonPatchLength);
-
-            for (int i = 0; i < JobButtonPatchLength; i++)
-                if (buf[i] != JobButtonPatchedBytes[i]) return false;
-            return true;
-        }
-        catch { return false; }
-    }
-
+    /// <summary>
+    /// 어떤 경로로 끝나든(감지 실패·예외 포함) 반드시 <see cref="Stopped"/>를 한 번 발생시킨다.
+    /// 이게 없으면 UI가 "감지 중..." 상태로 멈춘 채 시작 버튼이 다시 활성화되지 않는다.
+    /// </summary>
     private async Task RunLoop(int[] targets, int delay, int maxAttempts, CancellationToken token)
     {
-        // 직업버튼 능력치 갱신 패치 확인
-        if (!IsJobButtonPatchApplied())
+        try
         {
-            Log("⚠ exe패치에서 '직업버튼 능력갱신' 패치가 적용되어 있지 않습니다.");
-            Log("  exe패치 탭에서 패치를 먼저 적용해주세요.");
-            Stopped?.Invoke();
-            return;
+            await RunLoopCore(targets, delay, maxAttempts, token);
         }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Fail($"리롤 중단 (예외): {ex.Message}");
+        }
+        finally
+        {
+            Stopped?.Invoke();
+        }
+    }
+
+    private async Task RunLoopCore(int[] targets, int delay, int maxAttempts, CancellationToken token)
+    {
+        LastStopReason = "중지됨";
 
         var hWnd = GameWindowHelper.FindGameWindow();
-        if (hWnd == IntPtr.Zero) { Log("게임 윈도우를 찾을 수 없습니다."); return; }
+        if (hWnd == IntPtr.Zero) { Fail("게임 윈도우를 찾을 수 없습니다."); return; }
 
         GameWindowHelper.BringToFront(hWnd);
         await Task.Delay(500, token);
 
         using var initBitmap = GameWindowHelper.CaptureClient(hWnd);
-        if (initBitmap == null) { Log("화면 캡처 실패"); return; }
+        if (initBitmap == null) { Fail("화면 캡처 실패"); return; }
 
         using var initMat = BitmapConverter.ToMat(initBitmap);
         using var initGray = new Mat();
         Cv2.CvtColor(initMat, initGray, ColorConversionCodes.BGR2GRAY);
 
         var layout = DetectLayout(initGray);
-        if (layout == null) { Log("다이얼로그 감지 실패. 직업 선택 화면이 열려 있는지 확인하세요."); return; }
+        if (layout == null) { Fail("다이얼로그 감지 실패 — 직업 선택 화면이 열려 있는지 확인하세요."); return; }
 
         if (layout.StatRois.Length < 4)
         {
-            Log("지력 박스를 감지할 수 없습니다.");
+            Fail("지력 박스를 감지할 수 없습니다.");
             return;
         }
+
+        // 클릭 좌표: 사용자 지정이 있으면 그것을, 없으면 자동 감지한 사냥꾼 버튼을 사용
+        var clickPoint = CustomClickPoint ?? (layout.HunterBtn.X, layout.HunterBtn.Y);
+        Log(CustomClickPoint != null
+            ? $"클릭 위치: 사용자 지정 ({clickPoint.X},{clickPoint.Y})"
+            : $"클릭 위치: 자동 감지 사냥꾼 버튼 ({clickPoint.X},{clickPoint.Y})");
 
         // 0~9 템플릿이 모두 없으면 사냥꾼 클릭 → 자동학습 반복 (최대 20회)
         var missingDigits = Enumerable.Range(0, 10).Where(d => !_digitTemplates.ContainsKey(d)).ToList();
@@ -418,13 +486,12 @@ public class StatRerollService : IDisposable
             {
                 if (IsHotkeyPressed())
                 {
-                    Log("Ctrl+Alt 감지 — 자동 학습 중지");
-                    Stopped?.Invoke();
+                    Fail("Ctrl+Alt 감지 — 자동 학습 중지");
                     return;
                 }
 
-                // 사냥꾼 버튼 클릭 (새 능력치 생성)
-                GameWindowHelper.SendClickRelative(hWnd, layout.HunterBtn.X, layout.HunterBtn.Y);
+                // 직업 버튼 클릭 (새 능력치 생성)
+                GameWindowHelper.SendClickRelative(hWnd, clickPoint.X, clickPoint.Y);
                 await Task.Delay(delay > 0 ? delay : 100, token);
 
                 // 자동 학습
@@ -443,8 +510,7 @@ public class StatRerollService : IDisposable
 
             if (missingDigits.Count > 0)
             {
-                Log($"20회 시도 후에도 미학습 숫자 존재: {string.Join(", ", missingDigits)} — 리롤 중단");
-                Stopped?.Invoke();
+                Fail($"20회 시도 후에도 미학습 숫자 존재: {string.Join(", ", missingDigits)} — 리롤 중단");
                 return;
             }
         }
@@ -463,24 +529,25 @@ public class StatRerollService : IDisposable
             {
                 if (IsHotkeyPressed())
                 {
-                    Log("Ctrl+Alt 감지 — 리롤 중지");
-                    Stopped?.Invoke();
+                    Fail("Ctrl+Alt 감지 — 리롤 중지");
                     return;
                 }
 
                 hWnd = GameWindowHelper.FindGameWindow();
                 if (hWnd == IntPtr.Zero) { await Task.Delay(2000, token); continue; }
 
-                // 사냥꾼 버튼 클릭
+                // 직업 버튼 클릭
                 var (ox, oy) = GameWindowHelper.GetClientOrigin(hWnd);
                 var (cw, ch) = GameWindowHelper.GetClientSize(hWnd);
-                int screenX = ox + layout.HunterBtn.X;
-                int screenY = oy + layout.HunterBtn.Y;
+                int screenX = ox + clickPoint.X;
+                int screenY = oy + clickPoint.Y;
                 if (attempts == 0)
                 {
-                    Log($"클릭좌표: client({layout.HunterBtn.X},{layout.HunterBtn.Y}) origin({ox},{oy}) screen({screenX},{screenY}) clientSize({cw},{ch})");
+                    // 좌표는 모두 물리 픽셀. dpi는 진단용 표시일 뿐 좌표 계산에 쓰지 않는다.
+                    Log($"클릭좌표: client({clickPoint.X},{clickPoint.Y}) origin({ox},{oy}) screen({screenX},{screenY}) " +
+                        $"clientSize({cw},{ch}) 화면배율={GameWindowHelper.GetDpiScale(hWnd):P0}");
                 }
-                GameWindowHelper.SendClickRelative(hWnd, layout.HunterBtn.X, layout.HunterBtn.Y);
+                GameWindowHelper.SendClickRelative(hWnd, clickPoint.X, clickPoint.Y);
                 attempts++;
 
                 await Task.Delay(delay, token);
@@ -531,10 +598,7 @@ public class StatRerollService : IDisposable
         }
 
         if (attempts >= maxAttempts)
-        {
-            Log($"최대 시도 횟수({maxAttempts}회) 도달 — 중지");
-            Stopped?.Invoke();
-        }
+            Fail($"최대 시도 횟수({maxAttempts}회) 도달 — 중지");
     }
 
     #endregion
