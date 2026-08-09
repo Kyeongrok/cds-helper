@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
 
 namespace CdsHelper.Main.Local.ViewModels;
@@ -30,7 +31,13 @@ public partial class AutoPlayContentViewModel : ObservableObject
         _rerollService.LogMessage += OnLogMessage;
         _rerollService.Progress += OnRerollProgress;
         _rerollService.Completed += OnRerollCompleted;
-        _rerollService.Stopped += () => Application.Current?.Dispatcher.Invoke(() => IsRerolling = false);
+        _rerollService.Stopped += () => Application.Current?.Dispatcher.Invoke(() =>
+        {
+            // 목표 달성/수동 중지로 이미 정리됐으면 그때 표시한 문구를 덮어쓰지 않는다.
+            if (!IsRerolling) return;
+            IsRerolling = false;
+            RerollStatusText = _rerollService.LastStopReason;
+        });
         _rerollService.TemplatesChanged += () => Application.Current?.Dispatcher.Invoke(RefreshDigitImages);
 
         LoadCities();
@@ -79,6 +86,7 @@ public partial class AutoPlayContentViewModel : ObservableObject
 
     [NotifyCanExecuteChangedFor(nameof(StartRerollCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopRerollCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PickClickPointCommand))]
     [ObservableProperty] private bool _isRerolling;
 
     [ObservableProperty] private int _targetHp;
@@ -92,6 +100,13 @@ public partial class AutoPlayContentViewModel : ObservableObject
     [ObservableProperty] private int _clickDelay = 50;
     [ObservableProperty] private int _maxAttempts = 20;
     [ObservableProperty] private string _learnStatValues = "79,50,74,59,80,15";
+
+    /// <summary>true면 자동 감지한 사냥꾼 버튼 대신 <see cref="CustomClickX"/>/<see cref="CustomClickY"/>를 클릭한다.</summary>
+    [ObservableProperty] private bool _useCustomClickPoint = AppSettings.Reroll.UseCustomClickPoint;
+    [ObservableProperty] private int _customClickX = AppSettings.Reroll.ClickX;
+    [ObservableProperty] private int _customClickY = AppSettings.Reroll.ClickY;
+    [NotifyCanExecuteChangedFor(nameof(PickClickPointCommand))]
+    [ObservableProperty] private bool _isPickingClickPoint;
 
     [ObservableProperty] private BitmapImage? _digit0;
     [ObservableProperty] private BitmapImage? _digit1;
@@ -270,15 +285,90 @@ public partial class AutoPlayContentViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanStartReroll))]
     private void StartReroll()
     {
+        if (UseCustomClickPoint && CustomClickX <= 0 && CustomClickY <= 0)
+        {
+            AddLog("클릭 좌표가 지정되지 않았습니다. '화면에서 찍기'로 위치를 먼저 지정하세요.");
+            RerollStatusText = "좌표 미지정";
+            return;
+        }
+
         IsRerolling = true;
         RerollAttempts = 0;
         RerollStatusText = "감지 중...";
+
+        ApplyClickPoint();
 
         _rerollService.Start(
             new[] { TargetHp, TargetInt, TargetStr, TargetCha, TargetLuck, TargetBonus },
             ClickDelay, MaxAttempts);
     }
     private bool CanStartReroll() => !IsRerolling;
+
+    /// <summary>사용자 지정 클릭 좌표를 서비스에 반영하고 설정에 저장한다.</summary>
+    private void ApplyClickPoint()
+    {
+        _rerollService.CustomClickPoint = UseCustomClickPoint
+            ? (CustomClickX, CustomClickY)
+            : null;
+
+        AppSettings.Reroll.UseCustomClickPoint = UseCustomClickPoint;
+        AppSettings.Reroll.ClickX = CustomClickX;
+        AppSettings.Reroll.ClickY = CustomClickY;
+        AppSettings.SaveRerollOptions();
+    }
+
+    /// <summary>게임 화면에서 클릭할 위치를 직접 찍어 좌표로 저장한다.</summary>
+    [RelayCommand(CanExecute = nameof(CanPickClickPoint))]
+    private async Task PickClickPoint()
+    {
+        IsPickingClickPoint = true;
+        RerollStatusText = "게임 화면에서 클릭할 위치를 좌클릭하세요...";
+        try
+        {
+            var point = await _rerollService.PickClickPointAsync();
+            if (point != null)
+            {
+                CustomClickX = point.Value.x;
+                CustomClickY = point.Value.y;
+                UseCustomClickPoint = true;
+                ApplyClickPoint();
+                RerollStatusText = $"좌표 지정됨 ({point.Value.x},{point.Value.y})";
+            }
+            else
+            {
+                RerollStatusText = "좌표 지정 취소됨";
+            }
+        }
+        finally
+        {
+            IsPickingClickPoint = false;
+        }
+    }
+    private bool CanPickClickPoint() => !IsPickingClickPoint && !IsRerolling;
+
+    /// <summary>지정한 좌표를 한 번 클릭해 제대로 눌리는지 확인한다.</summary>
+    [RelayCommand]
+    private void TestClickPoint()
+    {
+        ApplyClickPoint();
+        _rerollService.TestClickPoint();
+    }
+
+    /// <summary>자동 감지한 사냥꾼 버튼 좌표를 입력란에 채워 넣는다.</summary>
+    [RelayCommand]
+    private void LoadDetectedClickPoint()
+    {
+        var point = _rerollService.GetDetectedHunterPoint();
+        if (point == null)
+        {
+            AddLog("사냥꾼 버튼을 자동 감지하지 못했습니다. 직업 선택 화면이 열려 있는지 확인하세요.");
+            return;
+        }
+
+        CustomClickX = point.Value.x;
+        CustomClickY = point.Value.y;
+        AddLog($"자동 감지 좌표를 불러왔습니다: ({point.Value.x},{point.Value.y})");
+    }
 
     [RelayCommand(CanExecute = nameof(CanStopReroll))]
     private void StopReroll()

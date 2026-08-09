@@ -28,6 +28,12 @@ public static class GameWindowHelper
     private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
 
     [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
     [DllImport("user32.dll")]
@@ -102,6 +108,7 @@ public static class GameWindowHelper
     private const int VK_NUMPAD8 = 0x68;
     private const int VK_NUMPAD9 = 0x69;
 
+    private const int VK_LBUTTON = 0x01;
     private const int VK_ESCAPE = 0x1B;
     private const int VK_RETURN = 0x0D;
     private const int VK_UP     = 0x26;
@@ -235,19 +242,76 @@ public static class GameWindowHelper
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
+    /// <remarks>
+    /// 좌표계 주의: 이 앱은 Per-Monitor DPI Aware v2로 동작하므로
+    /// <see cref="GetClientRect"/>·<see cref="ClientToScreen"/>·<see cref="SetCursorPos"/>가 모두 물리 픽셀을 쓴다.
+    /// 화면 캡처 비트맵도 GetClientRect 크기로 만들어지므로 clientX/Y 역시 물리 픽셀이다.
+    /// 따라서 DPI 배율을 곱하면 안 된다 — 곱하면 150%/200% 환경에서 그 배수만큼 빗나간다.
+    /// </remarks>
     public static void SendClickRelative(IntPtr hWnd, int clientX, int clientY)
     {
         var (ox, oy) = GetClientOrigin(hWnd);
+        SendClick(ox + clientX, oy + clientY);
+    }
 
-        // 모니터 실제 DPI로 스케일 계산
+    /// <summary>
+    /// 모니터 실제 DPI 기준 스케일(96dpi = 1.0).
+    /// 좌표 변환에는 쓰지 않고 진단 로그용으로만 사용한다.
+    /// </summary>
+    public static double GetDpiScale(IntPtr hWnd)
+    {
         var hMon = MonitorFromWindow(hWnd, 2); // MONITOR_DEFAULTTONEAREST
-        GetDpiForMonitor(hMon, 0, out uint dpiX, out _); // MDT_EFFECTIVE_DPI
-        double scale = dpiX / 96.0;
+        if (GetDpiForMonitor(hMon, 0, out uint dpiX, out _) != 0 || dpiX == 0) // MDT_EFFECTIVE_DPI
+            return 1.0;
+        return dpiX / 96.0;
+    }
 
-        // origin은 이미 물리 좌표, client는 가상 좌표 → 곱해서 물리 오프셋으로 변환
-        int screenX = ox + (int)(clientX * scale);
-        int screenY = oy + (int)(clientY * scale);
-        SendClick(screenX, screenY);
+    /// <summary>
+    /// 사용자가 게임 클라이언트 영역을 좌클릭할 때까지 기다렸다가 클라이언트 좌표를 반환한다.
+    /// 캡처 이미지와 동일한 좌표계(가상 좌표)로 변환되므로 <see cref="SendClickRelative"/>에 그대로 넘길 수 있다.
+    /// ESC를 누르거나, 클라이언트 밖을 클릭하거나, 제한시간이 지나면 null.
+    /// </summary>
+    public static async Task<(int x, int y)?> WaitForClientClickAsync(
+        IntPtr hWnd, int timeoutMs = 15000, CancellationToken token = default)
+    {
+        // 이 기능을 실행시킨 클릭이 그대로 잡히지 않도록 버튼이 떼어질 때까지 대기
+        while ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
+        {
+            if (token.IsCancellationRequested) return null;
+            await Task.Delay(20, CancellationToken.None);
+        }
+
+        var elapsed = 0;
+        while (elapsed < timeoutMs)
+        {
+            if (token.IsCancellationRequested) return null;
+            if ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0) return null;
+
+            if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
+            {
+                if (!GetCursorPos(out var cursor)) return null;
+
+                // GetCursorPos·ClientToScreen 모두 물리 픽셀 → 그대로 빼면 캡처 비트맵 좌표가 된다
+                var (ox, oy) = GetClientOrigin(hWnd);
+                int clientX = cursor.X - ox;
+                int clientY = cursor.Y - oy;
+
+                var (cw, ch) = GetClientSize(hWnd);
+                if (clientX < 0 || clientY < 0 || clientX >= cw || clientY >= ch)
+                    return null; // 게임 화면 밖 클릭 = 취소
+
+                // 클릭이 끝날 때까지 대기 (중복 처리 방지)
+                while ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0)
+                    await Task.Delay(20, CancellationToken.None);
+
+                return (clientX, clientY);
+            }
+
+            await Task.Delay(20, CancellationToken.None);
+            elapsed += 20;
+        }
+
+        return null;
     }
 
     /// <summary>

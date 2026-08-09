@@ -351,18 +351,19 @@ public class ExePatchContentViewModel : BindableBase
     private const int LongRestLimitOffset = 0x05FB83;
     private const int LongRestLimitOriginal = 12;
 
-    // 직업버튼 능력치 갱신 패치 오프셋
+    // 직업버튼 능력치 갱신 패치 (0x5CCDA, 32바이트)
+    // 캐릭터 생성 화면에서 직업 버튼을 누를 때마다 능력치가 다시 굴러가게 한다.
     private const int JobButtonPatchOffset = 0x0005CCDA;
-    private const int JobButtonPatchLength = 31;
+    private const int JobButtonPatchLength = 32;
     private static readonly byte[] JobButtonOriginalBytes = new byte[]
     {
         0x8B, 0x45, 0xF0, 0x6A, 0x05, 0x83, 0xE8, 0x11, 0x89, 0x86, 0x50, 0x01, 0x00, 0x00, 0x8B, 0x0C,
-        0x85, 0x18, 0x27, 0x55, 0x00, 0x51, 0xB9, 0x48, 0x0C, 0x58, 0x00, 0xE8, 0xA6, 0x07, 0xFB
+        0x85, 0x18, 0x27, 0x55, 0x00, 0x51, 0xB9, 0x48, 0x0C, 0x58, 0x00, 0xE8, 0xA6, 0x07, 0xFB, 0xFF
     };
     private static readonly byte[] JobButtonPatchedBytes = new byte[]
     {
         0x89, 0x86, 0x50, 0x01, 0x00, 0x00, 0xB9, 0x48, 0x0C, 0x58, 0x00, 0x6A, 0x05, 0xFF, 0x34, 0x85,
-        0x18, 0x27, 0x55, 0x00, 0xE8, 0xAD, 0x07, 0xFB, 0xFF, 0x8B, 0xCE, 0xE8, 0x56, 0xFB, 0xFF
+        0x18, 0x27, 0x55, 0x00, 0xE8, 0xAD, 0x07, 0xFB, 0xFF, 0x8B, 0xCE, 0xE8, 0x56, 0xFB, 0xFF, 0xFF
     };
 
     private ObservableCollection<Unko2CharacterItem> _characters = new();
@@ -1303,13 +1304,32 @@ public class ExePatchContentViewModel : BindableBase
             if (string.IsNullOrWhiteSpace(json)) return;
 
             var dtos = JsonSerializer.Deserialize<List<CustomPatchDto>>(json) ?? new List<CustomPatchDto>();
+
+            // 0x5CCDA는 31바이트짜리 코드 패치 영역이라 1바이트 커스텀 패치로 값을 쓰면
+            // 명령어 중간만 덮여 EXE가 깨진다. 전용 '직업버튼 능력갱신' 버튼으로만 적용해야 하므로
+            // 예전에 시드된 잘못된 항목을 목록에서 제거한다.
+            var removed = dtos.RemoveAll(IsJobButtonCodePatchAddress);
+
             ApplyPatchDtos(dtos);
 
-            // 첫 실행이면 기본값을 사용자 파일(%APPDATA%)로 저장해 둔다
-            if (firstRun && CustomPatches.Count > 0)
+            // 첫 실행이면 기본값을, 잘못된 항목을 걷어냈으면 정리된 목록을 사용자 파일(%APPDATA%)로 저장한다
+            if ((firstRun || removed > 0) && CustomPatches.Count > 0)
                 WritePatchesToPath(CustomPatchAutoSavePath);
         }
         catch { /* 복원 실패는 무시 */ }
+    }
+
+    /// <summary>
+    /// 0x5CCDA(직업버튼 능력갱신)를 가리키는 커스텀 패치인지 판정한다.
+    /// 이 주소는 31바이트 코드 패치 영역이라 커스텀 패치로 값을 쓰면 명령어가 깨진다.
+    /// </summary>
+    private static bool IsJobButtonCodePatchAddress(CustomPatchDto d)
+    {
+        var addresses = (d.Addresses is { Count: > 0 })
+            ? d.Addresses
+            : new List<string> { d.Address };
+
+        return addresses.Any(a => TryParseAddress(a, out var addr) && addr == JobButtonPatchOffset);
     }
 
     /// <summary>어셈블리에 임베드된 기본 커스텀 패치 JSON을 읽는다.</summary>
