@@ -28,6 +28,36 @@ public sealed class ShipMapWindow : Window
     };
     private readonly DispatcherTimerLite _statusTimer;
 
+    /// <summary>게임 상단 바의 위경도 칸.</summary>
+    private readonly TextBlock _coord = new()
+    {
+        Foreground = Brushes.Black,
+        FontWeight = FontWeights.Bold,
+        FontSize = 14,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    // 게임 화면 위쪽 띠에서 뽑은 색. 누런 양피지 바탕에 어두운 테두리다.
+    private static readonly Brush BarFill = new SolidColorBrush(Color.FromRgb(0xC8, 0xBF, 0xA0));
+    private static readonly Brush CellFill = new SolidColorBrush(Color.FromRgb(0xD2, 0xCA, 0xAD));
+    private static readonly Brush BarEdge = new SolidColorBrush(Color.FromRgb(0x4A, 0x40, 0x30));
+
+    /// <summary>게임처럼 두 겹 테두리를 두른 칸 하나를 만든다.</summary>
+    private static Border GameCell(UIElement content) => new()
+    {
+        Background = CellFill,
+        BorderBrush = BarEdge,
+        BorderThickness = new Thickness(2),
+        Margin = new Thickness(2, 3, 2, 3),
+        Padding = new Thickness(10, 1, 10, 1),
+        Child = new Border
+        {
+            BorderBrush = BarEdge,
+            BorderThickness = new Thickness(0),
+            Child = content,
+        },
+    };
+
     public ShipMapWindow()
     {
         Title = "함대 보기 (Direct3D)";
@@ -62,6 +92,23 @@ public sealed class ShipMapWindow : Window
         var recenter = new Button { Content = "배로", Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(4, 0, 0, 0) };
         recenter.Click += (_, _) => { follow.IsChecked = true; _host.RecenterOnShip(); };
 
+        var toLisbon = new Button
+        {
+            Content = "리스본",
+            Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(4, 0, 0, 0),
+            ToolTip = "배를 리스본 앞바다로 되돌립니다",
+        };
+        toLisbon.Click += (_, _) => { follow.IsChecked = true; _host.ResetToLisbon(); };
+
+        var hint = new TextBlock
+        {
+            Text = "Ctrl+클릭: 배 놓기",
+            Foreground = Brushes.Gray,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 0, 0),
+        };
+
         var bar = new DockPanel { Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)), LastChildFill = true };
         bar.Children.Add(steer);
         DockPanel.SetDock(steer, Dock.Left);
@@ -69,6 +116,10 @@ public sealed class ShipMapWindow : Window
         DockPanel.SetDock(follow, Dock.Left);
         bar.Children.Add(recenter);
         DockPanel.SetDock(recenter, Dock.Left);
+        bar.Children.Add(toLisbon);
+        DockPanel.SetDock(toLisbon, Dock.Left);
+        bar.Children.Add(hint);
+        DockPanel.SetDock(hint, Dock.Left);
         bar.Children.Add(_status);
 
         // HwndHost 자체는 WPF 에 아무것도 그리지 않아 히트테스트에 안 걸린다.
@@ -79,7 +130,20 @@ public sealed class ShipMapWindow : Window
         surface.Children.Add(_host);
         surface.Children.Add(input);
 
+        // 게임 상단 띠 — 지금은 위경도 한 칸만 둔다.
+        var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
+        gameCells.Children.Add(GameCell(_coord));
+        var gameBar = new Border
+        {
+            Background = BarFill,
+            BorderBrush = BarEdge,
+            BorderThickness = new Thickness(0, 0, 0, 2),
+            Child = gameCells,
+        };
+
         var root = new DockPanel();
+        DockPanel.SetDock(gameBar, Dock.Top);
+        root.Children.Add(gameBar);
         var barHost = new Border { Child = bar, Height = 30 };
         DockPanel.SetDock(barHost, Dock.Top);
         root.Children.Add(barHost);
@@ -89,10 +153,22 @@ public sealed class ShipMapWindow : Window
         // 왼쪽 끌기는 배 조종에 양보하고, 지도 밀기는 오른쪽 끌기로 옮겼다.
         input.MouseRightButtonDown += (_, e) => { follow.IsChecked = false; _host.BeginDrag(e.GetPosition(input)); input.CaptureMouse(); };
         input.MouseRightButtonUp += (_, _) => { _host.EndDrag(); input.ReleaseMouseCapture(); };
+        input.MouseLeftButtonDown += (_, e) =>
+        {
+            // Ctrl 을 누른 채 찍으면 그 자리에 배를 놓는다. 시작 자리를 손으로 잡는 길이다.
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _host.PlaceShipAt(e.GetPosition(input));
+        };
         input.MouseMove += (_, e) => { var p = e.GetPosition(input); _host.SetMouse(p, true); _host.Drag(p); };
         input.MouseLeave += (_, _) => _host.SetMouse(default, false);
 
-        _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(250), () => _status.Text = _host.Status);
+        _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), () =>
+        {
+            _status.Text = _host.Status;
+            var (lat, lon) = _host.ShipLatLon;
+            // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
+            _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
+                          $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
+        });
         Loaded += OnLoaded;
         Closed += (_, _) => _statusTimer.Stop();
     }

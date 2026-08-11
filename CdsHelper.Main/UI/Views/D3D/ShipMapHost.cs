@@ -85,6 +85,10 @@ public sealed class ShipMapHost : HwndHost
 
     private double _tickAccum;
 
+    // 마지막 프레임의 화면 원점. 클릭한 자리를 칸으로 되돌릴 때 쓴다.
+    private (double X, double Y) _lastOrigin;
+    private double _lastDpiX = 1, _lastDpiY = 1;
+
     /// <summary>
     /// 해안 칸은 바다와 육지가 섞여 있다. 육지 비율이 이보다 높으면 못 지나간다.
     /// 낮추면 해안에 더 바짝 붙을 수 있고, 높이면 좁은 해협을 더 잘 빠져나간다.
@@ -121,6 +125,14 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>스왑체인을 걸다 난 문제. 없으면 빈 문자열.</summary>
     public string SwapChainError { get; private set; } = "";
+
+    /// <summary>
+    /// 지금 배가 있는 위도·경도. 칸 좌표를 도로 바꾼 것이다 —
+    /// 가로 2500칸이 경도 -180~180, 세로 1250칸이 위도 90~-90 에 그대로 대응한다.
+    /// </summary>
+    public (double Lat, double Lon) ShipLatLon => (
+        90.0 - _shipY * 180.0 / WorldMapRenderer.CellH,
+        _shipX * 360.0 / WorldMapRenderer.UnfoldedW - 180.0);
 
     /// <summary>지금 스왑체인 크기(화면 실픽셀).</summary>
     public (int W, int H) SurfaceSize => (_pixelW, _pixelH);
@@ -247,6 +259,9 @@ public sealed class ShipMapHost : HwndHost
 
         // 커서를 칸 좌표로 옮기려면 이번 프레임의 원점이 필요하다. 배를 옮기기 전 값으로 잡는다.
         var origin = (_centerX - w / 2.0 * _cellsPerPixel, _centerY - h / 2.0 * _cellsPerPixel);
+        _lastOrigin = origin;
+        _lastDpiX = dpi.DpiScaleX;
+        _lastDpiY = dpi.DpiScaleY;
         UpdateShip(dt, origin, dpi.DpiScaleX, dpi.DpiScaleY);
 
         // 배를 따라간다 — 화면 한가운데에 둔다.
@@ -473,6 +488,41 @@ public sealed class ShipMapHost : HwndHost
         _follow = false;   // 손으로 끌면 따라다니기를 놓는다
         _centerX = _dragCx - (p.X - _dragStart.X) * _cellsPerPixel;
         _centerY = _dragCy - (p.Y - _dragStart.Y) * _cellsPerPixel;
+    }
+
+    /// <summary>
+    /// 배를 그 화면 자리로 옮긴다. 뭍이면 가장 가까운 물칸으로 밀어 넣는다.
+    /// 시작 자리를 손으로 잡을 때 쓴다.
+    /// </summary>
+    public void PlaceShipAt(Point p)
+    {
+        if (!_ready) return;
+        double cx = _lastOrigin.X + p.X * _lastDpiX * _cellsPerPixel;
+        double cy = _lastOrigin.Y + p.Y * _lastDpiY * _cellsPerPixel;
+        cy = Math.Clamp(cy, 0, WorldMapRenderer.CellH - 1);
+        (cx, cy) = NearestWater(cx, cy);
+
+        _shipX = _targetX = cx;
+        _shipY = _targetY = cy;
+        _shipKnown = true;
+        _blocked = false;
+        _tickAccum = 0;
+        if (_follow) { _centerX = cx; _centerY = cy; }
+    }
+
+    /// <summary>배를 리스본 앞바다로 되돌린다.</summary>
+    public void ResetToLisbon()
+    {
+        if (!GameMapCoords.TryCityCell(LisbonCityId, out double lx, out double ly)) return;
+        (lx, ly) = NearestWater(lx, ly);
+        _shipX = _targetX = lx;
+        _shipY = _targetY = ly;
+        _shipKnown = true;
+        _blocked = false;
+        _tickAccum = 0;
+        _centerX = lx;
+        _centerY = ly;
+        _follow = true;
     }
 
     /// <summary>배가 있는 자리로 되돌아가 다시 따라다닌다.</summary>
