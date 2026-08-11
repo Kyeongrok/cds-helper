@@ -8,7 +8,7 @@
 /// plugins-src/WorldMapKR/src/ocean_palette.h 를 그대로 옮긴 것이다.
 /// 한 색 3바이트 R,G,B 순서.
 /// </remarks>
-internal static class OceanPalette
+public static class OceanPalette
 {
     /// <summary>256색 x RGB 3바이트.</summary>
     public static readonly byte[] Rgb =

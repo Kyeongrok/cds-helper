@@ -44,7 +44,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         Texture2D<uint>   CellMap  : register(t0);
         Texture2D<uint>   Atlas    : register(t1);
         Texture2D<float4> Palette  : register(t2);
-        Texture2D<uint>   Sprite   : register(t3);
+        Texture2D<float4> Sprite   : register(t3);
         Texture2D<float4> Avg1     : register(t4);
         Texture2D<float4> Avg2     : register(t5);
         Texture2D<float4> Avg4     : register(t6);
@@ -76,8 +76,8 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 float2 s = (i.pos.xy - SpriteRect.xy) / SpriteRect.zw;
                 if (all(s >= 0) && all(s < 1))
                 {
-                    uint pi = Sprite.Load(int3(int2(s * 48.0), 0));
-                    if (pi != 0) return Palette.Load(int3(int(pi), 0, 0));
+                    float4 c = Sprite.Load(int3(int2(s * 48.0), 0));
+                    if (c.a > 0) return c;
                 }
             }
 
@@ -249,7 +249,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             Height = 48,
             MipLevels = 1,
             ArraySize = 1,
-            Format = Format.R8_UInt,
+            Format = Format.B8G8R8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Dynamic,
             BindFlags = BindFlags.ShaderResource,
@@ -282,17 +282,17 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         finally { handle.Free(); }
     }
 
-    /// <summary>배 그림을 갈아 끼운다. 48x48 팔레트 색인, 색인 0 은 비침.</summary>
-    public void SetSprite(ReadOnlySpan<byte> indices48X48)
+    /// <summary>배 그림을 갈아 끼운다. 48x48 BGRA 이고 알파 0 이 비침이다.</summary>
+    public void SetSprite(ReadOnlySpan<uint> bgra48X48)
     {
-        if (indices48X48.Length < 48 * 48) return;
+        if (bgra48X48.Length < 48 * 48) return;
         var map = _ctx.Map(_spriteTex, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         try
         {
             for (int y = 0; y < 48; y++)
             {
-                var dst = new Span<byte>((void*)(map.DataPointer + y * map.RowPitch), 48);
-                indices48X48.Slice(y * 48, 48).CopyTo(dst);
+                var dst = new Span<uint>((void*)(map.DataPointer + y * map.RowPitch), 48);
+                bgra48X48.Slice(y * 48, 48).CopyTo(dst);
             }
         }
         finally { _ctx.Unmap(_spriteTex, 0); }
