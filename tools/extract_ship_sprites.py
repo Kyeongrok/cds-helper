@@ -94,9 +94,11 @@ def main(argv):
                     help="함선 그림 클래스 0~3 (배 아틀라스는 4벌이다)")
     ap.add_argument("--land", action="store_true", help="배 대신 말(육상·정박) 그림")
     ap.add_argument("--out", default=os.path.join("asset", "ship"), help="저장할 폴더")
+    ap.add_argument("--prefix", default=None, help="파일 이름 앞머리. 기본은 배 ship, 말 horse")
     ap.add_argument("--force", action="store_true",
                     help="(남겨 둔 것) 예전에 덮어쓰기를 막던 스위치. 지금은 늘 덮어쓴다")
     a = ap.parse_args(argv[1:])
+    prefix = a.prefix or ("horse" if a.land else "ship")
 
     pid = find_pid()
     if pid is None:
@@ -112,7 +114,7 @@ def main(argv):
 
     # 이미 있으면 알려만 주고 덮어쓴다. 잘못 떴으면 다시 뜨면 그만이라 막지 않는다.
     existing = [d for d in range(DIRECTIONS)
-                if os.path.exists(os.path.join(outdir, f"ship_{d}.png"))]
+                if os.path.exists(os.path.join(outdir, f"{prefix}_{d}.png"))]
     if existing:
         print(f"{os.path.relpath(outdir, ROOT)} 의 {len(existing)}장을 덮어쓴다")
 
@@ -143,7 +145,7 @@ def main(argv):
                 else:
                     px[x, y] = (palette[i * 3], palette[i * 3 + 1], palette[i * 3 + 2], 255)
                     opaque += 1
-        path = os.path.join(outdir, f"ship_{d}.png")
+        path = os.path.join(outdir, f"{prefix}_{d}.png")
         im.save(path)
         print(f"  방향 {heading:2} (프레임 {frame:2}) -> {os.path.relpath(path, ROOT)}  안 비치는 점 {opaque}")
 

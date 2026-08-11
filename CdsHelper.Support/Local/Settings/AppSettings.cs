@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 
 namespace CdsHelper.Support.Local.Settings;
@@ -18,6 +18,9 @@ public class AppSettingsData
     public HashSet<int> CheckedDiscoveryIds { get; set; } = new();
     public WorldMapOptions WorldMap { get; set; } = new();
     public bool AutoConfirmDialog { get; set; } = true;
+
+    /// <summary>앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지.</summary>
+    public bool AutoOpenShipMap { get; set; }
     public RerollOptions Reroll { get; set; } = new();
 }
 
@@ -90,6 +93,7 @@ public static class AppSettings
     private static string _trailDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trails");
     private static WorldMapOptions _worldMap = new();
     private static bool _autoConfirmDialog = true;
+    private static bool _autoOpenShipMap;
     private static RerollOptions _reroll = new();
 
     static AppSettings()
@@ -188,6 +192,20 @@ public static class AppSettings
         }
     }
 
+    /// <summary>
+    /// 앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지. 기본은 끔.
+    /// </summary>
+    public static bool AutoOpenShipMap
+    {
+        get => _autoOpenShipMap;
+        set
+        {
+            _autoOpenShipMap = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -220,6 +238,7 @@ public static class AppSettings
                     _checkedDiscoveryIds = data.CheckedDiscoveryIds ?? new();
                     _worldMap = data.WorldMap ?? new();
                     _autoConfirmDialog = data.AutoConfirmDialog;
+                    _autoOpenShipMap = data.AutoOpenShipMap;
                     _reroll = data.Reroll ?? new();
                 }
             }
@@ -249,6 +268,7 @@ public static class AppSettings
                 CheckedDiscoveryIds = _checkedDiscoveryIds,
                 WorldMap = _worldMap,
                 AutoConfirmDialog = _autoConfirmDialog,
+                AutoOpenShipMap = _autoOpenShipMap,
                 Reroll = _reroll
             };
 

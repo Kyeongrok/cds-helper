@@ -90,13 +90,24 @@ public sealed class ShipMapHost : HwndHost
     private double _lastDpiX = 1, _lastDpiY = 1;
 
     /// <summary>
-    /// 해안 칸은 바다와 육지가 섞여 있다. 육지 비율이 이보다 높으면 못 지나간다.
-    /// 낮추면 해안에 더 바짝 붙을 수 있고, 높이면 좁은 해협을 더 잘 빠져나간다.
+    /// 해안 칸은 바다와 육지가 섞여 있어서, 지날 수 있는 기준이 모드마다 다르다.
     /// </summary>
-    private const double LandBlockRatio = 0.5;
+    /// <remarks>
+    /// 하나로 두면 물가에서 말이 갇힌다 — 상륙한 자리 둘레가 죄다 모래톱(육지 비율이
+    /// 반 미만)이라 "바다" 로 판정돼 갈 데가 없어진다. 그래서 둘로 나눴다.
+    /// 배는 육지가 반을 넘으면 못 가고, 말은 육지가 조금이라도 있으면 갈 수 있다.
+    /// </remarks>
+    private const double SailMaxLandRatio = 0.5;
+    private const double WalkMinLandRatio = 0.2;
 
     /// <summary>육지에 막혀 있는지. 상태 줄에 알리려고 둔다.</summary>
     private bool _blocked;
+
+    /// <summary>상륙해 뭍에 있는지. 배 대신 말이 나오고 지날 수 있는 칸이 뒤집힌다.</summary>
+    private bool _onLand;
+
+    /// <summary>지금 뭍에 있는지.</summary>
+    public bool IsOnLand => _onLand;
 
     /// <summary>
     /// 방향 번호를 통째로 돌리는 값. 뱃머리가 일정하게 어긋날 때만 손대면 된다.
@@ -114,6 +125,12 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>배 그림을 올릴 때 쓰는 임시 자리(BGRA). 프레임마다 새로 잡지 않으려고 둔다.</summary>
     private readonly uint[] _spriteBuf = new uint[GameShipReader.SpriteSize];
+
+    /// <summary>
+    /// 참이면 배가 서 있는다. 물음창이 떠 있는 동안 계속 나아가지 않게 하려고 둔다 —
+    /// 모달 창을 띄워도 CompositionTarget.Rendering 은 그대로 돈다.
+    /// </summary>
+    public bool Paused { get; set; }
 
     /// <summary>커서를 따라 배를 몬다. 끄면 게임 함대 자리를 그대로 따라간다.</summary>
     public bool SteerWithMouse { get; set; } = true;
@@ -297,9 +314,10 @@ public sealed class ShipMapHost : HwndHost
                 _targetY = origin.Y + _mouse.Y * dpiY * _cellsPerPixel;
             }
             Sail(dt);
-            Status = $"배 {_shipX:F1}, {_shipY:F1} 칸 · 방향 {_heading}/16 · " +
-                     (!_mouseInside ? "커서를 지도 위에 올리면 움직입니다"
-                                    : _blocked ? "육지에 막혔습니다" : "커서 쪽으로 항해 중") +
+            Status = $"{(_onLand ? "말" : "배")} {_shipX:F1}, {_shipY:F1} 칸 · 방향 {_heading}/16 · " +
+                     (_blocked ? (_onLand ? "바다에 막혔습니다" : "육지에 막혔습니다")
+                               : !_mouseInside ? "가던 쪽으로"
+                               : _onLand ? "커서 쪽으로 이동 중" : "커서 쪽으로 항해 중") +
                      (_ship.IsAttached ? "" : " · 그림은 구워 둔 것");
         }
         else
@@ -326,11 +344,11 @@ public sealed class ShipMapHost : HwndHost
         }
 
         // 게임이 떠 있으면 그 그림을(함선 종류에 맞는 4벌 중 하나), 아니면 asset/ship 의 것을 쓴다.
-        var indices = _ship.IsAttached ? _ship.TryReadSprite(_heading, onLand: false) : null;
+        var indices = _ship.IsAttached ? _ship.TryReadSprite(_heading, _onLand) : null;
         if (indices != null) UploadGameSprite(indices);
         else
         {
-            var frame = ShipSprites.Frame(_heading);
+            var frame = ShipSprites.Frame(_heading, _onLand);
             if (!frame.IsEmpty) { _renderer.SetSprite(frame); _spriteReady = true; }
         }
     }
@@ -353,14 +371,16 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>
     /// 커서 쪽으로 뱃머리를 돌리고, 틱마다 그 방향으로 한 걸음 나아간다.
-    /// 커서는 방향만 정한다 — 커서 자리에 도착해서 멈추는 것이 아니라 계속 나아간다.
+    /// 커서는 방향만 정한다 — 커서 자리에 도착해서 멈추는 것도, 창 밖으로 나갔다고
+    /// 서는 것도 아니다. 한 번 뱃머리를 잡으면 막힐 때까지 그 쪽으로 간다.
     /// </summary>
     private void Sail(double dt)
     {
-        if (!_mouseInside) return;      // 창 밖으로 나가면 배도 선다
+        if (Paused) { _tickAccum = 0; return; }
 
+        // 커서가 창 밖으로 나가도 배는 가던 쪽으로 계속 간다. 커서는 방향을 바꿀 때만 쓴다.
         double dx = _targetX - _shipX, dy = _targetY - _shipY;
-        if (dx * dx + dy * dy > TurnDeadZoneCells * TurnDeadZoneCells)
+        if (_mouseInside && dx * dx + dy * dy > TurnDeadZoneCells * TurnDeadZoneCells)
         {
             // atan2(dx, -dy) 는 북쪽이 0 이고 시계방향으로 느는 값이다.
             double a = Math.Atan2(dx, -dy);
@@ -408,7 +428,12 @@ public sealed class ShipMapHost : HwndHost
         _shipY = Math.Clamp(_shipY, 0, WorldMapRenderer.CellH - 1);
     }
 
-    private bool CanGo(double cellX, double cellY) => !IsLand(cellX, cellY);
+    /// <summary>지금 모드에서 지날 수 있는 칸인지. 배는 물을, 말은 뭍을 간다.</summary>
+    private bool CanGo(double cellX, double cellY)
+    {
+        double land = LandRatioAt(cellX, cellY);
+        return _onLand ? land >= WalkMinLandRatio : land < SailMaxLandRatio;
+    }
 
     /// <summary>
     /// 그 자리에서 가장 가까운 물칸. 한 칸씩 넓혀 가며 테두리만 훑는다.
@@ -436,14 +461,17 @@ public sealed class ShipMapHost : HwndHost
     /// 그 칸이 배가 못 가는 땅인지. WORLD.CDS 의 지형값을 그대로 본다 —
     /// 0 이 바다, 1 이 육지, 그 밖은 바다와 육지가 섞인 해안 칸이다.
     /// </summary>
-    private bool IsLand(double cellX, double cellY)
+    private bool IsLand(double cellX, double cellY) => LandRatioAt(cellX, cellY) >= SailMaxLandRatio;
+
+    /// <summary>그 칸의 육지 비율(0 이면 온통 바다, 1 이면 온통 육지). 지도 밖은 육지로 본다.</summary>
+    private double LandRatioAt(double cellX, double cellY)
     {
-        if (_world == null) return false;
+        if (_world == null) return 0;
 
         int cx = (int)Math.Floor(cellX);
         int cy = (int)Math.Floor(cellY);
         cx -= (int)Math.Floor(cx / (double)WorldMapRenderer.UnfoldedW) * WorldMapRenderer.UnfoldedW;
-        if (cy < 0 || cy >= WorldMapRenderer.CellH) return true;
+        if (cy < 0 || cy >= WorldMapRenderer.CellH) return 1;
 
         // 짝수 행이 지도의 왼쪽 절반, 홀수 행이 오른쪽 절반이다.
         bool right = cx >= WorldMapRenderer.CellW;
@@ -452,9 +480,9 @@ public sealed class ShipMapHost : HwndHost
         int off = row * WorldMapRenderer.RawStride + col * 2;
 
         byte terrain = (byte)(_world[off] & 0x7F);
-        if (terrain == 0) return false;   // 바다
-        if (terrain == 1) return true;    // 육지
-        return WorldMapRenderer.GetCoastLandRatio(terrain) >= LandBlockRatio;
+        if (terrain == 0) return 0;   // 바다
+        if (terrain == 1) return 1;   // 육지
+        return WorldMapRenderer.GetCoastLandRatio(terrain);   // 해안 칸
     }
 
     /// <summary>커서 자리를 알려 준다. 배는 이 쪽으로 나아간다.</summary>
@@ -523,6 +551,106 @@ public sealed class ShipMapHost : HwndHost
         _centerX = lx;
         _centerY = ly;
         _follow = true;
+    }
+
+    /// <summary>
+    /// 배 둘레 <paramref name="radiusCells"/> 칸 안에 뭍이 있는지. 상륙할 수 있는 자리인지 볼 때 쓴다.
+    /// </summary>
+    public bool IsNearLand(int radiusCells = 2) => IsNear(true, radiusCells);
+
+    /// <summary>배 둘레에 물이 있는지. 뭍에서 출항할 수 있는 자리인지 볼 때 쓴다.</summary>
+    public bool IsNearWater(int radiusCells = 2) => IsNear(false, radiusCells);
+
+    private bool IsNear(bool land, int radiusCells)
+    {
+        if (!_shipKnown) return false;
+        for (int dy = -radiusCells; dy <= radiusCells; dy++)
+            for (int dx = -radiusCells; dx <= radiusCells; dx++)
+                if (IsLand(_shipX + dx, _shipY + dy) == land) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// 상륙. 가장 가까운 뭍으로 한 칸 올라서고 말로 바뀐다. 지날 수 있는 칸도 뒤집힌다.
+    /// </summary>
+    public bool Land()
+    {
+        if (_onLand) return false;
+        var spot = NearestCell(_shipX, _shipY, wantLand: true, maxRing: 3);
+        if (spot == null) return false;
+
+        (_shipX, _shipY) = spot.Value;
+        _targetX = _shipX;
+        _targetY = _shipY;
+        _onLand = true;
+        _blocked = false;
+        _tickAccum = 0;
+        if (_follow) { _centerX = _shipX; _centerY = _shipY; }
+        return true;
+    }
+
+    /// <summary>출항. 가장 가까운 물칸으로 내려가 배로 돌아간다.</summary>
+    public bool Embark()
+    {
+        if (!_onLand) return false;
+        var spot = NearestCell(_shipX, _shipY, wantLand: false, maxRing: 3);
+        if (spot == null) return false;
+
+        (_shipX, _shipY) = spot.Value;
+        _targetX = _shipX;
+        _targetY = _shipY;
+        _onLand = false;
+        _blocked = false;
+        _tickAccum = 0;
+        if (_follow) { _centerX = _shipX; _centerY = _shipY; }
+        return true;
+    }
+
+    /// <summary>둘레를 한 칸씩 넓혀 가며 원하는 쪽(뭍/물) 칸을 찾는다. 없으면 null.</summary>
+    private (double X, double Y)? NearestCell(double cx, double cy, bool wantLand, int maxRing)
+    {
+        if (IsLand(cx, cy) == wantLand) return (cx, cy);
+        for (int r = 1; r <= maxRing; r++)
+            for (int dy = -r; dy <= r; dy++)
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    if (Math.Abs(dx) != r && Math.Abs(dy) != r) continue;
+                    double x = cx + dx, y = cy + dy;
+                    if (y < 0 || y >= WorldMapRenderer.CellH) continue;
+                    if (IsLand(x, y) == wantLand) return (x, y);
+                }
+        return null;
+    }
+
+    /// <summary>
+    /// 배에서 <paramref name="radiusCells"/> 칸 안에 있는 가장 가까운 도시 ID. 없으면 -1.
+    /// 자리는 게임 원본 도시 표를 그대로 쓴다.
+    /// </summary>
+    public int NearestCity(double radiusCells = 6)
+    {
+        if (!_shipKnown) return -1;
+        int best = -1;
+        double bestD = radiusCells * radiusCells;
+        for (int id = 0; id < GameMapCoords.CityCount; id++)
+        {
+            if (!GameMapCoords.TryCityCell(id, out double cx, out double cy)) continue;
+            // 가로는 이어져 있으므로 지도 반 바퀴를 넘으면 반대쪽으로 재는 게 가깝다.
+            double dx = cx - _shipX;
+            if (dx > WorldMapRenderer.UnfoldedW / 2.0) dx -= WorldMapRenderer.UnfoldedW;
+            if (dx < -WorldMapRenderer.UnfoldedW / 2.0) dx += WorldMapRenderer.UnfoldedW;
+            double dy = cy - _shipY;
+            double d = dx * dx + dy * dy;
+            if (d < bestD) { bestD = d; best = id; }
+        }
+        return best;
+    }
+
+    /// <summary>입항. 배를 세우고 알린다.</summary>
+    public void EnterPort(string cityName)
+    {
+        _tickAccum = 0;
+        _dirX = _dirY = 0;          // 뱃머리를 놓아 그 자리에 선다
+        Status = $"[{cityName}] 입항 — {_shipX:F1}, {_shipY:F1} 칸";
     }
 
     /// <summary>배가 있는 자리로 되돌아가 다시 따라다닌다.</summary>

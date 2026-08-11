@@ -115,6 +115,8 @@ public class CdsHelperWindow : CdsWindow
             _accordionMenu.SelectItemByTag(AppSettings.DefaultView);
         }
 
+        OpenShipMapIfWanted();
+
         _menuPopup = GetTemplateChild(PART_MenuPopup) as Popup;
         _hamburgerButton = GetTemplateChild(PART_HamburgerButton) as Button;
         if (_hamburgerButton != null && _menuPopup != null)
@@ -211,10 +213,20 @@ public class CdsHelperWindow : CdsWindow
     }
 
     // 게임 화면처럼 지도 위에 함대만 띄우는 창. 세계지도 탭과 달리 D3D 로 그린다.
-    private void OnShipMapMenuClick(object sender, RoutedEventArgs e)
+    private void OnShipMapMenuClick(object sender, RoutedEventArgs e) => OpenShipMap();
+
+    private void OpenShipMap()
     {
         var win = new CdsHelper.Main.UI.Views.D3D.ShipMapWindow { Owner = this };
         win.Show();
+    }
+
+    /// <summary>설정에서 켜 뒀으면 앱을 띄울 때 함대 보기도 같이 연다.</summary>
+    private void OpenShipMapIfWanted()
+    {
+        if (!AppSettings.AutoOpenShipMap) return;
+        // 본 창이 자리를 잡은 뒤에 연다 — Owner 가 아직 뜨지 않은 채로 열면 가운데가 안 맞는다.
+        Dispatcher.BeginInvoke(new Action(OpenShipMap), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void OnHelpMenuClick(object sender, RoutedEventArgs e)

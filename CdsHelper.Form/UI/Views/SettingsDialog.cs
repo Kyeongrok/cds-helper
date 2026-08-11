@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Support.Local.Settings;
@@ -8,6 +8,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_MarkerSizeSlider, Type = typeof(Slider))]
 [TemplatePart(Name = PART_DefaultViewComboBox, Type = typeof(ComboBox))]
 [TemplatePart(Name = PART_AutoConfirmDialogCheckBox, Type = typeof(CheckBox))]
+[TemplatePart(Name = PART_AutoOpenShipMapCheckBox, Type = typeof(CheckBox))]
 [TemplatePart(Name = PART_OkButton, Type = typeof(Button))]
 [TemplatePart(Name = PART_CancelButton, Type = typeof(Button))]
 [TemplatePart(Name = PART_OpenDbFolderButton, Type = typeof(Button))]
@@ -16,6 +17,7 @@ public class SettingsDialog : Window
     private const string PART_MarkerSizeSlider = "PART_MarkerSizeSlider";
     private const string PART_DefaultViewComboBox = "PART_DefaultViewComboBox";
     private const string PART_AutoConfirmDialogCheckBox = "PART_AutoConfirmDialogCheckBox";
+    private const string PART_AutoOpenShipMapCheckBox = "PART_AutoOpenShipMapCheckBox";
     private const string PART_OkButton = "PART_OkButton";
     private const string PART_CancelButton = "PART_CancelButton";
     private const string PART_OpenDbFolderButton = "PART_OpenDbFolderButton";
@@ -23,6 +25,7 @@ public class SettingsDialog : Window
     private Slider? _markerSizeSlider;
     private ComboBox? _defaultViewComboBox;
     private CheckBox? _autoConfirmDialogCheckBox;
+    private CheckBox? _autoOpenShipMapCheckBox;
 
     public static readonly DependencyProperty MarkerSizeProperty =
         DependencyProperty.Register(nameof(MarkerSize), typeof(double), typeof(SettingsDialog),
@@ -62,6 +65,7 @@ public class SettingsDialog : Window
         _markerSizeSlider = GetTemplateChild(PART_MarkerSizeSlider) as Slider;
         _defaultViewComboBox = GetTemplateChild(PART_DefaultViewComboBox) as ComboBox;
         _autoConfirmDialogCheckBox = GetTemplateChild(PART_AutoConfirmDialogCheckBox) as CheckBox;
+        _autoOpenShipMapCheckBox = GetTemplateChild(PART_AutoOpenShipMapCheckBox) as CheckBox;
 
         if (GetTemplateChild(PART_OkButton) is Button okButton)
             okButton.Click += OnOkClick;
@@ -85,6 +89,9 @@ public class SettingsDialog : Window
 
         if (_autoConfirmDialogCheckBox != null)
             _autoConfirmDialogCheckBox.IsChecked = AppSettings.AutoConfirmDialog;
+
+        if (_autoOpenShipMapCheckBox != null)
+            _autoOpenShipMapCheckBox.IsChecked = AppSettings.AutoOpenShipMap;
     }
 
     private void OnOkClick(object sender, RoutedEventArgs e)
@@ -103,6 +110,11 @@ public class SettingsDialog : Window
         if (_autoConfirmDialogCheckBox != null)
         {
             AppSettings.AutoConfirmDialog = _autoConfirmDialogCheckBox.IsChecked == true;
+        }
+
+        if (_autoOpenShipMapCheckBox != null)
+        {
+            AppSettings.AutoOpenShipMap = _autoOpenShipMapCheckBox.IsChecked == true;
         }
 
         DialogResult = true;
