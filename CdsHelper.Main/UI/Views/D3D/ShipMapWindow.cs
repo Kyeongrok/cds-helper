@@ -3,7 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
+using Prism.Ioc;
 
 namespace CdsHelper.Main.UI.Views.D3D;
 
@@ -28,6 +30,24 @@ public sealed class ShipMapWindow : Window
     };
     private readonly DispatcherTimerLite _statusTimer;
 
+    /// <summary>도시 ID -> 이름. 한 번만 불러 둔다.</summary>
+    private Dictionary<int, string>? _cityNames;
+
+    /// <summary>방금 물어본 도시. 떠났다 다시 와야 다시 묻는다.</summary>
+    private int _askedCity = -1;
+
+    /// <summary>다이얼로그가 떠 있는 동안 또 묻지 않게.</summary>
+    private bool _asking;
+
+    /// <summary>지금 이동 모드 — 해상인지 육지인지.</summary>
+    private readonly TextBlock _mode = new()
+    {
+        Foreground = Brushes.Black,
+        FontWeight = FontWeights.Bold,
+        FontSize = 14,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
     /// <summary>게임 상단 바의 위경도 칸.</summary>
     private readonly TextBlock _coord = new()
     {
@@ -41,6 +61,11 @@ public sealed class ShipMapWindow : Window
     private static readonly Brush BarFill = new SolidColorBrush(Color.FromRgb(0xC8, 0xBF, 0xA0));
     private static readonly Brush CellFill = new SolidColorBrush(Color.FromRgb(0xD2, 0xCA, 0xAD));
     private static readonly Brush BarEdge = new SolidColorBrush(Color.FromRgb(0x4A, 0x40, 0x30));
+
+    // 게임 커맨드 창에서 뽑은 색. 짙은 밤색 바탕에 밝은 테를 두르고, 항목만 양피지다.
+    private static readonly Brush MenuBack = new SolidColorBrush(Color.FromRgb(0x4A, 0x2A, 0x22));
+    private static readonly Brush MenuEdge = new SolidColorBrush(Color.FromRgb(0xC8, 0xB4, 0x90));
+    private static readonly Brush MenuTitleFg = new SolidColorBrush(Color.FromRgb(0xEC, 0xDF, 0xC0));
 
     /// <summary>게임처럼 두 겹 테두리를 두른 칸 하나를 만든다.</summary>
     private static Border GameCell(UIElement content) => new()
@@ -132,6 +157,7 @@ public sealed class ShipMapWindow : Window
 
         // 게임 상단 띠 — 지금은 위경도 한 칸만 둔다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
+        gameCells.Children.Add(GameCell(_mode));
         gameCells.Children.Add(GameCell(_coord));
         var gameBar = new Border
         {
@@ -151,8 +177,23 @@ public sealed class ShipMapWindow : Window
         Content = root;
         input.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(input));
         // 왼쪽 끌기는 배 조종에 양보하고, 지도 밀기는 오른쪽 끌기로 옮겼다.
-        input.MouseRightButtonDown += (_, e) => { follow.IsChecked = false; _host.BeginDrag(e.GetPosition(input)); input.CaptureMouse(); };
-        input.MouseRightButtonUp += (_, _) => { _host.EndDrag(); input.ReleaseMouseCapture(); };
+        // 오른쪽 단추는 둘을 겸한다 — 끌면 지도 밀기, 움직이지 않고 떼면 커맨드 메뉴.
+        Point rightDownAt = default;
+        input.MouseRightButtonDown += (_, e) =>
+        {
+            rightDownAt = e.GetPosition(input);
+            _host.BeginDrag(rightDownAt);
+            input.CaptureMouse();
+        };
+        input.MouseRightButtonUp += (_, e) =>
+        {
+            _host.EndDrag();
+            input.ReleaseMouseCapture();
+            var up = e.GetPosition(input);
+            bool moved = Math.Abs(up.X - rightDownAt.X) > 3 || Math.Abs(up.Y - rightDownAt.Y) > 3;
+            if (moved) { follow.IsChecked = false; return; }   // 끈 것이면 메뉴를 안 띄운다
+            ShowCommandMenu(input);
+        };
         input.MouseLeftButtonDown += (_, e) =>
         {
             // Ctrl 을 누른 채 찍으면 그 자리에 배를 놓는다. 시작 자리를 손으로 잡는 길이다.
@@ -164,6 +205,8 @@ public sealed class ShipMapWindow : Window
         _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), () =>
         {
             _status.Text = _host.Status;
+            _mode.Text = _host.IsOnLand ? "육지 이동" : "해상 이동";
+            CheckPort();
             var (lat, lon) = _host.ShipLatLon;
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
@@ -171,6 +214,124 @@ public sealed class ShipMapWindow : Window
         });
         Loaded += OnLoaded;
         Closed += (_, _) => _statusTimer.Stop();
+    }
+
+    /// <summary>
+    /// 게임 커맨드 창을 흉내낸 우클릭 메뉴. 뭍이 가까울 때만 "상륙" 을 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 팝업은 제 창(HWND)을 따로 쓰므로 D3D 자식 창 위에 제대로 뜬다 — airspace 를 안 탄다.
+    /// 그래서 지도 위에 얹는 것 중 메뉴만은 WPF 로 둘 수 있다.
+    /// </remarks>
+    private void ShowCommandMenu(UIElement anchor)
+    {
+        var menu = new ContextMenu
+        {
+            Background = MenuBack,
+            BorderBrush = MenuEdge,
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(6),
+            PlacementTarget = anchor,
+        };
+
+        menu.Items.Add(new Border
+        {
+            Background = MenuBack,
+            BorderBrush = MenuEdge,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(18, 2, 18, 2),
+            Margin = new Thickness(0, 0, 0, 4),
+            Child = new TextBlock
+            {
+                Text = "커맨드",
+                Foreground = MenuTitleFg,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            },
+        });
+
+        // 바다에 있으면 상륙, 뭍에 있으면 출항. 갈 데가 없으면 흐리게 보여만 준다.
+        if (_host.IsOnLand)
+            menu.Items.Add(GameMenuItem("출항", _host.IsNearWater() ? () => _host.Embark() : null));
+        else
+            menu.Items.Add(GameMenuItem("상륙", _host.IsNearLand() ? () => _host.Land() : null));
+
+        menu.IsOpen = true;
+    }
+
+    /// <summary>양피지 바탕의 커맨드 항목 하나. <paramref name="run"/> 이 null 이면 못 고른다.</summary>
+    private static MenuItem GameMenuItem(string text, Action? run)
+    {
+        var item = new MenuItem
+        {
+            IsEnabled = run != null,
+            Padding = new Thickness(0),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Header = new Border
+            {
+                Background = CellFill,
+                BorderBrush = BarEdge,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(24, 2, 24, 2),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    Foreground = run != null ? Brushes.Black : Brushes.Gray,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 14,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            },
+        };
+        if (run != null) item.Click += (_, _) => run();
+        return item;
+    }
+
+    /// <summary>도시에 다가가면 한 번 물어본다. 떠났다 다시 와야 또 묻는다.</summary>
+    private void CheckPort()
+    {
+        if (_asking || _host.IsOnLand) return;
+
+        int city = _host.NearestCity();
+        if (city < 0) { _askedCity = -1; return; }      // 도시를 벗어났다
+        if (city == _askedCity) return;                 // 이미 물어본 도시다
+        _askedCity = city;
+
+        var name = CityName(city);
+        // 물음창이 떠 있는 동안 배가 계속 가면 대답할 새가 없다.
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            if (PortDialog.Ask(this, name)) _host.EnterPort(name);
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
+    /// <summary>도시 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
+    private string CityName(int id)
+    {
+        if (_cityNames == null)
+        {
+            _cityNames = [];
+            try
+            {
+                var svc = ContainerLocator.Container.Resolve<CityService>();
+                foreach (var c in svc.GetCitiesWithCoordinatesFromDbAsync().Result)
+                    _cityNames[c.Id] = c.Name;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShipMap] 도시 이름 로드 실패: {ex.Message}");
+            }
+        }
+        return _cityNames.TryGetValue(id, out var n) ? n : $"도시 {id}";
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)

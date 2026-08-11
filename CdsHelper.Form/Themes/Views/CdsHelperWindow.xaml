@@ -149,9 +149,8 @@
                                     <MenuItem Header="발견물" x:Name="PART_DiscoveryMenu" />
                                     <MenuItem Header="세계지도" x:Name="PART_WorldMapMenu" />
                                     <MenuItem Header="설정" x:Name="PART_SettingsMenu" />
-                                    <MenuItem Header="렌더링">
-                                        <MenuItem Header="함대 보기 (Direct3D)" x:Name="PART_ShipMapMenu" />
-                                    </MenuItem>
+                                    <MenuItem Header="렌더링" x:Name="PART_ShipMapMenu"
+                                              ToolTip="함대 보기 (Direct3D)" />
                                     <MenuItem Header="도구">
                                         <MenuItem Header="스핑크스" x:Name="PART_SphinxMenu" />
                                         <MenuItem Header="이벤트 큐 보기" x:Name="PART_EventQueueMenu" />
