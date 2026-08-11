@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -21,6 +21,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_SphinxMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DiscoveryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WorldMapMenu, Type = typeof(MenuItem))]
@@ -34,6 +35,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_SphinxMenu = "PART_SphinxMenu";
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
+    private const string PART_ShipMapMenu = "PART_ShipMapMenu";
     private const string PART_HelpMenu = "PART_HelpMenu";
     private const string PART_DiscoveryMenu = "PART_DiscoveryMenu";
     private const string PART_WorldMapMenu = "PART_WorldMapMenu";
@@ -84,6 +86,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_DbTableViewerMenu) is MenuItem dbTableViewerMenu)
         {
             dbTableViewerMenu.Click += OnDbTableViewerMenuClick;
+        }
+
+        if (GetTemplateChild(PART_ShipMapMenu) is MenuItem shipMapMenu)
+        {
+            shipMapMenu.Click += OnShipMapMenuClick;
         }
 
         if (GetTemplateChild(PART_HelpMenu) is MenuItem helpMenu)
@@ -201,6 +208,13 @@ public class CdsHelperWindow : CdsWindow
             Owner = this
         };
         dialog.ShowDialog();
+    }
+
+    // 게임 화면처럼 지도 위에 함대만 띄우는 창. 세계지도 탭과 달리 D3D 로 그린다.
+    private void OnShipMapMenuClick(object sender, RoutedEventArgs e)
+    {
+        var win = new CdsHelper.Main.UI.Views.D3D.ShipMapWindow { Owner = this };
+        win.Show();
     }
 
     private void OnHelpMenuClick(object sender, RoutedEventArgs e)
