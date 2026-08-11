@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -26,7 +26,7 @@ namespace CdsHelper.Main.UI.Views;
 
 public class WorldMapContent : ContentControl
 {
-    private Image? _mapImage;
+    private WorldMapSurface? _mapImage;
     private ScrollViewer? _scrollViewer;
     private ScaleTransform? _scaleTransform;
     private TextBlock? _txtStatus;
@@ -89,20 +89,27 @@ public class WorldMapContent : ContentControl
     private SubscriptionToken? _saveDataLoadedToken;
 
     private double _currentScale = 2.0;
-    private const double ScaleStep = 0.25;
-    private const double MinScale = 0.2;
-    private const double MaxScale = 5.0;
+
+    // 배율은 WorldMapKR 처럼 정해진 단계로 오르내린다. 칸 하나가 화면에서 차지하는 픽셀은
+    // 배율 x RenderScale 이므로, x8 에서 칸당 16픽셀 — OCEAN.CDS 타일 원본 해상도에 닿는다.
+    // 그보다 키우면 타일 점이 그대로 커진다(게임 확대와 같은 모양).
+    private static readonly double[] ZoomSteps = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0];
+    private const double MinScale = 0.25;
+    private const double MaxScale = 16.0;
+    /// <summary>타일 원본 해상도에 닿는 배율. 이 위로는 더 나올 그림이 없다.</summary>
+    private const double NativeScale = 8.0;
 
     private byte[]? _mapData;
-    private const int RawStride = 2500;   // bytes per row in file
-    private const int CellW = 1250;       // cells per row (2 bytes/cell)
-    private const int CellH = 1250;       // unfolded rows (2500 raw / 2)
-    private const int UnfoldedW = 2500;   // unfolded width (left half + right half)
-    private const int TileCount = 3;      // 3 copies for infinite horizontal scroll
-    private const int RenderScale = 2;    // pixels per cell in output bitmap
-    private const int RenderTileW = UnfoldedW * RenderScale;  // 5000
-    private const int RenderW = RenderTileW * TileCount;      // 15000
-    private const int RenderH = CellH * RenderScale;          // 2500
+    private OceanTiles? _ocean;           // OCEAN.CDS 타일 그림. 없으면 _palette로 색을 계산한다.
+    private const int RawStride = WorldMapRenderer.RawStride;   // bytes per row in file
+    private const int CellW = WorldMapRenderer.CellW;           // cells per row (2 bytes/cell)
+    private const int CellH = WorldMapRenderer.CellH;           // unfolded rows (2500 raw / 2)
+    private const int UnfoldedW = WorldMapRenderer.UnfoldedW;   // unfolded width (left half + right half)
+    private const int TileCount = WorldMapSurface.TileCopies;   // 3 copies for infinite horizontal scroll
+    private const int RenderScale = WorldMapSurface.LogicalScale; // 논리 좌표에서 칸당 픽셀
+    private const int RenderTileW = WorldMapSurface.TileLogicalW; // 5000
+    private const int RenderW = WorldMapSurface.LogicalW;         // 15000
+    private const int RenderH = WorldMapSurface.LogicalH;         // 2500
 
     // 마커를 모든 타일에 복제하기 위한 X 오프셋 (왼쪽/중앙/오른쪽)
     private static readonly double[] TileOffsets = { -(double)RenderTileW, 0.0, (double)RenderTileW };
@@ -126,7 +133,7 @@ public class WorldMapContent : ContentControl
     {
         base.OnApplyTemplate();
 
-        _mapImage = GetTemplateChild("PART_MapImage") as Image;
+        _mapImage = GetTemplateChild("PART_MapImage") as WorldMapSurface;
         _scrollViewer = GetTemplateChild("PART_ScrollViewer") as ScrollViewer;
         _txtStatus = GetTemplateChild("PART_Status") as TextBlock;
         _txtCellInfo = GetTemplateChild("PART_CellInfo") as TextBlock;
@@ -150,7 +157,7 @@ public class WorldMapContent : ContentControl
         if (_chkShowSpeed != null) _chkShowSpeed.IsChecked = opts.ShowSpeed;
         SelectAutoScrollThresholdItem(opts.AutoScrollThreshold);
         SelectTrackingIntervalItem(opts.TrackingIntervalSeconds);
-        _currentScale = Math.Clamp(opts.Zoom, MinScale, MaxScale);
+        _currentScale = SnapZoom(opts.Zoom);
 
         _scaleTransform = new ScaleTransform(_currentScale, _currentScale);
         var mapGrid = GetTemplateChild("PART_MapGrid") as Grid;
@@ -232,7 +239,7 @@ public class WorldMapContent : ContentControl
         {
             _scrollViewer.PreviewMouseWheel += (s, e) =>
             {
-                ZoomAtCursor(e.Delta > 0 ? ScaleStep : -ScaleStep, e);
+                ZoomAtCursor(e.Delta > 0 ? 1 : -1, e);
                 e.Handled = true;
             };
             _scrollViewer.PreviewMouseLeftButtonDown += ScrollViewer_MouseDown;
@@ -320,6 +327,9 @@ public class WorldMapContent : ContentControl
 
     private void ScrollViewer_WrapHorizontal(object sender, ScrollChangedEventArgs e)
     {
+        // 스크롤·창 크기가 바뀌었으니 보이는 영역을 다시 그린다.
+        UpdateSurfaceView();
+
         if (_isWrapping || _scrollViewer == null || _mapData == null) return;
 
         double tileW = RenderTileW * _currentScale;
@@ -353,7 +363,7 @@ public class WorldMapContent : ContentControl
 
     private void MapImage_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_mapData == null || _mapImage?.Source == null || _txtCellInfo == null) return;
+        if (_mapData == null || _mapImage?.HasMap != true || _txtCellInfo == null) return;
 
         var pos = e.GetPosition(_mapImage);
         int rx = (int)pos.X;
@@ -395,7 +405,7 @@ public class WorldMapContent : ContentControl
                 _ when attr >= 86 && attr <= 116 => $"기후대({attr})",
                 _ => $"지형={attr}"
             },
-            _ => $"해안비율={GetCoastLandRatio(terrain):P0} attr={attr}"
+            _ => $"해안비율={WorldMapRenderer.GetCoastLandRatio(terrain):P0} attr={attr}"
         };
 
         string latDir = lat >= 0 ? "N" : "S";
@@ -426,8 +436,14 @@ public class WorldMapContent : ContentControl
                 _mapData = null;
                 return;
             }
+
+            // 같은 폴더의 OCEAN.CDS로 게임 타일 그림을 쓴다. 없으면 _palette로 그린다.
+            var gameDir = Path.GetDirectoryName(path);
+            _ocean = gameDir != null ? OceanTiles.LoadFromDirectory(gameDir) : null;
+            string source = _ocean != null ? "게임 그림" : $"팔레트 ({OceanTiles.LastError})";
+
             if (_txtStatus != null)
-                _txtStatus.Text = $"로드 완료: {Path.GetFileName(path)} (펼침: {UnfoldedW}x{CellH}, {RenderW}x{RenderH}px)";
+                _txtStatus.Text = $"로드 완료: {Path.GetFileName(path)} (펼침: {UnfoldedW}x{CellH}, {RenderW}x{RenderH}px, {source})";
             Rerender();
 
             // 발견물 체크 되어 있으면 표시
@@ -451,7 +467,10 @@ public class WorldMapContent : ContentControl
             _palette.Save(AppSettings.MapPaletteFilePath);
             Rerender();
             if (_txtStatus != null)
-                _txtStatus.Text = $"팔레트 저장: {AppSettings.MapPaletteFilePath}";
+                _txtStatus.Text = _ocean != null
+                    // OCEAN.CDS가 있으면 그 그림으로 그리므로 팔레트는 화면에 반영되지 않는다.
+                    ? $"팔레트 저장: {AppSettings.MapPaletteFilePath} (지금은 OCEAN.CDS 게임 그림으로 그리는 중이라 화면에는 적용되지 않습니다)"
+                    : $"팔레트 저장: {AppSettings.MapPaletteFilePath}";
         }
         catch (Exception ex)
         {
@@ -465,55 +484,11 @@ public class WorldMapContent : ContentControl
         if (_mapData == null || _mapImage == null) return;
 
         // 해안선 상세/해류 토글 UI는 제거됨. 해안선 상세는 항상 켜진 상태로 고정.
-        bool showCoast = true;
-        bool showWind = false;
+        const bool showCoast = true;
+        const bool showWind = false;
 
-        // Render one tile at RenderScale px/cell, then copy 3x for infinite scroll
-        var tilePixels = new int[RenderTileW * RenderH];
-
-        for (int ry = 0; ry < CellH; ry++)
-        {
-            int evenRow = ry * 2;
-            int oddRow = ry * 2 + 1;
-
-            for (int cx = 0; cx < CellW; cx++)
-            {
-                int offE = evenRow * RawStride + cx * 2;
-                byte tE = (byte)(_mapData[offE] & 0x7F);
-                byte aE = _mapData[offE + 1];
-
-                int offO = oddRow * RawStride + cx * 2;
-                byte tO = (byte)(_mapData[offO] & 0x7F);
-                byte aO = _mapData[offO + 1];
-
-                int colorLeft = ColorToInt(GetCellColor(_palette, tE, aE, showWind, showCoast));
-                int colorRight = ColorToInt(GetCellColor(_palette, tO, aO, showWind, showCoast));
-
-                for (int dy = 0; dy < RenderScale; dy++)
-                {
-                    int rowBase = (ry * RenderScale + dy) * RenderTileW;
-                    for (int dx = 0; dx < RenderScale; dx++)
-                    {
-                        tilePixels[rowBase + cx * RenderScale + dx] = colorLeft;
-                        tilePixels[rowBase + (cx + CellW) * RenderScale + dx] = colorRight;
-                    }
-                }
-            }
-        }
-
-        // Tile 3 copies horizontally
-        var bmp = new WriteableBitmap(RenderW, RenderH, 96, 96, PixelFormats.Bgr32, null);
-        var pixels = new int[RenderW * RenderH];
-        for (int ry = 0; ry < RenderH; ry++)
-        {
-            for (int t = 0; t < TileCount; t++)
-            {
-                Array.Copy(tilePixels, ry * RenderTileW, pixels, ry * RenderW + t * RenderTileW, RenderTileW);
-            }
-        }
-
-        bmp.WritePixels(new Int32Rect(0, 0, RenderW, RenderH), pixels, RenderW * 4, 0);
-        _mapImage.Source = bmp;
+        // 통짜 비트맵을 굽지 않는다 — 보이는 영역만 WorldMapSurface가 그때그때 그린다.
+        _mapImage.SetSource(_mapData, _ocean, _palette, showCoast, showWind);
 
         if (_overlayCanvas != null)
         {
@@ -522,75 +497,35 @@ public class WorldMapContent : ContentControl
         }
 
         CenterScrollToMiddleTile();
+        UpdateSurfaceView();
     }
 
-    private static Color GetCellColor(MapPalette palette, byte terrain, byte attr, bool showWind, bool showCoast)
+    // 칸 색 계산과 해안 비율표는 WorldMapRenderer 에 하나로 모았다.
+    // 바탕 그림은 WorldMapSurface 가, 셀 정보 표시는 아래 GetCoastLandRatio 호출이 쓴다.
+
+    /// <summary>주어진 배율에 가장 가까운 단계를 고른다.</summary>
+    private static double SnapZoom(double scale)
     {
-        if (terrain == 0)
-        {
-            // 해안선(attr=0)은 해류/바람 토글과 무관하게 항상 기본 해안선 색으로 표시
-            if (attr == 0) return palette.ResolveCoastline();
-            return showWind ? palette.ResolveWind(attr) : palette.ResolveSeaBase();
-        }
-        if (terrain == 1)
-            return palette.ResolveLand(attr);
-        // Coast: blend sea and land colors using land ratio
-        float landRatio = GetCoastLandRatio(terrain);
-        if (!showCoast)
-            landRatio = Math.Clamp(landRatio, 0.2f, 0.8f); // flatten when detail off
-        var sea = palette.ResolveSeaBase();
-        var land = attr <= 10 ? palette.ResolveLand(0) : palette.ResolveLand(attr);
-        return BlendColor(sea, land, landRatio);
+        double best = ZoomSteps[0];
+        foreach (var z in ZoomSteps)
+            if (Math.Abs(z - scale) < Math.Abs(best - scale)) best = z;
+        return best;
     }
 
-    private static Color BlendColor(Color a, Color b, float t)
+    /// <summary>한 단계 위/아래 배율. 끝이면 그대로.</summary>
+    private static double StepZoom(double scale, int dir)
     {
-        return Color.FromRgb(
-            (byte)(a.R + (b.R - a.R) * t),
-            (byte)(a.G + (b.G - a.G) * t),
-            (byte)(a.B + (b.B - a.B) * t));
+        int i = Array.IndexOf(ZoomSteps, SnapZoom(scale));
+        return ZoomSteps[Math.Clamp(i + dir, 0, ZoomSteps.Length - 1)];
     }
 
-    private static int ColorToInt(Color c) => (c.R << 16) | (c.G << 8) | c.B;
-
-    // Coast land ratios: extracted from game tiles
-    // terrain value -> fraction of tile that is land (vs sea)
-    private static float GetCoastLandRatio(byte terrain)
-    {
-        return terrain switch
-        {
-            2 => 0.39f, 3 => 0.18f, 4 => 0.49f, 5 => 0.00f,
-            6 => 0.50f, 7 => 0.43f, 8 => 0.52f, 9 => 0.50f,
-            10 => 0.14f, 11 => 0.55f, 12 => 0.29f, 13 => 0.00f,
-            14 => 0.11f, 15 => 0.55f, 16 => 0.42f, 17 => 0.35f,
-            18 => 0.84f, 19 => 0.43f, 20 => 0.50f, 21 => 0.03f,
-            22 => 0.00f, 23 => 0.29f, 24 => 0.43f, 25 => 0.31f,
-            26 => 0.00f, 27 => 0.00f, 28 => 0.00f, 29 => 0.29f,
-            30 => 0.12f, 31 => 0.11f, 32 => 0.27f, 33 => 0.27f,
-            34 => 0.60f, 35 => 0.51f, 36 => 0.12f, 37 => 0.54f,
-            38 => 0.29f, 39 => 0.66f, 40 => 0.00f, 41 => 0.25f,
-            42 => 1.00f, 43 => 0.78f, 44 => 0.00f, 45 => 0.57f,
-            46 => 0.50f, 48 => 0.92f, 49 => 0.54f, 50 => 0.28f,
-            51 => 0.14f, 53 => 0.99f, 55 => 0.78f, 56 => 0.00f,
-            57 => 0.83f, 58 => 0.34f, 59 => 0.40f, 60 => 1.00f,
-            61 => 0.04f, 62 => 0.10f, 64 => 0.00f, 65 => 0.06f,
-            66 => 0.97f, 67 => 0.58f, 68 => 0.17f, 70 => 0.49f,
-            71 => 0.26f, 72 => 1.00f, 73 => 0.12f, 75 => 0.91f,
-            76 => 0.96f, 77 => 0.62f, 78 => 1.00f, 79 => 0.49f,
-            81 => 0.66f, 82 => 0.99f, 83 => 0.03f, 84 => 0.93f,
-            85 => 0.23f, 92 => 0.44f, 96 => 0.96f, 103 => 1.00f,
-            118 => 0.94f,
-            _ => Math.Min(terrain / 127f, 1f), // fallback: linear estimate
-        };
-    }
-
-    private void ZoomAtCursor(double delta, MouseWheelEventArgs e)
+    private void ZoomAtCursor(int dir, MouseWheelEventArgs e)
     {
         if (_scrollViewer == null || _scaleTransform == null) return;
 
         var mousePos = e.GetPosition(_scrollViewer);
         double oldScale = _currentScale;
-        _currentScale = Math.Clamp(_currentScale + delta, MinScale, MaxScale);
+        _currentScale = StepZoom(_currentScale, dir);
         if (Math.Abs(_currentScale - oldScale) < 0.001) return;
 
         double ratio = _currentScale / oldScale;
@@ -598,23 +533,23 @@ public class WorldMapContent : ContentControl
         double pointX = _scrollViewer.HorizontalOffset + mousePos.X;
         double pointY = _scrollViewer.VerticalOffset + mousePos.Y;
 
-        _scaleTransform.ScaleX = _currentScale;
-        _scaleTransform.ScaleY = _currentScale;
-        if (_txtZoomLabel != null)
-            _txtZoomLabel.Text = $"x{_currentScale:F1}";
+        ApplyScale();
         _scrollViewer.UpdateLayout();
 
         _isWrapping = true;
         _scrollViewer.ScrollToHorizontalOffset(pointX * ratio - mousePos.X);
         _scrollViewer.ScrollToVerticalOffset(pointY * ratio - mousePos.Y);
         _isWrapping = false;
+        UpdateSurfaceView();
         SaveWorldMapOptions();
     }
 
-    private void Zoom(double delta)
+    private void Zoom(int dir)
     {
-        _currentScale = Math.Clamp(_currentScale + delta, MinScale, MaxScale);
+        _currentScale = StepZoom(_currentScale, dir);
         ApplyScale();
+        _scrollViewer?.UpdateLayout();
+        UpdateSurfaceView();
         SaveWorldMapOptions();
     }
 
@@ -624,7 +559,31 @@ public class WorldMapContent : ContentControl
         _scaleTransform.ScaleX = _currentScale;
         _scaleTransform.ScaleY = _currentScale;
         if (_txtZoomLabel != null)
-            _txtZoomLabel.Text = $"x{_currentScale:F1}";
+        {
+            // 타일 원본 해상도를 넘어서면 더 나올 그림이 없다는 것을 알린다.
+            _txtZoomLabel.Text = _currentScale > NativeScale
+                ? $"x{_currentScale:F1} (원본 초과)"
+                : $"x{_currentScale:F1}";
+        }
+    }
+
+    /// <summary>
+    /// 지금 창에 보이는 논리 좌표 영역을 바탕 그림에 알려 준다. 스크롤/확대/창 크기가
+    /// 바뀔 때마다 불러야 한다 — 이걸로 그 영역만 다시 그린다.
+    /// </summary>
+    private void UpdateSurfaceView()
+    {
+        if (_scrollViewer == null || _mapImage == null) return;
+        double s = _currentScale;
+        if (s <= 0) return;
+
+        var view = new Rect(_scrollViewer.HorizontalOffset / s,
+                            _scrollViewer.VerticalOffset / s,
+                            _scrollViewer.ViewportWidth / s,
+                            _scrollViewer.ViewportHeight / s);
+        // 화면 실픽셀 기준으로 그려야 확대해도 타일 점이 살아난다.
+        double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        _mapImage.SetView(view, s * dpi);
     }
 
     private void SaveWorldMapOptions()
@@ -715,25 +674,30 @@ public class WorldMapContent : ContentControl
                 catch { /* 세이브 데이터 없으면 무시 */ }
 
                 var service = ContainerLocator.Container.Resolve<DiscoveryService>();
-                var discoveries = service.GetAllDiscoveries().Values;
+                var discoveries = service.GetAllDiscoveries();
 
-                foreach (var d in discoveries)
+                // 게임 발견물 표(274개)를 기준으로 돈다 — DB 는 232개뿐이라 42개가 빠져 있고
+                // 불국사·돌고래처럼 Id 가 어긋난 것도 있다. DB 는 힌트/서적 같은 덤을 얹을 때만 본다.
+                for (int gi = 0; gi < GameMapCoords.DiscoveryCount; gi++)
                 {
-                    if (d.LatFrom == null && d.LonFrom == null) continue;
+                    if (!GameMapCoords.TryDiscoveryCells(gi, out var gx1, out var gy1, out var gx2, out var gy2))
+                        continue;   // 좌표로 찾는 발견물이 아니다(항로·인물·비보 등)
 
-                    // 세이브 슬롯 인덱스 = DB Id + SaveSlotOffset
-                    int slotIndex = d.Id + DiscoveryDisplayItem.SaveSlotOffset;
-                    bool isFound = _foundDiscoveryIds?.Contains(slotIndex) == true;
-                    var isPoint = d.LatFrom == d.LatTo && d.LonFrom == d.LonTo;
+                    int dbId = GameMapCoords.DbIdFromIndex(gi);
+                    // 이름은 게임 표를 따른다. DB 에 있으면 힌트/서적을 물려받되 이름은 덮어쓴다.
+                    var d = discoveries.TryGetValue(dbId, out var row)
+                        ? row
+                        : new DiscoveryEntity { Id = dbId };
+                    d.Name = GameMapCoords.DiscoveryNames[gi];
 
-                    if (isPoint && d.LatFrom != null && d.LonFrom != null)
-                    {
+                    // 세이브 슬롯 번호 = 게임 발견물 번호
+                    bool isFound = _foundDiscoveryIds?.Contains(gi) == true;
+
+                    // 한두 칸짜리는 점, 그보다 넓으면 영역으로 그린다.
+                    if (gx2 - gx1 <= 2 && gy2 - gy1 <= 2)
                         AddDiscoveryPoint(d, isFound);
-                    }
                     else
-                    {
                         AddDiscoveryArea(d, isFound);
-                    }
                 }
 
                 // 도시 좌표 표시 (파란색)
@@ -887,7 +851,10 @@ public class WorldMapContent : ContentControl
     {
         if (_overlayCanvas == null || _discoveryVisualHost == null) return;
 
-        var (px, py) = LatLonToPixel(d.LatFrom!.Value, d.LonFrom!.Value);
+        // 게임 원본 좌표표가 먼저다. 없을 때만 DB 의 도 단위 값을 쓴다.
+        var (px, py) = GameMapCoords.TryDiscoveryCells(GameMapCoords.IndexFromDbId(d.Id), out var gx1, out var gy1, out var gx2, out var gy2)
+            ? CellToPixel((gx1 + gx2 + 1) / 2.0, (gy1 + gy2 + 1) / 2.0)
+            : LatLonToPixel(d.LatFrom!.Value, d.LonFrom!.Value);
 
         const double radius = 3.0; // 기존 size=6 기준 지름의 절반
         var fill = isFound ? DotFillFound : DotFillUnfound;
@@ -916,19 +883,31 @@ public class WorldMapContent : ContentControl
     {
         if (_overlayCanvas == null || _discoveryVisualHost == null) return;
 
-        var latFrom = d.LatFrom ?? 0;
-        var latTo = d.LatTo ?? latFrom;
-        var lonFrom = d.LonFrom ?? 0;
-        var lonTo = d.LonTo ?? lonFrom;
+        double x1, y1, x2, y2;
+        if (GameMapCoords.TryDiscoveryCells(GameMapCoords.IndexFromDbId(d.Id), out var gx1, out var gy1, out var gx2, out var gy2))
+        {
+            // 게임 원본 좌표표. 칸 끝을 포함해야 하므로 오른쪽/아래를 한 칸 늘린다.
+            var (cx1, cy1, cx2, cy2) = ClampSpan(Math.Min(gx1, gx2), Math.Min(gy1, gy2),
+                                                 Math.Max(gx1, gx2) + 1, Math.Max(gy1, gy2) + 1);
+            (x1, y1) = CellToPixel(cx1, cy1);
+            (x2, y2) = CellToPixel(cx2, cy2);
+        }
+        else
+        {
+            var latFrom = d.LatFrom ?? 0;
+            var latTo = d.LatTo ?? latFrom;
+            var lonFrom = d.LonFrom ?? 0;
+            var lonTo = d.LonTo ?? lonFrom;
 
-        // 위도/경도 범위의 min/max 정리
-        var latMin = Math.Min(latFrom, latTo);
-        var latMax = Math.Max(latFrom, latTo);
-        var lonMin = Math.Min(lonFrom, lonTo);
-        var lonMax = Math.Max(lonFrom, lonTo);
+            // 위도/경도 범위의 min/max 정리
+            var latMin = Math.Min(latFrom, latTo);
+            var latMax = Math.Max(latFrom, latTo);
+            var lonMin = Math.Min(lonFrom, lonTo);
+            var lonMax = Math.Max(lonFrom, lonTo);
 
-        var (x1, y1) = LatLonToPixel(latMax, lonMin); // 좌상단
-        var (x2, y2) = LatLonToPixel(latMin, lonMax); // 우하단
+            (x1, y1) = LatLonToPixel(latMax, lonMin); // 좌상단
+            (x2, y2) = LatLonToPixel(latMin, lonMax); // 우하단
+        }
 
         var w = Math.Max(x2 - x1, 2);
         var h = Math.Max(y2 - y1, 2);
@@ -1009,7 +988,11 @@ public class WorldMapContent : ContentControl
     {
         if (_overlayCanvas == null) return;
 
-        var (px, py) = LatLonToPixel(lat, lon);
+        // 게임 원본 좌표표(경도 0~40000 / 위도 0~20000)가 먼저다. DB 의 도 단위 값은
+        // 반올림으로 3~4칸씩 밀리고 부호가 뒤집힌 것도 있어 표에 없는 ID 일 때만 쓴다.
+        var (px, py) = GameMapCoords.TryCityCell(cityId, out var gcx, out var gcy)
+            ? CellToPixel(gcx, gcy)
+            : LatLonToPixel(lat, lon);
 
         const double size = 7;
         var fillColor = Color.FromArgb(220, 30, 120, 255);   // 파란색 (도시)
@@ -1476,6 +1459,36 @@ public class WorldMapContent : ContentControl
         double cellY = (90.0 - lat) / 180.0 * RenderH;
         // 중앙 타일(index 1) 오프셋 적용
         return (cellX + RenderTileW, cellY);
+    }
+
+    /// <summary>
+    /// 펼친 칸 좌표(x 0~2500, y 0~1250)를 지도 픽셀로. 게임 원본 좌표표를 쓰는 마커가 이 길로 온다 —
+    /// 도 단위를 거치지 않아 반올림이 끼지 않는다.
+    /// </summary>
+    private static (double px, double py) CellToPixel(double cellX, double cellY)
+        => (cellX * RenderScale + RenderTileW, cellY * RenderScale);
+
+    /// <summary>
+    /// 너무 넓은 발견물 범위는 지도를 뒤덮어 다른 마커를 가린다(남극대륙 2500x150, 신대륙 481x751).
+    /// WorldMapKR 과 같이 가운데를 기준으로 이 칸 수까지만 그린다.
+    /// </summary>
+    private const double MaxDiscoverySpanCells = 300;
+
+    private static (double x1, double y1, double x2, double y2) ClampSpan(double x1, double y1, double x2, double y2)
+    {
+        if (x2 - x1 > MaxDiscoverySpanCells)
+        {
+            double mid = (x1 + x2) / 2;
+            x1 = mid - MaxDiscoverySpanCells / 2;
+            x2 = mid + MaxDiscoverySpanCells / 2;
+        }
+        if (y2 - y1 > MaxDiscoverySpanCells)
+        {
+            double mid = (y1 + y2) / 2;
+            y1 = mid - MaxDiscoverySpanCells / 2;
+            y2 = mid + MaxDiscoverySpanCells / 2;
+        }
+        return (x1, y1, x2, y2);
     }
 
     /// <summary>도시 ID → City 객체. 캐시 미스 시 동기 로드 시도 후 한 번만 캐싱.</summary>

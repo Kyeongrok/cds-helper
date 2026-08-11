@@ -88,10 +88,8 @@
                                           HorizontalScrollBarVisibility="Auto"
                                           VerticalScrollBarVisibility="Auto">
                                 <Grid x:Name="PART_MapGrid">
-                                    <Image x:Name="PART_MapImage"
-                                           Stretch="None"
-                                           RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                           SnapsToDevicePixels="True"/>
+                                    <views:WorldMapSurface x:Name="PART_MapImage"
+                                                           SnapsToDevicePixels="True"/>
                                     <Canvas x:Name="PART_OverlayCanvas" Background="Transparent" IsHitTestVisible="True"
                                             HorizontalAlignment="Left" VerticalAlignment="Top"/>
                                 </Grid>
