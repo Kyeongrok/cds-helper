@@ -9,7 +9,11 @@
 ★ 반드시 해상(항해) 화면에서 떠라. 아틀라스는 게임이 그때그때 채우는 버퍼라서, 항구
   안이나 타이틀 화면에서 뜨면 엉뚱한 그림이 나온다(실제로 겪었다 — 같은 자리에서
   안 비치는 점이 404개에서 138개로 줄어든 다른 그림이 나왔다).
-  뜬 뒤에는 asset/ship/*.png 를 열어 배 모양인지 눈으로 확인해라.
+  뜬 뒤에는 뜬 그림을 열어 배 모양인지 눈으로 확인해라.
+
+같은 클래스라도 함대에 태운 배가 다르면 아틀라스 내용이 달라진다. 다른 배를 따로
+남기려면 --out 으로 폴더를 나눠라:
+    python tools/extract_ship_sprites.py --out asset/ship-galleon
 
 자리와 고르는 규칙은 cds95-mod plugins-src/WorldMapKR/src/sprite.c 에서 가져왔고,
 그쪽은 게임 렌더러 0x48A1E0(0x48A82E~0x48A8A4)에서 읽어낸 것이다.
@@ -91,7 +95,7 @@ def main(argv):
     ap.add_argument("--land", action="store_true", help="배 대신 말(육상·정박) 그림")
     ap.add_argument("--out", default=os.path.join("asset", "ship"), help="저장할 폴더")
     ap.add_argument("--force", action="store_true",
-                    help="이미 있는 파일을 덮어쓴다. 없으면 덮어쓰지 않고 멈춘다")
+                    help="(남겨 둔 것) 예전에 덮어쓰기를 막던 스위치. 지금은 늘 덮어쓴다")
     a = ap.parse_args(argv[1:])
 
     pid = find_pid()
@@ -106,13 +110,11 @@ def main(argv):
     outdir = a.out if os.path.isabs(a.out) else os.path.join(ROOT, a.out)
     os.makedirs(outdir, exist_ok=True)
 
-    # 항구·타이틀 화면에서 뜨면 엉뚱한 그림으로 멀쩡한 에셋을 덮어쓰게 된다. 한 번 막는다.
-    existing = [f"ship_{d}.png" for d in range(DIRECTIONS)
+    # 이미 있으면 알려만 주고 덮어쓴다. 잘못 떴으면 다시 뜨면 그만이라 막지 않는다.
+    existing = [d for d in range(DIRECTIONS)
                 if os.path.exists(os.path.join(outdir, f"ship_{d}.png"))]
-    if existing and not a.force:
-        raise SystemExit(
-            f"{os.path.relpath(outdir, ROOT)} 에 이미 {len(existing)}장이 있다.\n"
-            "해상(항해) 화면인지 확인하고 --force 를 붙여라 — 항구 안에서 뜨면 다른 그림이 나온다.")
+    if existing:
+        print(f"{os.path.relpath(outdir, ROOT)} 의 {len(existing)}장을 덮어쓴다")
 
     if a.land:
         base = int.from_bytes(read(handle, LAND_BASE, 4), "little")
