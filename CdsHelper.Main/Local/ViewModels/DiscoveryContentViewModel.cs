@@ -310,8 +310,16 @@ public partial class DiscoveryDisplayItem : ObservableObject
         StateUndiscovered, StateFound, StateAnnounced
     };
 
-    // DB Id와 세이브 슬롯 인덱스 사이 오프셋 (세이브 슬롯 1~18은 특수 슬롯으로 추정)
-    public const int SaveSlotOffset = 18;
+    // DB Id와 세이브 슬롯 인덱스 사이 오프셋.
+    //
+    // 세이브 슬롯 번호는 게임 발견물 번호(0~273)와 그대로 같다. DB Id 가 그보다 1 크므로 -1 이다.
+    // 예전 값은 +18 이었는데("슬롯 1~18은 특수 슬롯으로 추정") 근거가 없었고, 실제 세이브로
+    // 확인해 보면 틀렸다 — SAVEDATA.CDS 0x19E6A 부터 164바이트씩 훑어 bit6 이 켜진 칸을 보면
+    // 1~8번이 신대륙·인도·말라카해협·향료제도·중국·마젤란해협·세계일주항로·지팡그로,
+    // CDS_95.EXE 발견물 표(GameMapCoords)의 1~8번과 이름까지 그대로 맞는다.
+    // +18 이면 그 칸들이 음수 색인을 가리켜 발견 여부가 통째로 어긋난다.
+    // (cds95-mod HintUtilKR 의 disc.c 도 슬롯 i 를 발견물 i 로 그냥 읽는다.)
+    public const int SaveSlotOffset = -GameMapCoords.DiscoveryIdOffset;
     public int SaveSlotIndex => Id + SaveSlotOffset;
 
     // (slotIndex, newStateByte) → 세이브 파일에 저장

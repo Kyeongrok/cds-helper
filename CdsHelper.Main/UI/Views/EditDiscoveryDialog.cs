@@ -213,7 +213,9 @@ public class EditDiscoveryDialog : Window
         var data = WorldMapRenderer.LoadWorldData(worldPath);
         if (data == null) return;
         var palette = MapPalette.LoadOrDefault(AppSettings.MapPaletteFilePath);
-        _mapImage.Source = WorldMapRenderer.RenderSingleTile(data, palette, showCoast: true, showWind: false);
+        // 세계지도 창과 같은 그림이 되도록 OCEAN.CDS가 있으면 게임 타일을 쓴다.
+        var ocean = OceanTiles.LoadFromDirectory(dir);
+        _mapImage.Source = WorldMapRenderer.RenderSingleTile(data, palette, showCoast: true, showWind: false, ocean);
     }
 
     private void CenterOnExistingCoord()

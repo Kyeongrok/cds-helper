@@ -8,7 +8,8 @@ namespace CdsHelper.Support.Local.Helpers;
 
 /// <summary>
 /// WORLD.CDS 파일을 읽어 단일 타일(2500x1250) 비트맵으로 렌더링하는 헬퍼.
-/// 색상/좌표 변환 로직은 WorldMapContent와 일치하도록 MapPalette를 사용한다.
+/// 색상/좌표 변환 로직은 WorldMapContent와 일치한다 — OCEAN.CDS가 있으면 게임 타일 그림을,
+/// 없으면 MapPalette로 계산한 색을 쓴다.
 /// </summary>
 public static class WorldMapRenderer
 {
@@ -30,12 +31,15 @@ public static class WorldMapRenderer
 
     /// <summary>
     /// WORLD.CDS 데이터로부터 2500x1250 단일 타일을 렌더링한 WriteableBitmap 생성.
+    /// ocean이 주어지면 게임 타일 그림(칸당 16x16의 평균색)으로 그리고, null이면 palette로 색을 계산한다.
     /// palette가 null이면 기본 팔레트를 사용한다.
     /// </summary>
-    public static WriteableBitmap RenderSingleTile(byte[] worldData, MapPalette? palette = null, bool showCoast = true, bool showWind = false)
+    public static WriteableBitmap RenderSingleTile(byte[] worldData, MapPalette? palette = null, bool showCoast = true, bool showWind = false, OceanTiles? ocean = null)
     {
         palette ??= MapPalette.CreateDefault();
         var pixels = new int[UnfoldedW * CellH];
+        // 칸 하나가 픽셀 하나이므로 타일 전체의 평균색 하나면 된다.
+        var avg = ocean?.GetAverages(1);
 
         for (int ry = 0; ry < CellH; ry++)
         {
@@ -45,15 +49,26 @@ public static class WorldMapRenderer
             for (int cx = 0; cx < CellW; cx++)
             {
                 int offE = evenRow * RawStride + cx * 2;
-                byte tE = (byte)(worldData[offE] & 0x7F);
-                byte aE = worldData[offE + 1];
-
                 int offO = oddRow * RawStride + cx * 2;
-                byte tO = (byte)(worldData[offO] & 0x7F);
-                byte aO = worldData[offO + 1];
 
-                pixels[ry * UnfoldedW + cx] = ColorToInt(GetCellColor(palette, tE, aE, showWind, showCoast));
-                pixels[ry * UnfoldedW + cx + CellW] = ColorToInt(GetCellColor(palette, tO, aO, showWind, showCoast));
+                int colorLeft, colorRight;
+                if (avg != null)
+                {
+                    colorLeft = avg[CellToTile(worldData, offE)];
+                    colorRight = avg[CellToTile(worldData, offO)];
+                }
+                else
+                {
+                    byte tE = (byte)(worldData[offE] & 0x7F);
+                    byte aE = worldData[offE + 1];
+                    byte tO = (byte)(worldData[offO] & 0x7F);
+                    byte aO = worldData[offO + 1];
+                    colorLeft = ColorToInt(GetCellColor(palette, tE, aE, showWind, showCoast));
+                    colorRight = ColorToInt(GetCellColor(palette, tO, aO, showWind, showCoast));
+                }
+
+                pixels[ry * UnfoldedW + cx] = colorLeft;
+                pixels[ry * UnfoldedW + cx + CellW] = colorRight;
             }
         }
 
@@ -76,6 +91,27 @@ public static class WorldMapRenderer
         double lon = px * 360.0 / UnfoldedW - 180;
         double lat = 90.0 - py * 180.0 / CellH;
         return (lat, lon);
+    }
+
+    /// <summary>
+    /// WORLD.CDS 칸(2바이트 리틀엔디안)에서 OCEAN.CDS 타일 번호를 뽑는다.
+    /// 게임도 하위 14비트만 쓴다(0x48A40A 의 <c>and cx,0x3FFF</c>).
+    /// </summary>
+    public static int CellToTile(byte[] worldData, int offset) =>
+        (worldData[offset] | (worldData[offset + 1] << 8)) & OceanTiles.TileMask;
+
+    /// <summary>
+    /// 지형(0~127) x 속성(0~255) 조합의 색을 미리 계산한 표. 자리는 <c>terrain * 256 + attr</c>,
+    /// 값은 0xRRGGBB. OCEAN.CDS가 없을 때 칸마다 색을 다시 계산하지 않으려고 쓴다.
+    /// </summary>
+    public static int[] BuildCellColorLut(MapPalette? palette, bool showCoast = true, bool showWind = false)
+    {
+        palette ??= MapPalette.CreateDefault();
+        var lut = new int[128 * 256];
+        for (int t = 0; t < 128; t++)
+            for (int a = 0; a < 256; a++)
+                lut[t * 256 + a] = ColorToInt(GetCellColor(palette, (byte)t, (byte)a, showWind, showCoast));
+        return lut;
     }
 
     #region 색상 변환 (WorldMapContent와 동일)
@@ -107,7 +143,8 @@ public static class WorldMapRenderer
 
     private static int ColorToInt(Color c) => (c.R << 16) | (c.G << 8) | c.B;
 
-    private static float GetCoastLandRatio(byte terrain)
+    /// <summary>지형별 육지 비율(0~1). 해안 칸의 바다색/육지색 섞는 비율이자 셀 정보 표시에 쓴다.</summary>
+    public static float GetCoastLandRatio(byte terrain)
     {
         return terrain switch
         {
