@@ -108,6 +108,9 @@ public sealed class ShipMapHost : HwndHost
     private TimeSpan _lastFrame;
     private bool _spriteReady;
 
+    /// <summary>배 그림을 올릴 때 쓰는 임시 자리(BGRA). 프레임마다 새로 잡지 않으려고 둔다.</summary>
+    private readonly uint[] _spriteBuf = new uint[GameShipReader.SpriteSize];
+
     /// <summary>커서를 따라 배를 몬다. 끄면 게임 함대 자리를 그대로 따라간다.</summary>
     public bool SteerWithMouse { get; set; } = true;
 
@@ -303,13 +306,33 @@ public sealed class ShipMapHost : HwndHost
             _shipX += (_targetX - _shipX) * 0.15;
             _shipY += (_targetY - _shipY) * 0.15;
             var spr0 = _ship.TryReadSprite();
-            if (spr0 != null) { _renderer.SetSprite(spr0); _spriteReady = true; }
+            if (spr0 != null) UploadGameSprite(spr0);
             return;
         }
 
-        // 게임이 떠 있으면 그 그림을, 아니면 소스에 구워 둔 8방향을 쓴다.
-        var spr = _ship.IsAttached ? _ship.TryReadSprite(_heading, onLand: false) : null;
-        _renderer.SetSprite(spr ?? ShipSprites.Frame(_heading));
+        // 게임이 떠 있으면 그 그림을(함선 종류에 맞는 4벌 중 하나), 아니면 asset/ship 의 것을 쓴다.
+        var indices = _ship.IsAttached ? _ship.TryReadSprite(_heading, onLand: false) : null;
+        if (indices != null) UploadGameSprite(indices);
+        else
+        {
+            var frame = ShipSprites.Frame(_heading);
+            if (!frame.IsEmpty) { _renderer.SetSprite(frame); _spriteReady = true; }
+        }
+    }
+
+    /// <summary>게임에서 읽은 팔레트 색인 그림을 색으로 풀어 올린다. 색인 0 은 비침이다.</summary>
+    private void UploadGameSprite(byte[] indices)
+    {
+        for (int i = 0; i < _spriteBuf.Length; i++)
+        {
+            int ix = indices[i];
+            _spriteBuf[i] = ix == 0
+                ? 0u
+                : 0xFF000000u | (uint)((OceanPalette.Rgb[ix * 3] << 16)
+                                     | (OceanPalette.Rgb[ix * 3 + 1] << 8)
+                                     | OceanPalette.Rgb[ix * 3 + 2]);
+        }
+        _renderer.SetSprite(_spriteBuf);
         _spriteReady = true;
     }
 

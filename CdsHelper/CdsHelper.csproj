@@ -15,6 +15,14 @@
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 
+    <!-- 함대 그림 등 실행 시 파일로 읽는 것들. 폴더 구조를 그대로 실행 파일 옆에 둔다. -->
+    <ItemGroup>
+      <Content Include="..\asset\**\*">
+        <Link>asset\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
     <ItemGroup>
       <PackageReference Include="Prism.DryIoc" Version="9.0.537" />
       <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.0" />
