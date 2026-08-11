@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -36,9 +36,21 @@ public sealed class ShipMapWindow : Window
         Background = Brushes.Black;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
+        var steer = new CheckBox
+        {
+            Content = "커서로 몰기",
+            IsChecked = true,
+            Foreground = Brushes.Gainsboro,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 4, 0),
+            ToolTip = "끄면 게임 함대의 실제 자리를 따라갑니다",
+        };
+        steer.Checked += (_, _) => _host.SteerWithMouse = true;
+        steer.Unchecked += (_, _) => _host.SteerWithMouse = false;
+
         var follow = new CheckBox
         {
-            Content = "배 따라가기",
+            Content = "화면 따라가기",
             IsChecked = true,
             Foreground = Brushes.Gainsboro,
             VerticalAlignment = VerticalAlignment.Center,
@@ -47,28 +59,38 @@ public sealed class ShipMapWindow : Window
         follow.Checked += (_, _) => _host.RecenterOnShip();
         follow.Unchecked += (_, _) => _host.Follow = false;
 
-        var recenter = new Button { Content = "내 배로", Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(4, 0, 0, 0) };
+        var recenter = new Button { Content = "배로", Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(4, 0, 0, 0) };
         recenter.Click += (_, _) => { follow.IsChecked = true; _host.RecenterOnShip(); };
 
         var bar = new DockPanel { Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)), LastChildFill = true };
+        bar.Children.Add(steer);
+        DockPanel.SetDock(steer, Dock.Left);
         bar.Children.Add(follow);
         DockPanel.SetDock(follow, Dock.Left);
         bar.Children.Add(recenter);
         DockPanel.SetDock(recenter, Dock.Left);
         bar.Children.Add(_status);
 
+        // HwndHost 자체는 WPF 에 아무것도 그리지 않아 히트테스트에 안 걸린다.
+        // 같은 자리에 투명 Border 를 겹쳐 두고 마우스는 그쪽에서 받는다.
+        // (자식 창이 D3D 로 덮으므로 이 Border 는 보이지 않는다 — 입력만 받는다.)
+        var input = new Border { Background = Brushes.Transparent, Cursor = Cursors.Cross };
+        var surface = new Grid();
+        surface.Children.Add(_host);
+        surface.Children.Add(input);
+
         var root = new DockPanel();
         var barHost = new Border { Child = bar, Height = 30 };
         DockPanel.SetDock(barHost, Dock.Top);
         root.Children.Add(barHost);
-        root.Children.Add(_host);
+        root.Children.Add(surface);
         Content = root;
-
-        // 자식 창이 히트테스트를 통과시키므로 끌기/휠은 여기서 받는다.
-        _host.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(_host));
-        _host.MouseLeftButtonDown += (_, e) => { follow.IsChecked = false; _host.BeginDrag(e.GetPosition(_host)); _host.CaptureMouse(); };
-        _host.MouseMove += (_, e) => _host.Drag(e.GetPosition(_host));
-        _host.MouseLeftButtonUp += (_, _) => { _host.EndDrag(); _host.ReleaseMouseCapture(); };
+        input.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(input));
+        // 왼쪽 끌기는 배 조종에 양보하고, 지도 밀기는 오른쪽 끌기로 옮겼다.
+        input.MouseRightButtonDown += (_, e) => { follow.IsChecked = false; _host.BeginDrag(e.GetPosition(input)); input.CaptureMouse(); };
+        input.MouseRightButtonUp += (_, _) => { _host.EndDrag(); input.ReleaseMouseCapture(); };
+        input.MouseMove += (_, e) => { var p = e.GetPosition(input); _host.SetMouse(p, true); _host.Drag(p); };
+        input.MouseLeave += (_, _) => _host.SetMouse(default, false);
 
         _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(250), () => _status.Text = _host.Status);
         Loaded += OnLoaded;

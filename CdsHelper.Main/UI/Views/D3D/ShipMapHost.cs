@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -42,27 +43,73 @@ public sealed class ShipMapHost : HwndHost
     private readonly MapD3DRenderer _renderer = new();
     private readonly GameShipReader _ship = new();
 
+    /// <summary>WORLD.CDS 원본. 배가 육지에 걸리는지 보려고 들고 있는다.</summary>
+    private byte[]? _world;
+
     private IDXGISwapChain1? _swapChain;
     private ID3D11RenderTargetView? _backBufferView;
     private IntPtr _hwnd;
     private int _pixelW, _pixelH;
     private bool _ready;
 
-    /// <summary>화면 한 점이 나아가는 칸 수. 작을수록 확대.</summary>
-    private double _cellsPerPixel = 1.0 / 16;   // 칸당 16점 = 타일 원본 해상도
+    /// <summary>
+    /// 화면 한 점이 나아가는 칸 수. 작을수록 확대다. 뒤집으면 "칸당 화면 픽셀"이 된다 —
+    /// 1/16 이면 칸당 16점으로 타일이 원본 크기, 1/32 면 그 두 배로 커진다.
+    /// 게임 화면과 나란히 놓고 맞춘 값이 1/32 다(게임이 640x480 을 늘려 띄우기 때문).
+    /// </summary>
+    private double _cellsPerPixel = 1.0 / 32;
 
     /// <summary>화면 한가운데가 가리키는 칸 좌표.</summary>
     private double _centerX = 1185, _centerY = 357;
+
+    /// <summary>리스본. 게임 도시 표의 0번이다.</summary>
+    private const int LisbonCityId = 0;
 
     private bool _follow = true;
     private bool _dragging;
     private Point _dragStart;
     private double _dragCx, _dragCy;
 
-    // 좌표 표본은 띄엄띄엄 오므로 그 사이를 채워 부드럽게 움직인다.
-    private double _shipX, _shipY;      // 지금 그리는 자리
-    private double _targetX, _targetY;  // 마지막으로 읽은 자리
+    private double _shipX, _shipY;      // 지금 배가 있는 자리(칸)
+    private double _targetX, _targetY;  // 배가 향하는 자리(칸)
     private bool _shipKnown;
+
+    /// <summary>한 틱의 길이. 게임처럼 틱마다 한 걸음씩 나아간다.</summary>
+    private const double TickSeconds = 0.1;
+
+    /// <summary>한 틱에 나아가는 칸 수. 화면 배율과 상관없이 일정하다.</summary>
+    private const double CellsPerTick = 1.0;
+
+    /// <summary>커서가 이 칸 수 안에 있으면 뱃머리를 그대로 둔다 — 배 위에서 빙빙 돌지 않게.</summary>
+    private const double TurnDeadZoneCells = 1.0;
+
+    private double _tickAccum;
+
+    /// <summary>
+    /// 해안 칸은 바다와 육지가 섞여 있다. 육지 비율이 이보다 높으면 못 지나간다.
+    /// 낮추면 해안에 더 바짝 붙을 수 있고, 높이면 좁은 해협을 더 잘 빠져나간다.
+    /// </summary>
+    private const double LandBlockRatio = 0.5;
+
+    /// <summary>육지에 막혀 있는지. 상태 줄에 알리려고 둔다.</summary>
+    private bool _blocked;
+
+    /// <summary>
+    /// 방향 번호를 통째로 돌리는 값. 뱃머리가 일정하게 어긋날 때만 손대면 된다.
+    /// 게임 방향은 0 = 북, 4 = 서, 8 = 남, 12 = 동으로 <b>반시계</b>로 돈다.
+    /// </summary>
+    private const int HeadingZeroOffset = 0;
+
+    private int _heading;                  // 그림에 쓸 게임 방향 번호(반시계)
+    private double _dirX, _dirY;           // 실제로 나아가는 쪽(단위 벡터)
+    private Point _mouse;                  // 마지막 커서 자리(WPF 단위, 이 요소 기준)
+    private bool _mouseInside;
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private TimeSpan _lastFrame;
+    private bool _spriteReady;
+
+    /// <summary>커서를 따라 배를 몬다. 끄면 게임 함대 자리를 그대로 따라간다.</summary>
+    public bool SteerWithMouse { get; set; } = true;
 
     public string Status { get; private set; } = "";
 
@@ -107,10 +154,25 @@ public sealed class ShipMapHost : HwndHost
     {
         var world = WorldMapRenderer.LoadWorldData(System.IO.Path.Combine(gameDir, "WORLD.CDS"));
         if (world == null) { Status = "WORLD.CDS 를 읽지 못했습니다"; return false; }
+        _world = world;
         var ocean = OceanTiles.LoadFromDirectory(gameDir);
         if (ocean == null) { Status = $"OCEAN.CDS 를 읽지 못했습니다 ({OceanTiles.LastError})"; return false; }
 
         _renderer.Initialize(world, ocean);
+
+        // 배는 리스본에서 시작한다. 자리는 게임 원본 도시 표에서 가져온다.
+        if (GameMapCoords.TryCityCell(LisbonCityId, out double lx, out double ly))
+        {
+            // 도시 칸은 육지다. 그대로 두면 배가 땅 위에서 시작해 한동안 못 움직이므로
+            // 가장 가까운 물칸으로 밀어 낸다(리스본이면 바로 앞바다다).
+            (lx, ly) = NearestWater(lx, ly);
+            _shipX = _targetX = lx;
+            _shipY = _targetY = ly;
+            _centerX = lx;
+            _centerY = ly;
+            _shipKnown = true;
+        }
+
         _ready = true;
         CompositionTarget.Rendering += OnFrame;
         return true;
@@ -176,15 +238,20 @@ public sealed class ShipMapHost : HwndHost
         EnsureSwapChain(w, h);
         if (_backBufferView == null) return;
 
-        UpdateShip();
+        var now = _clock.Elapsed;
+        double dt = Math.Min((now - _lastFrame).TotalSeconds, 0.1);   // 창이 멈췄다 살아나도 튀지 않게
+        _lastFrame = now;
+
+        // 커서를 칸 좌표로 옮기려면 이번 프레임의 원점이 필요하다. 배를 옮기기 전 값으로 잡는다.
+        var origin = (_centerX - w / 2.0 * _cellsPerPixel, _centerY - h / 2.0 * _cellsPerPixel);
+        UpdateShip(dt, origin, dpi.DpiScaleX, dpi.DpiScaleY);
 
         // 배를 따라간다 — 화면 한가운데에 둔다.
         if (_follow && _shipKnown) { _centerX = _shipX; _centerY = _shipY; }
-
-        var origin = (_centerX - w / 2.0 * _cellsPerPixel, _centerY - h / 2.0 * _cellsPerPixel);
+        origin = (_centerX - w / 2.0 * _cellsPerPixel, _centerY - h / 2.0 * _cellsPerPixel);
 
         var rect = (0f, 0f, 0f, 0f);
-        if (_shipKnown)
+        if (_shipKnown && _spriteReady)
         {
             // 배 그림 한 장은 48x48 이고 게임에서 한 칸이 16점이니 세 칸을 덮는다.
             float size = (float)(3.0 * OceanTiles.TileW / (_cellsPerPixel * OceanTiles.TileW));
@@ -198,28 +265,165 @@ public sealed class ShipMapHost : HwndHost
         FrameCount++;
     }
 
-    private void UpdateShip()
+    private void UpdateShip(double dt, (double X, double Y) origin, double dpiX, double dpiY)
     {
-        var cell = _ship.TryReadCell();
-        if (cell != null)
+        // 그림은 게임 것을 쓴다 — 게임이 떠 있어야 배 모양이 나온다.
+        if (!_ship.IsAttached) _ship.TryAttach();
+
+        if (SteerWithMouse)
         {
-            _targetX = cell.Value.CellX;
-            _targetY = cell.Value.CellY;
-            if (!_shipKnown) { _shipX = _targetX; _shipY = _targetY; _shipKnown = true; }
-            var spr = _ship.TryReadSprite();
-            if (spr != null) _renderer.SetSprite(spr);
-            Status = $"함대 {_targetX:F1}, {_targetY:F1} 칸";
+            if (_mouseInside)
+            {
+                // 커서가 가리키는 칸으로 뱃머리를 돌린다.
+                _targetX = origin.X + _mouse.X * dpiX * _cellsPerPixel;
+                _targetY = origin.Y + _mouse.Y * dpiY * _cellsPerPixel;
+            }
+            Sail(dt);
+            Status = $"배 {_shipX:F1}, {_shipY:F1} 칸 · 방향 {_heading}/16 · " +
+                     (!_mouseInside ? "커서를 지도 위에 올리면 움직입니다"
+                                    : _blocked ? "육지에 막혔습니다" : "커서 쪽으로 항해 중") +
+                     (_ship.IsAttached ? "" : " · 그림은 구워 둔 것");
         }
         else
         {
-            Status = _ship.IsAttached ? "게임이 아직 항해 중이 아닙니다" : "게임(cds_95)이 떠 있지 않습니다";
+            // 게임 함대를 따라가는 예전 방식.
+            var cell = _ship.TryReadCell();
+            if (cell != null)
+            {
+                _targetX = cell.Value.CellX;
+                _targetY = cell.Value.CellY;
+                if (!_shipKnown) { _shipX = _targetX; _shipY = _targetY; _shipKnown = true; }
+                Status = $"게임 함대 {_targetX:F1}, {_targetY:F1} 칸";
+            }
+            else
+            {
+                Status = _ship.IsAttached ? "게임이 아직 항해 중이 아닙니다" : "게임(cds_95)이 떠 있지 않습니다";
+            }
+            // 표본이 띄엄띄엄 와도 이어져 보이도록 조금씩 따라붙는다.
+            _shipX += (_targetX - _shipX) * 0.15;
+            _shipY += (_targetY - _shipY) * 0.15;
+            var spr0 = _ship.TryReadSprite();
+            if (spr0 != null) { _renderer.SetSprite(spr0); _spriteReady = true; }
+            return;
         }
 
-        if (!_shipKnown) return;
-        // 읽은 자리로 조금씩 따라붙는다. 표본이 띄엄띄엄 와도 화면에서는 이어져 보인다.
-        const double k = 0.15;
-        _shipX += (_targetX - _shipX) * k;
-        _shipY += (_targetY - _shipY) * k;
+        // 게임이 떠 있으면 그 그림을, 아니면 소스에 구워 둔 8방향을 쓴다.
+        var spr = _ship.IsAttached ? _ship.TryReadSprite(_heading, onLand: false) : null;
+        _renderer.SetSprite(spr ?? ShipSprites.Frame(_heading));
+        _spriteReady = true;
+    }
+
+    /// <summary>
+    /// 커서 쪽으로 뱃머리를 돌리고, 틱마다 그 방향으로 한 걸음 나아간다.
+    /// 커서는 방향만 정한다 — 커서 자리에 도착해서 멈추는 것이 아니라 계속 나아간다.
+    /// </summary>
+    private void Sail(double dt)
+    {
+        if (!_mouseInside) return;      // 창 밖으로 나가면 배도 선다
+
+        double dx = _targetX - _shipX, dy = _targetY - _shipY;
+        if (dx * dx + dy * dy > TurnDeadZoneCells * TurnDeadZoneCells)
+        {
+            // atan2(dx, -dy) 는 북쪽이 0 이고 시계방향으로 느는 값이다.
+            double a = Math.Atan2(dx, -dy);
+            if (a < 0) a += Math.PI * 2;
+            int clockwise = (int)Math.Round(a / (Math.PI * 2 / 16)) & 0xF;
+
+            // 나아가는 쪽은 시계방향 번호를 그대로 각으로 되돌려 쓴다. 16방향에 맞춰
+            // 꺾어야 그림과 가는 쪽이 어긋나지 않는다.
+            double qa = clockwise * (Math.PI * 2 / 16);
+            _dirX = Math.Sin(qa);
+            _dirY = -Math.Cos(qa);
+
+            // 그림 번호만 게임식으로 바꾼다. 게임 방향은 반시계로 돈다 —
+            // 0 이 북, 4 가 서, 8 이 남, 12 가 동이다(4번 그림이 왼쪽을 보는 것으로 확인했다).
+            // 이 번호로 이동 벡터를 다시 만들면 두 번 뒤집혀 배가 뒤로 간다. 그래서 나눠 둔다.
+            _heading = (16 - clockwise + HeadingZeroOffset) & 0xF;
+        }
+
+        _tickAccum += dt;
+        while (_tickAccum >= TickSeconds)
+        {
+            _tickAccum -= TickSeconds;
+            Step(_dirX * CellsPerTick, _dirY * CellsPerTick);
+        }
+    }
+
+    /// <summary>
+    /// 한 걸음 옮긴다. 육지에 걸리면 가로·세로를 따로 밀어 본다 — 해안을 따라 미끄러지듯
+    /// 나아가게 하려는 것이다. 둘 다 막히면 그 자리에 선다.
+    /// </summary>
+    private void Step(double dx, double dy)
+    {
+        if (CanGo(_shipX + dx, _shipY + dy)) { Move(dx, dy); _blocked = false; return; }
+        if (dx != 0 && CanGo(_shipX + dx, _shipY)) { Move(dx, 0); _blocked = true; return; }
+        if (dy != 0 && CanGo(_shipX, _shipY + dy)) { Move(0, dy); _blocked = true; return; }
+        _blocked = true;
+    }
+
+    private void Move(double dx, double dy)
+    {
+        _shipX += dx;
+        _shipY += dy;
+        // 지도 밖으로는 못 나간다. 가로는 이어져 있으므로 나머지로 접는다.
+        _shipX -= Math.Floor(_shipX / WorldMapRenderer.UnfoldedW) * WorldMapRenderer.UnfoldedW;
+        _shipY = Math.Clamp(_shipY, 0, WorldMapRenderer.CellH - 1);
+    }
+
+    private bool CanGo(double cellX, double cellY) => !IsLand(cellX, cellY);
+
+    /// <summary>
+    /// 그 자리에서 가장 가까운 물칸. 한 칸씩 넓혀 가며 테두리만 훑는다.
+    /// 못 찾으면(있을 수 없지만) 준 자리를 그대로 돌려준다.
+    /// </summary>
+    private (double X, double Y) NearestWater(double cellX, double cellY)
+    {
+        if (!IsLand(cellX, cellY)) return (cellX, cellY);
+        for (int r = 1; r <= 64; r++)
+        {
+            for (int dy = -r; dy <= r; dy++)
+            {
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    if (Math.Abs(dx) != r && Math.Abs(dy) != r) continue;   // 테두리만
+                    double x = cellX + dx, y = cellY + dy;
+                    if (!IsLand(x, y)) return (x, y);
+                }
+            }
+        }
+        return (cellX, cellY);
+    }
+
+    /// <summary>
+    /// 그 칸이 배가 못 가는 땅인지. WORLD.CDS 의 지형값을 그대로 본다 —
+    /// 0 이 바다, 1 이 육지, 그 밖은 바다와 육지가 섞인 해안 칸이다.
+    /// </summary>
+    private bool IsLand(double cellX, double cellY)
+    {
+        if (_world == null) return false;
+
+        int cx = (int)Math.Floor(cellX);
+        int cy = (int)Math.Floor(cellY);
+        cx -= (int)Math.Floor(cx / (double)WorldMapRenderer.UnfoldedW) * WorldMapRenderer.UnfoldedW;
+        if (cy < 0 || cy >= WorldMapRenderer.CellH) return true;
+
+        // 짝수 행이 지도의 왼쪽 절반, 홀수 행이 오른쪽 절반이다.
+        bool right = cx >= WorldMapRenderer.CellW;
+        int col = right ? cx - WorldMapRenderer.CellW : cx;
+        int row = cy * 2 + (right ? 1 : 0);
+        int off = row * WorldMapRenderer.RawStride + col * 2;
+
+        byte terrain = (byte)(_world[off] & 0x7F);
+        if (terrain == 0) return false;   // 바다
+        if (terrain == 1) return true;    // 육지
+        return WorldMapRenderer.GetCoastLandRatio(terrain) >= LandBlockRatio;
+    }
+
+    /// <summary>커서 자리를 알려 준다. 배는 이 쪽으로 나아간다.</summary>
+    public void SetMouse(Point p, bool inside)
+    {
+        _mouse = p;
+        _mouseInside = inside;
     }
 
     /// <summary>휠 확대. 커서 밑 지점이 제자리에 남도록 한다.</summary>

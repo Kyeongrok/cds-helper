@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace CdsHelper.Support.Local.Helpers;
@@ -116,9 +116,23 @@ public sealed class GameShipReader : IDisposable
     {
         if (!IsAttached && !TryAttach()) return null;
         if (!ReadInt(Docked, out int docked) || !ReadInt(Heading, out int heading)) { Detach(); return null; }
+        return TryReadSprite(heading, docked != 0);
+    }
+
+    /// <summary>
+    /// 방향을 밖에서 정해 그림을 가져온다. 게임 함대를 따라가는 대신 우리가 배를 몰 때 쓴다 —
+    /// 그림은 게임 것을 그대로 쓰되 어느 쪽을 보는지는 우리가 정한다.
+    /// </summary>
+    /// <param name="heading16">16방향(0~15).</param>
+    /// <param name="onLand">참이면 말(육상·정박) 그림.</param>
+    public byte[]? TryReadSprite(int heading16, bool onLand)
+    {
+        if (!IsAttached && !TryAttach()) return null;
+        int heading = heading16 & 0xF;
+        bool docked = onLand;
 
         int frame, atlas, frames;
-        if (docked == 0)
+        if (!docked)
         {
             int cls = 0;
             int type = ReadFlagshipType();
