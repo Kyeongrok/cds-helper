@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace CdsHelper.Main.UI.Views.D3D;
@@ -58,6 +59,14 @@ public sealed class PortDialog : Window
             BorderThickness = new Thickness(2),
             Margin = new Thickness(4),
             Child = stack,
+        };
+
+        // 제목 줄이 없어(WindowStyle.None) 창을 잡아 옮길 데가 없다. 바탕 아무 데나 끌면
+        // 옮겨지게 한다. 단추 위에서 누른 것은 단추가 삼키므로 여기까지 올라오지 않는다.
+        MouseLeftButtonDown += (_, _) =>
+        {
+            // 누르자마자 뗀 경우 DragMove 가 터진다. 아직 눌려 있을 때만 부른다.
+            if (Mouse.LeftButton == MouseButtonState.Pressed) DragMove();
         };
     }
 
