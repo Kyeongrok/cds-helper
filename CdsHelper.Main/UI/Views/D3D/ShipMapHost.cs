@@ -83,6 +83,9 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>커서가 이 칸 수 안에 있으면 뱃머리를 그대로 둔다 — 배 위에서 빙빙 돌지 않게.</summary>
     private const double TurnDeadZoneCells = 1.0;
 
+    /// <summary>닻이 배 한가운데에서 얼마나 왼쪽 아래로 비켜 걸리는지(칸).</summary>
+    private const double AnchorOffsetX = 0.9, AnchorOffsetY = 0.35;
+
     private double _tickAccum;
 
     // 마지막 프레임의 화면 원점. 클릭한 자리를 칸으로 되돌릴 때 쓴다.
@@ -106,8 +109,14 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>상륙해 뭍에 있는지. 배 대신 말이 나오고 지날 수 있는 칸이 뒤집힌다.</summary>
     private bool _onLand;
 
+    /// <summary>닻을 내렸는지. 내리면 그 자리에 서고, 올려야 다시 나아간다.</summary>
+    private bool _anchored;
+
     /// <summary>지금 뭍에 있는지.</summary>
     public bool IsOnLand => _onLand;
+
+    /// <summary>지금 정박 중인지.</summary>
+    public bool IsAnchored => _anchored;
 
     /// <summary>
     /// 방향 번호를 통째로 돌리는 값. 뱃머리가 일정하게 어긋날 때만 손대면 된다.
@@ -191,6 +200,7 @@ public sealed class ShipMapHost : HwndHost
         if (ocean == null) { Status = $"OCEAN.CDS 를 읽지 못했습니다 ({OceanTiles.LastError})"; return false; }
 
         _renderer.Initialize(world, ocean);
+        _renderer.SetOverlay(AnchorSprite.Pixels);   // 정박했을 때만 꺼내 쓴다
 
         // 배는 리스본에서 시작한다. 자리는 게임 원본 도시 표에서 가져온다.
         if (GameMapCoords.TryCityCell(LisbonCityId, out double lx, out double ly))
@@ -295,7 +305,17 @@ public sealed class ShipMapHost : HwndHost
             rect = (sx, sy, size, size);
         }
 
-        _renderer.RenderTo(_backBufferView, w, h, origin, (_cellsPerPixel, _cellsPerPixel), rect);
+        // 정박 중이면 배 왼쪽 아래에 닻을 걸어 둔다. 두 칸 크기다.
+        var anchor = (0f, 0f, 0f, 0f);
+        if (_anchored && _shipKnown)
+        {
+            float size = (float)(2.0 / _cellsPerPixel);
+            float ax = (float)((_shipX - AnchorOffsetX - origin.Item1) / _cellsPerPixel - size / 2);
+            float ay = (float)((_shipY + AnchorOffsetY - origin.Item2) / _cellsPerPixel - size / 2);
+            anchor = (ax, ay, size, size);
+        }
+
+        _renderer.RenderTo(_backBufferView, w, h, origin, (_cellsPerPixel, _cellsPerPixel), rect, anchor);
         _swapChain!.Present(1, PresentFlags.None);
         FrameCount++;
     }
@@ -315,7 +335,8 @@ public sealed class ShipMapHost : HwndHost
             }
             Sail(dt);
             Status = $"{(_onLand ? "말" : "배")} {_shipX:F1}, {_shipY:F1} 칸 · 방향 {_heading}/16 · " +
-                     (_blocked ? (_onLand ? "바다에 막혔습니다" : "육지에 막혔습니다")
+                     (_anchored ? "닻을 내리고 정박 중"
+                               : _blocked ? (_onLand ? "바다에 막혔습니다" : "육지에 막혔습니다")
                                : !_mouseInside ? "가던 쪽으로"
                                : _onLand ? "커서 쪽으로 이동 중" : "커서 쪽으로 항해 중") +
                      (_ship.IsAttached ? "" : " · 그림은 구워 둔 것");
@@ -377,6 +398,9 @@ public sealed class ShipMapHost : HwndHost
     private void Sail(double dt)
     {
         if (Paused) { _tickAccum = 0; return; }
+
+        // 닻을 내렸으면 그 자리에 선다. 뱃머리도 그대로 둬서 닻을 올리면 가던 쪽으로 다시 간다.
+        if (_anchored) { _tickAccum = 0; return; }
 
         // 커서가 창 밖으로 나가도 배는 가던 쪽으로 계속 간다. 커서는 방향을 바꿀 때만 쓴다.
         double dx = _targetX - _shipX, dy = _targetY - _shipY;
@@ -485,6 +509,19 @@ public sealed class ShipMapHost : HwndHost
         return WorldMapRenderer.GetCoastLandRatio(terrain);   // 해안 칸
     }
 
+    /// <summary>
+    /// 닻을 내리거나 올린다. 내리면 배가 그 자리에서 즉시 서고, 다시 올리면 가던 쪽으로 간다.
+    /// 뭍에서는(말) 내릴 닻이 없다.
+    /// </summary>
+    /// <returns>이제 정박 중이면 true.</returns>
+    public bool ToggleAnchor()
+    {
+        if (_onLand) return false;
+        _anchored = !_anchored;
+        _tickAccum = 0;
+        return _anchored;
+    }
+
     /// <summary>커서 자리를 알려 준다. 배는 이 쪽으로 나아간다.</summary>
     public void SetMouse(Point p, bool inside)
     {
@@ -534,6 +571,7 @@ public sealed class ShipMapHost : HwndHost
         _shipY = _targetY = cy;
         _shipKnown = true;
         _blocked = false;
+        _anchored = false;
         _tickAccum = 0;
         if (_follow) { _centerX = cx; _centerY = cy; }
     }
@@ -547,6 +585,7 @@ public sealed class ShipMapHost : HwndHost
         _shipY = _targetY = ly;
         _shipKnown = true;
         _blocked = false;
+        _anchored = false;
         _tickAccum = 0;
         _centerX = lx;
         _centerY = ly;
@@ -584,6 +623,7 @@ public sealed class ShipMapHost : HwndHost
         _targetY = _shipY;
         _onLand = true;
         _blocked = false;
+        _anchored = false;
         _tickAccum = 0;
         if (_follow) { _centerX = _shipX; _centerY = _shipY; }
         return true;
@@ -601,6 +641,7 @@ public sealed class ShipMapHost : HwndHost
         _targetY = _shipY;
         _onLand = false;
         _blocked = false;
+        _anchored = false;
         _tickAccum = 0;
         if (_follow) { _centerX = _shipX; _centerY = _shipY; }
         return true;

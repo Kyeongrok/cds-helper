@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
@@ -29,6 +30,16 @@ public sealed class ShipMapWindow : Window
         FontFamily = new FontFamily("Consolas"),
     };
     private readonly DispatcherTimerLite _statusTimer;
+    private readonly BgmPlayer _bgm = new();
+
+    /// <summary>지도 쪽 화면. 타이틀에서 고르면 이것으로 갈아 끼운다.</summary>
+    private FrameworkElement _mapRoot = null!;
+
+    /// <summary>게임 폴더. WORLD.CDS 도 bgm 도 여기서 읽는다.</summary>
+    private string _gameDir = "";
+
+    /// <summary>지도를 한 번 띄웠는지. <see cref="ShipMapHost.Start"/> 는 한 번만 부른다.</summary>
+    private bool _started;
 
     /// <summary>도시 ID -> 이름. 한 번만 불러 둔다.</summary>
     private Dictionary<int, string>? _cityNames;
@@ -128,7 +139,7 @@ public sealed class ShipMapWindow : Window
 
         var hint = new TextBlock
         {
-            Text = "Ctrl+클릭: 배 놓기",
+            Text = "왼쪽 클릭: 정박/닻 올리기 · Ctrl+클릭: 배 놓기",
             Foreground = Brushes.Gray,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 0, 0),
@@ -174,7 +185,11 @@ public sealed class ShipMapWindow : Window
         DockPanel.SetDock(barHost, Dock.Top);
         root.Children.Add(barHost);
         root.Children.Add(surface);
-        Content = root;
+        _mapRoot = root;
+
+        // 타이틀을 지도 위에 겹쳐 둘 수는 없다 — airspace 규칙상 D3D 자식 창이 WPF 를 덮는다.
+        // 그래서 겹치지 않고 통째로 갈아 끼운다. 타이틀이 떠 있는 동안은 자식 창 자체가 없다.
+        Content = BuildTitleScreen();
         input.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(input));
         // 왼쪽 끌기는 배 조종에 양보하고, 지도 밀기는 오른쪽 끌기로 옮겼다.
         // 오른쪽 단추는 둘을 겸한다 — 끌면 지도 밀기, 움직이지 않고 떼면 커맨드 메뉴.
@@ -197,7 +212,13 @@ public sealed class ShipMapWindow : Window
         input.MouseLeftButtonDown += (_, e) =>
         {
             // Ctrl 을 누른 채 찍으면 그 자리에 배를 놓는다. 시작 자리를 손으로 잡는 길이다.
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) _host.PlaceShipAt(e.GetPosition(input));
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+            {
+                _host.PlaceShipAt(e.GetPosition(input));
+                return;
+            }
+            // 그냥 찍으면 닻을 내리고 그 자리에 선다. 한 번 더 찍으면 올리고 다시 간다.
+            _host.ToggleAnchor();
         };
         input.MouseMove += (_, e) => { var p = e.GetPosition(input); _host.SetMouse(p, true); _host.Drag(p); };
         input.MouseLeave += (_, _) => _host.SetMouse(default, false);
@@ -205,7 +226,7 @@ public sealed class ShipMapWindow : Window
         _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), () =>
         {
             _status.Text = _host.Status;
-            _mode.Text = _host.IsOnLand ? "육지 이동" : "해상 이동";
+            _mode.Text = _host.IsOnLand ? "육지 이동" : _host.IsAnchored ? "정 박" : "해상 이동";
             CheckPort();
             var (lat, lon) = _host.ShipLatLon;
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
@@ -213,7 +234,132 @@ public sealed class ShipMapWindow : Window
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
         });
         Loaded += OnLoaded;
-        Closed += (_, _) => _statusTimer.Stop();
+        Closed += (_, _) => { _statusTimer.Stop(); _bgm.Dispose(); };
+    }
+
+    /// <summary>
+    /// 게임 첫 화면을 흉내낸 타이틀. 무늬를 깐 바탕 한가운데에 커맨드 창처럼 생긴 메뉴 상자를 둔다.
+    /// </summary>
+    private FrameworkElement BuildTitleScreen()
+    {
+        var items = new StackPanel();
+        items.Children.Add(new Border
+        {
+            Background = MenuBack,
+            BorderBrush = MenuEdge,
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(18, 2, 18, 2),
+            Margin = new Thickness(0, 0, 0, 6),
+            Child = new TextBlock
+            {
+                Text = "메인메뉴",
+                Foreground = MenuTitleFg,
+                FontWeight = FontWeights.Bold,
+                FontSize = 17,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            },
+        });
+        items.Children.Add(TitleMenuItem("NEW GAME", () => StartMap(fresh: true)));
+        items.Children.Add(TitleMenuItem("LOAD GAME", () => StartMap(fresh: false)));
+        items.Children.Add(TitleMenuItem("MINI GAME", null));
+        items.Children.Add(TitleMenuItem("END GAME", Close));
+
+        var box = new Border
+        {
+            Background = MenuBack,
+            BorderBrush = MenuEdge,
+            BorderThickness = new Thickness(3),
+            Padding = new Thickness(6),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = items,
+        };
+        return new Grid { Background = TitleBackground(), Children = { box } };
+    }
+
+    /// <summary>
+    /// 타이틀 바탕. <c>asset/title/title-tile.png</c> 가 있으면 바둑판처럼 깔고,
+    /// 없으면 무늬 없이 양피지색만 채운다.
+    /// </summary>
+    private static Brush TitleBackground()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "asset", "title", "title-tile.png");
+        if (!File.Exists(path)) return BarFill;
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource = new Uri(path);
+            bmp.CacheOption = BitmapCacheOption.OnLoad;   // 파일을 잡고 있지 않게 다 읽고 놓는다
+            bmp.EndInit();
+            bmp.Freeze();
+            return new ImageBrush(bmp)
+            {
+                TileMode = TileMode.Tile,
+                ViewportUnits = BrushMappingMode.Absolute,
+                Viewport = new Rect(0, 0, bmp.PixelWidth, bmp.PixelHeight),
+                Stretch = Stretch.Fill,
+            };
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 타이틀 무늬 로드 실패: {ex.Message}");
+            return BarFill;
+        }
+    }
+
+    /// <summary>타이틀 메뉴 한 줄. <paramref name="run"/> 이 null 이면 흐리게 두고 못 고른다.</summary>
+    private static Border TitleMenuItem(string text, Action? run)
+    {
+        var label = new TextBlock
+        {
+            Text = text,
+            Foreground = run != null ? Brushes.Black : Brushes.Gray,
+            FontWeight = FontWeights.Bold,
+            FontSize = 17,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        var item = new Border
+        {
+            Background = CellFill,
+            BorderBrush = BarEdge,
+            BorderThickness = new Thickness(2),
+            Margin = new Thickness(0, 0, 0, 3),
+            Padding = new Thickness(28, 3, 28, 3),
+            Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
+            Child = label,
+        };
+        if (run == null) return item;
+
+        // 게임처럼 커서가 올라간 줄만 짙게 뒤집는다.
+        item.MouseEnter += (_, _) => { item.Background = MenuBack; label.Foreground = MenuTitleFg; };
+        item.MouseLeave += (_, _) => { item.Background = CellFill; label.Foreground = Brushes.Black; };
+        item.MouseLeftButtonUp += (_, _) => run();
+        return item;
+    }
+
+    /// <summary>
+    /// 타이틀을 걷고 지도를 띄운다. <paramref name="fresh"/> 면 배를 리스본 앞바다에 새로 놓는다.
+    /// </summary>
+    private void StartMap(bool fresh)
+    {
+        Content = _mapRoot;
+
+        if (string.IsNullOrEmpty(_gameDir))
+        {
+            _status.Text = "세이브 파일 경로가 없습니다 — 먼저 세이브를 열어 주세요";
+            return;
+        }
+
+        if (!_started)
+        {
+            if (!_host.Start(_gameDir)) { _status.Text = _host.Status; return; }
+            _started = true;
+            _statusTimer.Start();
+        }
+
+        if (fresh) _host.ResetToLisbon();
+        _bgm.Play(BgmPlayer.SeaTrack);
     }
 
     /// <summary>
@@ -334,20 +480,18 @@ public sealed class ShipMapWindow : Window
         return _cityNames.TryGetValue(id, out var n) ? n : $"도시 {id}";
     }
 
+    /// <summary>
+    /// 게임 폴더를 잡고 타이틀 곡을 튼다. 지도는 아직 띄우지 않는다 —
+    /// 메뉴에서 NEW/LOAD 를 골라야 <see cref="StartMap"/> 로 넘어간다.
+    /// </summary>
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         var dir = Path.GetDirectoryName(AppSettings.LastSaveFilePath);
-        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
-        {
-            _status.Text = "세이브 파일 경로가 없습니다 — 먼저 세이브를 열어 주세요";
-            return;
-        }
-        if (!_host.Start(dir))
-        {
-            _status.Text = _host.Status;
-            return;
-        }
-        _statusTimer.Start();
+        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+
+        _gameDir = dir;
+        _bgm.SetGameDirectory(dir);
+        _bgm.Play(BgmPlayer.TitleTrack);
     }
 }
 
