@@ -40,6 +40,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     //   PS  화면 점 -> 칸 좌표 -> 타일 번호 -> 타일 안 점 -> 팔레트 순으로 짚는다.
     //       cell.x 를 2500 으로 나눈 나머지로 접어 경도 -180/180 을 잇는다.
     //       배 그림(SpriteRect)이 있으면 그 자리는 지도 대신 배를 낸다. 색인 0 은 비침이다.
+    //       덧그림(OverlayRect)은 배보다 먼저 보므로 배 위에 얹힌다 — 닻이 이것이다.
     private const string ShaderSource = """
         Texture2D<uint>   CellMap  : register(t0);
         Texture2D<uint>   Atlas    : register(t1);
@@ -48,6 +49,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         Texture2D<float4> Avg1     : register(t4);
         Texture2D<float4> Avg2     : register(t5);
         Texture2D<float4> Avg4     : register(t6);
+        Texture2D<float4> Overlay  : register(t7);
 
         cbuffer Frame : register(b0)
         {
@@ -57,6 +59,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             float2 MapCells;
             float  Detail;
             float  Pad;
+            float4 OverlayRect;
         };
 
         struct VSOut { float4 pos : SV_Position; };
@@ -71,6 +74,16 @@ public sealed unsafe class MapD3DRenderer : IDisposable
 
         float4 PS(VSOut i) : SV_Target
         {
+            if (OverlayRect.z > 0)
+            {
+                float2 v = (i.pos.xy - OverlayRect.xy) / OverlayRect.zw;
+                if (all(v >= 0) && all(v < 1))
+                {
+                    float4 c = Overlay.Load(int3(int2(v * 16.0), 0));
+                    if (c.a > 0) return c;
+                }
+            }
+
             if (SpriteRect.z > 0)
             {
                 float2 s = (i.pos.xy - SpriteRect.xy) / SpriteRect.zw;
@@ -108,6 +121,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         public float MapCellsX, MapCellsY;
         public float Detail;
         public float Pad0;
+        public float OverlayX, OverlayY, OverlayW, OverlayH;
     }
 
     private ID3D11Device _device = null!;
@@ -123,6 +137,11 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     private readonly ID3D11ShaderResourceView[] _avgSrv = new ID3D11ShaderResourceView[AvgLevels.Length];
     private ID3D11Texture2D _spriteTex = null!;
     private ID3D11ShaderResourceView _spriteSrv = null!;
+    private ID3D11Texture2D _overlayTex = null!;
+    private ID3D11ShaderResourceView _overlaySrv = null!;
+
+    /// <summary>덧그림 한 변. 셰이더에도 같은 값이 박혀 있다.</summary>
+    private const int OverlaySize = 16;
 
     private ID3D11Texture2D? _target;
     private ID3D11RenderTargetView? _rtv;
@@ -240,23 +259,30 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         return 3;
     }
 
-    /// <summary>배/말 그림 48x48 한 장. 매 프레임 갈아 끼우므로 쓰기 가능으로 잡는다.</summary>
+    /// <summary>
+    /// 배/말 그림 48x48 한 장과 덧그림(닻) 16x16 한 장. 매 프레임 갈아 끼울 수 있게
+    /// 쓰기 가능으로 잡는다.
+    /// </summary>
     private void CreateSpriteTexture()
     {
-        _spriteTex = _device.CreateTexture2D(new Texture2DDescription
-        {
-            Width = 48,
-            Height = 48,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = Format.B8G8R8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Dynamic,
-            BindFlags = BindFlags.ShaderResource,
-            CPUAccessFlags = CpuAccessFlags.Write,
-        });
+        _spriteTex = CreateDynamic(48);
         _spriteSrv = _device.CreateShaderResourceView(_spriteTex);
+        _overlayTex = CreateDynamic(OverlaySize);
+        _overlaySrv = _device.CreateShaderResourceView(_overlayTex);
     }
+
+    private ID3D11Texture2D CreateDynamic(int side) => _device.CreateTexture2D(new Texture2DDescription
+    {
+        Width = (uint)side,
+        Height = (uint)side,
+        MipLevels = 1,
+        ArraySize = 1,
+        Format = Format.B8G8R8A8_UNorm,
+        SampleDescription = new SampleDescription(1, 0),
+        Usage = ResourceUsage.Dynamic,
+        BindFlags = BindFlags.ShaderResource,
+        CPUAccessFlags = CpuAccessFlags.Write,
+    });
 
     private ID3D11ShaderResourceView CreateImmutable<T>(T[] data, int w, int h, Format fmt, int stride)
         where T : unmanaged
@@ -283,19 +309,24 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     }
 
     /// <summary>배 그림을 갈아 끼운다. 48x48 BGRA 이고 알파 0 이 비침이다.</summary>
-    public void SetSprite(ReadOnlySpan<uint> bgra48X48)
+    public void SetSprite(ReadOnlySpan<uint> bgra48X48) => Upload(_spriteTex, bgra48X48, 48);
+
+    /// <summary>배 위에 얹을 덧그림(닻)을 갈아 끼운다. 16x16 BGRA 다.</summary>
+    public void SetOverlay(ReadOnlySpan<uint> bgra16X16) => Upload(_overlayTex, bgra16X16, OverlaySize);
+
+    private void Upload(ID3D11Texture2D tex, ReadOnlySpan<uint> bgra, int side)
     {
-        if (bgra48X48.Length < 48 * 48) return;
-        var map = _ctx.Map(_spriteTex, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
+        if (bgra.Length < side * side) return;
+        var map = _ctx.Map(tex, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         try
         {
-            for (int y = 0; y < 48; y++)
+            for (int y = 0; y < side; y++)
             {
-                var dst = new Span<uint>((void*)(map.DataPointer + y * map.RowPitch), 48);
-                bgra48X48.Slice(y * 48, 48).CopyTo(dst);
+                var dst = new Span<uint>((void*)(map.DataPointer + y * map.RowPitch), side);
+                bgra.Slice(y * side, side).CopyTo(dst);
             }
         }
-        finally { _ctx.Unmap(_spriteTex, 0); }
+        finally { _ctx.Unmap(tex, 0); }
     }
 
     /// <summary>그릴 대상 크기를 맞춘다. 바뀌었으면 새 텍스처를 만들고 true.</summary>
@@ -330,10 +361,11 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     /// <paramref name="spriteRect"/> 는 배 그림이 놓일 화면 사각형(폭이 0 이하면 안 그린다).
     /// </summary>
     public void Render((double X, double Y) originCell, (double X, double Y) cellsPerPixel,
-                       (float X, float Y, float W, float H) spriteRect)
+                       (float X, float Y, float W, float H) spriteRect,
+                       (float X, float Y, float W, float H) overlayRect = default)
     {
         if (_rtv == null) return;
-        RenderTo(_rtv, _targetW, _targetH, originCell, cellsPerPixel, spriteRect);
+        RenderTo(_rtv, _targetW, _targetH, originCell, cellsPerPixel, spriteRect, overlayRect);
         _ctx.Flush();
     }
 
@@ -343,7 +375,8 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     /// </summary>
     public void RenderTo(ID3D11RenderTargetView rtv, int width, int height,
                          (double X, double Y) originCell, (double X, double Y) cellsPerPixel,
-                         (float X, float Y, float W, float H) spriteRect)
+                         (float X, float Y, float W, float H) spriteRect,
+                         (float X, float Y, float W, float H) overlayRect = default)
     {
         var cb = new FrameCb
         {
@@ -358,6 +391,10 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             MapCellsX = WorldMapRenderer.UnfoldedW,
             MapCellsY = WorldMapRenderer.CellH,
             Detail = PickDetail(cellsPerPixel.X),
+            OverlayX = overlayRect.X,
+            OverlayY = overlayRect.Y,
+            OverlayW = overlayRect.W,
+            OverlayH = overlayRect.H,
         };
         var map = _ctx.Map(_cb, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         *(FrameCb*)map.DataPointer = cb;
@@ -371,7 +408,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         _ctx.PSSetShader(_ps);
         _ctx.PSSetConstantBuffer(0, _cb);
         _ctx.PSSetShaderResources(0, [_cellSrv, _atlasSrv, _paletteSrv, _spriteSrv,
-                                      _avgSrv[0], _avgSrv[1], _avgSrv[2]]);
+                                      _avgSrv[0], _avgSrv[1], _avgSrv[2], _overlaySrv]);
         _ctx.Draw(3, 0);
     }
 
@@ -409,6 +446,8 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     {
         _rtv?.Dispose();
         _target?.Dispose();
+        _overlaySrv?.Dispose();
+        _overlayTex?.Dispose();
         _spriteSrv?.Dispose();
         _spriteTex?.Dispose();
         foreach (var a in _avgSrv) a?.Dispose();

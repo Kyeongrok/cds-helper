@@ -50,7 +50,7 @@ public class SettingsDialog : Window
     {
         Title = "설정";
         Width = 400;
-        Height = 460;
+        SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
 
