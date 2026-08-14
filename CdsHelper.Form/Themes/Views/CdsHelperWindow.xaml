@@ -155,6 +155,8 @@
                                         <MenuItem Header="스핑크스" x:Name="PART_SphinxMenu" />
                                         <MenuItem Header="이벤트 큐 보기" x:Name="PART_EventQueueMenu" />
                                         <MenuItem Header="DB 테이블 보기" x:Name="PART_DbTableViewerMenu" />
+                                        <MenuItem Header="효과음 보기" x:Name="PART_WaveBankMenu"
+                                                  ToolTip="WAVES.CDS 에 든 게임 효과음" />
                                     </MenuItem>
                                     <MenuItem Header="도움말" x:Name="PART_HelpMenu" />
                                 </Menu>

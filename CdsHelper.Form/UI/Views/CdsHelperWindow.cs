@@ -21,6 +21,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_SphinxMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DiscoveryMenu, Type = typeof(MenuItem))]
@@ -35,6 +36,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_SphinxMenu = "PART_SphinxMenu";
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
+    private const string PART_WaveBankMenu = "PART_WaveBankMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
     private const string PART_HelpMenu = "PART_HelpMenu";
     private const string PART_DiscoveryMenu = "PART_DiscoveryMenu";
@@ -86,6 +88,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_DbTableViewerMenu) is MenuItem dbTableViewerMenu)
         {
             dbTableViewerMenu.Click += OnDbTableViewerMenuClick;
+        }
+
+        if (GetTemplateChild(PART_WaveBankMenu) is MenuItem waveBankMenu)
+        {
+            waveBankMenu.Click += OnWaveBankMenuClick;
         }
 
         if (GetTemplateChild(PART_ShipMapMenu) is MenuItem shipMapMenu)
@@ -206,6 +213,16 @@ public class CdsHelperWindow : CdsWindow
     private void OnEventQueueMenuClick(object sender, RoutedEventArgs e)
     {
         var dialog = new EventQueueDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
+    // WAVES.CDS 에 든 게임 효과음 50개를 늘어놓고 들어 보는 창.
+    private void OnWaveBankMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new WaveBankDialog
         {
             Owner = this
         };
