@@ -491,22 +491,56 @@ public sealed class ShipMapHost : HwndHost
     private double LandRatioAt(double cellX, double cellY)
     {
         if (_world == null) return 0;
+        if (cellY < 0 || cellY >= WorldMapRenderer.CellH) return 1;
 
-        int cx = (int)Math.Floor(cellX);
-        int cy = (int)Math.Floor(cellY);
-        cx -= (int)Math.Floor(cx / (double)WorldMapRenderer.UnfoldedW) * WorldMapRenderer.UnfoldedW;
-        if (cy < 0 || cy >= WorldMapRenderer.CellH) return 1;
-
-        // 짝수 행이 지도의 왼쪽 절반, 홀수 행이 오른쪽 절반이다.
-        bool right = cx >= WorldMapRenderer.CellW;
-        int col = right ? cx - WorldMapRenderer.CellW : cx;
-        int row = cy * 2 + (right ? 1 : 0);
-        int off = row * WorldMapRenderer.RawStride + col * 2;
-
+        int off = RawAt(cellX, cellY).Offset;
         byte terrain = (byte)(_world[off] & 0x7F);
         if (terrain == 0) return 0;   // 바다
         if (terrain == 1) return 1;   // 육지
         return WorldMapRenderer.GetCoastLandRatio(terrain);   // 해안 칸
+    }
+
+    /// <summary>
+    /// 칸 좌표가 WORLD.CDS 파일 안에서 놓인 자리. 파일은 2500바이트 행이 2500줄이고,
+    /// 짝수 행이 지도의 왼쪽 절반, 홀수 행이 오른쪽 절반이다(한 칸 2바이트).
+    /// </summary>
+    private static (int CellX, int CellY, int Row, int Col, int Offset) RawAt(double cellX, double cellY)
+    {
+        int cx = (int)Math.Floor(cellX);
+        int cy = (int)Math.Floor(cellY);
+        cx -= (int)Math.Floor(cx / (double)WorldMapRenderer.UnfoldedW) * WorldMapRenderer.UnfoldedW;
+        cy = Math.Clamp(cy, 0, WorldMapRenderer.CellH - 1);
+
+        bool right = cx >= WorldMapRenderer.CellW;
+        int col = right ? cx - WorldMapRenderer.CellW : cx;
+        int row = cy * 2 + (right ? 1 : 0);
+        return (cx, cy, row, col, row * WorldMapRenderer.RawStride + col * 2);
+    }
+
+    /// <summary>한 칸이 WORLD.CDS 안에서 어디에 어떻게 적혀 있는지. 좌표 겹쳐 보기에 쓴다.</summary>
+    public readonly record struct CellInfo(
+        double X, double Y, int CellX, int CellY,
+        int Row, int Col, int Offset, byte Terrain, byte Attr, int Tile, double LandRatio);
+
+    /// <summary>지금 배가 선 칸.</summary>
+    public CellInfo? ShipCell => _shipKnown ? Describe(_shipX, _shipY) : null;
+
+    /// <summary>커서가 가리키는 칸. 커서가 창 밖이면 null.</summary>
+    public CellInfo? MouseCell => _mouseInside && _ready
+        ? Describe(_lastOrigin.X + _mouse.X * _lastDpiX * _cellsPerPixel,
+                   _lastOrigin.Y + _mouse.Y * _lastDpiY * _cellsPerPixel)
+        : null;
+
+    /// <summary>그 자리의 칸 정보를 모아 준다. 지도를 아직 안 읽었으면 값이 0 이다.</summary>
+    private CellInfo? Describe(double cellX, double cellY)
+    {
+        if (_world == null) return null;
+        var (cx, cy, row, col, off) = RawAt(cellX, cellY);
+        byte terrain = (byte)(_world[off] & 0x7F);
+        return new CellInfo(cellX, cellY, cx, cy, row, col, off,
+                            terrain, _world[off + 1],
+                            WorldMapRenderer.CellToTile(_world, off),
+                            LandRatioAt(cellX, cellY));
     }
 
     /// <summary>
@@ -664,26 +698,68 @@ public sealed class ShipMapHost : HwndHost
     }
 
     /// <summary>
-    /// 배에서 <paramref name="radiusCells"/> 칸 안에 있는 가장 가까운 도시 ID. 없으면 -1.
-    /// 자리는 게임 원본 도시 표를 그대로 쓴다.
+    /// 접안으로 치는 거리. 배가 항구 칸에서 이만큼 안에 들어와야 입항을 묻는다.
     /// </summary>
-    public int NearestCity(double radiusCells = 6)
+    /// <remarks>
+    /// 예전에는 도시 <b>중심</b>에서 6칸이었다. 도시 중심은 뭍이라 배가 닿을 수 없는 자리인데다
+    /// 6칸이면 화면으로 200점 가까이 떨어진 먼바다여서, 접안하기 한참 전에 물음창이 떴다.
+    /// 그래서 기준을 도시 앞 항구 칸으로 옮기고 거리도 배 한 척 길이만큼으로 줄였다.
+    /// </remarks>
+    private const double DockRadiusCells = 2.0;
+
+    /// <summary>도시 중심이 이보다 멀면 항구 칸을 구해 볼 것도 없다. 거르는 데만 쓴다.</summary>
+    private const double HarborSearchCells = 8;
+
+    /// <summary>도시 ID -> 항구 칸(도시에서 가장 가까운 물칸). 한 번 구하면 들고 있는다.</summary>
+    private readonly Dictionary<int, (double X, double Y)> _harbors = [];
+
+    /// <summary>
+    /// 배가 접안한 도시 ID. 없으면 -1. 자리는 게임 원본 도시 표에서 구한 항구 칸이다.
+    /// </summary>
+    public int NearestCity(double radiusCells = DockRadiusCells) => NearestDock(radiusCells).Id;
+
+    /// <summary>
+    /// 배에 가장 가까운 항구와 그 거리(칸). <paramref name="radiusCells"/> 밖이면 ID 가 -1 이다.
+    /// 반지름은 꼭 적는다 — 넓을수록 도시마다 항구 칸을 찾아야 해서 무거워진다.
+    /// </summary>
+    public (int Id, double Cells) NearestDock(double radiusCells)
     {
-        if (!_shipKnown) return -1;
+        if (!_shipKnown) return (-1, double.NaN);
         int best = -1;
         double bestD = radiusCells * radiusCells;
+        double coarse = radiusCells + HarborSearchCells;
+        double coarseSq = coarse * coarse;
+
         for (int id = 0; id < GameMapCoords.CityCount; id++)
         {
             if (!GameMapCoords.TryCityCell(id, out double cx, out double cy)) continue;
-            // 가로는 이어져 있으므로 지도 반 바퀴를 넘으면 반대쪽으로 재는 게 가깝다.
-            double dx = cx - _shipX;
-            if (dx > WorldMapRenderer.UnfoldedW / 2.0) dx -= WorldMapRenderer.UnfoldedW;
-            if (dx < -WorldMapRenderer.UnfoldedW / 2.0) dx += WorldMapRenderer.UnfoldedW;
-            double dy = cy - _shipY;
-            double d = dx * dx + dy * dy;
+            // 먼 도시는 항구 칸을 찾을 것도 없이 도시 중심만으로 거른다 — 항구 찾기가 무겁다.
+            if (DistanceSq(cx, cy) > coarseSq) continue;
+
+            var harbor = Harbor(id, cx, cy);
+            double d = DistanceSq(harbor.X, harbor.Y);
             if (d < bestD) { bestD = d; best = id; }
         }
-        return best;
+        return (best, best < 0 ? double.NaN : Math.Sqrt(bestD));
+    }
+
+    /// <summary>배가 닿을 수 있는 도시 앞 물칸. 도시 중심이 뭍이므로 한 칸씩 넓혀 가며 찾는다.</summary>
+    private (double X, double Y) Harbor(int id, double cityX, double cityY)
+    {
+        if (_harbors.TryGetValue(id, out var cached)) return cached;
+        var spot = NearestWater(cityX, cityY);
+        _harbors[id] = spot;
+        return spot;
+    }
+
+    /// <summary>배에서 그 칸까지 거리의 제곱. 가로가 이어져 있는 것을 셈에 넣는다.</summary>
+    private double DistanceSq(double cellX, double cellY)
+    {
+        double dx = cellX - _shipX;
+        if (dx > WorldMapRenderer.UnfoldedW / 2.0) dx -= WorldMapRenderer.UnfoldedW;
+        if (dx < -WorldMapRenderer.UnfoldedW / 2.0) dx += WorldMapRenderer.UnfoldedW;
+        double dy = cellY - _shipY;
+        return dx * dx + dy * dy;
     }
 
     /// <summary>입항. 배를 세우고 알린다.</summary>
