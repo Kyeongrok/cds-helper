@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -67,6 +68,25 @@ public sealed class ShipMapWindow : Window
         FontSize = 14,
         VerticalAlignment = VerticalAlignment.Center,
     };
+
+    /// <summary>지도 위에 겹쳐 띄우는 좌표 상자의 글.</summary>
+    private readonly TextBlock _overlayText = new()
+    {
+        Foreground = Brushes.White,
+        FontFamily = new FontFamily("Consolas"),
+        FontSize = 12,
+        LineHeight = 16,
+        LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+    };
+
+    /// <summary>
+    /// 좌표 상자. <see cref="Popup"/> 은 제 창(HWND)을 쓰므로 D3D 자식 창 위에 제대로 뜬다 —
+    /// 커맨드 메뉴와 같은 수를 쓴 것이다. 보통 WPF 요소로는 airspace 에 막혀 얹을 수 없다.
+    /// </summary>
+    private Popup _overlay = null!;
+
+    /// <summary>좌표 상자를 켜 두었는지. 실제로 뜨는지는 <see cref="SyncOverlay"/> 가 정한다.</summary>
+    private bool _overlayWanted = true;
 
     // 게임 화면 위쪽 띠에서 뽑은 색. 누런 양피지 바탕에 어두운 테두리다.
     private static readonly Brush BarFill = new SolidColorBrush(Color.FromRgb(0xC8, 0xBF, 0xA0));
@@ -137,6 +157,18 @@ public sealed class ShipMapWindow : Window
         };
         toLisbon.Click += (_, _) => { follow.IsChecked = true; _host.ResetToLisbon(); };
 
+        var showCoords = new CheckBox
+        {
+            Content = "좌표 겹쳐 보기",
+            IsChecked = true,
+            Foreground = Brushes.Gainsboro,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 4, 0),
+            ToolTip = "배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄웁니다",
+        };
+        showCoords.Checked += (_, _) => { _overlayWanted = true; SyncOverlay(); };
+        showCoords.Unchecked += (_, _) => { _overlayWanted = false; SyncOverlay(); };
+
         var hint = new TextBlock
         {
             Text = "왼쪽 클릭: 정박/닻 올리기 · Ctrl+클릭: 배 놓기",
@@ -154,6 +186,8 @@ public sealed class ShipMapWindow : Window
         DockPanel.SetDock(recenter, Dock.Left);
         bar.Children.Add(toLisbon);
         DockPanel.SetDock(toLisbon, Dock.Left);
+        bar.Children.Add(showCoords);
+        DockPanel.SetDock(showCoords, Dock.Left);
         bar.Children.Add(hint);
         DockPanel.SetDock(hint, Dock.Left);
         bar.Children.Add(_status);
@@ -165,6 +199,28 @@ public sealed class ShipMapWindow : Window
         var surface = new Grid();
         surface.Children.Add(_host);
         surface.Children.Add(input);
+
+        // 좌표 상자는 지도 왼쪽 위에 겹쳐 둔다. 히트테스트를 꺼서 그 밑으로 배를 몰 수 있게 한다.
+        _overlay = new Popup
+        {
+            PlacementTarget = input,
+            Placement = PlacementMode.Relative,
+            HorizontalOffset = 10,
+            VerticalOffset = 10,
+            AllowsTransparency = true,
+            StaysOpen = true,
+            IsHitTestVisible = false,
+            Child = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0xB4, 0x10, 0x10, 0x10)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, 0xC8, 0xB4, 0x90)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(10, 6, 10, 6),
+                IsHitTestVisible = false,
+                Child = _overlayText,
+            },
+        };
+        surface.Children.Add(_overlay);   // 자리만 잡아 둔다 — 실제로는 제 창에 뜬다
 
         // 게임 상단 띠 — 지금은 위경도 한 칸만 둔다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
@@ -232,9 +288,49 @@ public sealed class ShipMapWindow : Window
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
+            if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
         });
         Loaded += OnLoaded;
-        Closed += (_, _) => { _statusTimer.Stop(); _bgm.Dispose(); };
+
+        // 창이 물러나거나 접히면 좌표 상자도 같이 감춘다 — 제 창이라 그냥 두면 남의 앱 위에 뜬다.
+        Activated += (_, _) => SyncOverlay();
+        Deactivated += (_, _) => SyncOverlay();
+        StateChanged += (_, _) => SyncOverlay();
+        Closed += (_, _) => { _overlay.IsOpen = false; _statusTimer.Stop(); _bgm.Dispose(); };
+    }
+
+    /// <summary>좌표 상자를 띄울 때인지 다시 따진다 — 켜 두었고, 지도가 떠 있고, 이 창이 앞일 때만.</summary>
+    private void SyncOverlay() =>
+        _overlay.IsOpen = _overlayWanted && _started && IsActive
+                          && WindowState != WindowState.Minimized
+                          && ReferenceEquals(Content, _mapRoot);
+
+    /// <summary>
+    /// 좌표 상자에 적을 글. 배가 선 칸을 WORLD.CDS 파일 안의 자리까지 풀어서 보여 준다.
+    /// </summary>
+    private string BuildOverlayText(double lat, double lon)
+    {
+        var c = _host.ShipCell;
+        if (c == null) return "배가 아직 지도에 없습니다";
+
+        var v = c.Value;
+        var lines = new List<string>
+        {
+            $"칸        {v.X,7:F1}, {v.Y,6:F1}   (칸 {v.CellX}, {v.CellY})",
+            $"WORLD.CDS 행 {v.Row,4} · 열 {v.Col,4} · 0x{v.Offset:X5}",
+            $"칸 값     지형 {v.Terrain,3} · 속성 {v.Attr,3} · 타일 {v.Tile,5} · 육지 {v.LandRatio * 100,3:F0}%",
+            $"위경도    {(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat):F2} · {(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon):F2}",
+        };
+
+        // 40칸까지만 본다. 더 넓히면 도시마다 항구 칸을 찾느라 100ms 틱이 무거워진다.
+        var (city, cells) = _host.NearestDock(40);
+        if (city >= 0) lines.Add($"가까운 항구 [{CityName(city)}] {cells:F1}칸");
+
+        var m = _host.MouseCell;
+        if (m != null)
+            lines.Add($"커서      {m.Value.X,7:F1}, {m.Value.Y,6:F1}   0x{m.Value.Offset:X5}");
+
+        return string.Join("\n", lines);
     }
 
     /// <summary>
@@ -360,6 +456,7 @@ public sealed class ShipMapWindow : Window
 
         if (fresh) _host.ResetToLisbon();
         _bgm.Play(BgmPlayer.SeaTrack);
+        SyncOverlay();
     }
 
     /// <summary>
