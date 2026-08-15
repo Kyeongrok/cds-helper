@@ -1,3 +1,5 @@
+using CdsHelper.Support.Local.Models;
+
 namespace CdsHelper.Support.Local.Helpers;
 
 /// <summary>
@@ -41,6 +43,18 @@ public static class CityBuildings
 
     /// <summary>술집 자리. 없으면 null.</summary>
     public static Spot? Tavern(int cityId) => At(TavernX, TavernY, cityId, TavernW, TavernH);
+
+    /// <summary>
+    /// 그 시설이 이 도시 그림에서 어디에 있는지. 아직 그림을 못 짚은 시설은 늘 null 이다 —
+    /// 그런 시설은 도시 창에 나오지 않는다.
+    /// </summary>
+    public static Spot? Of(FacilityKind kind, int cityId) => kind switch
+    {
+        FacilityKind.Harbor => Harbor(cityId),
+        FacilityKind.Shipyard => Shipyard(cityId),
+        FacilityKind.Tavern => Tavern(cityId),
+        _ => null,
+    };
 
     private static Spot? At(int[] xs, int[] ys, int id, int w, int h) =>
         id >= 0 && id < xs.Length && xs[id] >= 0 ? new Spot(xs[id], ys[id], w, h) : null;
