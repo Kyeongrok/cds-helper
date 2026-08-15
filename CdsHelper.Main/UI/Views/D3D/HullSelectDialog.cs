@@ -61,8 +61,11 @@ public sealed class HullSelectDialog : Window
         buttons.Children.Add(_decide);
         buttons.Children.Add(GameUi.PushButton("중단", Close));
 
+        var title = GameUi.TitleBar("선체종류 선택", Close);
+        GameUi.EnableDrag(this, title);   // 제목 줄을 잡아 옮긴다
+
         var stack = new StackPanel();
-        stack.Children.Add(GameUi.TitleBar("선체종류 선택", Close));
+        stack.Children.Add(title);
         stack.Children.Add(new Border
         {
             Background = GameUi.PageFill,

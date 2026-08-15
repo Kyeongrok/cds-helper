@@ -19,6 +19,9 @@ internal static class GameUi
     public static readonly Brush ItemEdge = new SolidColorBrush(Color.FromRgb(0x4A, 0x40, 0x30));
     public static readonly Brush PageFill = new SolidColorBrush(Color.FromRgb(0xF2, 0xE4, 0xC8));
 
+    /// <summary>도시에 들어가 있는 동안 지도를 덮는 남색. 게임 화면에서 뽑았다.</summary>
+    public static readonly Brush MapCover = new SolidColorBrush(Color.FromRgb(0x24, 0x37, 0x5B));
+
     /// <summary>
     /// 제목 줄. 오른쪽 끝에 닫기(X) 단추를 둔다 — 게임 창들도 그 자리에 있다.
     /// <paramref name="onClose"/> 가 null 이면 단추 없이 제목만 낸다.
@@ -150,6 +153,19 @@ internal static class GameUi
         };
         if (run != null) b.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
         return b;
+    }
+
+    /// <summary>
+    /// 제목 줄을 잡아 창을 옮길 수 있게 한다. 제목 줄이 없는 창(<c>WindowStyle.None</c>)이라
+    /// 이렇게 붙여 줘야 옮길 데가 생긴다.
+    /// </summary>
+    public static void EnableDrag(Window window, UIElement handle)
+    {
+        handle.MouseLeftButtonDown += (_, _) =>
+        {
+            // 누르자마자 뗀 경우 DragMove 가 터진다. 아직 눌려 있을 때만 부른다.
+            if (Mouse.LeftButton == MouseButtonState.Pressed) window.DragMove();
+        };
     }
 
     /// <summary>건물 위에 커서를 올렸을 때 밑에 붙는 이름표.</summary>

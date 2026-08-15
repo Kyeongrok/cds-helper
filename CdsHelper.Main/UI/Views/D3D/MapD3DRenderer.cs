@@ -60,9 +60,15 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             float  Detail;
             float  Pad;
             float4 OverlayRect;
+            float4 Cover;
         };
 
         struct VSOut { float4 pos : SV_Position; };
+
+        float4 Tint(float4 c)
+        {
+            return float4(lerp(c.rgb, Cover.rgb, Cover.a), 1);
+        }
 
         VSOut VS(uint id : SV_VertexID)
         {
@@ -80,7 +86,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 if (all(v >= 0) && all(v < 1))
                 {
                     float4 c = Overlay.Load(int3(int2(v * 16.0), 0));
-                    if (c.a > 0) return c;
+                    if (c.a > 0) return Tint(c);
                 }
             }
 
@@ -90,7 +96,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 if (all(s >= 0) && all(s < 1))
                 {
                     float4 c = Sprite.Load(int3(int2(s * 48.0), 0));
-                    if (c.a > 0) return c;
+                    if (c.a > 0) return Tint(c);
                 }
             }
 
@@ -103,12 +109,12 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             int2 org  = int2(tile % 128u, tile / 128u);
             float2 f  = frac(cell);
 
-            if (Detail < 0.5) return Avg1.Load(int3(org, 0));
-            if (Detail < 1.5) return Avg2.Load(int3(org * 2 + int2(f * 2.0), 0));
-            if (Detail < 2.5) return Avg4.Load(int3(org * 4 + int2(f * 4.0), 0));
+            if (Detail < 0.5) return Tint(Avg1.Load(int3(org, 0)));
+            if (Detail < 1.5) return Tint(Avg2.Load(int3(org * 2 + int2(f * 2.0), 0)));
+            if (Detail < 2.5) return Tint(Avg4.Load(int3(org * 4 + int2(f * 4.0), 0)));
 
             uint pal = Atlas.Load(int3(org * 16 + int2(f * 16.0), 0));
-            return Palette.Load(int3(int(pal), 0, 0));
+            return Tint(Palette.Load(int3(int(pal), 0, 0)));
         }
         """;
 
@@ -122,7 +128,14 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         public float Detail;
         public float Pad0;
         public float OverlayX, OverlayY, OverlayW, OverlayH;
+        public float CoverR, CoverG, CoverB, CoverA;
     }
+
+    /// <summary>
+    /// 지도 위에 씌우는 막(색과 짙기). 알파가 0 이면 아무것도 안 씌운다 —
+    /// 도시에 들어가 있는 동안 게임이 지도를 이렇게 덮는다(색을 칠하는 것이 아니라 비쳐 보인다).
+    /// </summary>
+    public (float R, float G, float B, float A) Cover { get; set; }
 
     private ID3D11Device _device = null!;
     private ID3D11DeviceContext _ctx = null!;
@@ -395,6 +408,10 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             OverlayY = overlayRect.Y,
             OverlayW = overlayRect.W,
             OverlayH = overlayRect.H,
+            CoverR = Cover.R,
+            CoverG = Cover.G,
+            CoverB = Cover.B,
+            CoverA = Cover.A,
         };
         var map = _ctx.Map(_cb, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         *(FrameCb*)map.DataPointer = cb;
