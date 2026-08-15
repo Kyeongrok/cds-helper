@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
 
@@ -51,6 +52,9 @@ public sealed class ShipMapWindow : Window
     /// <summary>다이얼로그가 떠 있는 동안 또 묻지 않게.</summary>
     private bool _asking;
 
+    /// <summary>주인공 — 소지금과 가진 배. 조선소에서 배를 사면 여기서 돈이 빠진다.</summary>
+    private readonly Player _player = new();
+
     /// <summary>도시 그림(CITYCG.CDS). 20MB 라 입항을 처음 할 때에야 연다.</summary>
     private CityPictures? _cityPics;
 
@@ -59,6 +63,15 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>지금 이동 모드 — 해상인지 육지인지.</summary>
     private readonly TextBlock _mode = new()
+    {
+        Foreground = Brushes.Black,
+        FontWeight = FontWeights.Bold,
+        FontSize = 14,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    /// <summary>게임 상단 바의 소지금·함선 칸.</summary>
+    private readonly TextBlock _purse = new()
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
@@ -232,6 +245,7 @@ public sealed class ShipMapWindow : Window
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
         gameCells.Children.Add(GameCell(_mode));
         gameCells.Children.Add(GameCell(_coord));
+        gameCells.Children.Add(GameCell(_purse));
         var gameBar = new Border
         {
             Background = BarFill,
@@ -294,6 +308,7 @@ public sealed class ShipMapWindow : Window
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
+            _purse.Text = $"{_player.Gold}닢 · 함선 {_player.Ships.Count}/{Player.MaxShips}";
             if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
         });
         Loaded += OnLoaded;
@@ -571,6 +586,10 @@ public sealed class ShipMapWindow : Window
     /// 입항한 도시의 그림을 지도 한가운데에 띄운다. CITYCG.CDS 가 없거나 그림을 못 풀면
     /// 조용히 넘어간다 — 그림은 덤이고, 입항은 이미 끝났다.
     /// </summary>
+    /// <remarks>
+    /// 도시에 들어가 있는 동안에는 곡이 바뀐다. 창을 닫고 나오면 바다 곡으로 되돌린다 —
+    /// 그림을 못 띄우는 경우에는 곡도 건드리지 않는다.
+    /// </remarks>
     private void ShowCityPicture(int city, string name)
     {
         if (_cityPics == null)
@@ -584,7 +603,16 @@ public sealed class ShipMapWindow : Window
                 return;
             }
         }
-        CityPicDialog.Show(this, _cityPics, city, name);
+
+        _bgm.Play(BgmPlayer.CityTrack);
+        try
+        {
+            CityPicDialog.Show(this, _cityPics, city, name, _player, _bgm);
+        }
+        finally
+        {
+            _bgm.Play(BgmPlayer.SeaTrack);
+        }
     }
 
     /// <summary>도시 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
@@ -614,11 +642,22 @@ public sealed class ShipMapWindow : Window
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         var dir = Path.GetDirectoryName(AppSettings.LastSaveFilePath);
-        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+        {
+            // 곡을 못 트는 흔한 까닭이 이것이다 — 세이브를 한 번도 안 열었으면 게임 폴더를 모른다.
+            _status.Text = "세이브 파일 경로가 없습니다 — 먼저 세이브를 열어 주세요";
+            System.Diagnostics.Debug.WriteLine("[ShipMap] 게임 폴더를 몰라 BGM 을 못 틉니다");
+            return;
+        }
 
         _gameDir = dir;
         _bgm.SetGameDirectory(dir);
-        _bgm.Play(BgmPlayer.TitleTrack);
+        _bgm.Play(BgmPlayer.TitleTrack);   // 메뉴 화면에서는 bgm/Track23.mp3
+        if (_bgm.LastError.Length > 0)
+        {
+            _status.Text = _bgm.LastError;
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] BGM — {_bgm.LastError}");
+        }
     }
 }
 

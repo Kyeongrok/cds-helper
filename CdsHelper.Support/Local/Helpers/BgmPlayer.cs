@@ -20,6 +20,12 @@ public sealed class BgmPlayer : IDisposable
     /// <summary>바다에서 도는 곡.</summary>
     public const int SeaTrack = 15;
 
+    /// <summary>도시에 들어가 있는 동안 도는 곡.</summary>
+    public const int CityTrack = 10;
+
+    /// <summary>술집에 들어가 있는 동안 도는 곡.</summary>
+    public const int TavernTrack = 22;
+
     private readonly MediaPlayer _player = new();
     private string _dir = "";
     private int _track = -1;
