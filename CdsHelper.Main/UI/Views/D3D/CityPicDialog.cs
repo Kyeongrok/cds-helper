@@ -40,17 +40,32 @@ public sealed class CityPicDialog : Window
     public bool Sailed { get; private set; }
 
     private CityPicDialog(string cityName, BitmapSource picture, int scale, int cityId,
-                          Player player, BgmPlayer? bgm)
+                          Player player, BgmPlayer? bgm, Rect mapArea)
     {
         _player = player;
         _bgm = bgm;
 
+        Title = cityName;                 // 화면에는 안 나온다 — 창 목록에서만 쓴다
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
-        SizeToContent = SizeToContent.WidthAndHeight;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
-        Background = GameUi.Back;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        Background = Brushes.Black;       // 그림에 가려 안 보인다
+
+        // 지도를 덮는 남색 막은 이 창이 아니라 지도(D3D) 쪽에서 씌운다 — 그래야 이 그림을
+        // 끌어 옮겨도 막이 따라오지 않는다. 게임도 막과 그림이 따로다.
+        // 처음 자리는 게임처럼 지도 한가운데다(옮기는 것은 손으로).
+        if (mapArea.Width > 0 && mapArea.Height > 0)
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            double w = CityPictures.Width * scale, h = CityPictures.Height * scale;
+            Left = mapArea.X + (mapArea.Width - w) / 2;
+            Top = mapArea.Y + (mapArea.Height - h) / 2;
+        }
+        else
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
 
         var image = new Image
         {
@@ -71,6 +86,8 @@ public sealed class CityPicDialog : Window
         _layer.Children.Add(_menuHost);
         // 명령 창은 건물 판보다 위에 둔다 — 겹치면 투명한 판이 누르기를 가로챈다.
         Panel.SetZIndex(_menuHost, 10);
+        // 명령 창을 누른 것도 여기서 삼킨다 — 안 그러면 그림 끌기가 먼저 걸린다.
+        _menuHost.MouseLeftButtonDown += (_, e) => e.Handled = true;
 
         // 그림에서 자리를 아는 시설만 얹는다. 게임도 시설 표 하나를 돌리는 모양이라
         // 여기서도 창을 시설마다 만들지 않고 표를 훑는다.
@@ -91,37 +108,19 @@ public sealed class CityPicDialog : Window
             picBox.MouseLeftButtonUp += (_, _) => ShowMenu(BuildMenu(harbor), harbor.BgmTrack);
         }
 
-        var hint = new TextBlock
-        {
-            Text = !harborPlaced ? "그림을 누르면 명령 창 · ESC 로 닫기"
-                                 : "건물을 누르면 명령 창 · ESC 로 닫기",
-            Foreground = Brushes.Gray,
-            FontSize = 11,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 6),
-        };
+        // 게임 화면에는 제목 줄도 안내 줄도 없다. 그림 한 장이 곧 창이다.
+        Content = picBox;
 
-        var stack = new StackPanel();
-        stack.Children.Add(GameUi.TitleBar(cityName, Close));
-        stack.Children.Add(new Border
-        {
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(0, 4, 0, 0),
-            Child = picBox,
-        });
-        stack.Children.Add(hint);
+        // 제목 줄이 없어도 옮길 수는 있어야 한다 — 그림의 아무 데나 잡으면 끌린다.
+        // 건물 판과 명령 창은 누르는 자리라 제 몫으로 삼키므로 여기까지 오지 않는다.
+        // 항구를 못 찾은 그림은 그림 전체가 누르는 자리라 끌기를 달지 않는다.
+        if (harborPlaced)
+            picBox.MouseLeftButtonDown += (_, _) =>
+            {
+                if (Mouse.LeftButton == MouseButtonState.Pressed) DragMove();
+            };
 
-        Content = new Border
-        {
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
-            Padding = new Thickness(6, 6, 6, 0),
-            Child = stack,
-        };
-
-        // 제목 줄이 없으니(WindowStyle.None) 키와 오른쪽 단추로도 닫는다.
+        // 제목 줄이 없으니(WindowStyle.None) 키와 오른쪽 단추로 닫는다.
         KeyDown += (_, e) => { if (e.Key is Key.Escape or Key.Enter) Close(); };
         MouseRightButtonUp += (_, _) => Close();
     }
@@ -149,6 +148,8 @@ public sealed class CityPicDialog : Window
         Canvas.SetTop(spot, hit.Y * scale);
         spot.MouseEnter += (_, _) => ShowTag(tag, a, scale);
         spot.MouseLeave += (_, _) => tag.Visibility = Visibility.Collapsed;
+        // 건물을 누른 것은 여기서 삼킨다 — 안 그러면 그림 끌기가 먼저 걸려 메뉴가 안 열린다.
+        spot.MouseLeftButtonDown += (_, e) => e.Handled = true;
         spot.MouseLeftButtonUp += (_, e) =>
         {
             e.Handled = true;
@@ -223,8 +224,12 @@ public sealed class CityPicDialog : Window
     /// 도시 그림을 띄운다. 그림을 못 풀면 아무것도 안 하고 false —
     /// 그림이 없다고 입항까지 막을 일은 아니다.
     /// </summary>
+    /// <param name="mapArea">
+    /// 지도가 놓인 자리(화면 좌표, WPF 단위). 그 자리를 통째로 덮는다. 비워 두면 그림 크기에
+    /// 맞춰 owner 한가운데에 띄운다.
+    /// </param>
     public static bool Show(Window owner, CityPictures pictures, int cityId, string cityName,
-                            Player player, BgmPlayer? bgm = null)
+                            Player player, BgmPlayer? bgm = null, Rect mapArea = default)
     {
         var bgra = pictures.TryGetBgra(cityId);
         if (bgra == null) return false;
@@ -233,7 +238,11 @@ public sealed class CityPicDialog : Window
                                           PixelFormats.Bgra32, null, bgra, CityPictures.Width * 4);
         picture.Freeze();
 
-        var dlg = new CityPicDialog(cityName, picture, PickScale(owner), cityId, player, bgm)
+        double areaW = mapArea.Width > 0 ? mapArea.Width : owner.ActualWidth;
+        double areaH = mapArea.Height > 0 ? mapArea.Height : owner.ActualHeight;
+
+        var dlg = new CityPicDialog(cityName, picture, PickScale(areaW, areaH), cityId,
+                                    player, bgm, mapArea)
         {
             Owner = owner,
         };
@@ -241,13 +250,13 @@ public sealed class CityPicDialog : Window
         return true;
     }
 
-    /// <summary>창에 들어가는 가장 큰 정수 배율. 창이 작아도 1배는 쓴다.</summary>
-    private static int PickScale(Window owner)
+    /// <summary>
+    /// 그림 배율. 게임처럼 지도의 반쯤을 덮는 크기로 잡는다(자리가 좁아도 1배는 쓴다).
+    /// </summary>
+    private static int PickScale(double areaWidth, double areaHeight)
     {
-        // 제목 줄과 안내 글로 세로 70점쯤 더 먹으므로 그만큼 뺀 자리에 맞춘다.
-        double w = owner.ActualWidth * 0.9;
-        double h = owner.ActualHeight * 0.9 - 70;
-        int scale = (int)Math.Min(w / CityPictures.Width, h / CityPictures.Height);
+        int scale = (int)Math.Min(areaWidth * 0.6 / CityPictures.Width,
+                                  areaHeight * 0.7 / CityPictures.Height);
         return Math.Max(1, Math.Min(scale, 4));
     }
 }

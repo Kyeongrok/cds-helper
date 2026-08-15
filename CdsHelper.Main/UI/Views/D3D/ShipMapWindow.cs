@@ -55,6 +55,9 @@ public sealed class ShipMapWindow : Window
     /// <summary>주인공 — 소지금과 가진 배. 조선소에서 배를 사면 여기서 돈이 빠진다.</summary>
     private readonly Player _player = new();
 
+    /// <summary>지도 위에 겹쳐 둔 투명한 입력 판. 커서 자리를 이것 기준으로 잰다.</summary>
+    private Border _input = null!;
+
     /// <summary>도시 그림(CITYCG.CDS). 20MB 라 입항을 처음 할 때에야 연다.</summary>
     private CityPictures? _cityPics;
 
@@ -215,6 +218,7 @@ public sealed class ShipMapWindow : Window
         // 같은 자리에 투명 Border 를 겹쳐 두고 마우스는 그쪽에서 받는다.
         // (자식 창이 D3D 로 덮으므로 이 Border 는 보이지 않는다 — 입력만 받는다.)
         var input = new Border { Background = Brushes.Transparent, Cursor = Cursors.Cross };
+        _input = input;
         var surface = new Grid();
         surface.Children.Add(_host);
         surface.Children.Add(input);
@@ -301,6 +305,7 @@ public sealed class ShipMapWindow : Window
 
         _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), () =>
         {
+            SyncMouse();
             _status.Text = _host.Status;
             _mode.Text = _host.IsOnLand ? "육지 이동" : _host.IsAnchored ? "정 박" : "해상 이동";
             CheckPort();
@@ -318,6 +323,39 @@ public sealed class ShipMapWindow : Window
         Deactivated += (_, _) => SyncOverlay();
         StateChanged += (_, _) => SyncOverlay();
         Closed += (_, _) => { _overlay.IsOpen = false; _statusTimer.Stop(); _bgm.Dispose(); _cityPics = null; };
+    }
+
+    /// <summary>
+    /// 지도가 화면에서 차지한 자리(WPF 단위). 도시 화면이 이 자리를 통째로 덮는다 —
+    /// 게임도 도시에 들어가면 지도 영역이 남색으로 덮인다.
+    /// </summary>
+    private Rect MapAreaOnScreen()
+    {
+        var source = PresentationSource.FromVisual(this);
+        if (source == null || _input.ActualWidth <= 0 || _input.ActualHeight <= 0) return default;
+
+        // PointToScreen 은 실픽셀을 내므로 WPF 단위로 되돌린다(고해상도 화면에서 어긋난다).
+        var device = _input.PointToScreen(new Point(0, 0));
+        var topLeft = source.CompositionTarget.TransformFromDevice.Transform(device);
+        return new Rect(topLeft.X, topLeft.Y, _input.ActualWidth, _input.ActualHeight);
+    }
+
+    /// <summary>
+    /// 커서가 지금 지도 위 어디에 있는지 다시 잰다.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 <c>MouseMove</c> 로만 알려 줬다. 그러다 보니 창(입항 물음·도시 그림)이 떴다
+    /// 닫히거나 커서가 잠깐 지도를 벗어나면 <c>MouseLeave</c> 가 "밖" 으로 표시해 놓고,
+    /// 커서를 <b>움직이기 전까지</b> 그대로였다 — 배가 뱃머리를 못 잡고 그 자리에 서 있었다.
+    /// 입항 직후에는 뱃머리가 0 이라 특히 티가 났다. 그래서 틱마다 직접 재 둔다.
+    /// </remarks>
+    private void SyncMouse()
+    {
+        if (!_started || !ReferenceEquals(Content, _mapRoot) || _input.ActualWidth <= 0) return;
+
+        var p = Mouse.GetPosition(_input);
+        bool inside = p.X >= 0 && p.Y >= 0 && p.X < _input.ActualWidth && p.Y < _input.ActualHeight;
+        _host.SetMouse(p, inside);
     }
 
     /// <summary>좌표 상자를 띄울 때인지 다시 따진다 — 켜 두었고, 지도가 떠 있고, 이 창이 앞일 때만.</summary>
@@ -481,82 +519,53 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 게임 커맨드 창을 흉내낸 우클릭 메뉴. 뭍이 가까울 때만 "상륙" 을 낸다.
+    /// 게임 커맨드 창을 흉내낸 우클릭 메뉴. 떠 있는 동안 <b>게임이 멈춘다</b> —
+    /// 배도 시간도 그 자리에 선다(닻을 내리는 것과는 다르다. 닻은 그대로 두고 멈추기만 한다).
     /// </summary>
     /// <remarks>
     /// 팝업은 제 창(HWND)을 따로 쓰므로 D3D 자식 창 위에 제대로 뜬다 — airspace 를 안 탄다.
-    /// 그래서 지도 위에 얹는 것 중 메뉴만은 WPF 로 둘 수 있다.
+    /// 그래서 지도 위에 얹는 것 중 메뉴만은 WPF 로 둘 수 있다. 도시 창의 명령 창과 같은
+    /// <see cref="GameUi.CommandBox"/> 를 쓴다 — 예전에 쓰던 <c>ContextMenu</c> 는 왼쪽에
+    /// 그림 자리(빈 흰 칸)를 남기고 줄 너비도 제각각이라 게임 것과 달랐다.
     /// </remarks>
     private void ShowCommandMenu(UIElement anchor)
     {
-        var menu = new ContextMenu
+        var popup = new Popup
         {
-            Background = MenuBack,
-            BorderBrush = MenuEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(6),
             PlacementTarget = anchor,
+            Placement = PlacementMode.MousePoint,
+            StaysOpen = false,          // 바깥을 누르면 닫힌다
+            AllowsTransparency = true,
+            Focusable = true,
         };
-
-        menu.Items.Add(new Border
-        {
-            Background = MenuBack,
-            BorderBrush = MenuEdge,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(18, 2, 18, 2),
-            Margin = new Thickness(0, 0, 0, 4),
-            Child = new TextBlock
-            {
-                Text = "커맨드",
-                Foreground = MenuTitleFg,
-                FontWeight = FontWeights.Bold,
-                FontSize = 14,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            },
-        });
+        void Close() => popup.IsOpen = false;
 
         // 바다에 있으면 상륙, 뭍에 있으면 출항. 갈 데가 없으면 흐리게 보여만 준다.
-        if (_host.IsOnLand)
-            menu.Items.Add(GameMenuItem("출항", _host.IsNearWater() ? () => _host.Embark() : null));
-        else
-            menu.Items.Add(GameMenuItem("상륙", _host.IsNearLand() ? () => _host.Land() : null));
+        // 게임 커맨드 창에는 없는 줄이지만 이 창에서는 이것으로 뭍을 오간다.
+        (string, Action?) ashore = _host.IsOnLand
+            ? ("출항", _host.IsNearWater() ? () => { _host.Embark(); Close(); } : null)
+            : ("상륙", _host.IsNearLand() ? () => { _host.Land(); Close(); } : null);
 
-        menu.IsOpen = true;
-    }
+        popup.Child = GameUi.CommandBox("커맨드",
+            ("정보", null),
+            ("편성", null),
+            ("대열", null),
+            ("항해일지를 본다", null),
+            ("기능", null),
+            ashore,
+            ("취소", Close));
 
-    /// <summary>양피지 바탕의 커맨드 항목 하나. <paramref name="run"/> 이 null 이면 못 고른다.</summary>
-    private static MenuItem GameMenuItem(string text, Action? run)
-    {
-        var item = new MenuItem
-        {
-            IsEnabled = run != null,
-            Padding = new Thickness(0),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Header = new Border
-            {
-                Background = CellFill,
-                BorderBrush = BarEdge,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(24, 2, 24, 2),
-                Child = new TextBlock
-                {
-                    Text = text,
-                    Foreground = run != null ? Brushes.Black : Brushes.Gray,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 14,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                },
-            },
-        };
-        if (run != null) item.Click += (_, _) => run();
-        return item;
+        // 메뉴가 떠 있는 동안은 게임을 멈춘다. 닫히면 어떻게 닫혔든 다시 흐른다.
+        popup.Closed += (_, _) => _host.Paused = false;
+        _host.Paused = true;
+        popup.IsOpen = true;
     }
 
     /// <summary>도시에 다가가면 한 번 물어본다. 떠났다 다시 와야 또 묻는다.</summary>
     private void CheckPort()
     {
-        if (_asking || _host.IsOnLand) return;
+        // 멈춰 있으면(커맨드 창) 아무것도 묻지 않는다 — 멈춘 동안 창이 겹쳐 뜨면 안 된다.
+        if (_asking || _host.Paused || _host.IsOnLand) return;
 
         int city = _host.NearestCity();
         if (city < 0) { _askedCity = -1; return; }      // 도시를 벗어났다
@@ -605,12 +614,14 @@ public sealed class ShipMapWindow : Window
         }
 
         _bgm.Play(BgmPlayer.CityTrack);
+        _host.InCity = true;      // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
         try
         {
-            CityPicDialog.Show(this, _cityPics, city, name, _player, _bgm);
+            CityPicDialog.Show(this, _cityPics, city, name, _player, _bgm, MapAreaOnScreen());
         }
         finally
         {
+            _host.InCity = false;
             _bgm.Play(BgmPlayer.SeaTrack);
         }
     }

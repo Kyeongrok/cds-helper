@@ -146,7 +146,20 @@ public sealed class ShipMapHost : HwndHost
     /// </summary>
     private const int HeadingZeroOffset = 0;
 
-    private int _heading;                  // 그림에 쓸 게임 방향 번호(반시계)
+    /// <summary>
+    /// 8방위 이름. 게임 이름표(<c>0x569790</c>)와 같은 차례로 <b>반시계</b>로 돈다.
+    /// </summary>
+    private static readonly string[] CompassNames =
+        ["북", "북서", "서", "남서", "남", "남동", "동", "북동"];
+
+    /// <summary>
+    /// 지금 뱃머리를 8방위 이름으로. 속으로는 16방위 그대로 두고 보여줄 때만 절반으로 깎는다 —
+    /// 게임도 <c>0x48ABA2</c> 에서 방위를 2로 나눠 8방위 이름표를 찾는다. 그래서 화면에 "서" 로
+    /// 보여도 속은 4일 수도 5일 수도 있다.
+    /// </summary>
+    public string HeadingName => CompassNames[(_heading & 0xF) >> 1];
+
+    private int _heading;                  // 그림에 쓸 게임 방향 번호(반시계, 16방위)
     private double _dirX, _dirY;           // 실제로 나아가는 쪽(단위 벡터)
     private Point _mouse;                  // 마지막 커서 자리(WPF 단위, 이 요소 기준)
     private bool _mouseInside;
@@ -178,6 +191,25 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>커서를 따라 배를 몬다. 끄면 게임 함대 자리를 그대로 따라간다.</summary>
     public bool SteerWithMouse { get; set; } = true;
+
+    /// <summary>
+    /// 도시에 들어가 있는지. 참이면 지도 위에 남색 막을 씌운다 — 색을 칠하는 것이 아니라
+    /// 지도가 그 밑으로 비쳐 보인다(게임도 그렇다).
+    /// </summary>
+    public bool InCity
+    {
+        get => _inCity;
+        set
+        {
+            if (_inCity == value) return;
+            _inCity = value;
+            // 게임 화면에서 뽑은 남색. 짙기는 지도가 비쳐 보이는 만큼만 준다.
+            _renderer.Cover = value ? (0x24 / 255f, 0x37 / 255f, 0x5B / 255f, 0.72f) : default;
+            _dirty = true;
+        }
+    }
+
+    private bool _inCity;
 
     public string Status { get; private set; } = "";
 
@@ -408,7 +440,7 @@ public sealed class ShipMapHost : HwndHost
                 _targetY = origin.Y + _mouse.Y * dpiY * _cellsPerPixel;
             }
             Sail(dt);
-            Status = $"{(_onLand ? "말" : "배")} {_shipX:F1}, {_shipY:F1} 칸 · 방향 {_heading}/16 · " +
+            Status = $"{(_onLand ? "말" : "배")} {_shipX:F1}, {_shipY:F1} 칸 · 방향 {HeadingName} · " +
                      (_anchored ? "닻을 내리고 정박 중"
                                : _blocked ? (_onLand ? "바다에 막혔습니다" : "육지에 막혔습니다")
                                : !_mouseInside ? "가던 쪽으로"
