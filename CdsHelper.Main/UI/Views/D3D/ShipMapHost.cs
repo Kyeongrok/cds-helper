@@ -65,6 +65,28 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>리스본. 게임 도시 표의 0번이다.</summary>
     private const int LisbonCityId = 0;
 
+    /// <summary>
+    /// 시작 칸 — 리스본 앞바다. 열(칸 X) 1184 이고 행(칸 Y)은 357 이다.
+    /// </summary>
+    /// <remarks>
+    /// 도시 칸(1185.5, 357.5)에서 가장 가까운 물칸을 고르면 1186 이 나오는데, 그 자리는
+    /// 도시 바로 옆 강어귀라 사방이 뭍에 가깝다. 한 칸 서쪽 1184 는 강 건너 앞바다다 —
+    /// 1184 는 357 행에서만 물이므로(356 행은 뭍) 행까지 같이 박아 둔다.
+    /// 칸 가운데를 가리키려고 0.5 를 더한다.
+    /// </remarks>
+    private const double StartCellX = 1184.5, StartCellY = 357.5;
+
+    /// <summary>
+    /// 배가 화면 가장자리에서 이 점 수 안에 들어와야 화면을 다음 자리로 넘긴다(화면 실픽셀).
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 프레임마다 배를 화면 한가운데에 다시 놓았다. 배가 한 걸음 옮길 때마다
+    /// 지도 전체를 새 원점으로 다시 그려야 해서, 배가 조금만 움직여도 화면이 통째로 갈렸다.
+    /// 지금은 배가 가운데 여백 안을 다니는 동안 지도가 멈춰 있고 배만 그 위를 지난다 —
+    /// 원점이 그대로면 <see cref="OnFrame"/> 이 아예 다시 그리지 않는다.
+    /// </remarks>
+    private const double EdgeMarginPixels = 200;
+
     private bool _follow = true;
     private bool _dragging;
     private Point _dragStart;
@@ -135,6 +157,19 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>배 그림을 올릴 때 쓰는 임시 자리(BGRA). 프레임마다 새로 잡지 않으려고 둔다.</summary>
     private readonly uint[] _spriteBuf = new uint[GameShipReader.SpriteSize];
 
+    /// <summary>지난번에 올린 색인 그림. 같은 그림이면 다시 올리지도, 다시 그리지도 않는다.</summary>
+    private byte[]? _lastIndices;
+
+    /// <summary>텍스처에 올라가 있는 그림이 무엇인지. 같으면 게임 메모리를 읽지도 않는다.</summary>
+    private (int Heading, bool OnLand, bool FromGame)? _spriteKey;
+
+    // 지난번에 실제로 그려 낸 값. 그대로면 이번 프레임은 건너뛴다.
+    private (double X, double Y) _drawnOrigin;
+    private (float X, float Y, float W, float H) _drawnShip, _drawnAnchor;
+
+    /// <summary>다음 프레임은 값이 같아도 반드시 그려야 하는지. 창 크기·그림이 바뀌면 선다.</summary>
+    private bool _dirty = true;
+
     /// <summary>
     /// 참이면 배가 서 있는다. 물음창이 떠 있는 동안 계속 나아가지 않게 하려고 둔다 —
     /// 모달 창을 띄워도 CompositionTarget.Rendering 은 그대로 돈다.
@@ -202,18 +237,13 @@ public sealed class ShipMapHost : HwndHost
         _renderer.Initialize(world, ocean);
         _renderer.SetOverlay(AnchorSprite.Pixels);   // 정박했을 때만 꺼내 쓴다
 
-        // 배는 리스본에서 시작한다. 자리는 게임 원본 도시 표에서 가져온다.
-        if (GameMapCoords.TryCityCell(LisbonCityId, out double lx, out double ly))
-        {
-            // 도시 칸은 육지다. 그대로 두면 배가 땅 위에서 시작해 한동안 못 움직이므로
-            // 가장 가까운 물칸으로 밀어 낸다(리스본이면 바로 앞바다다).
-            (lx, ly) = NearestWater(lx, ly);
-            _shipX = _targetX = lx;
-            _shipY = _targetY = ly;
-            _centerX = lx;
-            _centerY = ly;
-            _shipKnown = true;
-        }
+        // 배는 리스본 앞바다에서 시작한다.
+        var (sx, sy) = LisbonStart();
+        _shipX = _targetX = sx;
+        _shipY = _targetY = sy;
+        _centerX = sx;
+        _centerY = sy;
+        _shipKnown = true;
 
         _ready = true;
         CompositionTarget.Rendering += OnFrame;
@@ -268,6 +298,18 @@ public sealed class ShipMapHost : HwndHost
         _backBufferView = _renderer.Device.CreateRenderTargetView(back);
         _pixelW = w;
         _pixelH = h;
+        _dirty = true;   // 새 백버퍼는 비어 있다 — 값이 같아도 한 번은 그려야 한다
+    }
+
+    /// <summary>
+    /// 자식 창이 지워졌으면(가려졌다 드러나거나 창을 옮겼을 때) 한 번은 다시 그린다.
+    /// 값이 그대로라고 건너뛰면 지워진 자리가 그대로 남는다.
+    /// </summary>
+    protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WmPaint = 0x000F;
+        if (msg == WmPaint) _dirty = true;
+        return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
 
     private void OnFrame(object? sender, EventArgs e)
@@ -291,8 +333,8 @@ public sealed class ShipMapHost : HwndHost
         _lastDpiY = dpi.DpiScaleY;
         UpdateShip(dt, origin, dpi.DpiScaleX, dpi.DpiScaleY);
 
-        // 배를 따라간다 — 화면 한가운데에 둔다.
-        if (_follow && _shipKnown) { _centerX = _shipX; _centerY = _shipY; }
+        // 배를 따라간다 — 가장자리에 다가왔을 때만 화면을 넘긴다.
+        if (_follow && _shipKnown) FollowShip(w, h);
         origin = (_centerX - w / 2.0 * _cellsPerPixel, _centerY - h / 2.0 * _cellsPerPixel);
 
         var rect = (0f, 0f, 0f, 0f);
@@ -315,10 +357,42 @@ public sealed class ShipMapHost : HwndHost
             anchor = (ax, ay, size, size);
         }
 
+        // 지난 프레임과 똑같으면 그리지 않는다. 배는 0.1초에 한 걸음씩 옮기고 지도는
+        // 가장자리에 닿아야 넘어가므로, 60fps 로 도는 동안 거의 다 같은 그림이다.
+        if (!_dirty && origin == _drawnOrigin && rect == _drawnShip && anchor == _drawnAnchor) return;
+
         _renderer.RenderTo(_backBufferView, w, h, origin, (_cellsPerPixel, _cellsPerPixel), rect, anchor);
         _swapChain!.Present(1, PresentFlags.None);
+        _drawnOrigin = origin;
+        _drawnShip = rect;
+        _drawnAnchor = anchor;
+        _dirty = false;
         FrameCount++;
     }
+
+    /// <summary>
+    /// 배가 화면 가장자리 <see cref="EdgeMarginPixels"/> 점 안에 들어왔으면 화면을 다음
+    /// 자리로 넘긴다. 여백 안에 있는 동안에는 화면을 그대로 둔다.
+    /// </summary>
+    private void FollowShip(int w, int h)
+    {
+        // 창이 여백 두 겹보다 좁으면 여백이 화면을 다 먹는다 — 반보다는 작게 잡는다.
+        double mx = Math.Min(EdgeMarginPixels, w / 2.0 - 1);
+        double my = Math.Min(EdgeMarginPixels, h / 2.0 - 1);
+
+        double sx = w / 2.0 + WrapDx(_shipX - _centerX) / _cellsPerPixel;
+        double sy = h / 2.0 + (_shipY - _centerY) / _cellsPerPixel;
+        if (sx >= mx && sx <= w - mx && sy >= my && sy <= h - my) return;
+
+        // 넘길 때는 배를 화면 한가운데에 놓는다. 어느 쪽으로 가든 다시 여백에 닿을 때까지
+        // 반 화면이 남으므로, 가장자리를 스치듯 지나도 화면이 들썩이지 않는다.
+        _centerX = _shipX;
+        _centerY = _shipY;
+    }
+
+    /// <summary>가로로 이어진 지도에서 가장 가까운 쪽으로 잰 가로 차이.</summary>
+    private static double WrapDx(double dx) =>
+        dx - Math.Floor(dx / WorldMapRenderer.UnfoldedW + 0.5) * WorldMapRenderer.UnfoldedW;
 
     private void UpdateShip(double dt, (double X, double Y) origin, double dpiX, double dpiY)
     {
@@ -361,22 +435,41 @@ public sealed class ShipMapHost : HwndHost
             _shipY += (_targetY - _shipY) * 0.15;
             var spr0 = _ship.TryReadSprite();
             if (spr0 != null) UploadGameSprite(spr0);
+            _spriteKey = null;   // 이쪽에서 올린 그림은 우리 뱃머리와 무관하다 — 돌아가면 다시 올린다
             return;
         }
 
         // 게임이 떠 있으면 그 그림을(함선 종류에 맞는 4벌 중 하나), 아니면 asset/ship 의 것을 쓴다.
+        // 같은 그림이면 게임 메모리를 읽지도, 텍스처를 올리지도 않는다 — 뱃머리가 그대로면
+        // 프레임마다 할 일이 없다.
+        var key = (_heading, _onLand, _ship.IsAttached);
+        if (_spriteKey == key) return;
+
         var indices = _ship.IsAttached ? _ship.TryReadSprite(_heading, _onLand) : null;
         if (indices != null) UploadGameSprite(indices);
         else
         {
             var frame = ShipSprites.Frame(_heading, _onLand);
-            if (!frame.IsEmpty) { _renderer.SetSprite(frame); _spriteReady = true; }
+            if (!frame.IsEmpty)
+            {
+                _renderer.SetSprite(frame);
+                _spriteReady = true;
+                _lastIndices = null;
+                _dirty = true;
+            }
         }
+        _spriteKey = key;
     }
 
     /// <summary>게임에서 읽은 팔레트 색인 그림을 색으로 풀어 올린다. 색인 0 은 비침이다.</summary>
     private void UploadGameSprite(byte[] indices)
     {
+        // 같은 그림이면 아무것도 하지 않는다. 게임 함대를 따라가는 쪽은 방향을 우리가 모르므로
+        // 그림 자체를 견줘야 안다(2304바이트뿐이라 프레임마다 견줘도 싸다).
+        if (_lastIndices != null && _lastIndices.AsSpan().SequenceEqual(indices)) return;
+        _lastIndices = [.. indices];
+        _dirty = true;
+
         for (int i = 0; i < _spriteBuf.Length; i++)
         {
             int ix = indices[i];
@@ -610,11 +703,13 @@ public sealed class ShipMapHost : HwndHost
         if (_follow) { _centerX = cx; _centerY = cy; }
     }
 
+    /// <summary>시작 칸. 혹시 뭍이면(WORLD.CDS 가 다르면) 가장 가까운 물칸으로 밀어 낸다.</summary>
+    private (double X, double Y) LisbonStart() => NearestWater(StartCellX, StartCellY);
+
     /// <summary>배를 리스본 앞바다로 되돌린다.</summary>
     public void ResetToLisbon()
     {
-        if (!GameMapCoords.TryCityCell(LisbonCityId, out double lx, out double ly)) return;
-        (lx, ly) = NearestWater(lx, ly);
+        var (lx, ly) = LisbonStart();
         _shipX = _targetX = lx;
         _shipY = _targetY = ly;
         _shipKnown = true;
