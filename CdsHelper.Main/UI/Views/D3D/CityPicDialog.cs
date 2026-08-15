@@ -39,8 +39,7 @@ public sealed class CityPicDialog : Window
     /// <summary>출항을 골랐는지. 창을 그냥 닫으면 false.</summary>
     public bool Sailed { get; private set; }
 
-    private CityPicDialog(string cityName, BitmapSource picture, int scale,
-                          Rect? harbor, Rect? shipyard, Rect? tavern,
+    private CityPicDialog(string cityName, BitmapSource picture, int scale, int cityId,
                           Player player, BgmPlayer? bgm)
     {
         _player = player;
@@ -73,21 +72,29 @@ public sealed class CityPicDialog : Window
         // 명령 창은 건물 판보다 위에 둔다 — 겹치면 투명한 판이 누르기를 가로챈다.
         Panel.SetZIndex(_menuHost, 10);
 
-        AddSpot(harbor, "항구", scale, PortMenu);
-        AddSpot(shipyard, "조선소", scale, ShipyardMenu);
-        AddSpot(tavern, "술집", scale, TavernMenu, BgmPlayer.TavernTrack);
+        // 그림에서 자리를 아는 시설만 얹는다. 게임도 시설 표 하나를 돌리는 모양이라
+        // 여기서도 창을 시설마다 만들지 않고 표를 훑는다.
+        var harbor = Facility.All[0];
+        bool harborPlaced = false;
+        foreach (var facility in Facility.All)
+        {
+            var spot = CityBuildings.Of(facility.Kind, cityId);
+            if (spot is not { } s) continue;
+            AddSpot(new Rect(s.X, s.Y, s.Width, s.Height), facility, scale);
+            if (facility.Kind == FacilityKind.Harbor) harborPlaced = true;
+        }
 
         // 항구를 못 찾은 그림은 아무 데나 눌러도 항구 명령 창이 열린다(건물 판이 먼저 먹는다).
-        if (harbor == null)
+        if (!harborPlaced)
         {
             picBox.Cursor = Cursors.Hand;
-            picBox.MouseLeftButtonUp += (_, _) => ShowMenu(PortMenu());
+            picBox.MouseLeftButtonUp += (_, _) => ShowMenu(BuildMenu(harbor), harbor.BgmTrack);
         }
 
         var hint = new TextBlock
         {
-            Text = harbor == null ? "그림을 누르면 명령 창 · ESC 로 닫기"
-                                  : "건물을 누르면 명령 창 · ESC 로 닫기",
+            Text = !harborPlaced ? "그림을 누르면 명령 창 · ESC 로 닫기"
+                                 : "건물을 누르면 명령 창 · ESC 로 닫기",
             Foreground = Brushes.Gray,
             FontSize = 11,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -122,11 +129,9 @@ public sealed class CityPicDialog : Window
     /// <summary>
     /// 건물 하나를 누를 수 있게 한다. 커서를 올리면 이름표가 밑에 뜨고, 누르면 명령 창이 열린다.
     /// </summary>
-    private void AddSpot(Rect? area, string name, int scale, Func<UIElement> menu, int? track = null)
+    private void AddSpot(Rect a, Facility facility, int scale)
     {
-        if (area is not { } a) return;
-
-        var tag = GameUi.NameTag(name);
+        var tag = GameUi.NameTag(facility.Name);
         _layer.Children.Add(tag);
         _tags.Add(tag);
 
@@ -144,7 +149,11 @@ public sealed class CityPicDialog : Window
         Canvas.SetTop(spot, hit.Y * scale);
         spot.MouseEnter += (_, _) => ShowTag(tag, a, scale);
         spot.MouseLeave += (_, _) => tag.Visibility = Visibility.Collapsed;
-        spot.MouseLeftButtonUp += (_, e) => { e.Handled = true; ShowMenu(menu(), track); };
+        spot.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            ShowMenu(BuildMenu(facility), facility.BgmTrack);
+        };
         _layer.Children.Add(spot);
     }
 
@@ -188,36 +197,27 @@ public sealed class CityPicDialog : Window
     }
 
     /// <summary>
-    /// 항구 명령 창. 지금 되는 것은 출항뿐이라 나머지는 흐려 둔다 —
-    /// 보급·함대편성 따위는 이 창이 흉내내는 범위 밖이다.
+    /// 시설의 명령 창을 짓는다. 줄은 <see cref="Facility"/> 표에서 오고, 그중 흉내낼 수 있는
+    /// 것만 <see cref="ActionFor"/> 가 손을 달아 준다. 나머지는 흐린 채로 둔다.
     /// </summary>
-    private Border PortMenu() => GameUi.CommandBox("항구",
-        ("출항", () => { Sailed = true; Close(); }),
-        ("보급", null),
-        ("함대편성", null),
-        ("선원편성", null),
-        ("마을정보", null),
-        ("마을로 돌아간다", CloseMenu));
-
-    /// <summary>조선소 명령 창. 지금은 구입만 된다.</summary>
-    private Border ShipyardMenu() => GameUi.CommandBox("조선소",
-        ("구입", () => HullSelectDialog.Show(this, _player)),
-        ("매각", null),
-        ("수리", null),
-        ("개조", null),
-        ("조선소를 나온다", CloseMenu));
+    private Border BuildMenu(Facility facility) =>
+        GameUi.CommandBox(facility.Name,
+                          [.. facility.Menu.Select(item => (item, ActionFor(facility, item)))]);
 
     /// <summary>
-    /// 술집 명령 창. 들어가면 곡이 바뀌고(<see cref="BgmPlayer.TavernTrack"/>),
-    /// 나오면 도시 곡으로 돌아간다. 마실 것과 부하편성은 아직 흉내내지 않는다.
+    /// 그 줄이 하는 일. 지금 되는 것은 나가기와 출항·구입 셋뿐이다 —
+    /// 보급·함대편성 따위는 이 창이 흉내내는 범위 밖이라 손을 달지 않는다(흐리게 나온다).
     /// </summary>
-    private Border TavernMenu() => GameUi.CommandBox("술집",
-        ("와인", null),
-        ("브랜디", null),
-        ("럼주", null),
-        ("포카를 권한다", null),
-        ("부하편성", null),
-        ("술집을 나온다", CloseMenu));
+    private Action? ActionFor(Facility facility, string item)
+    {
+        if (item == facility.ExitItem) return CloseMenu;
+        return (facility.Kind, item) switch
+        {
+            (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
+            (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
+            _ => null,
+        };
+    }
 
     /// <summary>
     /// 도시 그림을 띄운다. 그림을 못 풀면 아무것도 안 하고 false —
@@ -233,19 +233,13 @@ public sealed class CityPicDialog : Window
                                           PixelFormats.Bgra32, null, bgra, CityPictures.Width * 4);
         picture.Freeze();
 
-        var dlg = new CityPicDialog(cityName, picture, PickScale(owner),
-                                    ToRect(CityBuildings.Harbor(cityId)),
-                                    ToRect(CityBuildings.Shipyard(cityId)),
-                                    ToRect(CityBuildings.Tavern(cityId)), player, bgm)
+        var dlg = new CityPicDialog(cityName, picture, PickScale(owner), cityId, player, bgm)
         {
             Owner = owner,
         };
         dlg.ShowDialog();
         return true;
     }
-
-    private static Rect? ToRect(CityBuildings.Spot? spot) =>
-        spot is { } s ? new Rect(s.X, s.Y, s.Width, s.Height) : null;
 
     /// <summary>창에 들어가는 가장 큰 정수 배율. 창이 작아도 1배는 쓴다.</summary>
     private static int PickScale(Window owner)
