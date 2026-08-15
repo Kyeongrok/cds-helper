@@ -51,6 +51,12 @@ public sealed class ShipMapWindow : Window
     /// <summary>다이얼로그가 떠 있는 동안 또 묻지 않게.</summary>
     private bool _asking;
 
+    /// <summary>도시 그림(CITYCG.CDS). 20MB 라 입항을 처음 할 때에야 연다.</summary>
+    private CityPictures? _cityPics;
+
+    /// <summary>한 번 열어 봤는지. 파일이 없으면 입항할 때마다 다시 찾지 않는다.</summary>
+    private bool _cityPicsTried;
+
     /// <summary>지금 이동 모드 — 해상인지 육지인지.</summary>
     private readonly TextBlock _mode = new()
     {
@@ -296,7 +302,7 @@ public sealed class ShipMapWindow : Window
         Activated += (_, _) => SyncOverlay();
         Deactivated += (_, _) => SyncOverlay();
         StateChanged += (_, _) => SyncOverlay();
-        Closed += (_, _) => { _overlay.IsOpen = false; _statusTimer.Stop(); _bgm.Dispose(); };
+        Closed += (_, _) => { _overlay.IsOpen = false; _statusTimer.Stop(); _bgm.Dispose(); _cityPics = null; };
     }
 
     /// <summary>좌표 상자를 띄울 때인지 다시 따진다 — 켜 두었고, 지도가 떠 있고, 이 창이 앞일 때만.</summary>
@@ -548,13 +554,37 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
-            if (PortDialog.Ask(this, name)) _host.EnterPort(name);
+            if (PortDialog.Ask(this, name))
+            {
+                _host.EnterPort(name);
+                ShowCityPicture(city, name);
+            }
         }
         finally
         {
             _host.Paused = false;
             _asking = false;
         }
+    }
+
+    /// <summary>
+    /// 입항한 도시의 그림을 지도 한가운데에 띄운다. CITYCG.CDS 가 없거나 그림을 못 풀면
+    /// 조용히 넘어간다 — 그림은 덤이고, 입항은 이미 끝났다.
+    /// </summary>
+    private void ShowCityPicture(int city, string name)
+    {
+        if (_cityPics == null)
+        {
+            if (_cityPicsTried || string.IsNullOrEmpty(_gameDir)) return;
+            _cityPicsTried = true;
+            _cityPics = CityPictures.Open(_gameDir);
+            if (_cityPics == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShipMap] 도시 그림 없음: {CityPictures.LastError}");
+                return;
+            }
+        }
+        CityPicDialog.Show(this, _cityPics, city, name);
     }
 
     /// <summary>도시 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
