@@ -58,6 +58,35 @@ public sealed class Player
     /// <summary>지금 날짜. 기술을 배우면 그만큼 달이 넘어간다.</summary>
     public DateTime Date { get; private set; }
 
+    /// <summary>지금 들어와 있는 도시. 바다에 있으면 -1.</summary>
+    public int CityId { get; private set; } = -1;
+
+    /// <summary>지금 들어와 있는 도시 이름. 바다에 있으면 빈 문자열.</summary>
+    public string CityName { get; private set; } = "";
+
+    /// <summary>배운 기술과 그 자리.</summary>
+    public IReadOnlyDictionary<string, int> Skills => _skills;
+
+    /// <summary>
+    /// 적어 둔 것을 되돌린다(불러오기). 배는 부르는 쪽이 그 도시 앞바다에 갖다 놓는다.
+    /// </summary>
+    public void Restore(int gold, DateTime date, int cityId, string cityName,
+                        IEnumerable<KeyValuePair<string, int>> skills)
+    {
+        Gold = gold;
+        Date = date;
+        EnterCity(cityId, cityName);
+        _skills.Clear();
+        foreach (var (name, level) in skills) _skills[name] = Math.Clamp(level, 0, Skill.MaxLevel);
+    }
+
+    /// <summary>도시에 들어가거나(이름과 함께) 바다로 나온다(-1).</summary>
+    public void EnterCity(int cityId, string cityName = "")
+    {
+        CityId = cityId;
+        CityName = cityId >= 0 ? cityName : "";
+    }
+
     /// <summary>소지금(닢).</summary>
     public int Gold { get; private set; }
 

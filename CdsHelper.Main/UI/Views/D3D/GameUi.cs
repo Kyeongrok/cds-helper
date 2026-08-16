@@ -106,25 +106,49 @@ internal static class GameUi
     }
 
     /// <summary>제목 한 줄과 항목들을 세로로 쌓은 명령 창.</summary>
-    public static Border CommandBox(string title, params (string Text, Action? Run)[] items)
+    public static Border CommandBox(string title, params (string Text, Action? Run)[] items) =>
+        CommandBox(title, null, items);
+
+    /// <summary>제목 없이 줄만 쌓은 창. 기능 창처럼 제목이 없는 것에 쓴다.</summary>
+    public static Border MenuBox(params (string Text, Action? Run)[] items)
     {
         var stack = new StackPanel();
-        stack.Children.Add(new Border
+        foreach (var (text, run) in items) stack.Children.Add(MenuItem(text, run));
+        return new Border
         {
             Background = MenuBack,
             BorderBrush = Edge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(18, 2, 18, 2),
-            Margin = new Thickness(0, 0, 0, 6),
-            Child = new TextBlock
+            BorderThickness = new Thickness(3),
+            Padding = new Thickness(6),
+            Child = stack,
+        };
+    }
+
+    /// <summary>
+    /// 제목 줄에 닫기(X)까지 두는 명령 창. <paramref name="onClose"/> 가 null 이면 제목만 낸다.
+    /// </summary>
+    public static Border CommandBox(string title, Action? onClose,
+                                    params (string Text, Action? Run)[] items)
+    {
+        var stack = new StackPanel();
+        stack.Children.Add(onClose != null
+            ? TitleBar(title, onClose)
+            : new Border
             {
-                Text = title,
-                Foreground = Text,
-                FontWeight = FontWeights.Bold,
-                FontSize = 15,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            },
-        });
+                Background = MenuBack,
+                BorderBrush = Edge,
+                BorderThickness = new Thickness(2),
+                Padding = new Thickness(18, 2, 18, 2),
+                Child = new TextBlock
+                {
+                    Text = title,
+                    Foreground = Text,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 15,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            });
+        ((Border)stack.Children[0]).Margin = new Thickness(0, 0, 0, 6);
         foreach (var (text, run) in items) stack.Children.Add(MenuItem(text, run));
 
         return new Border
