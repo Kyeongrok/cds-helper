@@ -15,15 +15,22 @@ MPCG.CDS 는 두 가지를 함께 담고 있다.
 사진과 함께 읽든 같다. 그래서 손님 파트에는 제 팔레트가 안 붙어 있고, 아무 사진
 팔레트(여기서는 파트 3)의 앞 64색을 쓰면 된다.
 
-손님은 **문화권 차례**로 놓여 있다.
+크기와 성별은 짐작하지 않는다 — **CDS_95.EXE 안 표 `0x0056E3A0`** 에 적혀 있다.
+146행 x 12바이트로 `(성별, 폭, 높이)` 다. 성별은 0 이 남자, 1 이 여자.
+폭은 48·56·64·66, 높이는 72·80·88·96·104 가 나온다. 크기가 다 64 의 배수라
+`길이 / 64` 로 재면 폭이 64 가 아닌 넷(004·011·037·107)이 어긋난 줄무늬가 된다.
+EXE 를 못 읽을 때만 행 간 상관으로 폭을 짐작한다.
 
-    170~208  유럽          209~244  중근동·이슬람   245~250  아프리카
-    251~259  인도          260~276  동아시아        277~289  동남아
-    290~304  중남미        305~315  아메리카 원주민
+문화권마다 쓰는 구간이 정해져 있다. 시작은 `0x0049D580(문화권)`, 개수는
+`0x0049D500(문화권)` 이 낸다(둘 다 점프표를 쓰는 switch 다).
 
-크기는 거의 폭 64 인데 넷만 다르다 — 174(48) · 181(56) · 206(56) · 277(66).
-전부 64 의 배수라 `길이 / 64` 로만 재면 이 넷이 어긋난 줄무늬가 된다. 그래서 파트마다
-행 간 상관(윗줄과 아랫줄이 얼마나 닮나)으로 폭을 따로 잰다.
+    문화권  1 → 000~016 (17)    문화권 0·2 → 017~037 (21)
+    문화권  5 → 038~054 (17)    문화권  6  → 055~067 (13)
+    문화권  3 → 068~083 (16)    문화권  4  → 084~096 (13)
+    문화권  9 → 097~107 (11)    문화권  8  → 108~118 (11)
+    문화권  7 → 119~129 (11)    문화권 10  → 130~145 (16)
+
+문화권 0 과 2 는 같은 구간을 함께 쓴다. 합이 딱 146 이다.
 
 투명은 **색인 55** 다(건물 사진 쪽 64 와 다르다).
 
@@ -34,6 +41,7 @@ PIL(pillow) 이 있어야 한다.
 """
 import argparse
 import os
+import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -49,17 +57,50 @@ PALETTE_PART = 3        # 손님 색(0~63)은 어느 사진 팔레트를 써도 
 TRANSPARENT = 55        # 손님 그림의 비침 색인
 WIDTHS = (40, 48, 56, 64, 66, 72, 80)
 
-# 파트 번호 → 문화권. 시작 파트만 적는다.
+GUEST_TABLE = 0x0056E3A0    # 146행 x 12바이트 — (성별, 폭, 높이)
+GUEST_COUNT = 146
+IMAGE_BASE = 0x400000
+
+# 문화권 → (시작, 개수). 0x0049D580 / 0x0049D500 의 switch 에서 읽은 것이다.
+# 이름은 그림을 보고 붙인 짐작이다 — 도시 레코드 +0x58 로 맞춰 보지는 않았다.
 SPHERES = [
-    (170, "유럽"), (209, "중근동"), (245, "아프리카"), (251, "인도"),
-    (260, "동아시아"), (277, "동남아"), (290, "중남미"), (305, "아메리카"),
+    (1, 0, 17, "북유럽"), (0, 17, 21, "지중해·이베리아"), (2, 17, 21, "지중해·이베리아"),
+    (5, 38, 17, "이슬람"), (6, 55, 13, "인도"), (3, 68, 16, "아프리카"),
+    (4, 84, 13, "중앙아시아"), (9, 97, 11, "일본"), (8, 108, 11, "동남아시아"),
+    (7, 119, 11, "중국"), (10, 130, 16, "아메리카"),
 ]
+
+
+def read_table(game_dir):
+    """
+    CDS_95.EXE 의 표 0x0056E3A0 에서 (성별, 폭, 높이) 146행을 읽는다.
+    EXE 가 없으면 None — 그때는 폭을 행 간 상관으로 짐작한다.
+    """
+    exe = os.path.join(game_dir, "CDS_95.EXE")
+    if not os.path.exists(exe):
+        return None
+    with open(exe, "rb") as f:
+        data = f.read()
+
+    # PE 구역표를 훑어 VA 를 파일 오프셋으로 옮긴다
+    lfanew = struct.unpack_from("<I", data, 0x3C)[0]
+    nsec = struct.unpack_from("<H", data, lfanew + 6)[0]
+    opt = struct.unpack_from("<H", data, lfanew + 20)[0]
+    base = lfanew + 24 + opt
+    rva = GUEST_TABLE - IMAGE_BASE
+    for i in range(nsec):
+        o = base + i * 40
+        vsize, vaddr, rsize, raddr = struct.unpack_from("<IIII", data, o + 8)
+        if vaddr <= rva < vaddr + max(vsize, rsize):
+            off = raddr + (rva - vaddr)
+            return [struct.unpack_from("<3I", data, off + k * 12) for k in range(GUEST_COUNT)]
+    return None
 
 
 def best_width(data):
     """
-    행 간 상관으로 폭을 잰다. 진짜 폭에서는 윗줄과 아랫줄이 가장 닮으므로 값이 가장 낮다.
-    크기가 64 의 배수라고 폭이 64 인 것은 아니다 — 넷이 그렇지 않다.
+    표를 못 읽었을 때만 쓴다. 행 간 상관으로 폭을 잰다 — 진짜 폭에서는 윗줄과 아랫줄이
+    가장 닮으므로 값이 가장 낮다. 크기가 64 의 배수라고 폭이 64 인 것은 아니다.
     """
     best, best_score = 64, float("inf")
     for w in WIDTHS:
@@ -70,14 +111,6 @@ def best_width(data):
         if score < best_score:
             best, best_score = w, score
     return best
-
-
-def sphere_of(part):
-    name = SPHERES[0][1]
-    for start, s in SPHERES:
-        if part >= start:
-            name = s
-    return name
 
 
 def main():
@@ -98,6 +131,9 @@ def main():
     arc = Ls12.open(path)
     pal = palette(arc.decode(PALETTE_PART))
 
+    table = read_table(args.game)
+    print("크기는 %s 에서 읽는다" % ("EXE 표 0x%08X" % GUEST_TABLE if table else "행 간 상관(짐작)"))
+
     saved, odd, images = 0, [], []
     for part in range(FIRST_GUEST, len(arc)):
         data = arc.decode(part)
@@ -105,8 +141,15 @@ def main():
             print("  파트 %d 를 못 풀었다" % part)
             continue
 
-        w = best_width(data)
-        h = len(data) // w
+        n = part - FIRST_GUEST
+        if table and n < len(table):
+            _, w, h = table[n]
+            if w * h != len(data):          # 표와 실제가 어긋나면 표를 믿지 않는다
+                w = best_width(data)
+                h = len(data) // w
+        else:
+            w = best_width(data)
+            h = len(data) // w
         if w != 64:
             odd.append("%d(%dx%d)" % (part, w, h))
 
@@ -118,7 +161,6 @@ def main():
                 i = data[row + x]
                 px[x, y] = (0, 0, 0, 0) if i == TRANSPARENT else pal[i] + (255,)
 
-        n = part - FIRST_GUEST
         img.save(os.path.join(out_dir, "guest-%03d.png" % n))
         images.append(img)
         saved += 1
@@ -144,12 +186,30 @@ def main():
         f.write("# 술집·여관 손님\n\n")
         f.write("`MPCG.CDS` 파트 %d 부터를 뽑은 것이다. `tools/extract_tavern_guests.py` 가 만든다.\n\n"
                 % FIRST_GUEST)
-        f.write("손님 번호 = 파트 번호 - %d. 문화권 차례로 놓여 있다.\n\n" % FIRST_GUEST)
-        f.write("| 손님 번호 | 파트 | 문화권 |\n|---|---|---|\n")
-        for i, (start, name) in enumerate(SPHERES):
-            end = SPHERES[i + 1][0] - 1 if i + 1 < len(SPHERES) else len(arc) - 1
-            f.write("| %03d ~ %03d | %d ~ %d | %s |\n"
-                    % (start - FIRST_GUEST, end - FIRST_GUEST, start, end, name))
+        f.write("손님 번호 = 파트 번호 - %d.\n\n" % FIRST_GUEST)
+
+        f.write("## 문화권마다 쓰는 구간\n\n")
+        f.write("시작은 `0x0049D580(문화권)`, 개수는 `0x0049D500(문화권)` 이 낸다.\n")
+        f.write("문화권 0 과 2 는 같은 구간을 함께 쓴다. 합이 딱 %d 이다.\n\n" % GUEST_COUNT)
+        f.write("| 문화권 | 손님 번호 | 개수 | 짐작한 이름 |\n|---|---|---|---|\n")
+        for cul, start, n, name in sorted(SPHERES, key=lambda x: (x[1], x[0])):
+            f.write("| %d | %03d ~ %03d | %d | %s |\n" % (cul, start, start + n - 1, n, name))
+        f.write("\n이름은 그림을 보고 붙인 짐작이다 — 도시 레코드 `+0x58` 로 맞춰 보지는 않았다.\n")
+
+        if table:
+            f.write("\n## 크기와 성별\n\n")
+            f.write("`CDS_95.EXE` 표 **`0x%08X`** 에 있다. %d행 x 12바이트로 `(성별, 폭, 높이)` 다.\n"
+                    % (GUEST_TABLE, GUEST_COUNT))
+            f.write("성별은 0 이 남자, 1 이 여자.\n\n")
+            women = [i for i, r in enumerate(table) if r[0] == 1]
+            f.write("여자 %d명: %s\n\n" % (len(women), ", ".join("%03d" % i for i in women)))
+            sizes = {}
+            for i, (_, w, h) in enumerate(table):
+                sizes.setdefault((w, h), []).append(i)
+            f.write("| 크기 | 몇 명 |\n|---|---|\n")
+            for (w, h), who in sorted(sizes.items(), key=lambda kv: -len(kv[1])):
+                f.write("| %dx%d | %d |\n" % (w, h, len(who)))
+
         f.write("\n비침은 색인 55, 팔레트는 사진 팔레트의 앞 64색(바이트 차례 파랑·빨강·초록)이다.\n")
 
 
