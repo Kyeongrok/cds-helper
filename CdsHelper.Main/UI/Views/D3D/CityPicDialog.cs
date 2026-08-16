@@ -40,15 +40,28 @@ public sealed class CityPicDialog : Window
     /// <summary>건물 표. 가르치는 기능을 이름으로 풀 때 쓴다.</summary>
     private readonly CityBuildingTable _table;
 
+    // 도서관 열람에 쓰는 것들. 책 표를 못 읽었으면 열람 줄이 흐린 채로 남는다.
+    private readonly BookTable? _library;
+    private readonly Func<int, string> _hintName;
+    private readonly string _gameDirectory;
+    private readonly string _cityName;
+    private readonly int _cityId;
+
     /// <summary>출항을 골랐는지. 창을 그냥 닫으면 false.</summary>
     public bool Sailed { get; private set; }
 
     private CityPicDialog(string cityName, BitmapSource picture, int scale, int cityId,
-                          CityBuildingTable table, Player player, BgmPlayer? bgm, Rect mapArea)
+                          CityBuildingTable table, Player player, BgmPlayer? bgm, Rect mapArea,
+                          BookTable? library, Func<int, string>? hintName, string gameDirectory)
     {
         _player = player;
         _bgm = bgm;
         _table = table;
+        _library = library;
+        _hintName = hintName ?? (h => $"힌트 {h}");
+        _gameDirectory = gameDirectory;
+        _cityName = cityName;
+        _cityId = cityId;
 
         Title = cityName;                 // 화면에는 안 나온다 — 창 목록에서만 쓴다
         WindowStyle = WindowStyle.None;
@@ -125,7 +138,8 @@ public sealed class CityPicDialog : Window
 
         // 오른쪽 단추는 게임처럼 도시 커맨드 창을 연다. 창을 닫는 것은 ESC 다.
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
-        MouseRightButtonUp += (_, e) => { e.Handled = true; ShowMenu(CityMenu(cityName)); };
+        MouseRightButtonUp += (_, e) => { e.Handled = true; ShowCityMenu(cityName); };
+        Closed += (_, _) => CloseCityMenu();   // 그림 창을 닫으면 커맨드 창도 같이 닫는다
     }
 
     /// <summary>
@@ -233,18 +247,35 @@ public sealed class CityPicDialog : Window
     /// 도시 커맨드 창. 도시 화면에서 오른쪽 단추를 누르면 뜬다 — 제목은 도시 이름이고
     /// 제목 줄에 닫기(X)가 있다. 지금은 취소만 살아 있다.
     /// </summary>
-    private Border CityMenu(string cityName) => GameUi.CommandBox(cityName, CloseMenu,
+    private Border CityMenu(string cityName) => GameUi.CommandBox(cityName, CloseCityMenu,
         ("맵 포인트에 들어간다", null),
         ("인물 정보", null),
         ("함대 정보", null),
         ("소지품 정보", null),
         ("도시 정보", null),
-        ("힌트", null),
+        ("힌트 정보", ShowHints),
         ("계약 정보", null),
         ("후원자 정보", null),
         ("지도를 본다", null),
         ("게임 종료", null),
-        ("취소", CloseMenu));
+        ("취소", CloseCityMenu));
+
+    /// <summary>도시 커맨드 창. 그림 안이 아니라 그림 창 옆에 제 창으로 띄운다.</summary>
+    private MenuWindow? _cityMenu;
+
+    private void ShowCityMenu(string cityName)
+    {
+        if (_cityMenu != null) { _cityMenu.Activate(); return; }
+        _cityMenu = MenuWindow.ShowBeside(this, CityMenu(cityName));
+        _cityMenu.Closed += (_, _) => _cityMenu = null;
+    }
+
+    private void CloseCityMenu() => _cityMenu?.Close();
+
+    /// <summary>얻은 힌트를 늘어놓는다. 이름은 DB 에서 온다.</summary>
+    private void ShowHints() =>
+        HintListDialog.Show(_cityMenu ?? (Window)this,
+                            [.. _player.Hints.Order().Select(_hintName)]);
 
     /// <summary>
     /// 시설의 명령 창을 짓는다. 줄은 <see cref="Facility"/> 표에서 오고, 그중 흉내낼 수 있는
@@ -276,6 +307,9 @@ public sealed class CityPicDialog : Window
         {
             (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
+            (FacilityKind.Library, "열람") when _library != null => () =>
+                LibraryDialog.Show(this, _gameDirectory, _cityName, _cityId,
+                                   _player, _library, _table, _hintName),
             _ => null,
         };
     }
@@ -294,7 +328,9 @@ public sealed class CityPicDialog : Window
     /// </param>
     public static CityPicDialog? Open(Window owner, CityPictures pictures, CityBuildingTable table,
                                       int cityId, string cityName,
-                                      Player player, BgmPlayer? bgm = null, Rect mapArea = default)
+                                      Player player, BgmPlayer? bgm = null, Rect mapArea = default,
+                                      BookTable? library = null, Func<int, string>? hintName = null,
+                                      string gameDirectory = "")
     {
         var bgra = pictures.TryGetBgra(cityId);
         if (bgra == null) return null;
@@ -307,7 +343,7 @@ public sealed class CityPicDialog : Window
         double areaH = mapArea.Height > 0 ? mapArea.Height : owner.ActualHeight;
 
         var dlg = new CityPicDialog(cityName, picture, PickScale(areaW, areaH), cityId,
-                                    table, player, bgm, mapArea)
+                                    table, player, bgm, mapArea, library, hintName, gameDirectory)
         {
             Owner = owner,
         };

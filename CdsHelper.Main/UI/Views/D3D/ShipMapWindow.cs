@@ -64,6 +64,12 @@ public sealed class ShipMapWindow : Window
     /// <summary>건물 표(CDS_95.EXE). 건물 자리·이름·가르치는 기능이 여기서 온다.</summary>
     private CityBuildingTable? _buildings;
 
+    /// <summary>책 표(CDS_95.EXE). 도서관 서가를 채운다.</summary>
+    private BookTable? _bookTable;
+
+    /// <summary>힌트 번호 -> 이름. DB 에서 한 번만 불러 둔다.</summary>
+    private Dictionary<int, string>? _hintNames;
+
     /// <summary>한 번 열어 봤는지. 파일이 없으면 입항할 때마다 다시 찾지 않는다.</summary>
     private bool _cityPicsTried;
 
@@ -263,6 +269,19 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(GameCell(_mode));
         gameCells.Children.Add(GameCell(_coord));
         gameCells.Children.Add(GameCell(_purse));
+
+        // 게임 띠 끝에 설정 칸. 누르면 배경음악을 켜고 끄는 창이 뜬다.
+        var settings = GameCell(new TextBlock
+        {
+            Text = "설정",
+            Foreground = Brushes.Black,
+            FontWeight = FontWeights.Bold,
+            FontSize = 14,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        settings.Cursor = Cursors.Hand;
+        settings.MouseLeftButtonUp += (_, _) => SettingsDialog.Show(this, _bgm);
+        gameCells.Children.Add(settings);
         var gameBar = new Border
         {
             Background = BarFill,
@@ -327,6 +346,8 @@ public sealed class ShipMapWindow : Window
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
             _purse.Text = $"{_player.Gold}닢 · 함선 {_player.Ships.Count}/{Player.MaxShips}";
+            // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
+            ShipSprites.Skin = _player.Ships.Max(s => s.Skin);
             // 게임 상단 띠와 같은 말투로 적는다.
             _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
             if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
@@ -547,7 +568,8 @@ public sealed class ShipMapWindow : Window
         }
         else if (saved != null)
         {
-            _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName, saved.Skills);
+            _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
+                            saved.Skills, saved.Hints);
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
             _status.Text = $"[{saved.CityName}] 에서 이어 간다 — {saved.Date:yyyy년 M월 d일}";
@@ -604,9 +626,11 @@ public sealed class ShipMapWindow : Window
     private void CheckPort()
     {
         // 멈춰 있으면(커맨드 창) 아무것도 묻지 않는다 — 멈춘 동안 창이 겹쳐 뜨면 안 된다.
-        if (_asking || _host.Paused || _host.IsOnLand) return;
+        if (_asking || _host.Paused) return;
 
-        int city = _host.NearestCity();
+        // 배는 항구 칸으로, 말은 도시 칸으로 잰다. 게임도 그렇게 갈라 본다.
+        bool byLand = _host.IsOnLand;
+        int city = byLand ? _host.NearestTown() : _host.NearestCity();
         if (city < 0) { _askedCity = -1; return; }      // 도시를 벗어났다
         if (city == _askedCity) return;                 // 이미 물어본 도시다
         _askedCity = city;
@@ -618,7 +642,7 @@ public sealed class ShipMapWindow : Window
         bool inCity = false;
         try
         {
-            if (PortDialog.Ask(this, name))
+            if (PortDialog.Ask(this, name, byLand))
             {
                 _host.EnterPort(name);
                 inCity = ShowCityPicture(city, name);
@@ -662,8 +686,10 @@ public sealed class ShipMapWindow : Window
         }
         if (_buildings == null) return false;   // 건물 표가 없으면 도시 화면을 열지 않는다
 
+        _bookTable ??= BookTable.Open(_gameDir);   // 도서관 열람에 쓴다. 없으면 그 줄만 흐리다
         var dialog = CityPicDialog.Open(this, _cityPics, _buildings, city, name,
-                                        _player, _bgm, MapAreaOnScreen());
+                                        _player, _bgm, MapAreaOnScreen(),
+                                        _bookTable, HintName, _gameDir);
         if (dialog == null) return false;
 
         _bgm.Play(BgmPlayer.CityTrack);
@@ -678,6 +704,26 @@ public sealed class ShipMapWindow : Window
             _player.EnterCity(-1);
         };
         return true;
+    }
+
+    /// <summary>힌트 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
+    private string HintName(int id)
+    {
+        if (_hintNames == null)
+        {
+            _hintNames = [];
+            try
+            {
+                var svc = ContainerLocator.Container.Resolve<HintService>();
+                svc.InitializeAsync(Path.Combine(AppContext.BaseDirectory, "cdshelper.db")).Wait();
+                _hintNames = svc.GetAllHintNames();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShipMap] 힌트 이름 로드 실패: {ex.Message}");
+            }
+        }
+        return _hintNames.TryGetValue(id, out var name) && name.Length > 0 ? name : $"힌트 {id}";
     }
 
     /// <summary>도시 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
@@ -717,6 +763,7 @@ public sealed class ShipMapWindow : Window
 
         _gameDir = dir;
         _bgm.SetGameDirectory(dir);
+        _bgm.Enabled = AppSettings.BgmEnabled;   // 설정 창에서 꺼 뒀으면 조용히 시작한다
         _bgm.Play(BgmPlayer.TitleTrack);   // 메뉴 화면에서는 bgm/Track23.mp3
         if (_bgm.LastError.Length > 0)
         {

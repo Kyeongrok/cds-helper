@@ -45,9 +45,32 @@ public sealed class BgmPlayer : IDisposable
     /// <summary>게임 폴더를 알려 준다. 그 밑의 <c>bgm</c> 을 본다.</summary>
     public void SetGameDirectory(string gameDir) => _dir = gameDir;
 
+    /// <summary>곡을 틀지. 끄면 소리를 멈추고, 켜면 마지막으로 틀라던 곡부터 다시 돈다.</summary>
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (_enabled == value) return;
+            _enabled = value;
+            if (!value) { Stop(); return; }
+            int again = _wanted;
+            _wanted = -1;
+            if (again >= 0) Play(again);
+        }
+    }
+
+    private bool _enabled = true;
+
+    /// <summary>마지막으로 틀라고 한 곡. 껐다 켤 때 이 곡으로 돌아온다.</summary>
+    private int _wanted = -1;
+
     /// <summary>그 번호의 곡으로 갈아 튼다. 이미 그 곡이 돌고 있으면 그대로 둔다.</summary>
     public void Play(int track)
     {
+        if (_wanted == track && _track == track) return;
+        _wanted = track;
+        if (!_enabled) return;
         if (_track == track) return;
 
         var path = Path.Combine(_dir, "bgm", $"Track{track:D2}.mp3");

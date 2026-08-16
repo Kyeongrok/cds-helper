@@ -83,7 +83,7 @@ public sealed class SkillLearnDialog : Window
         MouseRightButtonUp += (_, _) => Close();
     }
 
-    /// <summary>기술 한 줄. 게임처럼 "이름 ( LVn )" 을 오른쪽에 붙여 낸다.</summary>
+    /// <summary>기술 한 줄. "이름 ( LVn )" 을 왼쪽에 붙여 낸다(게임은 오른쪽이다).</summary>
     private Border MakeRow(string name)
     {
         var text = new TextBlock
@@ -92,8 +92,8 @@ public sealed class SkillLearnDialog : Window
             Foreground = Brushes.Black,
             FontWeight = FontWeights.Bold,
             FontSize = 15,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(6, 1, 6, 1),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(10, 1, 6, 1),
         };
         var row = new Border { Background = Brushes.Transparent, Cursor = Cursors.Hand, Child = text };
         row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Pick(name); };

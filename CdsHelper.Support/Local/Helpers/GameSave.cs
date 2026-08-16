@@ -31,14 +31,14 @@ public static class GameSave
     /// <param name="SavedAt">적은 때(현실 시각).</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
-        int CityId, string CityName, Dictionary<string, int> Skills);
+        int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints);
 
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
         var data = new Data(1, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
-                            new Dictionary<string, int>(player.Skills));
+                            new Dictionary<string, int>(player.Skills), [.. player.Hints]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

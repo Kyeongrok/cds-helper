@@ -30,6 +30,32 @@ public static class ShipSprites
     public const string ShipDirectory = "asset/ship";
     public const string HorseDirectory = "asset/horse";
 
+    /// <summary>배 그림 벌 수(0~3). 게임의 함선 등급과 같은 차례다.</summary>
+    public const int SkinCount = 4;
+
+    private static int _skin = -1;
+
+    /// <summary>
+    /// 어느 벌의 배 그림을 쓸지(0~3). <c>asset/ship-g0</c> ~ <c>ship-g3</c> 에서 읽는다 —
+    /// 게임의 <c>CDS95Util/shipskin</c> 에 있는 넉 벌을 풀어 둔 것이다.
+    /// -1 이면 예전처럼 <see cref="ShipDirectory"/> 를 쓴다.
+    /// </summary>
+    /// <remarks>바꾸면 들고 있던 그림을 버린다 — 다음에 그릴 때 새 벌로 다시 읽는다.</remarks>
+    public static int Skin
+    {
+        get => _skin;
+        set
+        {
+            int next = value >= 0 && value < SkinCount ? value : -1;
+            if (_skin == next) return;
+            lock (Gate)
+            {
+                _skin = next;
+                for (int i = 0; i < Directions; i++) Frames[0][i] = null;   // 배만 다시 읽는다
+            }
+        }
+    }
+
     /// <summary>[0] 배, [1] 말(육상·정박).</summary>
     private static readonly uint[]?[][] Frames = [new uint[Directions][], new uint[Directions][]];
     private static readonly object Gate = new();
@@ -57,9 +83,11 @@ public static class ShipSprites
 
     private static uint[]? Load(int set, int index)
     {
-        var dir = set == 1 ? HorseDirectory : ShipDirectory;
+        var dir = set == 1 ? HorseDirectory : _skin >= 0 ? $"asset/ship-g{_skin}" : ShipDirectory;
         var name = set == 1 ? "horse" : "ship";
         var path = Path.Combine(AppContext.BaseDirectory, dir, $"{name}_{index}.png");
+        if (!File.Exists(path) && set == 0 && _skin >= 0)
+            path = Path.Combine(AppContext.BaseDirectory, ShipDirectory, $"ship_{index}.png");
         if (!File.Exists(path))
         {
             LastError = $"{path} 없음";

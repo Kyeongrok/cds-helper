@@ -46,6 +46,7 @@ public sealed class Player
 
     private readonly List<Hull> _ships = [];
     private readonly Dictionary<string, int> _skills = [];
+    private readonly HashSet<int> _hints = [];
 
     /// <summary>카라벨 한 척과 시작 소지금으로 시작한다.</summary>
     public Player()
@@ -67,17 +68,29 @@ public sealed class Player
     /// <summary>배운 기술과 그 자리.</summary>
     public IReadOnlyDictionary<string, int> Skills => _skills;
 
+    /// <summary>얻은 힌트 번호. 책을 읽으면 는다.</summary>
+    public IReadOnlyCollection<int> Hints => _hints;
+
+    /// <summary>그 힌트를 이미 얻었는지.</summary>
+    public bool HasHint(int hint) => _hints.Contains(hint);
+
+    /// <summary>힌트를 얻는다. 처음 얻는 것이면 true.</summary>
+    public bool GainHint(int hint) => hint >= 0 && _hints.Add(hint);
+
     /// <summary>
     /// 적어 둔 것을 되돌린다(불러오기). 배는 부르는 쪽이 그 도시 앞바다에 갖다 놓는다.
     /// </summary>
     public void Restore(int gold, DateTime date, int cityId, string cityName,
-                        IEnumerable<KeyValuePair<string, int>> skills)
+                        IEnumerable<KeyValuePair<string, int>> skills,
+                        IEnumerable<int>? hints = null)
     {
         Gold = gold;
         Date = date;
         EnterCity(cityId, cityName);
         _skills.Clear();
         foreach (var (name, level) in skills) _skills[name] = Math.Clamp(level, 0, Skill.MaxLevel);
+        _hints.Clear();
+        if (hints != null) foreach (int hint in hints) _hints.Add(hint);
     }
 
     /// <summary>도시에 들어가거나(이름과 함께) 바다로 나온다(-1).</summary>
