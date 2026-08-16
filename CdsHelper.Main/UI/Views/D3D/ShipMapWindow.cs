@@ -41,6 +41,9 @@ public sealed class ShipMapWindow : Window
     /// <summary>타이틀 쪽 화면. 키를 이 화면에서만 받으려고 들고 있는다.</summary>
     private FrameworkElement? _titleRoot;
 
+    /// <summary>지도 위의 까만 조작 줄. 개발 창에서 끄고 켠다.</summary>
+    private Border? _toolBar;
+
     /// <summary>게임 폴더. WORLD.CDS 도 bgm 도 여기서 읽는다.</summary>
     private string _gameDir = "";
 
@@ -82,7 +85,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 14,
+        FontSize = 12,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -91,7 +94,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 14,
+        FontSize = 12,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -100,7 +103,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 14,
+        FontSize = 12,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -109,7 +112,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 14,
+        FontSize = 12,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -118,7 +121,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 14,
+        FontSize = 12,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -151,21 +154,22 @@ public sealed class ShipMapWindow : Window
     private static readonly Brush MenuEdge = new SolidColorBrush(Color.FromRgb(0xC8, 0xB4, 0x90));
     private static readonly Brush MenuTitleFg = new SolidColorBrush(Color.FromRgb(0xEC, 0xDF, 0xC0));
 
-    /// <summary>게임처럼 두 겹 테두리를 두른 칸 하나를 만든다.</summary>
-    private static Border GameCell(UIElement content) => new()
+    /// <summary>
+    /// 게임 띠 안에 놓는 칸 하나. 테에 구슬 무늬가 있고 속이 반짝이는 밝은 상자다
+    /// (<see cref="FrameArt.DrawCell"/>).
+    /// </summary>
+    private static FrameworkElement GameCell(UIElement content)
     {
-        Background = CellFill,
-        BorderBrush = BarEdge,
-        BorderThickness = new Thickness(2),
-        Margin = new Thickness(2, 3, 2, 3),
-        Padding = new Thickness(10, 1, 10, 1),
-        Child = new Border
+        var inner = new Border
         {
-            BorderBrush = BarEdge,
-            BorderThickness = new Thickness(0),
+            // 게임 띠는 꽤 얇다. 칸이 두꺼우면 액자가 그만큼 벌어져 비율이 어긋난다.
+            Padding = new Thickness(4, 0, 4, 0),
             Child = content,
-        },
-    };
+        };
+        var cell = GameUi.CellFrame(inner);
+        cell.Margin = new Thickness(2, 0, 2, 0);
+        return cell;
+    }
 
     public ShipMapWindow()
     {
@@ -294,26 +298,43 @@ public sealed class ShipMapWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         });
         dev.Cursor = Cursors.Hand;
-        dev.MouseLeftButtonUp += (_, _) => DevDialog.Show(
-            this, _player,
-            () => _overlayWanted,
-            on => { _overlayWanted = on; SyncOverlay(); },
-            _gameDir);
-        gameCells.Children.Add(dev);
-        var gameBar = new Border
+        dev.MouseLeftButtonUp += (_, _) => DevDialog.Show(this, _player, new DevDialog.Options
         {
-            Background = BarFill,
-            BorderBrush = BarEdge,
-            BorderThickness = new Thickness(0, 0, 0, 2),
-            Child = gameCells,
-        };
+            CoordsOn = () => _overlayWanted,
+            SetCoords = on => { _overlayWanted = on; SyncOverlay(); },
+            ToolBarOn = () => _toolBar?.Visibility == Visibility.Visible,
+            SetToolBar = on =>
+            {
+                if (_toolBar != null)
+                    _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            },
+            GameDirectory = _gameDir,
+        });
+        gameCells.Children.Add(dev);
+
+        // 게임처럼 액자를 깔고 그 위에 칸들을 얹는다(asset/ui/misc-00.png).
+        // 그림이 없으면 예전처럼 민색 띠로 물러선다.
+        FrameworkElement gameBar = (FrameworkElement?)GameUi.BarFrame(gameCells)
+            ?? new Border
+            {
+                Background = BarFill,
+                BorderBrush = BarEdge,
+                BorderThickness = new Thickness(0, 0, 0, 2),
+                Child = gameCells,
+            };
 
         var root = new DockPanel();
         DockPanel.SetDock(gameBar, Dock.Top);
         root.Children.Add(gameBar);
-        var barHost = new Border { Child = bar, Height = 30 };
-        DockPanel.SetDock(barHost, Dock.Top);
-        root.Children.Add(barHost);
+        // 지도 위의 까만 조작 줄. 놀이에는 없는 것이라 개발 창에서 끄고 켤 수 있다.
+        _toolBar = new Border { Child = bar, Height = 30 };
+        DockPanel.SetDock(_toolBar, Dock.Top);
+        root.Children.Add(_toolBar);
+
+        // 게임은 지도 아래에도 같은 띠를 하나 둔다. 안은 비어 있다.
+        var footer = TitleBarStrip(null);
+        DockPanel.SetDock(footer, Dock.Bottom);
+        root.Children.Add(footer);
         root.Children.Add(surface);
         _mapRoot = root;
 
@@ -484,7 +505,7 @@ public sealed class ShipMapWindow : Window
                     Text = "메인메뉴",
                     Foreground = MenuTitleFg,
                     FontWeight = FontWeights.Bold,
-                    FontSize = 17,
+                    FontSize = 13,
                     HorizontalAlignment = HorizontalAlignment.Center,
                 },
             });
@@ -505,15 +526,65 @@ public sealed class ShipMapWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Child = items,
         };
-        var screen = new Grid { Background = TitleBackground(), Children = { box } };
+        var middle = new Grid { Background = TitleBackground(), Children = { box } };
+
+        // 게임 타이틀에도 위아래로 액자 띠가 있다. 위 띠에는 날짜 칸 하나만 있고 나머지는 비었다.
+        var screen = new DockPanel();
+        var top = TitleBarStrip($"{_player.Date.Year}년 {_player.Date.Month}월 {_player.Date.Day}일");
+        DockPanel.SetDock(top, Dock.Top);
+        screen.Children.Add(top);
+
+        var bottom = TitleBarStrip(null);
+        DockPanel.SetDock(bottom, Dock.Bottom);
+        screen.Children.Add(bottom);
+
+        screen.Children.Add(middle);
+
         FocusTitle(0);   // 게임처럼 첫 줄에 초점을 두고 시작한다
         return screen;
+    }
+
+    /// <summary>
+    /// 타이틀 화면 위아래에 두는 액자 띠. <paramref name="text"/> 를 주면 왼쪽에 칸 하나를 둔다.
+    /// </summary>
+    private static FrameworkElement TitleBarStrip(string? text)
+    {
+        var inside = new StackPanel { Orientation = Orientation.Horizontal };
+        if (text != null)
+        {
+            var label = new TextBlock
+            {
+                Text = text,
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            inside.Children.Add(GameCell(label));
+        }
+        else
+        {
+            // 빈 띠도 높이는 있어야 한다 — 글자 한 줄만큼 자리를 잡아 둔다.
+            inside.Children.Add(new Border { Height = 24 });
+        }
+
+        FrameworkElement? framed = GameUi.BarFrame(inside);
+        return framed ?? new Border
+        {
+            Background = BarFill,
+            BorderBrush = BarEdge,
+            BorderThickness = new Thickness(0, 0, 0, 2),
+            Child = inside,
+        };
     }
 
     /// <summary>
     /// 타이틀 바탕. <c>asset/title/title-tile.png</c> 가 있으면 바둑판처럼 깔고,
     /// 없으면 무늬 없이 양피지색만 채운다.
     /// </summary>
+    /// <summary>바탕 무늬를 얼마로 줄여 깔지. 1 이면 원본 크기다.</summary>
+    private const double TilePack = 0.72;
+
     private static Brush TitleBackground()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "asset", "title", "title-tile.png");
@@ -530,7 +601,9 @@ public sealed class ShipMapWindow : Window
             {
                 TileMode = TileMode.Tile,
                 ViewportUnits = BrushMappingMode.Absolute,
-                Viewport = new Rect(0, 0, bmp.PixelWidth, bmp.PixelHeight),
+                // 무늬 원본은 큰 창에서 찍은 것이라 그대로 깔면 성기다. 게임 화면과 견주어
+                // 촘촘한 정도를 맞춘다.
+                Viewport = new Rect(0, 0, bmp.PixelWidth * TilePack, bmp.PixelHeight * TilePack),
                 Stretch = Stretch.Fill,
             };
         }
@@ -567,7 +640,7 @@ public sealed class ShipMapWindow : Window
             Text = text,
             Foreground = run != null ? Brushes.Black : Brushes.Gray,
             FontWeight = FontWeights.Bold,
-            FontSize = 17,
+            FontSize = 13,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
 
@@ -577,7 +650,7 @@ public sealed class ShipMapWindow : Window
         {
             BorderBrush = innerBrush,
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(26, 2, 26, 2),
+            Padding = new Thickness(20, 1, 20, 1),
             Child = label,
         };
 
@@ -586,7 +659,7 @@ public sealed class ShipMapWindow : Window
             Background = CellFill,
             BorderBrush = BarEdge,
             BorderThickness = new Thickness(2),
-            Margin = new Thickness(0, 0, 0, 3),
+            Margin = new Thickness(0, 0, 0, 2),
             Padding = new Thickness(1),
             Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
             Child = inner,

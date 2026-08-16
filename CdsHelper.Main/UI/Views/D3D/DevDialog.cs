@@ -27,12 +27,27 @@ public sealed class DevDialog : Window
     private readonly TextBox _gold = Field();
     private readonly TextBox _fame = Field();
 
+    /// <summary>개발 창이 만지는 것들. 늘어나서 묶어 두었다.</summary>
+    public sealed class Options
+    {
+        /// <summary>좌표 겹쳐 보기.</summary>
+        public Func<bool> CoordsOn { get; init; } = () => false;
+        public Action<bool> SetCoords { get; init; } = _ => { };
+
+        /// <summary>지도 위의 까만 조작 줄(체크상자·안내 글).</summary>
+        public Func<bool> ToolBarOn { get; init; } = () => false;
+        public Action<bool> SetToolBar { get; init; } = _ => { };
+
+        /// <summary>게임 폴더. 화면 조각을 뽑을 때 쓴다.</summary>
+        public string GameDirectory { get; init; } = "";
+    }
+
     private readonly string _gameDirectory;
 
-    private DevDialog(Player player, Func<bool> coordsOn, Action<bool> setCoords, string gameDirectory)
+    private DevDialog(Player player, Options options)
     {
         _player = player;
-        _gameDirectory = gameDirectory;
+        _gameDirectory = options.GameDirectory;
 
         Title = "개발";
         WindowStyle = WindowStyle.None;
@@ -49,20 +64,11 @@ public sealed class DevDialog : Window
 
         // 좌표 겹쳐 보기 — 배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄운다.
         // 놀이에는 없는 것이라 이 창으로 옮겨 두었다.
-        var coords = new CheckBox
-        {
-            Content = "좌표 겹쳐 보기",
-            IsChecked = coordsOn(),
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            Margin = new Thickness(0, 10, 0, 4),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            ToolTip = "배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄웁니다",
-        };
-        coords.Checked += (_, _) => setCoords(true);
-        coords.Unchecked += (_, _) => setCoords(false);
-        rows.Children.Add(coords);
+        rows.Children.Add(Toggle("좌표 겹쳐 보기", options.CoordsOn(), options.SetCoords,
+            "배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄웁니다"));
+
+        rows.Children.Add(Toggle("조작 줄 보기", options.ToolBarOn(), options.SetToolBar,
+            "지도 위의 까만 줄 — 커서로 몰기·화면 따라가기 같은 개발용 단추들입니다"));
 
         // 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다.
         var dump = new StackPanel
@@ -158,6 +164,25 @@ public sealed class DevDialog : Window
         return line;
     }
 
+    /// <summary>켜고 끄는 줄 하나.</summary>
+    private static CheckBox Toggle(string label, bool on, Action<bool> set, string tip)
+    {
+        var box = new CheckBox
+        {
+            Content = label,
+            IsChecked = on,
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            Margin = new Thickness(0, 8, 0, 2),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            ToolTip = tip,
+        };
+        box.Checked += (_, _) => set(true);
+        box.Unchecked += (_, _) => set(false);
+        return box;
+    }
+
     /// <summary>도시 창이 열릴 때 줄 효과를 고르는 줄. 고른 값은 설정에 남는다.</summary>
     private UIElement EffectRow()
     {
@@ -237,7 +262,6 @@ public sealed class DevDialog : Window
         VerticalContentAlignment = VerticalAlignment.Center,
     };
 
-    public static void Show(Window owner, Player player,
-                            Func<bool> coordsOn, Action<bool> setCoords, string gameDirectory) =>
-        new DevDialog(player, coordsOn, setCoords, gameDirectory) { Owner = owner }.ShowDialog();
+    public static void Show(Window owner, Player player, Options options) =>
+        new DevDialog(player, options) { Owner = owner }.ShowDialog();
 }
