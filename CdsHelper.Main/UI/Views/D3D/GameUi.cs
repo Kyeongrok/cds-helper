@@ -33,7 +33,7 @@ internal static class GameUi
     public static Border TitleBar(string title, Action? onClose)
     {
         // 게임 원본 조각을 읽었으면 그것으로 짓는다 — 덩굴 무늬가 붙은 제 상자다.
-        var framed = TitleFrame(Sprites, title, 2, onClose);
+        var framed = TitleFrame(Sprites, title, 1, onClose);
         if (framed != null) return framed;
 
         var bar = new DockPanel { LastChildFill = true };
@@ -83,25 +83,38 @@ internal static class GameUi
         };
     }
 
+    /// <summary>글자 한 줄이 앉는 높이(그림 점). 게임 한글 글리프 14 에 위아래 한 점씩.</summary>
+    private const int ItemTextHeight = 16;
+
     /// <summary>명령 창의 한 줄. <paramref name="run"/> 이 null 이면 흐려 두고 안 먹는다.</summary>
+    /// <remarks>
+    /// 게임은 줄을 아주 촘촘히 놓는다 — 테 한 점, 위아래 여백 두 점이 전부다.
+    /// 글자도 게임 비트맵 글꼴로 찍어야 크기가 맞는다(윈도 글꼴은 같은 자리에서 더 크다).
+    /// </remarks>
     public static Border MenuItem(string text, Action? run)
     {
+        // 흐린 줄은 회색(색인 21)으로 찍는다. 그림자는 없다 — 게임 버튼 글자에는 안 붙는다.
+        FrameworkElement? label = GameFontLabel(text, run != null ? GameFont.ButtonColor : (byte)21,
+                                                1, ItemTextHeight, shadow: false);
+        label ??= new TextBlock
+        {
+            Text = text,
+            Foreground = run != null ? Brushes.Black : Brushes.Gray,
+            FontWeight = FontWeights.Bold,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+
         var item = new Border
         {
             Background = ItemFill,
             BorderBrush = ItemEdge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(0, 0, 0, 3),
-            Padding = new Thickness(24, 2, 24, 2),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 2),
+            Padding = new Thickness(12, 2, 12, 2),
             Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
-            Child = new TextBlock
-            {
-                Text = text,
-                Foreground = run != null ? Brushes.Black : Brushes.Gray,
-                FontWeight = FontWeights.Bold,
-                FontSize = 14,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            },
+            Child = label,
         };
         if (run != null)
         {
@@ -126,8 +139,8 @@ internal static class GameUi
         {
             Background = MenuBack,
             BorderBrush = Edge,
-            BorderThickness = new Thickness(3),
-            Padding = new Thickness(6),
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(3),
             Child = stack,
         };
     }
@@ -156,15 +169,15 @@ internal static class GameUi
                     HorizontalAlignment = HorizontalAlignment.Center,
                 },
             });
-        ((Border)stack.Children[0]).Margin = new Thickness(0, 0, 0, 6);
+        ((Border)stack.Children[0]).Margin = new Thickness(0, 0, 0, 3);
         foreach (var (text, run) in items) stack.Children.Add(MenuItem(text, run));
 
         return new Border
         {
             Background = MenuBack,
             BorderBrush = Edge,
-            BorderThickness = new Thickness(3),
-            Padding = new Thickness(6),
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(3),
             Child = stack,
         };
     }
@@ -261,6 +274,44 @@ internal static class GameUi
     public static UiSprites? Sprites { get; set; }
 
     /// <summary>
+    /// 게임 폴더에서 읽은 비트맵 글꼴. 게임 폴더를 알게 되면 한 번 넣어 둔다.
+    /// 못 읽었으면 null 이고 그때는 윈도 글꼴로 물러선다.
+    /// </summary>
+    public static GameFont? Font { get; set; }
+
+    /// <summary>
+    /// 게임 글꼴로 찍은 글자. 띠 위에 겹쳐 놓는다. 글꼴이 없거나 찍을 게 없으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 글자가 <see cref="UiSprites.BandHeight"/> 안에서 세로 가운데로 오게 찍고, 통째로
+    /// <paramref name="scale"/> 배 키운다. 늘릴 때 섞으면 획이 흐려지므로 안 섞는다.
+    /// </remarks>
+    private static Image? GameFontLabel(string text, byte color, int scale,
+                                        int height = UiSprites.BandHeight, bool shadow = true)
+    {
+        if (Font == null) return null;
+        var bgra = Font.Render(text, color, shadow, GameFont.ShadowColor, height, out int w);
+        if (bgra == null || w <= 0) return null;
+
+        var bmp = BitmapSource.Create(w, height, 96, 96,
+                                      PixelFormats.Bgra32, null, bgra, w * 4);
+        bmp.Freeze();
+
+        var image = new Image
+        {
+            Source = bmp,
+            Width = w * scale,
+            Height = height * scale,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,        // 제목 줄 끌기를 가리지 않게
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+        return image;
+    }
+
+    /// <summary>
     /// 게임 원본 조각으로 지은 제목 띠. 조각을 못 읽으면 null 이라 부르는 쪽이 물러설 수 있다.
     /// </summary>
     /// <remarks>
@@ -271,7 +322,7 @@ internal static class GameUi
     /// 띠 높이는 늘 24점이라 <paramref name="scale"/> 배만큼만 키운다. 늘릴 때 섞으면
     /// 손으로 찍은 덩굴 무늬가 매끄러워져 게임 맛이 죽으므로 안 섞는다.
     /// </remarks>
-    public static Border? TitleFrame(UiSprites? sprites, string title, int scale = 2,
+    public static Border? TitleFrame(UiSprites? sprites, string title, int scale = 1,
                                      Action? onClose = null)
     {
         if (sprites == null) return null;
@@ -307,8 +358,10 @@ internal static class GameUi
             grid.Children.Add(cell);
         }
 
-        // 글씨는 상자 전체 위에 얹는다 — 마구리를 넘어가도 가운데에 오게.
-        var label = new TextBlock
+        // 글씨는 띠 전체 위에 얹는다 — 마구리를 넘어가도 가운데에 오게.
+        // 게임 비트맵 글꼴을 읽었으면 그것으로 찍는다. 획 굵기까지 게임과 같아진다.
+        FrameworkElement? label = GameFontLabel(title, GameFont.TitleColor, scale);
+        label ??= new TextBlock
         {
             Text = title,
             Foreground = Text,
@@ -318,7 +371,6 @@ internal static class GameUi
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumnSpan(label, 3);
-        Grid.SetRowSpan(label, 3);
         grid.Children.Add(label);
 
         if (onClose != null)

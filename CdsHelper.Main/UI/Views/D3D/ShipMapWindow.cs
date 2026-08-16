@@ -953,16 +953,21 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 게임 원본 화면 조각을 한 번만 읽어 <see cref="GameUi.Sprites"/> 에 넣는다.
+    /// 게임 원본 화면 조각과 비트맵 글꼴을 한 번만 읽어 <see cref="GameUi"/> 에 넣는다.
     /// 게임 폴더를 아직 모르면 그냥 넘어간다 — 세이브를 열면 다시 부른다.
     /// </summary>
     private void LoadSprites()
     {
-        if (GameUi.Sprites != null || _spritesTried || string.IsNullOrEmpty(_gameDir)) return;
+        if (_spritesTried || string.IsNullOrEmpty(_gameDir)) return;
         _spritesTried = true;
+
         GameUi.Sprites = UiSprites.Open(_gameDir);
         if (GameUi.Sprites == null)
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 화면 조각 없음: {UiSprites.LastError}");
+
+        GameUi.Font = GameFont.Open(_gameDir);
+        if (GameUi.Font == null)
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 게임 글꼴 없음: {GameFont.LastError}");
     }
 
     private bool _spritesTried;
