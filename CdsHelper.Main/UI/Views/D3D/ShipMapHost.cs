@@ -738,6 +738,30 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>시작 칸. 혹시 뭍이면(WORLD.CDS 가 다르면) 가장 가까운 물칸으로 밀어 낸다.</summary>
     private (double X, double Y) LisbonStart() => NearestWater(StartCellX, StartCellY);
 
+    /// <summary>
+    /// 배를 그 도시 앞바다에 갖다 놓는다(불러오기에 쓴다). 도시 번호가 표에 없으면 false.
+    /// </summary>
+    public bool PlaceAtCity(int cityId)
+    {
+        if (!_ready) return false;
+        if (!GameMapCoords.TryCityCell(cityId, out double cx, out double cy)) return false;
+
+        (cx, cy) = NearestWater(cx, cy);   // 도시 칸은 뭍이라 앞바다로 밀어 낸다
+        _shipX = _targetX = cx;
+        _shipY = _targetY = cy;
+        _shipKnown = true;
+        _blocked = false;
+        _anchored = false;
+        _onLand = false;
+        _tickAccum = 0;
+        _dirX = _dirY = 0;                 // 뱃머리를 놓아 그 자리에 선다
+        _centerX = cx;
+        _centerY = cy;
+        _follow = true;
+        _dirty = true;
+        return true;
+    }
+
     /// <summary>배를 리스본 앞바다로 되돌린다.</summary>
     public void ResetToLisbon()
     {

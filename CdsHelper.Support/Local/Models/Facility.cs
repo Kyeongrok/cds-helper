@@ -15,8 +15,9 @@ public enum FacilityKind
     Palace,       // 왕궁
     Library,      // 도서관
     Guild,        // 조합
-    Mansion,      // 저택
-    Other,        // 그 밖(성문·상관·모스크·사원 …) — 아직 흉내내지 않는다
+    Home,         // 자택 — 내 집이다(저택 = 귀족 저택은 딴 건물이다)
+    Gate,         // 성문
+    Other,        // 그 밖(저택·상관·모스크·사원 …) — 아직 흉내내지 않는다
 }
 
 /// <summary>
@@ -74,10 +75,20 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
         new(FacilityKind.Guild, "조합",
             ["수련", "조합을 나온다"]),
 
-        new(FacilityKind.Mansion, "저택",
-            ["저금", "교육", "후손을 남긴다", "세대교체", "백과사전을 본다", "연표를 본다",
-             "은퇴한다", "밖으로 나간다"]),
+        // 자택은 내 집이다. "저택"(귀족 저택)은 딴 건물이라 이 줄이 아니다 — 건물 표에서도
+        // 자택이 코드 11, 저택이 12 로 갈려 있다.
+        new(FacilityKind.Home, "자택",
+            ["휴양", "보관", "저금", "후손을 남긴다", "교육", "세대교체",
+             "백과사전을 본다", "연표를 본다", "은퇴한다", "기능", "밖으로 나간다"]),
+
+        new(FacilityKind.Gate, "성문",
+            ["탐험을 떠난다", "마을로 돌아간다"]),
     ];
+
+    /// <summary>
+    /// 어느 시설에서 "기능" 을 골랐을 때 뜨는 줄들. 게임은 여기서 저장·로드까지 한다.
+    /// </summary>
+    public static readonly string[] SystemMenu = ["저장", "로드", "게임 종료", "게임 재개"];
 
     /// <summary>
     /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는

@@ -123,9 +123,9 @@ public sealed class CityPicDialog : Window
                 if (Mouse.LeftButton == MouseButtonState.Pressed) DragMove();
             };
 
-        // 제목 줄이 없으니(WindowStyle.None) 키와 오른쪽 단추로 닫는다.
-        KeyDown += (_, e) => { if (e.Key is Key.Escape or Key.Enter) Close(); };
-        MouseRightButtonUp += (_, _) => Close();
+        // 오른쪽 단추는 게임처럼 도시 커맨드 창을 연다. 창을 닫는 것은 ESC 다.
+        KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
+        MouseRightButtonUp += (_, e) => { e.Handled = true; ShowMenu(CityMenu(cityName)); };
     }
 
     /// <summary>
@@ -206,6 +206,47 @@ public sealed class CityPicDialog : Window
     }
 
     /// <summary>
+    /// 시설에서 "기능" 을 골랐을 때 뜨는 창. 제목이 없고 줄만 넷이다 —
+    /// 게임 재개를 고르면 하던 화면으로 돌아간다. 저장·로드는 아직 흉내내지 않는다.
+    /// </summary>
+    private Border SystemMenu() => GameUi.MenuBox(
+        [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
+
+    private Action? SystemAction(string item) => item switch
+    {
+        "저장" => SaveGame,
+        "게임 재개" => CloseMenu,
+        _ => null,
+    };
+
+    /// <summary>
+    /// 지금 상태(소지금·날짜·있는 도시·배운 기술)를 적는다.
+    /// 게임 폴더가 아니라 우리 자리에 쓴다 — <see cref="GameSave"/> 참고.
+    /// </summary>
+    private void SaveGame()
+    {
+        var error = GameSave.Save(_player);
+        NoticeDialog.Show(this, error.Length == 0 ? "기록했다!" : $"기록하지 못했다 — {error}");
+    }
+
+    /// <summary>
+    /// 도시 커맨드 창. 도시 화면에서 오른쪽 단추를 누르면 뜬다 — 제목은 도시 이름이고
+    /// 제목 줄에 닫기(X)가 있다. 지금은 취소만 살아 있다.
+    /// </summary>
+    private Border CityMenu(string cityName) => GameUi.CommandBox(cityName, CloseMenu,
+        ("맵 포인트에 들어간다", null),
+        ("인물 정보", null),
+        ("함대 정보", null),
+        ("소지품 정보", null),
+        ("도시 정보", null),
+        ("힌트", null),
+        ("계약 정보", null),
+        ("후원자 정보", null),
+        ("지도를 본다", null),
+        ("게임 종료", null),
+        ("취소", CloseMenu));
+
+    /// <summary>
     /// 시설의 명령 창을 짓는다. 줄은 <see cref="Facility"/> 표에서 오고, 그중 흉내낼 수 있는
     /// 것만 <see cref="ActionFor"/> 가 손을 달아 준다. 나머지는 흐린 채로 둔다.
     /// 제목은 건물 이름이다(게임도 그렇다).
@@ -229,6 +270,7 @@ public sealed class CityPicDialog : Window
         if (item == facility.ExitItem) return CloseMenu;
         if (item == "수련" && teachMask != 0)
             return () => SkillLearnDialog.Show(this, _player, _table.Teaches(teachMask));
+        if (item == "기능") return () => ShowMenu(SystemMenu());
 
         return (facility.Kind, item) switch
         {
@@ -239,19 +281,23 @@ public sealed class CityPicDialog : Window
     }
 
     /// <summary>
-    /// 도시 그림을 띄운다. 그림을 못 풀면 아무것도 안 하고 false —
-    /// 그림이 없다고 입항까지 막을 일은 아니다.
+    /// 도시 그림 창을 연다. 그림을 못 풀면 null 이다 — 그림이 없다고 입항까지 막을 일은 아니다.
     /// </summary>
+    /// <remarks>
+    /// <b>모달로 띄우지 않는다.</b> 모달이면 같은 앱의 다른 창이 입력을 못 받아 함대 창
+    /// 제목 줄(옮기기·닫기)이 죽어 버린다. 배는 부르는 쪽에서 멈춰 두고, 창이 닫히면
+    /// <see cref="Window.Closed"/> 로 풀어 준다.
+    /// </remarks>
     /// <param name="mapArea">
     /// 지도가 놓인 자리(화면 좌표, WPF 단위). 그 자리를 통째로 덮는다. 비워 두면 그림 크기에
     /// 맞춰 owner 한가운데에 띄운다.
     /// </param>
-    public static bool Show(Window owner, CityPictures pictures, CityBuildingTable table,
-                            int cityId, string cityName,
-                            Player player, BgmPlayer? bgm = null, Rect mapArea = default)
+    public static CityPicDialog? Open(Window owner, CityPictures pictures, CityBuildingTable table,
+                                      int cityId, string cityName,
+                                      Player player, BgmPlayer? bgm = null, Rect mapArea = default)
     {
         var bgra = pictures.TryGetBgra(cityId);
-        if (bgra == null) return false;
+        if (bgra == null) return null;
 
         var picture = BitmapSource.Create(CityPictures.Width, CityPictures.Height, 96, 96,
                                           PixelFormats.Bgra32, null, bgra, CityPictures.Width * 4);
@@ -265,8 +311,8 @@ public sealed class CityPicDialog : Window
         {
             Owner = owner,
         };
-        dlg.ShowDialog();
-        return true;
+        dlg.Show();
+        return dlg;
     }
 
     /// <summary>

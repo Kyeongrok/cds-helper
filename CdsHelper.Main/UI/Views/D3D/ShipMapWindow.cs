@@ -509,10 +509,23 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 타이틀을 걷고 지도를 띄운다. <paramref name="fresh"/> 면 배를 리스본 앞바다에 새로 놓는다.
+    /// 타이틀을 걷고 지도를 띄운다. <paramref name="fresh"/> 면 배를 리스본 앞바다에 새로 놓고,
+    /// 아니면 적어 둔 기록(<see cref="GameSave"/>)을 되돌린다.
     /// </summary>
     private void StartMap(bool fresh)
     {
+        // 불러올 것이 없으면 타이틀에 그대로 머문다 — 화면부터 갈아 끼우면 되돌리기 번거롭다.
+        GameSave.Data? saved = null;
+        if (!fresh)
+        {
+            saved = GameSave.Load();
+            if (saved == null)
+            {
+                NoticeDialog.Show(this, "적어 둔 기록이 없다.");
+                return;
+            }
+        }
+
         Content = _mapRoot;
 
         if (string.IsNullOrEmpty(_gameDir))
@@ -528,7 +541,18 @@ public sealed class ShipMapWindow : Window
             _statusTimer.Start();
         }
 
-        if (fresh) _host.ResetToLisbon();
+        if (fresh)
+        {
+            _host.ResetToLisbon();
+        }
+        else if (saved != null)
+        {
+            _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName, saved.Skills);
+            // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
+            if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
+            _status.Text = $"[{saved.CityName}] 에서 이어 간다 — {saved.Date:yyyy년 M월 d일}";
+        }
+
         _bgm.Play(BgmPlayer.SeaTrack);
         SyncOverlay();
     }
@@ -591,18 +615,23 @@ public sealed class ShipMapWindow : Window
         // 물음창이 떠 있는 동안 배가 계속 가면 대답할 새가 없다.
         _asking = true;
         _host.Paused = true;
+        bool inCity = false;
         try
         {
             if (PortDialog.Ask(this, name))
             {
                 _host.EnterPort(name);
-                ShowCityPicture(city, name);
+                inCity = ShowCityPicture(city, name);
             }
         }
         finally
         {
-            _host.Paused = false;
-            _asking = false;
+            // 도시 창이 열렸으면 그 창이 닫힐 때 푼다(그동안 배는 서 있는다).
+            if (!inCity)
+            {
+                _host.Paused = false;
+                _asking = false;
+            }
         }
     }
 
@@ -611,39 +640,44 @@ public sealed class ShipMapWindow : Window
     /// 조용히 넘어간다 — 그림은 덤이고, 입항은 이미 끝났다.
     /// </summary>
     /// <remarks>
-    /// 도시에 들어가 있는 동안에는 곡이 바뀐다. 창을 닫고 나오면 바다 곡으로 되돌린다 —
-    /// 그림을 못 띄우는 경우에는 곡도 건드리지 않는다.
+    /// 도시에 들어가 있는 동안에는 곡이 바뀌고 지도에 남색 막이 씌워진다. 창은 모달이 아니다 —
+    /// 모달이면 함대 창 제목 줄이 죽는다. 그래서 창이 닫힐 때 곡·막·멈춤을 함께 푼다.
     /// </remarks>
-    private void ShowCityPicture(int city, string name)
+    /// <returns>도시 창을 띄웠으면 true.</returns>
+    private bool ShowCityPicture(int city, string name)
     {
         if (_cityPics == null)
         {
-            if (_cityPicsTried || string.IsNullOrEmpty(_gameDir)) return;
+            if (_cityPicsTried || string.IsNullOrEmpty(_gameDir)) return false;
             _cityPicsTried = true;
             _cityPics = CityPictures.Open(_gameDir);
             if (_cityPics == null)
             {
                 System.Diagnostics.Debug.WriteLine($"[ShipMap] 도시 그림 없음: {CityPictures.LastError}");
-                return;
+                return false;
             }
             _buildings = CityBuildingTable.Open(_gameDir);
             if (_buildings == null)
                 System.Diagnostics.Debug.WriteLine($"[ShipMap] 건물 표 없음: {CityBuildingTable.LastError}");
         }
-        if (_buildings == null) return;   // 건물 표가 없으면 도시 화면을 열지 않는다
+        if (_buildings == null) return false;   // 건물 표가 없으면 도시 화면을 열지 않는다
+
+        var dialog = CityPicDialog.Open(this, _cityPics, _buildings, city, name,
+                                        _player, _bgm, MapAreaOnScreen());
+        if (dialog == null) return false;
 
         _bgm.Play(BgmPlayer.CityTrack);
         _host.InCity = true;      // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
-        try
-        {
-            CityPicDialog.Show(this, _cityPics, _buildings, city, name,
-                               _player, _bgm, MapAreaOnScreen());
-        }
-        finally
+        _player.EnterCity(city, name);
+        dialog.Closed += (_, _) =>
         {
             _host.InCity = false;
             _bgm.Play(BgmPlayer.SeaTrack);
-        }
+            _host.Paused = false;
+            _asking = false;
+            _player.EnterCity(-1);
+        };
+        return true;
     }
 
     /// <summary>도시 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
