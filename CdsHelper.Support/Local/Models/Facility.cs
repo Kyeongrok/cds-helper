@@ -16,6 +16,7 @@ public enum FacilityKind
     Library,      // 도서관
     Guild,        // 조합
     Mansion,      // 저택
+    Other,        // 그 밖(성문·상관·모스크·사원 …) — 아직 흉내내지 않는다
 }
 
 /// <summary>
@@ -77,4 +78,15 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
             ["저금", "교육", "후손을 남긴다", "세대교체", "백과사전을 본다", "연표를 본다",
              "은퇴한다", "밖으로 나간다"]),
     ];
+
+    /// <summary>
+    /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는
+    /// 종류(성문·상관·모스크 …)는 나가기 한 줄만 있는 창을 준다.
+    /// </summary>
+    public static Facility For(string kind)
+    {
+        foreach (var f in All)
+            if (f.Name == kind) return f;
+        return new Facility(FacilityKind.Other, kind, [$"{kind}에서 나온다"]);
+    }
 }
