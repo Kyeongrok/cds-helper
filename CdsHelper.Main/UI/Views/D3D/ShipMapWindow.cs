@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -36,6 +37,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>지도 쪽 화면. 타이틀에서 고르면 이것으로 갈아 끼운다.</summary>
     private FrameworkElement _mapRoot = null!;
+
+    /// <summary>타이틀 쪽 화면. 키를 이 화면에서만 받으려고 들고 있는다.</summary>
+    private FrameworkElement? _titleRoot;
 
     /// <summary>게임 폴더. WORLD.CDS 도 bgm 도 여기서 읽는다.</summary>
     private string _gameDir = "";
@@ -100,6 +104,15 @@ public sealed class ShipMapWindow : Window
         VerticalAlignment = VerticalAlignment.Center,
     };
 
+    /// <summary>게임 상단 바의 명성 칸. 후원자를 만날 수 있는지가 이 값으로 갈린다.</summary>
+    private readonly TextBlock _fame = new()
+    {
+        Foreground = Brushes.Black,
+        FontWeight = FontWeights.Bold,
+        FontSize = 14,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
     /// <summary>게임 상단 바의 위경도 칸.</summary>
     private readonly TextBlock _coord = new()
     {
@@ -156,9 +169,9 @@ public sealed class ShipMapWindow : Window
 
     public ShipMapWindow()
     {
-        Title = "함대 보기 (Direct3D)";
-        Width = 1000;
-        Height = 700;
+        Title = "대항해시대3";
+        Width = 1200;
+        Height = 800;
         Background = Brushes.Black;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
@@ -197,18 +210,6 @@ public sealed class ShipMapWindow : Window
         };
         toLisbon.Click += (_, _) => { follow.IsChecked = true; _host.ResetToLisbon(); };
 
-        var showCoords = new CheckBox
-        {
-            Content = "좌표 겹쳐 보기",
-            IsChecked = true,
-            Foreground = Brushes.Gainsboro,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 4, 0),
-            ToolTip = "배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄웁니다",
-        };
-        showCoords.Checked += (_, _) => { _overlayWanted = true; SyncOverlay(); };
-        showCoords.Unchecked += (_, _) => { _overlayWanted = false; SyncOverlay(); };
-
         var hint = new TextBlock
         {
             Text = "왼쪽 클릭: 정박/닻 올리기 · Ctrl+클릭: 배 놓기",
@@ -226,8 +227,6 @@ public sealed class ShipMapWindow : Window
         DockPanel.SetDock(recenter, Dock.Left);
         bar.Children.Add(toLisbon);
         DockPanel.SetDock(toLisbon, Dock.Left);
-        bar.Children.Add(showCoords);
-        DockPanel.SetDock(showCoords, Dock.Left);
         bar.Children.Add(hint);
         DockPanel.SetDock(hint, Dock.Left);
         bar.Children.Add(_status);
@@ -270,6 +269,7 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(GameCell(_mode));
         gameCells.Children.Add(GameCell(_coord));
         gameCells.Children.Add(GameCell(_purse));
+        gameCells.Children.Add(GameCell(_fame));
 
         // 게임 띠 끝에 설정 칸. 누르면 배경음악을 켜고 끄는 창이 뜬다.
         var settings = GameCell(new TextBlock
@@ -283,6 +283,22 @@ public sealed class ShipMapWindow : Window
         settings.Cursor = Cursors.Hand;
         settings.MouseLeftButtonUp += (_, _) => SettingsDialog.Show(this, _bgm);
         gameCells.Children.Add(settings);
+
+        // 개발 칸. 소지금과 명성을 손으로 넣는 창이 뜬다 — 놀이에는 없는 자리다.
+        var dev = GameCell(new TextBlock
+        {
+            Text = "개발",
+            Foreground = Brushes.Black,
+            FontWeight = FontWeights.Bold,
+            FontSize = 14,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        dev.Cursor = Cursors.Hand;
+        dev.MouseLeftButtonUp += (_, _) => DevDialog.Show(
+            this, _player,
+            () => _overlayWanted,
+            on => { _overlayWanted = on; SyncOverlay(); });
+        gameCells.Children.Add(dev);
         var gameBar = new Border
         {
             Background = BarFill,
@@ -302,7 +318,9 @@ public sealed class ShipMapWindow : Window
 
         // 타이틀을 지도 위에 겹쳐 둘 수는 없다 — airspace 규칙상 D3D 자식 창이 WPF 를 덮는다.
         // 그래서 겹치지 않고 통째로 갈아 끼운다. 타이틀이 떠 있는 동안은 자식 창 자체가 없다.
-        Content = BuildTitleScreen();
+        _titleRoot = BuildTitleScreen();
+        Content = _titleRoot;
+        PreviewKeyDown += OnTitleKey;   // 타이틀에서만 먹는다(그 안에서 화면을 본다)
         input.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(input));
         // 왼쪽 끌기는 배 조종에 양보하고, 지도 밀기는 오른쪽 끌기로 옮겼다.
         // 오른쪽 단추는 둘을 겸한다 — 끌면 지도 밀기, 움직이지 않고 떼면 커맨드 메뉴.
@@ -347,6 +365,7 @@ public sealed class ShipMapWindow : Window
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
             _purse.Text = $"{_player.Gold}닢 · 함선 {_player.Ships.Count}/{Player.MaxShips}";
+            _fame.Text = $"명성 {_player.Fame}";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             ShipSprites.Skin = _player.Ships.Max(s => s.Skin);
             // 게임 상단 띠와 같은 말투로 적는다.
@@ -439,22 +458,38 @@ public sealed class ShipMapWindow : Window
     private FrameworkElement BuildTitleScreen()
     {
         var items = new StackPanel();
-        items.Children.Add(new Border
+
+        // 제목 상자는 게임 원본 조각(MISC.CDS)으로 짓는다. 못 읽으면 민색 상자로 물러선다.
+        var sprites = UiSprites.Open(_gameDir);
+        if (sprites == null)
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 화면 조각 없음: {UiSprites.LastError}");
+
+        var titleBar = GameUi.TitleFrame(sprites, "메인메뉴");
+        if (titleBar != null)
         {
-            Background = MenuBack,
-            BorderBrush = MenuEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(18, 2, 18, 2),
-            Margin = new Thickness(0, 0, 0, 6),
-            Child = new TextBlock
+            titleBar.Margin = new Thickness(0, 0, 0, 6);
+            items.Children.Add(titleBar);
+        }
+        else
+        {
+            items.Children.Add(new Border
             {
-                Text = "메인메뉴",
-                Foreground = MenuTitleFg,
-                FontWeight = FontWeights.Bold,
-                FontSize = 17,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            },
-        });
+                Background = MenuBack,
+                BorderBrush = MenuEdge,
+                BorderThickness = new Thickness(2),
+                Padding = new Thickness(18, 2, 18, 2),
+                Margin = new Thickness(0, 0, 0, 6),
+                Child = new TextBlock
+                {
+                    Text = "메인메뉴",
+                    Foreground = MenuTitleFg,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 17,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            });
+        }
+        _titleItems.Clear();
         items.Children.Add(TitleMenuItem("NEW GAME", () => StartMap(fresh: true)));
         items.Children.Add(TitleMenuItem("LOAD GAME", () => StartMap(fresh: false)));
         items.Children.Add(TitleMenuItem("MINI GAME", null));
@@ -470,7 +505,9 @@ public sealed class ShipMapWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Child = items,
         };
-        return new Grid { Background = TitleBackground(), Children = { box } };
+        var screen = new Grid { Background = TitleBackground(), Children = { box } };
+        FocusTitle(0);   // 게임처럼 첫 줄에 초점을 두고 시작한다
+        return screen;
     }
 
     /// <summary>
@@ -504,8 +541,26 @@ public sealed class ShipMapWindow : Window
         }
     }
 
-    /// <summary>타이틀 메뉴 한 줄. <paramref name="run"/> 이 null 이면 흐리게 두고 못 고른다.</summary>
-    private static Border TitleMenuItem(string text, Action? run)
+    /// <summary>타이틀 메뉴의 고를 수 있는 줄들과, 지금 초점이 가 있는 자리.</summary>
+    private readonly List<(Border Item, SolidColorBrush Inner, Action Run)> _titleItems = [];
+    private int _titleIndex = -1;
+
+    /// <summary>초점 표시가 오가는 두 색. 게임도 이 둘을 번갈아 보인다.</summary>
+    private static readonly Color FocusLight = Color.FromRgb(0xEC, 0xE4, 0xD2);
+    private static readonly Color FocusDark = Color.FromRgb(0x14, 0x0C, 0x0A);
+
+    /// <summary>초점이 깜빡이는 참. 0.5초마다 색이 바뀐다.</summary>
+    private static readonly TimeSpan FocusBlink = TimeSpan.FromSeconds(0.5);
+
+    /// <summary>
+    /// 타이틀 메뉴 한 줄. <paramref name="run"/> 이 null 이면 흐리게 두고 못 고른다.
+    /// </summary>
+    /// <remarks>
+    /// 초점은 안쪽 테 한 줄로 낸다 — 게임은 그 테를 밝은 색과 검은색으로 0.5초마다 갈아
+    /// 깜빡이게 해서 지금 고른 줄을 알린다. 색을 서서히 섞지 않고 딱딱 바꾸는 것이 요령이라
+    /// <see cref="DiscreteColorKeyFrame"/> 을 쓴다(<c>ColorAnimation</c> 은 스며들듯 바뀐다).
+    /// </remarks>
+    private Border TitleMenuItem(string text, Action? run)
     {
         var label = new TextBlock
         {
@@ -515,23 +570,83 @@ public sealed class ShipMapWindow : Window
             FontSize = 17,
             HorizontalAlignment = HorizontalAlignment.Center,
         };
+
+        // 안쪽 테 — 평소에는 안 보이고, 초점이 오면 깜빡인다.
+        var innerBrush = new SolidColorBrush(Colors.Transparent);
+        var inner = new Border
+        {
+            BorderBrush = innerBrush,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(26, 2, 26, 2),
+            Child = label,
+        };
+
         var item = new Border
         {
             Background = CellFill,
             BorderBrush = BarEdge,
             BorderThickness = new Thickness(2),
             Margin = new Thickness(0, 0, 0, 3),
-            Padding = new Thickness(28, 3, 28, 3),
+            Padding = new Thickness(1),
             Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
-            Child = label,
+            Child = inner,
         };
         if (run == null) return item;
 
-        // 게임처럼 커서가 올라간 줄만 짙게 뒤집는다.
-        item.MouseEnter += (_, _) => { item.Background = MenuBack; label.Foreground = MenuTitleFg; };
-        item.MouseLeave += (_, _) => { item.Background = CellFill; label.Foreground = Brushes.Black; };
+        int index = _titleItems.Count;
+        _titleItems.Add((item, innerBrush, run));
+
+        // 커서가 올라가면 그 줄로 초점이 옮겨 간다 — 게임도 고른 줄이 하나뿐이다.
+        item.MouseEnter += (_, _) => FocusTitle(index);
         item.MouseLeftButtonUp += (_, _) => run();
         return item;
+    }
+
+    /// <summary>그 줄로 초점을 옮긴다. 옛 줄의 깜빡임은 멎는다.</summary>
+    private void FocusTitle(int index)
+    {
+        if (index < 0 || index >= _titleItems.Count || index == _titleIndex) return;
+
+        if (_titleIndex >= 0 && _titleIndex < _titleItems.Count)
+        {
+            var (_, old, _) = _titleItems[_titleIndex];
+            old.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            old.Color = Colors.Transparent;
+        }
+
+        _titleIndex = index;
+        var (_, brush, _) = _titleItems[index];
+
+        var blink = new ColorAnimationUsingKeyFrames
+        {
+            Duration = new Duration(FocusBlink + FocusBlink),
+            RepeatBehavior = RepeatBehavior.Forever,
+        };
+        blink.KeyFrames.Add(new DiscreteColorKeyFrame(FocusLight, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        blink.KeyFrames.Add(new DiscreteColorKeyFrame(FocusDark, KeyTime.FromTimeSpan(FocusBlink)));
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, blink);
+    }
+
+    /// <summary>타이틀에서 위아래로 옮기고 엔터로 고른다. 지도가 뜨면 아무것도 안 한다.</summary>
+    private void OnTitleKey(object sender, KeyEventArgs e)
+    {
+        if (_titleItems.Count == 0 || !ReferenceEquals(Content, _titleRoot)) return;
+
+        switch (e.Key)
+        {
+            case Key.Up:
+                FocusTitle((_titleIndex - 1 + _titleItems.Count) % _titleItems.Count);
+                e.Handled = true;
+                break;
+            case Key.Down:
+                FocusTitle((_titleIndex + 1) % _titleItems.Count);
+                e.Handled = true;
+                break;
+            case Key.Enter or Key.Space:
+                if (_titleIndex >= 0) _titleItems[_titleIndex].Run();
+                e.Handled = true;
+                break;
+        }
     }
 
     /// <summary>
@@ -577,11 +692,28 @@ public sealed class ShipMapWindow : Window
                             saved.Skills, saved.Hints);
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
-            _status.Text = $"[{saved.CityName}] 에서 이어 간다 — {saved.Date:yyyy년 M월 d일}";
+            _status.Text = saved.CityId >= 0
+                ? $"[{saved.CityName}] 에서 이어 간다 — {saved.Date:yyyy년 M월 d일}"
+                : $"바다에서 이어 간다 — {saved.Date:yyyy년 M월 d일}";
         }
 
         _bgm.Play(BgmPlayer.SeaTrack);
         SyncOverlay();
+
+        // 적어 둔 자리가 도시면 도시 화면부터 연다. 바다에서 적었으면(CityId 가 -1) 그대로 둔다 —
+        // 어디에서 적었는지는 그 값 하나로 갈린다.
+        //
+        // 지도가 자리를 잡은 뒤에 열어야 도시 그림이 지도 한가운데에 놓인다
+        // (MapAreaOnScreen 이 아직 0 이면 엉뚱한 데 뜬다).
+        if (!fresh && saved is { CityId: >= 0 })
+        {
+            int city = saved.CityId;
+            string name = saved.CityName.Length > 0 ? saved.CityName : CityName(city);
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ShowCityPicture(city, name)) _host.Paused = true;
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
     }
 
     /// <summary>
@@ -617,7 +749,7 @@ public sealed class ShipMapWindow : Window
             ("편성", null),
             ("대열", null),
             ("항해일지를 본다", null),
-            ("기능", null),
+            ("기능", () => { Close(); SaveGame(); }),
             ashore,
             ("취소", Close));
 
@@ -625,6 +757,17 @@ public sealed class ShipMapWindow : Window
         popup.Closed += (_, _) => _host.Paused = false;
         _host.Paused = true;
         popup.IsOpen = true;
+    }
+
+    /// <summary>
+    /// 바다에서 적는다. 도시 안에서 적는 것(<c>CityPicDialog</c> 의 기능 창)과 같은 자리에
+    /// 쓰는데, 도시에 들어가 있지 않으므로 <see cref="Player.CityId"/> 가 -1 로 남는다 —
+    /// 그 값이 곧 "바다에서 적었다" 는 표시다.
+    /// </summary>
+    private void SaveGame()
+    {
+        var error = GameSave.Save(_player);
+        NoticeDialog.Show(this, error.Length == 0 ? "기록했다!" : $"기록하지 못했다 — {error}");
     }
 
     /// <summary>도시에 다가가면 한 번 물어본다. 떠났다 다시 와야 또 묻는다.</summary>
@@ -692,12 +835,16 @@ public sealed class ShipMapWindow : Window
         if (_buildings == null) return false;   // 건물 표가 없으면 도시 화면을 열지 않는다
 
         _bookTable ??= BookTable.Open(_gameDir);   // 도서관 열람에 쓴다. 없으면 그 줄만 흐리다
+
+        // 도는 곡은 문화권마다 다르다 — 세우타 같은 중근동 도시는 딴 곡이다.
+        int track = BgmPlayer.CityTrackFor(CultureOf(city));
+
         var dialog = CityPicDialog.Open(this, _cityPics, _buildings, city, name,
                                         _player, _bgm, MapAreaOnScreen(),
-                                        _bookTable, HintName, _gameDir);
+                                        _bookTable, HintName, _gameDir, track);
         if (dialog == null) return false;
 
-        _bgm.Play(BgmPlayer.CityTrack);
+        _bgm.Play(track);
         _host.InCity = true;      // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
         _player.EnterCity(city, name);
         dialog.Closed += (_, _) =>
@@ -709,6 +856,30 @@ public sealed class ShipMapWindow : Window
             _player.EnterCity(-1);
         };
         return true;
+    }
+
+    /// <summary>도시 번호 -> 문화권. cities.json 에서 한 번만 읽어 둔다.</summary>
+    private Dictionary<int, string>? _cultures;
+
+    /// <summary>그 도시의 문화권("이슬람", "북유럽" …). 모르면 빈 문자열.</summary>
+    private string CultureOf(int city)
+    {
+        if (_cultures == null)
+        {
+            _cultures = [];
+            try
+            {
+                var path = Path.Combine(AppContext.BaseDirectory, "cities.json");
+                foreach (var c in new CityService().LoadCities(path))
+                    if (!string.IsNullOrEmpty(c.CulturalSphere))
+                        _cultures[c.Id] = c.CulturalSphere;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShipMap] 문화권 로드 실패: {ex.Message}");
+            }
+        }
+        return _cultures.TryGetValue(city, out var name) ? name : "";
     }
 
     /// <summary>힌트 이름. DB 를 못 읽으면 번호로 물러선다.</summary>

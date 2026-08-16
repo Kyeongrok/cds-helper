@@ -54,6 +54,8 @@
 
     <Style TargetType="{x:Type views:CdsHelperWindow}">
         <Setter Property="Title" Value="{Binding WindowTitle}" />
+        <!-- 창의 첫 크기. 뜨는 자리(화면 한가운데)는 코드에서 정한다 —
+             WindowStartupLocation 은 의존 속성이 아니라 Setter 에 넣을 수 없다. -->
         <Setter Property="Width" Value="1280" />
         <Setter Property="Height" Value="640" />
         <Setter Property="Background" Value="#F5F5F5" />

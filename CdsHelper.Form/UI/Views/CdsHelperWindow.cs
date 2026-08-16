@@ -64,6 +64,30 @@ public class CdsHelperWindow : CdsWindow
         _viewModel = viewModel;
         _regionManager = regionManager;
         DataContext = viewModel;
+
+        // 게임처럼 화면 한가운데에서 뜬다. 안 정해 두면 윈도가 계단식으로 흘려 놓아
+        // 구석에서 뜬다. 크기는 Themes/Views/CdsHelperWindow.xaml 의 Style 에 있다 —
+        // 자리는 이쪽이다. WindowStartupLocation 은 의존 속성이 아니라 Setter 에 못 넣는다.
+        //
+        // CenterScreen 만으로는 어긋난다. 그 값은 창이 뜨기 전 크기로 자리를 잡는데,
+        // 이 창은 템플릿이 붙으면서 크기가 한 번 더 정해지기 때문이다. 그래서 다 뜬 뒤에
+        // 작업 영역(작업 표시줄을 뺀 자리) 기준으로 한 번 더 맞춘다.
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Loaded += (_, _) => CenterOnScreen();
+    }
+
+    /// <summary>작업 영역 한가운데로 옮긴다. 최대화·최소화 상태면 건드리지 않는다.</summary>
+    private void CenterOnScreen()
+    {
+        if (WindowState != WindowState.Normal) return;
+
+        var area = SystemParameters.WorkArea;
+        double w = ActualWidth > 0 ? ActualWidth : Width;
+        double h = ActualHeight > 0 ? ActualHeight : Height;
+        if (double.IsNaN(w) || double.IsNaN(h)) return;
+
+        Left = area.Left + (area.Width - w) / 2;
+        Top = area.Top + (area.Height - h) / 2;
     }
 
     public override void OnApplyTemplate()

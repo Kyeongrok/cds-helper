@@ -2,6 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Main.UI.Views.D3D;
 
@@ -243,18 +246,244 @@ internal static class GameUi
         };
     }
 
+    /// <summary>
+    /// 게임 원본 조각으로 지은 제목 상자. 조각을 못 읽으면 null 이라 부르는 쪽이 물러설 수 있다.
+    /// </summary>
+    /// <remarks>
+    /// 왼쪽 마구리 · 가운데(옆으로 이어 깔기) · 오른쪽 마구리 셋으로 짓는다. 덩굴 무늬는
+    /// 손으로 찍은 도트라 벡터로 그리면 확대할 때 매끄러워져 게임 맛이 죽는다 — 그래서
+    /// <see cref="UiSprites"/> 로 원본을 그대로 꺼내 쓰고, 늘릴 때 섞지 않는다.
+    /// </remarks>
+    public static Border? TitleFrame(UiSprites? sprites, string title, int scale = 2)
+    {
+        if (sprites == null) return null;
+
+        int tw = UiSprites.TileWidth, th = UiSprites.TileRows;
+
+        ImageBrush Piece(uint[] bgra, bool tile)
+        {
+            var bmp = BitmapSource.Create(tw, th, 96, 96, PixelFormats.Bgra32, null, bgra, tw * 4);
+            bmp.Freeze();
+            var brush = new ImageBrush(bmp) { Stretch = Stretch.Fill };
+            if (tile)
+            {
+                brush.TileMode = TileMode.Tile;
+                brush.ViewportUnits = BrushMappingMode.Absolute;
+                brush.Viewport = new Rect(0, 0, tw * scale, th * scale);
+            }
+            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
+            brush.Freeze();
+            return brush;
+        }
+
+        var grid = new Grid { Height = th * scale };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(tw * scale) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(tw * scale) });
+
+        var left = new Border { Background = Piece(sprites.TitleCapLeft, tile: false) };
+        var mid = new Border { Background = Piece(sprites.TitleMiddle, tile: true) };
+        var right = new Border { Background = Piece(sprites.TitleCapRight, tile: false) };
+        Grid.SetColumn(left, 0);
+        Grid.SetColumn(mid, 1);
+        Grid.SetColumn(right, 2);
+        grid.Children.Add(left);
+        grid.Children.Add(mid);
+        grid.Children.Add(right);
+
+        // 글씨는 상자 전체 위에 얹는다 — 마구리를 넘어가도 가운데에 오게.
+        var label = new TextBlock
+        {
+            Text = title,
+            Foreground = Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 17,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumnSpan(label, 3);
+        grid.Children.Add(label);
+
+        return new Border { Child = grid };
+    }
+
+    /// <summary>초점 표시가 오가는 두 색. 게임도 이 둘을 번갈아 보인다.</summary>
+    public static readonly Color FocusLight = Color.FromRgb(0xEC, 0xE4, 0xD2);
+    public static readonly Color FocusDark = Color.FromRgb(0x14, 0x0C, 0x0A);
+
+    /// <summary>초점이 깜빡이는 참. 0.5초마다 색이 바뀐다.</summary>
+    public static readonly TimeSpan FocusBlink = TimeSpan.FromSeconds(0.5);
+
+    /// <summary>
+    /// 초점이 간 것을 알리는 깜빡임. 밝은 색과 검은색을 0.5초마다 갈아 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 색을 서서히 섞지 않고 딱딱 바꾸는 것이 요령이라 <see cref="DiscreteColorKeyFrame"/>
+    /// 을 쓴다 — <c>ColorAnimation</c> 은 스며들듯 바뀌어 게임 맛이 안 난다.
+    /// </remarks>
+    public static void StartBlink(SolidColorBrush brush)
+    {
+        var blink = new ColorAnimationUsingKeyFrames
+        {
+            Duration = new Duration(FocusBlink + FocusBlink),
+            RepeatBehavior = RepeatBehavior.Forever,
+        };
+        blink.KeyFrames.Add(new DiscreteColorKeyFrame(FocusLight, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        blink.KeyFrames.Add(new DiscreteColorKeyFrame(FocusDark, KeyTime.FromTimeSpan(FocusBlink)));
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, blink);
+    }
+
+    /// <summary>깜빡임을 멎고 테를 감춘다.</summary>
+    public static void StopBlink(SolidColorBrush brush)
+    {
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        brush.Color = Colors.Transparent;
+    }
+
+    /// <summary>
+    /// 한 창 안에서 초점이 오가는 단추 묶음. 방향키로 옮기고 엔터로 고른다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 초점이 간 단추의 <b>안쪽 테</b>를 깜빡여 지금 고른 것을 알린다. 그래서 단추마다
+    /// 테를 한 겹 더 두고 그 색만 움직인다.
+    /// </remarks>
+    public sealed class FocusGroup
+    {
+        private readonly List<(Border Item, SolidColorBrush Ring, Action Run)> _items = [];
+        private int _index = -1;
+
+        /// <summary>단추 하나를 만들어 묶음에 넣는다.</summary>
+        public Border Add(string text, Action run, double width = 110)
+        {
+            var label = new TextBlock
+            {
+                Text = text,
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+
+            var ring = new SolidColorBrush(Colors.Transparent);
+            var inner = new Border
+            {
+                BorderBrush = ring,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(0, 1, 0, 1),
+                Child = label,
+            };
+
+            var item = new Border
+            {
+                Width = width,
+                Background = ItemFill,
+                BorderBrush = ItemEdge,
+                BorderThickness = new Thickness(2),
+                Margin = new Thickness(10, 0, 10, 0),
+                Padding = new Thickness(1),
+                Cursor = Cursors.Hand,
+                Child = inner,
+            };
+
+            int index = _items.Count;
+            _items.Add((item, ring, run));
+
+            item.MouseEnter += (_, _) => Focus(index);
+            // 누름은 삼킨다 — 창 끌기(DragMove)가 먼저 걸리면 뗌이 안 온다.
+            item.MouseLeftButtonDown += (_, e) => e.Handled = true;
+            item.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+
+            if (_items.Count == 1) Focus(0);   // 첫 단추에 초점을 두고 시작한다
+            return item;
+        }
+
+        /// <summary>그 단추로 초점을 옮긴다.</summary>
+        public void Focus(int index)
+        {
+            if (index < 0 || index >= _items.Count || index == _index) return;
+            if (_index >= 0 && _index < _items.Count) StopBlink(_items[_index].Ring);
+            _index = index;
+            StartBlink(_items[index].Ring);
+        }
+
+        /// <summary>방향키·엔터를 받는다. 처리했으면 true.</summary>
+        public bool HandleKey(Key key)
+        {
+            if (_items.Count == 0) return false;
+            switch (key)
+            {
+                case Key.Left or Key.Up:
+                    Focus((_index - 1 + _items.Count) % _items.Count);
+                    return true;
+                case Key.Right or Key.Down:
+                    Focus((_index + 1) % _items.Count);
+                    return true;
+                case Key.Enter or Key.Space:
+                    if (_index >= 0) _items[_index].Run();
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 두 색을 바둑판으로 섞은 무늬. 게임 그림의 중간색은 다 이렇게 나 있다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 색인 팔레트(256색)를 쓰는데, 팔레트에 없는 중간색이 필요하면 이웃한 두 색을
+    /// 한 점씩 번갈아 찍어 눈에서 섞이게 한다. 건물 이름표 바탕이 그렇게 되어 있다 —
+    /// <see cref="GamePalette"/> 의 낮은 색인 값을 그림에서 되짚을 때 쓴 성질이 이것이다.
+    ///
+    /// WPF 로는 2x2 짜리 그림 하나를 타일로 깔면 된다. 도트가 뭉개지지 않게 늘릴 때 섞지 않고
+    /// (<see cref="BitmapScalingMode.NearestNeighbor"/>) 테두리도 안 다듬는다
+    /// (<see cref="EdgeMode.Aliased"/>). <paramref name="cell"/> 은 한 칸의 크기다 —
+    /// 도시 그림이 정수배로 커지므로 이름표 무늬도 같은 배로 키워야 결이 맞는다.
+    /// </remarks>
+    public static Brush Dither(Color a, Color b, int cell = 2)
+    {
+        // 2x2 한 장 — 대각선으로 두 색이 엇갈린다.
+        var bmp = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null,
+            new[] { Pack(a), Pack(b), Pack(b), Pack(a) }, 2 * 4);
+        bmp.Freeze();
+
+        var brush = new ImageBrush(bmp)
+        {
+            TileMode = TileMode.Tile,
+            ViewportUnits = BrushMappingMode.Absolute,
+            Viewport = new Rect(0, 0, 2 * cell, 2 * cell),
+            Stretch = Stretch.Fill,
+        };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
+        brush.Freeze();
+        return brush;
+    }
+
+    private static uint Pack(Color c) =>
+        (uint)(c.A << 24 | c.R << 16 | c.G << 8 | c.B);
+
+    /// <summary>이름표 바탕에 깔리는 무늬. 짙은 밤색 두 가지를 섞었다.</summary>
+    private static readonly Brush TagFill =
+        Dither(Color.FromRgb(0x5A, 0x2E, 0x2A), Color.FromRgb(0x3E, 0x1E, 0x1C));
+
     /// <summary>건물 위에 커서를 올렸을 때 밑에 붙는 이름표.</summary>
+    /// <remarks>
+    /// 게임 것은 바탕이 민색이 아니라 두 색을 바둑판으로 섞은 무늬다(<see cref="Dither"/>).
+    /// 글씨는 그 위에 밝은 색으로 얹힌다.
+    /// </remarks>
     public static Border NameTag(string text) => new()
     {
-        Background = ItemFill,
-        BorderBrush = ItemEdge,
+        Background = TagFill,
+        BorderBrush = Edge,
         BorderThickness = new Thickness(2),
-        Padding = new Thickness(8, 0, 8, 0),
+        Padding = new Thickness(8, 1, 8, 1),
         Visibility = Visibility.Collapsed,
         Child = new TextBlock
         {
             Text = text,
-            Foreground = Brushes.Black,
+            Foreground = Text,
             FontWeight = FontWeights.Bold,
             FontSize = 14,
         },
