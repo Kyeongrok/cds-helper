@@ -405,6 +405,93 @@ internal static class GameUi
         return new Border { Child = grid };
     }
 
+    /// <summary>
+    /// 게임의 상단 띠 액자. 그림을 잘라 늘리지 않고 <see cref="FrameArt"/> 로 그때그때 그린다.
+    /// </summary>
+    /// <remarks>
+    /// 잘라 쓰면 늘릴 때 이음매가 보이고 크기마다 조각을 따로 떠야 한다. 무늬가 규칙적이라
+    /// 그릴 수 있으므로 띠 크기가 바뀔 때마다 그 크기로 다시 그린다.
+    ///
+    /// 안의 것은 테 두께만큼 안으로 들여 놓는다.
+    /// </remarks>
+    /// <summary>
+    /// 띠 안에 놓는 밝은 상자. 게임 날짜 칸처럼 테에 구슬 무늬가 있고 속이 반짝인다.
+    /// </summary>
+    public static Grid CellFrame(UIElement content)
+    {
+        var host = new Grid();
+        var back = new Border();
+        host.Children.Add(back);
+        host.Children.Add(new Border
+        {
+            Margin = new Thickness(FrameArt.CellBorder, 0, FrameArt.CellBorder, 0),
+            Child = content,
+        });
+
+        host.SizeChanged += (_, _) =>
+        {
+            var art = FrameArt.DrawCell((int)Math.Round(host.ActualWidth),
+                                        (int)Math.Round(host.ActualHeight));
+            if (art == null) return;
+            var brush = new ImageBrush(art)
+            {
+                Stretch = Stretch.None,
+                AlignmentX = AlignmentX.Left,
+                AlignmentY = AlignmentY.Top,
+            };
+            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
+            brush.Freeze();
+            back.Background = brush;
+        };
+        return host;
+    }
+
+    /// <summary>띠 속(테 안쪽)이 적어도 이만큼은 되어야 한다.</summary>
+    private const int BarInside = 15;
+
+    public static Grid? BarFrame(UIElement content, bool thin = true)
+    {
+        int border = thin ? FrameArt.ThinBorder : FrameArt.Border;
+
+        // 액자가 안의 것에 끌려 쪼그라들지 않게 바닥 높이를 정해 둔다. 테 두 겹에 속이 들어갈
+        // 만큼은 있어야 액자로 보인다 — 안 그러면 칸 높이가 곧 띠 높이가 되어 테가 사라진다.
+        var host = new Grid { MinHeight = border * 2 + BarInside };
+
+        var back = new Border();
+        host.Children.Add(back);
+
+        // 안의 것은 액자 <b>위에</b> 얹는다 — 속에 넣지 않는다.
+        // 게임도 그렇다. 칸을 액자 속에 넣으면 테가 두 겹으로 겹쳐 글씨 자리가 좁아지고
+        // 읽기 나빠진다. 칸이 액자 테를 가리고 올라앉는 것이 맞다.
+        // 위아래로 한 칸씩 띄워 액자 바깥 선은 남겨 둔다.
+        if (content is FrameworkElement fe) fe.Margin = new Thickness(0, 1, 0, 1);
+        host.Children.Add(content);
+
+        void Redraw()
+        {
+            var art = FrameArt.Draw((int)Math.Round(host.ActualWidth),
+                                    (int)Math.Round(host.ActualHeight), thin);
+            if (art == null) return;
+
+            // 도트 그림이라 1:1 로 놓는다 — 늘리거나 섞으면 결이 뭉개진다.
+            var brush = new ImageBrush(art)
+            {
+                Stretch = Stretch.None,
+                AlignmentX = AlignmentX.Left,
+                AlignmentY = AlignmentY.Top,
+            };
+            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
+            brush.Freeze();
+            back.Background = brush;
+        }
+
+        host.SizeChanged += (_, _) => Redraw();
+        return host;
+    }
+
+
     /// <summary>초점 표시가 오가는 두 색. 게임도 이 둘을 번갈아 보인다.</summary>
     public static readonly Color FocusLight = Color.FromRgb(0xEC, 0xE4, 0xD2);
     public static readonly Color FocusDark = Color.FromRgb(0x14, 0x0C, 0x0A);
