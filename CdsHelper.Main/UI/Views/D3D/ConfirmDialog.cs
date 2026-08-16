@@ -15,7 +15,7 @@ public sealed class ConfirmDialog : Window
 {
     private readonly GameUi.FocusGroup _focus = new();
 
-    private ConfirmDialog(string text)
+    private ConfirmDialog(string text, string? title)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -35,6 +35,14 @@ public sealed class ConfirmDialog : Window
         buttons.Children.Add(_focus.Add("NO", () => { DialogResult = false; }, 96));
 
         var stack = new StackPanel { MaxWidth = 620 };
+
+        // 게임은 물음창에도 진홍 장식 띠로 제목을 얹는다("게임 로드" 따위).
+        if (!string.IsNullOrEmpty(title))
+        {
+            var bar = GameUi.TitleFrame(GameUi.Sprites, title);
+            if (bar != null) stack.Children.Add(bar);
+        }
+
         stack.Children.Add(new TextBlock
         {
             Text = text,
@@ -66,7 +74,9 @@ public sealed class ConfirmDialog : Window
         GameUi.EnableDrag(this, stack);
     }
 
-    /// <summary>물어보고 YES 를 골랐으면 true.</summary>
-    public static bool Ask(Window owner, string text) =>
-        new ConfirmDialog(text) { Owner = owner }.ShowDialog() == true;
+    /// <summary>
+    /// 물어보고 YES 를 골랐으면 true. <paramref name="title"/> 을 주면 제목 띠를 얹는다.
+    /// </summary>
+    public static bool Ask(Window owner, string text, string? title = null) =>
+        new ConfirmDialog(text, title) { Owner = owner }.ShowDialog() == true;
 }

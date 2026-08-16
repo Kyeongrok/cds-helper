@@ -80,8 +80,9 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
         new(FacilityKind.Palace, "왕궁",
             ["왕궁을 나온다"]),
 
+        // 도서관은 열람만 둔다 — 게임에는 검색·구입·매각도 있지만 우리는 안 흉내낸다.
         new(FacilityKind.Library, "도서관",
-            ["열람", "검색", "구입", "매각", "도서관을 나온다"]),
+            ["열람", "도서관을 나온다"]),
 
         new(FacilityKind.Guild, "조합",
             ["수련", "조합을 나온다"]),

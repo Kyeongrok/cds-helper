@@ -528,7 +528,12 @@ public sealed class ShipMapWindow : Window
         }
         _titleItems.Clear();
         items.Children.Add(TitleMenuItem("NEW GAME", () => StartMap(fresh: true)));
-        items.Children.Add(TitleMenuItem("LOAD GAME", () => StartMap(fresh: false)));
+        // 게임도 로드 전에 한 번 묻는다 — 제목은 "게임 로드".
+        items.Children.Add(TitleMenuItem("LOAD GAME", () =>
+        {
+            if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다", "게임 로드"))
+                StartMap(fresh: false);
+        }));
         items.Children.Add(TitleMenuItem("MINI GAME", null));
         items.Children.Add(TitleMenuItem("END GAME", Close));
 
@@ -634,6 +639,9 @@ public sealed class ShipMapWindow : Window
     private readonly List<(Border Item, SolidColorBrush Inner, Action Run)> _titleItems = [];
     private int _titleIndex = -1;
 
+    /// <summary>타이틀 메뉴 줄의 최소 폭. 글자 좌우 여백까지 넣은 게임 비율이다.</summary>
+    private const double TitleItemMinWidth = 124;
+
     /// <summary>초점 표시가 오가는 두 색. 게임도 이 둘을 번갈아 보인다.</summary>
     private static readonly Color FocusLight = Color.FromRgb(0xEC, 0xE4, 0xD2);
     private static readonly Color FocusDark = Color.FromRgb(0x14, 0x0C, 0x0A);
@@ -651,35 +659,60 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private Border TitleMenuItem(string text, Action? run)
     {
-        var label = new TextBlock
-        {
-            Text = text,
-            Foreground = run != null ? Brushes.Black : Brushes.Gray,
-            FontWeight = FontWeights.Bold,
-            FontSize = 13,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-
         // 안쪽 테 — 평소에는 안 보이고, 초점이 오면 깜빡인다.
         var innerBrush = new SolidColorBrush(Colors.Transparent);
-        var inner = new Border
-        {
-            BorderBrush = innerBrush,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(20, 1, 20, 1),
-            Child = label,
-        };
 
-        var item = new Border
+        // 게임 원본 베이지 버튼 띠. 조각을 못 읽었을 때만 민색 상자로 물러선다.
+        var band = GameUi.BandFrame(GameUi.Sprites, BandStyle.Button, text,
+                                    run != null ? GameFont.ButtonColor : (byte)21,
+                                    shadow: false, 1, null);
+        Border item;
+        if (band?.Child is Grid grid)
         {
-            Background = CellFill,
-            BorderBrush = BarEdge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(0, 0, 0, 2),
-            Padding = new Thickness(1),
-            Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
-            Child = inner,
-        };
+            // 띠 위에 테만 겹친다(바탕 없음). 나중에 넣은 것이 위에 그려진다.
+            var inner = new Border
+            {
+                BorderBrush = innerBrush,
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(2),
+            };
+            Grid.SetColumnSpan(inner, 3);
+            grid.Children.Add(inner);
+
+            item = band;
+            item.Margin = new Thickness(0, 0, 0, 2);
+            item.Cursor = run != null ? Cursors.Hand : Cursors.Arrow;
+
+            // 게임은 글자 좌우로 넉넉히 비운다 — 글자에 딱 붙이면 띠가 쪼그라들어 보인다.
+            // 가장 긴 "LOAD GAME"(72점)의 1.7배쯤이 게임 비율이다.
+            item.MinWidth = TitleItemMinWidth;
+        }
+        else
+        {
+            item = new Border
+            {
+                Background = CellFill,
+                BorderBrush = BarEdge,
+                BorderThickness = new Thickness(2),
+                Margin = new Thickness(0, 0, 0, 2),
+                Padding = new Thickness(1),
+                Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
+                Child = new Border
+                {
+                    BorderBrush = innerBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(20, 1, 20, 1),
+                    Child = new TextBlock
+                    {
+                        Text = text,
+                        Foreground = run != null ? Brushes.Black : Brushes.Gray,
+                        FontWeight = FontWeights.Bold,
+                        FontSize = 13,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                    },
+                },
+            };
+        }
         if (run == null) return item;
 
         int index = _titleItems.Count;
@@ -742,6 +775,32 @@ public sealed class ShipMapWindow : Window
     /// 타이틀을 걷고 지도를 띄운다. <paramref name="fresh"/> 면 배를 리스본 앞바다에 새로 놓고,
     /// 아니면 적어 둔 기록(<see cref="GameSave"/>)을 되돌린다.
     /// </summary>
+    /// <summary>
+    /// 놀이를 그만두고 첫 화면으로 돌아간다. 자택의 "게임 종료" 가 부른다.
+    /// </summary>
+    /// <remarks>
+    /// 창을 닫지는 않는다 — 게임도 첫 화면으로 되돌아갈 뿐이다. 그래서 D3D 자식 창도
+    /// 멈추지 않고 그대로 둔다(<c>Content</c> 에서 빠지면 안 보인다). 다시 시작할 때
+    /// <see cref="StartMap"/> 이 <c>_started</c> 를 보고 켜는 일을 건너뛴다.
+    ///
+    /// 도시 그림·명령 창은 이 창이 거느린 것들이라 모두 닫는다. 닫는 동안 목록이 바뀌므로
+    /// 먼저 베껴 놓고 돈다.
+    /// </remarks>
+    public void ReturnToTitle()
+    {
+        if (_titleRoot == null || ReferenceEquals(Content, _titleRoot)) return;
+
+        foreach (var child in OwnedWindows.OfType<Window>().ToList()) child.Close();
+
+        _overlay.IsOpen = false;
+        _statusTimer.Stop();
+        _askedCity = -1;                 // 다시 들어가면 도시를 새로 묻게
+
+        Content = _titleRoot;
+        _bgm.Play(BgmPlayer.TitleTrack);
+        _status.Text = "";
+    }
+
     private void StartMap(bool fresh)
     {
         // 불러올 것이 없으면 타이틀에 그대로 머문다 — 화면부터 갈아 끼우면 되돌리기 번거롭다.
@@ -1052,6 +1111,17 @@ public sealed class ShipMapWindow : Window
         }
 
         _gameDir = dir;
+
+        // 타이틀 화면은 생성자에서 지었는데, 그때는 게임 폴더를 몰라 원본 조각도 글꼴도
+        // 없었다(민색 상자로 물러선 채였다). 이제 알았으니 다시 짓는다.
+        LoadSprites();
+        if (_titleRoot != null && ReferenceEquals(Content, _titleRoot))
+        {
+            _titleIndex = -1;               // 새로 지은 줄에 초점이 다시 가게
+            _titleRoot = BuildTitleScreen();
+            Content = _titleRoot;
+        }
+
         _bgm.SetGameDirectory(dir);
         _bgm.Enabled = AppSettings.BgmEnabled;   // 설정 창에서 꺼 뒀으면 조용히 시작한다
         _bgm.Play(BgmPlayer.TitleTrack);   // 메뉴 화면에서는 bgm/Track23.mp3
