@@ -94,28 +94,37 @@ internal static class GameUi
     public static Border MenuItem(string text, Action? run)
     {
         // 흐린 줄은 회색(색인 21)으로 찍는다. 그림자는 없다 — 게임 버튼 글자에는 안 붙는다.
-        FrameworkElement? label = GameFontLabel(text, run != null ? GameFont.ButtonColor : (byte)21,
-                                                1, ItemTextHeight, shadow: false);
-        label ??= new TextBlock
-        {
-            Text = text,
-            Foreground = run != null ? Brushes.Black : Brushes.Gray,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        label.HorizontalAlignment = HorizontalAlignment.Center;
+        byte color = run != null ? GameFont.ButtonColor : (byte)21;
 
-        var item = new Border
+        var item = BandFrame(Sprites, BandStyle.Button, text, color, shadow: false, 1, null);
+        if (item != null)
         {
-            Background = ItemFill,
-            BorderBrush = ItemEdge,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 2),
-            Padding = new Thickness(12, 2, 12, 2),
-            Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
-            Child = label,
-        };
+            item.Margin = new Thickness(0, 0, 0, 2);
+            item.Cursor = run != null ? Cursors.Hand : Cursors.Arrow;
+        }
+        else
+        {
+            FrameworkElement? label = GameFontLabel(text, color, 1, ItemTextHeight, shadow: false);
+            label ??= new TextBlock
+            {
+                Text = text,
+                Foreground = run != null ? Brushes.Black : Brushes.Gray,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+            };
+            label.HorizontalAlignment = HorizontalAlignment.Center;
+
+            item = new Border
+            {
+                Background = ItemFill,
+                BorderBrush = ItemEdge,
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 0, 2),
+                Padding = new Thickness(12, 2, 12, 2),
+                Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
+                Child = label,
+            };
+        }
         if (run != null)
         {
             // 누름도 여기서 삼킨다 — 창 끌기(DragMove)가 먼저 걸리면 마우스를 잡아 버려
@@ -312,6 +321,32 @@ internal static class GameUi
     }
 
     /// <summary>
+    /// 띠 가운데 조각만 옆으로 이어 까는 솔. 양 끝 덩굴 없이 무늬만 필요할 때 쓴다
+    /// (이름표처럼 짧은 것). 조각을 못 읽었으면 null.
+    /// </summary>
+    private static ImageBrush? MidTileBrush(BandStyle style)
+    {
+        if (Sprites == null) return null;
+
+        var bgra = Sprites.Piece(style, 1, out int w);
+        var bmp = BitmapSource.Create(w, UiSprites.BandHeight, 96, 96,
+                                      PixelFormats.Bgra32, null, bgra, w * 4);
+        bmp.Freeze();
+
+        var brush = new ImageBrush(bmp)
+        {
+            Stretch = Stretch.Fill,
+            TileMode = TileMode.Tile,
+            ViewportUnits = BrushMappingMode.Absolute,
+            Viewport = new Rect(0, 0, w, UiSprites.BandHeight),
+        };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
     /// 게임 원본 조각으로 지은 제목 띠. 조각을 못 읽으면 null 이라 부르는 쪽이 물러설 수 있다.
     /// </summary>
     /// <remarks>
@@ -323,44 +358,55 @@ internal static class GameUi
     /// 손으로 찍은 덩굴 무늬가 매끄러워져 게임 맛이 죽으므로 안 섞는다.
     /// </remarks>
     public static Border? TitleFrame(UiSprites? sprites, string title, int scale = 1,
-                                     Action? onClose = null)
+                                     Action? onClose = null) =>
+        BandFrame(sprites, BandStyle.Title, title, GameFont.TitleColor, shadow: true, scale, onClose);
+
+    /// <summary>
+    /// 띠 하나를 짓고 그 위에 글자를 얹는다. 제목 띠와 버튼이 같은 길을 쓴다 —
+    /// 무늬 벌만 다르다(<see cref="BandStyle"/>).
+    /// </summary>
+    public static Border? BandFrame(UiSprites? sprites, BandStyle style, string title,
+                                    byte textColor, bool shadow, int scale, Action? onClose)
     {
         if (sprites == null) return null;
 
+        // 띠를 한 장으로 그린다. 왼끝·가운데·오른끝을 WPF 칸 셋으로 나눠 붙이면 칸 경계에서
+        // 세로 줄이 죽죽 생긴다 — 가운데 칸 폭이 8의 배수로 안 떨어져 타일이 잘리고,
+        // 화면 배율에 따라 칸 경계가 정수 자리에 안 놓이기 때문이다.
+        // 게임처럼 칸 수를 세어 통째로 찍으면 이음매가 아예 없다.
+        // 그림은 <see cref="Image"/> 가 아니라 <b>배경 솔</b>로 깐다. Image 로 두면 그 그림
+        // 크기가 다시 자리 계산에 먹혀 들어가, 넓어질수록 칸 수가 늘고 그래서 또 넓어지는
+        // 되먹임이 생긴다(띠가 화면 끝까지 자란다). 배경 솔은 자리 계산에 끼어들지 않는다.
+        var back = new Border();
         var grid = new Grid { Height = UiSprites.BandHeight * scale };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiSprites.CapWidth * scale) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiSprites.CapWidth * scale) });
+        grid.Children.Add(back);
 
-        for (int k = 0; k < 3; k++)
+        int drawn = -1;
+        void Redraw(double width)
         {
-            var bgra = sprites.Piece(BandStyle.Title, k, out int w);
+            int cells = UiSprites.CellsFor(width / scale);
+            if (cells == drawn) return;                 // 같은 칸 수면 다시 찍을 것 없다
+            drawn = cells;
+
+            var bgra = sprites.Band(style, cells, out int w);
             var bmp = BitmapSource.Create(w, UiSprites.BandHeight, 96, 96,
                                           PixelFormats.Bgra32, null, bgra, w * 4);
             bmp.Freeze();
 
             var brush = new ImageBrush(bmp) { Stretch = Stretch.Fill };
-            if (k == 1)                                  // 가운데만 옆으로 이어 깐다
-            {
-                // Stretch 는 Fill 그대로 둔다 — 타일 한 칸(w*scale)을 그림이 꽉 채워야
-                // 이음매가 안 벌어진다. None 으로 두면 원본 크기(8x24)만 그리고 나머지가
-                // 빈 채로 남아 세로 줄이 죽죽 생긴다.
-                brush.TileMode = TileMode.Tile;
-                brush.ViewportUnits = BrushMappingMode.Absolute;
-                brush.Viewport = new Rect(0, 0, w * scale, UiSprites.BandHeight * scale);
-            }
             RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
             RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
             brush.Freeze();
-
-            var cell = new Border { Background = brush };
-            Grid.SetColumn(cell, k);
-            grid.Children.Add(cell);
+            back.Background = brush;
         }
+
+        grid.SizeChanged += (_, e) => Redraw(e.NewSize.Width);
+        Redraw(UiSprites.WidthFor(1) * scale);          // 자리를 잡기 전에는 가장 작게
 
         // 글씨는 띠 전체 위에 얹는다 — 마구리를 넘어가도 가운데에 오게.
         // 게임 비트맵 글꼴을 읽었으면 그것으로 찍는다. 획 굵기까지 게임과 같아진다.
-        FrameworkElement? label = GameFontLabel(title, GameFont.TitleColor, scale);
+        FrameworkElement? label = GameFontLabel(title, textColor, scale,
+                                                UiSprites.BandHeight, shadow);
         label ??= new TextBlock
         {
             Text = title,
@@ -539,35 +585,55 @@ internal static class GameUi
         /// <summary>단추 하나를 만들어 묶음에 넣는다.</summary>
         public Border Add(string text, Action run, double width = 110)
         {
-            var label = new TextBlock
-            {
-                Text = text,
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 14,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            };
-
             var ring = new SolidColorBrush(Colors.Transparent);
-            var inner = new Border
-            {
-                BorderBrush = ring,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(0, 1, 0, 1),
-                Child = label,
-            };
 
-            var item = new Border
+            // 게임 원본 베이지 버튼 띠. 조각을 못 읽었을 때만 민색 상자로 물러선다.
+            var band = BandFrame(Sprites, BandStyle.Button, text, GameFont.ButtonColor,
+                                 shadow: false, 1, null);
+            Border item;
+            if (band?.Child is Grid grid)
             {
-                Width = width,
-                Background = ItemFill,
-                BorderBrush = ItemEdge,
-                BorderThickness = new Thickness(2),
-                Margin = new Thickness(10, 0, 10, 0),
-                Padding = new Thickness(1),
-                Cursor = Cursors.Hand,
-                Child = inner,
-            };
+                var focusRing = new Border
+                {
+                    BorderBrush = ring,
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(2),
+                };
+                Grid.SetColumnSpan(focusRing, 3);
+                grid.Children.Add(focusRing);
+
+                item = band;
+                item.Width = width;
+                item.Margin = new Thickness(10, 0, 10, 0);
+                item.Cursor = Cursors.Hand;
+            }
+            else
+            {
+                item = new Border
+                {
+                    Width = width,
+                    Background = ItemFill,
+                    BorderBrush = ItemEdge,
+                    BorderThickness = new Thickness(2),
+                    Margin = new Thickness(10, 0, 10, 0),
+                    Padding = new Thickness(1),
+                    Cursor = Cursors.Hand,
+                    Child = new Border
+                    {
+                        BorderBrush = ring,
+                        BorderThickness = new Thickness(1),
+                        Padding = new Thickness(0, 1, 0, 1),
+                        Child = new TextBlock
+                        {
+                            Text = text,
+                            Foreground = Brushes.Black,
+                            FontWeight = FontWeights.Bold,
+                            FontSize = 14,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                        },
+                    },
+                };
+            }
 
             int index = _items.Count;
             _items.Add((item, ring, run));
@@ -653,22 +719,46 @@ internal static class GameUi
 
     /// <summary>건물 위에 커서를 올렸을 때 밑에 붙는 이름표.</summary>
     /// <remarks>
-    /// 게임 것은 바탕이 민색이 아니라 두 색을 바둑판으로 섞은 무늬다(<see cref="Dither"/>).
-    /// 글씨는 그 위에 밝은 색으로 얹힌다.
+    /// 메뉴 타이틀과 같은 진홍 무늬를 쓰되 <b>가운데 조각만</b> 이어 깐다.
+    /// 양 끝 덩굴까지 붙이면(=<see cref="TitleFrame"/> 그대로) 이름표처럼 짧은 것에서는
+    /// 왼끝 16 + 오른끝 16 이 글자를 통째로 덮어 버린다 — "자택" 두 글자가 32점뿐이다.
+    ///
+    /// 조각을 못 읽었을 때만 민색으로 물러선다. 그때 바탕은 두 색을 바둑판으로 섞은
+    /// 무늬다(<see cref="Dither"/>) — 게임 것도 민색이 아니다.
     /// </remarks>
-    public static Border NameTag(string text) => new()
+    public static Border NameTag(string text)
     {
-        Background = TagFill,
-        BorderBrush = Edge,
-        BorderThickness = new Thickness(2),
-        Padding = new Thickness(8, 1, 8, 1),
-        Visibility = Visibility.Collapsed,
-        Child = new TextBlock
+        var tiled = MidTileBrush(BandStyle.Title);
+        if (tiled != null)
         {
-            Text = text,
-            Foreground = Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
-        },
-    };
+            var label = GameFontLabel(text, GameFont.TitleColor, 1);
+            if (label != null)
+                return new Border
+                {
+                    Background = tiled,
+                    BorderBrush = ItemEdge,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(4, 0, 4, 0),
+                    Visibility = Visibility.Collapsed,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Child = label,
+                };
+        }
+
+        return new Border
+        {
+            Background = TagFill,
+            BorderBrush = Edge,
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(8, 1, 8, 1),
+            Visibility = Visibility.Collapsed,
+            Child = new TextBlock
+            {
+                Text = text,
+                Foreground = Text,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+            },
+        };
+    }
 }

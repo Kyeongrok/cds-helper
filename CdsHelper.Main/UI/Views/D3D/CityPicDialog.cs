@@ -426,9 +426,26 @@ public sealed class CityPicDialog : Window
     private Action? SystemAction(string item) => item switch
     {
         "저장" => SaveGame,
+        "게임 종료" => QuitToTitle,
         "게임 재개" => CloseMenu,
         _ => null,
     };
+
+    /// <summary>
+    /// 놀이를 그만두고 첫 화면으로 돌아간다. 게임도 창을 닫지 않고 첫 화면으로만 되돌아간다.
+    /// </summary>
+    /// <remarks>
+    /// 되돌리는 일은 함대 창이 맡는다 — 이 창은 그 창이 거느린 것이라 곧 닫힌다.
+    /// 물어보고 나서 하는 것은 되돌릴 수 없기 때문이다(적어 두지 않은 것은 사라진다).
+    /// </remarks>
+    private void QuitToTitle()
+    {
+        if (Owner is not ShipMapWindow map) { CloseMenu(); return; }
+        if (!ConfirmDialog.Ask(this, "게임을 그만두고 첫 화면으로 돌아갈까?")) return;
+
+        CloseMenu();
+        map.ReturnToTitle();
+    }
 
     /// <summary>
     /// 지금 상태(소지금·날짜·있는 도시·배운 기술)를 적는다.
