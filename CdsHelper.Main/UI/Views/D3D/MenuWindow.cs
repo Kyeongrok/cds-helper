@@ -24,6 +24,7 @@ public sealed class MenuWindow : Window
         var root = new Border { Background = GameUi.Back, Child = content };
         Content = root;
         GameUi.EnableDrag(this, root);
+        GameUi.CarryOwnedWindows(this);   // 이 창에서 연 창(힌트 일람 따위)도 같이 옮긴다
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();

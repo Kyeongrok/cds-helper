@@ -235,7 +235,8 @@ public sealed class ShipMapWindow : Window
         // HwndHost 자체는 WPF 에 아무것도 그리지 않아 히트테스트에 안 걸린다.
         // 같은 자리에 투명 Border 를 겹쳐 두고 마우스는 그쪽에서 받는다.
         // (자식 창이 D3D 로 덮으므로 이 Border 는 보이지 않는다 — 입력만 받는다.)
-        var input = new Border { Background = Brushes.Transparent, Cursor = Cursors.Cross };
+        // 지도 위에서도 보통 화살표를 쓴다 — 십자는 조준하는 것처럼 보여 게임 화면과 안 맞는다.
+        var input = new Border { Background = Brushes.Transparent, Cursor = Cursors.Arrow };
         _input = input;
         var surface = new Grid();
         surface.Children.Add(_host);
@@ -353,6 +354,10 @@ public sealed class ShipMapWindow : Window
             if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
         });
         Loaded += OnLoaded;
+
+        // 창을 옮기면 그 위에 얹힌 도시 그림·커맨드 창도 같이 옮긴다 — 게임에서는 지도 안에
+        // 그려진 것이라 따로 남을 수가 없다.
+        GameUi.CarryOwnedWindows(this);
 
         // 창이 물러나거나 접히면 좌표 상자도 같이 감춘다 — 제 창이라 그냥 두면 남의 앱 위에 뜬다.
         Activated += (_, _) => SyncOverlay();

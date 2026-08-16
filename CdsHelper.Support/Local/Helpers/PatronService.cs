@@ -19,6 +19,20 @@ public class PatronService
         return patrons ?? new List<Patron>();
     }
 
+    /// <summary>
+    /// 그 도시에 지금 있는 후원자들. 아직 안 나타났거나 이미 은퇴한 사람은 뺀다.
+    /// </summary>
+    /// <remarks>
+    /// 왕궁에서 설득할 상대를 찾을 때 쓴다. 게임은 건물마다 후원자 하나를 물려 두지만
+    /// (스폰서 객체 <c>+0xB4</c>) 그 짝이 어디서 오는지는 아직 못 풀었다 — 그래서 도시로 찾고,
+    /// 여럿이면 고르게 한다.
+    /// </remarks>
+    public List<Patron> ActiveInCity(IEnumerable<Patron> patrons, string city, int year) =>
+        patrons
+            .Where(p => p.City.Equals(city, StringComparison.OrdinalIgnoreCase))
+            .Where(p => p.IsActive(year))
+            .ToList();
+
     public List<Patron> Filter(
         IEnumerable<Patron> patrons,
         string? nameSearch = null,
