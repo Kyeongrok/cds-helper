@@ -35,6 +35,9 @@ public sealed class ShipMapWindow : Window
     private readonly DispatcherTimerLite _statusTimer;
     private readonly BgmPlayer _bgm = new();
 
+    /// <summary>효과음. 게임 폴더를 알게 되면 연다. 못 열면 소리가 안 날 뿐이다.</summary>
+    private SoundBank? _sfx;
+
     /// <summary>지도 쪽 화면. 타이틀에서 고르면 이것으로 갈아 끼운다.</summary>
     private FrameworkElement _mapRoot = null!;
 
@@ -85,7 +88,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 12,
+        FontSize = 14,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -94,7 +97,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 12,
+        FontSize = 14,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -103,7 +106,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 12,
+        FontSize = 14,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -112,7 +115,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 12,
+        FontSize = 14,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -121,7 +124,7 @@ public sealed class ShipMapWindow : Window
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 12,
+        FontSize = 14,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -142,7 +145,7 @@ public sealed class ShipMapWindow : Window
     private Popup _overlay = null!;
 
     /// <summary>좌표 상자를 켜 두었는지. 실제로 뜨는지는 <see cref="SyncOverlay"/> 가 정한다.</summary>
-    private bool _overlayWanted = true;
+    private bool _overlayWanted = AppSettings.ShowCoordOverlay;
 
     // 게임 화면 위쪽 띠에서 뽑은 색. 누런 양피지 바탕에 어두운 테두리다.
     private static readonly Brush BarFill = new SolidColorBrush(Color.FromRgb(0xC8, 0xBF, 0xA0));
@@ -281,7 +284,7 @@ public sealed class ShipMapWindow : Window
             Text = "설정",
             Foreground = Brushes.Black,
             FontWeight = FontWeights.Bold,
-            FontSize = 14,
+            FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
         });
         settings.Cursor = Cursors.Hand;
@@ -294,17 +297,23 @@ public sealed class ShipMapWindow : Window
             Text = "개발",
             Foreground = Brushes.Black,
             FontWeight = FontWeights.Bold,
-            FontSize = 14,
+            FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
         });
         dev.Cursor = Cursors.Hand;
         dev.MouseLeftButtonUp += (_, _) => DevDialog.Show(this, _player, new DevDialog.Options
         {
             CoordsOn = () => _overlayWanted,
-            SetCoords = on => { _overlayWanted = on; SyncOverlay(); },
-            ToolBarOn = () => _toolBar?.Visibility == Visibility.Visible,
+            SetCoords = on =>
+            {
+                _overlayWanted = on;
+                AppSettings.ShowCoordOverlay = on;   // 다음에 켤 때도 그대로
+                SyncOverlay();
+            },
+            ToolBarOn = () => AppSettings.ShowToolBar,
             SetToolBar = on =>
             {
+                AppSettings.ShowToolBar = on;
                 if (_toolBar != null)
                     _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
             },
@@ -327,7 +336,12 @@ public sealed class ShipMapWindow : Window
         DockPanel.SetDock(gameBar, Dock.Top);
         root.Children.Add(gameBar);
         // 지도 위의 까만 조작 줄. 놀이에는 없는 것이라 개발 창에서 끄고 켤 수 있다.
-        _toolBar = new Border { Child = bar, Height = 30 };
+        _toolBar = new Border
+        {
+            Child = bar,
+            Height = 30,
+            Visibility = AppSettings.ShowToolBar ? Visibility.Visible : Visibility.Collapsed,
+        };
         DockPanel.SetDock(_toolBar, Dock.Top);
         root.Children.Add(_toolBar);
 
@@ -372,6 +386,8 @@ public sealed class ShipMapWindow : Window
             }
             // 그냥 찍으면 닻을 내리고 그 자리에 선다. 한 번 더 찍으면 올리고 다시 간다.
             _host.ToggleAnchor();
+            // 내릴 때도 올릴 때도 같은 소리가 난다.
+            if (_bgm.Enabled) _sfx?.Play(SoundBank.AnchorPart);
         };
         input.MouseMove += (_, e) => { var p = e.GetPosition(input); _host.SetMouse(p, true); _host.Drag(p); };
         input.MouseLeave += (_, _) => _host.SetMouse(default, false);
@@ -557,7 +573,7 @@ public sealed class ShipMapWindow : Window
                 Text = text,
                 Foreground = Brushes.Black,
                 FontWeight = FontWeights.Bold,
-                FontSize = 12,
+                FontSize = 14,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             inside.Children.Add(GameCell(label));
@@ -750,6 +766,8 @@ public sealed class ShipMapWindow : Window
 
         // 타이틀을 지을 때 게임 폴더를 몰랐을 수 있다. 여기서 한 번 더 챙긴다.
         LoadSprites();
+
+        _sfx ??= SoundBank.Shared(_gameDir);
 
         if (!_started)
         {

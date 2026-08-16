@@ -27,6 +27,12 @@ public class AppSettingsData
 
     /// <summary>도시 창이 열릴 때 줄 효과. <see cref="CityOpenEffect"/> 의 이름이다.</summary>
     public string CityOpenEffect { get; set; } = "Expand";
+
+    /// <summary>지도 위에 좌표 상자를 겹쳐 보일지. 개발 창에서 켜고 끈다.</summary>
+    public bool ShowCoordOverlay { get; set; } = true;
+
+    /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>
+    public bool ShowToolBar { get; set; } = true;
     public RerollOptions Reroll { get; set; } = new();
 }
 
@@ -102,6 +108,8 @@ public static class AppSettings
     private static bool _autoOpenShipMap;
     private static bool _bgmEnabled = true;
     private static CityOpenEffect _cityOpenEffect = Settings.CityOpenEffect.Expand;
+    private static bool _showCoordOverlay = true;
+    private static bool _showToolBar = true;
     private static RerollOptions _reroll = new();
 
     static AppSettings()
@@ -238,6 +246,30 @@ public static class AppSettings
         }
     }
 
+    /// <summary>지도 위 좌표 상자를 켜 둘지. 개발 창에서 바꾸면 다음에 켤 때도 그대로다.</summary>
+    public static bool ShowCoordOverlay
+    {
+        get => _showCoordOverlay;
+        set
+        {
+            _showCoordOverlay = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
+    /// <summary>지도 위 까만 조작 줄을 켜 둘지.</summary>
+    public static bool ShowToolBar
+    {
+        get => _showToolBar;
+        set
+        {
+            _showToolBar = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -274,6 +306,8 @@ public static class AppSettings
                     _bgmEnabled = data.BgmEnabled;
                     _cityOpenEffect = Enum.TryParse<CityOpenEffect>(data.CityOpenEffect, out var eff)
                         ? eff : Settings.CityOpenEffect.Expand;
+                    _showCoordOverlay = data.ShowCoordOverlay;
+                    _showToolBar = data.ShowToolBar;
                     _reroll = data.Reroll ?? new();
                 }
             }
@@ -306,6 +340,8 @@ public static class AppSettings
                 AutoOpenShipMap = _autoOpenShipMap,
                 BgmEnabled = _bgmEnabled,
                 CityOpenEffect = _cityOpenEffect.ToString(),
+                ShowCoordOverlay = _showCoordOverlay,
+                ShowToolBar = _showToolBar,
                 Reroll = _reroll
             };
 

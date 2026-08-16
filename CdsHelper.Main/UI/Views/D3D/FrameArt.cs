@@ -21,11 +21,15 @@ namespace CdsHelper.Main.UI.Views.D3D;
 /// 그래서 그림을 잘라 늘리는 대신 그때그때 그린다. 잘라 쓰면 늘릴 때 이음매가 보이고 크기마다
 /// 조각을 따로 떠야 하는데, 그릴 줄 알면 그 수고가 다 없어진다.
 ///
+/// 띠 안에 놓는 밝은 칸은 <see cref="CellArt"/> 가 <b>따로</b> 그린다. 얼핏 같아 보여도 겹
+/// 구성이 달라서, 무늬를 나눠 쓰면 한쪽을 손볼 때 다른 쪽이 같이 틀어진다.
+///
 /// 색은 원본에서 그대로 뽑았다.
 /// </remarks>
 internal static class FrameArt
 {
-    private const uint Outer = 0xFF705C48;   // 짙은 밤색 테
+    private const uint Outer = 0xFF705C48;    // 짙은 밤색 테
+
     private const uint Light = 0xFFC4B494;   // 밝은 테
     private const uint Dark = 0xFF503824;    // 구슬 띠 바탕
     private const uint Mid = 0xFF584838;     // 구슬
@@ -56,24 +60,50 @@ internal static class FrameArt
     private const int BeadPeriod = 5;
 
     /// <summary>
-    /// 구슬 무늬 — 세로가 테 깊이(3~5), 가로가 변을 따라가는 자리(다섯 칸마다 되풀이).
+    /// 구슬 무늬 — 세로가 무늬 안에서의 줄(0~2), 가로가 변을 따라가는 자리(다섯 칸마다 되풀이).
     /// </summary>
-    private static readonly uint[,] Bead =
+    private static readonly uint[,] BeadPattern =
     {
         { Dark,  Mid,  Mid,  Dark,  Dark },
         { Outer, Dark, Dark, Outer, Dark },
         { Dark,  Mid,  Mid,  Dark,  Dark },
     };
 
+    /// <summary>구슬 무늬의 한 점. <paramref name="row"/> 는 0~2 다.</summary>
+    private static uint Bead(int row, int along) =>
+        BeadPattern[row, ((along % BeadPeriod) + BeadPeriod) % BeadPeriod];
+
+    /// <summary>
+    /// 픽셀 하나가 테의 어느 겹에 드는지. 네 변 가운데 가장 가까운 변까지의 거리가 곧 깊이다.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="along"/> 은 그 변을 따라간 자리다 — 위아래 변에 붙었으면 무늬가 가로로,
+    /// 좌우 변이면 세로로 흐른다.
+    /// </remarks>
+    private static (int Depth, int Along) Where(int x, int y, int width, int height)
+    {
+        int dx = Math.Min(x, width - 1 - x);
+        int dy = Math.Min(y, height - 1 - y);
+        return (Math.Min(dx, dy), dy <= dx ? x : y);
+    }
+
+    /// <summary>점 배열을 그림으로 굳힌다.</summary>
+    private static BitmapSource Freeze(uint[] px, int width, int height)
+    {
+        var bmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null,
+                                      px, width * 4);
+        bmp.Freeze();
+        return bmp;
+    }
+
     private static uint Pixel(int depth, int along, bool thin)
     {
-        int bead = ((along % BeadPeriod) + BeadPeriod) % BeadPeriod;
         if (thin)
             return depth switch
             {
                 0 => Outer,
                 1 => Light,
-                2 or 3 or 4 => Bead[depth - 2, bead],
+                2 or 3 or 4 => Bead(depth - 2, along),
                 5 => Light,
                 6 => Shade,
                 _ => Fill,
@@ -83,59 +113,12 @@ internal static class FrameArt
         {
             0 => Outer,
             1 or 2 => Light,
-            3 or 4 or 5 => Bead[depth - 3, bead],
+            3 or 4 or 5 => Bead(depth - 3, along),
             6 => Light,
             7 => Outer,
             8 => Shade,
             _ => Fill,
         };
-    }
-
-    // 날짜 칸 같은 밝은 상자에 쓰는 색. box-light-24.png 에서 뽑았다.
-    private const uint CellBase = 0xFFE0D4C0;   // 속 바탕
-    private const uint CellDot = 0xFFF0E4CC;    // 속에 성기게 박힌 밝은 점
-    private const uint CellEdge = 0xFFC4B494;   // 속을 두르는 밝은 테
-
-    /// <summary>밝은 상자의 테 두께.</summary>
-    public const int CellBorder = 5;
-
-    /// <summary>
-    /// 상단 띠 안에 놓는 밝은 상자(날짜 칸 따위). 테는 액자와 같은 구슬 무늬고, 속은
-    /// 밝은 바탕에 점이 성기게 박혀 반짝인다.
-    /// </summary>
-    /// <remarks>
-    /// 게임 그림(<c>box-light-24.png</c>)을 재 보면 속이 한 색이 아니라 밝은 색 몇 가지가
-    /// 섞여 있다. 그 자잘한 결이 상자를 반짝이게 하므로 한 색으로 채우면 밋밋해진다 —
-    /// 다섯 칸마다 점을 하나 박아 흉내낸다.
-    /// </remarks>
-    public static BitmapSource? DrawCell(int width, int height)
-    {
-        if (width < CellBorder * 2 || height < CellBorder * 2) return null;
-
-        var px = new uint[width * height];
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
-            {
-                int dx = Math.Min(x, width - 1 - x);
-                int dy = Math.Min(y, height - 1 - y);
-                int depth = Math.Min(dx, dy);
-                int along = dy <= dx ? x : y;
-                int bead = ((along % BeadPeriod) + BeadPeriod) % BeadPeriod;
-
-                px[y * width + x] = depth switch
-                {
-                    0 => Outer,
-                    1 or 2 or 3 => Bead[depth - 1, bead],
-                    4 => CellEdge,
-                    // 점은 비스듬히 놓아야 눈에 결로 보인다. 가로세로로 줄 세우면 자국이 진다.
-                    _ => (x + y * 2) % 5 == 0 ? CellDot : CellBase,
-                };
-            }
-
-        var bmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null,
-                                      px, width * 4);
-        bmp.Freeze();
-        return bmp;
     }
 
     /// <summary>액자 한 벌을 그린다. 크기가 테보다 작으면 null.</summary>
@@ -149,15 +132,10 @@ internal static class FrameArt
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
             {
-                int dx = Math.Min(x, width - 1 - x);
-                int dy = Math.Min(y, height - 1 - y);
-                // 가까운 변이 위아래면 무늬가 가로로, 좌우면 세로로 흐른다.
-                px[y * width + x] = Pixel(Math.Min(dx, dy), dy <= dx ? x : y, thin);
+                var (depth, along) = Where(x, y, width, height);
+                px[y * width + x] = Pixel(depth, along, thin);
             }
 
-        var bmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null,
-                                      px, width * 4);
-        bmp.Freeze();
-        return bmp;
+        return Freeze(px, width, height);
     }
 }

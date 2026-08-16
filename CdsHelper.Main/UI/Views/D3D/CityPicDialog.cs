@@ -28,9 +28,6 @@ public sealed class CityPicDialog : Window
     /// <summary>건물 이름표와 명령 창을 얹는 자리. 그림과 같은 격자 칸에 둔다.</summary>
     private readonly Canvas _layer = new();
 
-    /// <summary>지금 열린 명령 창이 들어앉는 자리. 그림 한가운데에 놓는다.</summary>
-    private readonly Border _menuHost = new() { Visibility = Visibility.Collapsed };
-
     /// <summary>건물 이름표들. 명령 창이 열리면 다 감춘다.</summary>
     private readonly List<Border> _tags = [];
 
@@ -290,11 +287,6 @@ public sealed class CityPicDialog : Window
             Height = image.Height,
             Children = { image, _layer },
         };
-        _layer.Children.Add(_menuHost);
-        // 명령 창은 건물 판보다 위에 둔다 — 겹치면 투명한 판이 누르기를 가로챈다.
-        Panel.SetZIndex(_menuHost, 10);
-        // 명령 창을 누른 것도 여기서 삼킨다 — 안 그러면 그림 끌기가 먼저 걸린다.
-        _menuHost.MouseLeftButtonDown += (_, e) => e.Handled = true;
 
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
         bool harborPlaced = false;
@@ -387,33 +379,42 @@ public sealed class CityPicDialog : Window
         Canvas.SetTop(tag, (area.Y + area.Height) * scale + 2);
     }
 
+    /// <summary>지금 열린 시설 명령 창. 그림 안이 아니라 그림 옆에 제 창으로 뜬다.</summary>
+    private MenuWindow? _facilityMenu;
+
     /// <summary>
     /// 명령 창을 연다. 건물마다 도는 곡이 다르면 <paramref name="track"/> 으로 준다 —
     /// 안 주면 도시 곡으로 돌아간다(다른 건물로 옮겨 갈 때 술집 곡이 따라오지 않게).
     /// </summary>
+    /// <remarks>
+    /// 그림 안에 그리지 않는다. 자택처럼 줄이 열한 개나 되는 시설은 그림을 통째로 덮어 버려
+    /// 도시가 안 보인다 — 도시 커맨드 창과 같은 까닭으로 그림 옆에 제 창을 띄운다
+    /// (<see cref="MenuWindow"/>). 게임도 그림 옆에 따로 낸다.
+    ///
+    /// 이미 떠 있으면 새로 띄우지 않고 담긴 것만 갈아 끼운다 — "기능" 처럼 한 창 안에서
+    /// 줄이 바뀔 때 자리가 튀지 않게.
+    /// </remarks>
     private void ShowMenu(UIElement box, int? track = null)
     {
         foreach (var tag in _tags) tag.Visibility = Visibility.Collapsed;
-        _menuHost.Child = box;
-        _menuHost.Visibility = Visibility.Visible;
-        _menuHost.UpdateLayout();
-        CenterMenu();
+
+        if (_facilityMenu == null)
+        {
+            _facilityMenu = MenuWindow.ShowBeside(this, box);
+            // 창을 그냥 닫아도(ESC·오른쪽 단추) 도시 곡으로 돌아가야 한다.
+            _facilityMenu.Closed += (_, _) => { _facilityMenu = null; _bgm?.Play(_cityTrack); };
+        }
+        else
+        {
+            _facilityMenu.SetContent(box);
+            _facilityMenu.Activate();
+        }
+
         _bgm?.Play(track ?? _cityTrack);
     }
 
-    /// <summary>명령 창을 닫고 도시로 돌아간다 — 곡도 도시 것으로 되돌린다.</summary>
-    private void CloseMenu()
-    {
-        _menuHost.Visibility = Visibility.Collapsed;
-        _bgm?.Play(_cityTrack);
-    }
-
-    private void CenterMenu()
-    {
-        if (_layer.ActualWidth <= 0) return;
-        Canvas.SetLeft(_menuHost, (_layer.ActualWidth - _menuHost.ActualWidth) / 2);
-        Canvas.SetTop(_menuHost, (_layer.ActualHeight - _menuHost.ActualHeight) / 2);
-    }
+    /// <summary>명령 창을 닫고 도시로 돌아간다 — 곡도 도시 것으로 되돌린다(창의 Closed 가 맡는다).</summary>
+    private void CloseMenu() => _facilityMenu?.Close();
 
     /// <summary>
     /// 시설에서 "기능" 을 골랐을 때 뜨는 창. 제목이 없고 줄만 넷이다 —
@@ -510,6 +511,8 @@ public sealed class CityPicDialog : Window
         // ("매수한다" / "포기하고 돌아간다" → "집사에게 뇌물을 주겠습니다. 좋습니까?").
         if (_player.Fame < patron.Fame)
         {
+            // 문 앞에서 돌려보낼 때 소리가 한 번 난다(닻 소리와 같은 파트다).
+            if (_bgm?.Enabled ?? false) SoundBank.Shared(_gameDirectory)?.Play(SoundBank.TurnedAwayPart);
             Steward($"{shown}님은 바쁘셔서 만나실 수 없습니다.");
             return;
         }
