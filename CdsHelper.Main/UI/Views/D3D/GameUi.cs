@@ -50,6 +50,7 @@ internal static class GameUi
                     FontSize = 13,
                 },
             };
+            close.MouseLeftButtonDown += (_, e) => e.Handled = true;   // 제목 줄 끌기에 먹히지 않게
             close.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClose(); };
             DockPanel.SetDock(close, Dock.Right);
             bar.Children.Add(close);
@@ -69,7 +70,7 @@ internal static class GameUi
         {
             Background = MenuBack,
             BorderBrush = Edge,
-            BorderThickness = new Thickness(2),
+            BorderThickness = new Thickness(1),
             Child = bar,
         };
     }
@@ -94,7 +95,13 @@ internal static class GameUi
                 HorizontalAlignment = HorizontalAlignment.Center,
             },
         };
-        if (run != null) item.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        if (run != null)
+        {
+            // 누름도 여기서 삼킨다 — 창 끌기(DragMove)가 먼저 걸리면 마우스를 잡아 버려
+            // 뗌이 오지 않는다. 그러면 눌러도 아무 일이 없어 멈춘 것처럼 보인다.
+            item.MouseLeftButtonDown += (_, e) => e.Handled = true;
+            item.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        }
         return item;
     }
 
@@ -151,7 +158,12 @@ internal static class GameUi
                 HorizontalAlignment = HorizontalAlignment.Center,
             },
         };
-        if (run != null) b.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        if (run != null)
+        {
+            // 명령 창 줄과 같은 까닭으로 누름도 삼킨다(창 끌기에 먹히지 않게).
+            b.MouseLeftButtonDown += (_, e) => e.Handled = true;
+            b.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        }
         return b;
     }
 

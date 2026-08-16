@@ -61,11 +61,23 @@ public sealed class ShipMapWindow : Window
     /// <summary>도시 그림(CITYCG.CDS). 20MB 라 입항을 처음 할 때에야 연다.</summary>
     private CityPictures? _cityPics;
 
+    /// <summary>건물 표(CDS_95.EXE). 건물 자리·이름·가르치는 기능이 여기서 온다.</summary>
+    private CityBuildingTable? _buildings;
+
     /// <summary>한 번 열어 봤는지. 파일이 없으면 입항할 때마다 다시 찾지 않는다.</summary>
     private bool _cityPicsTried;
 
     /// <summary>지금 이동 모드 — 해상인지 육지인지.</summary>
     private readonly TextBlock _mode = new()
+    {
+        Foreground = Brushes.Black,
+        FontWeight = FontWeights.Bold,
+        FontSize = 14,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    /// <summary>게임 상단 바의 날짜 칸. 조합에서 기술을 배우면 달이 넘어간다.</summary>
+    private readonly TextBlock _date = new()
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
@@ -247,6 +259,7 @@ public sealed class ShipMapWindow : Window
 
         // 게임 상단 띠 — 지금은 위경도 한 칸만 둔다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
+        gameCells.Children.Add(GameCell(_date));
         gameCells.Children.Add(GameCell(_mode));
         gameCells.Children.Add(GameCell(_coord));
         gameCells.Children.Add(GameCell(_purse));
@@ -314,6 +327,8 @@ public sealed class ShipMapWindow : Window
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
             _purse.Text = $"{_player.Gold}닢 · 함선 {_player.Ships.Count}/{Player.MaxShips}";
+            // 게임 상단 띠와 같은 말투로 적는다.
+            _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
             if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
         });
         Loaded += OnLoaded;
@@ -611,13 +626,18 @@ public sealed class ShipMapWindow : Window
                 System.Diagnostics.Debug.WriteLine($"[ShipMap] 도시 그림 없음: {CityPictures.LastError}");
                 return;
             }
+            _buildings = CityBuildingTable.Open(_gameDir);
+            if (_buildings == null)
+                System.Diagnostics.Debug.WriteLine($"[ShipMap] 건물 표 없음: {CityBuildingTable.LastError}");
         }
+        if (_buildings == null) return;   // 건물 표가 없으면 도시 화면을 열지 않는다
 
         _bgm.Play(BgmPlayer.CityTrack);
         _host.InCity = true;      // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
         try
         {
-            CityPicDialog.Show(this, _cityPics, city, name, _player, _bgm, MapAreaOnScreen());
+            CityPicDialog.Show(this, _cityPics, _buildings, city, name,
+                               _player, _bgm, MapAreaOnScreen());
         }
         finally
         {

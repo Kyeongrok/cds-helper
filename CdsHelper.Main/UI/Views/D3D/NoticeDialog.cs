@@ -38,6 +38,7 @@ public sealed class NoticeDialog : Window
 
         Content = new Border
         {
+            Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
             BorderThickness = new Thickness(2),
             Margin = new Thickness(4),

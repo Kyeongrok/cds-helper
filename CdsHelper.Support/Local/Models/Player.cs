@@ -13,6 +13,19 @@ public enum PurchaseResult
     FleetFull,
 }
 
+/// <summary>기술을 배운 결과.</summary>
+public enum LearnResult
+{
+    /// <summary>배웠다.</summary>
+    Ok,
+
+    /// <summary>소지금이 모자란다.</summary>
+    NotEnoughGold,
+
+    /// <summary>이미 <see cref="Skill.MaxLevel"/> 자리다.</summary>
+    Mastered,
+}
+
 /// <summary>
 /// 함대 창의 주인공. 소지금과 가진 배를 들고 있는다 — 조선소에서 배를 사면 여기서 돈이 빠진다.
 /// </summary>
@@ -28,14 +41,22 @@ public sealed class Player
     /// <summary>시작 소지금(닢).</summary>
     public const int StartingGold = 1000;
 
+    /// <summary>놀이가 시작하는 날. 게임 화면에서 본 날짜를 그대로 쓴다.</summary>
+    public static readonly DateTime StartDate = new(1499, 4, 15);
+
     private readonly List<Hull> _ships = [];
+    private readonly Dictionary<string, int> _skills = [];
 
     /// <summary>카라벨 한 척과 시작 소지금으로 시작한다.</summary>
     public Player()
     {
         Gold = StartingGold;
+        Date = StartDate;
         _ships.Add(Hull.Cheapest);
     }
+
+    /// <summary>지금 날짜. 기술을 배우면 그만큼 달이 넘어간다.</summary>
+    public DateTime Date { get; private set; }
 
     /// <summary>소지금(닢).</summary>
     public int Gold { get; private set; }
@@ -64,5 +85,30 @@ public sealed class Player
         Gold -= hull.Price;
         _ships.Add(hull);
         return PurchaseResult.Ok;
+    }
+
+    /// <summary>그 기술의 지금 자리(0~<see cref="Skill.MaxLevel"/>).</summary>
+    public int LevelOf(string skill) => _skills.GetValueOrDefault(skill);
+
+    /// <summary>그 기술을 지금 배울 수 있는지 — 없으면 까닭을 낸다.</summary>
+    public LearnResult CanLearn(string skill) =>
+        LevelOf(skill) >= Skill.MaxLevel ? LearnResult.Mastered
+      : Gold < Skill.Price ? LearnResult.NotEnoughGold
+      : LearnResult.Ok;
+
+    /// <summary>
+    /// 조합에서 한 자리 배운다. 값을 치르고 자리를 올린 뒤, 그 자리에 걸리는 만큼 달이 간다
+    /// (0→1 석 달 · →2 여섯 달 · →3 열두 달).
+    /// </summary>
+    public LearnResult Learn(string skill)
+    {
+        var can = CanLearn(skill);
+        if (can != LearnResult.Ok) return can;
+
+        int next = LevelOf(skill) + 1;
+        Gold -= Skill.Price;
+        _skills[skill] = next;
+        Date = Date.AddMonths(Skill.MonthsFor(next));
+        return LearnResult.Ok;
     }
 }
