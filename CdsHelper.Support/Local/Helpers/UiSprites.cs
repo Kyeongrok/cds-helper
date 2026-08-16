@@ -25,18 +25,18 @@ namespace CdsHelper.Support.Local.Helpers;
 public sealed class UiSprites
 {
     /// <summary>제목 상자 조각이 든 파트와 그 폭.</summary>
-    private const int TitlePart = 4, TitleWidth = 16, TileHeight = 20;
+    private const int TitlePart = 4, TitleWidth = 16;
 
-    /// <summary>제목 상자 조각의 차례.</summary>
-    private const int CapLeftRow = 0, MiddleRow = 1, CapRightRow = 2;
+    /// <summary>
+    /// 쓸 상자의 자리와 높이. 파트 4 에는 16x36 과 16x24 짜리가 번갈아 여섯 장 있는데
+    /// (경계 y0·36·60·96·120·156) 제목 줄에는 어두운 24 짜리가 맞다.
+    /// </summary>
+    private const int BoxDark24Y = 36, BoxDark24H = 24;
 
     private readonly byte[] _title;
 
     private UiSprites(byte[] title) => _title = title;
 
-    /// <summary>조각 한 장의 크기.</summary>
-    public static int TileWidth => TitleWidth;
-    public static int TileRows => TileHeight;
 
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
@@ -53,7 +53,7 @@ public sealed class UiSprites
         if (archive.PartCount <= TitlePart) { LastError = "MISC.CDS 에 제목 조각이 없습니다"; return null; }
 
         var part = archive.Decode(TitlePart);
-        if (part == null || part.Length < TitleWidth * TileHeight * 3)
+        if (part == null || part.Length < (BoxDark24Y + BoxDark24H) * TitleWidth)
         {
             LastError = "제목 조각이 기대한 크기가 아닙니다";
             return null;
@@ -61,20 +61,21 @@ public sealed class UiSprites
         return new UiSprites(part);
     }
 
-    /// <summary>제목 상자 왼쪽 마구리(덩굴 무늬).</summary>
-    public uint[] TitleCapLeft => Tile(CapLeftRow);
+    /// <summary>
+    /// 제목 상자 한 장(16x24 BGRA). 이 한 장을 아홉 칸으로 갈라 늘려 쓴다 —
+    /// 마구리를 이어 붙이는 것이 아니다.
+    /// </summary>
+    public uint[] TitleBox => Tile(BoxDark24Y, BoxDark24H);
 
-    /// <summary>제목 상자 가운데. 옆으로 이어 깔면 어떤 길이에도 맞는다.</summary>
-    public uint[] TitleMiddle => Tile(MiddleRow);
-
-    /// <summary>제목 상자 오른쪽 마구리(왼쪽과 좌우 뒤집힌 짝).</summary>
-    public uint[] TitleCapRight => Tile(CapRightRow);
+    /// <summary>제목 상자의 크기.</summary>
+    public static int BoxWidth => TitleWidth;
+    public static int BoxHeight => BoxDark24H;
 
     /// <summary>조각 한 장을 BGRA 로 푼다.</summary>
-    private uint[] Tile(int row)
+    private uint[] Tile(int y, int h)
     {
-        int start = row * TitleWidth * TileHeight;
-        var bgra = new uint[TitleWidth * TileHeight];
+        int start = y * TitleWidth;
+        var bgra = new uint[TitleWidth * h];
         for (int i = 0; i < bgra.Length; i++)
         {
             int c = _title[start + i] * 3;
