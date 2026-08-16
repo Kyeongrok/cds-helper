@@ -424,13 +424,13 @@ internal static class GameUi
         host.Children.Add(back);
         host.Children.Add(new Border
         {
-            Margin = new Thickness(FrameArt.CellBorder, 0, FrameArt.CellBorder, 0),
+            Margin = new Thickness(CellArt.BorderX, CellArt.BorderY, CellArt.BorderX, CellArt.BorderY),
             Child = content,
         });
 
         host.SizeChanged += (_, _) =>
         {
-            var art = FrameArt.DrawCell((int)Math.Round(host.ActualWidth),
+            var art = CellArt.Draw((int)Math.Round(host.ActualWidth),
                                         (int)Math.Round(host.ActualHeight));
             if (art == null) return;
             var brush = new ImageBrush(art)

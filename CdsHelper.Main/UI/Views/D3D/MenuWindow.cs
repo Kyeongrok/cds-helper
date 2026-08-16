@@ -11,6 +11,14 @@ namespace CdsHelper.Main.UI.Views.D3D;
 /// </summary>
 public sealed class MenuWindow : Window
 {
+    private readonly Border _root;
+
+    /// <summary>
+    /// 담고 있는 것을 갈아 끼운다. 시설 명령 창에서 "기능" 처럼 한 창 안에서 줄이 바뀔 때 쓴다 —
+    /// 창을 새로 띄우면 자리가 튀어 보인다.
+    /// </summary>
+    public void SetContent(UIElement content) => _root.Child = content;
+
     private MenuWindow(UIElement content)
     {
         WindowStyle = WindowStyle.None;
@@ -21,9 +29,9 @@ public sealed class MenuWindow : Window
         Background = Brushes.Transparent;
         AllowsTransparency = true;
 
-        var root = new Border { Background = GameUi.Back, Child = content };
-        Content = root;
-        GameUi.EnableDrag(this, root);
+        _root = new Border { Background = GameUi.Back, Child = content };
+        Content = _root;
+        GameUi.EnableDrag(this, _root);
         GameUi.CarryOwnedWindows(this);   // 이 창에서 연 창(힌트 일람 따위)도 같이 옮긴다
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
