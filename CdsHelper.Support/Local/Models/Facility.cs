@@ -66,11 +66,10 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
         new(FacilityKind.Church, "교회",
             ["수련", "교회를 나온다"]),
 
-        // 왕궁의 첫 줄은 스폰서 계약 상태에 따라 말이 바뀐다 — 게임은 메뉴 문자열 표
-        // (0x549DF8)에서 상태 번호로 골라 온다: 0 설득 · 1 계약중단 · 2 보고 · 3 계약중단.
-        // 아직 계약을 흉내내지 않으므로 계약 전(설득)만 낸다.
+        // "설득" 은 여기 적지 않는다 — 그 건물에 후원자가 앉아 있을 때만 붙는 줄이라
+        // 도시마다 다르다(CityPicDialog.BuildMenu 가 맨 앞에 끼워 넣는다).
         //
-        // "감찰관을 매수"(조건 0x44EA30)와 "배를 빌린다"(조건 0x44EA80)는 조건이 맞을 때만
+        // "감찰관을 매수"(조건 0x44EA30)와 "배를 빌린다"(조건 0x44EA80)도 조건이 맞을 때만
         // 나온다. 게임은 조건이 어긋난 줄을 흐리게 두지 않고 아예 감춘다 — 두카레 궁전
         // 화면에도 설득과 나가기 두 줄만 떴다. 조건은 이렇다:
         //   감찰관을 매수 — 계약한 뒤 한 자리에서 발견물이 둘 이상 나왔을 때
@@ -78,7 +77,7 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
         //   배를 빌린다   — 계약할 때 스폰서가 배를 빌리겠냐 물었는데 아니라고 답했을 때
         //                   (그 답이 플래그 한 비트로 남아 test byte [eax+0x1C],1 로 본다)
         new(FacilityKind.Palace, "왕궁",
-            ["설득", "왕궁을 나온다"]),
+            ["왕궁을 나온다"]),
 
         new(FacilityKind.Library, "도서관",
             ["열람", "검색", "구입", "매각", "도서관을 나온다"]),
