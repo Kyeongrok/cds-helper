@@ -27,9 +27,12 @@ public sealed class DevDialog : Window
     private readonly TextBox _gold = Field();
     private readonly TextBox _fame = Field();
 
-    private DevDialog(Player player, Func<bool> coordsOn, Action<bool> setCoords)
+    private readonly string _gameDirectory;
+
+    private DevDialog(Player player, Func<bool> coordsOn, Action<bool> setCoords, string gameDirectory)
     {
         _player = player;
+        _gameDirectory = gameDirectory;
 
         Title = "개발";
         WindowStyle = WindowStyle.None;
@@ -60,6 +63,30 @@ public sealed class DevDialog : Window
         coords.Checked += (_, _) => setCoords(true);
         coords.Unchecked += (_, _) => setCoords(false);
         rows.Children.Add(coords);
+
+        // 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다.
+        var dump = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 10, 0, 4),
+        };
+        dump.Children.Add(new TextBlock
+        {
+            Text = "화면 조각",
+            Width = 64,
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        dump.Children.Add(GameUi.PushButton("MISC.CDS 뽑기", () =>
+        {
+            string result = _gameDirectory.Length == 0
+                ? "게임 폴더를 아직 모릅니다"
+                : UiSpriteDump.Run(_gameDirectory);
+            NoticeDialog.Show(this, result);
+        }, 180));
+        rows.Children.Add(dump);
 
         var buttons = new StackPanel
         {
@@ -211,6 +238,6 @@ public sealed class DevDialog : Window
     };
 
     public static void Show(Window owner, Player player,
-                            Func<bool> coordsOn, Action<bool> setCoords) =>
-        new DevDialog(player, coordsOn, setCoords) { Owner = owner }.ShowDialog();
+                            Func<bool> coordsOn, Action<bool> setCoords, string gameDirectory) =>
+        new DevDialog(player, coordsOn, setCoords, gameDirectory) { Owner = owner }.ShowDialog();
 }

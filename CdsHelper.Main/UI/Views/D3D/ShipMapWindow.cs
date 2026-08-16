@@ -297,7 +297,8 @@ public sealed class ShipMapWindow : Window
         dev.MouseLeftButtonUp += (_, _) => DevDialog.Show(
             this, _player,
             () => _overlayWanted,
-            on => { _overlayWanted = on; SyncOverlay(); });
+            on => { _overlayWanted = on; SyncOverlay(); },
+            _gameDir);
         gameCells.Children.Add(dev);
         var gameBar = new Border
         {
@@ -460,11 +461,10 @@ public sealed class ShipMapWindow : Window
         var items = new StackPanel();
 
         // 제목 상자는 게임 원본 조각(MISC.CDS)으로 짓는다. 못 읽으면 민색 상자로 물러선다.
-        var sprites = UiSprites.Open(_gameDir);
-        if (sprites == null)
-            System.Diagnostics.Debug.WriteLine($"[ShipMap] 화면 조각 없음: {UiSprites.LastError}");
+        // 한 번 넣어 두면 제목 줄이 있는 창들이 다 같이 쓴다(GameUi.TitleBar).
+        LoadSprites();
 
-        var titleBar = GameUi.TitleFrame(sprites, "메인메뉴");
+        var titleBar = GameUi.TitleFrame(GameUi.Sprites, "메인메뉴");
         if (titleBar != null)
         {
             titleBar.Margin = new Thickness(0, 0, 0, 6);
@@ -675,6 +675,9 @@ public sealed class ShipMapWindow : Window
             return;
         }
 
+        // 타이틀을 지을 때 게임 폴더를 몰랐을 수 있다. 여기서 한 번 더 챙긴다.
+        LoadSprites();
+
         if (!_started)
         {
             if (!_host.Start(_gameDir)) { _status.Text = _host.Status; return; }
@@ -857,6 +860,21 @@ public sealed class ShipMapWindow : Window
         };
         return true;
     }
+
+    /// <summary>
+    /// 게임 원본 화면 조각을 한 번만 읽어 <see cref="GameUi.Sprites"/> 에 넣는다.
+    /// 게임 폴더를 아직 모르면 그냥 넘어간다 — 세이브를 열면 다시 부른다.
+    /// </summary>
+    private void LoadSprites()
+    {
+        if (GameUi.Sprites != null || _spritesTried || string.IsNullOrEmpty(_gameDir)) return;
+        _spritesTried = true;
+        GameUi.Sprites = UiSprites.Open(_gameDir);
+        if (GameUi.Sprites == null)
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 화면 조각 없음: {UiSprites.LastError}");
+    }
+
+    private bool _spritesTried;
 
     /// <summary>도시 번호 -> 문화권. cities.json 에서 한 번만 읽어 둔다.</summary>
     private Dictionary<int, string>? _cultures;
