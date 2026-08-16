@@ -70,3 +70,6 @@ Thumbs.db
 
 # Large map image (downloaded at runtime from GitHub Releases)
 **/대항해시대3-지도(발견물-이름-기준).jpg
+
+# Claude Code 의 사람마다 다른 설정 (허용한 명령 목록 따위)
+.claude/settings.local.json
