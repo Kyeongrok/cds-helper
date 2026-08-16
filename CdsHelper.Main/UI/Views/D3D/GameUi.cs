@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -254,11 +254,6 @@ internal static class GameUi
     /// <summary>
     /// 게임 원본 조각으로 지은 제목 상자. 조각을 못 읽으면 null 이라 부르는 쪽이 물러설 수 있다.
     /// </summary>
-    /// <remarks>
-    /// 왼쪽 마구리 · 가운데(옆으로 이어 깔기) · 오른쪽 마구리 셋으로 짓는다. 덩굴 무늬는
-    /// 손으로 찍은 도트라 벡터로 그리면 확대할 때 매끄러워져 게임 맛이 죽는다 — 그래서
-    /// <see cref="UiSprites"/> 로 원본을 그대로 꺼내 쓰고, 늘릴 때 섞지 않는다.
-    /// </remarks>
     /// <summary>
     /// 게임 폴더에서 읽은 화면 조각. 게임 폴더를 알게 되면 한 번 넣어 둔다 —
     /// 제목 줄이 있는 창들이 다 같이 쓴다. 못 읽었으면 null 이고 그때는 민색 상자로 물러선다.
@@ -266,99 +261,51 @@ internal static class GameUi
     public static UiSprites? Sprites { get; set; }
 
     /// <summary>
-    /// 제목 상자 그림. <c>asset/ui</c> 에 있으면 그것을 쓴다 — 손으로 다듬은 것이 이긴다.
-    /// 없으면 게임 CDS 에서 읽은 것으로 물러선다. 한 번 읽고 들고 있는다.
-    /// </summary>
-    private static BitmapSource? _titleBox;
-    private static bool _titleBoxTried;
-
-    private static BitmapSource? TitleBox()
-    {
-        if (_titleBox != null || _titleBoxTried) return _titleBox;
-        _titleBoxTried = true;
-
-        // 손으로 다듬어 둔 것만 쓴다. 게임 CDS 에서 바로 꺼내 쓰지는 않는다 —
-        // 파트 4 의 상자들은 가운데까지 무늬가 꽉 차 있어 제목 줄로 늘리면 글씨가 묻힌다.
-        // 개발 창의 "MISC.CDS 뽑기" 로 다 뽑아 놓고, 쓸 것을 골라 다듬어 이 이름으로 두면 된다.
-        var path = Path.Combine(AppContext.BaseDirectory, "asset", "ui", "title-box.png");
-        if (!File.Exists(path)) return null;
-        try
-        {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.UriSource = new Uri(path);
-            bmp.CacheOption = BitmapCacheOption.OnLoad;   // 파일을 잡고 있지 않게
-            bmp.EndInit();
-            bmp.Freeze();
-            return _titleBox = bmp;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[GameUi] title-box.png 읽기 실패: {ex.Message}");
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 제목 상자의 테 두께(그림 점). 이 안쪽은 늘어나고 바깥은 그대로 있는다.
-    /// </summary>
-    private const int SliceX = 6, SliceY = 5;
-
-    /// <summary>
-    /// 게임 원본 조각을 9-슬라이스로 늘려 지은 제목 상자.
+    /// 게임 원본 조각으로 지은 제목 띠. 조각을 못 읽으면 null 이라 부르는 쪽이 물러설 수 있다.
     /// </summary>
     /// <remarks>
-    /// 조각 하나가 이미 <b>완성된 작은 상자</b>다(16x24). 그래서 마구리를 이어 붙이는 것이
-    /// 아니라 아홉 칸으로 갈라 늘려야 한다 — 네 귀는 그대로 두고, 변은 한 방향으로만,
-    /// 가운데는 두 방향으로 이어 깐다. 늘릴 때 섞으면 도트가 뭉개지므로 안 섞는다.
+    /// <b>왼끝(16) · 가운데(8, 이어 깔기) · 오른끝(16)</b> 셋을 늘어놓는다 — 게임이 하는
+    /// 그대로다(<see cref="UiSprites"/>). 한 장을 9-슬라이스로 늘리는 것이 아니다.
+    /// 가운데만 이어 깔면 어떤 폭에도 맞고 도트도 안 뭉개진다.
+    ///
+    /// 띠 높이는 늘 24점이라 <paramref name="scale"/> 배만큼만 키운다. 늘릴 때 섞으면
+    /// 손으로 찍은 덩굴 무늬가 매끄러워져 게임 맛이 죽으므로 안 섞는다.
     /// </remarks>
     public static Border? TitleFrame(UiSprites? sprites, string title, int scale = 2,
                                      Action? onClose = null)
     {
-        var box = TitleBox();
-        if (box == null) return null;
+        if (sprites == null) return null;
 
-        int bw = box.PixelWidth, bh = box.PixelHeight;
-        if (bw <= SliceX * 2 || bh <= SliceY * 2) return null;
+        var grid = new Grid { Height = UiSprites.BandHeight * scale };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiSprites.CapWidth * scale) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(UiSprites.CapWidth * scale) });
 
-        int midW = bw - SliceX * 2, midH = bh - SliceY * 2;
-
-        Border Cell(int x, int y, int w, int h, bool tileX, bool tileY)
+        for (int k = 0; k < 3; k++)
         {
-            var crop = new CroppedBitmap(box, new Int32Rect(x, y, w, h));
-            crop.Freeze();
-            var brush = new ImageBrush(crop) { Stretch = Stretch.Fill };
-            if (tileX || tileY)
+            var bgra = sprites.Piece(BandStyle.Title, k, out int w);
+            var bmp = BitmapSource.Create(w, UiSprites.BandHeight, 96, 96,
+                                          PixelFormats.Bgra32, null, bgra, w * 4);
+            bmp.Freeze();
+
+            var brush = new ImageBrush(bmp) { Stretch = Stretch.Fill };
+            if (k == 1)                                  // 가운데만 옆으로 이어 깐다
             {
+                // Stretch 는 Fill 그대로 둔다 — 타일 한 칸(w*scale)을 그림이 꽉 채워야
+                // 이음매가 안 벌어진다. None 으로 두면 원본 크기(8x24)만 그리고 나머지가
+                // 빈 채로 남아 세로 줄이 죽죽 생긴다.
                 brush.TileMode = TileMode.Tile;
                 brush.ViewportUnits = BrushMappingMode.Absolute;
-                brush.Viewport = new Rect(0, 0, w * scale, h * scale);
+                brush.Viewport = new Rect(0, 0, w * scale, UiSprites.BandHeight * scale);
             }
             RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
             RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
             brush.Freeze();
-            return new Border { Background = brush };
+
+            var cell = new Border { Background = brush };
+            Grid.SetColumn(cell, k);
+            grid.Children.Add(cell);
         }
-
-        var grid = new Grid { Height = bh * scale };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SliceX * scale) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SliceX * scale) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(SliceY * scale) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(SliceY * scale) });
-
-        void Put(Border b, int col, int row) { Grid.SetColumn(b, col); Grid.SetRow(b, row); grid.Children.Add(b); }
-
-        Put(Cell(0, 0, SliceX, SliceY, false, false), 0, 0);                       // 왼위
-        Put(Cell(SliceX, 0, midW, SliceY, true, false), 1, 0);                     // 위
-        Put(Cell(bw - SliceX, 0, SliceX, SliceY, false, false), 2, 0);             // 오위
-        Put(Cell(0, SliceY, SliceX, midH, false, true), 0, 1);                     // 왼
-        Put(Cell(SliceX, SliceY, midW, midH, true, true), 1, 1);                   // 가운데
-        Put(Cell(bw - SliceX, SliceY, SliceX, midH, false, true), 2, 1);           // 오
-        Put(Cell(0, bh - SliceY, SliceX, SliceY, false, false), 0, 2);             // 왼아래
-        Put(Cell(SliceX, bh - SliceY, midW, SliceY, true, false), 1, 2);           // 아래
-        Put(Cell(bw - SliceX, bh - SliceY, SliceX, SliceY, false, false), 2, 2);   // 오아래
 
         // 글씨는 상자 전체 위에 얹는다 — 마구리를 넘어가도 가운데에 오게.
         var label = new TextBlock
