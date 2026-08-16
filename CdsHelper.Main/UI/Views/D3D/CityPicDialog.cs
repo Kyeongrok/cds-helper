@@ -48,6 +48,12 @@ public sealed class CityPicDialog : Window
     /// <summary>후원자 자료(patrons.json). 한 번만 읽어 둔다.</summary>
     private static List<Patron>? _patrons;
 
+    /// <summary>후원자 표와 초상화(게임 자료). 설득할 때에야 연다.</summary>
+    private SponsorTable? _sponsorTable;
+    private bool _sponsorTried;
+    private Portraits? _faces;
+    private bool _facesTried;
+
     // 도서관 열람에 쓰는 것들. 책 표를 못 읽었으면 열람 줄이 흐린 채로 남는다.
     private readonly BookTable? _library;
     private readonly Func<int, string> _hintName;
@@ -306,20 +312,29 @@ public sealed class CityPicDialog : Window
     /// </remarks>
     private void Persuade(Patron patron)
     {
+        var face = FaceOf(patron);
+        void Say(string words) => TalkDialog.Say(this, face, "", words);
+
+        // 먼저 취차(집사)가 나와 안내한다 — 후원자를 바로 만나지 않는다.
+        // 게임에는 무례한 판("너는 … 용케도 얼굴을 내밀었군")도 있는데, 어느 쪽인지 가르는
+        // 값은 아직 못 풀어서 공손한 쪽만 쓴다.
+        TalkDialog.Say(this, StewardFace(), "",
+                       $"제독님. {patron.Name}에게 용건이 있으시면, 안내하겠습니다만....");
+
         // 얻은 힌트만 내밀 수 있다. 게임도 상태가 맞는 것만 목록에 올린다(0x0044E7B0).
         var mine = _player.Hints.Order().ToList();
         var names = mine.Select(HintNameOf).ToList();
         int row = HintListDialog.Pick(this, names);
         if (row < 0)
         {
-            NoticeDialog.Show(this, "뭔가, 용건이 없는가? 이쪽은 바쁘네, 빨리 나가주게.");
+            Say("뭔가, 용건이 없는가? 이쪽은 바쁘네, 빨리 나가주게.");
             return;
         }
 
         var hint = Hints()?.Find(mine[row]);
         if (hint == null)
         {
-            NoticeDialog.Show(this, "흠, 원조해 주고 싶은 마음은 많지만.");
+            Say("흠, 원조해 주고 싶은 마음은 많지만.");
             return;
         }
 
@@ -328,7 +343,7 @@ public sealed class CityPicDialog : Window
         // 안목 판정 — 후원자가 이야기의 크기를 가늠하지 못하면 물린다.
         if (patron.Discernment / 20 + (it.Grade == 5 ? 1 : 2) < it.Grade)
         {
-            NoticeDialog.Show(this, "가능한 한 원조해 주고 싶지만, 너무나 이야기가 막연하네.");
+            Say("가능한 한 원조해 주고 싶지만, 너무나 이야기가 막연하네.");
             return;
         }
 
@@ -337,23 +352,35 @@ public sealed class CityPicDialog : Window
         // 재력 판정 — 낼 돈이 없으면 물린다.
         if (patron.Wealth < funds)
         {
-            NoticeDialog.Show(this, "원조는 해 주고 싶지만, 흐~음, 돈이... , 또 다음번이다.");
+            Say("원조는 해 주고 싶지만, 흐~음, 돈이... , 또 다음번이다.");
             return;
         }
 
         // 좋아하는 갈래면 사례가 후하다. 게임에도 후원자마다 좋아하는 갈래가 적혀 있다.
         int reward = patron.Likes(it.Category) ? funds * 2 : funds;
 
-        bool yes = ConfirmDialog.Ask(this,
+        int pick = TalkDialog.Ask(this, face, "",
             $"모험하는데 돈은 필요하겠지. 먼저 금화 {funds}닢을 주겠다. " +
             $"{it.Deadline}년 내에 성공하면 {reward}닢의 사례를 약속하겠네. 이것으로 어떤가.\n\n" +
-            $" 기간{it.Deadline}년 금화 {funds}닢 ");
-        if (!yes) return;
+            $" 기간{it.Deadline}년 금화 {funds}닢 ",
+            "승낙한다", "교섭한다");
+        if (pick != 0) return;      // 교섭은 아직 흉내내지 않는다
 
-        NoticeDialog.Show(this,
-            "그러면, 기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게.\n" +
+        Say("그러면, 기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게. " +
             "(계약을 적어 두는 것은 아직 흉내내지 못한다)");
     }
+
+    /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
+    private uint[]? FaceOf(Patron patron)
+    {
+        var sponsor = Sponsors()?.FindByName(patron.Name);
+        if (sponsor == null) return null;
+        return Faces()?.TryGetBgra(sponsor.Value.Face, sponsor.Value.IsFemale);
+    }
+
+    /// <summary>취차(집사)의 얼굴. 어느 후원자에게 가든 같은 사람이다.</summary>
+    private uint[]? StewardFace() =>
+        Faces()?.TryGetBgra(SponsorTable.StewardFace, female: false);
 
     /// <summary>힌트 이름. 게임 표를 읽었으면 그것으로, 아니면 DB 이름으로 물러선다.</summary>
     private string HintNameOf(int id) => _hintTable?.NameOf(id) ?? _hintName(id);
@@ -368,6 +395,30 @@ public sealed class CityPicDialog : Window
         if (_hintTable == null)
             System.Diagnostics.Debug.WriteLine($"[City] 힌트 표 없음: {HintTable.LastError}");
         return _hintTable;
+    }
+
+    /// <summary>후원자 표(CDS_95.EXE). 얼굴 번호가 여기서 온다.</summary>
+    private SponsorTable? Sponsors()
+    {
+        if (_sponsorTable != null || _sponsorTried) return _sponsorTable;
+        _sponsorTried = true;
+        if (_gameDirectory.Length == 0) return null;
+        _sponsorTable = SponsorTable.Open(_gameDirectory);
+        if (_sponsorTable == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 후원자 표 없음: {SponsorTable.LastError}");
+        return _sponsorTable;
+    }
+
+    /// <summary>초상화(MALE.CDS · FEMALE.CDS). 처음 쓸 때 연다.</summary>
+    private Portraits? Faces()
+    {
+        if (_faces != null || _facesTried) return _faces;
+        _facesTried = true;
+        if (_gameDirectory.Length == 0) return null;
+        _faces = Portraits.Open(_gameDirectory);
+        if (_faces == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 초상화 없음: {Portraits.LastError}");
+        return _faces;
     }
 
     /// <summary>후원자 자료. 못 읽으면 빈 목록이다 — 그렇다고 도시 화면까지 막을 일은 아니다.</summary>
