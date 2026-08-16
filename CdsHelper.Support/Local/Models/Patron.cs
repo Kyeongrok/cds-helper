@@ -84,6 +84,32 @@ public class Patron
     public int SupportRatePercent =>
         int.TryParse(SupportRate.TrimEnd('%', ' '), out int rate) ? rate : 0;
 
+    /// <summary>
+    /// 이 후원자가 앉는 건물 종류. 앞에 있는 것부터 찾아 도시에 있는 첫 건물에 앉힌다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 건물마다 후원자를 하나 물려 두고(시설 객체 <c>+0xB4</c>), 물린 것이 없으면
+    /// 설득 줄을 아예 감춘다. 그 짝이 어디에 적혀 있는지는 아직 못 찾아서 직업으로 맺는다.
+    ///
+    /// 자료를 맞춰 보고 정한 것이다 — 건물 표(225개 도시)와 후원자 81명을 대 보면 짝이
+    /// 뚜렷하다. 총독부가 있는 도시 10곳에 총독이 11명, 상관 9곳에 상인이 10명, 왕궁이 있는
+    /// 도시마다 국왕이 있고, 황궁 한 곳(로마)에 교황 둘이 있다. 두 번째 자리는 그 건물이
+    /// 없는 도시를 위한 것이다(피렌체의 총독은 총독부가 없어 왕궁에 앉는다).
+    /// </remarks>
+    [JsonIgnore]
+    public string[] Seats => Occupation switch
+    {
+        "국왕" => ["왕궁", "황궁", "성"],
+        "교황" => ["황궁", "교회"],
+        "총독" => ["총독부", "왕궁"],
+        "상인" => ["상관", "교역소"],
+        "학자" => ["학자 저택", "저택"],
+        "관리" => ["관청", "저택"],
+        "귀족" => ["저택", "성", "왕궁"],
+        "신부" => ["교회", "사원"],
+        _ => [],
+    };
+
     public bool IsActive(int currentYear)
     {
         if (AppearYear.HasValue && currentYear < AppearYear.Value)

@@ -129,7 +129,7 @@ public sealed class CityPicDialog : Window
             var harbor = Facility.For("항구");
             picBox.Cursor = Cursors.Hand;
             picBox.MouseLeftButtonUp += (_, _) =>
-                ShowMenu(BuildMenu(harbor, harbor.Name, 0), harbor.BgmTrack);
+                ShowMenu(BuildMenu(harbor, harbor.Name, 0, harbor.Name), harbor.BgmTrack);
         }
 
         // 게임 화면에는 제목 줄도 안내 줄도 없다. 그림 한 장이 곧 창이다.
@@ -184,7 +184,8 @@ public sealed class CityPicDialog : Window
         {
             e.Handled = true;
             // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
-            ShowMenu(BuildMenu(facility, building.Name, building.TeachMask), facility.BgmTrack);
+            ShowMenu(BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
+                     facility.BgmTrack);
         };
         _layer.Children.Add(spot);
     }
@@ -303,15 +304,8 @@ public sealed class CityPicDialog : Window
     /// <b>아직 안 되는 것</b> — 계약을 맺어 두지 않는다. 승낙해도 돈이 들어오거나 기한이
     /// 걸리지 않는다. 계약 상태를 어디에 적어 둘지(세이브 자리)를 아직 못 풀었다.
     /// </remarks>
-    private void Persuade()
+    private void Persuade(Patron patron)
     {
-        var patron = FindPatron();
-        if (patron == null)
-        {
-            NoticeDialog.Show(this, "이 마을에는 아는 스폰서가 없습니다");
-            return;
-        }
-
         // 얻은 힌트만 내밀 수 있다. 게임도 상태가 맞는 것만 목록에 올린다(0x0044E7B0).
         var mine = _player.Hints.Order().ToList();
         var names = mine.Select(HintNameOf).ToList();
@@ -361,20 +355,6 @@ public sealed class CityPicDialog : Window
             "(계약을 적어 두는 것은 아직 흉내내지 못한다)");
     }
 
-    /// <summary>이 도시의 후원자. 여럿이면 고르게 하고, 없으면 null.</summary>
-    private Patron? FindPatron()
-    {
-        var all = LoadPatrons();
-        var here = new PatronService().ActiveInCity(all, _cityName, _player.Date.Year);
-        if (here.Count == 0) return null;
-        if (here.Count == 1) return here[0];
-
-        var labels = here.Select(p => $"{p.Name} ({p.Occupation})").ToList();
-        int pick = HintListDialog.Pick(this, labels, "스폰서 일람",
-                                       "이 마을에는 아는 스폰서가 없습니다");
-        return pick < 0 ? null : here[pick];
-    }
-
     /// <summary>힌트 이름. 게임 표를 읽었으면 그것으로, 아니면 DB 이름으로 물러선다.</summary>
     private string HintNameOf(int id) => _hintTable?.NameOf(id) ?? _hintName(id);
 
@@ -417,30 +397,45 @@ public sealed class CityPicDialog : Window
     /// 것만 <see cref="ActionFor"/> 가 손을 달아 준다. 나머지는 흐린 채로 둔다.
     /// 제목은 건물 이름이다(게임도 그렇다).
     /// </summary>
-    private Border BuildMenu(Facility facility, string title, uint teachMask)
+    private Border BuildMenu(Facility facility, string title, uint teachMask, string kind)
     {
         var items = facility.Menu.ToList();
         // 가르치는 건물인데 줄에 수련이 없으면(학자 저택 따위) 맨 앞에 붙여 준다.
         if (teachMask != 0 && !items.Contains("수련")) items.Insert(0, "수련");
 
+        // 후원자가 앉은 건물이면 "설득" 이 맨 앞에 붙는다 — 왕궁만이 아니라 총독부·상관·
+        // 학자 저택 어디든 그렇다. 게임도 물린 후원자가 없으면 그 줄을 아예 감춘다.
+        var patron = PatronAt(kind);
+        if (patron != null) items.Insert(0, "설득");
+
         return GameUi.CommandBox(title,
-            [.. items.Select(item => (item, ActionFor(facility, item, teachMask)))]);
+            [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron)))]);
     }
+
+    /// <summary>이 건물에 앉아 있는 후원자. 없으면 null.</summary>
+    private Patron? PatronAt(string kind) =>
+        new PatronService().SeatedAt(LoadPatrons(), _cityName, _player.Date.Year, kind, KindsHere);
+
+    /// <summary>이 도시에 있는 건물 종류들. 후원자를 앉힐 자리를 고를 때 쓴다.</summary>
+    private HashSet<string> KindsHere =>
+        _kindsHere ??= [.. _table.InCity(_cityId).Select(b => b.Kind)];
+
+    private HashSet<string>? _kindsHere;
 
     /// <summary>
     /// 그 줄이 하는 일. 지금 되는 것은 나가기와 출항·구입·수련뿐이다 —
     /// 보급·함대편성 따위는 이 창이 흉내내는 범위 밖이라 손을 달지 않는다(흐리게 나온다).
     /// </summary>
-    private Action? ActionFor(Facility facility, string item, uint teachMask)
+    private Action? ActionFor(Facility facility, string item, uint teachMask, Patron? patron)
     {
         if (item == facility.ExitItem) return CloseMenu;
         if (item == "수련" && teachMask != 0)
             return () => SkillLearnDialog.Show(this, _player, _table.Teaches(teachMask));
         if (item == "기능") return () => ShowMenu(SystemMenu());
+        if (item == "설득" && patron != null) return () => Persuade(patron);
 
         return (facility.Kind, item) switch
         {
-            (FacilityKind.Palace, "설득") => Persuade,
             (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Library, "열람") when _library != null => () =>
