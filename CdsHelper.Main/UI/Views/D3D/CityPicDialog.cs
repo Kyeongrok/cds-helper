@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -39,6 +40,13 @@ public sealed class CityPicDialog : Window
 
     /// <summary>건물 표. 가르치는 기능을 이름으로 풀 때 쓴다.</summary>
     private readonly CityBuildingTable _table;
+
+    /// <summary>힌트 표(CDS_95.EXE). 왕궁 설득에서 등급·자금·기한이 여기서 온다.</summary>
+    private HintTable? _hintTable;
+    private bool _hintTableTried;
+
+    /// <summary>후원자 자료(patrons.json). 한 번만 읽어 둔다.</summary>
+    private static List<Patron>? _patrons;
 
     // 도서관 열람에 쓰는 것들. 책 표를 못 읽었으면 열람 줄이 흐린 채로 남는다.
     private readonly BookTable? _library;
@@ -135,6 +143,10 @@ public sealed class CityPicDialog : Window
             {
                 if (Mouse.LeftButton == MouseButtonState.Pressed) DragMove();
             };
+
+        // 그림을 옮기면 옆에 붙은 커맨드 창도 같이 옮긴다. 함대 창이 옮겨져 이 그림이
+        // 끌려갈 때에도 같은 길로 이어진다.
+        GameUi.CarryOwnedWindows(this);
 
         // 오른쪽 단추는 게임처럼 도시 커맨드 창을 연다. 창을 닫는 것은 ESC 다.
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
@@ -272,6 +284,129 @@ public sealed class CityPicDialog : Window
 
     private void CloseCityMenu() => _cityMenu?.Close();
 
+    /// <summary>
+    /// 왕궁의 "설득" — 후원자에게 힌트를 내밀어 자금을 받아 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004AEF50</c> 을 따라간다. 차례가 이렇다.
+    /// <list type="number">
+    /// <item>후원자를 찾는다. 없으면 "이 마을에는 아는 스폰서가 없습니다".</item>
+    /// <item>힌트를 고르게 한다(<c>0x004AE8E0</c>). 안 고르면 "용건이 없는가".</item>
+    /// <item>안목이 힌트 등급에 못 미치면 물린다 — "이야기가 막연하네".
+    ///       게임 판정은 <c>안목/20 + (등급==5 ? 1 : 2) &gt;= 등급</c> 이다(<c>0x004AF0F0</c>).</item>
+    /// <item>재력이 낼 돈에 못 미치면 물린다 — "돈이…".</item>
+    /// <item>통과하면 선금·기한·사례금을 걸고 승낙을 묻는다.</item>
+    /// </list>
+    /// 대사는 게임 EXE 에 있는 말을 그대로 옮겼다(<c>0x00546778</c>~<c>0x00546D80</c>).
+    /// 게임은 신분(왕궁·총독부·성)에 따라 세 벌을 갈아 쓰는데, 여기서는 왕궁 것 한 벌만 쓴다.
+    ///
+    /// <b>아직 안 되는 것</b> — 계약을 맺어 두지 않는다. 승낙해도 돈이 들어오거나 기한이
+    /// 걸리지 않는다. 계약 상태를 어디에 적어 둘지(세이브 자리)를 아직 못 풀었다.
+    /// </remarks>
+    private void Persuade()
+    {
+        var patron = FindPatron();
+        if (patron == null)
+        {
+            NoticeDialog.Show(this, "이 마을에는 아는 스폰서가 없습니다");
+            return;
+        }
+
+        // 얻은 힌트만 내밀 수 있다. 게임도 상태가 맞는 것만 목록에 올린다(0x0044E7B0).
+        var mine = _player.Hints.Order().ToList();
+        var names = mine.Select(HintNameOf).ToList();
+        int row = HintListDialog.Pick(this, names);
+        if (row < 0)
+        {
+            NoticeDialog.Show(this, "뭔가, 용건이 없는가? 이쪽은 바쁘네, 빨리 나가주게.");
+            return;
+        }
+
+        var hint = Hints()?.Find(mine[row]);
+        if (hint == null)
+        {
+            NoticeDialog.Show(this, "흠, 원조해 주고 싶은 마음은 많지만.");
+            return;
+        }
+
+        var it = hint.Value;
+
+        // 안목 판정 — 후원자가 이야기의 크기를 가늠하지 못하면 물린다.
+        if (patron.Discernment / 20 + (it.Grade == 5 ? 1 : 2) < it.Grade)
+        {
+            NoticeDialog.Show(this, "가능한 한 원조해 주고 싶지만, 너무나 이야기가 막연하네.");
+            return;
+        }
+
+        int funds = HintTable.FundsFor(it, patron.SupportRatePercent);
+
+        // 재력 판정 — 낼 돈이 없으면 물린다.
+        if (patron.Wealth < funds)
+        {
+            NoticeDialog.Show(this, "원조는 해 주고 싶지만, 흐~음, 돈이... , 또 다음번이다.");
+            return;
+        }
+
+        // 좋아하는 갈래면 사례가 후하다. 게임에도 후원자마다 좋아하는 갈래가 적혀 있다.
+        int reward = patron.Likes(it.Category) ? funds * 2 : funds;
+
+        bool yes = ConfirmDialog.Ask(this,
+            $"모험하는데 돈은 필요하겠지. 먼저 금화 {funds}닢을 주겠다. " +
+            $"{it.Deadline}년 내에 성공하면 {reward}닢의 사례를 약속하겠네. 이것으로 어떤가.\n\n" +
+            $" 기간{it.Deadline}년 금화 {funds}닢 ");
+        if (!yes) return;
+
+        NoticeDialog.Show(this,
+            "그러면, 기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게.\n" +
+            "(계약을 적어 두는 것은 아직 흉내내지 못한다)");
+    }
+
+    /// <summary>이 도시의 후원자. 여럿이면 고르게 하고, 없으면 null.</summary>
+    private Patron? FindPatron()
+    {
+        var all = LoadPatrons();
+        var here = new PatronService().ActiveInCity(all, _cityName, _player.Date.Year);
+        if (here.Count == 0) return null;
+        if (here.Count == 1) return here[0];
+
+        var labels = here.Select(p => $"{p.Name} ({p.Occupation})").ToList();
+        int pick = HintListDialog.Pick(this, labels, "스폰서 일람",
+                                       "이 마을에는 아는 스폰서가 없습니다");
+        return pick < 0 ? null : here[pick];
+    }
+
+    /// <summary>힌트 이름. 게임 표를 읽었으면 그것으로, 아니면 DB 이름으로 물러선다.</summary>
+    private string HintNameOf(int id) => _hintTable?.NameOf(id) ?? _hintName(id);
+
+    /// <summary>힌트 표를 처음 쓸 때 연다. 못 읽으면 이름만 DB 것으로 물러선다.</summary>
+    private HintTable? Hints()
+    {
+        if (_hintTable != null || _hintTableTried) return _hintTable;
+        _hintTableTried = true;
+        if (_gameDirectory.Length == 0) return null;
+        _hintTable = HintTable.Open(_gameDirectory);
+        if (_hintTable == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 힌트 표 없음: {HintTable.LastError}");
+        return _hintTable;
+    }
+
+    /// <summary>후원자 자료. 못 읽으면 빈 목록이다 — 그렇다고 도시 화면까지 막을 일은 아니다.</summary>
+    private static List<Patron> LoadPatrons()
+    {
+        if (_patrons != null) return _patrons;
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "patrons.json");
+            _patrons = new PatronService().LoadPatrons(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[City] 후원자 자료 없음: {ex.Message}");
+            _patrons = [];
+        }
+        return _patrons;
+    }
+
     /// <summary>얻은 힌트를 늘어놓는다. 이름은 DB 에서 온다.</summary>
     private void ShowHints() =>
         HintListDialog.Show(_cityMenu ?? (Window)this,
@@ -305,6 +440,7 @@ public sealed class CityPicDialog : Window
 
         return (facility.Kind, item) switch
         {
+            (FacilityKind.Palace, "설득") => Persuade,
             (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Library, "열람") when _library != null => () =>

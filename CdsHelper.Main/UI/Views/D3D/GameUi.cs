@@ -204,6 +204,45 @@ internal static class GameUi
         };
     }
 
+    /// <summary>
+    /// 이 창을 옮기면 딸린 창(<see cref="Window.OwnedWindows"/>)도 같은 만큼 따라 옮긴다.
+    /// </summary>
+    /// <remarks>
+    /// 게임에서는 도시 그림도 커맨드 창도 지도 안에 그려진 것이라 지도가 움직이면 함께
+    /// 움직인다. 우리는 D3D 자식 창 위에 제대로 띄우려고 창(HWND)을 따로 쓰므로
+    /// (<see cref="CityPicDialog"/> 참고) 그 값을 손으로 붙여 준다.
+    ///
+    /// 딸린 창에도 이것을 걸어 두면 사슬로 이어진다 — 함대 창을 옮기면 도시 그림이 따라오고,
+    /// 그 그림이 옮겨지면 다시 그 옆의 커맨드 창이 따라온다.
+    ///
+    /// 최대화·최소화로 바뀌는 자리까지 따라가면 딸린 창이 엉뚱한 데로 튄다. 보통 상태일
+    /// 때만 옮기고 그 밖에는 기준만 다시 잡는다.
+    /// </remarks>
+    public static void CarryOwnedWindows(Window window)
+    {
+        // 아직 안 뜬 창은 Left/Top 이 NaN 이다. 첫 자리를 잡을 때 기준이 채워진다.
+        double lastLeft = window.Left, lastTop = window.Top;
+
+        window.LocationChanged += (_, _) =>
+        {
+            double left = window.Left, top = window.Top;
+            double dx = left - lastLeft, dy = top - lastTop;
+            lastLeft = left;
+            lastTop = top;
+
+            if (window.WindowState != WindowState.Normal) return;
+            if (double.IsNaN(dx) || double.IsNaN(dy) || (dx == 0 && dy == 0)) return;
+
+            // 옮기는 사이에 목록이 바뀔 수 있다(창이 닫히는 따위) — 베껴 두고 돈다.
+            foreach (var owned in window.OwnedWindows.Cast<Window>().ToArray())
+            {
+                if (double.IsNaN(owned.Left) || double.IsNaN(owned.Top)) continue;
+                owned.Left += dx;
+                owned.Top += dy;
+            }
+        };
+    }
+
     /// <summary>건물 위에 커서를 올렸을 때 밑에 붙는 이름표.</summary>
     public static Border NameTag(string text) => new()
     {

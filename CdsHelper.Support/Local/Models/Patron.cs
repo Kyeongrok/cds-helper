@@ -73,6 +73,17 @@ public class Patron
     [JsonPropertyName("note")]
     public string Note { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 후원율을 수로. 자료에는 "82%" 처럼 적혀 있다. 못 읽으면 0 이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 힌트에 적힌 자금(힌트 표 <c>+0x10</c>)에 이 비율을 곱해 낼 돈을 정한다 —
+    /// <see cref="Helpers.HintTable.FundsFor"/> 참고.
+    /// </remarks>
+    [JsonIgnore]
+    public int SupportRatePercent =>
+        int.TryParse(SupportRate.TrimEnd('%', ' '), out int rate) ? rate : 0;
+
     public bool IsActive(int currentYear)
     {
         if (AppearYear.HasValue && currentYear < AppearYear.Value)
@@ -94,6 +105,24 @@ public class Patron
 
         return "활동중";
     }
+
+    /// <summary>
+    /// 그 갈래를 좋아하는지. 갈래 번호는 게임 힌트 표의 것이다 —
+    /// 0 지리 · 1 역사 · 2 보물 · 3 종교 · 4 교역품 · 5 미신 · 6 생물 · 7 민족
+    /// (이름표 <c>0x00560C60</c>).
+    /// </summary>
+    public bool Likes(int category) => category switch
+    {
+        0 => Preferences.Geography,
+        1 => Preferences.History,
+        2 => Preferences.Treasure,
+        3 => Preferences.Religion,
+        4 => Preferences.TradeGoods,
+        5 => Preferences.Superstition,
+        6 => Preferences.Creature,
+        7 => Preferences.Ethnicity,
+        _ => false,
+    };
 
     public string PreferencesDisplay()
     {
