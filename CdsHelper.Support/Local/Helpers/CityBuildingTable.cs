@@ -1,6 +1,4 @@
-using System.Buffers.Binary;
 using System.IO;
-using System.Text;
 
 namespace CdsHelper.Support.Local.Helpers;
 
@@ -116,57 +114,20 @@ public sealed class CityBuildingTable
     public static CityBuildingTable? Open(string gameDirectory)
     {
         LastError = "";
-        var path = Path.Combine(gameDirectory, "CDS_95.EXE");
-        if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
-
-        byte[] exe;
-        try { exe = File.ReadAllBytes(path); }
-        catch (IOException ex) { LastError = ex.Message; return null; }
-        catch (UnauthorizedAccessException ex) { LastError = ex.Message; return null; }
-
-        var pe = PeImage.From(exe);
-        if (pe == null) { LastError = "CDS_95.EXE 를 PE 로 읽지 못했습니다"; return null; }
-
-        // 이름은 EXE 안에 CP949 로 들어 있다. 앱이 이미 등록해 두지만(App.cs) 시험용으로 이
-        // 클래스만 쓸 때도 되도록 여기서도 한 번 등록한다 — 두 번 불러도 탈이 없다.
-        Encoding cp949;
-        try
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            cp949 = Encoding.GetEncoding(949);
-        }
-        catch (ArgumentException)
-        {
-            LastError = "CP949 를 쓸 수 없습니다";
-            return null;
-        }
-
-        string? Text(uint va)
-        {
-            int o = pe.Offset(va);
-            if (o < 0) return null;
-            int end = Array.IndexOf(exe, (byte)0, o, Math.Min(64, exe.Length - o));
-            return end < 0 ? null : cp949.GetString(exe, o, end - o);
-        }
-        uint Word(int va)
-        {
-            int o = pe.Offset((uint)va);
-            return o < 0 ? 0 : BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(o));
-        }
+        var exe = PeImage.Read(Path.Combine(gameDirectory, "CDS_95.EXE"), out string error);
+        if (exe == null) { LastError = error; return null; }
 
         var buildings = new List<Building>(RowCount);
         for (int k = 0; k < RowCount; k++)
         {
             int row = TableVa + k * RowSize;
-            if (pe.Offset((uint)row) < 0) { LastError = "건물 표가 파일 밖입니다"; return null; }
-
-            var name = Text(Word(row + 0x00));
-            var kind = Text(Word(row + 0x04));
+            var name = exe.Text(exe.Word(row + 0x00));
+            var kind = exe.Text(exe.Word(row + 0x04));
             if (name == null || kind == null) continue;
 
             buildings.Add(new Building(
-                (int)Word(row + 0x08), (int)Word(row + 0x0C), kind, name,
-                (int)Word(row + 0x20), (int)Word(row + 0x24), Word(row + 0x30)));
+                exe.Int(row + 0x08), exe.Int(row + 0x0C), kind, name,
+                exe.Int(row + 0x20), exe.Int(row + 0x24), exe.Word(row + 0x30)));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
@@ -177,62 +138,13 @@ public sealed class CityBuildingTable
         }
 
         var skills = new string[SkillCount];
-        for (int i = 0; i < SkillCount; i++) skills[i] = Text(Word(SkillNamesVa + i * 4)) ?? "";
+        for (int i = 0; i < SkillCount; i++)
+            skills[i] = exe.Text(exe.Word(SkillNamesVa + i * 4)) ?? "";
         var languages = new string[LanguageCount];
-        for (int i = 0; i < LanguageCount; i++) languages[i] = Text(Word(LanguageNamesVa + i * 4)) ?? "";
+        for (int i = 0; i < LanguageCount; i++)
+            languages[i] = exe.Text(exe.Word(LanguageNamesVa + i * 4)) ?? "";
 
         return new CityBuildingTable(buildings, skills, languages);
     }
 
-    /// <summary>VA 를 파일 오프셋으로 옮기는 데만 쓰는 아주 작은 PE 리더.</summary>
-    private sealed class PeImage
-    {
-        private readonly (uint Va, uint VSize, uint Raw, uint RawSize)[] _sections;
-        private readonly uint _imageBase;
-
-        private PeImage(uint imageBase, (uint, uint, uint, uint)[] sections)
-        {
-            _imageBase = imageBase;
-            _sections = sections;
-        }
-
-        public static PeImage? From(byte[] exe)
-        {
-            if (exe.Length < 0x40 || exe[0] != 'M' || exe[1] != 'Z') return null;
-            int pe = BinaryPrimitives.ReadInt32LittleEndian(exe.AsSpan(0x3C));
-            if (pe < 0 || pe + 0x78 > exe.Length) return null;
-            if (BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(pe)) != 0x00004550) return null;
-
-            int sectionCount = BinaryPrimitives.ReadUInt16LittleEndian(exe.AsSpan(pe + 6));
-            int optSize = BinaryPrimitives.ReadUInt16LittleEndian(exe.AsSpan(pe + 20));
-            uint imageBase = BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(pe + 24 + 28));
-            int table = pe + 24 + optSize;
-
-            var sections = new (uint, uint, uint, uint)[sectionCount];
-            for (int i = 0; i < sectionCount; i++)
-            {
-                int s = table + i * 40;
-                if (s + 40 > exe.Length) return null;
-                sections[i] = (
-                    BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(s + 12)),   // VirtualAddress
-                    BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(s + 8)),    // VirtualSize
-                    BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(s + 20)),   // PointerToRawData
-                    BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(s + 16)));  // SizeOfRawData
-            }
-            return new PeImage(imageBase, sections);
-        }
-
-        /// <summary>VA 의 파일 오프셋. 파일에 값이 없는 자리면 -1.</summary>
-        public int Offset(uint va)
-        {
-            uint rva = va - _imageBase;
-            foreach (var (secRva, vsize, raw, rawSize) in _sections)
-            {
-                if (rva < secRva || rva >= secRva + Math.Max(vsize, rawSize)) continue;
-                uint o = rva - secRva;
-                return o < rawSize ? (int)(raw + o) : -1;
-            }
-            return -1;
-        }
-    }
 }

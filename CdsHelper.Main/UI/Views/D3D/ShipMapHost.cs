@@ -869,6 +869,27 @@ public sealed class ShipMapHost : HwndHost
     /// </summary>
     public int NearestCity(double radiusCells = DockRadiusCells) => NearestDock(radiusCells).Id;
 
+    /// <summary>뭍에서 도시 어귀로 치는 거리(칸). 도시 칸 자체를 재므로 짧다.</summary>
+    private const double TownRadiusCells = 2.0;
+
+    /// <summary>
+    /// 말이 닿은 도시 ID. 없으면 -1. 배와 달리 <b>도시 칸</b>까지의 거리를 잰다 —
+    /// 뭍에서는 항구 칸이 아니라 마을 자체로 들어가기 때문이다.
+    /// </summary>
+    public int NearestTown(double radiusCells = TownRadiusCells)
+    {
+        if (!_shipKnown) return -1;
+        int best = -1;
+        double bestD = radiusCells * radiusCells;
+        for (int id = 0; id < GameMapCoords.CityCount; id++)
+        {
+            if (!GameMapCoords.TryCityCell(id, out double cx, out double cy)) continue;
+            double d = DistanceSq(cx, cy);
+            if (d < bestD) { bestD = d; best = id; }
+        }
+        return best;
+    }
+
     /// <summary>
     /// 배에 가장 가까운 항구와 그 거리(칸). <paramref name="radiusCells"/> 밖이면 ID 가 -1 이다.
     /// 반지름은 꼭 적는다 — 넓을수록 도시마다 항구 칸을 찾아야 해서 무거워진다.

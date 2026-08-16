@@ -21,7 +21,7 @@ public sealed class PortDialog : Window
     private static readonly Brush BtnFill = new SolidColorBrush(Color.FromRgb(0xD2, 0xCA, 0xAD));
     private static readonly Brush BtnEdge = new SolidColorBrush(Color.FromRgb(0x4A, 0x40, 0x30));
 
-    private PortDialog(string cityName)
+    private PortDialog(string cityName, bool byLand)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -32,7 +32,8 @@ public sealed class PortDialog : Window
 
         var ask = new TextBlock
         {
-            Text = $"[{cityName}]의 항구로 들어가겠습니까?",
+            // 게임도 배면 "항구로", 말이면 "도시로" 로 갈아 낸다(문구는 하나다).
+            Text = $"[{cityName}]의 {(byLand ? "도시" : "항구")}로 들어가겠습니까?",
             Foreground = Text,
             FontWeight = FontWeights.Bold,
             FontSize = 18,
@@ -91,10 +92,13 @@ public sealed class PortDialog : Window
         return b;
     }
 
-    /// <summary>물어보고 예를 골랐으면 true.</summary>
-    public static bool Ask(Window owner, string cityName)
+    /// <summary>
+    /// 물어보고 예를 골랐으면 true. <paramref name="byLand"/> 면 "도시로",
+    /// 아니면 "항구로" 라고 묻는다.
+    /// </summary>
+    public static bool Ask(Window owner, string cityName, bool byLand = false)
     {
-        var dlg = new PortDialog(cityName) { Owner = owner };
+        var dlg = new PortDialog(cityName, byLand) { Owner = owner };
         return dlg.ShowDialog() == true;
     }
 }

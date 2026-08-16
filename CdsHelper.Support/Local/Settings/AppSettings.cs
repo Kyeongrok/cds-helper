@@ -21,6 +21,9 @@ public class AppSettingsData
 
     /// <summary>앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지.</summary>
     public bool AutoOpenShipMap { get; set; }
+
+    /// <summary>함대 창에서 배경음악을 틀지. 기본은 켬.</summary>
+    public bool BgmEnabled { get; set; } = true;
     public RerollOptions Reroll { get; set; } = new();
 }
 
@@ -94,6 +97,7 @@ public static class AppSettings
     private static WorldMapOptions _worldMap = new();
     private static bool _autoConfirmDialog = true;
     private static bool _autoOpenShipMap;
+    private static bool _bgmEnabled = true;
     private static RerollOptions _reroll = new();
 
     static AppSettings()
@@ -206,6 +210,18 @@ public static class AppSettings
         }
     }
 
+    /// <summary>함대 창의 배경음악을 틀지. 설정 창에서 켜고 끈다.</summary>
+    public static bool BgmEnabled
+    {
+        get => _bgmEnabled;
+        set
+        {
+            _bgmEnabled = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -239,6 +255,7 @@ public static class AppSettings
                     _worldMap = data.WorldMap ?? new();
                     _autoConfirmDialog = data.AutoConfirmDialog;
                     _autoOpenShipMap = data.AutoOpenShipMap;
+                    _bgmEnabled = data.BgmEnabled;
                     _reroll = data.Reroll ?? new();
                 }
             }
@@ -269,6 +286,7 @@ public static class AppSettings
                 WorldMap = _worldMap,
                 AutoConfirmDialog = _autoConfirmDialog,
                 AutoOpenShipMap = _autoOpenShipMap,
+                BgmEnabled = _bgmEnabled,
                 Reroll = _reroll
             };
 
