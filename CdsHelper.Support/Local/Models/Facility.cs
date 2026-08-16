@@ -64,7 +64,8 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
             ["매매", "회화", "교역소를 나온다"]),
 
         new(FacilityKind.Church, "교회",
-            ["수련", "교회를 나온다"]),
+            ["수련", "교회를 나온다"],
+            BgmPlayer.ChurchTrack),
 
         // "설득" 은 여기 적지 않는다 — 그 건물에 후원자가 앉아 있을 때만 붙는 줄이라
         // 도시마다 다르다(CityPicDialog.BuildMenu 가 맨 앞에 끼워 넣는다).

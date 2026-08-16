@@ -24,6 +24,9 @@ public class AppSettingsData
 
     /// <summary>함대 창에서 배경음악을 틀지. 기본은 켬.</summary>
     public bool BgmEnabled { get; set; } = true;
+
+    /// <summary>도시 창이 열릴 때 줄 효과. <see cref="CityOpenEffect"/> 의 이름이다.</summary>
+    public string CityOpenEffect { get; set; } = "Expand";
     public RerollOptions Reroll { get; set; } = new();
 }
 
@@ -98,6 +101,7 @@ public static class AppSettings
     private static bool _autoConfirmDialog = true;
     private static bool _autoOpenShipMap;
     private static bool _bgmEnabled = true;
+    private static CityOpenEffect _cityOpenEffect = Settings.CityOpenEffect.Expand;
     private static RerollOptions _reroll = new();
 
     static AppSettings()
@@ -222,6 +226,18 @@ public static class AppSettings
         }
     }
 
+    /// <summary>도시 창이 열릴 때 줄 효과. 개발 창에서 고른다.</summary>
+    public static CityOpenEffect CityOpenEffect
+    {
+        get => _cityOpenEffect;
+        set
+        {
+            _cityOpenEffect = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -256,6 +272,8 @@ public static class AppSettings
                     _autoConfirmDialog = data.AutoConfirmDialog;
                     _autoOpenShipMap = data.AutoOpenShipMap;
                     _bgmEnabled = data.BgmEnabled;
+                    _cityOpenEffect = Enum.TryParse<CityOpenEffect>(data.CityOpenEffect, out var eff)
+                        ? eff : Settings.CityOpenEffect.Expand;
                     _reroll = data.Reroll ?? new();
                 }
             }
@@ -287,6 +305,7 @@ public static class AppSettings
                 AutoConfirmDialog = _autoConfirmDialog,
                 AutoOpenShipMap = _autoOpenShipMap,
                 BgmEnabled = _bgmEnabled,
+                CityOpenEffect = _cityOpenEffect.ToString(),
                 Reroll = _reroll
             };
 

@@ -58,6 +58,24 @@ public sealed class SponsorTable
             18 => "신부", 19 => "상인", 20 => "관리", 21 => "학자",
             _ => "",
         };
+
+        /// <summary>
+        /// 부르는 말. 집사도 후원자도 이 말로 부른다("자노·프레고소 <b>각하</b>의 집사입니다").
+        /// </summary>
+        /// <remarks>
+        /// 게임의 <c>0x004A2EA0</c> 그대로다 — 직업 코드에서 14 를 빼 점프표(<c>0x004A2EE4</c>)를
+        /// 타고, 표 밖이면 "변호사" 로 물러선다. 총독·귀족·관리가 다 "각하" 를 쓴다.
+        /// </remarks>
+        public string Honorific => JobCode switch
+        {
+            14 => "폐하",
+            15 => "예하",
+            16 or 17 or 20 => "각하",
+            18 => "신부님",
+            19 => "회장님",
+            21 => "박사님",
+            _ => "변호사",
+        };
     }
 
     private readonly List<Sponsor> _sponsors;

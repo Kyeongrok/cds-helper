@@ -7,6 +7,8 @@ namespace CdsHelper.Main.UI.Views.D3D;
 /// <summary>게임 알림 창처럼 한 줄 알리고 확인만 받는 작은 창.</summary>
 public sealed class NoticeDialog : Window
 {
+    private readonly GameUi.FocusGroup _focus = new();
+
     private NoticeDialog(string text)
     {
         WindowStyle = WindowStyle.None;
@@ -22,7 +24,7 @@ public sealed class NoticeDialog : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 18),
         };
-        buttons.Children.Add(GameUi.PushButton("확인", Close, 96));
+        buttons.Children.Add(_focus.Add("확인", Close, 96));
 
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock

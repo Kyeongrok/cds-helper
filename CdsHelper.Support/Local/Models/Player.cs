@@ -41,6 +41,9 @@ public sealed class Player
     /// <summary>시작 소지금(닢).</summary>
     public const int StartingGold = 1000;
 
+    /// <summary>시작 명성. 이만큼이면 만나 주는 후원자가 제법 있다.</summary>
+    public const int StartingFame = 1700;
+
     /// <summary>놀이가 시작하는 날. 게임 화면에서 본 날짜를 그대로 쓴다.</summary>
     public static readonly DateTime StartDate = new(1499, 4, 15);
 
@@ -52,9 +55,33 @@ public sealed class Player
     public Player()
     {
         Gold = StartingGold;
+        Fame = StartingFame;
         Date = StartDate;
         _ships.Add(Hull.Cheapest);
     }
+
+    /// <summary>
+    /// 주인공 이름. 사람들이 이 이름으로 부른다("각하, 에르네스토를 데리고 왔습니다").
+    /// </summary>
+    /// <remarks>
+    /// 세이브에서 읽어 오지 않고 여기서 들고 있는다 — 함대 창은 세이브와 따로 굴러가기
+    /// 때문이다(<see cref="PlayerData"/> 참고). 게임 화면에서 본 이름을 기본값으로 둔다.
+    /// </remarks>
+    public string Name { get; set; } = "에르네스토";
+
+    /// <summary>
+    /// 명성. 후원자를 만나려면 그 사람이 요구하는 만큼 있어야 한다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 알현의 첫 관문에서 이것을 본다(<c>0x004AE1F0</c> → <c>0x0044E740</c>) —
+    /// 모자라면 집사가 "…님은 바쁘셔서 만나실 수 없습니다" 로 돌려보낸다.
+    /// 요구치는 후원자마다 다르다(<c>patrons.json</c> 의 fame, 0 부터 9900 까지).
+    ///
+    /// <b>아직 오르지 않는다.</b> 게임은 발견물을 발표하면 명성이 붙는데 그쪽을 흉내내지
+    /// 않아서, <see cref="StartingFame"/> 에서 멈춰 있다. 그 값이면 여든한 명 가운데
+    /// 열몇은 만나 준다 — 문을 다 닫아 두지도, 다 열어 두지도 않는 자리로 잡았다.
+    /// </remarks>
+    public int Fame { get; set; }
 
     /// <summary>지금 날짜. 기술을 배우면 그만큼 달이 넘어간다.</summary>
     public DateTime Date { get; private set; }
@@ -102,6 +129,12 @@ public sealed class Player
 
     /// <summary>소지금(닢).</summary>
     public int Gold { get; private set; }
+
+    /// <summary>
+    /// 소지금을 그대로 박는다. 놀이 안에서 쓰는 길은 아니고 개발용 창에서만 부른다 —
+    /// 돈이 도는 길(교역)을 아직 흉내내지 않아 시험하려면 넣어 줄 데가 있어야 한다.
+    /// </summary>
+    public void SetGold(int gold) => Gold = Math.Max(0, gold);
 
     /// <summary>가지고 있는 배. 산 차례대로다.</summary>
     public IReadOnlyList<Hull> Ships => _ships;

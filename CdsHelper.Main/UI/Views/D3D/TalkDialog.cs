@@ -21,6 +21,7 @@ namespace CdsHelper.Main.UI.Views.D3D;
 public sealed class TalkDialog : Window
 {
     private int _picked = -1;
+    private readonly GameUi.FocusGroup _focus = new();
 
     private TalkDialog(uint[]? face, string speaker, string text, string[] choices)
     {
@@ -90,14 +91,14 @@ public sealed class TalkDialog : Window
         };
         if (choices.Length == 0)
         {
-            buttons.Children.Add(GameUi.PushButton("확인", Close, 96));
+            buttons.Children.Add(_focus.Add("확인", Close, 96));
         }
         else
         {
             for (int i = 0; i < choices.Length; i++)
             {
                 int index = i;
-                buttons.Children.Add(GameUi.PushButton(choices[i], () => { _picked = index; Close(); }, 110));
+                buttons.Children.Add(_focus.Add(choices[i], () => { _picked = index; Close(); }, 110));
             }
         }
 
@@ -117,7 +118,11 @@ public sealed class TalkDialog : Window
         GameUi.EnableDrag(this, root);
         GameUi.CarryOwnedWindows(this);
 
-        KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
+        KeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Escape) { Close(); return; }
+            if (_focus.HandleKey(e.Key)) e.Handled = true;
+        };
         MouseRightButtonUp += (_, _) => Close();
     }
 

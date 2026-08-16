@@ -13,6 +13,8 @@ namespace CdsHelper.Main.UI.Views.D3D;
 /// </remarks>
 public sealed class ConfirmDialog : Window
 {
+    private readonly GameUi.FocusGroup _focus = new();
+
     private ConfirmDialog(string text)
     {
         WindowStyle = WindowStyle.None;
@@ -28,8 +30,9 @@ public sealed class ConfirmDialog : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 4, 0, 18),
         };
-        buttons.Children.Add(GameUi.PushButton("YES", () => { DialogResult = true; }, 96));
-        buttons.Children.Add(GameUi.PushButton("NO", () => { DialogResult = false; }, 96));
+        // 초점이 간 단추의 안쪽 테가 깜빡인다 — 게임이 지금 고른 것을 그렇게 알린다.
+        buttons.Children.Add(_focus.Add("YES", () => { DialogResult = true; }, 96));
+        buttons.Children.Add(_focus.Add("NO", () => { DialogResult = false; }, 96));
 
         var stack = new StackPanel { MaxWidth = 620 };
         stack.Children.Add(new TextBlock
@@ -56,8 +59,9 @@ public sealed class ConfirmDialog : Window
 
         KeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) DialogResult = false;
-            if (e.Key == Key.Enter) DialogResult = true;
+            if (e.Key == Key.Escape) { DialogResult = false; return; }
+            // 방향키로 옮기고 엔터로 고른다 — 어느 단추에 초점이 가 있는지는 깜빡임이 알린다.
+            if (_focus.HandleKey(e.Key)) e.Handled = true;
         };
         GameUi.EnableDrag(this, stack);
     }

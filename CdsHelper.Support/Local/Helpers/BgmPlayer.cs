@@ -26,6 +26,34 @@ public sealed class BgmPlayer : IDisposable
     /// <summary>술집에 들어가 있는 동안 도는 곡.</summary>
     public const int TavernTrack = 22;
 
+    /// <summary>교회에 들어가 있는 동안 도는 곡. 나오면 도시 곡으로 돌아간다.</summary>
+    public const int ChurchTrack = 16;
+
+    /// <summary>중근동(이슬람) 문화권 도시에서 도는 곡.</summary>
+    public const int IslamCityTrack = 7;
+
+    /// <summary>
+    /// 그 도시에서 돌 곡. 문화권마다 다르다 — 세우타처럼 중근동에 드는 도시는 딴 곡이 돈다.
+    /// </summary>
+    /// <remarks>
+    /// 문화권은 <c>cities.json</c> 의 <c>culturalSphere</c> 다. <b>아직 다 채우지 못했다</b> —
+    /// 확인한 것만 적고 나머지는 <see cref="CityTrack"/> 으로 둔다. 게임에서 들어 보고
+    /// 하나씩 채우면 된다(엉뚱한 곡을 지어내는 것보다 낫다).
+    ///
+    /// 자료에 적힌 이름은 "이슬람" 인데 게임에서 부르는 말은 "중근동" 이다 — 둘 다 받는다.
+    /// </remarks>
+    public static int CityTrackFor(string? culturalSphere) => culturalSphere switch
+    {
+        "이슬람" or "중근동" => IslamCityTrack,
+        _ => CityTrack,
+    };
+
+    /// <summary>
+    /// 후원자를 알현하는 동안 도는 곡. 집사가 문간에서 돌려보내면 바뀌지 않는다 —
+    /// 인사를 받고 안으로 들어갈 때부터다. 그 자리를 나오면 도시 곡으로 돌아간다.
+    /// </summary>
+    public const int SponsorTrack = 21;
+
     private readonly MediaPlayer _player = new();
     private string _dir = "";
     private int _track = -1;
