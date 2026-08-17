@@ -98,6 +98,38 @@ public sealed class Player
     /// <summary>얻은 힌트 번호. 책을 읽으면 는다.</summary>
     public IReadOnlyCollection<int> Hints => _hints;
 
+    /// <summary>부하로 삼을 수 있는 사람 수. 게임의 부관 자리와 같다.</summary>
+    public const int MaxMates = 3;
+
+    private readonly List<string> _mates = [];
+    private readonly HashSet<string> _met = [];
+
+    /// <summary>낯을 튼 사람. 이 사람들만 이름이 보이고 말을 걸 수 있다.</summary>
+    /// <remarks>
+    /// 게임은 인물 객체의 <c>vtbl[0x34]</c> 로 이것을 가른다 — 참이면 이름 대신 "남자"·"여"
+    /// 로 부르고 한잔 사는 것만 되고, 거짓이면 "[이름]이 있다" 로 부르고 말을 걸 수 있다
+    /// (볼트 <c>14.분석-술집 화면과 대사</c>).
+    /// </remarks>
+    public IReadOnlyCollection<string> Met => _met;
+
+    /// <summary>그 사람과 낯을 텄는지.</summary>
+    public bool HasMet(string name) => _met.Contains(name);
+
+    /// <summary>낯을 튼다. 처음이면 true.</summary>
+    public bool Meet(string name) => !string.IsNullOrEmpty(name) && _met.Add(name);
+
+    /// <summary>술집·여관에서 부하로 삼은 사람. 든 차례대로다.</summary>
+    public IReadOnlyList<string> Mates => _mates;
+
+    /// <summary>부하로 삼는다. 처음 드는 사람이고 자리가 남았으면 true.</summary>
+    public bool Hire(string name)
+    {
+        if (string.IsNullOrEmpty(name) || _mates.Count >= MaxMates || _mates.Contains(name))
+            return false;
+        _mates.Add(name);
+        return true;
+    }
+
     /// <summary>그 힌트를 이미 얻었는지.</summary>
     public bool HasHint(int hint) => _hints.Contains(hint);
 
@@ -109,7 +141,9 @@ public sealed class Player
     /// </summary>
     public void Restore(int gold, DateTime date, int cityId, string cityName,
                         IEnumerable<KeyValuePair<string, int>> skills,
-                        IEnumerable<int>? hints = null)
+                        IEnumerable<int>? hints = null,
+                        IEnumerable<string>? mates = null,
+                        IEnumerable<string>? met = null)
     {
         Gold = gold;
         Date = date;
@@ -118,6 +152,10 @@ public sealed class Player
         foreach (var (name, level) in skills) _skills[name] = Math.Clamp(level, 0, Skill.MaxLevel);
         _hints.Clear();
         if (hints != null) foreach (int hint in hints) _hints.Add(hint);
+        _mates.Clear();
+        if (mates != null) foreach (var name in mates) Hire(name);
+        _met.Clear();
+        if (met != null) foreach (var name in met) _met.Add(name);
     }
 
     /// <summary>도시에 들어가거나(이름과 함께) 바다로 나온다(-1).</summary>

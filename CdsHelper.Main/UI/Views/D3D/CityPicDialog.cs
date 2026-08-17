@@ -5,6 +5,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
@@ -59,6 +60,12 @@ public sealed class CityPicDialog : Window
     private readonly string _gameDirectory;
     private readonly string _cityName;
     private readonly int _cityId;
+
+    /// <summary>이 도시의 문화권("이슬람", "북유럽" …). 건물 사진을 고르는 데 쓴다.</summary>
+    private readonly string _culture;
+
+    /// <summary>그림 배율. 건물 사진도 같은 배율로 놓아야 자리가 맞는다.</summary>
+    private readonly int _scale;
 
     /// <summary>
     /// 이 도시에서 도는 곡. 문화권마다 다르다 — 시설에서 나오면 이 곡으로 돌아간다.
@@ -197,8 +204,10 @@ public sealed class CityPicDialog : Window
     private CityPicDialog(string cityName, BitmapSource picture, int scale, int cityId,
                           CityBuildingTable table, Player player, BgmPlayer? bgm, Rect mapArea,
                           BookTable? library, Func<int, string>? hintName, string gameDirectory,
-                          int cityTrack)
+                          int cityTrack, string culture)
     {
+        _culture = culture;
+        _scale = scale;
         _cityTrack = cityTrack;
         _player = player;
         _bgm = bgm;
@@ -358,6 +367,9 @@ public sealed class CityPicDialog : Window
         spot.MouseLeftButtonUp += (_, e) =>
         {
             e.Handled = true;
+            PlayFameCheck(building, a);
+            Greet(facility);
+            ShowPhoto(facility.Kind, building.Code);
             // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
             ShowMenu(BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
                      facility.BgmTrack);
@@ -365,18 +377,432 @@ public sealed class CityPicDialog : Window
         _layer.Children.Add(spot);
     }
 
+    /// <summary>
+    /// 도서관 사서의 얼굴 번호(MALE.CDS). 표에 적힌 것을 읽은 것이 아니라 게임 화면의 얼굴을
+    /// 초상화 414장과 맞대어 찾았다 — 집사 얼굴(<see cref="SponsorTable.StewardFace"/>)을
+    /// 찾은 것과 같은 길이다.
+    /// </summary>
+    private const int LibrarianFace = 161;
+
+    /// <summary>한 장이 머무는 참. 다섯 장을 이으면 1.1초쯤 된다.</summary>
+    private static readonly TimeSpan FrameSpan = TimeSpan.FromMilliseconds(220);
+
+    private EffectAnim? _effects;
+    private bool _effectsTried;
+    private bool _playing;
+
+    /// <summary>
+    /// 후원자가 앉은 건물에 들어설 때 도는 <b>설득 애니메이션</b>(MPEFFECT 5번).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이것을 명성 관문 안에서 돌린다 — <c>0x0044E740</c> 이 후원자의 필요 명성과 내
+    /// 명성을 견주고, 그 결과를 그대로 애니메이션의 인자로 넘긴다. 그림 넉 장이 곧 결말까지
+    /// 담고 있어서, <b>통과면 청을 들어주는 셋째 장에서 멈추고 모자라면 엎어지는 끝 장까지</b>
+    /// 간다. 자세한 것은 볼트 <c>22.분석-애니메이션(MPEFFECT·EVANIME)</c> 참고.
+    ///
+    /// 계약을 이미 맺은 뒤에는 게임도 관문을 건너뛰므로 여기서도 안 돈다 — 그 자리는
+    /// <see cref="Patron"/> 쪽에 아직 없어 후원자가 앉아 있기만 하면 돈다.
+    /// </remarks>
+    private void PlayFameCheck(CityBuildingTable.Building building, Rect area)
+    {
+        if (_playing) return;                       // 도는 동안 또 누르면 겹친다
+
+        var patron = PatronAt(building.Kind);
+        if (patron == null) return;
+
+        var effects = Effects();
+        if (effects == null) return;
+
+        double side = EffectAnim.Size * _scale;
+        var image = new Image { Width = side, Height = side, Stretch = Stretch.Fill };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+        Canvas.SetLeft(image, Math.Clamp((area.X + area.Width / 2) * _scale - side / 2,
+                                         0, CityPictures.Width * _scale - side));
+        Canvas.SetTop(image, Math.Clamp((area.Y + area.Height / 2) * _scale - side / 2,
+                                        0, CityPictures.Height * _scale - side));
+        Panel.SetZIndex(image, 30);
+        _layer.Children.Add(image);
+
+        // 청하는 두 장을 두 번 흔들고 결말 장을 낸다 — 넉 장을 한 번씩만 넘기면 눈에
+        // 들어오기 전에 지나간다. 결말은 명성이 되면 받아 드는 장, 모자라면 엎어지는 장이다.
+        int[] order = [.. Plead, _player.Fame >= patron.Fame ? Granted : Refused];
+
+        // 같은 장이 두 번 나오므로 한 번만 풀어 둔다.
+        var art = new BitmapSource?[EffectAnim.FrameCount];
+
+        _playing = true;
+        try
+        {
+            foreach (int f in order)
+            {
+                if (art[f] == null)
+                {
+                    var bgra = effects.TryGetBgra(EffectAnim.Persuade, f);
+                    if (bgra == null) continue;
+
+                    var bmp = BitmapSource.Create(EffectAnim.Size, EffectAnim.Size, 96, 96,
+                                                  PixelFormats.Bgra32, null, bgra, EffectAnim.Size * 4);
+                    bmp.Freeze();
+                    art[f] = bmp;
+                }
+                image.Source = art[f];
+                Wait(FrameSpan);
+            }
+        }
+        finally
+        {
+            _layer.Children.Remove(image);
+            _playing = false;
+        }
+    }
+
+    /// <summary>
+    /// 청하는 두 장. 이것을 두 번 되풀이해 흔든 뒤 결말 장으로 넘어간다(모두 0부터 센다).
+    /// </summary>
+    private static readonly int[] Plead = [0, 1, 0, 1];
+
+    /// <summary>결말 장 — 받아 드는 셋째 장과 엎어지는 넷째 장.</summary>
+    private const int Granted = 2, Refused = 3;
+
+    /// <summary>
+    /// 그동안 화면이 멎지 않게 하면서 한 참 기다린다. 애니메이션을 다 돌리고 나서 명령 창을
+    /// 열어야 하는데, <c>Thread.Sleep</c> 으로 막으면 그림이 아예 안 바뀐다.
+    /// </summary>
+    private static void Wait(TimeSpan span)
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer(span, DispatcherPriority.Normal,
+                                        (_, _) => frame.Continue = false,
+                                        Dispatcher.CurrentDispatcher);
+        try { Dispatcher.PushFrame(frame); }
+        finally { timer.Stop(); }
+    }
+
+    /// <summary>애니메이션을 처음 쓸 때 연다. 못 읽으면 애니메이션만 안 돈다.</summary>
+    private EffectAnim? Effects()
+    {
+        if (_effects != null || _effectsTried) return _effects;
+        _effectsTried = true;
+        if (_gameDirectory.Length == 0) return null;
+
+        _effects = EffectAnim.Open(_gameDirectory);
+        if (_effects == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 애니메이션 없음: {EffectAnim.LastError}");
+        return _effects;
+    }
+
+    /// <summary>
+    /// 조합장(수련을 맡은 사람)의 얼굴 번호. 사서와 같은 길로 찾았다 — 화면 얼굴을
+    /// 초상화 414장과 맞대어 44번이 나왔다(다음 것과 차이가 12 대 42 로 확연하다).
+    /// </summary>
+    /// <remarks>
+    /// 조합 화면에서 맞춘 얼굴이다. 교회·학자 저택에서 "수련" 을 골라도 지금은 같은 얼굴이
+    /// 나온다 — 게임이 건물마다 다른 사람을 내는지는 아직 안 봤다.
+    /// </remarks>
+    private const int InstructorFace = 44;
+
+    /// <summary>
+    /// 조합의 "수련". 조합장이 먼저 묻고, 창을 닫을 때 아무것도 안 배웠으면 한마디 한다.
+    /// 말은 게임 화면에서 그대로 옮겼다.
+    /// </summary>
+    private void Teach(uint teachMask)
+    {
+        var face = Faces()?.TryGetBgra(InstructorFace, female: false);
+        TalkDialog.Say(this, face, "", "기술을 습득하고 싶나?");
+
+        if (!SkillLearnDialog.Show(this, _player, _table.Teaches(teachMask)))
+            TalkDialog.Say(this, face, "", "용건이 없다면 오지 말게!");
+    }
+
+    /// <summary>
+    /// 건물에 들어설 때 사람이 먼저 말을 거는 곳이 있다. 도서관 사서가 그렇다 —
+    /// 게임도 서가를 보여 주기 전에 이 한마디를 내고 확인을 받는다.
+    /// </summary>
+    /// <remarks>
+    /// 대답은 받지 않는다. 게임 화면에도 단추가 "확인" 하나뿐이라 물음이 아니라 인사다 —
+    /// 확인을 누르면 도서관 명령 창(열람·나온다)이 열린다.
+    /// </remarks>
+    private void Greet(Facility facility)
+    {
+        if (facility.Kind != FacilityKind.Library) return;
+        TalkDialog.Say(this, Faces()?.TryGetBgra(LibrarianFace, female: false),
+                       "", "책을 찾고 계십니까?");
+    }
+
+    /// <summary>지금 떠 있는 건물 사진. 명령 창을 닫으면 같이 걷는다.</summary>
+    private BuildingPhotoWindow? _photoWindow;
+
+    private BuildingPhoto? _photos;
+    private bool _photosTried;
+
+    /// <summary>
+    /// 게임 640x480 화면에서 타원 사진이 앉는 자리. 도시 그림은 (0,0)~(400,320) 이고
+    /// 사진은 (320,240) 부터라 <b>오른쪽 아래 모서리만</b> 겹친다.
+    /// </summary>
+    private const int PhotoLeft = 320, PhotoTop = 240;
+
+    /// <summary>
+    /// 그 건물의 타원 사진을 오른쪽 아래에 띄운다(<see cref="BuildingPhoto"/>).
+    /// 술집·여관이면 사진 앞에 손님도 세운다. 사진을 못 구하면 조용히 넘어간다 —
+    /// 사진은 덤이고 명령 창은 이미 열린다.
+    /// </summary>
+    private void ShowPhoto(FacilityKind kind, int buildingCode)
+    {
+        _photoWindow?.Close();
+        _photoWindow = null;
+
+        var photos = Photos();
+        if (photos == null) return;
+
+        int k = photos.Pick(_culture, buildingCode);
+        if (k < 0) return;
+
+        _photoWindow = BuildingPhotoWindow.Show(this, photos.TryGetBgra(k), GuestArt(kind), _scale,
+                                                new Point(Left + PhotoLeft * _scale,
+                                                          Top + PhotoTop * _scale));
+    }
+
+    /// <summary>
+    /// 사진 앞에 세울 손님들. 술집·여관이 아니거나 그림을 못 읽었으면 빈 목록이다.
+    /// </summary>
+    /// <remarks>
+    /// 세이브에 그 도시 그 건물로 적힌 인물을 자리에 앉히고(<see cref="TavernRoster"/>),
+    /// 남는 자리는 지나가는 손님으로 채운다. 이름표는 인물이면 그 이름, 아니면 성별이다.
+    /// </remarks>
+    private IReadOnlyList<BuildingPhotoWindow.GuestArt> GuestArt(FacilityKind kind)
+    {
+        if (kind is not (FacilityKind.Tavern or FacilityKind.Inn)) return [];
+
+        var book = Guests();
+        if (book == null) return [];
+
+        byte building = kind == FacilityKind.Tavern ? TavernRoster.Tavern : TavernRoster.Inn;
+        var people = Roster()?.At(_cityId, building) ?? [];
+        var keys = new List<int>(people.Count);
+        foreach (var p in people) keys.Add(p.Index);
+
+        var art = new List<BuildingPhotoWindow.GuestArt>(TavernGuests.MaxOnScreen);
+        foreach (var seat in book.Seat(_culture, _cityId, keys))
+        {
+            var bgra = book.TryGetBgra(seat.Art);
+            if (bgra == null) continue;
+
+            if (seat.Person < 0)
+            {
+                string label = seat.Art.Female ? "여" : "남";
+                art.Add(new(bgra, seat.Art.Width, seat.Art.Height, label,
+                            () => MeetStranger(seat.Art.Female)));
+            }
+            else
+            {
+                // 낯을 트기 전에는 이름이 안 보인다 — 이름표도 "남"·"여" 다.
+                var who = people[seat.Person];
+                bool known = Known(who);
+                art.Add(new(bgra, seat.Art.Width, seat.Art.Height,
+                            known ? who.Name : seat.Art.Female ? "여" : "남",
+                            () => MeetPerson(who, seat.Art.Female)));
+            }
+        }
+        return art;
+    }
+
+    private TavernRoster? _roster;
+    private bool _rosterTried;
+
+    /// <summary>
+    /// 게임 세이브에서 술집·여관에 앉은 인물을 한 번만 읽는다. 못 읽으면 인물 없이
+    /// 지나가는 손님만 선다.
+    /// </summary>
+    private TavernRoster? Roster()
+    {
+        if (_roster != null || _rosterTried) return _roster;
+        _rosterTried = true;
+
+        var path = AppSettings.LastSaveFilePath;
+        if (string.IsNullOrEmpty(path)) return null;
+
+        _roster = TavernRoster.Open(path);
+        if (_roster == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 술집 인물 없음: {TavernRoster.LastError}");
+        return _roster;
+    }
+
+    /// <summary>
+    /// 이름 없는 손님을 눌렀을 때. 게임 문구를 그대로 옮겼다(<c>0x0054AC40</c>·<c>0x0054AB98</c>).
+    /// </summary>
+    private void MeetStranger(bool female)
+    {
+        string seen = female ? "아름다운 여성이 있다" : "술을 마시고 있는 남자가 있다";
+        if (TalkDialog.Ask(this, null, "", seen, "한잔 산다", "무시한다") == 0) BuyDrink();
+    }
+
+    /// <summary>
+    /// 그 사람과 낯을 텄는지. 세이브에 고용 가능(2)·고용 중(3)으로 적혀 있으면 이미 아는
+    /// 사이로 보고, 그 밖에는 술집에서 한잔 사야 이름을 알게 된다.
+    /// </summary>
+    private bool Known(TavernRoster.Person who) =>
+        who.Hire >= TavernRoster.Hireable || _player.HasMet(who.Name);
+
+    /// <summary>
+    /// 인물을 눌렀을 때. <b>낯을 텄는지에 따라 두 갈래</b>다 — 게임도 인물 객체의
+    /// <c>vtbl[0x34]</c> 하나로 이렇게 가른다(<c>0x0042F3D0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><b>모르는 사람</b> — "술을 마시고 있는 남자가 있다"(<c>0x0054AC40</c> 자리에
+    ///         "남자"·"여" 이름표 <c>0x005609C8</c> 를 끼운 것)로 부르고 <b>한잔 산다</b>만 된다.
+    ///         한잔 사면 낯을 튼다.</item>
+    ///   <item><b>아는 사람</b> — "[이름]이 있다"(<c>0x0054AC20</c>)로 부르고
+    ///         <b>말을 건다</b>가 뜬다. 말을 걸면 용건을 묻는다.</item>
+    /// </list>
+    /// 말을 걸었을 때 뜰 줄은 게임이 인물 갈래(<c>+0xE8</c>)로 고르는데(<c>0x004A4DE0</c>),
+    /// 우리는 세이브의 고용상태(1 대화만 · 2 고용가능 · 3 고용중)로 대신한다.
+    /// </remarks>
+    private void MeetPerson(TavernRoster.Person who, bool female)
+    {
+        var face = FaceOf(who);
+
+        if (!Known(who))
+        {
+            string seen = female ? "아름다운 여성이 있다" : "술을 마시고 있는 남자가 있다";
+            if (TalkDialog.Ask(this, null, "", seen, "한잔 산다", "무시한다") != 0) return;
+            if (BuyDrink() && _player.Meet(who.Name))
+                TalkDialog.Say(this, face, "", $"고맙네. 나는 {who.Name}. 잘 부탁하네.");
+            return;
+        }
+
+        if (TalkDialog.Ask(this, face, "", $"[{who.Name}]{Subject(who.Name)} 있다",
+                           "말을 건다", "무시한다") != 0) return;
+
+        bool hireable = who.Hire == TavernRoster.Hireable;
+        string[] choices = hireable
+            ? ["정보를 듣는다", "부하로 고용한다", "떠난다"]
+            : ["정보를 듣는다", "떠난다"];
+
+        switch (TalkDialog.Ask(this, face, "", "무슨 용건인가?", choices))
+        {
+            case 0:
+                // 게임은 여기서 발견물 실마리를 주는데 우리는 아직 그 자리를 못 흉내낸다.
+                // 대신 세이브에 적힌 그 사람 됨됨이를 이른다. 나이는 값이 이상한 칸이
+                // 더러 있어(등장 전 인물) 말이 될 때만 말한다.
+                TalkDialog.Say(this, face, "", who.Age is > 0 and < 120
+                                   ? $"나 말인가. {who.Name}. 올해 {who.Age}이네. 이름값은 {who.Fame} 쯤 하지."
+                                   : $"나 말인가. {who.Name}. 이름값은 {who.Fame} 쯤 하지.");
+                break;
+            case 1 when hireable:
+                Hire(who, face);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 부하로 삼는다. 게임은 명성이 그 사람에 못 미치면 물린다 —
+    /// <see cref="Support.Local.Models.CharacterData.CanRecruit"/> 와 같은 잣대다.
+    /// </summary>
+    private void Hire(TavernRoster.Person who, uint[]? face)
+    {
+        if (_player.Mates.Count >= Player.MaxMates)
+        {
+            TalkDialog.Say(this, face, "", "자네 배에는 이미 사람이 넘치지 않는가.");
+            return;
+        }
+
+        if (_player.Fame < who.Fame)
+        {
+            TalkDialog.Say(this, face, "", "자네 이름은 들어 본 적이 없군. 더 이름을 알리고 오게.");
+            return;
+        }
+        TalkDialog.Say(this, face, "",
+                       _player.Hire(who.Name)
+                           ? $"좋네. {who.Name}, 자네와 함께 가지."
+                           : $"{who.Name}{Subject(who.Name)} 이미 자네 사람이 아닌가.");
+    }
+
+    /// <summary>이름 뒤에 붙는 주격 조사. 받침이 있으면 "이", 없으면 "가".</summary>
+    /// <remarks>
+    /// 게임도 조사를 따로 끼워 넣는다 — "%s%s 있다"(<c>0x0054ABF0</c>) 의 두 번째 자리다.
+    /// </remarks>
+    private static string Subject(string name)
+    {
+        if (name.Length == 0) return "가";
+        char last = name[^1];
+        if (last is < '가' or > '힣') return "가";       // 한글이 아니면 그냥 둔다
+        return (last - '가') % 28 == 0 ? "가" : "이";
+    }
+
+    /// <summary>
+    /// 그 사람의 얼굴. 세이브의 얼굴코드가 <c>0xFFFF</c> 면 얼굴이 없다는 뜻이라 null 이다.
+    /// </summary>
+    private uint[]? FaceOf(TavernRoster.Person who) =>
+        who.FaceCode is >= 0 and < 0xFFFF
+            ? Faces()?.TryGetBgra(who.FaceCode, female: false)
+            : null;
+
+    /// <summary>한잔 사는 값. 게임은 도시마다 파는 술이 달라 값도 다른데 아직 그 표를 안 읽는다.</summary>
+    private const int DrinkPrice = 10;
+
+    /// <summary>한잔 산다. 정말 샀으면 true — 낯을 트는 것은 부르는 쪽이 판단한다.</summary>
+    private bool BuyDrink()
+    {
+        if (_player.Gold < DrinkPrice)
+        {
+            NoticeDialog.Show(this, "돈 먼저 지불하게.");
+            return false;
+        }
+        _player.SetGold(_player.Gold - DrinkPrice);
+        NoticeDialog.Show(this, $"금화 {DrinkPrice}닢으로 한잔 샀다.");
+        return true;
+    }
+
+    /// <summary>손님 그림을 처음 쓸 때 연다. 못 읽으면 손님만 안 선다.</summary>
+    private TavernGuests? Guests()
+    {
+        if (_guests != null || _guestsTried) return _guests;
+        _guestsTried = true;
+        if (_gameDirectory.Length == 0) return null;
+
+        _guests = TavernGuests.Open(_gameDirectory);
+        if (_guests == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 손님 그림 없음: {TavernGuests.LastError}");
+        return _guests;
+    }
+
+    private TavernGuests? _guests;
+    private bool _guestsTried;
+
+    /// <summary>건물 사진 아카이브를 처음 쓸 때 연다. 못 읽으면 사진만 안 뜬다.</summary>
+    private BuildingPhoto? Photos()
+    {
+        if (_photos != null || _photosTried) return _photos;
+        _photosTried = true;
+        if (_gameDirectory.Length == 0) return null;
+
+        _photos = BuildingPhoto.Open(_gameDirectory);
+        if (_photos == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 건물 사진 없음: {BuildingPhoto.LastError}");
+        return _photos;
+    }
+
     /// <summary>누를 자리의 크기(그림 점). 건물끼리 겹치지 않을 만큼만 잡았다.</summary>
     private const int HitWidth = 44, HitHeight = 38;
 
-    /// <summary>건물 밑에 이름표를 띄운다. 게임도 건물 밑에 붙여 준다.</summary>
+    /// <summary>
+    /// 건물 <b>위에</b> 이름표를 띄운다. 게임은 밑에 붙이는데, 우리 커서는 이름표를 덮고
+    /// 앉아 글자가 가린다 — 커서가 누르는 자리는 늘 이름표 아래가 되게 위로 올렸다.
+    /// 그림 꼭대기에 붙은 건물이라 위로 넘칠 때만 밑으로 돌린다.
+    /// </summary>
     private void ShowTag(Border tag, Rect area, int scale)
     {
         tag.Visibility = Visibility.Visible;
         tag.UpdateLayout();
         double w = tag.ActualWidth > 0 ? tag.ActualWidth : 52;
+        double h = tag.ActualHeight > 0 ? tag.ActualHeight : UiSprites.BandHeight;
         double x = (area.X + area.Width / 2) * scale - w / 2;
         Canvas.SetLeft(tag, Math.Clamp(x, 0, Math.Max(0, CityPictures.Width * scale - w)));
-        Canvas.SetTop(tag, (area.Y + area.Height) * scale + 2);
+
+        double y = area.Y * scale - h - 2;
+        Canvas.SetTop(tag, y >= 0 ? y : (area.Y + area.Height) * scale + 2);
     }
 
     /// <summary>지금 열린 시설 명령 창. 그림 안이 아니라 그림 옆에 제 창으로 뜬다.</summary>
@@ -401,8 +827,14 @@ public sealed class CityPicDialog : Window
         if (_facilityMenu == null)
         {
             _facilityMenu = MenuWindow.ShowBeside(this, box);
-            // 창을 그냥 닫아도(ESC·오른쪽 단추) 도시 곡으로 돌아가야 한다.
-            _facilityMenu.Closed += (_, _) => { _facilityMenu = null; _bgm?.Play(_cityTrack); };
+            // 창을 그냥 닫아도(ESC·오른쪽 단추) 도시 곡으로 돌아가고 사진도 걷힌다.
+            _facilityMenu.Closed += (_, _) =>
+            {
+                _facilityMenu = null;
+                _photoWindow?.Close();
+                _photoWindow = null;
+                _bgm?.Play(_cityTrack);
+            };
         }
         else
         {
@@ -733,8 +1165,7 @@ public sealed class CityPicDialog : Window
     private Action? ActionFor(Facility facility, string item, uint teachMask, Patron? patron)
     {
         if (item == facility.ExitItem) return CloseMenu;
-        if (item == "수련" && teachMask != 0)
-            return () => SkillLearnDialog.Show(this, _player, _table.Teaches(teachMask));
+        if (item == "수련" && teachMask != 0) return () => Teach(teachMask);
         if (item == "기능") return () => ShowMenu(SystemMenu());
         if (item == "설득" && patron != null) return () => Persuade(patron);
 
@@ -766,7 +1197,8 @@ public sealed class CityPicDialog : Window
                                       Player player, BgmPlayer? bgm = null, Rect mapArea = default,
                                       BookTable? library = null, Func<int, string>? hintName = null,
                                       string gameDirectory = "",
-                                      int cityTrack = BgmPlayer.CityTrack)
+                                      int cityTrack = BgmPlayer.CityTrack,
+                                      string culture = "")
     {
         var bgra = pictures.TryGetBgra(cityId);
         if (bgra == null) return null;
@@ -780,7 +1212,7 @@ public sealed class CityPicDialog : Window
 
         var dlg = new CityPicDialog(cityName, picture, PickScale(areaW, areaH), cityId,
                                     table, player, bgm, mapArea, library, hintName, gameDirectory,
-                                    cityTrack)
+                                    cityTrack, culture)
         {
             Owner = owner,
         };

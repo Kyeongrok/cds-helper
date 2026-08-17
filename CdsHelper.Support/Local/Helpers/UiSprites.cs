@@ -109,6 +109,18 @@ public sealed class UiSprites
     }
 
     /// <summary>
+    /// 글자를 <b>가운데 조각만으로</b> 덮는 칸 수. 마구리는 글자 바깥에 놓인다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CellsFor"/> 와 다르다. 그쪽은 마구리까지 글자 자리로 세므로 긴 버튼에는 맞지만
+    /// 이름표처럼 짧은 것에서는 덩굴 무늬가 글자를 덮는다 — "시장" 두 글자가 32점뿐이라
+    /// 마구리 둘(32점)에 통째로 먹힌다. 게임 이름표는 그 반대로 짓는다. 화면에서 잰
+    /// "시장" 이름표가 띠 64점(마구리 32 + 가운데 넉 칸)이라 글자 32점이 가운데에 딱 든다.
+    /// </remarks>
+    public static int CellsAround(double contentWidth) =>
+        Math.Max(1, (int)Math.Ceiling(contentWidth / MidWidth));
+
+    /// <summary>
     /// 띠 하나를 BGRA 로 짓는다. 높이는 늘 <see cref="BandHeight"/> 다.
     /// 왼끝을 깔고 가운데를 <paramref name="cells"/> 번 되풀이한 뒤 오른끝을 덮는다 —
     /// 게임이 하는 그대로다.

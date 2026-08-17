@@ -54,4 +54,18 @@ public sealed class MenuWindow : Window
         window.Top = Math.Max(0, owner.Top + (owner.Height - window.ActualHeight) / 2);
         return window;
     }
+
+    /// <summary>
+    /// 정해 준 자리(화면 좌표, WPF 단위)에 왼쪽 위 모서리를 맞춰 띄운다. 상단 띠에서 부르는
+    /// 도시정보 창처럼 누른 자리 밑에 붙여야 하는 것에 쓴다. 화면 밖으로는 안 나가게 민다.
+    /// </summary>
+    public static MenuWindow ShowAt(Window owner, UIElement content, Point at)
+    {
+        var window = new MenuWindow(content) { Owner = owner };
+        window.Show();      // 크기를 알아야 화면 안으로 밀어 넣을 수 있다
+
+        window.Left = Math.Max(0, Math.Min(at.X, SystemParameters.VirtualScreenWidth - window.ActualWidth));
+        window.Top = Math.Max(0, Math.Min(at.Y, SystemParameters.VirtualScreenHeight - window.ActualHeight));
+        return window;
+    }
 }

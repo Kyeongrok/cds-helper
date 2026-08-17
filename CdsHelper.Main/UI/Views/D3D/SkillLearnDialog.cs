@@ -22,6 +22,9 @@ public sealed class SkillLearnDialog : Window
     private readonly Dictionary<string, Border> _rows = [];
     private string? _picked;
 
+    /// <summary>이 창에서 하나라도 배웠는지. 조합장이 나가는 말을 고르는 데 쓴다.</summary>
+    private bool _learned;
+
     private SkillLearnDialog(Player player, IReadOnlyList<string> skills)
     {
         _player = player;
@@ -139,6 +142,7 @@ public sealed class SkillLearnDialog : Window
         switch (_player.Learn(skill))
         {
             case LearnResult.Ok:
+                _learned = true;
                 ((TextBlock)_rows[skill].Child).Text = $"{skill} ( LV{_player.LevelOf(skill)} )";
                 NoticeDialog.Show(this, $"{skill}을 습득했다!");
                 break;
@@ -155,13 +159,17 @@ public sealed class SkillLearnDialog : Window
     /// 습득가능 기술 창을 띄운다. <paramref name="skills"/> 는 그 건물이 가르치는 것이다 —
     /// 게임은 건물 표의 비트마스크로 도시마다 다르게 준다.
     /// </summary>
-    public static void Show(Window owner, Player player, IReadOnlyList<string> skills)
+    /// <returns>하나라도 배웠으면 true. 부르는 쪽이 나가는 말을 고르는 데 쓴다.</returns>
+    public static bool Show(Window owner, Player player, IReadOnlyList<string> skills)
     {
         if (skills.Count == 0)
         {
             NoticeDialog.Show(owner, "여기서 가르치는 것은 없네.");
-            return;
+            return false;
         }
-        new SkillLearnDialog(player, skills) { Owner = owner }.ShowDialog();
+
+        var dlg = new SkillLearnDialog(player, skills) { Owner = owner };
+        dlg.ShowDialog();
+        return dlg._learned;
     }
 }

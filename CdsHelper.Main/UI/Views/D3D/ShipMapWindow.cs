@@ -83,50 +83,23 @@ public sealed class ShipMapWindow : Window
     /// <summary>한 번 열어 봤는지. 파일이 없으면 입항할 때마다 다시 찾지 않는다.</summary>
     private bool _cityPicsTried;
 
-    /// <summary>지금 이동 모드 — 해상인지 육지인지.</summary>
-    private readonly TextBlock _mode = new()
-    {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 14,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
+    // 상단 띠의 칸들. 글자는 게임 비트맵 글꼴로 찍는다(<see cref="GameUi.GameLabel"/>) —
+    // 윈도 글꼴은 같은 자리에서 획이 굵고 커서 게임 화면과 결이 안 맞는다.
 
     /// <summary>게임 상단 바의 날짜 칸. 조합에서 기술을 배우면 달이 넘어간다.</summary>
-    private readonly TextBlock _date = new()
-    {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 14,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
+    private readonly GameUi.GameLabel _date = new();
 
     /// <summary>게임 상단 바의 소지금·함선 칸.</summary>
-    private readonly TextBlock _purse = new()
-    {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 14,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
+    private readonly GameUi.GameLabel _purse = new();
 
     /// <summary>게임 상단 바의 명성 칸. 후원자를 만날 수 있는지가 이 값으로 갈린다.</summary>
-    private readonly TextBlock _fame = new()
-    {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 14,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
+    private readonly GameUi.GameLabel _fame = new();
 
     /// <summary>게임 상단 바의 위경도 칸.</summary>
-    private readonly TextBlock _coord = new()
-    {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 14,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
+    private readonly GameUi.GameLabel _coord = new();
+
+    /// <summary>게임 상단 바의 도시명 칸. 바다에서는 빈 채로 둔다.</summary>
+    private readonly GameUi.GameLabel _cityLabel = new();
 
     /// <summary>지도 위에 겹쳐 띄우는 좌표 상자의 글.</summary>
     private readonly TextBlock _overlayText = new()
@@ -169,8 +142,23 @@ public sealed class ShipMapWindow : Window
             Padding = new Thickness(4, 0, 4, 0),
             Child = content,
         };
+        // 칸끼리는 붙여 놓는다 — 게임 띠도 칸 사이가 벌어져 있지 않고 테끼리 맞닿는다.
         var cell = GameUi.CellFrame(inner);
-        cell.Margin = new Thickness(2, 0, 2, 0);
+        return cell;
+    }
+
+    /// <summary>
+    /// 도시정보 창에서 켜고 끄는 칸. 켠 상태를 따로 들고 있지 않고 칸의
+    /// <see cref="UIElement.Visibility"/> 를 그대로 본다 — 둘로 나누면 어긋난다.
+    /// </summary>
+    private readonly Dictionary<string, FrameworkElement> _infoCells = [];
+
+    /// <summary>도시정보 창의 줄 이름을 달아 띠에 놓는 칸.</summary>
+    private FrameworkElement InfoCell(string name, UIElement content, bool on)
+    {
+        var cell = GameCell(content);
+        cell.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        _infoCells[name] = cell;
         return cell;
     }
 
@@ -270,36 +258,23 @@ public sealed class ShipMapWindow : Window
         };
         surface.Children.Add(_overlay);   // 자리만 잡아 둔다 — 실제로는 제 창에 뜬다
 
-        // 게임 상단 띠 — 지금은 위경도 한 칸만 둔다.
+        // 게임 상단 띠. 어느 칸을 띄울지는 도시정보 창에서 켜고 끈다(띠를 오른쪽 단추로 누른다).
+        // 이동 모드(정박·해상 이동) 칸은 뺐다 — 게임 띠에 없는 칸이다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
-        gameCells.Children.Add(GameCell(_date));
-        gameCells.Children.Add(GameCell(_mode));
-        gameCells.Children.Add(GameCell(_coord));
-        gameCells.Children.Add(GameCell(_purse));
-        gameCells.Children.Add(GameCell(_fame));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Date, _date, on: true));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Coord, _coord, on: true));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Gold, _purse, on: true));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Fame, _fame, on: true));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.City, _cityLabel, on: false));
 
         // 게임 띠 끝에 설정 칸. 누르면 배경음악을 켜고 끄는 창이 뜬다.
-        var settings = GameCell(new TextBlock
-        {
-            Text = "설정",
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = 16,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        var settings = GameCell(new GameUi.GameLabel { Text = "설정" });
         settings.Cursor = Cursors.Hand;
         settings.MouseLeftButtonUp += (_, _) => SettingsDialog.Show(this, _bgm);
         gameCells.Children.Add(settings);
 
         // 개발 칸. 소지금과 명성을 손으로 넣는 창이 뜬다 — 놀이에는 없는 자리다.
-        var dev = GameCell(new TextBlock
-        {
-            Text = "개발",
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = 16,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        var dev = GameCell(new GameUi.GameLabel { Text = "개발" });
         dev.Cursor = Cursors.Hand;
         dev.MouseLeftButtonUp += (_, _) => DevDialog.Show(this, _player, new DevDialog.Options
         {
@@ -331,6 +306,13 @@ public sealed class ShipMapWindow : Window
                 BorderThickness = new Thickness(0, 0, 0, 2),
                 Child = gameCells,
             };
+
+        // 띠를 오른쪽 단추로 누르면 도시정보 창이 뜬다 — 게임처럼 도시 안에서만 낸다.
+        gameBar.MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            ShowCityInfoMenu(gameBar, e.GetPosition(gameBar));
+        };
 
         var root = new DockPanel();
         DockPanel.SetDock(gameBar, Dock.Top);
@@ -396,7 +378,6 @@ public sealed class ShipMapWindow : Window
         {
             SyncMouse();
             _status.Text = _host.Status;
-            _mode.Text = _host.IsOnLand ? "육지 이동" : _host.IsAnchored ? "정 박" : "해상 이동";
             CheckPort();
             var (lat, lon) = _host.ShipLatLon;
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
@@ -408,6 +389,7 @@ public sealed class ShipMapWindow : Window
             ShipSprites.Skin = _player.Ships.Max(s => s.Skin);
             // 게임 상단 띠와 같은 말투로 적는다.
             _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
+            _cityLabel.Text = _player.CityName.Length > 0 ? _player.CityName : "—";
             if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
         });
         Loaded += OnLoaded;
@@ -437,6 +419,51 @@ public sealed class ShipMapWindow : Window
         var topLeft = source.CompositionTarget.TransformFromDevice.Transform(device);
         return new Rect(topLeft.X, topLeft.Y, _input.ActualWidth, _input.ActualHeight);
     }
+
+    /// <summary>요소 안의 한 자리를 화면 좌표(WPF 단위)로 옮긴다.</summary>
+    private Point ToScreen(FrameworkElement element, Point at)
+    {
+        var device = element.PointToScreen(at);
+        var source = PresentationSource.FromVisual(this);
+        return source == null
+            ? device
+            : source.CompositionTarget.TransformFromDevice.Transform(device);
+    }
+
+    /// <summary>도시정보 창. 상단 띠 밑에 붙여 띄운다.</summary>
+    private MenuWindow? _infoMenu;
+
+    /// <summary>
+    /// 상단 띠에 무엇을 띄울지 고르는 창을 낸다. 게임은 도시 안에서만 이 창을 내므로
+    /// 바다에서는 아무 일도 안 한다.
+    /// </summary>
+    private void ShowCityInfoMenu(FrameworkElement bar, Point at)
+    {
+        if (!_host.InCity) return;
+        if (_infoMenu != null) { _infoMenu.Activate(); return; }
+
+        _infoMenu = MenuWindow.ShowAt(this, BuildCityInfo(),
+                                      ToScreen(bar, new Point(at.X, bar.ActualHeight)));
+        _infoMenu.Closed += (_, _) => _infoMenu = null;
+    }
+
+    /// <summary>
+    /// 도시정보 창의 지금 모습. 줄을 하나 뒤집을 때마다 다시 지어 갈아 끼운다 —
+    /// <c>:ON</c>·<c>:OFF</c> 글자는 게임 글꼴로 찍은 그림이라 고쳐 쓸 수가 없다.
+    /// </summary>
+    private Border BuildCityInfo() => CityInfoMenu.Build(
+        name => _infoCells.TryGetValue(name, out var cell)
+            ? cell.Visibility == Visibility.Visible
+            : null,
+        name =>
+        {
+            var cell = _infoCells[name];
+            cell.Visibility = cell.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            _infoMenu?.SetContent(BuildCityInfo());
+        },
+        () => _infoMenu?.Close());
 
     /// <summary>
     /// 커서가 지금 지도 위 어디에 있는지 다시 잰다.
@@ -842,7 +869,7 @@ public sealed class ShipMapWindow : Window
         else if (saved != null)
         {
             _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
-                            saved.Skills, saved.Hints);
+                            saved.Skills, saved.Hints, saved.Mates, saved.Met);
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
             _status.Text = saved.CityId >= 0
@@ -990,11 +1017,13 @@ public sealed class ShipMapWindow : Window
         _bookTable ??= BookTable.Open(_gameDir);   // 도서관 열람에 쓴다. 없으면 그 줄만 흐리다
 
         // 도는 곡은 문화권마다 다르다 — 세우타 같은 중근동 도시는 딴 곡이다.
-        int track = BgmPlayer.CityTrackFor(CultureOf(city));
+        // 문화권은 건물에 들어갈 때 뜨는 타원 사진을 고르는 데도 쓴다(BuildingPhoto).
+        string culture = CultureOf(city);
+        int track = BgmPlayer.CityTrackFor(culture);
 
         var dialog = CityPicDialog.Open(this, _cityPics, _buildings, city, name,
                                         _player, _bgm, MapAreaOnScreen(),
-                                        _bookTable, HintName, _gameDir, track);
+                                        _bookTable, HintName, _gameDir, track, culture);
         if (dialog == null) return false;
 
         _bgm.Play(track);
@@ -1007,6 +1036,7 @@ public sealed class ShipMapWindow : Window
             _host.Paused = false;
             _asking = false;
             _player.EnterCity(-1);
+            _infoMenu?.Close();      // 도시를 나오면 도시정보 창도 같이 걷는다
         };
         return true;
     }
