@@ -86,20 +86,33 @@ internal static class GameUi
     /// <summary>글자 한 줄이 앉는 높이(그림 점). 게임 한글 글리프 14 에 위아래 한 점씩.</summary>
     private const int ItemTextHeight = 16;
 
+    /// <summary>
+    /// 창을 두르는 테. 게임은 밝은 선 <b>한 점</b>에 짙은 여백 여섯 점이다 —
+    /// 게임 화면(도서관 메뉴·도시정보 창)을 재어 맞춘 값이다. 밝은 선을 두 점으로 두르면
+    /// 그 선이 눈에 먼저 들어와 게임 것보다 훨씬 두꺼워 보인다.
+    /// </summary>
+    private const double BoxEdge = 1, BoxPad = 6;
+
     /// <summary>명령 창의 한 줄. <paramref name="run"/> 이 null 이면 흐려 두고 안 먹는다.</summary>
     /// <remarks>
-    /// 게임은 줄을 아주 촘촘히 놓는다 — 테 한 점, 위아래 여백 두 점이 전부다.
+    /// 게임은 줄을 <b>붙여</b> 쌓는다 — 띠와 띠 사이에 빈 자리가 없다.
     /// 글자도 게임 비트맵 글꼴로 찍어야 크기가 맞는다(윈도 글꼴은 같은 자리에서 더 크다).
     /// </remarks>
-    public static Border MenuItem(string text, Action? run)
+    public static Border MenuItem(string text, Action? run) =>
+        MenuItem(text, run, BandStyle.Button);
+
+    /// <summary>
+    /// 무늬 벌을 골라 짓는 줄. 게임은 창의 <b>마지막 줄</b>(나가기·취소)만 회녹색으로 낸다 —
+    /// 도서관의 "도서관을 나온다", 도시정보의 "취소" 가 그것이다.
+    /// </summary>
+    public static Border MenuItem(string text, Action? run, BandStyle style)
     {
         // 흐린 줄은 회색(색인 21)으로 찍는다. 그림자는 없다 — 게임 버튼 글자에는 안 붙는다.
         byte color = run != null ? GameFont.ButtonColor : (byte)21;
 
-        var item = BandFrame(Sprites, BandStyle.Button, text, color, shadow: false, 1, null);
+        var item = BandFrame(Sprites, style, text, color, shadow: false, 1, null);
         if (item != null)
         {
-            item.Margin = new Thickness(0, 0, 0, 2);
             item.Cursor = run != null ? Cursors.Hand : Cursors.Arrow;
         }
         else
@@ -119,7 +132,6 @@ internal static class GameUi
                 Background = ItemFill,
                 BorderBrush = ItemEdge,
                 BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, 0, 2),
                 Padding = new Thickness(12, 2, 12, 2),
                 Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
                 Child = label,
@@ -143,16 +155,29 @@ internal static class GameUi
     public static Border MenuBox(params (string Text, Action? Run)[] items)
     {
         var stack = new StackPanel();
-        foreach (var (text, run) in items) stack.Children.Add(MenuItem(text, run));
-        return new Border
-        {
-            Background = MenuBack,
-            BorderBrush = Edge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(3),
-            Child = stack,
-        };
+        StackItems(stack, items);
+        return Box(stack);
     }
+
+    /// <summary>
+    /// 줄들을 쌓는다. 마지막 줄만 회녹색 띠다 — 게임은 나가기·취소를 그렇게 갈라 놓는다.
+    /// </summary>
+    private static void StackItems(StackPanel stack, (string Text, Action? Run)[] items)
+    {
+        for (int i = 0; i < items.Length; i++)
+            stack.Children.Add(MenuItem(items[i].Text, items[i].Run,
+                                        i == items.Length - 1 ? BandStyle.Alt : BandStyle.Button));
+    }
+
+    /// <summary>창을 두르는 상자. 밝은 선 한 점에 짙은 여백만 두른다(<see cref="BoxEdge"/>).</summary>
+    private static Border Box(UIElement content) => new()
+    {
+        Background = MenuBack,
+        BorderBrush = Edge,
+        BorderThickness = new Thickness(BoxEdge),
+        Padding = new Thickness(BoxPad),
+        Child = content,
+    };
 
     /// <summary>
     /// 제목 줄에 닫기(X)까지 두는 명령 창. <paramref name="onClose"/> 가 null 이면 제목만 낸다.
@@ -178,17 +203,8 @@ internal static class GameUi
                     HorizontalAlignment = HorizontalAlignment.Center,
                 },
             });
-        ((Border)stack.Children[0]).Margin = new Thickness(0, 0, 0, 3);
-        foreach (var (text, run) in items) stack.Children.Add(MenuItem(text, run));
-
-        return new Border
-        {
-            Background = MenuBack,
-            BorderBrush = Edge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(3),
-            Child = stack,
-        };
+        StackItems(stack, items);
+        return Box(stack);
     }
 
     /// <summary>창 아래쪽에 두는 단추(결정·중단 따위).</summary>
@@ -289,6 +305,79 @@ internal static class GameUi
     public static GameFont? Font { get; set; }
 
     /// <summary>
+    /// 게임 비트맵 글꼴로 찍는 글자 칸. 글이 바뀔 때마다 다시 찍는다 — 상단 띠처럼 값이
+    /// 계속 도는 자리에 쓴다(<see cref="GameFontLabel"/> 은 한 번 찍고 마는 것이다).
+    /// </summary>
+    /// <remarks>
+    /// 글꼴은 게임 폴더를 알아야 열리는데 띠는 그 전에 지어진다. 그래서 찍을 때마다
+    /// <see cref="Font"/> 를 다시 보고, 아직 없으면 윈도 글꼴로 물러선 채 둔다 —
+    /// 글꼴이 들어오면 다음 번 값이 바뀔 때 저절로 게임 글꼴로 갈아탄다.
+    /// </remarks>
+    public sealed class GameLabel : Border
+    {
+        private readonly byte _color;
+        private readonly int _height;
+        private readonly Image _image = new()
+        {
+            Stretch = Stretch.Fill,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        private TextBlock? _fallback;
+        private string _text = "";
+
+        public GameLabel(byte color = GameFont.ButtonColor, int height = ItemTextHeight)
+        {
+            _color = color;
+            _height = height;
+            RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetEdgeMode(_image, EdgeMode.Aliased);
+            VerticalAlignment = VerticalAlignment.Center;
+        }
+
+        public string Text
+        {
+            get => _text;
+            set
+            {
+                if (_text == value) return;
+                _text = value;
+                Redraw();
+            }
+        }
+
+        private void Redraw()
+        {
+            // 그림자는 안 붙인다 — 게임 띠의 칸 글자에는 없다.
+            var font = Font;
+            if (font != null)
+            {
+                var bgra = font.Render(_text, _color, false, GameFont.ShadowColor, _height, out int w);
+                if (bgra != null && w > 0)
+                {
+                    var bmp = BitmapSource.Create(w, _height, 96, 96,
+                                                  PixelFormats.Bgra32, null, bgra, w * 4);
+                    bmp.Freeze();
+                    _image.Source = bmp;
+                    _image.Width = w;
+                    _image.Height = _height;
+                    Child = _image;
+                    return;
+                }
+            }
+
+            _fallback ??= new TextBlock
+            {
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            _fallback.Text = _text;
+            Child = _fallback;
+        }
+    }
+
+    /// <summary>
     /// 게임 글꼴로 찍은 글자. 띠 위에 겹쳐 놓는다. 글꼴이 없거나 찍을 게 없으면 null.
     /// </summary>
     /// <remarks>
@@ -318,32 +407,6 @@ internal static class GameUi
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
-    }
-
-    /// <summary>
-    /// 띠 가운데 조각만 옆으로 이어 까는 솔. 양 끝 덩굴 없이 무늬만 필요할 때 쓴다
-    /// (이름표처럼 짧은 것). 조각을 못 읽었으면 null.
-    /// </summary>
-    private static ImageBrush? MidTileBrush(BandStyle style)
-    {
-        if (Sprites == null) return null;
-
-        var bgra = Sprites.Piece(style, 1, out int w);
-        var bmp = BitmapSource.Create(w, UiSprites.BandHeight, 96, 96,
-                                      PixelFormats.Bgra32, null, bgra, w * 4);
-        bmp.Freeze();
-
-        var brush = new ImageBrush(bmp)
-        {
-            Stretch = Stretch.Fill,
-            TileMode = TileMode.Tile,
-            ViewportUnits = BrushMappingMode.Absolute,
-            Viewport = new Rect(0, 0, w, UiSprites.BandHeight),
-        };
-        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
-        RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
-        brush.Freeze();
-        return brush;
     }
 
     /// <summary>
@@ -717,32 +780,55 @@ internal static class GameUi
     private static readonly Brush TagFill =
         Dither(Color.FromRgb(0x5A, 0x2E, 0x2A), Color.FromRgb(0x3E, 0x1E, 0x1C));
 
-    /// <summary>건물 위에 커서를 올렸을 때 밑에 붙는 이름표.</summary>
+    /// <summary>
+    /// 글자 폭을 미리 셈해 한 번만 찍는 띠. 이름표처럼 글자가 안 바뀌는 것에 쓴다 —
+    /// 폭이 정해져 있으니 <see cref="BandFrame"/> 처럼 자리를 잡아 가며 다시 찍을 것이 없다.
+    /// </summary>
     /// <remarks>
-    /// 메뉴 타이틀과 같은 진홍 무늬를 쓰되 <b>가운데 조각만</b> 이어 깐다.
-    /// 양 끝 덩굴까지 붙이면(=<see cref="TitleFrame"/> 그대로) 이름표처럼 짧은 것에서는
-    /// 왼끝 16 + 오른끝 16 이 글자를 통째로 덮어 버린다 — "자택" 두 글자가 32점뿐이다.
+    /// 칸 수를 <see cref="UiSprites.CellsAround"/> 로 센다. 글자가 가운데 조각 안에만 들어가
+    /// 양 끝 덩굴을 밟지 않는다 — 게임 이름표가 그 모양이다.
+    /// </remarks>
+    private static Border? FixedBand(BandStyle style, string text, byte color, bool shadow)
+    {
+        if (Sprites == null || Font == null) return null;
+
+        var label = GameFontLabel(text, color, 1, UiSprites.BandHeight, shadow);
+        if (label == null) return null;
+
+        var bgra = Sprites.Band(style, UiSprites.CellsAround(Font.TextWidth(text)), out int w);
+        var bmp = BitmapSource.Create(w, UiSprites.BandHeight, 96, 96,
+                                      PixelFormats.Bgra32, null, bgra, w * 4);
+        bmp.Freeze();
+
+        var brush = new ImageBrush(bmp) { Stretch = Stretch.Fill };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
+        brush.Freeze();
+
+        var grid = new Grid { Width = w, Height = UiSprites.BandHeight, Background = brush };
+        grid.Children.Add(label);
+        return new Border { Child = grid };
+    }
+
+    /// <summary>건물 위에 커서를 올렸을 때 붙는 이름표.</summary>
+    /// <remarks>
+    /// 메뉴 타이틀과 같은 진홍 띠를 <b>덩굴 마구리까지 통째로</b> 쓴다. 게임 화면에서 잰
+    /// "시장" 이름표가 띠 64점이고 글자가 32점이라, 마구리 둘이 글자 <b>바깥</b>에 서 있다.
+    /// 예전에는 가운데 조각만 이어 깔았는데(마구리가 짧은 글자를 덮을까 봐), 그래서 게임 것과
+    /// 모양이 달랐다 — 칸 수를 <see cref="UiSprites.CellsAround"/> 로 세면 둘 다 된다.
     ///
     /// 조각을 못 읽었을 때만 민색으로 물러선다. 그때 바탕은 두 색을 바둑판으로 섞은
     /// 무늬다(<see cref="Dither"/>) — 게임 것도 민색이 아니다.
     /// </remarks>
     public static Border NameTag(string text)
     {
-        var tiled = MidTileBrush(BandStyle.Title);
-        if (tiled != null)
+        // 글자는 흰빛이다 — 타이틀 띠의 크림색보다 한 단 밝다.
+        var band = FixedBand(BandStyle.Title, text, GameFont.WhiteColor, shadow: true);
+        if (band != null)
         {
-            var label = GameFontLabel(text, GameFont.TitleColor, 1);
-            if (label != null)
-                return new Border
-                {
-                    Background = tiled,
-                    BorderBrush = ItemEdge,
-                    BorderThickness = new Thickness(1),
-                    Padding = new Thickness(4, 0, 4, 0),
-                    Visibility = Visibility.Collapsed,
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Child = label,
-                };
+            band.Visibility = Visibility.Collapsed;
+            band.HorizontalAlignment = HorizontalAlignment.Left;
+            return band;
         }
 
         return new Border

@@ -39,6 +39,9 @@ public sealed class GameFont
     /// <summary>베이지 버튼 글자색. 짙은 갈색 <c>52,28,20</c>.</summary>
     public const byte ButtonColor = 17;
 
+    /// <summary>흰빛 글자색. 공용 색표에서 가장 흰 <c>244,232,224</c> 다.</summary>
+    public const byte WhiteColor = 10;
+
     /// <summary>글자 그림자색. 거의 검정인 <c>12,7,6</c> 이다.</summary>
     public const byte ShadowColor = 74;
 
