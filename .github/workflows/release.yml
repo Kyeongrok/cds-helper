@@ -12,10 +12,12 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      # v5 부터 Node 24 로 돈다. v4 로 두면 러너가 Node 20 폐기 경고를 낸다.
+      # 러너는 v2.327.1 이상이어야 하는데 GitHub 호스티드 windows-latest 는 이미 넘는다.
+      - uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
