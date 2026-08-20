@@ -1,10 +1,10 @@
-namespace CdsHelper.Support.Local.Models;
+﻿namespace CdsHelper.Support.Local.Models;
 
 /// <summary>
 /// 조합에서 배울 수 있는 기술.
 /// </summary>
 /// <remarks>
-/// 무엇을 가르치는지는 건물마다 다르다 — 건물 표(<see cref="Helpers.CityBuildingTable"/>)의
+/// 무엇을 가르치는지는 건물마다 다르다 — 건물 표(<c>CityBuildingTable</c>, CdsHelper.Game)의
 /// 비트마스크에서 온다. 조합·교회·학자 저택이 가르친다.
 /// </remarks>
 public static class Skill

@@ -14,6 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\CdsHelper.Game\CdsHelper.Game.csproj" />
       <ProjectReference Include="..\CdsHelper.Main\CdsHelper.Main.csproj" />
       <ProjectReference Include="..\CdsHelper.Navigation\CdsHelper.Navigation.csproj" />
       <ProjectReference Include="..\CdsHelper.Support\CdsHelper.Support.csproj" />
