@@ -1,0 +1,86 @@
+using System.IO;
+using System.Text.Json;
+
+namespace CdsHelper.Game.Local.Helpers;
+
+/// <summary>
+/// 표 한 벌을 JSON 으로 적어 두고 다시 읽는 자리. 무엇을 적을지는 부르는 쪽이 정하고,
+/// 여기서는 파일 다루는 일만 한다.
+/// </summary>
+/// <remarks>
+/// <see cref="ExeTable"/>(게임 EXE 에서 굽는 표)와 <see cref="CityTable"/>(앱 DB 에서 굽는 표)이
+/// 같이 쓴다. 둘은 <b>언제 다시 구울지</b>가 서로 다르고 — EXE 는 안 바뀌니 도장이 같으면
+/// 그냥 쓰고, DB 는 앱에서 고쳐지니 원본이 있으면 늘 원본을 본다 — 그 규칙만 각자 갖는다.
+/// </remarks>
+internal static class TableCache
+{
+    // 한글이 \uXXXX 로 깨져 보이지 않게 그대로 적는다(사람이 열어 볼 파일이다).
+    private static readonly JsonSerializerOptions Pretty = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    /// <summary>적어 두는 자리. 세이브·설정과 같은 %APPDATA%\CdsHelper 밑이다.</summary>
+    public static string Folder => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "CdsHelper", "exe-tables");
+
+    public static string PathFor(string name) => Path.Combine(Folder, name + ".json");
+
+    /// <summary>지금까지 적어 둔 파일 전부. 하나도 없으면 빈 목록.</summary>
+    public static IReadOnlyList<string> Saved()
+    {
+        try
+        {
+            return Directory.Exists(Folder)
+                ? Directory.GetFiles(Folder, "*.json").OrderBy(p => p).ToList()
+                : [];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// 적어 둔 한 벌.
+    /// </summary>
+    /// <param name="Stamp">원본이 그때와 같은지 가리는 표. 무엇을 담을지는 부르는 쪽이 정한다.</param>
+    /// <param name="Data">알맹이.</param>
+    /// <param name="Source">
+    /// 어디서 구웠는지("CDS_95.EXE", "cdshelper.db" …). 게임데이터 창이 이것을 보여 준다.
+    /// 뒤에 붙인 항목이라 기본값을 둔다 — 이것이 없던 때 적어 둔 파일도 그대로 읽힌다.
+    /// </param>
+    public sealed record Cached<T>(string Stamp, T Data, string Source = "") where T : class;
+
+    /// <summary>적어 둔 것을 읽는다. 없거나 깨졌으면 null.</summary>
+    public static Cached<T>? Read<T>(string name) where T : class
+    {
+        try
+        {
+            string path = PathFor(name);
+            if (!File.Exists(path)) return null;
+            var cached = JsonSerializer.Deserialize<Cached<T>>(File.ReadAllText(path));
+            return cached?.Data == null ? null : cached;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;   // 깨졌으면 없는 셈 치고 원본에서 다시 읽는다
+        }
+    }
+
+    /// <summary>적어 둔다. 적지 못해도 이번 판은 원본에서 읽은 값으로 그대로 돈다.</summary>
+    public static void Write<T>(string name, Cached<T> cached) where T : class
+    {
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            File.WriteAllText(PathFor(name), JsonSerializer.Serialize(cached, Pretty));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TableCache] {name} 을 적지 못했습니다: {ex.Message}");
+        }
+    }
+}

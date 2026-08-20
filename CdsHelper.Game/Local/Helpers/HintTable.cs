@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.Text.Json.Serialization;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -52,15 +52,26 @@ public sealed class HintTable
     /// <param name="Funds">이 힌트를 좇는 데 드는 자금(닢). 후원율을 곱하기 전 값이다.</param>
     /// <param name="Deadline">계약 기한(년).</param>
     /// <param name="Discovery">발견물 일련번호.</param>
+    /// <remarks>
+    /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
+    /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
+    /// </remarks>
+    [method: JsonConstructor]
     public readonly record struct Hint(
         int Id, string Name, int Grade, int Category, int Funds, int Deadline, int Discovery);
 
+    /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\힌트표.json</c>).</summary>
+    private const string CacheName = "힌트표";
+
+    /// <summary>JSON 으로 적어 두는 알맹이. EXE 를 읽어야만 알 수 있는 것 전부다.</summary>
+    internal sealed record Snapshot(List<Hint> Hints, string[] CategoryNames);
+
     private readonly List<Hint> _hints;
 
-    private HintTable(List<Hint> hints, string[] categories)
+    private HintTable(Snapshot snapshot)
     {
-        _hints = hints;
-        CategoryNames = categories;
+        _hints = snapshot.Hints;
+        CategoryNames = snapshot.CategoryNames;
     }
 
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
@@ -104,12 +115,21 @@ public sealed class HintTable
         return (int)(paid / 10 * 10);
     }
 
-    /// <summary>게임 폴더의 CDS_95.EXE 에서 표를 읽는다. 못 읽으면 null.</summary>
+    /// <summary>
+    /// 표를 연다. 적어 둔 JSON 이 있으면 그것을 읽고, 없거나 판이 갈렸으면 EXE 에서 읽어
+    /// 적어 둔다. 둘 다 없을 때만 null 이다.
+    /// </summary>
     public static HintTable? Open(string gameDirectory)
     {
-        LastError = "";
-        var exe = PeImage.Read(Path.Combine(gameDirectory, "CDS_95.EXE"), out string error);
-        if (exe == null) { LastError = error; return null; }
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        LastError = error;
+        return snapshot == null ? null : new HintTable(snapshot);
+    }
+
+    /// <summary>EXE 에서 힌트 줄과 갈래 이름을 통째로 읽어 낸다.</summary>
+    private static Snapshot? ReadFromExe(PeImage exe, out string error)
+    {
+        error = "";
 
         var hints = new List<Hint>(RowCount);
         for (int k = 0; k < RowCount; k++)
@@ -134,7 +154,7 @@ public sealed class HintTable
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
         if (hints.Count == 0 || hints[0].Name != "서회항로")
         {
-            LastError = "힌트 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
+            error = "힌트 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
             return null;
         }
 
@@ -142,6 +162,6 @@ public sealed class HintTable
         for (int i = 0; i < CategoryCount; i++)
             categories[i] = exe.Text(exe.Word(CategoryNamesVa + i * 4)) ?? "";
 
-        return new HintTable(hints, categories);
+        return new Snapshot(hints, categories);
     }
 }

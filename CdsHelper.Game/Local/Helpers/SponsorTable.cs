@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.Text.Json.Serialization;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -49,6 +49,11 @@ public sealed class SponsorTable
     /// <param name="Face">얼굴 번호. <see cref="Portraits"/> 의 파트 번호다.</param>
     /// <param name="IsFemale">여자면 true — 얼굴을 FEMALE.CDS 에서 꺼낸다.</param>
     /// <param name="JobCode">직업 코드 14~21.</param>
+    /// <remarks>
+    /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
+    /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
+    /// </remarks>
+    [method: JsonConstructor]
     public readonly record struct Sponsor(int Index, string Name, int Face, bool IsFemale, int JobCode)
     {
         /// <summary>직업 이름. 모르는 코드면 빈 문자열.</summary>
@@ -78,11 +83,18 @@ public sealed class SponsorTable
         };
     }
 
+    /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\후원자표.json</c>).</summary>
+    private const string CacheName = "후원자표";
+
+    /// <summary>JSON 으로 적어 두는 알맹이.</summary>
+    internal sealed record Snapshot(List<Sponsor> Sponsors);
+
     private readonly List<Sponsor> _sponsors;
     private readonly Dictionary<string, Sponsor> _byName;
 
-    private SponsorTable(List<Sponsor> sponsors)
+    private SponsorTable(Snapshot snapshot)
     {
+        var sponsors = snapshot.Sponsors;
         _sponsors = sponsors;
         _byName = [];
         foreach (var s in sponsors) _byName[Key(s.Name)] = s;
@@ -102,12 +114,21 @@ public sealed class SponsorTable
     private static string Key(string name) =>
         name.Replace("·", "").Replace(" ", "");
 
-    /// <summary>게임 폴더의 CDS_95.EXE 에서 표를 읽는다. 못 읽으면 null.</summary>
+    /// <summary>
+    /// 표를 연다. 적어 둔 JSON 이 있으면 그것을 읽고, 없거나 판이 갈렸으면 EXE 에서 읽어
+    /// 적어 둔다. 둘 다 없을 때만 null 이다.
+    /// </summary>
     public static SponsorTable? Open(string gameDirectory)
     {
-        LastError = "";
-        var exe = PeImage.Read(Path.Combine(gameDirectory, "CDS_95.EXE"), out string error);
-        if (exe == null) { LastError = error; return null; }
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        LastError = error;
+        return snapshot == null ? null : new SponsorTable(snapshot);
+    }
+
+    /// <summary>EXE 에서 후원자 줄을 읽어 낸다.</summary>
+    private static Snapshot? ReadFromExe(PeImage exe, out string error)
+    {
+        error = "";
 
         var sponsors = new List<Sponsor>(RowCount);
         for (int k = 0; k < RowCount; k++)
@@ -127,9 +148,9 @@ public sealed class SponsorTable
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
         if (sponsors.Count == 0 || sponsors[0].Name != "조안 2세")
         {
-            LastError = "후원자 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
+            error = "후원자 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
             return null;
         }
-        return new SponsorTable(sponsors);
+        return new Snapshot(sponsors);
     }
 }

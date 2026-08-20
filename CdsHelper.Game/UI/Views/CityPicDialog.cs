@@ -6,6 +6,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Windows;
+using CdsHelper.Game.Engine;
+using CdsHelper.Game.Engine.Market;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Game.Local.Models;
 using CdsHelper.Support.Local.Helpers;
@@ -899,7 +901,7 @@ public sealed class CityPicDialog : Window
         ("맵 포인트에 들어간다", null),
         ("인물 정보", null),
         ("함대 정보", null),
-        ("소지품 정보", null),
+        ("소지품 정보", ShowBelongings),
         ("도시 정보", null),
         ("힌트 정보", ShowHints),
         ("계약 정보", null),
@@ -907,6 +909,32 @@ public sealed class CityPicDialog : Window
         ("지도를 본다", null),
         ("게임 종료", null),
         ("취소", CloseCityMenu));
+
+    /// <summary>
+    /// 소지품 정보 창을 낸다. 아이템 표를 못 읽어도 열린다 — 이름이 번호로 나올 뿐이다.
+    /// </summary>
+    private void ShowBelongings()
+    {
+        CloseCityMenu();
+        BelongingsDialog.Show(this, _player, ItemTableOrNull, ItemText, ItemPictures);
+    }
+
+    /// <summary>아이템 표. <see cref="Market"/> 이 이미 열어 두었으면 그것을 쓴다.</summary>
+    private ItemTable? ItemTableOrNull
+    {
+        get
+        {
+            if (_itemTable == null && !_itemTableTried)
+            {
+                _itemTableTried = true;
+                _itemTable = ItemTable.Open(_gameDirectory);
+            }
+            return _itemTable;
+        }
+    }
+
+    private ItemTable? _itemTable;
+    private bool _itemTableTried;
 
     /// <summary>도시 커맨드 창. 그림 안이 아니라 그림 창 옆에 제 창으로 띄운다.</summary>
     private MenuWindow? _cityMenu;
@@ -1150,6 +1178,54 @@ public sealed class CityPicDialog : Window
             [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron)))]);
     }
 
+    /// <summary>
+    /// 시장에서 사고파는 규칙. 처음 쓸 때 한 번만 짓는다 — 아이템 표를 못 읽으면 null 이고,
+    /// 그러면 "구입" 줄이 흐린 채로 남는다.
+    /// </summary>
+    private Market? Market
+    {
+        get
+        {
+            if (_market != null || _marketTried) return _market;
+            _marketTried = true;
+
+            var items = ItemTable.Open(_gameDirectory);
+            if (items == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[City] 아이템 표 없음: {ItemTable.LastError}");
+                return null;
+            }
+            // 시세는 아직 다 100 이다. 나중에 채우면 값이 저절로 따라 움직인다.
+            _market = new Market(items, MarketRates.Open(), CityStockTable.Open(_gameDirectory));
+            return _market;
+        }
+    }
+
+    private Market? _market;
+    private bool _marketTried;
+
+    /// <summary>아이템 설명문. 없으면 설명 자리가 빈 채로 뜬다.</summary>
+    private ItemDescriptions? ItemText
+    {
+        get
+        {
+            if (_itemText == null && !_itemTextTried)
+            {
+                _itemTextTried = true;
+                _itemText = ItemDescriptions.Open(_gameDirectory);
+            }
+            return _itemText;
+        }
+    }
+
+    private ItemDescriptions? _itemText;
+    private bool _itemTextTried;
+
+    /// <summary>아이템 그림. asset/item 만 있으면 게임 폴더가 없어도 나온다.</summary>
+    private ItemArt? ItemPictures => _itemArt ??= ItemArt.Open(_gameDirectory);
+
+    private ItemArt? _itemArt;
+
     /// <summary>이 건물에 앉아 있는 후원자. 없으면 null.</summary>
     private Patron? PatronAt(string kind) =>
         new PatronService().SeatedAt(LoadPatrons(), _cityName, _player.Date.Year, kind, KindsHere);
@@ -1175,6 +1251,8 @@ public sealed class CityPicDialog : Window
         {
             (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
+            (FacilityKind.Market, "구입") when Market != null => () =>
+                MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
             (FacilityKind.Library, "열람") when _library != null => () =>
                 LibraryDialog.Show(this, _gameDirectory, _cityName, _cityId,
                                    _player, _library, _table, _hintName),

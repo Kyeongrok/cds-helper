@@ -1,0 +1,248 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using CdsHelper.Game.Engine.Market;
+using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Support.Local.Models;
+
+namespace CdsHelper.Game.UI.Views;
+
+/// <summary>
+/// 시장 구입 창 — 파는 것을 늘어놓고 하나를 고르게 한다.
+/// </summary>
+/// <remarks>
+/// 게임 차례를 그대로 따른다.
+/// <code>
+///   1  구입 아이템 선택   줄을 고르면 "결정" 이 살아난다
+///   2  아이템 창          그림·설명·효과            (ItemInfoDialog)
+///   3  값 알림            "그렇다면 금화 %d닢 필요하네."
+///   4  물음              "이 아이템을 구입하겠습니까?"  YES/NO
+///   5  결과              돈이 되면 "고맙네!", 모자라면 "가난한 사람에게는 볼일 없네!"
+/// </code>
+/// 문구는 EXE 에서 그대로 옮겼다(<c>0x00544730</c> 벌). 값이 여럿일 때 "이것들의" 로 갈리는
+/// 것까지 있지만 지금은 한 번에 하나만 고를 수 있어 "이" 쪽만 쓴다.
+///
+/// <b>돈 검사는 YES 를 고른 뒤다.</b> 목록에서도 값 알림에서도 막지 않는다 — 게임이
+/// 그렇게 한다(구입 본체 <c>0x004B3AAD</c> 에서 소지금과 값을 견준다). 살 돈이 없는 줄도
+/// 고를 수 있고 값도 알려 준다.
+/// </remarks>
+public sealed class MarketBuyDialog : Window
+{
+    /// <summary>고른 줄에 씌우는 남색. 게임 화면에서 뽑았다.</summary>
+    private static readonly Brush Picked = Freeze(Color.FromRgb(0x3A, 0x5A, 0x9A));
+
+    private static SolidColorBrush Freeze(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
+    private readonly Player _player;
+    private readonly Market _market;
+    private readonly ItemDescriptions? _descriptions;
+    private readonly ItemArt? _art;
+    private readonly int _cityId;
+
+    private readonly List<(ItemTable.Record Item, Border Row)> _rows = [];
+    private readonly Border _decide;
+    private int _at = -1;
+
+    private MarketBuyDialog(Player player, Market market, int cityId,
+                            ItemDescriptions? descriptions, ItemArt? art)
+    {
+        _player = player;
+        _market = market;
+        _cityId = cityId;
+        _descriptions = descriptions;
+        _art = art;
+
+        Title = "구입 아이템 선택";
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = GameUi.Back;
+
+        var list = new StackPanel { Margin = new Thickness(6, 4, 6, 4) };
+        foreach (var item in market.StockOf(cityId))
+        {
+            var row = Row(item);
+            _rows.Add((item, row));
+            list.Children.Add(row);
+        }
+        if (_rows.Count == 0)
+            list.Children.Add(new TextBlock
+            {
+                Text = "  지금 내놓은 물건이 없다.  ",
+                Foreground = GameUi.Text,
+                FontWeight = FontWeights.Bold,
+                FontSize = 15,
+                Margin = new Thickness(8, 10, 8, 10),
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+
+        _decide = GameUi.PushButton("결정", Decide, 110);
+        SetDecideEnabled(false);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 12),
+        };
+        buttons.Children.Add(_decide);
+        buttons.Children.Add(GameUi.PushButton("중단", Close, 110));
+
+        var title = GameUi.TitleBar("구입 아이템 선택", Close);
+        GameUi.EnableDrag(this, title);
+
+        var stack = new StackPanel { MinWidth = 420 };
+        stack.Children.Add(title);
+        stack.Children.Add(list);
+        stack.Children.Add(buttons);
+
+        Content = new Border
+        {
+            Background = GameUi.Back,
+            BorderBrush = GameUi.Edge,
+            BorderThickness = new Thickness(2),
+            Margin = new Thickness(4),
+            Child = stack,
+        };
+
+        KeyDown += OnKey;
+    }
+
+    /// <summary>줄 하나 — 이름, (갈래), 값.</summary>
+    private Border Row(ItemTable.Record item)
+    {
+        var line = new DockPanel { LastChildFill = true };
+
+        var price = new TextBlock
+        {
+            Text = $"{_market.PriceOf(item, _cityId)}",
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            Margin = new Thickness(12, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        DockPanel.SetDock(price, Dock.Right);
+        line.Children.Add(price);
+
+        var kind = new TextBlock
+        {
+            Text = $"({item.CategoryName})",
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        DockPanel.SetDock(kind, Dock.Right);
+        line.Children.Add(kind);
+
+        line.Children.Add(new TextBlock
+        {
+            Text = item.Name,
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        var row = new Border
+        {
+            Background = Brushes.Transparent,
+            Padding = new Thickness(2, 3, 2, 3),
+            Cursor = Cursors.Hand,
+            Child = line,
+        };
+        row.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        row.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            Pick(_rows.FindIndex(r => ReferenceEquals(r.Row, row)));
+        };
+        return row;
+    }
+
+    /// <summary>그 줄을 고른다. 고른 줄만 남색이 씌워지고 "결정" 이 살아난다.</summary>
+    private void Pick(int index)
+    {
+        if (index < 0 || index >= _rows.Count) return;
+        _at = index;
+        for (int i = 0; i < _rows.Count; i++)
+            _rows[i].Row.Background = i == index ? Picked : Brushes.Transparent;
+        SetDecideEnabled(true);
+    }
+
+    /// <summary>
+    /// "결정" 을 켜고 끈다. 게임도 아무것도 안 고른 동안은 이 단추가 흐리다.
+    /// </summary>
+    private void SetDecideEnabled(bool on)
+    {
+        _decide.IsEnabled = on;
+        _decide.Opacity = on ? 1.0 : 0.45;
+        _decide.Cursor = on ? Cursors.Hand : Cursors.Arrow;
+    }
+
+    private void OnKey(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Escape:
+                Close();
+                break;
+            case Key.Up:
+                Pick(_at <= 0 ? _rows.Count - 1 : _at - 1);
+                e.Handled = true;
+                break;
+            case Key.Down:
+                Pick(_at < 0 || _at >= _rows.Count - 1 ? 0 : _at + 1);
+                e.Handled = true;
+                break;
+            case Key.Enter or Key.Space when _at >= 0:
+                Decide();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>고른 것을 사는 데까지 끌고 간다 — 아이템 창 → 값 → 물음 → 결과.</summary>
+    private void Decide()
+    {
+        if (_at < 0 || _at >= _rows.Count) return;
+        var item = _rows[_at].Item;
+
+        // 2. 무엇인지 보여 준다.
+        ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art);
+
+        // 3. 값을 알린다.
+        int price = _market.PriceOf(item, _cityId);
+        GameDialog.Show(this, $"그렇다면 금화 {price}닢 필요하네.");
+
+        // 4. 물어본다. 게임은 여러 개일 때만 "이것들의" 로 갈린다 — 여기서는 늘 하나다.
+        if (!ConfirmDialog.Ask(this, "이 아이템을 구입하겠습니까?")) return;
+
+        // 5. 이제서야 돈을 본다.
+        var result = _market.Buy(_player, item, _cityId);
+        GameDialog.Show(this, result switch
+        {
+            BuyResult.Ok => "고맙네!",
+            BuyResult.NotEnoughGold => "가난한 사람에게는 볼일 없네! 안 살 거면 돌아가게!",
+            _ => "미안하네, 지금 물건이 떨어지고 없네.",
+        });
+
+        if (result == BuyResult.Ok) Close();
+    }
+
+    /// <summary>시장 구입 창을 연다.</summary>
+    public static void Show(Window owner, Player player, Market market, int cityId,
+                            ItemDescriptions? descriptions, ItemArt? art) =>
+        new MarketBuyDialog(player, market, cityId, descriptions, art) { Owner = owner }.ShowDialog();
+}

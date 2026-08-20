@@ -4,7 +4,7 @@
 
 왜 게임을 켜야 하나 — 그림이 EXE 파일에는 없다. 자리가 .data 의 초기화되지 않은
 뒷부분(rawsize 0x51C00 밖)이라 실행 중에만 채워진다. 그래서 한 번 떠서 파일로 남기고,
-앱은 그 파일을 읽는다(CdsHelper.Support/Local/Helpers/ShipSprites.cs).
+앱은 그 파일을 읽는다(CdsHelper.Game/Local/Helpers/ShipSprites.cs).
 
 ★ 반드시 해상(항해) 화면에서 떠라. 아틀라스는 게임이 그때그때 채우는 버퍼라서, 항구
   안이나 타이틀 화면에서 뜨면 엉뚱한 그림이 나온다(실제로 겪었다 — 같은 자리에서

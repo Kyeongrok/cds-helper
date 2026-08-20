@@ -59,7 +59,7 @@ STYLES = [(0, "title", "진홍 장식 — 메뉴 타이틀"),
 
 def game_palette(repo):
     """앱의 GamePalette.cs 에서 공용 색표를 읽는다 — 값을 두 군데 두지 않으려고."""
-    path = os.path.join(repo, "CdsHelper.Support", "Local", "Helpers", "GamePalette.cs")
+    path = os.path.join(repo, "CdsHelper.Game", "Local", "Helpers", "GamePalette.cs")
     src = open(path, encoding="utf-8").read()
     body = src.split("private static readonly byte[] Low =")[1].split("];")[0]
     nums = [int(x) for x in re.findall(r"\d+", body)]

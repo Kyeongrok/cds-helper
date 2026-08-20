@@ -1,4 +1,4 @@
-namespace CdsHelper.Support.Local.Models;
+﻿namespace CdsHelper.Support.Local.Models;
 
 /// <summary>배를 산 결과.</summary>
 public enum PurchaseResult
@@ -130,6 +130,53 @@ public sealed class Player
         return true;
     }
 
+    private readonly List<int> _items = [];
+
+    /// <summary>
+    /// 소지품 — 산 것·주운 것이 든 차례대로다. 값은 아이템 번호(<c>item.json</c> 의 id)다.
+    /// </summary>
+    /// <remarks>
+    /// 게임에는 들 수 있는 개수에 한계가 있다("이 이상 가질 수 없습니다!" · "이대로는 %d개
+    /// 들을 수 없습니다"). 그 수가 얼마인지는 아직 안 밝혀서 여기서는 막지 않는다 —
+    /// 알아내면 <see cref="Take"/> 에 걸면 된다.
+    ///
+    /// 같은 것을 여럿 들 수 있게 두었다. 게임 소지품 일람에도 같은 이름이 두 줄 나온다.
+    /// </remarks>
+    public IReadOnlyList<int> Items => _items;
+
+    /// <summary>그 아이템을 지녔는지.</summary>
+    public bool HasItem(int itemId) => _items.Contains(itemId);
+
+    /// <summary>소지품에 넣는다.</summary>
+    public void Take(int itemId)
+    {
+        if (itemId >= 0) _items.Add(itemId);
+    }
+
+    /// <summary>소지품에서 하나 뺀다. 없었으면 false.</summary>
+    public bool Drop(int itemId) => _items.Remove(itemId);
+
+    /// <summary>그 값을 치를 수 있는지.</summary>
+    public bool CanAfford(int price) => Gold >= price;
+
+    /// <summary>
+    /// 아이템을 산다. 값을 치르고 소지품에 넣는다. 돈이 모자라면 아무것도 하지 않는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 돈 검사를 <b>YES 를 고른 뒤</b>에 한다(구입 본체 0x004B3AAD 에서 소지금과
+    /// 값을 견준다). 그래서 여기서도 물어보는 것과 치르는 것을 갈라 두었다 —
+    /// 부르는 쪽이 물음창을 먼저 띄우고 이것을 마지막에 부른다.
+    /// </remarks>
+    public PurchaseResult BuyItem(int itemId, int price)
+    {
+        if (itemId < 0) return PurchaseResult.NotEnoughGold;
+        if (!CanAfford(price)) return PurchaseResult.NotEnoughGold;
+
+        Gold -= price;
+        Take(itemId);
+        return PurchaseResult.Ok;
+    }
+
     /// <summary>그 힌트를 이미 얻었는지.</summary>
     public bool HasHint(int hint) => _hints.Contains(hint);
 
@@ -143,7 +190,8 @@ public sealed class Player
                         IEnumerable<KeyValuePair<string, int>> skills,
                         IEnumerable<int>? hints = null,
                         IEnumerable<string>? mates = null,
-                        IEnumerable<string>? met = null)
+                        IEnumerable<string>? met = null,
+                        IEnumerable<int>? items = null)
     {
         Gold = gold;
         Date = date;
@@ -156,6 +204,8 @@ public sealed class Player
         if (mates != null) foreach (var name in mates) Hire(name);
         _met.Clear();
         if (met != null) foreach (var name in met) _met.Add(name);
+        _items.Clear();
+        if (items != null) foreach (int id in items) Take(id);
     }
 
     /// <summary>도시에 들어가거나(이름과 함께) 바다로 나온다(-1).</summary>

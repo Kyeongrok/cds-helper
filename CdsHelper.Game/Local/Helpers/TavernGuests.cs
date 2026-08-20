@@ -1,4 +1,7 @@
 ﻿using System.IO;
+using System.Text.Json.Serialization;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -19,6 +22,10 @@ namespace CdsHelper.Game.Local.Helpers;
 /// <b>색은 사진 팔레트의 앞 64색</b>이다. 팔레트 84개 전부에서 0~63 구간이 한 바이트도
 /// 다르지 않아, 아무 사진 팔레트나 써도 손님 색은 같다. <b>비침은 색인 55</b> 다
 /// (건물 사진 쪽 64 와 다르다).
+///
+/// 그림은 <c>asset/guest/guest-000.png</c> ~ <c>guest-145.png</c> 에서 읽는다. 게임 폴더가
+/// 없어도 손님이 보이게 미리 뽑아 둔 것이다(<c>tools/extract_tavern_guests.py</c>).
+/// 파일이 빠졌으면 예전처럼 MPCG.CDS 에서 그때그때 푼다.
 ///
 /// 문화권마다 쓰는 구간이 정해져 있다(<see cref="Ranges"/>). 게임은 시작을
 /// <c>0x0049D580(문화권)</c>, 개수를 <c>0x0049D500(문화권)</c> 이 낸다 — 둘 다 점프표를 쓰는
@@ -45,8 +52,16 @@ public sealed class TavernGuests
     /// <summary>한 화면에 서는 손님 수. 게임도 <c>cmp eax,5</c> 로 잘라 낸다(0x0042DB18).</summary>
     public const int MaxOnScreen = 5;
 
+    /// <summary>뽑아 둔 그림이 든 곳.</summary>
+    public const string ArtDirectory = "asset/guest";
+
     /// <summary>손님 한 명.</summary>
     /// <param name="Index">손님 번호(0~145). 파트 번호는 여기에 170 을 더한 것이다.</param>
+    /// <remarks>
+    /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
+    /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
+    /// </remarks>
+    [method: JsonConstructor]
     public readonly record struct Guest(int Index, bool Female, int Width, int Height);
 
     /// <summary>문화권 이름 -> 손님 구간(시작, 개수).</summary>
@@ -71,41 +86,74 @@ public sealed class TavernGuests
         ["아메리카"] = (130, 16),
     };
 
-    private readonly Ls12Reader _archive;
-    private readonly byte[] _palette;
+    /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\손님표.json</c>).</summary>
+    private const string CacheName = "손님표";
+
+    /// <summary>JSON 으로 적어 두는 알맹이 — 성별과 크기다. 그림은 asset 에 따로 있다.</summary>
+    internal sealed record Snapshot(Guest[] Guests);
+
+    /// <summary>MPCG.CDS. asset 에 그림이 다 있으면 안 열어도 된다.</summary>
+    private readonly Ls12Reader? _archive;
+    private readonly byte[]? _palette;
     private readonly Guest[] _guests;
 
-    private TavernGuests(Ls12Reader archive, byte[] palette, Guest[] guests)
+    private TavernGuests(Guest[] guests, Ls12Reader? archive, byte[]? palette)
     {
+        _guests = guests;
         _archive = archive;
         _palette = palette;
-        _guests = guests;
     }
 
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>MPCG.CDS 와 EXE 의 크기 표를 함께 연다. 하나라도 어긋나면 null.</summary>
+    /// <summary>
+    /// 손님 표를 연다. 크기 표는 적어 둔 JSON 에서, 그림은 <c>asset/guest</c> 에서 온다 —
+    /// 둘 다 있으면 게임 폴더가 없어도 열린다. MPCG.CDS 는 그림이 빠졌을 때만 쓰므로
+    /// 없어도 그만이다.
+    /// </summary>
     public static TavernGuests? Open(string gameDirectory)
     {
-        LastError = "";
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        LastError = error;
+        if (snapshot == null) return null;
 
-        var path = Path.Combine(gameDirectory, "MPCG.CDS");
-        if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
-
-        var archive = Ls12Reader.Open(path);
-        if (archive == null) { LastError = $"{path} 를 읽지 못했습니다"; return null; }
-        if (archive.PartCount < FirstPart + Count)
+        // 그림 파일이 다 있으면 CDS 는 아예 안 연다. 하나라도 빠졌을 때만 대비해 열어 둔다.
+        Ls12Reader? archive = null;
+        byte[]? palette = null;
+        if (!ArtComplete(snapshot.Guests) && !string.IsNullOrEmpty(gameDirectory))
         {
-            LastError = "MPCG.CDS 에 손님이 모자랍니다";
-            return null;
+            var path = Path.Combine(gameDirectory, "MPCG.CDS");
+            archive = File.Exists(path) ? Ls12Reader.Open(path) : null;
+            if (archive is { PartCount: >= FirstPart + Count })
+            {
+                palette = archive.Decode(PalettePart);
+                if (palette is not { Length: >= 64 * 3 }) { archive = null; palette = null; }
+            }
+            else
+            {
+                archive = null;
+            }
         }
 
-        var palette = archive.Decode(PalettePart);
-        if (palette == null || palette.Length < 64 * 3) { LastError = "손님 팔레트를 못 풀었습니다"; return null; }
+        return new TavernGuests(snapshot.Guests, archive, palette);
+    }
 
-        var exe = PeImage.Read(Path.Combine(gameDirectory, "CDS_95.EXE"), out string error);
-        if (exe == null) { LastError = error; return null; }
+    /// <summary>뽑아 둔 그림이 146장 다 있는지.</summary>
+    private static bool ArtComplete(Guest[] guests)
+    {
+        foreach (var g in guests)
+            if (!File.Exists(ArtPath(g.Index))) return false;
+        return true;
+    }
+
+    private static string ArtPath(int index) =>
+        Path.Combine(AppContext.BaseDirectory, ArtDirectory, $"guest-{index:D3}.png");
+
+    /// <summary>EXE 에서 성별·크기 표를 읽어 낸다.</summary>
+    private static Snapshot? ReadFromExe(PeImage exe, out string error)
+    {
+        error = "";
 
         var guests = new Guest[Count];
         for (int i = 0; i < Count; i++)
@@ -117,11 +165,11 @@ public sealed class TavernGuests
         // 판이 다른 EXE 를 잘못 읽지 않도록 크기가 말이 되는지 본다.
         if (guests[0].Width is < 32 or > 128 || guests[0].Height is < 48 or > 160)
         {
-            LastError = "손님 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
+            error = "손님 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
             return null;
         }
 
-        return new TavernGuests(archive, palette, guests);
+        return new Snapshot(guests);
     }
 
     /// <summary>자리 하나 — 그림과 그 자리에 앉은 인물(<paramref name="Person"/>, 없으면 -1).</summary>
@@ -196,6 +244,11 @@ public sealed class TavernGuests
         int pixels = guest.Width * guest.Height;
         if (pixels <= 0) return null;
 
+        var fromFile = FromAsset(guest);
+        if (fromFile != null) return fromFile;
+
+        if (_archive == null || _palette == null) return null;
+
         var idx = _archive.Decode(FirstPart + guest.Index);
         if (idx == null || idx.Length < pixels) return null;
 
@@ -209,5 +262,35 @@ public sealed class TavernGuests
             bgra[i] = (uint)(0xFF << 24 | _palette[k + 1] << 16 | _palette[k + 2] << 8 | _palette[k]);
         }
         return bgra;
+    }
+
+    /// <summary>
+    /// 뽑아 둔 PNG 에서 푼다. 없거나 크기가 표와 다르면 null 을 내어 CDS 쪽으로 물러선다.
+    /// </summary>
+    /// <remarks>
+    /// 크기를 따지는 것은 엉뚱한 그림을 그리지 않기 위해서다 — 폭이 한 점만 어긋나도
+    /// 줄이 밀려 알아볼 수 없는 무늬가 된다(폭을 짐작하지 않고 표를 읽는 까닭과 같다).
+    /// </remarks>
+    private static uint[]? FromAsset(Guest guest)
+    {
+        string path = ArtPath(guest.Index);
+        if (!File.Exists(path)) return null;
+        try
+        {
+            using var fs = File.OpenRead(path);
+            var decoder = new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat,
+                                               BitmapCacheOption.OnLoad);
+            var src = new FormatConvertedBitmap(decoder.Frames[0], PixelFormats.Bgra32, null, 0);
+            if (src.PixelWidth != guest.Width || src.PixelHeight != guest.Height) return null;
+
+            var bgra = new uint[guest.Width * guest.Height];
+            src.CopyPixels(bgra, guest.Width * 4, 0);
+            return bgra;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or NotSupportedException or ArgumentException)
+        {
+            return null;
+        }
     }
 }

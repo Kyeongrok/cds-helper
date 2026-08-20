@@ -1,8 +1,8 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using CdsHelper.Support.Local.Models;
 
-namespace CdsHelper.Game.Local.Helpers;
+namespace CdsHelper.Game.Engine;
 
 /// <summary>
 /// 함대 창 놀이의 세이브. 소지금·날짜·있는 도시·배운 기술을 적어 둔다.
@@ -31,18 +31,20 @@ public static class GameSave
     /// <param name="SavedAt">적은 때(현실 시각).</param>
     /// <param name="Mates">술집에서 부하로 삼은 사람. 판 2 부터 있어 옛 세이브에서는 null 이다.</param>
     /// <param name="Met">낯을 튼 사람. 이 사람들만 술집에서 이름이 보인다.</param>
+    /// <param name="Items">소지품(아이템 번호). 판 3 부터 있어 그 전 세이브에서는 null 이다.</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
-        List<string>? Mates = null, List<string>? Met = null);
+        List<string>? Mates = null, List<string>? Met = null,
+        List<int>? Items = null);
 
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(2, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(3, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
-                            [.. player.Mates], [.. player.Met]);
+                            [.. player.Mates], [.. player.Met], [.. player.Items]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
