@@ -1253,6 +1253,8 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Market, "구입") when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
+            (FacilityKind.Market, "매각") when Market != null && ItemTableOrNull != null => () =>
+                MarketSellDialog.Show(this, _player, Market, ItemTableOrNull, _cityId),
             (FacilityKind.Library, "열람") when _library != null => () =>
                 LibraryDialog.Show(this, _gameDirectory, _cityName, _cityId,
                                    _player, _library, _table, _hintName),

@@ -1,4 +1,4 @@
-using CdsHelper.Support.Local.Models;
+﻿using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Market;
 
@@ -70,11 +70,39 @@ public sealed class MarketRates
     public int SellPrice(Item item, int cityId) => Apply(item.BuyPrice, Of(cityId));
 
     /// <summary>
+    /// 이 값부터는 100 단위로 내린다. 그 밑은 한 닢까지 그대로 부른다
+    /// (수수 경단은 정가가 2닢이다).
+    /// </summary>
+    private const int RoundFrom = 1000;
+
+    /// <summary>
     /// 정가에 시세를 먹인다. 값이 커도 넘치지 않게 <see cref="long"/> 으로 셈한다 —
     /// 가장 비싼 것이 50만이라 시세를 곱하면 int 한 줄로는 아슬아슬하다.
     /// </summary>
     private static int Apply(int listPrice, int rate) =>
-        listPrice <= 0 ? 0 : (int)Math.Min(int.MaxValue, (long)listPrice * rate / Par);
+        listPrice <= 0 ? 0
+        : Round((int)Math.Min(int.MaxValue, (long)listPrice * rate / Par));
+
+    /// <summary>
+    /// 1000 닢부터는 100 단위로 <b>내린다</b>. 게임 매각 본체(<c>0x004B3D1C</c>)가 그렇게 한다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   cmp  eax, 1000
+    ///   jl   그대로
+    ///   cdq
+    ///   mov  ecx, 100
+    ///   idiv ecx          ; / 100
+    ///   shl  eax, 2       ; x4
+    ///   lea  edx, [eax + eax*4]   ; x5  -> x20
+    ///   lea  eax, [edx + edx*4]   ; x5  -> x100
+    /// </code>
+    /// 파는 쪽에서 눈으로 확인한 규칙이다. 사는 쪽도 같은 함수를 거치는 것으로 보고 함께
+    /// 걸었다 — 지금까지 본 값(바스타드소드 15600)은 이미 100 의 배수라 이 규칙이
+    /// 걸리든 안 걸리든 같다. 100 의 배수가 아닌 값이 나오면 그때 갈라 주면 된다.
+    /// </remarks>
+    private static int Round(int price) =>
+        price >= RoundFrom ? price / 100 * 100 : price;
 
     /// <summary>
     /// 시세 표를 연다. <b>지금은 모든 도시가 100</b> 이다 — 시세를 구현하면 여기서 채운다.

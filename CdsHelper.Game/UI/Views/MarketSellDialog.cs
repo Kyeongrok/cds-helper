@@ -9,27 +9,25 @@ using CdsHelper.Support.Local.Models;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 시장 구입 창 — 파는 것을 늘어놓고 하나를 고르게 한다.
+/// 시장 매각 창 — 지닌 것을 늘어놓고 하나를 골라 판다.
 /// </summary>
 /// <remarks>
-/// 게임 차례를 그대로 따른다.
+/// 게임 차례를 그대로 따른다(매각 본체 <c>0x004B3C76</c>).
 /// <code>
-///   1  구입 아이템 선택   줄을 고르면 "결정" 이 살아난다
-///   2  아이템 창          그림·설명·효과            (ItemInfoDialog)
-///   3  값 알림            "그렇다면 금화 %d닢 필요하네."
-///   4  물음              "이 아이템을 구입하겠습니까?"  YES/NO
-///   5  결과              돈이 되면 "고맙네!", 모자라면 "가난한 사람에게는 볼일 없네!"
+///   0  지닌 것이 없으면   "응? 도대체 무엇을 팔겠다는 건가?"  하고 끝난다
+///   1  들어서면           "팔고 싶은 물건이 있으면 어디 보여주게!"
+///   2  소지품 일람        줄을 고르면 "결정" 이 살아난다
+///   3  값을 부른다        "으~음. 금화 %ld닢이란 말이군."   YES/NO
+///   4  YES 면 팔린다
 /// </code>
-/// 문구는 EXE 에서 그대로 옮겼다(<c>0x00544730</c> 벌). 값이 여럿일 때 "이것들의" 로 갈리는
-/// 것까지 있지만 지금은 한 번에 하나만 고를 수 있어 "이" 쪽만 쓴다.
+/// 사는 쪽과 달리 <b>값을 부르는 창이 곧 물음창</b>이다 — 알림창 하나를 더 띄우지 않고
+/// 그 자리에서 YES/NO 를 받는다(<c>push 2</c> 로 단추 두 개를 달아 부른다).
 ///
-/// <b>돈 검사는 YES 를 고른 뒤다.</b> 목록에서도 값 알림에서도 막지 않는다 — 게임이
-/// 그렇게 한다(구입 본체 <c>0x004B3AAD</c> 에서 소지금과 값을 견준다). 살 돈이 없는 줄도
-/// 고를 수 있고 값도 알려 준다.
+/// 무엇이든 받아 준다. 그 도시가 파는 물건인지는 안 따진다.
 /// </remarks>
-public sealed class MarketBuyDialog : Window
+public sealed class MarketSellDialog : Window
 {
-    /// <summary>고른 줄에 씌우는 남색. 게임 화면에서 뽑았다.</summary>
+    /// <summary>고른 줄에 씌우는 남색. 구입 창과 같은 색이다.</summary>
     private static readonly Brush Picked = Freeze(Color.FromRgb(0x3A, 0x5A, 0x9A));
 
     private static SolidColorBrush Freeze(Color c)
@@ -41,24 +39,19 @@ public sealed class MarketBuyDialog : Window
 
     private readonly Player _player;
     private readonly Market _market;
-    private readonly ItemDescriptions? _descriptions;
-    private readonly ItemArt? _art;
     private readonly int _cityId;
 
     private readonly List<(ItemTable.Record Item, Border Row)> _rows = [];
     private readonly GameUi.BandButton _decide;
     private int _at = -1;
 
-    private MarketBuyDialog(Player player, Market market, int cityId,
-                            ItemDescriptions? descriptions, ItemArt? art)
+    private MarketSellDialog(Player player, Market market, ItemTable items, int cityId)
     {
         _player = player;
         _market = market;
         _cityId = cityId;
-        _descriptions = descriptions;
-        _art = art;
 
-        Title = "구입 아이템 선택";
+        Title = "소지품 일람";
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -67,22 +60,13 @@ public sealed class MarketBuyDialog : Window
         Background = GameUi.Back;
 
         var list = new StackPanel();
-        foreach (var item in market.StockOf(cityId))
+        foreach (int id in player.Items)
         {
+            if (items.Find(id) is not { } item) continue;
             var row = Row(item);
             _rows.Add((item, row));
             list.Children.Add(row);
         }
-        if (_rows.Count == 0)
-            list.Children.Add(new TextBlock
-            {
-                Text = "  지금 내놓은 물건이 없다.  ",
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 15,
-                Margin = new Thickness(8, 10, 8, 10),
-                HorizontalAlignment = HorizontalAlignment.Center,
-            });
 
         // 게임은 줄을 어두운 창 바탕이 아니라 밝은 칸 위에 얹는다.
         var page = new Border
@@ -91,7 +75,14 @@ public sealed class MarketBuyDialog : Window
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(1),
             Margin = new Thickness(6, 4, 6, 4),
-            Child = list,
+            Child = new ScrollViewer
+            {
+                // 소지품이 늘면 창이 화면을 넘지 않게 여기서 자른다.
+                MaxHeight = 420,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = list,
+            },
         };
 
         _decide = new GameUi.BandButton("결정", Decide, 110) { On = false };
@@ -105,7 +96,7 @@ public sealed class MarketBuyDialog : Window
         buttons.Children.Add(_decide);
         buttons.Children.Add(new GameUi.BandButton("중단", Close, 110));
 
-        var title = GameUi.TitleBar("구입 아이템 선택", Close);
+        var title = GameUi.TitleBar("소지품 일람", Close);
         GameUi.EnableDrag(this, title);
 
         var stack = new StackPanel { MinWidth = 420 };
@@ -125,7 +116,7 @@ public sealed class MarketBuyDialog : Window
         KeyDown += OnKey;
     }
 
-    /// <summary>줄 하나 — 이름, (갈래), 값. 글씨는 게임 비트맵 글꼴로 찍는다.</summary>
+    /// <summary>줄 하나 — 이름, (갈래), 쳐 주는 값.</summary>
     private Border Row(ItemTable.Record item)
     {
         var row = new Border
@@ -149,7 +140,7 @@ public sealed class MarketBuyDialog : Window
     {
         var line = new DockPanel { LastChildFill = true };
 
-        var money = Label($"{_market.PriceOf(item, _cityId)}", new Thickness(12, 0, 10, 0), picked);
+        var money = Label($"{_market.PaidFor(item, _cityId)}", new Thickness(12, 0, 10, 0), picked);
         DockPanel.SetDock(money, Dock.Right);
         line.Children.Add(money);
 
@@ -180,7 +171,6 @@ public sealed class MarketBuyDialog : Window
         return label;
     }
 
-    /// <summary>그 줄을 고른다. 고른 줄만 남색이 씌워지고 "결정" 이 살아난다.</summary>
     private void Pick(int index)
     {
         if (index < 0 || index >= _rows.Count) return;
@@ -191,7 +181,7 @@ public sealed class MarketBuyDialog : Window
             _rows[i].Row.Background = on ? Picked : Brushes.Transparent;
             _rows[i].Row.Child = Line(_rows[i].Item, on);
         }
-        _decide.On = true;      // 게임도 아무것도 안 고른 동안은 이 단추가 흐리다
+        _decide.On = true;
     }
 
     private void OnKey(object sender, KeyEventArgs e)
@@ -216,36 +206,40 @@ public sealed class MarketBuyDialog : Window
         }
     }
 
-    /// <summary>고른 것을 사는 데까지 끌고 간다 — 아이템 창 → 값 → 물음 → 결과.</summary>
+    /// <summary>값을 부르고, YES 면 판다.</summary>
     private void Decide()
     {
         if (_at < 0 || _at >= _rows.Count) return;
         var item = _rows[_at].Item;
 
-        // 2. 무엇인지 보여 준다.
-        ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art);
+        int paid = _market.PaidFor(item, _cityId);
+        if (!ConfirmDialog.Ask(this, $"으~음. 금화 {paid}닢이란 말이군.")) return;
 
-        // 3. 값을 알린다.
-        int price = _market.PriceOf(item, _cityId);
-        GameDialog.Show(this, $"그렇다면 금화 {price}닢 필요하네.");
+        if (_market.Sell(_player, item, _cityId) != SellResult.Ok) return;
 
-        // 4. 물어본다. 게임은 여러 개일 때만 "이것들의" 로 갈린다 — 여기서는 늘 하나다.
-        if (!ConfirmDialog.Ask(this, "이 아이템을 구입하겠습니까?")) return;
+        // 판 줄을 목록에서 걷는다. 같은 것을 여럿 지녔으면 한 개만 빠진다.
+        var (_, row) = _rows[_at];
+        ((StackPanel)row.Parent).Children.Remove(row);
+        _rows.RemoveAt(_at);
+        _at = -1;
+        _decide.On = false;
 
-        // 5. 이제서야 돈을 본다.
-        var result = _market.Buy(_player, item, _cityId);
-        GameDialog.Show(this, result switch
-        {
-            BuyResult.Ok => "고맙네!",
-            BuyResult.NotEnoughGold => "가난한 사람에게는 볼일 없네! 안 살 거면 돌아가게!",
-            _ => "미안하네, 지금 물건이 떨어지고 없네.",
-        });
-
-        if (result == BuyResult.Ok) Close();
+        // 다 팔았으면 더 볼 것이 없다.
+        if (_rows.Count == 0) Close();
     }
 
-    /// <summary>시장 구입 창을 연다.</summary>
-    public static void Show(Window owner, Player player, Market market, int cityId,
-                            ItemDescriptions? descriptions, ItemArt? art) =>
-        new MarketBuyDialog(player, market, cityId, descriptions, art) { Owner = owner }.ShowDialog();
+    /// <summary>
+    /// 매각 창을 연다. 지닌 것이 없으면 창 대신 게임 그대로의 한 마디만 낸다.
+    /// </summary>
+    public static void Show(Window owner, Player player, Market market, ItemTable items, int cityId)
+    {
+        if (player.Items.Count == 0)
+        {
+            GameDialog.Show(owner, "응? 도대체 무엇을 팔겠다는 건가?");
+            return;
+        }
+
+        GameDialog.Show(owner, "팔고 싶은 물건이 있으면 어디 보여주게!");
+        new MarketSellDialog(player, market, items, cityId) { Owner = owner }.ShowDialog();
+    }
 }

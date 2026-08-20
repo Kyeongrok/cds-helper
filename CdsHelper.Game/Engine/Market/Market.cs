@@ -1,4 +1,4 @@
-using CdsHelper.Game.Local.Helpers;
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Market;
@@ -14,6 +14,16 @@ public enum BuyResult
 
     /// <summary>그 도시가 안 파는 물건이다.</summary>
     NotSold,
+}
+
+/// <summary>팔려고 했을 때 벌어진 일.</summary>
+public enum SellResult
+{
+    /// <summary>팔았다.</summary>
+    Ok,
+
+    /// <summary>지니고 있지 않은 물건이다.</summary>
+    NotOwned,
 }
 
 /// <summary>
@@ -81,6 +91,21 @@ public sealed class Market
     /// <summary>팔 때 받는 값.</summary>
     public int PaidFor(ItemTable.Record item, int cityId) =>
         _rates.SellPrice(item.SellList, cityId);
+
+    /// <summary>
+    /// 판다. 소지품에서 빼고 값을 받는다. 안 지닌 것이면 아무것도 하지 않는다.
+    /// </summary>
+    /// <remarks>
+    /// 사는 쪽과 달리 <b>도시가 그 물건을 파는지는 안 따진다</b> — 게임도 무엇이든 받아 준다.
+    /// 값은 그 도시 시세를 먹인 것이다.
+    /// </remarks>
+    public SellResult Sell(Player player, ItemTable.Record item, int cityId)
+    {
+        if (!player.Drop(item.Id)) return SellResult.NotOwned;
+
+        player.Earn(PaidFor(item, cityId));
+        return SellResult.Ok;
+    }
 
     /// <summary>
     /// 산다. 값을 치르고 소지품에 넣는다. 돈이 모자라면 아무것도 하지 않는다.
