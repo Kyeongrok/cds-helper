@@ -1,4 +1,4 @@
-﻿using System.IO;
+﻿using System.Text.Json.Serialization;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -36,20 +36,32 @@ public sealed class BookTable
     /// <param name="Year">이 해부터 서가에 나온다.</param>
     /// <param name="Cities">놓인 도서관의 도시 번호.</param>
     /// <param name="Hints">읽으면 주는 힌트 번호.</param>
+    /// <remarks>
+    /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
+    /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
+    /// </remarks>
+    [method: JsonConstructor]
     public readonly record struct Book(
         int Index, string Title, string Author, int Language, int Year,
         IReadOnlyList<int> Cities, IReadOnlyList<int> Hints);
 
     /// <summary>힌트를 알아들으려면 있어야 하는 기능과 그 수준.</summary>
+    [method: JsonConstructor]
     public readonly record struct HintNeed(int Skill, int Level);
+
+    /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\책표.json</c>).</summary>
+    private const string CacheName = "책표";
+
+    /// <summary>JSON 으로 적어 두는 알맹이. EXE 를 읽어야만 알 수 있는 것 전부다.</summary>
+    internal sealed record Snapshot(List<Book> Books, HintNeed[] HintNeeds);
 
     private readonly List<Book> _books;
     private readonly HintNeed[] _hintNeeds;
 
-    private BookTable(List<Book> books, HintNeed[] hintNeeds)
+    private BookTable(Snapshot snapshot)
     {
-        _books = books;
-        _hintNeeds = hintNeeds;
+        _books = snapshot.Books;
+        _hintNeeds = snapshot.HintNeeds;
     }
 
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
@@ -76,11 +88,21 @@ public sealed class BookTable
     }
 
     /// <summary>게임 폴더의 CDS_95.EXE 에서 읽는다. 못 읽으면 null.</summary>
+    /// <summary>
+    /// 표를 연다. 적어 둔 JSON 이 있으면 그것을 읽고, 없거나 판이 갈렸으면 EXE 에서 읽어
+    /// 적어 둔다. 둘 다 없을 때만 null 이다.
+    /// </summary>
     public static BookTable? Open(string gameDirectory)
     {
-        LastError = "";
-        var exe = PeImage.Read(Path.Combine(gameDirectory, "CDS_95.EXE"), out string error);
-        if (exe == null) { LastError = error; return null; }
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        LastError = error;
+        return snapshot == null ? null : new BookTable(snapshot);
+    }
+
+    /// <summary>EXE 에서 책 줄과 힌트 조건을 통째로 읽어 낸다.</summary>
+    private static Snapshot? ReadFromExe(PeImage exe, out string error)
+    {
+        error = "";
 
         var books = new List<Book>(BookCount);
         for (int k = 0; k < BookCount; k++)
@@ -106,7 +128,7 @@ public sealed class BookTable
         // 판이 다른 EXE 를 잘못 읽지 않게 첫 권을 확인한다.
         if (books.Count == 0 || books[0].Title != "형이상학")
         {
-            LastError = "책 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
+            error = "책 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
             return null;
         }
 
@@ -115,6 +137,6 @@ public sealed class BookTable
             needs[h] = new HintNeed(exe.Int(HintsVa + h * HintSize),
                                     exe.Int(HintsVa + h * HintSize + 0x08));
 
-        return new BookTable(books, needs);
+        return new Snapshot(books, needs);
     }
 }

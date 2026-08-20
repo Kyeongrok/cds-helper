@@ -6,6 +6,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using System.Windows;
+using CdsHelper.Game.Engine;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -64,9 +65,6 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>지도를 한 번 띄웠는지. <see cref="ShipMapHost.Start"/> 는 한 번만 부른다.</summary>
     private bool _started;
-
-    /// <summary>도시 ID -> 이름. 한 번만 불러 둔다.</summary>
-    private Dictionary<int, string>? _cityNames;
 
     /// <summary>방금 물어본 도시. 떠났다 다시 와야 다시 묻는다.</summary>
     private int _askedCity = -1;
@@ -914,7 +912,7 @@ public sealed class ShipMapWindow : Window
         else if (saved != null)
         {
             _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
-                            saved.Skills, saved.Hints, saved.Mates, saved.Met);
+                            saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items);
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
             _status.Text = saved.CityId >= 0
@@ -1108,29 +1106,16 @@ public sealed class ShipMapWindow : Window
 
     private bool _spritesTried;
 
-    /// <summary>도시 번호 -> 문화권. cities.json 에서 한 번만 읽어 둔다.</summary>
-    private Dictionary<int, string>? _cultures;
+    /// <summary>
+    /// 도시 표(번호·이름·문화권). 건물 표의 도시 번호가 가리키는 쪽이다.
+    /// 처음 쓸 때 한 번만 연다.
+    /// </summary>
+    private CityTable? _cities;
+
+    private CityTable CityTable => _cities ??= Local.Helpers.CityTable.Open();
 
     /// <summary>그 도시의 문화권("이슬람", "북유럽" …). 모르면 빈 문자열.</summary>
-    private string CultureOf(int city)
-    {
-        if (_cultures == null)
-        {
-            _cultures = [];
-            try
-            {
-                var path = Path.Combine(AppContext.BaseDirectory, "cities.json");
-                foreach (var c in new CityService().LoadCities(path))
-                    if (!string.IsNullOrEmpty(c.CulturalSphere))
-                        _cultures[c.Id] = c.CulturalSphere;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ShipMap] 문화권 로드 실패: {ex.Message}");
-            }
-        }
-        return _cultures.TryGetValue(city, out var name) ? name : "";
-    }
+    private string CultureOf(int city) => CityTable.CultureOf(city);
 
     /// <summary>힌트 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
     private string HintName(int id)
@@ -1152,25 +1137,8 @@ public sealed class ShipMapWindow : Window
         return _hintNames.TryGetValue(id, out var name) && name.Length > 0 ? name : $"힌트 {id}";
     }
 
-    /// <summary>도시 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
-    private string CityName(int id)
-    {
-        if (_cityNames == null)
-        {
-            _cityNames = [];
-            try
-            {
-                var svc = ContainerLocator.Container.Resolve<CityService>();
-                foreach (var c in svc.GetCitiesWithCoordinatesFromDbAsync().Result)
-                    _cityNames[c.Id] = c.Name;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ShipMap] 도시 이름 로드 실패: {ex.Message}");
-            }
-        }
-        return _cityNames.TryGetValue(id, out var n) ? n : $"도시 {id}";
-    }
+    /// <summary>도시 이름. 표에 없으면 번호로 물러선다.</summary>
+    private string CityName(int id) => CityTable.NameOf(id);
 
     /// <summary>
     /// 게임 폴더를 잡고 타이틀 곡을 튼다. 지도는 아직 띄우지 않는다 —

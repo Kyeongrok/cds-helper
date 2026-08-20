@@ -1,5 +1,4 @@
 using System.IO;
-using System.Text.Json;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -20,6 +19,9 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   적어 둔 것 없음 · EXE 도 없음     못 연다
 /// </code>
 /// EXE 를 새로 읽다 실패하면 적어 둔 것으로 버틴다. 낡았을지언정 아무것도 없는 것보다 낫다.
+///
+/// 앱 DB 처럼 <b>바뀌는</b> 원본은 이 규칙을 쓰면 안 된다 — 고친 값이 안 비친다.
+/// 그런 것은 <see cref="CityTable"/> 처럼 원본을 먼저 보는 규칙을 쓴다.
 /// </remarks>
 internal static class ExeTable
 {
@@ -28,37 +30,8 @@ internal static class ExeTable
     /// <summary>EXE 에서 표 하나를 읽어 내는 일. 못 읽으면 null 과 까닭을 낸다.</summary>
     public delegate T? Reader<T>(PeImage exe, out string error) where T : class;
 
-    // 한글이 \uXXXX 로 깨져 보이지 않게 그대로 적는다(사람이 열어 볼 파일이다).
-    private static readonly JsonSerializerOptions Pretty = new()
-    {
-        WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
-    /// <summary>적어 두는 자리. 세이브·설정과 같은 %APPDATA%\CdsHelper 밑이다.</summary>
-    public static string Folder => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "CdsHelper", "exe-tables");
-
-    public static string PathFor(string name) => Path.Combine(Folder, name + ".json");
-
-    /// <summary>지금까지 적어 둔 파일 전부. 하나도 없으면 빈 목록.</summary>
-    public static IReadOnlyList<string> Saved()
-    {
-        try
-        {
-            return Directory.Exists(Folder)
-                ? Directory.GetFiles(Folder, "*.json").OrderBy(p => p).ToList()
-                : [];
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return [];
-        }
-    }
-
-    /// <summary>적어 둔 한 벌. 도장을 같이 적어야 판이 갈린 것을 알아본다.</summary>
-    private sealed record Cached<T>(string Stamp, T Data) where T : class;
+    /// <summary>적어 두는 자리(게임데이터 창이 여기를 훑는다).</summary>
+    public static string Folder => TableCache.Folder;
 
     /// <summary>
     /// 표를 연다. 적어 둔 것이 쓸 만하면 그것을 쓰고, 아니면 EXE 에서 읽어 적어 둔다.
@@ -71,14 +44,20 @@ internal static class ExeTable
         where T : class
     {
         error = "";
-        string cachePath = PathFor(name);
         string exePath = string.IsNullOrEmpty(gameDirectory)
             ? "" : Path.Combine(gameDirectory, ExeName);
         string stamp = StampOf(exePath);
-        var cached = ReadCache<T>(cachePath);
+        var cached = TableCache.Read<T>(name);
 
         // 적어 둔 것이 지금 EXE 와 같거나, EXE 가 아예 없으면 그대로 쓴다.
-        if (cached != null && (stamp.Length == 0 || cached.Stamp == stamp)) return cached.Data;
+        //
+        // Source 가 비었으면 한 번 다시 굽는다. 그 항목을 뒤에 붙였기 때문에 그 전에 적어 둔
+        // 파일에는 없고, 도장이 같으면 다시 구울 일이 없어 영영 안 채워진다 — 그러면
+        // 게임데이터 창이 어디서 온 표인지 끝내 못 보여 준다. EXE 가 없을 때는 채울 길이
+        // 없으므로 그냥 쓴다.
+        bool usable = cached != null
+                      && (stamp.Length == 0 || (cached.Stamp == stamp && cached.Source.Length > 0));
+        if (usable) return cached!.Data;
 
         if (stamp.Length == 0)
         {
@@ -99,7 +78,7 @@ internal static class ExeTable
             return null;
         }
 
-        WriteCache(cachePath, new Cached<T>(stamp, fresh));
+        TableCache.Write(name, new TableCache.Cached<T>(stamp, fresh, ExeName));
         return fresh;
     }
 
@@ -118,35 +97,6 @@ internal static class ExeTable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return "";
-        }
-    }
-
-    private static Cached<T>? ReadCache<T>(string path) where T : class
-    {
-        try
-        {
-            if (!File.Exists(path)) return null;
-            var cached = JsonSerializer.Deserialize<Cached<T>>(File.ReadAllText(path));
-            return cached?.Data == null ? null : cached;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return null;   // 깨졌으면 없는 셈 치고 EXE 에서 다시 읽는다
-        }
-    }
-
-    private static void WriteCache<T>(string path, Cached<T> cached) where T : class
-    {
-        try
-        {
-            string? dir = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            File.WriteAllText(path, JsonSerializer.Serialize(cached, Pretty));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // 적어 두지 못해도 이번 판은 EXE 에서 읽은 값으로 그대로 돈다.
-            System.Diagnostics.Debug.WriteLine($"[ExeTable] {path} 를 적지 못했습니다: {ex.Message}");
         }
     }
 }

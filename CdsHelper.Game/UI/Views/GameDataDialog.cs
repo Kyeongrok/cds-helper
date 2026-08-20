@@ -1,8 +1,9 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using CdsHelper.Game.Engine;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -59,6 +60,7 @@ public sealed class GameDataDialog : Window
     };
 
     /// <summary>목록에 담는 한 줄. 화면에 보이는 것은 <see cref="ToString"/> 다.</summary>
+    /// <param name="Kind">어디서 온 것인지 — 파일이 스스로 적어 둔 값이다.</param>
     private sealed record Entry(string Kind, string Path)
     {
         public override string ToString()
@@ -133,12 +135,33 @@ public sealed class GameDataDialog : Window
         string? was = (_files.SelectedItem as Entry)?.Path;
 
         var entries = new List<Entry>();
-        foreach (var path in ExeTable.Saved()) entries.Add(new Entry("[EXE 표]", path));
+        foreach (var path in TableCache.Saved()) entries.Add(new Entry(KindOf(path), path));
         entries.Add(new Entry("[세이브]", GameSave.Path));
 
         _files.ItemsSource = entries;
         _files.SelectedItem = entries.FirstOrDefault(e => e.Path == was) ?? entries.FirstOrDefault();
         if (_files.SelectedItem == null) ShowSelected();
+    }
+
+    /// <summary>
+    /// 표가 어디서 구워졌는지 — 파일 안의 <c>Source</c> 를 그대로 읽는다. 이름으로 짐작하면
+    /// 표가 늘 때마다 여기를 같이 고쳐야 한다.
+    /// </summary>
+    private static string KindOf(string path)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.TryGetProperty("Source", out var source)
+                   && source.GetString() is { Length: > 0 } name
+                ? $"[{name}]"
+                : "[표]";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or System.Text.Json.JsonException)
+        {
+            return "[표]";
+        }
     }
 
     private void ShowSelected()
