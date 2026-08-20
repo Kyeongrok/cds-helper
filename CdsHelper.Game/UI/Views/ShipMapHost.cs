@@ -272,6 +272,12 @@ public sealed class ShipMapHost : HwndHost
         var world = WorldMapRenderer.LoadWorldData(System.IO.Path.Combine(gameDir, "WORLD.CDS"));
         if (world == null) { Status = "WORLD.CDS 를 읽지 못했습니다"; return false; }
         _world = world;
+
+        // 칸을 지날 수 있는지는 게임 표가 가른다. 못 읽으면 옛 어림으로 물러선다.
+        _terrain = TerrainTable.Open(gameDir);
+        if (_terrain == null)
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 지형표 없음: {TerrainTable.LastError}");
+
         var ocean = OceanTiles.LoadFromDirectory(gameDir);
         if (ocean == null) { Status = $"OCEAN.CDS 를 읽지 못했습니다 ({OceanTiles.LastError})"; return false; }
 
@@ -586,9 +592,28 @@ public sealed class ShipMapHost : HwndHost
         _shipY = Math.Clamp(_shipY, 0, WorldMapRenderer.CellH - 1);
     }
 
+    /// <summary>
+    /// 게임 지형표. 칸을 지날 수 있는지는 이것이 가른다.
+    /// </summary>
+    private TerrainTable? _terrain;
+
     /// <summary>지금 모드에서 지날 수 있는 칸인지. 배는 물을, 말은 뭍을 간다.</summary>
+    /// <remarks>
+    /// 게임이 쓰는 표를 그대로 본다(<see cref="TerrainTable"/>) — 칸의 <b>첫 바이트</b>로
+    /// 부류를 찾고, 0·1 이면 물, 2 이상이면 뭍이다.
+    ///
+    /// 예전에는 그림을 그리려고 재어 둔 육지 비율이 반을 넘으면 막았다. 그것은 색을 섞는
+    /// 비율이지 통행 규칙이 아니어서, 런던 앞 하구처럼 육지가 50~55% 인 칸이 막혀
+    /// 게임에서는 들어가지는 데를 못 들어갔다. 표를 못 읽을 때만 그 어림으로 물러선다.
+    /// </remarks>
     private bool CanGo(double cellX, double cellY)
     {
+        if (_terrain != null && _world != null)
+        {
+            byte low = _world[RawAt(cellX, cellY).Offset];
+            return _onLand ? _terrain.CanWalk(low) : _terrain.CanSail(low);
+        }
+
         double land = LandRatioAt(cellX, cellY);
         return _onLand ? land >= WalkMinLandRatio : land < SailMaxLandRatio;
     }
@@ -619,7 +644,12 @@ public sealed class ShipMapHost : HwndHost
     /// 그 칸이 배가 못 가는 땅인지. WORLD.CDS 의 지형값을 그대로 본다 —
     /// 0 이 바다, 1 이 육지, 그 밖은 바다와 육지가 섞인 해안 칸이다.
     /// </summary>
-    private bool IsLand(double cellX, double cellY) => LandRatioAt(cellX, cellY) >= SailMaxLandRatio;
+    private bool IsLand(double cellX, double cellY)
+    {
+        if (_terrain != null && _world != null)
+            return !_terrain.CanSail(_world[RawAt(cellX, cellY).Offset]);
+        return LandRatioAt(cellX, cellY) >= SailMaxLandRatio;
+    }
 
     /// <summary>그 칸의 육지 비율(0 이면 온통 바다, 1 이면 온통 육지). 지도 밖은 육지로 본다.</summary>
     private double LandRatioAt(double cellX, double cellY)

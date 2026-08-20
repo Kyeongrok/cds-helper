@@ -65,29 +65,43 @@ public sealed class BelongingsDialog : Window
         Height = 460;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
-        Background = GameUi.PageFill;
+        Background = GameUi.Back;
 
-        var columns = new Grid { Margin = new Thickness(2, 2, 2, 2) };
+        // 제목 띠 둘은 맨 위에 나란히, 그 밑이 통째로 양피지 칸이다.
+        // 게임도 그렇게 나뉘어 있다 — 창 바탕은 갈색이고 줄이 놓이는 데만 밝다.
+        var bands = new Grid();
+        bands.ColumnDefinitions.Add(new ColumnDefinition());
+        bands.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var leftBand = Band("소지품일람");
+        Grid.SetColumn(leftBand, 0);
+        bands.Children.Add(leftBand);
+
+        var rightBand = Band("발견물일람");
+        Grid.SetColumn(rightBand, 1);
+        bands.Children.Add(rightBand);
+
+        var columns = new Grid();
         columns.ColumnDefinitions.Add(new ColumnDefinition());
         columns.ColumnDefinitions.Add(new ColumnDefinition());
 
-        var left = Column("소지품일람", out var leftList);
-        Grid.SetColumn(left, 0);
-        columns.Children.Add(left);
+        var leftList = ListColumn();
+        Grid.SetColumn(leftList.Host, 0);
+        columns.Children.Add(leftList.Host);
 
-        var right = Column("발견물일람", out var rightList);
-        Grid.SetColumn(right, 1);
-        columns.Children.Add(right);
-        Discoveries = rightList;
+        var rightList = ListColumn();
+        Grid.SetColumn(rightList.Host, 1);
+        columns.Children.Add(rightList.Host);
+        Discoveries = rightList.Items;
 
         foreach (int id in player.Items)
         {
             var row = Row(id);
             _rows.Add(row);
-            leftList.Children.Add(row.Row);
+            leftList.Items.Children.Add(row.Row);
         }
         if (_rows.Count == 0)
-            leftList.Children.Add(new TextBlock
+            leftList.Items.Children.Add(new TextBlock
             {
                 Text = "  지닌 것이 없다.",
                 Foreground = Ink,
@@ -108,20 +122,22 @@ public sealed class BelongingsDialog : Window
         buttons.Children.Add(new GameUi.BandButton("중단", Close, 130));
 
         var root = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(bands, Dock.Top);
+        root.Children.Add(bands);
         DockPanel.SetDock(buttons, Dock.Bottom);
         root.Children.Add(buttons);
         root.Children.Add(columns);
 
         Content = new Border
         {
-            Background = GameUi.PageFill,
+            Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
             BorderThickness = new Thickness(2),
             Margin = new Thickness(4),
             Child = root,
         };
 
-        GameUi.EnableDrag(this, columns);
+        GameUi.EnableDrag(this, bands);
         KeyDown += OnKey;
     }
 
@@ -130,13 +146,9 @@ public sealed class BelongingsDialog : Window
     /// </summary>
     public StackPanel Discoveries { get; }
 
-    /// <summary>제목 띠 하나와 그 밑의 줄 칸.</summary>
-    private static FrameworkElement Column(string title, out StackPanel list)
-    {
-        list = new StackPanel { Margin = new Thickness(4, 4, 4, 2) };
-
-        // 원본 조각을 못 읽었으면 띠 대신 글자만 낸다.
-        FrameworkElement head = GameUi.TitleFrame(GameUi.Sprites, title) ?? new Border
+    /// <summary>제목 띠 하나. 원본 조각을 못 읽었으면 띠 대신 글자만 낸다.</summary>
+    private static FrameworkElement Band(string title) =>
+        GameUi.TitleFrame(GameUi.Sprites, title) ?? new Border
         {
             Background = GameUi.MenuBack,
             BorderBrush = GameUi.Edge,
@@ -152,18 +164,21 @@ public sealed class BelongingsDialog : Window
             },
         };
 
-        var scroll = new ScrollViewer
+    /// <summary>줄이 쌓이는 양피지 칸.</summary>
+    private static (Border Host, StackPanel Items) ListColumn()
+    {
+        var items = new StackPanel { Margin = new Thickness(6, 4, 4, 4) };
+        var host = new Border
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = list,
+            Background = GameUi.PageFill,
+            Child = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = items,
+            },
         };
-
-        var panel = new DockPanel { LastChildFill = true };
-        DockPanel.SetDock(head, Dock.Top);
-        panel.Children.Add(head);
-        panel.Children.Add(scroll);
-        return panel;
+        return (host, items);
     }
 
     /// <summary>줄 하나 — 아이템 이름.</summary>

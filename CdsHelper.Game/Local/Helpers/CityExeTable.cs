@@ -1,14 +1,14 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
-/// 도시마다 시장에 내놓는 물건. CDS_95.EXE 의 도시 표에 박혀 있다.
+/// CDS_95.EXE 안의 도시 표 — 문화권과 시장에 내놓는 물건.
 /// </summary>
 /// <remarks>
 /// <code>
 ///   도시 표 VA 0x004D14B0 (파일오프셋 0x0CFAB0), 226행 x 136바이트, .rdata
-///   +0x00  이름 ptr("리스본")     +0x20  문화권
+///   +0x00  이름 ptr("리스본")     +0x20  문화권 (0~10)
 ///   +0x3C  시장 물건 8칸 (i32)    빈 칸은 -1
 /// </code>
 /// 값은 아이템 번호(<see cref="ItemTable"/> 의 색인)다. 리스본은
@@ -19,13 +19,15 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 켜 놓은 게임에서 226곳을 읽어 이 표와 대 보니 <b>한 칸도 다르지 않았다</b>. 게다가
 /// 여기는 <c>.rdata</c> 라 놀이 중에 바뀌지도 않는다(시세는 다르다 — 그쪽은 돌아다닌다).
 ///
-/// 도시 이름과 문화권도 같은 줄에 있지만 그것은 안 읽는다. 앱은 그것을 DB 에서 내고
-/// (<see cref="CityTable"/>), 거기서는 사람이 고칠 수도 있기 때문이다.
+/// 도시 <b>이름</b>은 안 읽는다. 앱은 그것을 DB 에서 내고(<see cref="CityTable"/>),
+/// 거기서는 사람이 고칠 수도 있기 때문이다. 문화권은 여기서 읽는다 — 여관 값처럼
+/// 규칙이 문화권 <b>번호</b>로 표를 타는 자리가 있어서, 이름으로 되짚으면 DB 에서
+/// 이름 한 글자만 달라져도 값이 틀어진다.
 /// </remarks>
-public sealed class CityStockTable
+public sealed class CityExeTable
 {
-    /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\시장물건.json</c>).</summary>
-    private const string CacheName = "시장물건";
+    /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\도시표-게임.json</c>).</summary>
+    private const string CacheName = "도시표-게임";
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -45,12 +47,33 @@ public sealed class CityStockTable
     /// <summary>판이 다른 EXE 를 잘못 읽지 않으려고 대 보는 줄 — 리스본.</summary>
     private static readonly int[] Probe = [33, 34, 37, 66];
 
+    /// <summary>줄 안에서 문화권이 놓인 자리.</summary>
+    private const int CultureOffset = 0x20;
+
+    /// <summary>문화권 수(0~10).</summary>
+    public const int CultureCount = 11;
+
     /// <summary>JSON 으로 적어 두는 알맹이. 바깥 색인이 도시 번호다.</summary>
-    internal sealed record Snapshot(int[][] Stock);
+    internal sealed record Snapshot(int[][] Stock, int[] Cultures);
 
     private readonly int[][] _stock;
+    private readonly int[] _cultures;
 
-    private CityStockTable(Snapshot snapshot) => _stock = snapshot.Stock;
+    private CityExeTable(Snapshot snapshot)
+    {
+        _stock = snapshot.Stock;
+        _cultures = snapshot.Cultures;
+    }
+
+    /// <summary>
+    /// 그 도시의 문화권 번호(0~10). 모르는 도시면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 0 이베리아 · 1 북유럽 · 2 지중해 · 3 아프리카 · 4 이슬람 · 5 인도 · 6 중국 ·
+    /// 7 중앙아시아 · 8 동남아시아 · 9 일본 · 10 아메리카.
+    /// </remarks>
+    public int CultureOf(int cityId) =>
+        cityId >= 0 && cityId < _cultures.Length ? _cultures[cityId] : -1;
 
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
@@ -68,11 +91,11 @@ public sealed class CityStockTable
     /// 표를 연다. 적어 둔 JSON 이 있으면 그것을 읽고, 없거나 판이 갈렸으면 EXE 에서 읽어
     /// 적어 둔다. 둘 다 없을 때만 null 이다.
     /// </summary>
-    public static CityStockTable? Open(string gameDirectory)
+    public static CityExeTable? Open(string gameDirectory)
     {
         var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
         LastError = error;
-        return snapshot == null ? null : new CityStockTable(snapshot);
+        return snapshot == null ? null : new CityExeTable(snapshot);
     }
 
     private static Snapshot? ReadFromExe(PeImage exe, out string error)
@@ -80,8 +103,12 @@ public sealed class CityStockTable
         error = "";
 
         var stock = new int[Count][];
+        var cultures = new int[Count];
         for (int city = 0; city < Count; city++)
         {
+            int culture = exe.Int(TableVa + city * RowSize + CultureOffset);
+            cultures[city] = culture >= 0 && culture < CultureCount ? culture : -1;
+
             var slots = new List<int>(Slots);
             for (int s = 0; s < Slots; s++)
             {
@@ -99,6 +126,6 @@ public sealed class CityStockTable
             return null;
         }
 
-        return new Snapshot(stock);
+        return new Snapshot(stock, cultures);
     }
 }

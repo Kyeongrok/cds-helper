@@ -390,6 +390,12 @@ internal static class GameUi
             }
         }
 
+        /// <summary>
+        /// 글자를 굵게 보이게 할지. 게임은 오른쪽 아래로 한 점 겹쳐 찍어 굵기를 낸다 —
+        /// 상단 띠의 날짜·소지금 칸이 그렇다.
+        /// </summary>
+        public bool Bold { get; init; }
+
         public GameLabel(byte color = GameFont.ButtonColor, int height = ItemTextHeight)
         {
             _color = color;
@@ -412,11 +418,12 @@ internal static class GameUi
 
         private void Redraw()
         {
-            // 그림자는 안 붙인다 — 게임 띠의 칸 글자에는 없다.
+            // 굵게 할 때만 한 점 겹쳐 찍는다. 겹치는 색은 본 글자와 같게 둬야 획만 굵어지고
+            // 그림자가 따로 지지 않는다.
             var font = Font;
             if (font != null)
             {
-                var bgra = font.Render(_text, _color, false, GameFont.ShadowColor, _height, out int w);
+                var bgra = font.Render(_text, _color, Bold, _color, _height, out int w);
                 if (bgra != null && w > 0)
                 {
                     var bmp = BitmapSource.Create(w, _height, 96, 96,
