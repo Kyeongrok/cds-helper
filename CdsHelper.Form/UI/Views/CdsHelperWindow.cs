@@ -258,7 +258,7 @@ public class CdsHelperWindow : CdsWindow
 
     private void OpenShipMap()
     {
-        var win = new CdsHelper.Main.UI.Views.D3D.ShipMapWindow { Owner = this };
+        var win = new CdsHelper.Game.UI.Views.ShipMapWindow { Owner = this };
         win.Show();
     }
 
