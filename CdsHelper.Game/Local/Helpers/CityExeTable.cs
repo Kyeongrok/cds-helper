@@ -8,8 +8,10 @@ namespace CdsHelper.Game.Local.Helpers;
 /// <remarks>
 /// <code>
 ///   도시 표 VA 0x004D14B0 (파일오프셋 0x0CFAB0), 226행 x 136바이트, .rdata
-///   +0x00  이름 ptr("리스본")     +0x20  문화권 (0~10)
-///   +0x3C  시장 물건 8칸 (i32)    빈 칸은 -1
+///   +0x00  이름 ptr("리스본")     +0x04,+0x08  칸 좌표
+///   +0x0C  규모(처음 값)          +0x10  특산품 둘째(-1 = 없음)
+///   +0x20  문화권 (0~10)         +0x24  나라 번호
+///   +0x30  특산품 첫째            +0x3C  시장 물건 8칸 (i32), 빈 칸은 -1
 /// </code>
 /// 값은 아이템 번호(<see cref="ItemTable"/> 의 색인)다. 리스본은
 /// <c>[33, 34, 37, 66]</c> — 나침반·육분의·레이피아·66번이다.
@@ -28,6 +30,9 @@ public sealed class CityExeTable
 {
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\도시표-게임.json</c>).</summary>
     private const string CacheName = "도시표-게임";
+
+    /// <summary>알맹이 모양 판. 규모·나라·특산품을 더하면서 2 로 올렸다.</summary>
+    private const int Version = 2;
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -50,20 +55,51 @@ public sealed class CityExeTable
     /// <summary>줄 안에서 문화권이 놓인 자리.</summary>
     private const int CultureOffset = 0x20;
 
+    /// <summary>규모·나라·특산품이 놓인 자리.</summary>
+    private const int ScaleOffset = 0x0C, NationOffset = 0x24;
+    private const int Special1Offset = 0x30, Special2Offset = 0x10;
+
     /// <summary>문화권 수(0~10).</summary>
     public const int CultureCount = 11;
 
     /// <summary>JSON 으로 적어 두는 알맹이. 바깥 색인이 도시 번호다.</summary>
-    internal sealed record Snapshot(int[][] Stock, int[] Cultures);
+    internal sealed record Snapshot(int[][] Stock, int[] Cultures, int[] Scales,
+                                    int[] Nations, int[][] Specials);
 
     private readonly int[][] _stock;
     private readonly int[] _cultures;
+    private readonly int[] _scales;
+    private readonly int[] _nations;
+    private readonly int[][] _specials;
 
     private CityExeTable(Snapshot snapshot)
     {
         _stock = snapshot.Stock;
         _cultures = snapshot.Cultures;
+        _scales = snapshot.Scales;
+        _nations = snapshot.Nations;
+        _specials = snapshot.Specials;
     }
+
+    /// <summary>
+    /// 처음 규모. 놀이 중에 도시가 자라면 이 값보다 커진다 — 게임이 돌 때의 값은 딴 자리다.
+    /// </summary>
+    public int ScaleOf(int cityId) =>
+        cityId >= 0 && cityId < _scales.Length ? _scales[cityId] : 0;
+
+    /// <summary>
+    /// 그 도시를 가진 나라 번호. 모르면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 도시의 <b>언어</b>가 여기서 나온다 — <see cref="NationTable"/> 의 그 나라가 쓰는 말이다.
+    /// 도시에 언어를 박아 두지 않은 것은 정복하면 말이 바뀌기 때문이다.
+    /// </remarks>
+    public int NationOf(int cityId) =>
+        cityId >= 0 && cityId < _nations.Length ? _nations[cityId] : -1;
+
+    /// <summary>그 도시의 특산품(교역품 종류). 한둘이고 없으면 빈 목록.</summary>
+    public IReadOnlyList<int> SpecialsOf(int cityId) =>
+        cityId >= 0 && cityId < _specials.Length ? _specials[cityId] : [];
 
     /// <summary>
     /// 그 도시의 문화권 번호(0~10). 모르는 도시면 -1.
@@ -93,7 +129,8 @@ public sealed class CityExeTable
     /// </summary>
     public static CityExeTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               Version);
         LastError = error;
         return snapshot == null ? null : new CityExeTable(snapshot);
     }
@@ -104,10 +141,25 @@ public sealed class CityExeTable
 
         var stock = new int[Count][];
         var cultures = new int[Count];
+        var scales = new int[Count];
+        var nations = new int[Count];
+        var specials = new int[Count][];
         for (int city = 0; city < Count; city++)
         {
-            int culture = exe.Int(TableVa + city * RowSize + CultureOffset);
+            int row = TableVa + city * RowSize;
+            int culture = exe.Int(row + CultureOffset);
             cultures[city] = culture >= 0 && culture < CultureCount ? culture : -1;
+            scales[city] = exe.Int(row + ScaleOffset);
+            nations[city] = exe.Int(row + NationOffset);
+
+            // 첫째가 앞, 둘째가 뒤다 — 게임 도시정보 창도 그 차례로 낸다.
+            var made = new List<int>(2);
+            foreach (int at in new[] { Special1Offset, Special2Offset })
+            {
+                int g = exe.Int(row + at);
+                if (g >= 0 && g < GoodsTable.Count) made.Add(g);
+            }
+            specials[city] = [.. made];
 
             var slots = new List<int>(Slots);
             for (int s = 0; s < Slots; s++)
@@ -126,6 +178,6 @@ public sealed class CityExeTable
             return null;
         }
 
-        return new Snapshot(stock, cultures);
+        return new Snapshot(stock, cultures, scales, nations, specials);
     }
 }

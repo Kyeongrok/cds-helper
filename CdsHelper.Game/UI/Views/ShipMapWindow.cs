@@ -419,7 +419,12 @@ public sealed class ShipMapWindow : Window
     private Rect MapAreaOnScreen()
     {
         var source = PresentationSource.FromVisual(this);
-        if (source == null || _input.ActualWidth <= 0 || _input.ActualHeight <= 0) return default;
+        if (source == null) return default;
+
+        // 지도를 막 갈아 끼운 참이면 아직 자리를 안 잡았을 수 있다. 그때 빈 자리를 내면
+        // 도시 창이 제 크기를 못 잡는다 — 한 번 재워 두고 다시 본다.
+        if (_input.ActualWidth <= 0 || _input.ActualHeight <= 0) UpdateLayout();
+        if (_input.ActualWidth <= 0 || _input.ActualHeight <= 0) return default;
 
         // PointToScreen 은 실픽셀을 내므로 WPF 단위로 되돌린다(고해상도 화면에서 어긋난다).
         var device = _input.PointToScreen(new Point(0, 0));

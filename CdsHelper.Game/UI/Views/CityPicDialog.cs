@@ -280,9 +280,20 @@ public sealed class CityPicDialog : Window
         }
         else
         {
-            // 지도 자리를 모르면 그냥 owner 한가운데에 제 크기로 띄운다(펼치지 않는다).
-            SizeToContent = SizeToContent.WidthAndHeight;
+            // 지도 자리를 모르면 owner 한가운데에 제 크기로 띄운다(펼치지 않는다).
+            //
+            // 크기를 <b>손으로 박는다</b>. 예전에는 SizeToContent 에 맡겼는데, 이 창의 속은
+            // Viewbox(Stretch.Fill) 라 창에 맞춰 늘어난다 — 크기를 속에서 재고 속을 다시
+            // 창에 맞추는 두 규칙이 서로를 밀어, 창이 화면만 하게 부풀어 오르는 일이 있었다
+            // (도시 그림이 전체 화면으로 뜨던 것이 이것이다).
+            SizeToContent = SizeToContent.Manual;
+            Width = fullW;
+            Height = fullH;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
+
+            // 펼침 효과는 안 쓰지만, 뒤에 무엇이 이 값을 보더라도 창 크기와 어긋나지 않게 둔다.
+            _openWidth = fullW;
+            _openHeight = fullH;
         }
 
         var image = new Image
@@ -903,13 +914,41 @@ public sealed class CityPicDialog : Window
         ("인물 정보", null),
         ("함대 정보", null),
         ("소지품 정보", ShowBelongings),
-        ("도시 정보", null),
+        ("도시 정보", ShowCityInfo),
         ("힌트 정보", ShowHints),
         ("계약 정보", null),
         ("후원자 정보", null),
         ("지도를 본다", null),
         ("게임 종료", null),
         ("취소", CloseCityMenu));
+
+    /// <summary>도시 정보 창을 낸다. 표를 못 읽어도 열린다 — 그 줄만 비는 채로 뜬다.</summary>
+    private void ShowCityInfo()
+    {
+        CloseCityMenu();
+        CityInfoDialog.Show(this, _cityName, _cityId, CityRows,
+                            _nations ??= NationTable.Open(_gameDirectory),
+                            Goods, ItemPictures, Market?.Rates ?? MarketRates.Open());
+    }
+
+    private NationTable? _nations;
+
+    /// <summary>교역품 표. 도시 특산품을 낼 때 쓴다.</summary>
+    private GoodsTable? Goods
+    {
+        get
+        {
+            if (_goods == null && !_goodsTried)
+            {
+                _goodsTried = true;
+                _goods = GoodsTable.Open(_gameDirectory);
+            }
+            return _goods;
+        }
+    }
+
+    private GoodsTable? _goods;
+    private bool _goodsTried;
 
     /// <summary>
     /// 여관에 묵는다. 게임 차례 그대로 — 값을 부르고, YES 면 그때서야 돈을 본다.
