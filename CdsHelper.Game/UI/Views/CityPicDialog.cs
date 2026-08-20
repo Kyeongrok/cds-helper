@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using System.Windows;
 using CdsHelper.Game.Engine;
+using CdsHelper.Game.Engine.Inn;
 using CdsHelper.Game.Engine.Market;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Game.Local.Models;
@@ -706,7 +707,7 @@ public sealed class CityPicDialog : Window
     /// </summary>
     private void Hire(TavernRoster.Person who, uint[]? face)
     {
-        if (_player.Mates.Count >= Player.MaxMates)
+        if (_player.MateCount >= Player.MaxMates)
         {
             TalkDialog.Say(this, face, "", "자네 배에는 이미 사람이 넘치지 않는가.");
             return;
@@ -909,6 +910,35 @@ public sealed class CityPicDialog : Window
         ("지도를 본다", null),
         ("게임 종료", null),
         ("취소", CloseCityMenu));
+
+    /// <summary>
+    /// 여관에 묵는다. 게임 차례 그대로 — 값을 부르고, YES 면 그때서야 돈을 본다.
+    /// </summary>
+    /// <remarks>
+    /// 묵고 나면 한 달이 가므로 상단 띠의 날짜가 그만큼 넘어간다.
+    /// </remarks>
+    private void Stay()
+    {
+        var inn = _lodging ??= new Lodging(CityRows, MarketRates.Open());
+        int price = inn.PriceAt(_cityId);
+
+        if (!ConfirmDialog.Ask(this, $"선불이네. 우리 집은 한 달에 금화 {price}닢인데, 머물고 갈텐가?"))
+            return;
+
+        if (inn.Stay(_player, _cityId) != StayResult.Ok)
+        {
+            NoticeDialog.Show(this, "소지금이 모자랍니다");
+            return;
+        }
+
+        NoticeDialog.Show(this, "손님, 손님! 일어나세요. 벌써 아침이에요.");
+        NoticeDialog.Show(this, Lodging.WakeWord(_random));
+    }
+
+    private Lodging? _lodging;
+
+    /// <summary>셋 중 하나를 고르는 데 쓴다. 게임도 rand(3) 으로 고른다.</summary>
+    private readonly Random _random = new();
 
     /// <summary>
     /// 소지품 정보 창을 낸다. 아이템 표를 못 읽어도 열린다 — 이름이 번호로 나올 뿐이다.
@@ -1196,13 +1226,30 @@ public sealed class CityPicDialog : Window
                 return null;
             }
             // 시세는 아직 다 100 이다. 나중에 채우면 값이 저절로 따라 움직인다.
-            _market = new Market(items, MarketRates.Open(), CityStockTable.Open(_gameDirectory));
+            _market = new Market(items, MarketRates.Open(), CityRows);
             return _market;
         }
     }
 
     private Market? _market;
     private bool _marketTried;
+
+    /// <summary>EXE 도시 표(문화권·시장 물건). 시장과 여관이 같이 쓴다.</summary>
+    private CityExeTable? CityRows
+    {
+        get
+        {
+            if (_cityRows == null && !_cityRowsTried)
+            {
+                _cityRowsTried = true;
+                _cityRows = CityExeTable.Open(_gameDirectory);
+            }
+            return _cityRows;
+        }
+    }
+
+    private CityExeTable? _cityRows;
+    private bool _cityRowsTried;
 
     /// <summary>아이템 설명문. 없으면 설명 자리가 빈 채로 뜬다.</summary>
     private ItemDescriptions? ItemText
@@ -1255,6 +1302,10 @@ public sealed class CityPicDialog : Window
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
             (FacilityKind.Market, "매각") when Market != null && ItemTableOrNull != null => () =>
                 MarketSellDialog.Show(this, _player, Market, ItemTableOrNull, _cityId),
+            (FacilityKind.Inn, "숙박") => Stay,
+            // 부하편성은 여관과 술집 둘 다에 있다.
+            (FacilityKind.Inn or FacilityKind.Tavern, "부하편성") => () =>
+                MateRosterDialog.Show(this, _player),
             (FacilityKind.Library, "열람") when _library != null => () =>
                 LibraryDialog.Show(this, _gameDirectory, _cityName, _cityId,
                                    _player, _library, _table, _hintName),

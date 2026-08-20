@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows.Media;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -23,6 +23,9 @@ public sealed class BgmPlayer : IDisposable
     /// <summary>도시에 들어가 있는 동안 도는 곡.</summary>
     public const int CityTrack = 10;
 
+    /// <summary>뭍에 올라 말로 다니는 동안 도는 곡.</summary>
+    public const int LandTrack = 26;
+
     /// <summary>술집에 들어가 있는 동안 도는 곡.</summary>
     public const int TavernTrack = 22;
 
@@ -31,6 +34,9 @@ public sealed class BgmPlayer : IDisposable
 
     /// <summary>중근동(이슬람) 문화권 도시에서 도는 곡.</summary>
     public const int IslamCityTrack = 7;
+
+    /// <summary>북유럽 문화권 도시에서 도는 곡.</summary>
+    public const int NorthEuropeCityTrack = 9;
 
     /// <summary>
     /// 그 도시에서 돌 곡. 문화권마다 다르다 — 세우타처럼 중근동에 드는 도시는 딴 곡이 돈다.
@@ -45,6 +51,7 @@ public sealed class BgmPlayer : IDisposable
     public static int CityTrackFor(string? culturalSphere) => culturalSphere switch
     {
         "이슬람" or "중근동" => IslamCityTrack,
+        "북유럽" => NorthEuropeCityTrack,
         _ => CityTrack,
     };
 
@@ -60,9 +67,28 @@ public sealed class BgmPlayer : IDisposable
 
     public BgmPlayer()
     {
-        // 끝까지 가면 처음으로 되감아 다시 튼다. 이어 재생은 이 한 줄이면 된다.
-        _player.MediaEnded += (_, _) => { _player.Position = TimeSpan.Zero; _player.Play(); };
+        _player.MediaEnded += (_, _) =>
+        {
+            // 기다리라고 해 둔 곡이 있으면 이제 갈아탄다(해상에서 해역이 바뀔 때다).
+            if (_queued >= 0)
+            {
+                int next = _queued;
+                _queued = -1;
+                Play(next);
+                return;
+            }
+
+            // 없으면 처음으로 되감아 다시 튼다. 이어 재생은 이 한 줄이면 된다.
+            _player.Position = TimeSpan.Zero;
+            _player.Play();
+        };
     }
+
+    /// <summary>지금 곡이 끝나면 갈아탈 곡. 없으면 -1.</summary>
+    private int _queued = -1;
+
+    /// <summary>지금 곡이 끝나면 갈아탈 곡. 기다리는 것이 없으면 -1.</summary>
+    public int Queued => _queued;
 
     /// <summary>못 튼 까닭 한 줄. 잘 돌고 있으면 빈 문자열.</summary>
     public string LastError { get; private set; } = "";
@@ -93,9 +119,27 @@ public sealed class BgmPlayer : IDisposable
     /// <summary>마지막으로 틀라고 한 곡. 껐다 켤 때 이 곡으로 돌아온다.</summary>
     private int _wanted = -1;
 
+    /// <summary>
+    /// 지금 곡을 끝까지 들려 준 뒤에 갈아탄다. <b>해상에서 해역이 바뀔 때</b> 쓴다 —
+    /// 게임은 그때만 곡을 자르지 않고 기다린다.
+    /// </summary>
+    /// <remarks>
+    /// 도시에 들어가거나 건물에 들어설 때는 이것이 아니라 <see cref="Play"/> 다.
+    /// 그쪽은 곡을 그 자리에서 자른다 — 게임도 그렇다.
+    ///
+    /// 아무것도 안 돌고 있으면 기다릴 것이 없으므로 바로 튼다.
+    /// </remarks>
+    public void PlayWhenDone(int track)
+    {
+        if (_track == track) { _queued = -1; return; }
+        if (_track < 0 || !_enabled) { Play(track); return; }
+        _queued = track;
+    }
+
     /// <summary>그 번호의 곡으로 갈아 튼다. 이미 그 곡이 돌고 있으면 그대로 둔다.</summary>
     public void Play(int track)
     {
+        _queued = -1;   // 바로 갈아타라고 했으니 기다리던 것은 버린다
         if (_wanted == track && _track == track) return;
         _wanted = track;
         if (!_enabled) return;

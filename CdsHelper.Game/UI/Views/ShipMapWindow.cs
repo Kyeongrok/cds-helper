@@ -97,19 +97,19 @@ public sealed class ShipMapWindow : Window
     // 윈도 글꼴은 같은 자리에서 획이 굵고 커서 게임 화면과 결이 안 맞는다.
 
     /// <summary>게임 상단 바의 날짜 칸. 조합에서 기술을 배우면 달이 넘어간다.</summary>
-    private readonly GameUi.GameLabel _date = new();
+    private readonly GameUi.GameLabel _date = new() { Bold = true };
 
     /// <summary>게임 상단 바의 소지금·함선 칸.</summary>
-    private readonly GameUi.GameLabel _purse = new();
+    private readonly GameUi.GameLabel _purse = new() { Bold = true };
 
     /// <summary>게임 상단 바의 명성 칸. 후원자를 만날 수 있는지가 이 값으로 갈린다.</summary>
-    private readonly GameUi.GameLabel _fame = new();
+    private readonly GameUi.GameLabel _fame = new() { Bold = true };
 
     /// <summary>게임 상단 바의 위경도 칸.</summary>
-    private readonly GameUi.GameLabel _coord = new();
+    private readonly GameUi.GameLabel _coord = new() { Bold = true };
 
     /// <summary>게임 상단 바의 도시명 칸. 바다에서는 빈 채로 둔다.</summary>
-    private readonly GameUi.GameLabel _cityLabel = new();
+    private readonly GameUi.GameLabel _cityLabel = new() { Bold = true };
 
     /// <summary>지도 위에 겹쳐 띄우는 좌표 상자의 글.</summary>
     private readonly TextBlock _overlayText = new()
@@ -286,29 +286,6 @@ public sealed class ShipMapWindow : Window
         settings.MouseLeftButtonUp += (_, _) => SettingsDialog.Show(this, _bgm);
         gameCells.Children.Add(settings);
 
-        // 개발 칸. 소지금과 명성을 손으로 넣는 창이 뜬다 — 놀이에는 없는 자리다.
-        var dev = GameCell(new GameUi.GameLabel { Text = "개발" });
-        dev.Cursor = Cursors.Hand;
-        dev.MouseLeftButtonUp += (_, _) => DevDialog.Show(this, _player, new DevDialog.Options
-        {
-            CoordsOn = () => _overlayWanted,
-            SetCoords = on =>
-            {
-                _overlayWanted = on;
-                AppSettings.ShowCoordOverlay = on;   // 다음에 켤 때도 그대로
-                SyncOverlay();
-            },
-            ToolBarOn = () => AppSettings.ShowToolBar,
-            SetToolBar = on =>
-            {
-                AppSettings.ShowToolBar = on;
-                if (_toolBar != null)
-                    _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-            },
-            GameDirectory = _gameDir,
-        });
-        gameCells.Children.Add(dev);
-
         // 게임처럼 액자를 깔고 그 위에 칸들을 얹는다(asset/ui/misc-00.png).
         // 그림이 없으면 예전처럼 민색 띠로 물러선다.
         FrameworkElement gameBar = (FrameworkElement?)GameUi.BarFrame(gameCells)
@@ -357,7 +334,8 @@ public sealed class ShipMapWindow : Window
         var shell = new DockPanel { LastChildFill = true };
         var titleBar = ChromeTitleBar.Attach(this,
             ("게임데이터", () => GameDataDialog.Show(this)),
-            ("다이얼로그", () => GameDialog.Show(this, "출항합니다.")));
+            ("다이얼로그", () => GameDialog.Show(this, "출항합니다.")),
+            ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
         shell.Children.Add(titleBar);
         shell.Children.Add(_screen);
@@ -412,7 +390,7 @@ public sealed class ShipMapWindow : Window
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
-            _purse.Text = $"{_player.Gold}닢 · 함선 {_player.Ships.Count}/{Player.MaxShips}";
+            _purse.Text = $"{_player.Gold}닢";
             _fame.Text = $"명성 {_player.Fame}";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             ShipSprites.Skin = _player.Ships.Max(s => s.Skin);
@@ -571,31 +549,24 @@ public sealed class ShipMapWindow : Window
         // 한 번 넣어 두면 제목 줄이 있는 창들이 다 같이 쓴다(GameUi.TitleBar).
         LoadSprites();
 
-        var titleBar = GameUi.TitleFrame(GameUi.Sprites, "메인메뉴");
-        if (titleBar != null)
+        FrameworkElement? handle = GameUi.TitleFrame(GameUi.Sprites, "메인메뉴");
+        handle ??= new Border
         {
-            titleBar.Margin = new Thickness(0, 0, 0, 6);
-            items.Children.Add(titleBar);
-        }
-        else
-        {
-            items.Children.Add(new Border
+            Background = MenuBack,
+            BorderBrush = MenuEdge,
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(18, 2, 18, 2),
+            Child = new TextBlock
             {
-                Background = MenuBack,
-                BorderBrush = MenuEdge,
-                BorderThickness = new Thickness(2),
-                Padding = new Thickness(18, 2, 18, 2),
-                Margin = new Thickness(0, 0, 0, 6),
-                Child = new TextBlock
-                {
-                    Text = "메인메뉴",
-                    Foreground = MenuTitleFg,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 13,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                },
-            });
-        }
+                Text = "메인메뉴",
+                Foreground = MenuTitleFg,
+                FontWeight = FontWeights.Bold,
+                FontSize = 13,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            },
+        };
+        handle.Margin = new Thickness(0, 0, 0, 6);
+        items.Children.Add(handle);
         _titleItems.Clear();
         items.Children.Add(TitleMenuItem("NEW GAME", () => StartMap(fresh: true)));
         // 게임도 로드 전에 한 번 묻는다 — 제목은 "게임 로드".
@@ -617,7 +588,13 @@ public sealed class ShipMapWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Child = items,
         };
+        // 게임 메뉴처럼 제목 띠를 잡아 옮길 수 있게 한다. 가운데 놓는 것은 그대로 두고
+        // 옮긴 만큼만 얹으므로, 창 크기가 바뀌어도 가운데가 기준이 된다.
+        var move = new TranslateTransform(_titleMenuOffset.X, _titleMenuOffset.Y);
+        box.RenderTransform = move;
+
         var middle = new Grid { Background = TitleBackground(), Children = { box } };
+        EnableMenuDrag(handle, box, middle, move);
 
         // 게임 타이틀에도 위아래로 액자 띠가 있다. 위 띠에는 날짜 칸 하나만 있고 나머지는 비었다.
         var screen = new DockPanel();
@@ -633,6 +610,61 @@ public sealed class ShipMapWindow : Window
 
         FocusTitle(0);   // 게임처럼 첫 줄에 초점을 두고 시작한다
         return screen;
+    }
+
+    /// <summary>
+    /// 메인메뉴를 가운데에서 얼마나 옮겼는지. 타이틀 화면을 다시 지어도 그 자리에 남는다 —
+    /// 게임 폴더를 알게 되면 화면을 새로 짓기 때문이다.
+    /// </summary>
+    private Point _titleMenuOffset;
+
+    /// <summary>
+    /// 제목 띠를 잡아 메뉴 상자를 옮길 수 있게 한다.
+    /// </summary>
+    /// <remarks>
+    /// 창을 옮기는 <see cref="GameUi.EnableDrag"/> 와 달리 이것은 <b>화면 안에서</b> 상자만
+    /// 옮긴다 — 타이틀 메뉴는 제 창이 아니라 타이틀 화면 위에 얹힌 칸이기 때문이다.
+    ///
+    /// 손잡이를 제목 띠로 좁힌 까닭은 상자 속이 죄다 누르는 줄이어서다. 아무 데나 잡게 두면
+    /// NEW GAME 을 누르려다 조금만 흔들려도 끌기로 새어 눌리지 않는다.
+    ///
+    /// 상자가 화면 밖으로 아주 나가지 않게 가장자리에서 막는다. 제목 띠가 남아 있어야
+    /// 다시 잡아 끌 수 있다.
+    /// </remarks>
+    private void EnableMenuDrag(FrameworkElement handle, FrameworkElement box,
+                                FrameworkElement area, TranslateTransform move)
+    {
+        Point grabbed = default;
+        Point start = default;
+        handle.Cursor = Cursors.SizeAll;
+
+        handle.MouseLeftButtonDown += (_, e) =>
+        {
+            grabbed = e.GetPosition(area);
+            start = new Point(move.X, move.Y);
+            handle.CaptureMouse();
+            e.Handled = true;
+        };
+
+        handle.MouseMove += (_, e) =>
+        {
+            if (!handle.IsMouseCaptured) return;
+            var now = e.GetPosition(area);
+
+            // 가운데 놓인 상자가 얼마나 갈 수 있는지 — 좌우·위아래로 각각 절반씩이다.
+            double roomX = Math.Max(0, (area.ActualWidth - box.ActualWidth) / 2);
+            double roomY = Math.Max(0, (area.ActualHeight - box.ActualHeight) / 2);
+
+            move.X = Math.Clamp(start.X + (now.X - grabbed.X), -roomX, roomX);
+            move.Y = Math.Clamp(start.Y + (now.Y - grabbed.Y), -roomY, roomY);
+            _titleMenuOffset = new Point(move.X, move.Y);
+        };
+
+        handle.MouseLeftButtonUp += (_, e) =>
+        {
+            handle.ReleaseMouseCapture();
+            e.Handled = true;
+        };
     }
 
     /// <summary>
@@ -940,6 +972,32 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
+    /// 개발 창 — 소지금과 명성을 손으로 넣고, 놀이에 없는 것들을 켜고 끈다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 상단 띠에 칸으로 두었던 것을 제목 줄 햄버거로 옮겼다. 놀이에는 없는 자리라
+    /// 게임 띠에 섞여 있으면 원본과 달라 보인다 — 앱이 얹은 것은 앱 쪽 차림표에 둔다.
+    /// </remarks>
+    private void ShowDevDialog() => DevDialog.Show(this, _player, new DevDialog.Options
+    {
+        CoordsOn = () => _overlayWanted,
+        SetCoords = on =>
+        {
+            _overlayWanted = on;
+            AppSettings.ShowCoordOverlay = on;   // 다음에 켤 때도 그대로
+            SyncOverlay();
+        },
+        ToolBarOn = () => AppSettings.ShowToolBar,
+        SetToolBar = on =>
+        {
+            AppSettings.ShowToolBar = on;
+            if (_toolBar != null)
+                _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        },
+        GameDirectory = _gameDir,
+    });
+
+    /// <summary>
     /// 게임 커맨드 창을 흉내낸 우클릭 메뉴. 떠 있는 동안 <b>게임이 멈춘다</b> —
     /// 배도 시간도 그 자리에 선다(닻을 내리는 것과는 다르다. 닻은 그대로 두고 멈추기만 한다).
     /// </summary>
@@ -963,20 +1021,28 @@ public sealed class ShipMapWindow : Window
         };
         void Close() => popup.IsOpen = false;
 
-        // 바다에 있으면 상륙, 뭍에 있으면 출항. 갈 데가 없으면 흐리게 보여만 준다.
+        // 바다에 있으면 상륙, 뭍에 있으면 출항. <b>갈 데가 없으면 줄 자체를 안 낸다</b> —
+        // 흐린 줄로 남겨 두면 창 높이만 잡아먹고 게임에도 없는 모습이다.
         // 게임 커맨드 창에는 없는 줄이지만 이 창에서는 이것으로 뭍을 오간다.
-        (string, Action?) ashore = _host.IsOnLand
-            ? ("출항", _host.IsNearWater() ? () => { _host.Embark(); Close(); } : null)
-            : ("상륙", _host.IsNearLand() ? () => { _host.Land(); Close(); } : null);
+        var items = new List<(string Text, Action? Run)>();
+        if (_host.IsOnLand)
+        {
+            if (_host.IsNearWater())
+                items.Add(("출항", () => { if (_host.Embark()) _bgm.Play(BgmPlayer.SeaTrack); Close(); }));
+        }
+        else if (_host.IsNearLand())
+        {
+            items.Add(("상륙", () => { if (_host.Land()) _bgm.Play(BgmPlayer.LandTrack); Close(); }));
+        }
 
-        popup.Child = GameUi.CommandBox("커맨드",
-            ("정보", null),
-            ("편성", null),
-            ("대열", null),
-            ("항해일지를 본다", null),
-            ("기능", () => { Close(); SaveGame(); }),
-            ashore,
-            ("취소", Close));
+        items.Add(("정보", null));
+        items.Add(("편성", null));
+        items.Add(("대열", null));
+        items.Add(("항해일지를 본다", null));
+        items.Add(("기능", () => { Close(); SaveGame(); }));
+        items.Add(("취소", Close));
+
+        popup.Child = GameUi.CommandBox("커맨드", [.. items]);
 
         // 메뉴가 떠 있는 동안은 게임을 멈춘다. 닫히면 어떻게 닫혔든 다시 흐른다.
         popup.Closed += (_, _) => _host.Paused = false;

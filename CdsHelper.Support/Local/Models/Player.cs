@@ -98,10 +98,16 @@ public sealed class Player
     /// <summary>얻은 힌트 번호. 책을 읽으면 는다.</summary>
     public IReadOnlyCollection<int> Hints => _hints;
 
-    /// <summary>부하로 삼을 수 있는 사람 수. 게임의 부관 자리와 같다.</summary>
-    public const int MaxMates = 3;
+    /// <summary>
+    /// 부하 자리 이름. 게임 EXE 의 표(<c>0x00571038</c>) 차례 그대로다.
+    /// </summary>
+    public static readonly string[] MateRoles = ["부관", "항해사", "측량사", "통역"];
 
-    private readonly List<string> _mates = [];
+    /// <summary>부하로 삼을 수 있는 사람 수. 자리마다 하나씩이다.</summary>
+    public static readonly int MaxMates = MateRoles.Length;
+
+    /// <summary>자리별 부하. 빈 자리는 빈 문자열이다.</summary>
+    private readonly string[] _mates = ["", "", "", ""];
     private readonly HashSet<string> _met = [];
 
     /// <summary>낯을 튼 사람. 이 사람들만 이름이 보이고 말을 걸 수 있다.</summary>
@@ -118,16 +124,52 @@ public sealed class Player
     /// <summary>낯을 튼다. 처음이면 true.</summary>
     public bool Meet(string name) => !string.IsNullOrEmpty(name) && _met.Add(name);
 
-    /// <summary>술집·여관에서 부하로 삼은 사람. 든 차례대로다.</summary>
+    /// <summary>
+    /// 자리별 부하. 색인이 <see cref="MateRoles"/> 의 자리고, 빈 자리는 빈 문자열이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 부하를 든 차례가 아니라 <b>자리</b>로 든다 — 부관·항해사·측량사·통역이다.
+    /// 여관·술집의 "부하편성" 에서 두 줄을 눌러 자리를 맞바꾼다.
+    /// </remarks>
     public IReadOnlyList<string> Mates => _mates;
 
-    /// <summary>부하로 삼는다. 처음 드는 사람이고 자리가 남았으면 true.</summary>
+    /// <summary>그 자리에 앉은 사람. 비었으면 빈 문자열.</summary>
+    public string MateAt(int slot) =>
+        slot >= 0 && slot < _mates.Length ? _mates[slot] : "";
+
+    /// <summary>든 부하 수(빈 자리는 빼고).</summary>
+    public int MateCount => _mates.Count(m => m.Length > 0);
+
+    /// <summary>이미 부하로 든 사람인지.</summary>
+    public bool HasMate(string name) => _mates.Contains(name);
+
+    /// <summary>
+    /// 부하로 삼는다. 앞에서부터 빈 자리에 앉힌다. 처음 드는 사람이고 자리가 남았으면 true.
+    /// </summary>
     public bool Hire(string name)
     {
-        if (string.IsNullOrEmpty(name) || _mates.Count >= MaxMates || _mates.Contains(name))
-            return false;
-        _mates.Add(name);
-        return true;
+        if (string.IsNullOrEmpty(name) || HasMate(name)) return false;
+
+        for (int i = 0; i < _mates.Length; i++)
+            if (_mates[i].Length == 0)
+            {
+                _mates[i] = name;
+                return true;
+            }
+        return false;
+    }
+
+    /// <summary>그 자리에 그 사람을 앉힌다. 자리를 되돌릴 때 쓴다.</summary>
+    public void SetMate(int slot, string name)
+    {
+        if (slot >= 0 && slot < _mates.Length) _mates[slot] = name ?? "";
+    }
+
+    /// <summary>두 자리를 맞바꾼다. 빈 자리와도 바꿀 수 있다.</summary>
+    public void SwapMates(int a, int b)
+    {
+        if (a == b || a < 0 || b < 0 || a >= _mates.Length || b >= _mates.Length) return;
+        (_mates[a], _mates[b]) = (_mates[b], _mates[a]);
     }
 
     private readonly List<int> _items = [];
@@ -166,6 +208,22 @@ public sealed class Player
     {
         if (amount <= 0) return;
         Gold = (int)Math.Min(int.MaxValue, (long)Gold + amount);
+    }
+
+    /// <summary>값을 치른다. 모자라면 아무것도 하지 않고 false.</summary>
+    public bool Pay(int amount)
+    {
+        if (amount < 0 || !CanAfford(amount)) return false;
+        Gold -= amount;
+        return true;
+    }
+
+    /// <summary>
+    /// 달을 넘긴다(여관 숙박·수련). 날짜는 놀이 안에서만 흐르므로 밖에서 박지 않는다.
+    /// </summary>
+    public void AdvanceMonths(int months)
+    {
+        if (months > 0) Date = Date.AddMonths(months);
     }
 
     /// <summary>
@@ -209,8 +267,17 @@ public sealed class Player
         foreach (var (name, level) in skills) _skills[name] = Math.Clamp(level, 0, Skill.MaxLevel);
         _hints.Clear();
         if (hints != null) foreach (int hint in hints) _hints.Add(hint);
-        _mates.Clear();
-        if (mates != null) foreach (var name in mates) Hire(name);
+        // 자리째로 되돌린다 — 빈 자리가 섞여 있어도 차례가 어긋나지 않게.
+        for (int i = 0; i < _mates.Length; i++) _mates[i] = "";
+        if (mates != null)
+        {
+            int at = 0;
+            foreach (var name in mates)
+            {
+                if (at >= _mates.Length) break;
+                _mates[at++] = name ?? "";
+            }
+        }
         _met.Clear();
         if (met != null) foreach (var name in met) _met.Add(name);
         _items.Clear();

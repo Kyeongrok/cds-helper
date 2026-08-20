@@ -43,14 +43,14 @@ public sealed class Market
 
     private readonly ItemTable _items;
     private readonly MarketRates _rates;
-    private readonly CityStockTable? _stock;
+    private readonly CityExeTable? _stock;
     private readonly Dictionary<int, List<ItemTable.Record>> _cache = [];
 
     /// <param name="stock">
     /// 도시마다 무엇을 내놓는지. 없으면 어느 도시도 아무것도 안 판다 —
     /// 있지도 않은 물건을 지어내는 것보다 낫다.
     /// </param>
-    public Market(ItemTable items, MarketRates rates, CityStockTable? stock)
+    public Market(ItemTable items, MarketRates rates, CityExeTable? stock)
     {
         _items = items;
         _rates = rates;
@@ -64,7 +64,7 @@ public sealed class Market
     /// 그 도시가 파는 물건. 없으면 빈 목록.
     /// </summary>
     /// <remarks>
-    /// 게임 EXE 의 도시 표에 박혀 있는 그대로다(<see cref="CityStockTable"/>). 켜 놓은
+    /// 게임 EXE 의 도시 표에 박혀 있는 그대로다(<see cref="CityExeTable"/>). 켜 놓은
     /// 게임의 메모리를 226곳 다 읽어 대 보니 한 칸도 다르지 않았다.
     /// </remarks>
     public IReadOnlyList<ItemTable.Record> StockOf(int cityId)
