@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -40,7 +40,12 @@ internal static class ExeTable
     /// <param name="gameDirectory">게임 폴더. 비어 있어도 적어 둔 것이 있으면 열린다.</param>
     /// <param name="read">EXE 에서 표를 읽어 내는 일.</param>
     /// <param name="error">못 열었을 때의 까닭. 열렸으면 빈 문자열.</param>
-    public static T? Open<T>(string name, string gameDirectory, Reader<T> read, out string error)
+    /// <param name="version">
+    /// 알맹이의 모양 판. 표에 칸을 더하면 이 값을 올린다 — 옛 모양으로 적어 둔 파일을
+    /// 버리고 다시 굽게 하는 표다.
+    /// </param>
+    public static T? Open<T>(string name, string gameDirectory, Reader<T> read, out string error,
+                             int version = 1)
         where T : class
     {
         error = "";
@@ -55,9 +60,14 @@ internal static class ExeTable
         // 파일에는 없고, 도장이 같으면 다시 구울 일이 없어 영영 안 채워진다 — 그러면
         // 게임데이터 창이 어디서 온 표인지 끝내 못 보여 준다. EXE 가 없을 때는 채울 길이
         // 없으므로 그냥 쓴다.
-        bool usable = cached != null
-                      && (stamp.Length == 0 || (cached.Stamp == stamp && cached.Source.Length > 0));
+        // 모양 판이 다르면 도장이 같아도 못 쓴다 — 새 칸이 비어 들어온다.
+        bool sameShape = cached != null && cached.Version == version;
+        bool usable = sameShape
+                      && (stamp.Length == 0 || (cached!.Stamp == stamp && cached.Source.Length > 0));
         if (usable) return cached!.Data;
+
+        // 모양이 다른데 EXE 도 없으면 어쩔 수 없다 — 옛 것이라도 없는 것보다는 낫다.
+        if (!sameShape && cached != null && stamp.Length == 0) return cached.Data;
 
         if (stamp.Length == 0)
         {
@@ -78,7 +88,7 @@ internal static class ExeTable
             return null;
         }
 
-        TableCache.Write(name, new TableCache.Cached<T>(stamp, fresh, ExeName));
+        TableCache.Write(name, new TableCache.Cached<T>(stamp, fresh, ExeName, version));
         return fresh;
     }
 

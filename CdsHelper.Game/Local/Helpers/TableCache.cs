@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -52,7 +52,16 @@ internal static class TableCache
     /// 어디서 구웠는지("CDS_95.EXE", "cdshelper.db" …). 게임데이터 창이 이것을 보여 준다.
     /// 뒤에 붙인 항목이라 기본값을 둔다 — 이것이 없던 때 적어 둔 파일도 그대로 읽힌다.
     /// </param>
-    public sealed record Cached<T>(string Stamp, T Data, string Source = "") where T : class;
+    /// <param name="Version">
+    /// 알맹이의 <b>모양</b> 판. 표에 칸을 더하면 부르는 쪽이 이 값을 올린다 — 그러면 옛
+    /// 모양으로 적어 둔 파일은 버리고 다시 굽는다.
+    /// <para>
+    /// 이것이 없으면 칸을 더해도 도장(EXE 크기·고친 때)이 그대로라 옛 파일을 계속 쓰게 되고,
+    /// 새 칸이 비어 들어와 엉뚱한 자리에서 터진다.
+    /// </para>
+    /// </param>
+    public sealed record Cached<T>(string Stamp, T Data, string Source = "", int Version = 1)
+        where T : class;
 
     /// <summary>적어 둔 것을 읽는다. 없거나 깨졌으면 null.</summary>
     public static Cached<T>? Read<T>(string name) where T : class
