@@ -160,6 +160,15 @@ public sealed class Player
     public bool CanAfford(int price) => Gold >= price;
 
     /// <summary>
+    /// 돈을 받는다(매각·사례). 소지금은 <see cref="int"/> 를 넘지 않게 잘린다.
+    /// </summary>
+    public void Earn(int amount)
+    {
+        if (amount <= 0) return;
+        Gold = (int)Math.Min(int.MaxValue, (long)Gold + amount);
+    }
+
+    /// <summary>
     /// 아이템을 산다. 값을 치르고 소지품에 넣는다. 돈이 모자라면 아무것도 하지 않는다.
     /// </summary>
     /// <remarks>
