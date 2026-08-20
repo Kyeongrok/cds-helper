@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -33,11 +33,8 @@ public sealed class BelongingsDialog : Window
     /// <summary>고른 줄에 씌우는 남색. 시장 목록과 같은 색이다.</summary>
     private static readonly Brush Picked = Freeze(Color.FromRgb(0x3A, 0x5A, 0x9A));
 
-    /// <summary>양피지 위에 얹는 검은 글씨.</summary>
+    /// <summary>글꼴을 못 읽었을 때 물러설 글씨색.</summary>
     private static readonly Brush Ink = Freeze(Color.FromRgb(0x20, 0x18, 0x10));
-
-    /// <summary>고른 줄의 글씨. 남색 위라 밝게 뒤집는다.</summary>
-    private static readonly Brush InkPicked = Freeze(Color.FromRgb(0xF2, 0xEA, 0xD6));
 
     private static SolidColorBrush Freeze(Color c)
     {
@@ -50,8 +47,8 @@ public sealed class BelongingsDialog : Window
     private readonly ItemDescriptions? _descriptions;
     private readonly ItemArt? _art;
 
-    private readonly List<(int ItemId, Border Row, TextBlock Text)> _rows = [];
-    private readonly Border _decide;
+    private readonly List<(int ItemId, Border Row, string Name)> _rows = [];
+    private readonly GameUi.BandButton _decide;
     private int _at = -1;
 
     private BelongingsDialog(Player player, ItemTable? items,
@@ -70,7 +67,7 @@ public sealed class BelongingsDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.PageFill;
 
-        var columns = new Grid { Margin = new Thickness(6, 4, 6, 4) };
+        var columns = new Grid { Margin = new Thickness(2, 2, 2, 2) };
         columns.ColumnDefinitions.Add(new ColumnDefinition());
         columns.ColumnDefinitions.Add(new ColumnDefinition());
 
@@ -99,8 +96,7 @@ public sealed class BelongingsDialog : Window
                 Margin = new Thickness(6, 8, 6, 6),
             });
 
-        _decide = GameUi.PushButton("결정", Decide, 130);
-        SetDecideEnabled(false);
+        _decide = new GameUi.BandButton("결정", Decide, 130) { On = false };
 
         var buttons = new StackPanel
         {
@@ -109,7 +105,7 @@ public sealed class BelongingsDialog : Window
             Margin = new Thickness(0, 4, 0, 12),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(GameUi.PushButton("중단", Close, 130));
+        buttons.Children.Add(new GameUi.BandButton("중단", Close, 130));
 
         var root = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(buttons, Dock.Bottom);
@@ -137,7 +133,7 @@ public sealed class BelongingsDialog : Window
     /// <summary>제목 띠 하나와 그 밑의 줄 칸.</summary>
     private static FrameworkElement Column(string title, out StackPanel list)
     {
-        list = new StackPanel { Margin = new Thickness(4, 2, 4, 2) };
+        list = new StackPanel { Margin = new Thickness(4, 4, 4, 2) };
 
         // 원본 조각을 못 읽었으면 띠 대신 글자만 낸다.
         FrameworkElement head = GameUi.TitleFrame(GameUi.Sprites, title) ?? new Border
@@ -163,7 +159,7 @@ public sealed class BelongingsDialog : Window
             Content = list,
         };
 
-        var panel = new DockPanel { LastChildFill = true, Margin = new Thickness(2, 0, 2, 0) };
+        var panel = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(head, Dock.Top);
         panel.Children.Add(head);
         panel.Children.Add(scroll);
@@ -171,23 +167,16 @@ public sealed class BelongingsDialog : Window
     }
 
     /// <summary>줄 하나 — 아이템 이름.</summary>
-    private (int ItemId, Border Row, TextBlock Text) Row(int itemId)
+    private (int ItemId, Border Row, string Name) Row(int itemId)
     {
         string name = _items?.Find(itemId)?.Name ?? $"아이템 {itemId}";
-        var text = new TextBlock
-        {
-            Text = name,
-            Foreground = Ink,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            Margin = new Thickness(6, 0, 6, 0),
-        };
         var row = new Border
         {
             Background = Brushes.Transparent,
             Padding = new Thickness(0, 2, 0, 2),
             Cursor = Cursors.Hand,
-            Child = text,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = Label(name, picked: false),
         };
         row.MouseLeftButtonDown += (_, e) => e.Handled = true;
         row.MouseLeftButtonUp += (_, e) =>
@@ -195,7 +184,27 @@ public sealed class BelongingsDialog : Window
             e.Handled = true;
             Pick(_rows.FindIndex(r => ReferenceEquals(r.Row, row)));
         };
-        return (itemId, row, text);
+        return (itemId, row, name);
+    }
+
+    /// <summary>
+    /// 줄 글씨. 게임 비트맵 글꼴로 찍는다 — 윈도 글꼴은 같은 자리에서 더 크고 결이 다르다.
+    /// </summary>
+    /// <remarks>
+    /// 고른 줄은 남색 위라 글씨를 흰빛으로 뒤집는다. 색이 생길 때 정해지므로 고를 때마다
+    /// 새로 짓는다 — 한 번 고를 때 바뀌는 줄은 둘(놓은 줄과 잡은 줄)뿐이라 값싸다.
+    /// </remarks>
+    private static FrameworkElement Label(string name, bool picked)
+    {
+        var label = new GameUi.GameLabel(picked ? GameFont.WhiteColor : GameFont.ButtonColor)
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(6, 0, 6, 0),
+            Text = name,
+        };
+        // 글꼴을 못 읽었으면 GameLabel 이 윈도 글꼴로 물러선다. 그때 색을 맞춰 준다.
+        label.FallbackBrush = picked ? Brushes.White : Ink;
+        return label;
     }
 
     /// <summary>그 줄을 고른다.</summary>
@@ -207,17 +216,9 @@ public sealed class BelongingsDialog : Window
         {
             bool on = i == index;
             _rows[i].Row.Background = on ? Picked : Brushes.Transparent;
-            _rows[i].Text.Foreground = on ? InkPicked : Ink;
+            _rows[i].Row.Child = Label(_rows[i].Name, on);
         }
-        SetDecideEnabled(true);
-    }
-
-    /// <summary>"결정" 을 켜고 끈다. 게임도 아무것도 안 고른 동안은 흐리다.</summary>
-    private void SetDecideEnabled(bool on)
-    {
-        _decide.IsEnabled = on;
-        _decide.Opacity = on ? 1.0 : 0.45;
-        _decide.Cursor = on ? Cursors.Hand : Cursors.Arrow;
+        _decide.On = true;      // 게임도 아무것도 안 고른 동안은 이 단추가 흐리다
     }
 
     private void OnKey(object sender, KeyEventArgs e)

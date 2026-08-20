@@ -239,6 +239,55 @@ internal static class GameUi
     }
 
     /// <summary>
+    /// 게임 띠로 그린 단추. 켜고 끌 수 있다 — 끄면 게임처럼 글자가 회색이 된다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PushButton"/> 은 민색 네모라 게임 화면과 안 맞는다. 이쪽은 원본 띠 그림을
+    /// 깔아 <see cref="MenuItem(string, Action?, BandStyle)"/> 와 같은 모습으로 낸다.
+    ///
+    /// 켜고 끌 때 글자만 갈아 끼우지 않고 <b>속을 통째로 다시 짓는다</b>. 칸의 속 모양이
+    /// 한 가지가 아니기 때문이다 — 원본 조각을 읽었으면 띠 그림 위에 비트맵 글씨를 얹은
+    /// <c>Grid</c> 가 들어 있고, 못 읽었을 때만 <c>TextBlock</c> 이다.
+    /// </remarks>
+    public sealed class BandButton : Border
+    {
+        private readonly string _text;
+        private readonly Action _run;
+        private readonly double _width;
+        private bool _on = true;
+
+        /// <param name="width">0 이면 글자 길이에 맞춘다.</param>
+        public BandButton(string text, Action run, double width = 0)
+        {
+            _text = text;
+            _run = run;
+            _width = width;
+            Margin = new Thickness(10, 0, 10, 0);
+            Build();
+        }
+
+        /// <summary>눌리게 할지. 끄면 글자가 회색이 되고 손 모양 커서도 사라진다.</summary>
+        public bool On
+        {
+            get => _on;
+            set
+            {
+                if (_on == value) return;
+                _on = value;
+                Build();
+            }
+        }
+
+        private void Build()
+        {
+            var item = MenuItem(_text, _on ? _run : null, BandStyle.Button);
+            if (_width > 0) item.Width = _width;
+            item.Margin = default;      // 바깥 여백은 이 감싸개가 든다
+            Child = item;
+        }
+    }
+
+    /// <summary>
     /// 제목 줄을 잡아 창을 옮길 수 있게 한다. 제목 줄이 없는 창(<c>WindowStyle.None</c>)이라
     /// 이렇게 붙여 줘야 옮길 데가 생긴다.
     /// </summary>
@@ -325,6 +374,21 @@ internal static class GameUi
         };
         private TextBlock? _fallback;
         private string _text = "";
+        private Brush _fallbackBrush = Brushes.Black;
+
+        /// <summary>
+        /// 게임 글꼴을 못 읽어 윈도 글꼴로 물러설 때의 글씨색. 어두운 바탕에 놓는 칸은
+        /// 검정으로 두면 안 보이므로 부르는 쪽이 맞춰 준다.
+        /// </summary>
+        public Brush FallbackBrush
+        {
+            get => _fallbackBrush;
+            set
+            {
+                _fallbackBrush = value;
+                if (_fallback != null) _fallback.Foreground = value;
+            }
+        }
 
         public GameLabel(byte color = GameFont.ButtonColor, int height = ItemTextHeight)
         {
@@ -368,7 +432,7 @@ internal static class GameUi
 
             _fallback ??= new TextBlock
             {
-                Foreground = Brushes.Black,
+                Foreground = _fallbackBrush,
                 FontWeight = FontWeights.Bold,
                 FontSize = 14,
                 VerticalAlignment = VerticalAlignment.Center,

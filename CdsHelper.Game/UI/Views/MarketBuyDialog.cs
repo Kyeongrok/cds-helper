@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -46,7 +46,7 @@ public sealed class MarketBuyDialog : Window
     private readonly int _cityId;
 
     private readonly List<(ItemTable.Record Item, Border Row)> _rows = [];
-    private readonly Border _decide;
+    private readonly GameUi.BandButton _decide;
     private int _at = -1;
 
     private MarketBuyDialog(Player player, Market market, int cityId,
@@ -84,8 +84,7 @@ public sealed class MarketBuyDialog : Window
                 HorizontalAlignment = HorizontalAlignment.Center,
             });
 
-        _decide = GameUi.PushButton("결정", Decide, 110);
-        SetDecideEnabled(false);
+        _decide = new GameUi.BandButton("결정", Decide, 110) { On = false };
 
         var buttons = new StackPanel
         {
@@ -94,7 +93,7 @@ public sealed class MarketBuyDialog : Window
             Margin = new Thickness(0, 4, 0, 12),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(GameUi.PushButton("중단", Close, 110));
+        buttons.Children.Add(new GameUi.BandButton("중단", Close, 110));
 
         var title = GameUi.TitleBar("구입 아이템 선택", Close);
         GameUi.EnableDrag(this, title);
@@ -116,44 +115,20 @@ public sealed class MarketBuyDialog : Window
         KeyDown += OnKey;
     }
 
-    /// <summary>줄 하나 — 이름, (갈래), 값.</summary>
+    /// <summary>줄 하나 — 이름, (갈래), 값. 글씨는 게임 비트맵 글꼴로 찍는다.</summary>
     private Border Row(ItemTable.Record item)
     {
         var line = new DockPanel { LastChildFill = true };
 
-        var price = new TextBlock
-        {
-            Text = $"{_market.PriceOf(item, _cityId)}",
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            Margin = new Thickness(12, 0, 10, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+        var price = Label($"{_market.PriceOf(item, _cityId)}", new Thickness(12, 0, 10, 0));
         DockPanel.SetDock(price, Dock.Right);
         line.Children.Add(price);
 
-        var kind = new TextBlock
-        {
-            Text = $"({item.CategoryName})",
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            Margin = new Thickness(12, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+        var kind = Label($"({item.CategoryName})", new Thickness(12, 0, 0, 0));
         DockPanel.SetDock(kind, Dock.Right);
         line.Children.Add(kind);
 
-        line.Children.Add(new TextBlock
-        {
-            Text = item.Name,
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            Margin = new Thickness(10, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        line.Children.Add(Label(item.Name, new Thickness(10, 0, 0, 0)));
 
         var row = new Border
         {
@@ -171,6 +146,15 @@ public sealed class MarketBuyDialog : Window
         return row;
     }
 
+    /// <summary>줄에 얹는 글씨. 게임 비트맵 글꼴이고, 못 읽었으면 윈도 글꼴로 물러선다.</summary>
+    private static FrameworkElement Label(string text, Thickness margin) =>
+        new GameUi.GameLabel(GameFont.ButtonColor)
+        {
+            Margin = margin,
+            FallbackBrush = GameUi.Text,
+            Text = text,
+        };
+
     /// <summary>그 줄을 고른다. 고른 줄만 남색이 씌워지고 "결정" 이 살아난다.</summary>
     private void Pick(int index)
     {
@@ -178,17 +162,7 @@ public sealed class MarketBuyDialog : Window
         _at = index;
         for (int i = 0; i < _rows.Count; i++)
             _rows[i].Row.Background = i == index ? Picked : Brushes.Transparent;
-        SetDecideEnabled(true);
-    }
-
-    /// <summary>
-    /// "결정" 을 켜고 끈다. 게임도 아무것도 안 고른 동안은 이 단추가 흐리다.
-    /// </summary>
-    private void SetDecideEnabled(bool on)
-    {
-        _decide.IsEnabled = on;
-        _decide.Opacity = on ? 1.0 : 0.45;
-        _decide.Cursor = on ? Cursors.Hand : Cursors.Arrow;
+        _decide.On = true;      // 게임도 아무것도 안 고른 동안은 이 단추가 흐리다
     }
 
     private void OnKey(object sender, KeyEventArgs e)
