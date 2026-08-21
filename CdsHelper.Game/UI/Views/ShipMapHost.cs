@@ -111,6 +111,34 @@ public sealed class ShipMapHost : HwndHost
 
     private double _tickAccum;
 
+    /// <summary>바람·해류 표. 못 열면 물결도 화살표도 안 나온다(지도는 그대로 돈다).</summary>
+    private WindTable? _wind;
+
+    /// <summary>물결이 흐른 틱 수. 게임의 <c>0x00569554</c> 자리다.</summary>
+    private int _rippleTick;
+    private double _rippleAccum;
+
+    /// <summary>화살표 격자를 구운 달. 달이 바뀌면 바람 표가 갈리므로 다시 굽는다.</summary>
+    private int _flowMonth = -1;
+
+    /// <summary>지금 달을 알려 주는 이. 안 주면 4월로 본다(놀이 시작 달).</summary>
+    public Func<int>? MonthOf { get; set; }
+
+    /// <summary>
+    /// 바람·해류 화살표를 지도에 얹을지. 게임에는 없는 것이라 커맨드 창에서 끄고 켠다.
+    /// 물결은 이것과 상관없이 늘 흐른다 — 그쪽이 원본 모습이다.
+    /// </summary>
+    public bool ShowFlowArrows
+    {
+        get => _renderer.ShowArrows;
+        set
+        {
+            if (_renderer.ShowArrows == value) return;
+            _renderer.ShowArrows = value;
+            _dirty = true;
+        }
+    }
+
     // 마지막 프레임의 화면 원점. 클릭한 자리를 칸으로 되돌릴 때 쓴다.
     private (double X, double Y) _lastOrigin;
     private double _lastDpiX = 1, _lastDpiY = 1;
@@ -180,6 +208,9 @@ public sealed class ShipMapHost : HwndHost
     // 지난번에 실제로 그려 낸 값. 그대로면 이번 프레임은 건너뛴다.
     private (double X, double Y) _drawnOrigin;
     private (float X, float Y, float W, float H) _drawnShip, _drawnAnchor;
+
+    /// <summary>지난 프레임에 그린 물결 무늬 자리. 이것이 그대로면 다시 그릴 것이 없다.</summary>
+    private int _drawnFlow = -1;
 
     /// <summary>다음 프레임은 값이 같아도 반드시 그려야 하는지. 창 크기·그림이 바뀌면 선다.</summary>
     private bool _dirty = true;
@@ -284,6 +315,13 @@ public sealed class ShipMapHost : HwndHost
         _renderer.Initialize(world, ocean);
         _renderer.SetOverlay(AnchorSprite.Pixels);   // 정박했을 때만 꺼내 쓴다
 
+        // 바람·해류. 못 열어도 지도는 그대로 돈다 — 물결이 안 일고 화살표가 안 나올 뿐이다.
+        _wind = WindTable.Open(gameDir);
+        if (_wind == null)
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 바람표 없음: {WindTable.LastError}");
+        else
+            _renderer.SetRippleTiles(_wind.BuildRippleTiles(_terrain));
+
         // 배는 리스본 앞바다에서 시작한다.
         var (sx, sy) = LisbonStart();
         _shipX = _targetX = sx;
@@ -373,6 +411,8 @@ public sealed class ShipMapHost : HwndHost
         double dt = Math.Min((now - _lastFrame).TotalSeconds, 0.1);   // 창이 멈췄다 살아나도 튀지 않게
         _lastFrame = now;
 
+        int flowKey = UpdateFlow(dt);
+
         // 커서를 칸 좌표로 옮기려면 이번 프레임의 원점이 필요하다. 배를 옮기기 전 값으로 잡는다.
         var origin = (_centerX - w / 2.0 * _cellsPerPixel, _centerY - h / 2.0 * _cellsPerPixel);
         _lastOrigin = origin;
@@ -406,16 +446,100 @@ public sealed class ShipMapHost : HwndHost
 
         // 지난 프레임과 똑같으면 그리지 않는다. 배는 0.1초에 한 걸음씩 옮기고 지도는
         // 가장자리에 닿아야 넘어가므로, 60fps 로 도는 동안 거의 다 같은 그림이다.
-        if (!_dirty && origin == _drawnOrigin && rect == _drawnShip && anchor == _drawnAnchor) return;
+        if (!_dirty && origin == _drawnOrigin && rect == _drawnShip && anchor == _drawnAnchor
+            && flowKey == _drawnFlow) return;
 
         _renderer.RenderTo(_backBufferView, w, h, origin, (_cellsPerPixel, _cellsPerPixel), rect, anchor);
         _swapChain!.Present(1, PresentFlags.None);
         _drawnOrigin = origin;
         _drawnShip = rect;
         _drawnAnchor = anchor;
+        _drawnFlow = flowKey;
         _dirty = false;
         FrameCount++;
     }
+
+    /// <summary>표를 못 열었을 때 볼 달. 놀이가 시작하는 달이다.</summary>
+    private const int DefaultMonth = 4;
+
+    /// <summary>
+    /// 물결과 화살표 자료를 이번 프레임 것으로 맞춘다. 돌려주는 값은 <b>물결 무늬가 선 자리</b>라,
+    /// 이것이 지난 프레임과 같으면 다시 그릴 것이 없다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 항해 루프를 한 번 돌 때마다 틱을 하나 올린다(<c>0x0048EF82</c>). 여기서도 한
+    /// 걸음(<see cref="TickSeconds"/>)과 같은 길이로 올린다 — 60fps 로 올리면 물결이 게임보다
+    /// 여섯 배 빨리 흐르고, 프레임마다 지도를 다시 그리게 된다.
+    ///
+    /// 무늬는 <c>세기 x 틱 x 16 / 64</c> 만큼 흐르므로 세기가 1 이면 네 틱에 한 칸이다.
+    /// 그 몫이 바뀔 때만 다시 그린다.
+    /// </remarks>
+    private int UpdateFlow(double dt)
+    {
+        if (_wind == null) return 0;
+
+        _rippleAccum += dt;
+        while (_rippleAccum >= TickSeconds) { _rippleAccum -= TickSeconds; _rippleTick++; }
+
+        int month = MonthOf?.Invoke() ?? DefaultMonth;
+        if (month != _flowMonth) { _flowMonth = month; RefreshFlowGrid(month); }
+
+        // 게임은 함대가 선 칸의 해류 하나로 화면 전체를 흘린다. 여기서도 그대로 한다.
+        int cell = WindTable.CellOf((int)(_shipX * OceanTiles.TileW), (int)(_shipY * OceanTiles.TileW));
+        var flow = cell < 0 ? default : _wind.CurrentAt(cell);
+        var (dx, dy) = _wind.Vector(flow.Dir);
+        _renderer.Ripple = (dx, dy, flow.Speed, _rippleTick);
+
+        return (flow.Dir << 26) | (flow.Speed << 22) | ((flow.Speed * _rippleTick / 4) & 0x3FFFFF);
+    }
+
+    /// <summary>
+    /// 화살표가 읽을 50x25 격자를 굽는다. 달이 바뀔 때만 부른다.
+    /// </summary>
+    /// <remarks>
+    /// 표에는 뭍 칸에도 값이 들어 있다 — 격자 한 칸이 지도 50x50 칸(경위도 7.2도)이라
+    /// 대륙 한가운데도 제 방위를 갖는다. 그대로 그리면 아메리카 복판에 바람 화살표가 뜬다.
+    /// 배가 갈 데가 아니니 <b>물이 넉넉한 칸만</b> 남긴다.
+    /// </remarks>
+    private void RefreshFlowGrid(int month)
+    {
+        if (_wind == null) return;
+        var grid = new uint[WindTable.Count];
+        for (int i = 0; i < WindTable.Count; i++)
+        {
+            if (!WorthDrawing(i)) continue;   // 0 이면 세기가 0 이라 셰이더가 안 그린다
+            grid[i] = Pack(_wind.WindAt(i, month)) | (Pack(_wind.CurrentAt(i)) << 16);
+        }
+        _renderer.SetFlowGrid(grid);
+        _dirty = true;
+    }
+
+    /// <summary>격자 한 칸에서 물이 이만큼은 돼야 화살표를 그린다.</summary>
+    private const double ArrowMinWaterRatio = 0.25;
+
+    /// <summary>격자 한 칸을 몇 칸 걸러 재는지. 50x50 을 다 보지 않아도 비율은 나온다.</summary>
+    private const int ArrowProbeStep = 5;
+
+    private bool WorthDrawing(int flowCell)
+    {
+        if (_world == null || _terrain == null) return true;   // 못 재면 다 그린다
+
+        int cellsPerSide = WindTable.CellRaw / OceanTiles.TileW;    // 800 / 16 = 50
+        int x0 = flowCell % WindTable.Cols * cellsPerSide;
+        int y0 = flowCell / WindTable.Cols * cellsPerSide;
+
+        int water = 0, total = 0;
+        for (int y = 0; y < cellsPerSide; y += ArrowProbeStep)
+            for (int x = 0; x < cellsPerSide; x += ArrowProbeStep)
+            {
+                total++;
+                if (_terrain.CanSail(_world[RawAt(x0 + x, y0 + y).Offset])) water++;
+            }
+        return water >= total * ArrowMinWaterRatio;
+    }
+
+    /// <summary>화살표가 읽는 낱말. 방위와 세기를 게임 표와 같은 자리에 넣는다.</summary>
+    private static uint Pack(WindTable.Flow f) => (uint)(f.Dir | (f.Speed << 4));
 
     /// <summary>
     /// 배가 화면 가장자리 <see cref="EdgeMarginPixels"/> 점 안에 들어왔으면 화면을 다음

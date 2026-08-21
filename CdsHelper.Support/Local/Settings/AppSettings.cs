@@ -33,6 +33,9 @@ public class AppSettingsData
 
     /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>
     public bool ShowToolBar { get; set; } = true;
+
+    /// <summary>지도 위에 바람·해류 화살표를 얹을지. 함대 창 커맨드에서 켜고 끈다.</summary>
+    public bool ShowFlowArrows { get; set; }
     public RerollOptions Reroll { get; set; } = new();
 }
 
@@ -110,6 +113,7 @@ public static class AppSettings
     private static CityOpenEffect _cityOpenEffect = Settings.CityOpenEffect.Expand;
     private static bool _showCoordOverlay = true;
     private static bool _showToolBar = true;
+    private static bool _showFlowArrows;
     private static RerollOptions _reroll = new();
 
     static AppSettings()
@@ -272,6 +276,21 @@ public static class AppSettings
         }
     }
 
+    /// <summary>
+    /// 지도 위 바람·해류 화살표를 켜 둘지. 게임에는 없는 것이라 기본은 끔이다 —
+    /// 원본은 화살표 대신 물결이 흐르는 것으로 해류를 보인다.
+    /// </summary>
+    public static bool ShowFlowArrows
+    {
+        get => _showFlowArrows;
+        set
+        {
+            _showFlowArrows = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -310,6 +329,7 @@ public static class AppSettings
                         ? eff : Settings.CityOpenEffect.Expand;
                     _showCoordOverlay = data.ShowCoordOverlay;
                     _showToolBar = data.ShowToolBar;
+                    _showFlowArrows = data.ShowFlowArrows;
                     _reroll = data.Reroll ?? new();
                 }
             }
@@ -344,6 +364,7 @@ public static class AppSettings
                 CityOpenEffect = _cityOpenEffect.ToString(),
                 ShowCoordOverlay = _showCoordOverlay,
                 ShowToolBar = _showToolBar,
+                ShowFlowArrows = _showFlowArrows,
                 Reroll = _reroll
             };
 
