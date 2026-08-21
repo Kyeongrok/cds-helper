@@ -343,22 +343,11 @@ public sealed class ShipMapWindow : Window
 
         PreviewKeyDown += OnTitleKey;   // 타이틀에서만 먹는다(그 안에서 화면을 본다)
         input.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(input));
-        // 왼쪽 끌기는 배 조종에 양보하고, 지도 밀기는 오른쪽 끌기로 옮겼다.
-        // 오른쪽 단추는 둘을 겸한다 — 끌면 지도 밀기, 움직이지 않고 떼면 커맨드 메뉴.
-        Point rightDownAt = default;
-        input.MouseRightButtonDown += (_, e) =>
-        {
-            rightDownAt = e.GetPosition(input);
-            _host.BeginDrag(rightDownAt);
-            input.CaptureMouse();
-        };
+        // 오른쪽 단추는 커맨드 창만 낸다. 예전에는 끌면 지도가 밀렸는데, 게임에 없는
+        // 조작인 데다 커맨드를 내려다 손이 조금만 흔들려도 지도가 밀려 걷어냈다.
         input.MouseRightButtonUp += (_, e) =>
         {
-            _host.EndDrag();
-            input.ReleaseMouseCapture();
-            var up = e.GetPosition(input);
-            bool moved = Math.Abs(up.X - rightDownAt.X) > 3 || Math.Abs(up.Y - rightDownAt.Y) > 3;
-            if (moved) { follow.IsChecked = false; return; }   // 끈 것이면 메뉴를 안 띄운다
+            e.Handled = true;
             // 도시 안에서는 함대 커맨드 창을 안 낸다 — 도시 화면이 제 커맨드 창을 따로 낸다.
             if (_host.SeaBlocked) return;
             ShowCommandMenu(input);
@@ -378,7 +367,7 @@ public sealed class ShipMapWindow : Window
             // 내릴 때도 올릴 때도 같은 소리가 난다.
             if (_bgm.Enabled) _sfx?.Play(SoundBank.AnchorPart);
         };
-        input.MouseMove += (_, e) => { var p = e.GetPosition(input); _host.SetMouse(p, true); _host.Drag(p); };
+        input.MouseMove += (_, e) => _host.SetMouse(e.GetPosition(input), true);
         input.MouseLeave += (_, _) => _host.SetMouse(default, false);
 
         _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), () =>
@@ -398,6 +387,7 @@ public sealed class ShipMapWindow : Window
             _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
             _cityLabel.Text = _player.CityName.Length > 0 ? _player.CityName : "—";
             if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
+            SyncSeaMusic();
         });
         Loaded += OnLoaded;
 
@@ -507,6 +497,22 @@ public sealed class ShipMapWindow : Window
         var p = Mouse.GetPosition(_input);
         bool inside = p.X >= 0 && p.Y >= 0 && p.X < _input.ActualWidth && p.Y < _input.ActualHeight;
         _host.SetMouse(p, inside);
+    }
+
+    /// <summary>
+    /// 해상에서 자리에 맞는 곡으로 갈아탄다. <b>지금 곡이 끝난 뒤에</b> 바뀐다 —
+    /// 게임도 이 갈래에서만 그렇게 한다(<see cref="BgmPlayer.PlayWhenDone"/>).
+    /// </summary>
+    /// <remarks>
+    /// 도시에 들어가 있거나 뭍에 올라 있으면 손대지 않는다 — 그때는 도시 곡·말 곡이 돈다.
+    /// 멈춰 있을 때(커맨드 창)도 그대로 둔다.
+    /// </remarks>
+    private void SyncSeaMusic()
+    {
+        if (!_started || _host.SeaBlocked || _host.IsOnLand || _host.Paused) return;
+        if (_host.ShipCell is not { } cell) return;
+
+        _bgm.PlayWhenDone(BgmPlayer.SeaTrackAt(cell.X, cell.Y));
     }
 
     /// <summary>좌표 상자를 띄울 때인지 다시 따진다 — 켜 두었고, 지도가 떠 있고, 이 창이 앞일 때만.</summary>

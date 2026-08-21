@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -37,7 +37,7 @@ namespace CdsHelper.Game.UI.Views;
 public sealed class CityInfoDialog : Window
 {
     /// <summary>게임 화면에서 뽑은 남회색 바탕. 아이템 창과 같다.</summary>
-    private static readonly Brush Back = Freeze(Color.FromRgb(0x58, 0x60, 0x78));
+    private static readonly Brush Back = GameUi.InfoBack;
     private static readonly Brush Ink = Freeze(Color.FromRgb(0x10, 0x10, 0x18));
 
     /// <summary>규모 막대 — 찬 쪽은 붉고 빈 쪽은 검다. 게임 화면에서 뽑았다.</summary>
@@ -45,7 +45,11 @@ public sealed class CityInfoDialog : Window
     private static readonly Brush BarEmpty = Freeze(Color.FromRgb(0x10, 0x10, 0x10));
 
     /// <summary>규모가 다 찼을 때의 값. 막대를 이 값에 맞춰 채운다.</summary>
-    private const int MaxScale = 8;
+    /// <remarks>
+    /// EXE 도시 표의 규모가 0~7 이다. 게임 화면(런던, 규모 5)에서 막대를 재니 붉은 칸이
+    /// 전체의 71% 였다 — 5/7 이지 5/8 이 아니다.
+    /// </remarks>
+    private const int MaxScale = 7;
 
     /// <summary>아직 흉내내지 않는 줄. 게임은 놀이 중에 바뀐다.</summary>
     private const string DefaultState = "통상";
@@ -126,7 +130,7 @@ public sealed class CityInfoDialog : Window
         stack.Children.Add(top);
         stack.Children.Add(rows);
         stack.Children.Add(cancel);
-        Content = stack;
+        Content = GameUi.InfoFrame(stack, Back);
 
         GameUi.EnableDrag(this, top);
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
