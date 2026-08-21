@@ -19,8 +19,8 @@ public class AppSettingsData
     public WorldMapOptions WorldMap { get; set; } = new();
     public bool AutoConfirmDialog { get; set; } = true;
 
-    /// <summary>앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지.</summary>
-    public bool AutoOpenShipMap { get; set; }
+    /// <summary>앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지. 기본은 켬.</summary>
+    public bool AutoOpenShipMap { get; set; } = true;
 
     /// <summary>함대 창에서 배경음악을 틀지. 기본은 켬.</summary>
     public bool BgmEnabled { get; set; } = true;
@@ -105,7 +105,7 @@ public static class AppSettings
     private static string _trailDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trails");
     private static WorldMapOptions _worldMap = new();
     private static bool _autoConfirmDialog = true;
-    private static bool _autoOpenShipMap;
+    private static bool _autoOpenShipMap = true;
     private static bool _bgmEnabled = true;
     private static CityOpenEffect _cityOpenEffect = Settings.CityOpenEffect.Expand;
     private static bool _showCoordOverlay = true;
@@ -209,7 +209,9 @@ public static class AppSettings
     }
 
     /// <summary>
-    /// 앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지. 기본은 끔.
+    /// 앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지. 기본은 <b>켬</b>이다 — 이 앱이
+    /// 하는 일이 곧 그 창이라, 켤 때마다 메뉴에서 한 번 더 누르게 할 까닭이 없다.
+    /// 이미 설정을 적어 둔 사람은 적힌 값을 그대로 따른다(없는 칸만 이 기본값이 든다).
     /// </summary>
     public static bool AutoOpenShipMap
     {
