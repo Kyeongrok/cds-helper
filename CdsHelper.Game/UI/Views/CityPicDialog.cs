@@ -383,7 +383,7 @@ public sealed class CityPicDialog : Window
         spot.MouseLeftButtonUp += (_, e) =>
         {
             e.Handled = true;
-            PlayFameCheck(building, a);
+            PlayFameCheck(building);
             Greet(facility);
             ShowPhoto(facility.Kind, building.Code);
             // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
@@ -419,7 +419,7 @@ public sealed class CityPicDialog : Window
     /// 계약을 이미 맺은 뒤에는 게임도 관문을 건너뛰므로 여기서도 안 돈다 — 그 자리는
     /// <see cref="Patron"/> 쪽에 아직 없어 후원자가 앉아 있기만 하면 돈다.
     /// </remarks>
-    private void PlayFameCheck(CityBuildingTable.Building building, Rect area)
+    private void PlayFameCheck(CityBuildingTable.Building building)
     {
         if (_playing) return;                       // 도는 동안 또 누르면 겹친다
 
@@ -433,10 +433,10 @@ public sealed class CityPicDialog : Window
         var image = new Image { Width = side, Height = side, Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
-        Canvas.SetLeft(image, Math.Clamp((area.X + area.Width / 2) * _scale - side / 2,
-                                         0, CityPictures.Width * _scale - side));
-        Canvas.SetTop(image, Math.Clamp((area.Y + area.Height / 2) * _scale - side / 2,
-                                        0, CityPictures.Height * _scale - side));
+        // 그림 한가운데에 놓는다. 예전에는 누른 건물 위에 놓았는데, 건물이 구석에 있으면
+        // 애니메이션도 구석으로 밀려 났다 — 게임은 늘 화면 가운데에서 돈다.
+        Canvas.SetLeft(image, (CityPictures.Width * _scale - side) / 2);
+        Canvas.SetTop(image, (CityPictures.Height * _scale - side) / 2);
         Panel.SetZIndex(image, 30);
         _layer.Children.Add(image);
 
@@ -718,6 +718,12 @@ public sealed class CityPicDialog : Window
     /// </summary>
     private void Hire(TavernRoster.Person who, uint[]? face)
     {
+        if (_player.HasMate(who.Name))
+        {
+            TalkDialog.Say(this, face, "", $"{who.Name}{Subject(who.Name)} 이미 자네 사람이 아닌가.");
+            return;
+        }
+
         if (_player.MateCount >= Player.MaxMates)
         {
             TalkDialog.Say(this, face, "", "자네 배에는 이미 사람이 넘치지 않는가.");
@@ -729,10 +735,39 @@ public sealed class CityPicDialog : Window
             TalkDialog.Say(this, face, "", "자네 이름은 들어 본 적이 없군. 더 이름을 알리고 오게.");
             return;
         }
+
+        int slot = AskMateSlot(face);
+        if (slot < 0) return;                       // 물렀다
+
+        _player.SetMate(slot, who.Name);
         TalkDialog.Say(this, face, "",
-                       _player.Hire(who.Name)
-                           ? $"좋네. {who.Name}, 자네와 함께 가지."
-                           : $"{who.Name}{Subject(who.Name)} 이미 자네 사람이 아닌가.");
+                       $"좋네. {Player.MateRoles[slot]}(으)로서 자네와 함께 가지.");
+    }
+
+    /// <summary>
+    /// 어느 자리에 앉힐지 묻는다. <b>빈 자리만</b> 내놓는다 — 찬 자리를 고르게 두면 있던
+    /// 사람을 말없이 내보내게 된다. 물렀으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 자리는 <see cref="Player.MateRoles"/> — 부관·항해사·측량사·통역 넷이다. 앉힌 뒤에
+    /// 자리를 바꾸는 것은 여관·술집의 "부하편성" 창(<see cref="MateRosterDialog"/>)이 맡는다.
+    ///
+    /// 고르는 단추는 폭이 정해져 있어(<c>110</c>) 자리 이름만 넣는다. 누가 어디 앉아 있는지는
+    /// 부하편성 창에서 본다.
+    /// </remarks>
+    private int AskMateSlot(uint[]? face)
+    {
+        var open = new List<int>();
+        for (int i = 0; i < Player.MaxMates; i++)
+            if (_player.MateAt(i).Length == 0) open.Add(i);
+        if (open.Count == 0) return -1;
+
+        var choices = new string[open.Count + 1];
+        for (int i = 0; i < open.Count; i++) choices[i] = Player.MateRoles[open[i]];
+        choices[^1] = "그만둔다";
+
+        int picked = TalkDialog.Ask(this, face, "", "어느 자리에 앉히겠나?", choices);
+        return picked >= 0 && picked < open.Count ? open[picked] : -1;
     }
 
     /// <summary>이름 뒤에 붙는 주격 조사. 받침이 있으면 "이", 없으면 "가".</summary>
@@ -817,8 +852,10 @@ public sealed class CityPicDialog : Window
         double x = (area.X + area.Width / 2) * scale - w / 2;
         Canvas.SetLeft(tag, Math.Clamp(x, 0, Math.Max(0, CityPictures.Width * scale - w)));
 
-        double y = area.Y * scale - h - 2;
-        Canvas.SetTop(tag, y >= 0 ? y : (area.Y + area.Height) * scale + 2);
+        // 게임은 이름표를 건물 <b>아래</b>에 붙인다. 그림 밑단을 넘칠 때만 위로 올린다.
+        double below = (area.Y + area.Height) * scale + 2;
+        double bottom = CityPictures.Height * scale;
+        Canvas.SetTop(tag, below + h <= bottom ? below : Math.Max(0, area.Y * scale - h - 2));
     }
 
     /// <summary>지금 열린 시설 명령 창. 그림 안이 아니라 그림 옆에 제 창으로 뜬다.</summary>
@@ -868,6 +905,14 @@ public sealed class CityPicDialog : Window
     /// 시설에서 "기능" 을 골랐을 때 뜨는 창. 제목이 없고 줄만 넷이다 —
     /// 게임 재개를 고르면 하던 화면으로 돌아간다. 저장·로드는 아직 흉내내지 않는다.
     /// </summary>
+    /// <summary>
+    /// 함대편성 창. 게임처럼 제목 없이 줄만 쌓고, 마지막 줄만 회녹색 띠가 된다.
+    /// "편성 종료" 를 누르면 항구 창으로 되돌아간다 — 창을 닫는 것이 아니라 담긴 것만 갈린다.
+    /// </summary>
+    private Border FleetMenu(Func<Border> back) => GameUi.MenuBox(
+        [.. Facility.FleetMenu.Select(item =>
+            (item, item == Facility.FleetExit ? (Action?)(() => ShowMenu(back())) : null))]);
+
     private Border SystemMenu() => GameUi.MenuBox(
         [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
 
@@ -1060,7 +1105,7 @@ public sealed class CityPicDialog : Window
         if (_player.Fame < patron.Fame)
         {
             // 문 앞에서 돌려보낼 때 소리가 한 번 난다(닻 소리와 같은 파트다).
-            if (_bgm?.Enabled ?? false) SoundBank.Shared(_gameDirectory)?.Play(SoundBank.TurnedAwayPart);
+            SoundBank.Shared(_gameDirectory)?.Play(SoundBank.TurnedAwayPart);
             Steward($"{shown}님은 바쁘셔서 만나실 수 없습니다.");
             return;
         }
@@ -1244,7 +1289,7 @@ public sealed class CityPicDialog : Window
         if (patron != null) items.Insert(0, "설득");
 
         return GameUi.CommandBox(title,
-            [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron)))]);
+            [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron, title, kind)))]);
     }
 
     /// <summary>
@@ -1326,7 +1371,8 @@ public sealed class CityPicDialog : Window
     /// 그 줄이 하는 일. 지금 되는 것은 나가기와 출항·구입·수련뿐이다 —
     /// 보급·함대편성 따위는 이 창이 흉내내는 범위 밖이라 손을 달지 않는다(흐리게 나온다).
     /// </summary>
-    private Action? ActionFor(Facility facility, string item, uint teachMask, Patron? patron)
+    private Action? ActionFor(Facility facility, string item, uint teachMask, Patron? patron,
+                              string title, string kind)
     {
         if (item == facility.ExitItem) return CloseMenu;
         if (item == "수련" && teachMask != 0) return () => Teach(teachMask);
@@ -1336,6 +1382,10 @@ public sealed class CityPicDialog : Window
         return (facility.Kind, item) switch
         {
             (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
+            // 함대편성은 제목 없는 창이 한 겹 더 뜬다. 줄은 게임 것 그대로 두되, 아직 손이
+            // 안 달린 줄은 흐리게 남긴다 — 보급·선원편성과 같은 규칙이다.
+            (FacilityKind.Harbor, "함대편성") =>
+                () => ShowMenu(FleetMenu(() => BuildMenu(facility, title, teachMask, kind))),
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Market, "구입") when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),

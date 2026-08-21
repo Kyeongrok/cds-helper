@@ -106,6 +106,15 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public static readonly string[] SystemMenu = ["저장", "로드", "게임 종료", "게임 재개"];
 
     /// <summary>
+    /// 항구에서 "함대편성" 을 골랐을 때 뜨는 줄들. 게임처럼 제목 없이 줄만 쌓인다.
+    /// </summary>
+    public static readonly string[] FleetMenu =
+        ["기함 변경", "선박 편입", "선박 삭제", "선박 파기", FleetExit];
+
+    /// <summary>함대편성 창을 접고 항구 창으로 돌아가는 줄.</summary>
+    public const string FleetExit = "편성 종료";
+
+    /// <summary>
     /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는
     /// 종류(성문·상관·모스크 …)는 나가기 한 줄만 있는 창을 준다.
     /// </summary>

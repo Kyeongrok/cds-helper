@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -171,14 +172,27 @@ internal static class GameUi
     }
 
     /// <summary>창을 두르는 상자. 밝은 선 한 점에 짙은 여백만 두른다(<see cref="BoxEdge"/>).</summary>
-    private static Border Box(UIElement content) => new()
+    private static Border Box(UIElement content)
     {
-        Background = MenuBack,
-        BorderBrush = Edge,
-        BorderThickness = new Thickness(BoxEdge),
-        Padding = new Thickness(BoxPad),
-        Child = content,
-    };
+        var box = new Border
+        {
+            Background = MenuBack,
+            BorderBrush = Edge,
+            BorderThickness = new Thickness(BoxEdge),
+            Padding = new Thickness(BoxPad),
+            Child = content,
+        };
+
+        // 자연 폭보다 한 뼘 넓게 잡는다. 딱 맞게 두면 긴 줄("마을로 돌아간다")의 끝 글자가
+        // 띠를 넘어 잘린다 — 게임 글꼴이 한 글자 16점이라 조금만 길어도 자리가 모자란다.
+        // 창을 짓는 자리가 여기 하나뿐이라, 커맨드 창·도시 창·시설 창이 다 같이 넓어진다.
+        box.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        box.MinWidth = Math.Ceiling(box.DesiredSize.Width * BoxWiden);
+        return box;
+    }
+
+    /// <summary>창을 자연 폭보다 이만큼 넓게 잡는다.</summary>
+    private const double BoxWiden = 1.1;
 
     /// <summary>
     /// 제목 줄에 닫기(X)까지 두는 명령 창. <paramref name="onClose"/> 가 null 이면 제목만 낸다.
@@ -595,7 +609,19 @@ internal static class GameUi
         }
 
         grid.SizeChanged += (_, e) => Redraw(e.NewSize.Width);
-        Redraw(UiSprites.WidthFor(1) * scale);          // 자리를 잡기 전에는 가장 작게
+
+        // 띠가 글자를 <b>마구리 바깥까지</b> 덮도록 최소 폭을 잡는다. 그냥 글자 폭에 맞추면
+        // 양 끝 덩굴(마구리 16점씩)이 글자에 먹혀 좌우 여백이 사라지고, 조금만 길어도
+        // 끝 글자가 잘린다. 게임 이름표도 이렇게 짓는다(<see cref="UiSprites.CellsAround"/>).
+        //
+        // 그리는 것만이 아니라 <b>자리도</b> 그만큼 잡아야 한다 — 띠는 배경 솔이라 자리
+        // 계산에 안 끼어들어서, 최소 폭을 안 주면 칸이 글자 폭으로 좁아지고 띠가 그 안으로
+        // 눌린다. 짧은 줄이 창 폭에 맞춰 늘어나며 다시 그려지는 것과 달리, 가장 긴 줄은
+        // 제 폭이 곧 창 폭이라 늘어날 일이 없어 눌린 채로 남는다.
+        double least = Math.Max(UiSprites.WidthFor(1),
+                                AppSettings.BandPad * 2 + (Font?.TextWidth(title) ?? 0));
+        grid.MinWidth = least * scale;
+        Redraw(least * scale);
 
         // 글씨는 띠 전체 위에 얹는다 — 마구리를 넘어가도 가운데에 오게.
         // 게임 비트맵 글꼴을 읽었으면 그것으로 찍는다. 획 굵기까지 게임과 같아진다.

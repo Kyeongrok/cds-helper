@@ -8,7 +8,7 @@ using CdsHelper.Support.Local.Settings;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 함대 창 설정. 지금은 배경음악을 켜고 끄는 것 하나다.
+/// 함대 창 설정. 배경음악과 효과음을 따로 켜고 끈다.
 /// </summary>
 /// <remarks>
 /// 켜고 끈 것은 <see cref="AppSettings.BgmEnabled"/> 에 적혀 다음에 켤 때도 그대로다.
@@ -18,7 +18,8 @@ public sealed class SettingsDialog : Window
     private readonly BgmPlayer _bgm;
 
     /// <summary>켜고 끄는 칸이 앉는 자리. 뒤집을 때마다 칸을 통째로 갈아 끼운다.</summary>
-    private readonly Border _row = new() { Padding = new Thickness(8, 8, 8, 4) };
+    private readonly Border _bgmRow = new() { Padding = new Thickness(8, 8, 8, 2) };
+    private readonly Border _sfxRow = new() { Padding = new Thickness(8, 2, 8, 4) };
 
     private SettingsDialog(BgmPlayer bgm)
     {
@@ -31,14 +32,16 @@ public sealed class SettingsDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _row.Child = Toggle();
+        _bgmRow.Child = BgmToggle();
+        _sfxRow.Child = SfxToggle();
 
         var title = GameUi.TitleBar("설정", Close);
         GameUi.EnableDrag(this, title);
 
         var stack = new StackPanel();
         stack.Children.Add(title);
-        stack.Children.Add(_row);
+        stack.Children.Add(_bgmRow);
+        stack.Children.Add(_sfxRow);
         stack.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -60,9 +63,14 @@ public sealed class SettingsDialog : Window
         MouseRightButtonUp += (_, _) => Close();
     }
 
-    private static string Label() => $"배경음악   {(AppSettings.BgmEnabled ? "켬" : "끔")}";
+    /// <summary>줄 글자. 두 줄의 폭이 어긋나지 않게 이름을 같은 길이로 맞춰 둔다.</summary>
+    private static string Label(string name, bool on) => $"{name}   {(on ? "켬" : "끔")}";
 
-    private UIElement Toggle() => GameUi.MenuItem(Label(), Flip);
+    private UIElement BgmToggle() =>
+        GameUi.MenuItem(Label("배경음악", AppSettings.BgmEnabled), FlipBgm);
+
+    private UIElement SfxToggle() =>
+        GameUi.MenuItem(Label("효과음  ", AppSettings.SfxEnabled), FlipSfx);
 
     /// <summary>켜고 끄기를 뒤집는다 — 곡은 그 자리에서 멈추거나 다시 돈다.</summary>
     /// <remarks>
@@ -71,11 +79,21 @@ public sealed class SettingsDialog : Window
     /// 들어 있고, 못 읽었을 때만 <c>TextBlock</c> 이다. 속을 아는 척하고 형변환하면
     /// 원본 조각이 있는 자리에서 반드시 깨진다.
     /// </remarks>
-    private void Flip()
+    private void FlipBgm()
     {
         AppSettings.BgmEnabled = !AppSettings.BgmEnabled;
         _bgm.Enabled = AppSettings.BgmEnabled;
-        _row.Child = Toggle();
+        _bgmRow.Child = BgmToggle();
+    }
+
+    /// <summary>
+    /// 효과음을 켜고 끈다. 배경음악과 따로 논다 — 곡은 두고 소리만 끄고 싶을 때가 있다.
+    /// 실제로 가르는 자리는 <see cref="SoundBank.Play"/> 다.
+    /// </summary>
+    private void FlipSfx()
+    {
+        AppSettings.SfxEnabled = !AppSettings.SfxEnabled;
+        _sfxRow.Child = SfxToggle();
     }
 
     public static void Show(Window owner, BgmPlayer bgm) =>

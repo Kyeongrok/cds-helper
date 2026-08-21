@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Windows.Documents;
 using System.Windows.Controls.Primitives;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -243,7 +244,16 @@ public sealed class ShipMapWindow : Window
         // 같은 자리에 투명 Border 를 겹쳐 두고 마우스는 그쪽에서 받는다.
         // (자식 창이 D3D 로 덮으므로 이 Border 는 보이지 않는다 — 입력만 받는다.)
         // 지도 위에서도 보통 화살표를 쓴다 — 십자는 조준하는 것처럼 보여 게임 화면과 안 맞는다.
-        var input = new Border { Background = Brushes.Transparent, Cursor = Cursors.Arrow };
+        // 눌렀을 때 초점을 받게 둔다. 지도는 WPF 가 모르는 자식 창이라, 이것이 없으면
+        // 지도를 눌러도 창 안에 초점 가진 것이 없는 상태가 된다.
+        // 자식 창이 덮어 보이지 않으니 초점 테두리는 끈다.
+        var input = new Border
+        {
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Arrow,
+            Focusable = true,
+            FocusVisualStyle = null,
+        };
         _input = input;
         var surface = new Grid();
         surface.Children.Add(_host);
@@ -350,7 +360,7 @@ public sealed class ShipMapWindow : Window
             e.Handled = true;
             // 도시 안에서는 함대 커맨드 창을 안 낸다 — 도시 화면이 제 커맨드 창을 따로 낸다.
             if (_host.SeaBlocked) return;
-            ShowCommandMenu(input);
+            ShowCommandMenu(input, e.GetPosition(input));
         };
         input.MouseLeftButtonDown += (_, e) =>
         {
@@ -365,7 +375,7 @@ public sealed class ShipMapWindow : Window
             // 그냥 찍으면 닻을 내리고 그 자리에 선다. 한 번 더 찍으면 올리고 다시 간다.
             _host.ToggleAnchor();
             // 내릴 때도 올릴 때도 같은 소리가 난다.
-            if (_bgm.Enabled) _sfx?.Play(SoundBank.AnchorPart);
+            _sfx?.Play(SoundBank.AnchorPart);
         };
         input.MouseMove += (_, e) => _host.SetMouse(e.GetPosition(input), true);
         input.MouseLeave += (_, _) => _host.SetMouse(default, false);
@@ -386,7 +396,7 @@ public sealed class ShipMapWindow : Window
             // 게임 상단 띠와 같은 말투로 적는다.
             _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
             _cityLabel.Text = _player.CityName.Length > 0 ? _player.CityName : "—";
-            if (_overlay.IsOpen) _overlayText.Text = BuildOverlayText(lat, lon);
+            if (_overlay.IsOpen) FillOverlay(lat, lon);
             SyncSeaMusic();
         });
         Loaded += OnLoaded;
@@ -522,19 +532,32 @@ public sealed class ShipMapWindow : Window
                           && ReferenceEquals(_screen.Content, _mapRoot);
 
     /// <summary>
-    /// 좌표 상자에 적을 글. 배가 선 칸을 WORLD.CDS 파일 안의 자리까지 풀어서 보여 준다.
+    /// 좌표 상자를 채운다. 배가 선 칸을 WORLD.CDS 파일 안의 자리까지 풀어서 보여 주고,
+    /// <b>타일 번호 뒤에는 그 타일 그림</b>을 한 장 끼워 넣는다 — 번호만 봐서는 어떤 칸인지
+    /// 알 수가 없어서다.
     /// </summary>
-    private string BuildOverlayText(double lat, double lon)
+    private void FillOverlay(double lat, double lon)
     {
+        _overlayText.Inlines.Clear();
+
         var c = _host.ShipCell;
-        if (c == null) return "배가 아직 지도에 없습니다";
+        if (c == null) { _overlayText.Inlines.Add(new Run("배가 아직 지도에 없습니다")); return; }
 
         var v = c.Value;
+        _overlayText.Inlines.Add(new Run(
+            $"칸        {v.X,7:F1}, {v.Y,6:F1}   (칸 {v.CellX}, {v.CellY})\n" +
+            $"WORLD.CDS 행 {v.Row,4} · 열 {v.Col,4} · 0x{v.Offset:X5}\n" +
+            $"칸 값     지형 {v.Terrain,3} · 속성 {v.Attr,3} · 타일 {v.Tile,5} "));
+
+        if (TileImage(v.Tile) is { } tile)
+            _overlayText.Inlines.Add(new InlineUIContainer(tile)
+            {
+                BaselineAlignment = BaselineAlignment.Center,
+            });
+
         var lines = new List<string>
         {
-            $"칸        {v.X,7:F1}, {v.Y,6:F1}   (칸 {v.CellX}, {v.CellY})",
-            $"WORLD.CDS 행 {v.Row,4} · 열 {v.Col,4} · 0x{v.Offset:X5}",
-            $"칸 값     지형 {v.Terrain,3} · 속성 {v.Attr,3} · 타일 {v.Tile,5} · 육지 {v.LandRatio * 100,3:F0}%",
+            $" · 육지 {v.LandRatio * 100,3:F0}%",
             $"위경도    {(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat):F2} · {(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon):F2}",
         };
 
@@ -546,7 +569,54 @@ public sealed class ShipMapWindow : Window
         if (m != null)
             lines.Add($"커서      {m.Value.X,7:F1}, {m.Value.Y,6:F1}   0x{m.Value.Offset:X5}");
 
-        return string.Join("\n", lines);
+        _overlayText.Inlines.Add(new Run(string.Join("\n", lines)));
+    }
+
+    /// <summary>좌표 상자에 끼우는 타일 그림의 배율. 글줄 높이에 맞춰 두 배로 키운다.</summary>
+    private const int OverlayTileScale = 2;
+
+    private int _overlayTile = -1;
+    private BitmapSource? _overlayTileBitmap;
+
+    /// <summary>
+    /// 타일 번호의 그림. <b>그림판만 담아 두고 <see cref="Image"/> 는 부를 때마다 새로 짓는다</b> —
+    /// 한 번 만든 것을 계속 끼우면 앞서 끼운 <see cref="InlineUIContainer"/> 에 아직 매여 있어
+    /// "이미 다른 요소의 논리 자식입니다" 로 터진다. 그림판은 얼려 두었으니 나눠 써도 된다.
+    /// </summary>
+    private Image? TileImage(int tile)
+    {
+        if (tile < 0 || tile >= OceanTiles.TileCount) return null;
+
+        if (tile != _overlayTile)
+        {
+            var ocean = OceanTiles.LoadFromDirectory(_gameDir);
+            if (ocean == null) return null;
+
+            int w = OceanTiles.TileW;
+            var pixels = new uint[w * w];
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = 0xFF000000u
+                            | (uint)ocean.PaletteRgb[ocean.TileData[tile * OceanTiles.TilePixels + i]];
+
+            var made = BitmapSource.Create(w, w, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+            made.Freeze();
+            _overlayTileBitmap = made;
+            _overlayTile = tile;
+        }
+        if (_overlayTileBitmap == null) return null;
+
+        int side = OceanTiles.TileW * OverlayTileScale;
+        var image = new Image
+        {
+            Source = _overlayTileBitmap,
+            Width = side,
+            Height = side,
+            Margin = new Thickness(1, 0, 1, 0),
+            IsHitTestVisible = false,
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+        return image;
     }
 
     /// <summary>
@@ -1016,24 +1086,30 @@ public sealed class ShipMapWindow : Window
     /// 배도 시간도 그 자리에 선다(닻을 내리는 것과는 다르다. 닻은 그대로 두고 멈추기만 한다).
     /// </summary>
     /// <remarks>
-    /// 팝업은 제 창(HWND)을 따로 쓰므로 D3D 자식 창 위에 제대로 뜬다 — airspace 를 안 탄다.
-    /// 그래서 지도 위에 얹는 것 중 메뉴만은 WPF 로 둘 수 있다. 도시 창의 명령 창과 같은
-    /// <see cref="GameUi.CommandBox"/> 를 쓴다 — 예전에 쓰던 <c>ContextMenu</c> 는 왼쪽에
-    /// 그림 자리(빈 흰 칸)를 남기고 줄 너비도 제각각이라 게임 것과 달랐다.
+    /// 제 창(HWND)으로 띄운다 — D3D 자식 창 위에 제대로 뜨고(airspace 를 안 탄다),
+    /// 제목 줄을 잡아 <b>끌어 옮길 수 있다</b>. 도시정보 창과 같은
+    /// <see cref="MenuWindow"/> 를 쓴다.
+    ///
+    /// 예전에는 <c>Popup</c> 이었는데 두 가지가 걸렸다. 옮길 수가 없었고, 닫힐 때 초점이
+    /// 갈 데를 잃어 다른 앱으로 넘어갔다(팝업이 활성창을 가져가는데 지도는 WPF 가 모르는
+    /// 자식 창이라 돌려줄 데가 없다). 주인을 둔 창은 닫히면 주인이 되살아나므로 둘 다 없다.
     /// </remarks>
-    private void ShowCommandMenu(UIElement anchor)
+    private void ShowCommandMenu(FrameworkElement anchor, Point at)
     {
         if (_host.SeaBlocked) return;
+        if (_commandMenu != null) { _commandMenu.Activate(); return; }
 
-        var popup = new Popup
+        MenuWindow? menu = null;
+
+        // 닫는 중에 또 닫으라는 말이 들어올 수 있다(창이 닫히며 활성이 풀리면 그때 또 온다).
+        // 닫는 중에 Close 를 부르면 WPF 가 예외를 던지므로 한 번만 받는다.
+        bool closing = false;
+        void Close()
         {
-            PlacementTarget = anchor,
-            Placement = PlacementMode.MousePoint,
-            StaysOpen = false,          // 바깥을 누르면 닫힌다
-            AllowsTransparency = true,
-            Focusable = true,
-        };
-        void Close() => popup.IsOpen = false;
+            if (closing || menu == null) return;
+            closing = true;
+            menu.Close();
+        }
 
         // 바다에 있으면 상륙, 뭍에 있으면 출항. <b>갈 데가 없으면 줄 자체를 안 낸다</b> —
         // 흐린 줄로 남겨 두면 창 높이만 잡아먹고 게임에도 없는 모습이다.
@@ -1065,13 +1141,22 @@ public sealed class ShipMapWindow : Window
         items.Add(("기능", () => { Close(); SaveGame(); }));
         items.Add(("취소", Close));
 
-        popup.Child = GameUi.CommandBox("커맨드", [.. items]);
+        // 넓히는 것은 GameUi 가 창을 지으며 한다 — 커맨드 창만이 아니라 도시 창·시설 창도
+        // 같이 넓어야 모양이 맞는다.
+        var box = GameUi.CommandBox("커맨드", [.. items]);
+
+        menu = MenuWindow.ShowAt(this, box, ToScreen(anchor, at));
+        _commandMenu = menu;
 
         // 메뉴가 떠 있는 동안은 게임을 멈춘다. 닫히면 어떻게 닫혔든 다시 흐른다.
-        popup.Closed += (_, _) => _host.Paused = false;
+        menu.Closed += (_, _) => { _commandMenu = null; _host.Paused = false; };
+        // 창이 닫히기 시작하면 더 닫으라는 말을 받지 않는다.
+        menu.Closing += (_, _) => closing = true;
         _host.Paused = true;
-        popup.IsOpen = true;
     }
+
+    /// <summary>떠 있는 커맨드 창. 하나만 띄운다.</summary>
+    private MenuWindow? _commandMenu;
 
     /// <summary>
     /// 바다에서 적는다. 도시 안에서 적는 것(<c>CityPicDialog</c> 의 기능 창)과 같은 자리에

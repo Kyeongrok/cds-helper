@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:views="clr-namespace:CdsHelper.Form.UI.Views"
                     xmlns:units="clr-namespace:CdsHelper.Support.UI.Units;assembly=CdsHelper.Support"
@@ -82,18 +82,32 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
+                                    <!-- 햄버거 버튼 (클릭 시 네비게이션 팝업). 제목 줄 맨 왼쪽이다 —
+                                         WindowChrome 이 먹지 않도록 히트테스트를 따로 켠다. -->
+                                    <Button Grid.Column="0" x:Name="PART_HamburgerButton"
+                                            Background="Transparent" BorderThickness="0"
+                                            Padding="10,6" Cursor="Hand"
+                                            ToolTip="탐색 메뉴"
+                                            WindowChrome.IsHitTestVisibleInChrome="True">
+                                        <Path Data="M 0 0 H 16 M 0 5 H 16 M 0 10 H 16"
+                                              Stroke="White" StrokeThickness="2"
+                                              Width="16" Height="12"
+                                              VerticalAlignment="Center"/>
+                                    </Button>
+
                                     <!-- 아이콘 -->
-                                    <Image Grid.Column="0" Source="{TemplateBinding Icon}"
+                                    <Image Grid.Column="1" Source="{TemplateBinding Icon}"
                                            Width="20" Height="20" Margin="8,0,0,0"
                                            VerticalAlignment="Center"
                                            WindowChrome.IsHitTestVisibleInChrome="True"/>
 
                                     <!-- 제목 -->
-                                    <TextBlock Grid.Column="1"
+                                    <TextBlock Grid.Column="2"
                                                Text="{TemplateBinding Title}"
                                                Foreground="White"
                                                FontSize="13"
@@ -102,7 +116,7 @@
                                                Margin="10,0,0,0"/>
 
                                     <!-- 윈도우 컨트롤 버튼 -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button x:Name="PART_MinimizeButton" Style="{StaticResource TitleBarButtonStyle}">
                                             <Path Data="M 0 0 H 10" Stroke="White" StrokeThickness="1"
                                                   VerticalAlignment="Center" HorizontalAlignment="Center"/>
@@ -125,26 +139,7 @@
 
                             <!-- 메뉴바 -->
                             <Grid Grid.Row="1" Background="#FAFAFA">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- 햄버거 버튼 (클릭 시 네비게이션 팝업) -->
-                                <Button Grid.Column="0" x:Name="PART_HamburgerButton"
-                                        Background="Transparent" BorderThickness="0"
-                                        Padding="10,4" Cursor="Hand"
-                                        ToolTip="탐색 메뉴">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="M 0 0 H 16 M 0 5 H 16 M 0 10 H 16"
-                                              Stroke="#333" StrokeThickness="2"
-                                              Width="16" Height="12"
-                                              VerticalAlignment="Center"/>
-                                        <TextBlock Text="메뉴" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-
-                                <Menu Grid.Column="1" Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+                                <Menu Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
                                     <MenuItem Header="파일">
                                         <MenuItem Header="세이브 파일 열기" Command="{Binding LoadSaveCommand}"/>
                                     </MenuItem>
@@ -164,7 +159,7 @@
                                 </Menu>
 
                                 <!-- 네비게이션 플로팅 팝업 (햄버거 버튼 클릭 시 펼쳐짐) -->
-                                <Popup x:Name="PART_MenuPopup" Grid.Column="0"
+                                <Popup x:Name="PART_MenuPopup"
                                        PlacementTarget="{Binding ElementName=PART_HamburgerButton}"
                                        Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                                        >
