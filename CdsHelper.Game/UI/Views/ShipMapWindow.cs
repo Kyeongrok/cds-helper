@@ -943,7 +943,10 @@ public sealed class ShipMapWindow : Window
 
         if (!_started)
         {
+            // 바람 표는 달에 따라 갈린다. 지도가 날짜를 들고 있지 않으니 물어보게 해 둔다.
+            _host.MonthOf = () => _player.Date.Month;
             if (!_host.Start(_gameDir)) { _status.Text = _host.Status; return; }
+            _host.ShowFlowArrows = AppSettings.ShowFlowArrows;
             _started = true;
             _statusTimer.Start();
         }
@@ -1050,6 +1053,15 @@ public sealed class ShipMapWindow : Window
         items.Add(("편성", null));
         items.Add(("대열", null));
         items.Add(("항해일지를 본다", null));
+        // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는
+        // 방위를 바로 아는 편이 낫다 — 그래서 켜고 끌 수 있게 여기에 둔다.
+        items.Add((_host.ShowFlowArrows ? "화살표를 감춘다" : "바람과 해류를 본다", () =>
+        {
+            bool on = !_host.ShowFlowArrows;
+            _host.ShowFlowArrows = on;
+            AppSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
+            Close();
+        }));
         items.Add(("기능", () => { Close(); SaveGame(); }));
         items.Add(("취소", Close));
 

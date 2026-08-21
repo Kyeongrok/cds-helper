@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
@@ -50,6 +51,9 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         Texture2D<float4> Avg2     : register(t5);
         Texture2D<float4> Avg4     : register(t6);
         Texture2D<float4> Overlay  : register(t7);
+        Texture2D<uint>   NextTile : register(t8);
+        Texture2D<uint>   FlowGrid : register(t9);
+        Texture2D<float4> ArrowTex : register(t10);
 
         cbuffer Frame : register(b0)
         {
@@ -61,6 +65,8 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             float  Pad;
             float4 OverlayRect;
             float4 Cover;
+            float4 Ripple;
+            float4 Arrows;
         };
 
         struct VSOut { float4 pos : SV_Position; };
@@ -76,6 +82,42 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             float2 uv = float2((id << 1) & 2, id & 2);
             o.pos = float4(uv * float2(2, -2) + float2(-1, 1), 0, 1);
             return o;
+        }
+
+        float4 Glyph(float2 d, float h, uint word, float3 tint)
+        {
+            uint speed = (word >> 4) & 0xFu;
+            if (speed == 0) return float4(0, 0, 0, 0);
+            if (any(abs(d) >= h)) return float4(0, 0, 0, 0);
+            uint dir = word & 0xFu;
+            float2 t = d / h * 0.5 + 0.5;
+            int2 tx = int2(int(dir) * 32 + int(t.x * 32.0), int(t.y * 32.0));
+            float a = ArrowTex.Load(int3(tx, 0)).r;
+            if (a <= 0.02) return float4(0, 0, 0, 0);
+            float strong = step(0.6, a);
+            float3 col = lerp(float3(0.04, 0.04, 0.07), tint, strong);
+            float lo = 0.45 + 0.55 * float(speed) / 7.0;
+            return float4(col, lerp(0.70, 0.90, strong) * lo);
+        }
+
+        float4 ArrowsAt(float2 cellRaw, float2 px)
+        {
+            float grid = Arrows.y;
+            float2 g   = floor(cellRaw / grid);
+            int gy = int(g.y);
+            if (gy < 0 || gy >= int(Arrows.w)) return float4(0, 0, 0, 0);
+            int gx = int(g.x - floor(g.x / Arrows.z) * Arrows.z);
+
+            float cellPx = grid / CellPerPixel.x;
+            float h = clamp(cellPx * 0.22, 4.0, 14.0);
+            float2 center = ((g + 0.5) * grid - OriginCell) / CellPerPixel;
+
+            uint word = FlowGrid.Load(int3(gx, gy, 0));
+            float4 a = Glyph(px - center + float2(0, h), h, word & 0xFFFFu,
+                             float3(1.00, 0.94, 0.72));
+            if (a.a > 0) return a;
+            return Glyph(px - center - float2(0, h), h, word >> 16,
+                         float3(0.42, 0.90, 1.00));
         }
 
         float4 PS(VSOut i) : SV_Target
@@ -100,21 +142,41 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 }
             }
 
-            float2 cell = OriginCell + i.pos.xy * CellPerPixel;
+            float2 cellRaw = OriginCell + i.pos.xy * CellPerPixel;
+            float2 cell = cellRaw;
             cell.x = cell.x - floor(cell.x / MapCells.x) * MapCells.x;
             cell.y = clamp(cell.y, 0, MapCells.y - 0.001);
 
             int2 c    = int2(cell);
             uint tile = CellMap.Load(int3(c, 0));
+
+            if (Ripple.z > 0)
+            {
+                float p = (Ripple.x * float(c.x) + Ripple.y * float(c.y)
+                           - Ripple.z * Ripple.w * 16.0) / 64.0;
+                if ((int(floor(p)) & 15) < 8)
+                    tile = NextTile.Load(int3(int2(tile % 128u, tile / 128u), 0));
+            }
+
             int2 org  = int2(tile % 128u, tile / 128u);
             float2 f  = frac(cell);
 
-            if (Detail < 0.5) return Tint(Avg1.Load(int3(org, 0)));
-            if (Detail < 1.5) return Tint(Avg2.Load(int3(org * 2 + int2(f * 2.0), 0)));
-            if (Detail < 2.5) return Tint(Avg4.Load(int3(org * 4 + int2(f * 4.0), 0)));
+            float4 col;
+            if (Detail < 0.5)      col = Avg1.Load(int3(org, 0));
+            else if (Detail < 1.5) col = Avg2.Load(int3(org * 2 + int2(f * 2.0), 0));
+            else if (Detail < 2.5) col = Avg4.Load(int3(org * 4 + int2(f * 4.0), 0));
+            else
+            {
+                uint pal = Atlas.Load(int3(org * 16 + int2(f * 16.0), 0));
+                col = Palette.Load(int3(int(pal), 0, 0));
+            }
 
-            uint pal = Atlas.Load(int3(org * 16 + int2(f * 16.0), 0));
-            return Tint(Palette.Load(int3(int(pal), 0, 0)));
+            if (Arrows.x > 0.5)
+            {
+                float4 a = ArrowsAt(cellRaw, i.pos.xy);
+                col.rgb = lerp(col.rgb, a.rgb, a.a);
+            }
+            return Tint(col);
         }
         """;
 
@@ -129,7 +191,23 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         public float Pad0;
         public float OverlayX, OverlayY, OverlayW, OverlayH;
         public float CoverR, CoverG, CoverB, CoverA;
+        public float RippleDirX, RippleDirY, RippleSpeed, RippleTick;
+        public float ArrowOn, ArrowGrid, ArrowCols, ArrowRows;
     }
+
+    /// <summary>
+    /// 물결. 해류 방위 벡터와 세기, 그리고 흐른 틱 수다. 세기가 0 이면 물결이 안 인다.
+    /// </summary>
+    /// <remarks>
+    /// 게임이 그리는 칸마다 하는 판정(<c>0x0048A4D8</c>~)을 픽셀 셰이더로 옮긴 것이다.
+    /// 원본은 화면 격자의 열·행으로 띠를 세는데 여기서는 <b>지도 칸</b>으로 센다 —
+    /// 지도를 밀거나 키워도 물결이 바다에 붙어 있어야 한다. 자세한 것은
+    /// <see cref="WindTable.InRippleBand"/>.
+    /// </remarks>
+    public (float DirX, float DirY, float Speed, float Tick) Ripple { get; set; }
+
+    /// <summary>바람·해류 화살표를 얹을지. 게임에는 없는 것이라 커맨드 창에서 끄고 켠다.</summary>
+    public bool ShowArrows { get; set; }
 
     /// <summary>
     /// 지도 위에 씌우는 막(색과 짙기). 알파가 0 이면 아무것도 안 씌운다 —
@@ -152,6 +230,10 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     private ID3D11ShaderResourceView _spriteSrv = null!;
     private ID3D11Texture2D _overlayTex = null!;
     private ID3D11ShaderResourceView _overlaySrv = null!;
+    private ID3D11ShaderResourceView _nextSrv = null!;
+    private ID3D11Texture2D _flowTex = null!;
+    private ID3D11ShaderResourceView _flowSrv = null!;
+    private ID3D11ShaderResourceView _arrowSrv = null!;
 
     /// <summary>덧그림 한 변. 셰이더에도 같은 값이 박혀 있다.</summary>
     private const int OverlaySize = 16;
@@ -194,6 +276,70 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         CreateAtlas(ocean);
         CreatePalette(ocean);
         CreateSpriteTexture();
+        CreateFlowTextures();
+    }
+
+    /// <summary>
+    /// 물결·화살표에 쓰는 것들. 표를 못 열어도 셰이더에 걸 것은 있어야 하므로
+    /// <b>제자리 표</b>(타일이 안 갈리는 표)와 빈 격자를 먼저 만들어 둔다.
+    /// </summary>
+    private void CreateFlowTextures()
+    {
+        var identity = new ushort[OceanTiles.TileCount];
+        for (int t = 0; t < identity.Length; t++) identity[t] = (ushort)t;
+        _nextSrv = CreateTileMap(identity);
+
+        _flowTex = _device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = WindTable.Cols,
+            Height = WindTable.Rows,
+            MipLevels = 1,
+            ArraySize = 1,
+            Format = Format.R32_UInt,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage = ResourceUsage.Dynamic,
+            BindFlags = BindFlags.ShaderResource,
+            CPUAccessFlags = CpuAccessFlags.Write,
+        });
+        _flowSrv = _device.CreateShaderResourceView(_flowTex);
+
+        _arrowSrv = CreateImmutable(FlowArrows.Alpha, FlowArrows.AtlasWidth, FlowArrows.CellSize,
+                                    Format.R8_UNorm, 1);
+    }
+
+    /// <summary>타일 번호 16,384개를 아틀라스와 같은 128x128 격자로 편다.</summary>
+    private ID3D11ShaderResourceView CreateTileMap(ushort[] tiles) =>
+        CreateImmutable(tiles, AtlasTiles, AtlasTiles, Format.R16_UInt, sizeof(ushort));
+
+    /// <summary>
+    /// 물결이 한 칸 돌아간 뒤의 타일 번호표를 건다
+    /// (<see cref="WindTable.BuildRippleTiles"/> 가 만든 것).
+    /// </summary>
+    public void SetRippleTiles(ushort[] nextTiles)
+    {
+        if (nextTiles.Length != OceanTiles.TileCount) return;
+        var old = _nextSrv;
+        _nextSrv = CreateTileMap(nextTiles);
+        old?.Dispose();
+    }
+
+    /// <summary>
+    /// 화살표가 읽을 50x25 격자. 칸마다 <c>아래 16비트 = 바람, 위 16비트 = 해류</c>이고,
+    /// 낱말 모양은 게임 표 그대로다(<c>방위 | 세기&lt;&lt;4 | 기후대&lt;&lt;8</c>).
+    /// </summary>
+    public void SetFlowGrid(ReadOnlySpan<uint> grid)
+    {
+        if (grid.Length < WindTable.Count) return;
+        var map = _ctx.Map(_flowTex, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
+        try
+        {
+            for (int y = 0; y < WindTable.Rows; y++)
+            {
+                var dst = new Span<uint>((void*)(map.DataPointer + y * map.RowPitch), WindTable.Cols);
+                grid.Slice(y * WindTable.Cols, WindTable.Cols).CopyTo(dst);
+            }
+        }
+        finally { _ctx.Unmap(_flowTex, 0); }
     }
 
     /// <summary>WORLD.CDS 를 펼쳐 칸마다 타일 번호만 담은 텍스처를 만든다.</summary>
@@ -412,6 +558,14 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             CoverG = Cover.G,
             CoverB = Cover.B,
             CoverA = Cover.A,
+            RippleDirX = Ripple.DirX,
+            RippleDirY = Ripple.DirY,
+            RippleSpeed = Ripple.Speed,
+            RippleTick = Ripple.Tick,
+            ArrowOn = ShowArrows ? 1 : 0,
+            ArrowGrid = WindTable.CellRaw / OceanTiles.TileW,   // 800 원본단위 = 지도 50칸
+            ArrowCols = WindTable.Cols,
+            ArrowRows = WindTable.Rows,
         };
         var map = _ctx.Map(_cb, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         *(FrameCb*)map.DataPointer = cb;
@@ -425,7 +579,8 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         _ctx.PSSetShader(_ps);
         _ctx.PSSetConstantBuffer(0, _cb);
         _ctx.PSSetShaderResources(0, [_cellSrv, _atlasSrv, _paletteSrv, _spriteSrv,
-                                      _avgSrv[0], _avgSrv[1], _avgSrv[2], _overlaySrv]);
+                                      _avgSrv[0], _avgSrv[1], _avgSrv[2], _overlaySrv,
+                                      _nextSrv, _flowSrv, _arrowSrv]);
         _ctx.Draw(3, 0);
     }
 
@@ -463,6 +618,10 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     {
         _rtv?.Dispose();
         _target?.Dispose();
+        _arrowSrv?.Dispose();
+        _flowSrv?.Dispose();
+        _flowTex?.Dispose();
+        _nextSrv?.Dispose();
         _overlaySrv?.Dispose();
         _overlayTex?.Dispose();
         _spriteSrv?.Dispose();
