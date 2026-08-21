@@ -25,6 +25,12 @@ public class AppSettingsData
     /// <summary>함대 창에서 배경음악을 틀지. 기본은 켬.</summary>
     public bool BgmEnabled { get; set; } = true;
 
+    /// <summary>효과음(닻·거절 따위)을 낼지. 기본은 켬.</summary>
+    public bool SfxEnabled { get; set; } = true;
+
+    /// <summary>게임 창 단추의 좌우 여백(점). 띠 마구리가 앉을 자리다.</summary>
+    public int BandPad { get; set; } = AppSettings.DefaultBandPad;
+
     /// <summary>도시 창이 열릴 때 줄 효과. <see cref="CityOpenEffect"/> 의 이름이다.</summary>
     public string CityOpenEffect { get; set; } = "Expand";
 
@@ -74,6 +80,15 @@ public class WorldMapOptions
 public static class AppSettings
 {
     public const double DefaultMarkerSize = 11.0;
+
+    /// <summary>
+    /// 게임 창 단추의 좌우 여백 기본값(점). 띠 마구리가 실제로는 16점인데, 그만큼 다
+    /// 비워 두면 창이 넓어 보여 조금 줄여 잡는다.
+    /// </summary>
+    public const int DefaultBandPad = 14;
+
+    /// <summary>단추 여백을 이 사이로만 잡는다.</summary>
+    public const int MinBandPad = 0, MaxBandPad = 32;
     public const string DefaultDefaultView = "PlayerContent";
 
     private static readonly string SettingsFilePath = Path.Combine(
@@ -114,6 +129,8 @@ public static class AppSettings
     private static bool _showCoordOverlay = true;
     private static bool _showToolBar = true;
     private static bool _showFlowArrows;
+    private static bool _sfxEnabled = true;
+    private static int _bandPad = DefaultBandPad;
     private static RerollOptions _reroll = new();
 
     static AppSettings()
@@ -240,6 +257,37 @@ public static class AppSettings
         }
     }
 
+    /// <summary>효과음을 낼지. 설정 창에서 켜고 끈다. 배경음악과 따로 논다.</summary>
+    public static bool SfxEnabled
+    {
+        get => _sfxEnabled;
+        set
+        {
+            _sfxEnabled = value;
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// 게임 창 단추의 좌우 여백(점). 개발 창에서 맞춘다.
+    /// </summary>
+    /// <remarks>
+    /// 띠는 왼끝·가운데·오른끝 셋으로 짓고 양 끝(마구리)이 16점씩이다. 이 값만큼을 글자
+    /// 바깥에 비워 두므로, 16 이면 마구리가 통째로 글자 밖에 서고 그보다 작으면 글자가
+    /// 마구리 위로 조금씩 올라앉는다. 바꾼 값은 <b>다음에 여는 창</b>부터 든다.
+    /// </remarks>
+    public static int BandPad
+    {
+        get => _bandPad;
+        set
+        {
+            _bandPad = Math.Clamp(value, MinBandPad, MaxBandPad);
+            SaveSettings();
+            SettingsChanged?.Invoke();
+        }
+    }
+
     /// <summary>도시 창이 열릴 때 줄 효과. 개발 창에서 고른다.</summary>
     public static CityOpenEffect CityOpenEffect
     {
@@ -325,6 +373,8 @@ public static class AppSettings
                     _autoConfirmDialog = data.AutoConfirmDialog;
                     _autoOpenShipMap = data.AutoOpenShipMap;
                     _bgmEnabled = data.BgmEnabled;
+                    _sfxEnabled = data.SfxEnabled;
+                    _bandPad = Math.Clamp(data.BandPad, MinBandPad, MaxBandPad);
                     _cityOpenEffect = Enum.TryParse<CityOpenEffect>(data.CityOpenEffect, out var eff)
                         ? eff : Settings.CityOpenEffect.Expand;
                     _showCoordOverlay = data.ShowCoordOverlay;
@@ -361,6 +411,8 @@ public static class AppSettings
                 AutoConfirmDialog = _autoConfirmDialog,
                 AutoOpenShipMap = _autoOpenShipMap,
                 BgmEnabled = _bgmEnabled,
+                SfxEnabled = _sfxEnabled,
+                BandPad = _bandPad,
                 CityOpenEffect = _cityOpenEffect.ToString(),
                 ShowCoordOverlay = _showCoordOverlay,
                 ShowToolBar = _showToolBar,

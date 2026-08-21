@@ -2,6 +2,8 @@
 using System.Media;
 using CdsHelper.Support.Local.Helpers;
 
+using CdsHelper.Support.Local.Settings;
+
 namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
@@ -13,7 +15,7 @@ namespace CdsHelper.Game.Local.Helpers;
 /// (<c>WaveBankDialog</c>)과 같은 길이다.
 ///
 /// 배경음악(<see cref="BgmPlayer"/>)과 따로 논다 — 효과음은 곡을 끊지 않고 겹쳐 난다.
-/// 배경음악을 꺼 두었으면 효과음도 안 낸다(설정 하나로 소리를 다 끄는 셈이다).
+/// 효과음은 <see cref="AppSettings.SfxEnabled"/> 하나로 갈린다 — 배경음악과 따로 켜고 끈다.
 /// </remarks>
 public sealed class SoundBank : IDisposable
 {
@@ -74,6 +76,7 @@ public sealed class SoundBank : IDisposable
     /// </summary>
     public void Play(int part)
     {
+        if (!AppSettings.SfxEnabled) return;
         try
         {
             var wav = _bank.Wav(part);

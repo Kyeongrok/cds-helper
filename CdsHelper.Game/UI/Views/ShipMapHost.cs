@@ -106,9 +106,6 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>커서가 이 칸 수 안에 있으면 뱃머리를 그대로 둔다 — 배 위에서 빙빙 돌지 않게.</summary>
     private const double TurnDeadZoneCells = 1.0;
 
-    /// <summary>닻이 배 한가운데에서 얼마나 왼쪽 아래로 비켜 걸리는지(칸).</summary>
-    private const double AnchorOffsetX = 0.9, AnchorOffsetY = 0.35;
-
     private double _tickAccum;
 
     /// <summary>바람·해류 표. 못 열면 물결도 화살표도 안 나온다(지도는 그대로 돈다).</summary>
@@ -313,7 +310,16 @@ public sealed class ShipMapHost : HwndHost
         if (ocean == null) { Status = $"OCEAN.CDS 를 읽지 못했습니다 ({OceanTiles.LastError})"; return false; }
 
         _renderer.Initialize(world, ocean);
-        _renderer.SetOverlay(AnchorSprite.Pixels);   // 정박했을 때만 꺼내 쓴다
+
+        // 닻. 배 그림과 같은 48x48 이라 배가 놓일 자리에 그대로 겹치면 된다.
+        var anchorSprite = AnchorSprite.LoadFromDirectory(gameDir);
+        if (anchorSprite == null)
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 닻 없음: {AnchorSprite.LastError}");
+        else
+        {
+            _anchorPixels = [.. anchorSprite.Pixels];    // 덧그림을 나눠 쓰므로 들고 있는다
+            _renderer.SetOverlay(_anchorPixels);
+        }
 
         // 바람·해류. 못 열어도 지도는 그대로 돈다 — 물결이 안 일고 화살표가 안 나올 뿐이다.
         _wind = WindTable.Open(gameDir);
@@ -321,6 +327,13 @@ public sealed class ShipMapHost : HwndHost
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 바람표 없음: {WindTable.LastError}");
         else
             _renderer.SetRippleTiles(_wind.BuildRippleTiles(_terrain));
+
+        // 구름. 없으면 안 뜰 뿐 나머지는 그대로 돈다.
+        var clouds = CloudSprites.LoadFromDirectory(gameDir);
+        if (clouds == null)
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] 구름 없음: {CloudSprites.LastError}");
+        else
+            _renderer.SetCloudSprites(clouds.Bgra);
 
         // 배는 리스본 앞바다에서 시작한다.
         var (sx, sy) = LisbonStart();
@@ -424,39 +437,83 @@ public sealed class ShipMapHost : HwndHost
         if (_follow && _shipKnown) FollowShip(w, h);
         origin = (_centerX - w / 2.0 * _cellsPerPixel, _centerY - h / 2.0 * _cellsPerPixel);
 
-        var rect = (0f, 0f, 0f, 0f);
-        if (_shipKnown && _spriteReady)
-        {
-            // 배 그림 한 장은 48x48 이고 게임에서 한 칸이 16점이니 세 칸을 덮는다.
-            float size = (float)(3.0 * OceanTiles.TileW / (_cellsPerPixel * OceanTiles.TileW));
-            float sx = (float)((_shipX - origin.Item1) / _cellsPerPixel - size / 2);
-            float sy = (float)((_shipY - origin.Item2) / _cellsPerPixel - size / 2);
-            rect = (sx, sy, size, size);
-        }
+        var rect = _shipKnown && _spriteReady ? SpriteRectAt(_shipX, _shipY, origin)
+                                             : (0f, 0f, 0f, 0f);
 
-        // 정박 중이면 배 왼쪽 아래에 닻을 걸어 둔다. 두 칸 크기다.
-        var anchor = (0f, 0f, 0f, 0f);
-        if (_anchored && _shipKnown)
-        {
-            float size = (float)(2.0 / _cellsPerPixel);
-            float ax = (float)((_shipX - AnchorOffsetX - origin.Item1) / _cellsPerPixel - size / 2);
-            float ay = (float)((_shipY + AnchorOffsetY - origin.Item2) / _cellsPerPixel - size / 2);
-            anchor = (ax, ay, size, size);
-        }
+        // 덧그림 한 장을 두 가지로 나눠 쓴다. 둘이 같이 뜰 일은 없다 — 상륙하면 닻이 풀린다.
+        //   정박 중  닻. 그림이 배와 같은 48x48 이고 그 안에서 왼쪽 아래에만 찍혀 있으므로
+        //           배와 같은 자리에 겹치면 게임처럼 배 왼쪽 아래에 걸린다.
+        //   뭍에 있을 때  대 둔 배. 어디로 상륙했는지 그 자리에 남는다.
+        var overlay = (0f, 0f, 0f, 0f);
+        if (_anchored && _shipKnown && _spriteReady) overlay = rect;
+        else if (_onLand && _moored) overlay = SpriteRectAt(_mooredX, _mooredY, origin);
+        SyncOverlaySprite();
 
         // 지난 프레임과 똑같으면 그리지 않는다. 배는 0.1초에 한 걸음씩 옮기고 지도는
         // 가장자리에 닿아야 넘어가므로, 60fps 로 도는 동안 거의 다 같은 그림이다.
-        if (!_dirty && origin == _drawnOrigin && rect == _drawnShip && anchor == _drawnAnchor
+        if (!_dirty && origin == _drawnOrigin && rect == _drawnShip && overlay == _drawnAnchor
             && flowKey == _drawnFlow) return;
 
-        _renderer.RenderTo(_backBufferView, w, h, origin, (_cellsPerPixel, _cellsPerPixel), rect, anchor);
+        _renderer.RenderTo(_backBufferView, w, h, origin, (_cellsPerPixel, _cellsPerPixel), rect, overlay);
         _swapChain!.Present(1, PresentFlags.None);
         _drawnOrigin = origin;
         _drawnShip = rect;
-        _drawnAnchor = anchor;
+        _drawnAnchor = overlay;
         _drawnFlow = flowKey;
         _dirty = false;
         FrameCount++;
+    }
+
+    /// <summary>
+    /// 칸 좌표에 48x48 그림 한 장이 놓일 화면 사각형. 게임에서 한 칸이 16점이니 세 칸이다.
+    /// </summary>
+    private (float X, float Y, float W, float H) SpriteRectAt(
+        double cellX, double cellY, (double X, double Y) origin)
+    {
+        float size = (float)(3.0 / _cellsPerPixel);
+        return ((float)((cellX - origin.X) / _cellsPerPixel - size / 2),
+                (float)((cellY - origin.Y) / _cellsPerPixel - size / 2),
+                size, size);
+    }
+
+    // ── 대 둔 배 ────────────────────────────────────────────────────────────
+
+    /// <summary>상륙하며 배를 대 둔 자리와 그때의 뱃머리.</summary>
+    private double _mooredX, _mooredY;
+    private int _mooredHeading;
+    private bool _moored;
+
+    /// <summary>덧그림 자리에 지금 무엇이 올라가 있는지.</summary>
+    private enum OverlayArt { None, Anchor, MooredShip }
+
+    private OverlayArt _overlayArt = OverlayArt.None;
+    private uint[]? _anchorPixels;
+
+    /// <summary>
+    /// 덧그림을 지금 쓸 것으로 갈아 끼운다. 닻과 대 둔 배가 같은 자리를 나눠 쓰므로,
+    /// 무엇이 올라가야 하는지 바뀔 때만 텍스처를 올린다.
+    /// </summary>
+    private void SyncOverlaySprite()
+    {
+        var want = _anchored ? OverlayArt.Anchor
+                 : _onLand && _moored ? OverlayArt.MooredShip
+                 : OverlayArt.None;
+        if (want == _overlayArt || want == OverlayArt.None) { _overlayArt = want; return; }
+
+        if (want == OverlayArt.Anchor)
+        {
+            if (_anchorPixels != null) _renderer.SetOverlay(_anchorPixels);
+        }
+        else
+        {
+            // 대 둔 배는 상륙할 때의 뱃머리 그대로 둔다. 게임 그림이 아니라 asset 것을 쓴다 —
+            // 살아 있는 게임 함대를 읽는 길(GameShipReader)은 지금 뱃머리만 내주므로
+            // 대 둔 배의 방향을 물을 수가 없다.
+            var frame = ShipSprites.Frame(_mooredHeading, onLand: false);
+            if (!frame.IsEmpty) _renderer.SetOverlay(frame);
+        }
+        _overlayArt = want;
+        _dirty = true;
     }
 
     /// <summary>표를 못 열었을 때 볼 달. 놀이가 시작하는 달이다.</summary>
@@ -478,18 +535,30 @@ public sealed class ShipMapHost : HwndHost
     {
         if (_wind == null) return 0;
 
-        _rippleAccum += dt;
-        while (_rippleAccum >= TickSeconds) { _rippleAccum -= TickSeconds; _rippleTick++; }
+        // 도시 창이 떠 있는 동안에는 물결도 구름도 선다 — 지도가 남색 막 아래로 물러난 채
+        // 혼자 흐르면 어색하다. 커맨드 창이나 물음창 때문에 멈춘 동안(<see cref="Paused"/>)에는
+        // 그대로 흐른다. 게임도 그때는 하늘이 살아 있다.
+        int ticks = 0;
+        if (!_inCity)
+        {
+            _rippleAccum += dt;
+            while (_rippleAccum >= TickSeconds) { _rippleAccum -= TickSeconds; _rippleTick++; ticks++; }
+        }
 
         int month = MonthOf?.Invoke() ?? DefaultMonth;
         if (month != _flowMonth) { _flowMonth = month; RefreshFlowGrid(month); }
 
-        // 게임은 함대가 선 칸의 해류 하나로 화면 전체를 흘린다. 여기서도 그대로 한다.
+        // 게임은 함대가 선 칸의 바람·해류 하나로 화면 전체를 흘린다. 여기서도 그대로 한다.
         int cell = WindTable.CellOf((int)(_shipX * OceanTiles.TileW), (int)(_shipY * OceanTiles.TileW));
         var flow = cell < 0 ? default : _wind.CurrentAt(cell);
         var (dx, dy) = _wind.Vector(flow.Dir);
         _renderer.Ripple = (dx, dy, flow.Speed, _rippleTick);
 
+        var wind = cell < 0 ? default : _wind.WindAt(cell, month);
+        UpdateClouds(wind.Dir, wind.Speed, ticks);
+
+        // 구름이 떠 있으면 틱마다 자리가 달라지므로 틱 자체가 곧 그림이다.
+        if (_cloudCount > 0) return _rippleTick;
         return (flow.Dir << 26) | (flow.Speed << 22) | ((flow.Speed * _rippleTick / 4) & 0x3FFFFF);
     }
 
@@ -540,6 +609,117 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>화살표가 읽는 낱말. 방위와 세기를 게임 표와 같은 자리에 넣는다.</summary>
     private static uint Pack(WindTable.Flow f) => (uint)(f.Dir | (f.Speed << 4));
+
+    // ── 구름 ─────────────────────────────────────────────────────────────────
+
+    /// <summary>구름 한 장의 지금 상태. 자리는 <b>게임 점</b>(칸당 16점) 기준이다.</summary>
+    private struct Cloud { public int X, Y, AccX, AccY, Shape; }
+
+    private readonly Cloud[] _cloudState = new Cloud[MapD3DRenderer.MaxClouds];
+    private readonly MapD3DRenderer.CloudDraw[] _cloudDraw =
+        new MapD3DRenderer.CloudDraw[MapD3DRenderer.MaxClouds];
+    private bool _cloudsPlaced;
+    private int _cloudCount;
+    private readonly Random _cloudRng = new();
+
+    /// <summary>구름 여섯의 밑그림 번호(<c>0x00519C70</c>). 작은 것 셋, 큰 것 셋이다.</summary>
+    private static readonly int[] CloudBase = [3, 3, 3, 0, 0, 0];
+
+    /// <summary>구름 여섯의 속도 배수(<c>0x00519C88</c>). 큰 것이 조금 빠르다.</summary>
+    private static readonly int[] CloudSpeed = [3, 3, 3, 4, 4, 4];
+
+    /// <summary>그림 넘김표(<c>0x00519CA0</c>). 색인은 틱마다 (색인+1) % 3 으로 돈다.</summary>
+    private static readonly int[] CloudShape = [0, 1, 2, 1];
+
+    /// <summary>게임 화면 크기. 구름 몇 장이 어울리는지 이것으로 견준다.</summary>
+    private const double CloudRefW = 640, CloudRefH = 480;
+
+    /// <summary>이보다 작아지면 안 그린다. 멀리서 보면 점 여섯 개라 티끌만 남는다.</summary>
+    private const double CloudMinPixels = 48;
+
+    /// <summary>게임 한 점이 덮는 칸 수. 게임은 칸 하나를 16점으로 그린다.</summary>
+    private const double GamePixelsPerCell = OceanTiles.TileW;
+
+    /// <summary>
+    /// 구름을 한 틱 흘리고 이번 프레임에 그릴 자리를 renderer 에 건넨다.
+    /// </summary>
+    /// <remarks>
+    /// 게임(<c>0x004893D0</c>)은 구름을 <b>화면 좌표</b>로 들고 640x480 을 돌린다. 여기서는
+    /// 지도를 키우고 줄일 수 있으니 <b>게임 점</b>(칸당 16점)으로 들고 있다가 그릴 때만
+    /// 배율을 곱한다 — 그래야 구름 한 장이 늘 지도 10칸 x 7.5칸을 덮어, 게임에서 보던
+    /// 크기 그대로다. 장 수도 보이는 넓이에 맞춰 줄인다(640x480 에 여섯 장 꼴).
+    /// </remarks>
+    private void UpdateClouds(int windDir, int windSpeed, int ticks)
+    {
+        double scale = 1.0 / (_cellsPerPixel * GamePixelsPerCell);   // 실픽셀 / 게임점
+        if (scale <= 0 || _pixelW <= 0 || _pixelH <= 0
+            || CloudSprites.Width * scale < CloudMinPixels)
+        {
+            _cloudCount = 0;
+            _renderer.SetClouds(default);
+            return;
+        }
+
+        int gw = Math.Max(1, (int)(_pixelW / scale));
+        int gh = Math.Max(1, (int)(_pixelH / scale));
+        _cloudCount = Math.Clamp(
+            (int)Math.Round(MapD3DRenderer.MaxClouds * (gw * (double)gh) / (CloudRefW * CloudRefH)),
+            1, MapD3DRenderer.MaxClouds);
+
+        if (!_cloudsPlaced) PlaceClouds(gw, gh);
+
+        var (vx, vy) = _wind!.Vector(windDir);
+        for (int t = 0; t < ticks; t++)
+            for (int i = 0; i < _cloudCount; i++)
+                DriftCloud(ref _cloudState[i], vx * windSpeed * CloudSpeed[i],
+                           vy * windSpeed * CloudSpeed[i], gw, gh);
+
+        for (int i = 0; i < _cloudCount; i++)
+            _cloudDraw[i] = new MapD3DRenderer.CloudDraw(
+                (float)(_cloudState[i].X * scale), (float)(_cloudState[i].Y * scale),
+                CloudBase[i] + CloudShape[_cloudState[i].Shape], (float)scale);
+        _renderer.SetClouds(_cloudDraw.AsSpan(0, _cloudCount));
+    }
+
+    /// <summary>게임과 같이 3열로 벌려 놓는다(<c>0x0048906B</c>).</summary>
+    private void PlaceClouds(int gw, int gh)
+    {
+        for (int i = 0; i < _cloudState.Length; i++)
+        {
+            _cloudState[i] = new Cloud { X = i % 3 * 128 % gw, Y = i / 3 * 128 % gh };
+            FixParity(ref _cloudState[i]);
+        }
+        _cloudsPlaced = true;
+    }
+
+    private void DriftCloud(ref Cloud c, int stepX, int stepY, int gw, int gh)
+    {
+        c.AccX += stepX;
+        c.AccY += stepY;
+        while (c.AccX >= WindTable.VectorLength) { c.AccX -= WindTable.VectorLength; c.X++; }
+        while (c.AccX <= -WindTable.VectorLength) { c.AccX += WindTable.VectorLength; c.X--; }
+        while (c.AccY >= WindTable.VectorLength) { c.AccY -= WindTable.VectorLength; c.Y++; }
+        while (c.AccY <= -WindTable.VectorLength) { c.AccY += WindTable.VectorLength; c.Y--; }
+
+        // 화면 밖으로 나가면 반대쪽 끝에서 아무 자리로 다시 들어온다(0x00489456~).
+        int w = CloudSprites.Width, h = CloudSprites.Height;
+        if (c.X <= -w) { c.X = gw - 1; c.Y = _cloudRng.Next(gh) - (h - 1); }
+        else if (c.X >= gw) { c.X = -(w - 1); c.Y = _cloudRng.Next(gh) - (h - 1); }
+        if (c.Y <= -h) { c.Y = gh - 1; c.X = _cloudRng.Next(gw) - (w - 1); }
+        else if (c.Y >= gh) { c.Y = -(h - 1); c.X = _cloudRng.Next(gw) - (w - 1); }
+
+        FixParity(ref c);
+        c.Shape = (c.Shape + 1) % 3;
+    }
+
+    /// <summary>
+    /// <c>x + y</c> 를 짝수로 맞춘다(<c>0x004890CF</c>). 구름은 바둑판으로 반만 찍힌
+    /// 반투명 그림이라, 격자 짝이 어긋나면 무늬가 뭉개진다.
+    /// </summary>
+    private static void FixParity(ref Cloud c)
+    {
+        if (((c.X + c.Y) & 1) != 0) c.X++;
+    }
 
     /// <summary>
     /// 배가 화면 가장자리 <see cref="EdgeMarginPixels"/> 점 안에 들어왔으면 화면을 다음
@@ -970,6 +1150,13 @@ public sealed class ShipMapHost : HwndHost
         var spot = NearestCell(_shipX, _shipY, wantLand: true, maxRing: 3);
         if (spot == null) return false;
 
+        // 배는 지금 자리에 대 둔다 — 뭍에 있는 동안 그 자리에 남아 어디로 상륙했는지 보인다.
+        // 게임도 자리를 적어 두었다가 출항할 때 그대로 되돌린다(0x004936DE).
+        _mooredX = _shipX;
+        _mooredY = _shipY;
+        _mooredHeading = _heading;
+        _moored = true;
+
         (_shipX, _shipY) = spot.Value;
         _targetX = _shipX;
         _targetY = _shipY;
@@ -985,9 +1172,15 @@ public sealed class ShipMapHost : HwndHost
     public bool Embark()
     {
         if (SeaBlocked || !_onLand) return false;
-        var spot = NearestCell(_shipX, _shipY, wantLand: false, maxRing: 3);
+
+        // 대 둔 자리로 돌아간다 — 게임도 상륙할 때 적어 둔 자리를 그대로 되돌린다
+        // (0x004936DE). 그 자리가 물이 아니게 됐으면(있을 수 없지만) 가까운 물칸으로 간다.
+        var spot = _moored && !IsLand(_mooredX, _mooredY)
+            ? (_mooredX, _mooredY)
+            : NearestCell(_shipX, _shipY, wantLand: false, maxRing: 3);
         if (spot == null) return false;
 
+        _moored = false;
         (_shipX, _shipY) = spot.Value;
         _targetX = _shipX;
         _targetY = _shipY;

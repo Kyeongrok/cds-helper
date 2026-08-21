@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -69,6 +69,13 @@ public sealed class DevDialog : Window
 
         rows.Children.Add(Toggle("조작 줄 보기", options.ToolBarOn(), options.SetToolBar,
             "지도 위의 까만 줄 — 커서로 몰기·화면 따라가기 같은 개발용 단추들입니다"));
+
+        // 게임 창 단추의 좌우 여백. 띠 마구리(양 끝 조각)가 앉을 자리다 — 크게 잡으면
+        // 글자에서 멀어지고 작게 잡으면 글자가 마구리 위로 올라앉는다.
+        rows.Children.Add(Tune("단추 여백", AppSettings.BandPad,
+            AppSettings.MinBandPad, AppSettings.MaxBandPad, v => AppSettings.BandPad = v,
+            $"게임 창 단추의 좌우 여백(점). 띠 마구리는 실제로 16점입니다. 기본값 {AppSettings.DefaultBandPad}."
+            + " 바꾼 값은 다음에 여는 창부터 듭니다."));
 
         // 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다.
         var dump = new StackPanel
@@ -161,6 +168,49 @@ public sealed class DevDialog : Window
         box.LostFocus += (_, _) => Apply();
         box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Apply(); };
 
+        return line;
+    }
+
+    /// <summary>
+    /// 수를 하나 맞추는 줄. 단추로 한 칸씩 움직이고 칸에 적어 넣어도 된다.
+    /// <see cref="Row"/> 와 달리 놀이 값이 아니라 <b>설정</b>을 만지므로 따로 둔다.
+    /// </summary>
+    private static UIElement Tune(string label, int value, int min, int max,
+                                  Action<int> set, string tip)
+    {
+        var box = Field();
+        box.Width = 60;
+        box.Text = value.ToString();
+
+        var line = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 8, 0, 2),
+            ToolTip = tip,
+        };
+        line.Children.Add(new TextBlock
+        {
+            Text = label,
+            Width = 64,
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        void Put(int v)
+        {
+            int clamped = Math.Clamp(v, min, max);
+            set(clamped);
+            box.Text = clamped.ToString();
+        }
+
+        line.Children.Add(GameUi.PushButton("-1", () => Put(Current(box) - 1), 48));
+        line.Children.Add(box);
+        line.Children.Add(GameUi.PushButton("+1", () => Put(Current(box) + 1), 48));
+
+        box.LostFocus += (_, _) => Put(Current(box));
+        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Put(Current(box)); };
         return line;
     }
 

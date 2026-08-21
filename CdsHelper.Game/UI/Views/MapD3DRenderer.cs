@@ -54,6 +54,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         Texture2D<uint>   NextTile : register(t8);
         Texture2D<uint>   FlowGrid : register(t9);
         Texture2D<float4> ArrowTex : register(t10);
+        Texture2D<float4> CloudTex : register(t11);
 
         cbuffer Frame : register(b0)
         {
@@ -67,6 +68,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             float4 Cover;
             float4 Ripple;
             float4 Arrows;
+            float4 Clouds[6];
         };
 
         struct VSOut { float4 pos : SV_Position; };
@@ -120,6 +122,19 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                          float3(0.42, 0.90, 1.00));
         }
 
+        float4 CloudsOver(float4 col, float2 px)
+        {
+            [unroll] for (int k = 0; k < 6; k++)
+            {
+                if (Clouds[k].w <= 0) continue;
+                float2 d = (px - Clouds[k].xy) / Clouds[k].w;
+                if (any(d < 0) || d.x >= 160.0 || d.y >= 120.0) continue;
+                float4 c = CloudTex.Load(int3(int2(d) + int2(0, int(Clouds[k].z) * 120), 0));
+                if (c.a > 0) col = c;
+            }
+            return col;
+        }
+
         float4 PS(VSOut i) : SV_Target
         {
             if (OverlayRect.z > 0)
@@ -127,8 +142,8 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 float2 v = (i.pos.xy - OverlayRect.xy) / OverlayRect.zw;
                 if (all(v >= 0) && all(v < 1))
                 {
-                    float4 c = Overlay.Load(int3(int2(v * 16.0), 0));
-                    if (c.a > 0) return Tint(c);
+                    float4 c = Overlay.Load(int3(int2(v * 48.0), 0));
+                    if (c.a > 0) return Tint(CloudsOver(c, i.pos.xy));
                 }
             }
 
@@ -138,7 +153,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 if (all(s >= 0) && all(s < 1))
                 {
                     float4 c = Sprite.Load(int3(int2(s * 48.0), 0));
-                    if (c.a > 0) return Tint(c);
+                    if (c.a > 0) return Tint(CloudsOver(c, i.pos.xy));
                 }
             }
 
@@ -176,7 +191,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 float4 a = ArrowsAt(cellRaw, i.pos.xy);
                 col.rgb = lerp(col.rgb, a.rgb, a.a);
             }
-            return Tint(col);
+            return Tint(CloudsOver(col, i.pos.xy));
         }
         """;
 
@@ -193,6 +208,35 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         public float CoverR, CoverG, CoverB, CoverA;
         public float RippleDirX, RippleDirY, RippleSpeed, RippleTick;
         public float ArrowOn, ArrowGrid, ArrowCols, ArrowRows;
+        public fixed float Clouds[MaxClouds * 4];   // x, y, 그림번호, 보일지
+    }
+
+    /// <summary>지도 위에 떠 있는 구름 수. 게임과 같다(<c>0x004890DB</c>).</summary>
+    public const int MaxClouds = 6;
+
+    /// <summary>
+    /// 구름 한 장이 놓일 자리. <paramref name="X"/>·<paramref name="Y"/> 는 화면 왼쪽 위(실픽셀),
+    /// <paramref name="Scale"/> 는 원본 160x120 을 몇 배로 늘려 그릴지다.
+    /// </summary>
+    public readonly record struct CloudDraw(float X, float Y, int Frame, float Scale);
+
+    private readonly float[] _clouds = new float[MaxClouds * 4];
+
+    /// <summary>
+    /// 이번 프레임에 그릴 구름들. 준 것보다 적으면 나머지는 안 그린다.
+    /// 구름 그림을 안 올렸으면 아무 일도 하지 않는다.
+    /// </summary>
+    public void SetClouds(ReadOnlySpan<CloudDraw> clouds)
+    {
+        Array.Clear(_clouds);
+        if (!_cloudsReady) return;
+        for (int i = 0; i < clouds.Length && i < MaxClouds; i++)
+        {
+            _clouds[i * 4 + 0] = clouds[i].X;
+            _clouds[i * 4 + 1] = clouds[i].Y;
+            _clouds[i * 4 + 2] = clouds[i].Frame;
+            _clouds[i * 4 + 3] = clouds[i].Scale;   // 0 이면 셰이더가 안 그린다
+        }
     }
 
     /// <summary>
@@ -234,9 +278,11 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     private ID3D11Texture2D _flowTex = null!;
     private ID3D11ShaderResourceView _flowSrv = null!;
     private ID3D11ShaderResourceView _arrowSrv = null!;
+    private ID3D11ShaderResourceView _cloudSrv = null!;
+    private bool _cloudsReady;
 
-    /// <summary>덧그림 한 변. 셰이더에도 같은 값이 박혀 있다.</summary>
-    private const int OverlaySize = 16;
+    /// <summary>덧그림 한 변. 셰이더에도 같은 값이 박혀 있다(닻이 배와 같은 48x48 이다).</summary>
+    private const int OverlaySize = 48;
 
     private ID3D11Texture2D? _target;
     private ID3D11RenderTargetView? _rtv;
@@ -305,6 +351,23 @@ public sealed unsafe class MapD3DRenderer : IDisposable
 
         _arrowSrv = CreateImmutable(FlowArrows.Alpha, FlowArrows.AtlasWidth, FlowArrows.CellSize,
                                     Format.R8_UNorm, 1);
+
+        // 구름을 못 읽어도 셰이더에 걸 것은 있어야 한다. 안 그릴 것이므로 한 점이면 된다.
+        _cloudSrv = CreateImmutable(new uint[1], 1, 1, Format.B8G8R8A8_UNorm, sizeof(uint));
+    }
+
+    /// <summary>
+    /// 구름 그림 여섯 장을 건다(<see cref="CloudSprites.Bgra"/>). 걸기 전에는
+    /// <see cref="SetClouds"/> 가 아무 일도 하지 않는다.
+    /// </summary>
+    public void SetCloudSprites(ReadOnlySpan<uint> bgra)
+    {
+        if (bgra.Length != CloudSprites.Width * CloudSprites.AtlasHeight) return;
+        var old = _cloudSrv;
+        _cloudSrv = CreateImmutable(bgra.ToArray(), CloudSprites.Width, CloudSprites.AtlasHeight,
+                                    Format.B8G8R8A8_UNorm, sizeof(uint));
+        old?.Dispose();
+        _cloudsReady = true;
     }
 
     /// <summary>타일 번호 16,384개를 아틀라스와 같은 128x128 격자로 편다.</summary>
@@ -470,7 +533,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     /// <summary>배 그림을 갈아 끼운다. 48x48 BGRA 이고 알파 0 이 비침이다.</summary>
     public void SetSprite(ReadOnlySpan<uint> bgra48X48) => Upload(_spriteTex, bgra48X48, 48);
 
-    /// <summary>배 위에 얹을 덧그림(닻)을 갈아 끼운다. 16x16 BGRA 다.</summary>
+    /// <summary>배 위에 얹을 덧그림(닻)을 갈아 끼운다. 48x48 BGRA 다.</summary>
     public void SetOverlay(ReadOnlySpan<uint> bgra16X16) => Upload(_overlayTex, bgra16X16, OverlaySize);
 
     private void Upload(ID3D11Texture2D tex, ReadOnlySpan<uint> bgra, int side)
@@ -567,6 +630,8 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             ArrowCols = WindTable.Cols,
             ArrowRows = WindTable.Rows,
         };
+        for (int i = 0; i < _clouds.Length; i++) cb.Clouds[i] = _clouds[i];
+
         var map = _ctx.Map(_cb, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         *(FrameCb*)map.DataPointer = cb;
         _ctx.Unmap(_cb, 0);
@@ -580,7 +645,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         _ctx.PSSetConstantBuffer(0, _cb);
         _ctx.PSSetShaderResources(0, [_cellSrv, _atlasSrv, _paletteSrv, _spriteSrv,
                                       _avgSrv[0], _avgSrv[1], _avgSrv[2], _overlaySrv,
-                                      _nextSrv, _flowSrv, _arrowSrv]);
+                                      _nextSrv, _flowSrv, _arrowSrv, _cloudSrv]);
         _ctx.Draw(3, 0);
     }
 
@@ -618,6 +683,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     {
         _rtv?.Dispose();
         _target?.Dispose();
+        _cloudSrv?.Dispose();
         _arrowSrv?.Dispose();
         _flowSrv?.Dispose();
         _flowTex?.Dispose();
