@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -24,7 +24,7 @@ namespace CdsHelper.Game.UI.Views;
 public sealed class GoodsInfoDialog : Window
 {
     /// <summary>게임 화면에서 뽑은 남회색 바탕. 아이템 창과 같다.</summary>
-    private static readonly Brush Back = Freeze(Color.FromRgb(0x58, 0x60, 0x78));
+    private static readonly Brush Back = GameUi.InfoBack;
     private static readonly Brush Ink = Freeze(Color.FromRgb(0x10, 0x10, 0x18));
     private static readonly Brush Empty = Freeze(Color.FromRgb(0x48, 0x50, 0x66));
 
@@ -99,7 +99,7 @@ public sealed class GoodsInfoDialog : Window
         DockPanel.SetDock(picture, Dock.Left);
         body.Children.Add(picture);
         body.Children.Add(right);
-        Content = body;
+        Content = GameUi.InfoFrame(body, Back);
 
         GameUi.EnableDrag(this, body);
         KeyDown += (_, e) => { if (e.Key is Key.Escape or Key.Enter or Key.Space) Close(); };

@@ -239,6 +239,65 @@ internal static class GameUi
     }
 
     /// <summary>
+    /// 남회색 정보 창(도시정보·아이템·교역품)을 두르는 테. 게임은 <b>짙은 선 셋</b>을
+    /// 바탕색 사이에 끼워 두른다 — 밝은 선이 아니다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 화면(런던 도시정보 창)의 왼쪽 테를 픽셀로 재어 옮겼다. 바깥부터
+    /// <c>짙은 선 2 · 바탕 3 · 짙은 선 2 · 바탕 5 · 짙은 선 2</c> 차례다.
+    /// <code>
+    ///   x= 4  #242629  ┐ 짙은 선
+    ///   x= 5  #212734  ┘
+    ///   x= 6  #556789  ┐
+    ///   x= 7  #5C6F93  │ 바탕
+    ///   x= 8  #556789  ┘
+    ///   x= 9  #212734  ┐ 짙은 선
+    ///   x=10  #141820  ┘
+    ///   …
+    ///   x=16  #212835  ┐ 짙은 선
+    ///   x=17  #141820  ┘
+    ///   x=18  안쪽
+    /// </code>
+    /// 한동안 <b>밝은 선 둘</b>로 그려 두었는데 그것은 창을 도드라지게 하는 요즘 투라 게임과
+    /// 사뭇 달라 보였다. 게임은 거꾸로 어두운 선으로 홈을 파듯 두른다.
+    /// </remarks>
+    public static Border InfoFrame(UIElement content, Brush back)
+    {
+        // 안쪽 선 — 글이 놓이는 자리를 두른다.
+        var inner = Line(content, 4);
+        // 가운데 선.
+        var middle = Line(inner, 3);
+        // 바깥 선. 바탕은 여기서 한 번만 칠한다.
+        var outer = Line(middle, 0);
+        outer.Background = back;
+        return outer;
+
+        static Border Line(UIElement child, int gap) => new()
+        {
+            BorderBrush = InfoLine,
+            BorderThickness = new Thickness(LineWidth),
+            Margin = new Thickness(gap),
+            Child = child,
+        };
+    }
+
+    /// <summary>테 한 줄의 굵기.</summary>
+    private const double LineWidth = 2;
+
+    /// <summary>정보 창 테의 짙은 선. 게임 화면에서 뽑았다.</summary>
+    public static readonly Brush InfoLine = Frozen(Color.FromRgb(0x14, 0x18, 0x20));
+
+    /// <summary>남회색 정보 창의 바탕. 게임 화면에서 뽑았다(#5C6F93).</summary>
+    public static readonly Brush InfoBack = Frozen(Color.FromRgb(0x5C, 0x6F, 0x93));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
+    /// <summary>
     /// 게임 띠로 그린 단추. 켜고 끌 수 있다 — 끄면 게임처럼 글자가 회색이 된다.
     /// </summary>
     /// <remarks>

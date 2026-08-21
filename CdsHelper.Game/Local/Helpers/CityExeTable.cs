@@ -9,15 +9,22 @@ namespace CdsHelper.Game.Local.Helpers;
 /// <code>
 ///   도시 표 VA 0x004D14B0 (파일오프셋 0x0CFAB0), 226행 x 136바이트, .rdata
 ///   +0x00  이름 ptr("리스본")     +0x04,+0x08  칸 좌표
-///   +0x0C  규모(처음 값)          +0x10  특산품 둘째(-1 = 없음)
+///   +0x10,+0x14  딸린 내륙 도시 번호(-1 = 없음)
 ///   +0x20  문화권 (0~10)         +0x24  나라 번호
-///   +0x30  특산품 첫째            +0x3C  시장 물건 8칸 (i32), 빈 칸은 -1
+///   +0x28  규모(처음 값, 0~7)     +0x2C  시세 첫값(어디나 100)
+///   +0x30  특산품                 +0x3C  시장 물건 8칸 (i32), 빈 칸은 -1
 /// </code>
-/// 값은 아이템 번호(<see cref="ItemTable"/> 의 색인)다. 리스본은
+///
+/// <b>+0x10 은 특산품이 아니라 도시 번호다.</b> 값이 -1~225 까지 나오는데 교역품은 70가지뿐이라
+/// 교역품일 수가 없다. 세빌리아는 <c>+0x10 = 4</c>(톨레도)고, 게임 도시정보 창에 뜨는 둘째
+/// 특산품 "대포" 는 톨레도의 특산품이다. 런던은 <c>+0x10 = 41</c>(요크)이고 요크의 특산품이
+/// 철광석이다 — 41번 교역품도 마침 철광석이라 오래도록 틀린 줄 모르고 있었다.
+///
+/// 시장 칸의 값은 아이템 번호(<see cref="ItemTable"/> 의 색인)다. 리스본은
 /// <c>[33, 34, 37, 66]</c> — 나침반·육분의·레이피아·66번이다.
 ///
-/// <b>메모리를 읽을 까닭이 없다.</b> 게임이 돌 때는 도시 레코드(<c>0x005863B4</c>, 92바이트)
-/// 의 <c>+20~+48</c> 에 같은 값이 올라와 있지만, 그것은 이 표를 그대로 옮겨 놓은 것이다 —
+/// <b>메모리를 읽을 까닭이 없다.</b> 게임이 돌 때는 도시 레코드(<c>0x005863A8</c> + 도시번호
+/// x 92)의 <c>+0x20~+0x3C</c> 에 같은 값이 올라와 있지만, 그것은 이 표를 옮겨 놓은 것이다 —
 /// 켜 놓은 게임에서 226곳을 읽어 이 표와 대 보니 <b>한 칸도 다르지 않았다</b>. 게다가
 /// 여기는 <c>.rdata</c> 라 놀이 중에 바뀌지도 않는다(시세는 다르다 — 그쪽은 돌아다닌다).
 ///
@@ -31,8 +38,8 @@ public sealed class CityExeTable
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\도시표-게임.json</c>).</summary>
     private const string CacheName = "도시표-게임";
 
-    /// <summary>알맹이 모양 판. 규모·나라·특산품을 더하면서 2 로 올렸다.</summary>
-    private const int Version = 2;
+    /// <summary>알맹이 모양 판. 규모 자리를 고치고 특산품을 딸린 도시까지 넓히며 3 으로 올렸다.</summary>
+    private const int Version = 3;
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -56,8 +63,16 @@ public sealed class CityExeTable
     private const int CultureOffset = 0x20;
 
     /// <summary>규모·나라·특산품이 놓인 자리.</summary>
-    private const int ScaleOffset = 0x0C, NationOffset = 0x24;
-    private const int Special1Offset = 0x30, Special2Offset = 0x10;
+    /// <remarks>
+    /// 규모는 <c>+0x28</c> 이다(0~7). 게임이 놀이를 시작할 때 이 값을 살아 있는 도시 레코드
+    /// (<c>0x005863A8</c> + 도시번호 x 92)의 <c>+0x08</c> 로 옮기고, 도시정보 창은 거기서
+    /// 읽어 막대로 그린다. <c>+0x0C</c> 는 2 아니면 3 뿐이라 규모가 아니었다.
+    /// </remarks>
+    private const int ScaleOffset = 0x28, NationOffset = 0x24;
+    private const int SpecialOffset = 0x30;
+
+    /// <summary>딸린 내륙 도시 번호가 놓인 두 자리.</summary>
+    private static readonly int[] InlandOffsets = [0x10, 0x14];
 
     /// <summary>문화권 수(0~10).</summary>
     public const int CultureCount = 11;
@@ -97,7 +112,12 @@ public sealed class CityExeTable
     public int NationOf(int cityId) =>
         cityId >= 0 && cityId < _nations.Length ? _nations[cityId] : -1;
 
-    /// <summary>그 도시의 특산품(교역품 종류). 한둘이고 없으면 빈 목록.</summary>
+    /// <summary>그 도시의 특산품(교역품 종류). 제 것에 딸린 내륙 도시 것을 더해 최대 셋이다.</summary>
+    /// <remarks>
+    /// 항구 61곳이 내륙 도시 하나를, 25곳이 둘을 끼고 있다(세빌리아 - 톨레도,
+    /// 런던 - 요크, 함부르크 - 마그데부르크·아우크스부르크 …). 끼인 도시가 또 남을 끼는
+    /// 일은 없고, 두 항구가 함께 끼는 것은 시라즈(바스라·호르무즈) 하나뿐이다.
+    /// </remarks>
     public IReadOnlyList<int> SpecialsOf(int cityId) =>
         cityId >= 0 && cityId < _specials.Length ? _specials[cityId] : [];
 
@@ -152,12 +172,18 @@ public sealed class CityExeTable
             scales[city] = exe.Int(row + ScaleOffset);
             nations[city] = exe.Int(row + NationOffset);
 
-            // 첫째가 앞, 둘째가 뒤다 — 게임 도시정보 창도 그 차례로 낸다.
-            var made = new List<int>(2);
-            foreach (int at in new[] { Special1Offset, Special2Offset })
+            // 제 것이 앞, 딸린 내륙 도시 것이 뒤다 — 게임 도시정보 창도 그 차례로 낸다.
+            var made = new List<int>(3);
+            void Add(int at)
             {
-                int g = exe.Int(row + at);
-                if (g >= 0 && g < GoodsTable.Count) made.Add(g);
+                int g = exe.Int(at + SpecialOffset);
+                if (g >= 0 && g < GoodsTable.Count && !made.Contains(g)) made.Add(g);
+            }
+            Add(row);
+            foreach (int at in InlandOffsets)
+            {
+                int inland = exe.Int(row + at);
+                if (inland >= 0 && inland < Count) Add(TableVa + inland * RowSize);
             }
             specials[city] = [.. made];
 
