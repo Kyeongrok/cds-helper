@@ -61,6 +61,7 @@ public sealed class DevDialog : Window
         rows.Children.Add(Row("소지금", _gold, GoldStep, v => _player.SetGold(v)));
         rows.Children.Add(Row("명성", _fame, FameStep, v => _player.Fame = v));
         rows.Children.Add(EffectRow());
+        rows.Children.Add(HurtRow());
 
         // 좌표 겹쳐 보기 — 배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄운다.
         // 놀이에는 없는 것이라 이 창으로 옮겨 두었다.
@@ -131,6 +132,39 @@ public sealed class DevDialog : Window
     }
 
     /// <summary>줄 하나 — 이름, 적는 칸, 늘리고 줄이는 단추.</summary>
+    /// <summary>
+    /// 배를 조금 상하게 하는 줄. 조선소 수리를 시험하려고 둔다 — 놀이 안에는 배를 상하게 하는
+    /// 길(폭풍·전투)이 아직 없다.
+    /// </summary>
+    private UIElement HurtRow()
+    {
+        var line = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 4, 0, 4),
+        };
+
+        line.Children.Add(new TextBlock
+        {
+            Text = "배 손상",
+            Width = 64,
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        line.Children.Add(GameUi.PushButton("모두 -5", () =>
+        {
+            foreach (var ship in _player.Ships) ship.Hurt(5);
+        }, 96));
+        line.Children.Add(GameUi.PushButton("모두 고침", () =>
+        {
+            foreach (var ship in _player.Ships) ship.Repair();
+        }, 96));
+        return line;
+    }
+
     private UIElement Row(string label, TextBox box, int step, Action<int> set)
     {
         var line = new StackPanel

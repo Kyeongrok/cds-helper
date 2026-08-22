@@ -56,7 +56,7 @@ public sealed class Player
     /// <summary>놀이가 시작하는 날. 게임 화면에서 본 날짜를 그대로 쓴다.</summary>
     public static readonly DateTime StartDate = new(1499, 4, 15);
 
-    private readonly List<Hull> _ships = [];
+    private readonly List<Ship> _ships = [];
     private readonly Dictionary<string, int> _skills = [];
     private readonly HashSet<int> _hints = [];
 
@@ -66,7 +66,7 @@ public sealed class Player
         Gold = StartingGold;
         Fame = StartingFame;
         Date = StartDate;
-        _ships.Add(Hull.Cheapest);
+        _ships.Add(new Ship(Hull.Cheapest));
         Crew = MinCrew;   // 배는 최저 승원을 채우고 시작한다
     }
 
@@ -495,7 +495,7 @@ public sealed class Player
     public void SetGold(int gold) => Gold = Math.Clamp(gold, 0, MaxGold);
 
     /// <summary>가지고 있는 배. 산 차례대로다.</summary>
-    public IReadOnlyList<Hull> Ships => _ships;
+    public IReadOnlyList<Ship> Ships => _ships;
 
     /// <summary>
     /// 기함이 함대에서 몇째 자리인지. 배가 없으면 -1 이다.
@@ -507,7 +507,7 @@ public sealed class Player
     public int Flagship { get; private set; }
 
     /// <summary>기함. 배가 없으면 null.</summary>
-    public Hull? FlagshipHull =>
+    public Ship? FlagshipHull =>
         Flagship >= 0 && Flagship < _ships.Count ? _ships[Flagship] : _ships.FirstOrDefault();
 
     /// <summary>기함을 그 자리의 배로 바꾼다. 자리가 이상하면 false.</summary>
@@ -518,7 +518,7 @@ public sealed class Player
         return true;
     }
 
-    private readonly Dictionary<int, List<Hull>> _docked = [];
+    private readonly Dictionary<int, List<Ship>> _docked = [];
 
     /// <summary>
     /// 그 마을에 맡겨 둔 배. 함대에서 <b>삭제</b>하면 여기로 오고, <b>편입</b>하면 도로 나간다.
@@ -527,7 +527,7 @@ public sealed class Player
     /// 게임도 마을마다 배를 맡아 둔다 — 편입·삭제가 그 마을의 수를 세어 줄을 켠다
     /// (<c>0x0040E280(도시, 0)</c>).
     /// </remarks>
-    public IReadOnlyList<Hull> DockedAt(int cityId) =>
+    public IReadOnlyList<Ship> DockedAt(int cityId) =>
         _docked.TryGetValue(cityId, out var list) ? list : [];
 
     /// <summary>한 마을에 맡길 수 있는 배의 수. 게임도 여덟이다.</summary>
@@ -575,16 +575,30 @@ public sealed class Player
     /// 선체 표가 갈려도 세이브가 통째로 깨지지는 않게.
     /// </remarks>
     public void RestoreFleet(IEnumerable<string>? ships, int flagship,
-                             IEnumerable<KeyValuePair<int, List<string>>>? docked)
+                             IEnumerable<KeyValuePair<int, List<string>>>? docked,
+                             IReadOnlyList<int>? shipHp = null,
+                             IReadOnlyDictionary<int, List<int>>? dockedHp = null)
     {
         static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name);
+
+        static List<Ship> Build(IEnumerable<string> names, IReadOnlyList<int>? hps)
+        {
+            var list = new List<Ship>();
+            int at = 0;
+            foreach (var name in names)
+            {
+                int? hp = hps != null && at < hps.Count ? hps[at] : null;
+                at++;
+                if (Find(name) is { } hull) list.Add(new Ship(hull, hp));
+            }
+            return list;
+        }
 
         if (ships != null)
         {
             _ships.Clear();
-            foreach (var name in ships)
-                if (Find(name) is { } hull) _ships.Add(hull);
-            if (_ships.Count == 0) _ships.Add(Hull.Cheapest);
+            _ships.AddRange(Build(ships, shipHp));
+            if (_ships.Count == 0) _ships.Add(new Ship(Hull.Cheapest));
         }
         Flagship = Math.Clamp(flagship, 0, Math.Max(0, _ships.Count - 1));
 
@@ -592,15 +606,14 @@ public sealed class Player
         if (docked == null) return;
         foreach (var (city, names) in docked)
         {
-            var list = new List<Hull>();
-            foreach (var name in names)
-                if (Find(name) is { } hull) list.Add(hull);
+            dockedHp?.TryGetValue(city, out var hps);
+            var list = Build(names, dockedHp != null && dockedHp.TryGetValue(city, out var h) ? h : null);
             if (list.Count > 0) _docked[city] = list;
         }
     }
 
     /// <summary>맡겨 둔 배를 마을별로. 세이브에 적을 때 쓴다.</summary>
-    public IReadOnlyDictionary<int, List<Hull>> Docked => _docked;
+    public IReadOnlyDictionary<int, List<Ship>> Docked => _docked;
 
     /// <summary>함대에서 한 척을 뺀다. 기함 자리가 밀리지 않게 같이 손본다.</summary>
     private void RemoveShip(int index)
@@ -631,10 +644,10 @@ public sealed class Player
     public IReadOnlyList<int> Supplies => _supplies;
 
     /// <summary>함대가 실을 수 있는 통 수(용량). 배마다의 적재량을 더한 것이다.</summary>
-    public int Capacity => _ships.Sum(s => s.Capacity);
+    public int Capacity => _ships.Sum(s => s.Hull.Capacity);
 
     /// <summary>함대가 견디는 무게(중량 한도).</summary>
-    public int Tonnage => _ships.Sum(s => s.Tonnage);
+    public int Tonnage => _ships.Sum(s => s.Hull.Tonnage);
 
     /// <summary>
     /// 지금 태우고 있는 선원 수. 식량·물이 며칠 가는지가 이것으로 갈린다.
@@ -653,7 +666,7 @@ public sealed class Player
     /// 더한다(<c>0x0044C780</c>). 선체 표(<c>0x004FC1E0</c>, 64바이트 x 8)의 <c>+0x34</c> 가
     /// 그 값이다.
     /// </remarks>
-    public int MinCrew => _ships.Sum(s => s.Crew);
+    public int MinCrew => _ships.Sum(s => s.Hull.Crew);
 
     /// <summary>
     /// 태울 수 있는 선원 수(정원). 필요승인의 <b>다섯 배</b>다.
@@ -663,7 +676,7 @@ public sealed class Player
     /// <c>+0x34</c> 가 필요승인 - 10 이므로 <c>(필요승인-10)*5 + 50 = 필요승인*5</c> 로 같다 —
     /// 카라벨 15명이면 75명, 갤리온 40명이면 200명이다.
     /// </remarks>
-    public int MaxCrew => _ships.Sum(s => s.Crew) * 5;
+    public int MaxCrew => _ships.Sum(s => s.Hull.Crew) * 5;
 
     /// <summary>
     /// 선원을 그만큼 태운다(음수면 내린다). 0 과 정원 사이로 잘린다.
@@ -710,7 +723,7 @@ public sealed class Player
         if (can != PurchaseResult.Ok) return can;
 
         Gold -= hull.Price;
-        _ships.Add(hull);
+        _ships.Add(new Ship(hull));
         return PurchaseResult.Ok;
     }
 
