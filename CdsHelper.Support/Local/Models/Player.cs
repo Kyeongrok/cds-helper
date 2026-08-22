@@ -521,7 +521,8 @@ public sealed class Player
                         int? crew = null,
                         IEnumerable<int>? announced = null,
                         IEnumerable<int>? stored = null,
-                        int? savings = null)
+                        int? savings = null,
+                        bool supplyInBarrels = false)
     {
         Gold = gold;
         Date = date;
@@ -531,14 +532,18 @@ public sealed class Player
         _hints.Clear();
         if (hints != null) foreach (int hint in hints) _hints.Add(hint);
         // 보급은 자리째로 되돌린다. 옛 세이브에는 없으므로 그때는 빈 채로 둔다.
+        // 판 16 앞의 세이브는 식량·물도 <b>통</b>으로 적혀 있어 열 배로 펴 준다.
         Array.Clear(_supplies);
         if (supplies != null)
         {
             int slot = 0;
-            foreach (int barrels in supplies)
+            foreach (int value in supplies)
             {
                 if (slot >= _supplies.Length) break;
-                _supplies[slot++] = Math.Max(0, barrels);
+                var kind = (SupplyKind)slot;
+                _supplies[slot++] = Math.Max(0,
+                    supplyInBarrels && Supply.Of(kind).IsDaily
+                        ? Supply.UnitsOf(value) : value);
             }
         }
         // 자리째로 되돌린다 — 빈 자리가 섞여 있어도 차례가 어긋나지 않게.
@@ -733,21 +738,40 @@ public sealed class Player
 
     // ── 보급 ─────────────────────────────────────────────────────────────────
 
-    /// <summary>실어 둔 보급품(통). 색인은 <see cref="SupplyKind"/> 다.</summary>
+    /// <summary>
+    /// 실어 둔 보급품. 색인은 <see cref="SupplyKind"/> 고, <b>값은 게임 원값</b>이다 —
+    /// 식량·물은 <b>단위</b>, 자재·탄약은 통이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 식량·물만 열 배로 들고 화면에 낼 때 <c>(값 + 9) / 10</c> 으로 통을 낸다
+    /// (<c>0x0040EA15</c>). 하루 소모가 통보다 잘아서 통으로만 들면 셀 수가 없다.
+    /// </remarks>
     private readonly int[] _supplies = new int[Supply.Count];
 
-    /// <summary>그 보급품을 몇 통 실었는지.</summary>
-    public int SupplyOf(SupplyKind kind) => _supplies[(int)kind];
+    /// <summary>그 보급품을 몇 통 실었는지 — <b>화면에 내는 값</b>이다.</summary>
+    public int SupplyOf(SupplyKind kind) =>
+        Supply.Of(kind).IsDaily ? Supply.BarrelsOf(_supplies[(int)kind]) : _supplies[(int)kind];
 
-    /// <summary>보급품을 그만큼 싣는다(음수면 던다). 0 밑으로는 안 내려간다.</summary>
+    /// <summary>속으로 든 값 그대로. 하루 소모와 세이브가 이것을 쓴다.</summary>
+    public int SupplyUnitsOf(SupplyKind kind) => _supplies[(int)kind];
+
+    /// <summary>보급품을 그만큼 싣는다(통, 음수면 던다). 0 밑으로는 안 내려간다.</summary>
     public void AddSupply(SupplyKind kind, int barrels) =>
-        _supplies[(int)kind] = Math.Max(0, _supplies[(int)kind] + barrels);
+        AddSupplyUnits(kind, Supply.Of(kind).IsDaily ? barrels * Supply.UnitsPerBarrel : barrels);
 
-    /// <summary>실어 둔 것을 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
+    /// <summary>보급품을 원값으로 그만큼 더한다(음수면 던다).</summary>
+    public void AddSupplyUnits(SupplyKind kind, int units) =>
+        _supplies[(int)kind] = Math.Max(0, _supplies[(int)kind] + units);
+
+    /// <summary>실어 둔 것을 통 수로 박는다.</summary>
     public void SetSupply(SupplyKind kind, int barrels) =>
-        _supplies[(int)kind] = Math.Max(0, barrels);
+        SetSupplyUnits(kind, Supply.Of(kind).IsDaily ? Supply.UnitsOf(barrels) : barrels);
 
-    /// <summary>실어 둔 보급품을 통째로. 세이브에 적을 때 쓴다.</summary>
+    /// <summary>실어 둔 것을 원값으로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
+    public void SetSupplyUnits(SupplyKind kind, int units) =>
+        _supplies[(int)kind] = Math.Max(0, units);
+
+    /// <summary>실어 둔 보급품을 원값으로 통째로. 세이브에 적을 때 쓴다.</summary>
     public IReadOnlyList<int> Supplies => _supplies;
 
     /// <summary>함대가 실을 수 있는 통 수(용량). 배마다의 적재량을 더한 것이다.</summary>
@@ -805,11 +829,24 @@ public sealed class Player
         Supply.DaysLeft(SupplyOf(SupplyKind.Food), SupplyOf(SupplyKind.Water), Crew);
 
     /// <summary>지금 실은 통 수.</summary>
-    public int LoadedBarrels => _supplies.Sum();
+    public int LoadedBarrels => Supply.All.Sum(s => SupplyOf(s.Kind));
 
     /// <summary>지금 실은 무게. 보급품만 센다 — 소지품 무게는 아직 안 센다.</summary>
     public int LoadedWeight =>
-        Supply.All.Sum(s => _supplies[(int)s.Kind] * s.UnitWeight);
+        Supply.All.Sum(s => SupplyOf(s.Kind) * s.UnitWeight);
+
+    /// <summary>
+    /// 바다에서 하루치 식량과 물을 축낸다.
+    /// </summary>
+    /// <returns>축내기 <b>앞</b>의 (물, 식량) 단위 수. 알림을 가리는 데 쓴다.</returns>
+    public (int Water, int Food) UseDailySupply()
+    {
+        var before = (SupplyUnitsOf(SupplyKind.Water), SupplyUnitsOf(SupplyKind.Food));
+        int use = Supply.DailyUse(Crew);
+        AddSupplyUnits(SupplyKind.Water, -use);
+        AddSupplyUnits(SupplyKind.Food, -use);
+        return before;
+    }
 
     /// <summary>배가 꽉 찼는지.</summary>
     public bool IsFleetFull => _ships.Count >= MaxShips;

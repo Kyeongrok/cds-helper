@@ -84,4 +84,32 @@ public sealed record Supply(SupplyKind Kind, string Name, int UnitWeight, int Ba
 
     /// <summary>날수로 세는 품목인지. 식량과 물만 날마다 닳는다.</summary>
     public bool IsDaily => Kind is SupplyKind.Food or SupplyKind.Water;
+
+    /// <summary>단위 수를 화면에 낼 통 수로. 게임의 <c>(값 + 9) / 10</c> 이다.</summary>
+    public static int BarrelsOf(int units) => (Math.Max(0, units) + UnitsPerBarrel - 1) / UnitsPerBarrel;
+
+    /// <summary>통 수를 단위 수로.</summary>
+    public static int UnitsOf(int barrels) => Math.Max(0, barrels) * UnitsPerBarrel;
+
+    /// <summary>
+    /// 하루에 닳는 단위 수 — 식량도 물도 이만큼씩이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004755E6</c> 이다.
+    /// <code>
+    ///   4755e6  eax = 0x004745F0(함대)     ; 함대 총 선원수
+    ///   4755ed  eax = eax * 5 * 2 / 12     ; = 선원수 x 5 / 6
+    ///   4755fa  적어도 1
+    ///   475616  0x004740E0(함대, -소모)     ; 물   -= 소모
+    ///   47561d  0x00474180(함대, -소모)     ; 식량 -= 소모
+    /// </code>
+    /// <b><see cref="DaysLeft"/> 와 어긋난다.</b> 화면에 내는 남은일수는 한 사람이 하루에
+    /// <b>한 단위</b>를 쓴다고 세는데, 실제로 닳는 것은 <b>다섯/여섯 단위</b>다 —
+    /// 곧 보급은 화면이 이르는 것보다 <b>이 할쯤 더 간다</b>. 게임이 그렇게 되어 있어
+    /// 양쪽 다 그대로 옮긴다.
+    /// </remarks>
+    public static int DailyUse(int crew) => Math.Max(1, crew * 5 / 6);
+
+    /// <summary>이 날수보다 적게 남은 날 "얼마 남지 않았습니다!" 가 뜬다(<c>0x00475624</c>).</summary>
+    public const int LowDays = 3;
 }

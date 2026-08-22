@@ -123,6 +123,15 @@ public sealed class ShipMapWindow : Window
     /// <summary>선원들이 지친 만큼. 폭풍을 맞으면 오르고 자택 휴양이 푼다.</summary>
     private readonly GameUi.GameLabel _tired = new() { Bold = true };
 
+    /// <summary>태우고 있는 선원 수.</summary>
+    private readonly GameUi.GameLabel _crew = new() { Bold = true };
+
+    /// <summary>실어 둔 물과 식량(통).</summary>
+    private readonly GameUi.GameLabel _stores = new() { Bold = true };
+
+    /// <summary>보급이 며칠 갈지. 게임 셈(<c>0x00494010</c>)을 그대로 낸다.</summary>
+    private readonly GameUi.GameLabel _left = new() { Bold = true };
+
     /// <summary>게임 상단 바의 위경도 칸.</summary>
     private readonly GameUi.GameLabel _coord = new() { Bold = true };
 
@@ -302,6 +311,9 @@ public sealed class ShipMapWindow : Window
         // 이동 모드(정박·해상 이동) 칸은 뺐다 — 게임 띠에 없는 칸이다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
         gameCells.Children.Add(InfoCell(CityInfoMenu.Date, _date, on: true));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Crew, _crew, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Stores, _stores, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.DaysLeft, _left, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Coord, _coord, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Gold, _purse, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fame, _fame, on: true));
@@ -412,6 +424,9 @@ public sealed class ShipMapWindow : Window
             _purse.Text = $"{_player.Gold}닢";
             _fame.Text = $"명성 {_player.Fame}";
             _tired.Text = $"피로 {_player.Fatigue}";
+            _crew.Text = $"선원 {_player.Crew}";
+            _stores.Text = $"물 {_player.SupplyOf(SupplyKind.Water)} 식량 {_player.SupplyOf(SupplyKind.Food)}";
+            _left.Text = $"남은 {_player.SupplyDaysLeft}일";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
             ShipSprites.Skin = _player.FlagshipHull?.Hull.Skin ?? 0;
@@ -953,7 +968,9 @@ public sealed class ShipMapWindow : Window
             _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
                             saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items,
                             saved.Supplies, saved.Discoveries, saved.Crew, saved.Announced,
-                            saved.Stored, saved.Savings);
+                            saved.Stored, saved.Savings,
+                            // 판 16 앞에는 식량·물도 통으로 적혔다.
+                            supplyInBarrels: saved.Version < GameSave.SupplyUnitsFrom);
             _player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked,
                                  saved.ShipHp, saved.DockedHp,
                                  saved.ShipStats, saved.DockedStats);
@@ -1191,7 +1208,68 @@ public sealed class ShipMapWindow : Window
         _dayTicks = 0;
 
         _player.PassDayAtSea();
+        var (lat, _) = _host.ShipLatLon;
+        Tell(SeaEvents.PassDay(_player, lat, _random));
         CheckSeaEvent();
+    }
+
+    /// <summary>
+    /// 오늘 바다에서 있었던 일을 알린다 — 보급이 줄어든 것과 지친 것.
+    /// </summary>
+    /// <remarks>
+    /// 문구는 게임 것 그대로다.
+    /// <code>
+    ///   0x00535550  "제독, %s%s얼마 남지 않았습니다!"   (물이/물도 · 식량이/식량도)
+    ///   0x00535590  "제독, 물도 식량도 바닥을 드러내고 있습니다. 빨리 상륙하지 않으면 전멸입니다!"
+    ///   0x005355E0  "제독, %s%s 바닥을 드러내고 있습니다, 빨리 상륙합시다!"
+    ///   0x00535628  "선원들이 지쳐있습니다"                        (피로 50)
+    ///   0x00535640  "선원들이 지쳐있습니다. 이제 상륙합시다!"        (피로 70)
+    ///   0x00535668  "선원들의 피로가 한계에 달하고 있습니다. …"      (피로 90)
+    /// </code>
+    /// </remarks>
+    private void Tell(SeaEvents.Day day)
+    {
+        var lines = new List<string>();
+
+        if (day.WaterLow || day.FoodLow)
+        {
+            // 둘 다 모자라면 "도", 하나뿐이면 "이" 다. 게임도 그렇게 갈라 넣는다.
+            bool both = day.WaterLow && day.FoodLow;
+            string water = day.WaterLow ? (both ? "물도 " : "물이 ") : "";
+            string food = day.FoodLow ? (both ? "식량도 " : "식량이 ") : "";
+            lines.Add($"제독, {water}{food}얼마 남지 않았습니다!");
+        }
+
+        if (day.WaterOut && day.FoodOut)
+            lines.Add("제독, 물도 식량도 바닥을 드러내고 있습니다. 빨리 상륙하지 않으면 전멸입니다!");
+        else if (day.WaterOut || day.FoodOut)
+        {
+            string what = day.WaterOut ? "물" : "식량";
+            lines.Add($"제독, {what}{GameUi.Josa(what, "이", "가")} 바닥을 드러내고 있습니다, " +
+                      "빨리 상륙합시다!");
+        }
+
+        if (day.Weary > 0)
+            lines.Add(day.Weary switch
+            {
+                50 => "선원들이 지쳐있습니다",
+                70 => "선원들이 지쳐있습니다. 이제 상륙합시다!",
+                _ => "선원들의 피로가 한계에 달하고 있습니다. 이대로라면 죽는 사람이 나오고 맙니다!",
+            });
+
+        if (lines.Count == 0) return;
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            foreach (string line in lines) NoticeDialog.Show(this, line);
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
     }
 
     /// <summary>한 걸음(<c>0.1초</c>) 몇 번을 하루로 세는지.</summary>
