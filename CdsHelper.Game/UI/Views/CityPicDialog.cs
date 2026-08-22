@@ -1417,12 +1417,13 @@ public sealed class CityPicDialog : Window
     /// 서른 날이다. 쉬고 나면 아내가 있으면 아내가, 없으면 지문이 셋 중 하나를 낸다
     /// (<c>0x004607FE</c> 의 <c>rand(3)</c>). 우리 쪽에는 아내가 없어 지문만 쓴다.
     ///
-    /// 쉬면 <b>피로도가 0 으로 풀린다</b> — 폭풍이 올려 놓은 것이 여기서 풀린다.
+    /// 쉬면 <b>하루에 피로 -1, 사기 +3</b> 씩 돌아온다 — 게임은 그것을 날을 넘기는 자리
+    /// (<c>0x004A2AD0</c>)에서 함께 하므로 <see cref="Player.AdvanceDays"/> 가 맡는다.
+    /// 그래서 한 달만 쉬어도 폭풍 몇 번 분이 한꺼번에 풀린다.
     /// </remarks>
     private void Rest(int months)
     {
         _player.AdvanceDays(RestDaysPerMonth * months);
-        _player.Refresh();
         GameDialog.Show(Menu.Window ?? this, RestWords[_random.Next(RestWords.Length)]);
     }
 

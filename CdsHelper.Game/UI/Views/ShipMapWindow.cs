@@ -959,6 +959,7 @@ public sealed class ShipMapWindow : Window
                                  saved.ShipStats, saved.DockedStats);
             if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
+            if (saved.Morale is { } morale) _player.SetMorale(morale);
             _player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
@@ -1214,6 +1215,8 @@ public sealed class ShipMapWindow : Window
         var (lat, _) = _host.ShipLatLon;
         if (SeaEvents.Roll(_player, lat, _random) is not { } kind) return;
 
+        if (kind == SeaEventKind.Mutiny) { Mutiny(); return; }
+
         var storm = SeaEvents.Resolve(_player, kind, _random);
 
         _asking = true;
@@ -1237,6 +1240,60 @@ public sealed class ShipMapWindow : Window
                 NoticeDialog.Show(this, kind == SeaEventKind.Storm
                     ? "간신히 빠져 나왔습니다만, 선원들이 지쳐 있습니다. 어디서 휴양하는 것이 좋겠습니다."
                     : "간신히 빠져 나왔습니다만, 선원들이 얼어있습니다. 어딘가 상륙해서 몸을 녹이는 것이 좋을 것 같습니다.");
+            }
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
+    /// <summary>
+    /// 반란 — 선원 대표가 나서서 승부를 걸어 온다.
+    /// </summary>
+    /// <remarks>
+    /// 문구는 게임 것 그대로다 — <c>0x00535330</c> "제독, 큰일입니다. %s%s 반란을
+    /// 일으켰습니다!…" · <c>0x00535390</c> "제독, 이대로 %s%s 계속할 작정이라면…" ·
+    /// <c>0x00535400</c> "그러니, 모두가 보는 앞에서 나와 승부하자!…" ·
+    /// <c>0x005354A0</c> "반란을 진압했습니다".
+    ///
+    /// 배를 탔으면 "선원"(<c>0x00535320</c>)과 "항해"(<c>0x005353F0</c>)와
+    /// "물고기"(<c>0x00535478</c>), 뭍이면 "대원"·"탐험"·"새" 로 갈린다.
+    /// </remarks>
+    private void Mutiny()
+    {
+        bool land = _host.IsOnLand;
+        string who = land ? "대원" : "선원";
+        string what = land ? "탐험" : "항해";
+        string beast = land ? "새" : "물고기";
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            NoticeDialog.Show(this,
+                $"제독, 큰일입니다. {who}{GameUi.Josa(who, "이", "가")} 반란을 일으켰습니다!  " +
+                $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!");
+            NoticeDialog.Show(this,
+                $"제독, 이대로 {what}{GameUi.Josa(what, "을", "를")} 계속할 작정이라면 우리들은 " +
+                "전멸이다. 우리들은 당신과 함께 죽을 마음이 없다.");
+            NoticeDialog.Show(this,
+                "그러니, 모두가 보는 앞에서 나와 승부하자! 당신이 이기면 얌전히 따르겠다. " +
+                $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.");
+
+            var fight = SeaEvents.Duel(_player, _random);
+            if (fight.Won)
+            {
+                NoticeDialog.Show(this, "이것으로 불만 없겠지!");
+                NoticeDialog.Show(this, "반란을 진압했습니다");
+            }
+            else
+            {
+                // 게임은 여기서 놀이를 끝낸다(0x0044AF40 상태 4). 우리는 끝나는 길이 없어
+                // 선원을 잃는 것으로 갈음한다 — SeaEvents.Duel 에 적어 두었다.
+                NoticeDialog.Show(this,
+                    $"{who} {fight.Deserted}명이 배를 버리고 떠났습니다!");
             }
         }
         finally

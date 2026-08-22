@@ -65,6 +65,7 @@ public static class GameSave
     /// 선체 기본값으로 연다.
     /// </param>
     /// <param name="DockedStats">맡겨 둔 배의 개조 값.</param>
+    /// <param name="Morale">선원들의 사기(0~100). 판 15 부터 있다 — 없으면 꽉 찬 채로 연다.</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
@@ -77,7 +78,7 @@ public static class GameSave
         List<int>? ShipHp = null, Dictionary<int, List<int>>? DockedHp = null,
         int? Fatigue = null, int? DaysAtSea = null,
         List<Ship.Stats>? ShipStats = null,
-        Dictionary<int, List<Ship.Stats>>? DockedStats = null);
+        Dictionary<int, List<Ship.Stats>>? DockedStats = null, int? Morale = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -91,7 +92,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(14, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(15, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -107,7 +108,8 @@ public static class GameSave
                             player.Fatigue, player.DaysAtSea,
                             [.. player.Ships.Select(s => s.Snapshot())],
                             player.Docked.ToDictionary(
-                                e => e.Key, e => e.Value.Select(s => s.Snapshot()).ToList()));
+                                e => e.Key, e => e.Value.Select(s => s.Snapshot()).ToList()),
+                            player.Morale);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
