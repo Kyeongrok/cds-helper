@@ -1084,6 +1084,62 @@ public sealed class CityPicDialog : Window
     /// <summary>아무리 하찮아도 이만큼은 오른다(<c>0x0047E853</c>).</summary>
     private const int FameFloor = 10;
 
+    /// <summary>
+    /// 자택의 휴양 창 — 한 달 휴양 · 장기 휴양 · 취소. 게임의 <c>0x00460660</c> 그대로다.
+    /// </summary>
+    private GameMenu RestMenu() => new(
+        [.. Facility.RestMenu.Select(item => (item, RestAction(item)))]);
+
+    private Action? RestAction(string item) => item switch
+    {
+        "한 달 휴양" => RestOneMonth,
+        "장기 휴양" => RestLong,
+        Facility.RestExit => Menu.Pop,
+        _ => null,
+    };
+
+    /// <summary>한 달 쉰다. 물어보고 예라야 쉰다.</summary>
+    private void RestOneMonth()
+    {
+        if (ConfirmDialog.Ask(Menu.Window ?? this, "한 달 동안 휴양하겠습니까?")) Rest(1);
+    }
+
+    /// <summary>몇 달이고 쉰다. 게임처럼 한 해까지만 고를 수 있다.</summary>
+    private void RestLong()
+    {
+        var owner = Menu.Window ?? this;
+
+        GameDialog.Show(owner, "몇 개월 동안 휴양하겠습니까?");
+        int months = CountDialog.Ask(owner, "휴양", "휴양할 달수", "개월", MaxRestMonths);
+        if (months > 0) Rest(months);
+    }
+
+    /// <summary>
+    /// 그만큼 쉰다. 값은 안 든다 — 내 집이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x004A2AD0(개월 x 30, 1)</c> 로 <b>날수</b>를 넘긴다 — 달력 달이 아니라
+    /// 서른 날이다. 쉬고 나면 아내가 있으면 아내가, 없으면 지문이 셋 중 하나를 낸다
+    /// (<c>0x004607FE</c> 의 <c>rand(3)</c>). 우리 쪽에는 아내가 없어 지문만 쓴다.
+    ///
+    /// 게임은 이때 피로도도 풀어 주는데 그 값은 아직 우리 쪽에 없다.
+    /// </remarks>
+    private void Rest(int months)
+    {
+        _player.AdvanceDays(RestDaysPerMonth * months);
+        GameDialog.Show(Menu.Window ?? this, RestWords[_random.Next(RestWords.Length)]);
+    }
+
+    /// <summary>장기 휴양으로 고를 수 있는 가장 긴 달수(<c>0x00460782</c> 의 <c>push 0xC</c>).</summary>
+    private const int MaxRestMonths = 12;
+
+    /// <summary>휴양 한 달을 며칠로 세는지. 게임도 서른 날이다.</summary>
+    private const int RestDaysPerMonth = 30;
+
+    /// <summary>쉬고 나서 나오는 지문 셋. 게임 것 그대로다(<c>0x00539840</c> 벌).</summary>
+    private static readonly string[] RestWords =
+        ["피로가 풀렸다!", "체력이 회복되었다!", "기분이 상쾌하다!"];
+
     private GameMenu SystemMenu() => new(
         [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
 
@@ -1702,6 +1758,7 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Harbor, "함대편성") => () => Menu.Push(FleetMenu),
             (FacilityKind.Harbor, "선원편성") => () => Menu.Push(CrewMenu),
             (FacilityKind.Harbor, Facility.Announce) => Announce,
+            (FacilityKind.Home, "휴양") => () => Menu.Push(RestMenu),
             (FacilityKind.Harbor, "보급") => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),
