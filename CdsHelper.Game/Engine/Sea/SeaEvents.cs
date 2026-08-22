@@ -160,6 +160,89 @@ public static class SeaEvents
     /// <summary>폭풍이 깎는 사기(<c>0x00474D2D</c> 의 <c>rand(11) + 0x0A</c>, 부호 뒤집음).</summary>
     public static int Dishearten(Random rng) => rng.Next(11) + 10;
 
+    /// <summary>바다에서 하루를 난 끝.</summary>
+    /// <param name="WaterLow">오늘 물이 사흘치 밑으로 떨어졌는지.</param>
+    /// <param name="FoodLow">오늘 식량이 사흘치 밑으로 떨어졌는지.</param>
+    /// <param name="WaterOut">오늘 물이 바닥났는지.</param>
+    /// <param name="FoodOut">오늘 식량이 바닥났는지.</param>
+    /// <param name="Tired">오늘 오른 피로도.</param>
+    /// <param name="Cold">추위 값(0~3).</param>
+    /// <param name="Weary">넘어선 피로 문턱(50·70·90). 안 넘었으면 0.</param>
+    public sealed record Day(bool WaterLow, bool FoodLow, bool WaterOut, bool FoodOut,
+                             int Tired, int Cold, int Weary);
+
+    /// <summary>추위가 한 단씩 오르는 위도(도). 게임 값 <c>0x1C36·0x1E61·0x208D</c> 다.</summary>
+    public static readonly double[] ColdLats = [65, 70, 75];
+
+    /// <summary>피로 알림이 뜨는 문턱(<c>0x004757C5</c> 벌).</summary>
+    public static readonly int[] WearySteps = [50, 70, 90];
+
+    /// <summary>
+    /// 그 위도의 추위 — 65도에서 한 단, 70도에서 두 단, 75도를 넘으면 세 단이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    /// 475587  eax = |10000 - 0x5B63B4|            ; 적도에서 떨어진 만큼
+    /// 47559e  edx  = (eax &gt;= 0x1C36) ? 1 : 0     ; 7222 = 65도
+    /// 4755ac  edx += (eax &gt;= 0x1E61) ? 1 : 0     ; 7777 = 70도
+    /// 4755bc  edx += (eax &gt;= 0x208D) ? 1 : 0     ; 8333 = 75도
+    /// </code>
+    /// 이 값은 그날 오르는 피로도에 그대로 더해진다 — <b>추운 데를 지나면 더 지친다</b>.
+    /// </remarks>
+    public static int ColdAt(double lat)
+    {
+        double a = Math.Abs(lat);
+        int cold = 0;
+        foreach (double step in ColdLats) if (a >= step) cold++;
+        return cold;
+    }
+
+    /// <summary>
+    /// 바다에서 하루를 난다 — 식량과 물을 축내고, 그만큼 지친다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00475470</c>(항해 하루치)이다. 부르는 곳은 <c>0x0044B1A2</c> 하나다.
+    /// <code>
+    /// 4755e6  소모 = max(1, 선원수 * 5 / 6)      ; 식량·물 각각
+    /// 475624  사흘치 밑으로 <b>떨어진 그 날</b> "얼마 남지 않았습니다!"
+    /// 4756b4  0 이 <b>된 그 날</b>              "바닥을 드러내고 있습니다"
+    /// 47578e  피로 += rand(2) + 4 - 항해사등급 + 추위      ; 둘 다 있을 때
+    /// 4757a4  피로 += rand(3) + 6 - …                     ; 한쪽이 바닥
+    /// 47576e  피로 += rand(3) + 8 - …                     ; 둘 다 바닥
+    /// </code>
+    /// <b>바다에서는 날마다 지친다</b> — 폭풍이 없어도 오래 나가 있으면 반란이 온다.
+    /// 항해사 등급은 우리에게 없어 그 자리에 <b>항해술 자리</b>를 넣는다.
+    /// </remarks>
+    public static Day PassDay(Player player, double lat, Random rng)
+    {
+        int use = Supply.DailyUse(player.Crew);
+        int warn = use * Supply.LowDays;
+        var (water0, food0) = player.UseDailySupply();
+        int water = player.SupplyUnitsOf(SupplyKind.Water);
+        int food = player.SupplyUnitsOf(SupplyKind.Food);
+
+        static bool Crossed(int before, int after, int mark) =>
+            before >= mark && after < mark && after > 0;
+
+        int cold = ColdAt(lat);
+        int tired = water == 0 && food == 0 ? rng.Next(3) + 8
+                  : water == 0 || food == 0 ? rng.Next(3) + 6
+                  : rng.Next(2) + 4;
+        tired = Math.Max(0, tired - player.LevelOf(SkillName) + cold);
+
+        int was = player.Fatigue;
+        player.Tire(tired);
+
+        int weary = 0;
+        foreach (int mark in WearySteps)
+            if (was < mark && player.Fatigue >= mark) weary = mark;
+
+        return new Day(
+            Crossed(water0, water, warn), Crossed(food0, food, warn),
+            water0 > 0 && water == 0, food0 > 0 && food == 0,
+            tired, cold, weary);
+    }
+
     /// <summary>선원 대표와 벌인 승부의 끝.</summary>
     /// <param name="Won">이겼는지.</param>
     /// <param name="Mine">내가 굴린 값.</param>

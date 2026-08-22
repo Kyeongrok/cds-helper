@@ -21,6 +21,11 @@ public static class GameSave
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
+    /// <summary>
+    /// 이 판부터 <c>Supplies</c> 의 식량·물이 <b>통이 아니라 단위</b>로 적힌다(한 통이 열).
+    /// </summary>
+    public const int SupplyUnitsFrom = 16;
+
     /// <summary>세이브 파일 자리.</summary>
     public static string Path => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -33,7 +38,8 @@ public static class GameSave
     /// <param name="Met">낯을 튼 사람. 이 사람들만 술집에서 이름이 보인다.</param>
     /// <param name="Items">소지품(아이템 번호). 판 3 부터 있어 그 전 세이브에서는 null 이다.</param>
     /// <param name="Supplies">
-    /// 실어 둔 보급품(식량·물·자재·탄약, 통). 판 4 부터 있어 그 전 세이브에서는 null 이다.
+    /// 실어 둔 보급품(식량·물·자재·탄약). 판 4 부터 있어 그 전 세이브에서는 null 이다.
+    /// <b>판 16 부터 식량·물은 통이 아니라 단위</b>다 — 한 통이 열이다.
     /// </param>
     /// <param name="Discoveries">
     /// 발견한 발견물 번호(게임 표의 줄 번호). 판 5 부터 있어 그 전 세이브에서는 null 이다.
@@ -92,7 +98,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(15, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(16, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],

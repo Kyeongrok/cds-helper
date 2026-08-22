@@ -23,13 +23,14 @@ internal static class CityInfoMenu
     /// 그 줄이 조용히 흐려진다 — 그래서 양쪽이 이 이름을 함께 쓴다.
     /// </summary>
     public const string Date = "날짜", Coord = "위도·경도", Gold = "소지금",
-                        Fame = "명성", City = "도시명", Fatigue = "피로도";
+                        Fame = "명성", City = "도시명", Fatigue = "피로도",
+                        Crew = "선원·대원", Stores = "물·식량", DaysLeft = "남은일수";
 
     /// <summary>게임 도시정보 창의 줄 차례. 화면에서 그대로 옮겼다.</summary>
     public static readonly string[] Rows =
     [
-        Date, "선원·대원", "물·식량", Coord, Gold, Fatigue,
-        Fame, City, "언어", "시세", "남은일수",
+        Date, Crew, Stores, Coord, Gold, Fatigue,
+        Fame, City, "언어", "시세", DaysLeft,
     ];
 
     private const string OnMark = ":ON", OffMark = ":OFF";
