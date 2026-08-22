@@ -228,6 +228,17 @@ public sealed class Player
     }
 
     /// <summary>
+    /// 날을 넘긴다(자택 휴양). 게임은 달을 셀 때도 <b>서른 날</b>로 세므로 이쪽을 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 휴양은 <c>0x004A2AD0(개월 x 30, 1)</c> 로 날수를 넘긴다 — 달력 달이 아니라 30일이다.
+    /// </remarks>
+    public void AdvanceDays(int days)
+    {
+        if (days > 0) Date = Date.AddDays(days);
+    }
+
+    /// <summary>
     /// 아이템을 산다. 값을 치르고 소지품에 넣는다. 돈이 모자라면 아무것도 하지 않는다.
     /// </summary>
     /// <remarks>

@@ -128,6 +128,14 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public const string Announce = "발표";
 
     /// <summary>
+    /// 자택 휴양 창의 줄. 게임 것 그대로다(<c>0x00539778</c> 벌 — 휴양 <c>0x00460660</c>).
+    /// </summary>
+    public static readonly string[] RestMenu = ["한 달 휴양", "장기 휴양", RestExit];
+
+    /// <summary>휴양 창을 접고 자택 창으로 돌아가는 줄.</summary>
+    public const string RestExit = "취소";
+
+    /// <summary>
     /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는
     /// 종류(성문·상관·모스크 …)는 나가기 한 줄만 있는 창을 준다.
     /// </summary>
