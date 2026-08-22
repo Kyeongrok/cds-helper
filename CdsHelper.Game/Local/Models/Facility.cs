@@ -58,7 +58,7 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
             BgmPlayer.TavernTrack),
 
         new(FacilityKind.Inn, "여관",
-            ["숙박", "매매", "허드렛일", "기능", "부하편성", "여관을 나온다"]),
+            ["숙박", "허드렛일", "부하편성", "기능", "여관을 나온다"]),
 
         new(FacilityKind.Market, "시장",
             ["구입", "매각", "시장을 나온다"]),

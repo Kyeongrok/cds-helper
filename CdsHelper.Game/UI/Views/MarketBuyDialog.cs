@@ -1,7 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using CdsHelper.Game.Engine.Market;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -29,15 +28,13 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class MarketBuyDialog : Window
 {
-    /// <summary>고른 줄에 씌우는 남색. 게임 화면에서 뽑았다.</summary>
-    private static readonly Brush Picked = Freeze(Color.FromRgb(0x3A, 0x5A, 0x9A));
-
-    private static SolidColorBrush Freeze(Color c)
-    {
-        var b = new SolidColorBrush(c);
-        b.Freeze();
-        return b;
-    }
+    /// <summary>줄 속 칸 — 이름 · (갈래) · 값. 오른쪽 것을 먼저 줘야 바깥에 선다.</summary>
+    private static readonly GameListColumn[] Columns =
+    [
+        new(GameListDock.Right, new Thickness(12, 0, 10, 0)),   // 값
+        new(GameListDock.Right, new Thickness(12, 0, 0, 0)),    // (갈래)
+        new(GameListDock.Fill, new Thickness(10, 0, 0, 0)),     // 이름
+    ];
 
     private readonly Player _player;
     private readonly Market _market;
@@ -45,9 +42,9 @@ public sealed class MarketBuyDialog : Window
     private readonly ItemArt? _art;
     private readonly int _cityId;
 
-    private readonly List<(ItemTable.Record Item, Border Row)> _rows = [];
+    private readonly ItemTable.Record[] _stock;
+    private readonly GameList _list;
     private readonly GameUi.BandButton _decide;
-    private int _at = -1;
 
     private MarketBuyDialog(Player player, Market market, int cityId,
                             ItemDescriptions? descriptions, ItemArt? art)
@@ -66,35 +63,12 @@ public sealed class MarketBuyDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        var list = new StackPanel();
-        foreach (var item in market.StockOf(cityId))
-        {
-            var row = Row(item);
-            _rows.Add((item, row));
-            list.Children.Add(row);
-        }
-        if (_rows.Count == 0)
-            list.Children.Add(new TextBlock
-            {
-                Text = "  지금 내놓은 물건이 없다.  ",
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 15,
-                Margin = new Thickness(8, 10, 8, 10),
-                HorizontalAlignment = HorizontalAlignment.Center,
-            });
-
-        // 게임은 줄을 어두운 창 바탕이 아니라 밝은 칸 위에 얹는다.
-        var page = new Border
-        {
-            Background = GameUi.PageFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(6, 4, 6, 4),
-            Child = list,
-        };
+        _stock = [.. market.StockOf(cityId)];
+        _list = new GameList(Columns, Cells, _stock.Length, "  지금 내놓은 물건이 없다.  ");
 
         _decide = new GameUi.BandButton("결정", Decide, 110) { On = false };
+        // 게임도 아무것도 안 고른 동안은 이 단추가 흐리다.
+        _list.SelectionChanged += () => _decide.On = _list.Selected >= 0;
 
         var buttons = new StackPanel
         {
@@ -110,7 +84,7 @@ public sealed class MarketBuyDialog : Window
 
         var stack = new StackPanel { MinWidth = 420 };
         stack.Children.Add(title);
-        stack.Children.Add(page);
+        stack.Children.Add(_list);
         stack.Children.Add(buttons);
 
         Content = new Border
@@ -125,91 +99,23 @@ public sealed class MarketBuyDialog : Window
         KeyDown += OnKey;
     }
 
-    /// <summary>줄 하나 — 이름, (갈래), 값. 글씨는 게임 비트맵 글꼴로 찍는다.</summary>
-    private Border Row(ItemTable.Record item)
+    /// <summary>줄 하나의 칸 글자 — 값 · (갈래) · 이름. <see cref="Columns"/> 와 차례가 같다.</summary>
+    private IReadOnlyList<string> Cells(int index)
     {
-        var row = new Border
-        {
-            Background = Brushes.Transparent,
-            Padding = new Thickness(2, 3, 2, 3),
-            Cursor = Cursors.Hand,
-            Child = Line(item, picked: false),
-        };
-        row.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        row.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            Pick(_rows.FindIndex(r => ReferenceEquals(r.Row, row)));
-        };
-        return row;
-    }
-
-    /// <summary>줄 속 — 이름, (갈래), 값.</summary>
-    private FrameworkElement Line(ItemTable.Record item, bool picked)
-    {
-        var line = new DockPanel { LastChildFill = true };
-
-        var money = Label($"{_market.PriceOf(item, _cityId)}", new Thickness(12, 0, 10, 0), picked);
-        DockPanel.SetDock(money, Dock.Right);
-        line.Children.Add(money);
-
-        var kind = Label($"({item.CategoryName})", new Thickness(12, 0, 0, 0), picked);
-        DockPanel.SetDock(kind, Dock.Right);
-        line.Children.Add(kind);
-
-        line.Children.Add(Label(item.Name, new Thickness(10, 0, 0, 0), picked));
-        return line;
-    }
-
-    /// <summary>
-    /// 줄에 얹는 글씨. 게임 비트맵 글꼴로 찍는다.
-    /// </summary>
-    /// <remarks>
-    /// 줄 칸은 양피지라 글씨가 검다. 고른 줄만 남색이 씌워지므로 그때는 흰빛으로 뒤집는다 —
-    /// 색이 지을 때 정해지므로 고를 때마다 그 줄을 새로 짓는다(한 번에 바뀌는 줄은 둘뿐이다).
-    /// </remarks>
-    private static FrameworkElement Label(string text, Thickness margin, bool picked)
-    {
-        var label = new GameUi.GameLabel(picked ? GameFont.WhiteColor : GameFont.ButtonColor)
-        {
-            Margin = margin,
-            Text = text,
-        };
-        // 글꼴을 못 읽으면 GameLabel 이 윈도 글꼴로 물러선다. 그때 색을 맞춰 준다.
-        label.FallbackBrush = picked ? Brushes.White : Brushes.Black;
-        return label;
-    }
-
-    /// <summary>그 줄을 고른다. 고른 줄만 남색이 씌워지고 "결정" 이 살아난다.</summary>
-    private void Pick(int index)
-    {
-        if (index < 0 || index >= _rows.Count) return;
-        _at = index;
-        for (int i = 0; i < _rows.Count; i++)
-        {
-            bool on = i == index;
-            _rows[i].Row.Background = on ? Picked : Brushes.Transparent;
-            _rows[i].Row.Child = Line(_rows[i].Item, on);
-        }
-        _decide.On = true;      // 게임도 아무것도 안 고른 동안은 이 단추가 흐리다
+        var item = _stock[index];
+        return [$"{_market.PriceOf(item, _cityId)}", $"({item.CategoryName})", item.Name];
     }
 
     private void OnKey(object sender, KeyEventArgs e)
     {
+        if (_list.HandleKey(e.Key)) { e.Handled = true; return; }
+
         switch (e.Key)
         {
             case Key.Escape:
                 Close();
                 break;
-            case Key.Up:
-                Pick(_at <= 0 ? _rows.Count - 1 : _at - 1);
-                e.Handled = true;
-                break;
-            case Key.Down:
-                Pick(_at < 0 || _at >= _rows.Count - 1 ? 0 : _at + 1);
-                e.Handled = true;
-                break;
-            case Key.Enter or Key.Space when _at >= 0:
+            case Key.Enter or Key.Space when _list.Selected >= 0:
                 Decide();
                 e.Handled = true;
                 break;
@@ -219,8 +125,9 @@ public sealed class MarketBuyDialog : Window
     /// <summary>고른 것을 사는 데까지 끌고 간다 — 아이템 창 → 값 → 물음 → 결과.</summary>
     private void Decide()
     {
-        if (_at < 0 || _at >= _rows.Count) return;
-        var item = _rows[_at].Item;
+        int at = _list.Selected;
+        if (at < 0 || at >= _stock.Length) return;
+        var item = _stock[at];
 
         // 2. 무엇인지 보여 준다.
         ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art);

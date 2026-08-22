@@ -82,10 +82,13 @@ public static class AppSettings
     public const double DefaultMarkerSize = 11.0;
 
     /// <summary>
-    /// 게임 창 단추의 좌우 여백 기본값(점). 띠 마구리가 실제로는 16점인데, 그만큼 다
-    /// 비워 두면 창이 넓어 보여 조금 줄여 잡는다.
+    /// 게임 창 단추의 좌우 여백 기본값(점).
     /// </summary>
-    public const int DefaultBandPad = 14;
+    /// <remarks>
+    /// 띠 마구리는 실제로 16점이지만 그만큼 다 비우면 창이 훨씬 넓어 보인다 — 게임 창은
+    /// 글자가 마구리 무늬에 꽤 가깝게 붙는다. 눈으로 맞춰 3 으로 잡았다.
+    /// </remarks>
+    public const int DefaultBandPad = 3;
 
     /// <summary>단추 여백을 이 사이로만 잡는다.</summary>
     public const int MinBandPad = 0, MaxBandPad = 32;

@@ -1,7 +1,6 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
@@ -31,29 +30,25 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class MateRosterDialog : Window
 {
-    /// <summary>잡힌 줄에 씌우는 남색. 다른 목록과 같은 색이다.</summary>
-    private static readonly Brush Picked = Freeze(Color.FromRgb(0x3A, 0x5A, 0x9A));
-
-    private static SolidColorBrush Freeze(Color c)
-    {
-        var b = new SolidColorBrush(c);
-        b.Freeze();
-        return b;
-    }
+    /// <summary>줄 속 칸 — 자리 이름 · 콜론 · 사람. 자리 이름은 폭을 맞춰 콜론을 세로로 세운다.</summary>
+    private static readonly GameListColumn[] Columns =
+    [
+        new(GameListDock.Left, new Thickness(6, 0, 6, 0), 64, HorizontalAlignment.Right),
+        new(GameListDock.Left, new Thickness(8, 0, 8, 0)),
+        new(GameListDock.Fill, new Thickness(6, 0, 6, 0)),
+    ];
 
     private readonly Player _player;
 
     /// <summary>들어올 때의 자리. 중단하면 이대로 되돌린다.</summary>
     private readonly string[] _before;
 
-    private readonly Border[] _rows;
-    private int _held = -1;
+    private readonly GameList _list;
 
     private MateRosterDialog(Player player)
     {
         _player = player;
         _before = [.. player.Mates];
-        _rows = new Border[Player.MaxMates];
 
         Title = "부하편성";
         WindowStyle = WindowStyle.None;
@@ -63,22 +58,9 @@ public sealed class MateRosterDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        var list = new StackPanel();
-        for (int i = 0; i < _rows.Length; i++)
-        {
-            _rows[i] = Row(i);
-            list.Children.Add(_rows[i]);
-        }
-
-        // 게임은 줄을 어두운 창 바탕이 아니라 밝은 칸 위에 얹는다.
-        var page = new Border
-        {
-            Background = GameUi.PageFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(6, 4, 6, 4),
-            Child = list,
-        };
+        // 두 줄을 눌러 자리를 맞바꾼다. 자료를 바꾸는 것은 여기 몫이라 바뀐 뒤에 다시 그린다.
+        _list = new GameList(Columns, Cells, Player.MaxMates) { Pick = GameListPick.Swap };
+        _list.Swapped += (a, b) => { _player.SwapMates(a, b); _list.Refresh(); };
 
         var buttons = new StackPanel
         {
@@ -94,7 +76,7 @@ public sealed class MateRosterDialog : Window
 
         var stack = new StackPanel { MinWidth = 330 };
         stack.Children.Add(title);
-        stack.Children.Add(page);
+        stack.Children.Add(_list);
         stack.Children.Add(buttons);
 
         Content = new Border
@@ -109,83 +91,9 @@ public sealed class MateRosterDialog : Window
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Cancel(); };
     }
 
-    /// <summary>자리 한 줄.</summary>
-    private Border Row(int slot)
-    {
-        var row = new Border
-        {
-            Background = Brushes.Transparent,
-            Padding = new Thickness(2, 3, 2, 3),
-            Cursor = Cursors.Hand,
-            Child = Line(slot, held: false),
-        };
-        row.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        row.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            Touch(slot);
-        };
-        return row;
-    }
-
-    /// <summary>줄 속 — "부관 : 이름". 자리 이름은 너비를 맞춰 콜론이 세로로 선다.</summary>
-    private FrameworkElement Line(int slot, bool held)
-    {
-        string who = _player.MateAt(slot);
-        var line = new DockPanel { LastChildFill = true };
-
-        var role = Label(Player.MateRoles[slot], held);
-        role.Width = 64;
-        role.HorizontalAlignment = HorizontalAlignment.Right;
-        DockPanel.SetDock(role, Dock.Left);
-        line.Children.Add(role);
-
-        var colon = Label(":", held);
-        colon.Margin = new Thickness(8, 0, 8, 0);
-        DockPanel.SetDock(colon, Dock.Left);
-        line.Children.Add(colon);
-
-        // 빈 자리는 줄만 남긴다 — 게임도 이름 없는 자리를 비워 둔다.
-        line.Children.Add(Label(who.Length > 0 ? who : "", held));
-        return line;
-    }
-
-    /// <summary>줄에 얹는 글씨. 잡힌 줄은 남색 위라 흰빛으로 뒤집는다.</summary>
-    private static GameUi.GameLabel Label(string text, bool held) =>
-        new(held ? GameFont.WhiteColor : GameFont.ButtonColor)
-        {
-            Margin = new Thickness(6, 0, 6, 0),
-            FallbackBrush = held ? Brushes.White : Brushes.Black,
-            Text = text,
-        };
-
-    /// <summary>
-    /// 줄을 누른다. 아무것도 안 잡혀 있으면 잡고, 잡혀 있으면 그 자리와 맞바꾼다.
-    /// </summary>
-    private void Touch(int slot)
-    {
-        if (_held < 0)
-        {
-            _held = slot;
-            Paint();
-            return;
-        }
-
-        if (_held != slot) _player.SwapMates(_held, slot);
-        _held = -1;
-        Paint();
-    }
-
-    /// <summary>줄을 다시 그린다. 잡힌 줄만 남색이다.</summary>
-    private void Paint()
-    {
-        for (int i = 0; i < _rows.Length; i++)
-        {
-            bool held = i == _held;
-            _rows[i].Background = held ? Picked : Brushes.Transparent;
-            _rows[i].Child = Line(i, held);
-        }
-    }
+    /// <summary>줄 하나의 칸 글자 — 자리 · 콜론 · 사람. 빈 자리는 이름을 비운다.</summary>
+    private IReadOnlyList<string> Cells(int slot) =>
+        [Player.MateRoles[slot], ":", _player.MateAt(slot)];
 
     private void Decide() => Close();
 

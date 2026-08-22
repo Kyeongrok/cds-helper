@@ -350,7 +350,11 @@ public sealed class CityPicDialog : Window
 
         // 오른쪽 단추는 게임처럼 도시 커맨드 창을 연다. 창을 닫는 것은 ESC 다.
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
-        MouseRightButtonUp += (_, e) => { e.Handled = true; ShowCityMenu(cityName); };
+        MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            ShowCityMenu(cityName, ToScreen(e.GetPosition(this)));
+        };
         Closed += (_, _) => CloseCityMenu();   // 그림 창을 닫으면 커맨드 창도 같이 닫는다
     }
 
@@ -1051,13 +1055,35 @@ public sealed class CityPicDialog : Window
     private bool _itemTableTried;
 
     /// <summary>도시 커맨드 창. 그림 안이 아니라 그림 창 옆에 제 창으로 띄운다.</summary>
+    /// <summary>여관에서 몸으로 값을 치르는 줄.</summary>
+    private const string OddJob = "허드렛일";
+
+    /// <summary>
+    /// 이 돈부터는 허드렛일 줄이 안 나온다. 주머니가 넉넉하면 몸으로 갚을 까닭이 없다.
+    /// </summary>
+    private const int OddJobMaxGold = 300;
+
     private MenuWindow? _cityMenu;
 
-    private void ShowCityMenu(string cityName)
+    /// <summary>
+    /// 도시 커맨드 창을 <b>누른 자리</b>에 띄운다. 시설 창(<see cref="ShowMenu"/>)은 그림 옆에
+    /// 붙이지만 이쪽은 그림 아무 데나 눌러서 내는 것이라, 손이 간 자리에 뜨는 편이 맞다.
+    /// </summary>
+    private void ShowCityMenu(string cityName, Point at)
     {
         if (_cityMenu != null) { _cityMenu.Activate(); return; }
-        _cityMenu = MenuWindow.ShowBeside(this, CityMenu(cityName));
+        _cityMenu = MenuWindow.ShowAt(this, CityMenu(cityName), at);
         _cityMenu.Closed += (_, _) => _cityMenu = null;
+    }
+
+    /// <summary>창 안의 자리를 화면 자리(WPF 단위)로. 창을 그 자리에 띄울 때 쓴다.</summary>
+    private Point ToScreen(Point at)
+    {
+        var device = PointToScreen(at);
+        var source = PresentationSource.FromVisual(this);
+        return source == null
+            ? device
+            : source.CompositionTarget.TransformFromDevice.Transform(device);
     }
 
     private void CloseCityMenu() => _cityMenu?.Close();
@@ -1282,6 +1308,11 @@ public sealed class CityPicDialog : Window
         var items = facility.Menu.ToList();
         // 가르치는 건물인데 줄에 수련이 없으면(학자 저택 따위) 맨 앞에 붙여 준다.
         if (teachMask != 0 && !items.Contains("수련")) items.Insert(0, "수련");
+
+        // 여관 허드렛일은 주머니가 가벼울 때만 나온다. 게임은 조건이 어긋난 줄을 흐리게
+        // 두지 않고 아예 감춘다 — 설득·감찰관 매수와 같은 규칙이다.
+        if (facility.Kind == FacilityKind.Inn && _player.Gold >= OddJobMaxGold)
+            items.Remove(OddJob);
 
         // 후원자가 앉은 건물이면 "설득" 이 맨 앞에 붙는다 — 왕궁만이 아니라 총독부·상관·
         // 학자 저택 어디든 그렇다. 게임도 물린 후원자가 없으면 그 줄을 아예 감춘다.
