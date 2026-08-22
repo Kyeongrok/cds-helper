@@ -136,6 +136,14 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public const string RestExit = "취소";
 
     /// <summary>
+    /// 자택 저금 창의 줄. 게임 것 그대로다(<c>0x005398D0</c> 벌 — 저금 <c>0x004609C0</c>).
+    /// </summary>
+    public static readonly string[] SavingsMenu = ["저금한다", "꺼낸다", SavingsExit];
+
+    /// <summary>저금 창을 접고 자택 창으로 돌아가는 줄.</summary>
+    public const string SavingsExit = "중지한다";
+
+    /// <summary>
     /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는
     /// 종류(성문·상관·모스크 …)는 나가기 한 줄만 있는 창을 준다.
     /// </summary>

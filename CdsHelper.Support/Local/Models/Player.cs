@@ -249,12 +249,52 @@ public sealed class Player
     public bool CanAfford(int price) => Gold >= price;
 
     /// <summary>
-    /// 돈을 받는다(매각·사례). 소지금은 <see cref="int"/> 를 넘지 않게 잘린다.
+    /// 소지금과 저금의 위쪽 끝. 게임도 백만 닢에서 자른다.
+    /// </summary>
+    /// <remarks>
+    /// 돈을 더하는 자리(<c>0x0047CBC0</c> 소지금 · <c>0x0047CC00</c> 저금)가 둘 다
+    /// <c>0x0049E5A0(지금, 더할값, 0, 0xF4240)</c> 으로 0~1000000 사이에 가둔다.
+    /// 넘치면 "금화는 더 이상 늘릴 수 없습니다"(<c>0x0055A488</c>) 가 뜬다.
+    /// </remarks>
+    public const int MaxGold = 1_000_000;
+
+    /// <summary>
+    /// 돈을 받는다(매각·사례). 소지금은 <see cref="MaxGold"/> 에서 잘린다.
     /// </summary>
     public void Earn(int amount)
     {
         if (amount <= 0) return;
-        Gold = (int)Math.Min(int.MaxValue, (long)Gold + amount);
+        Gold = (int)Math.Min(MaxGold, (long)Gold + amount);
+    }
+
+    /// <summary>
+    /// 자택에 맡겨 둔 돈. 소지금과 따로 두며 백만 닢까지 담긴다.
+    /// </summary>
+    /// <remarks>게임은 플레이어 객체의 소지금(<c>+0xF4</c>) 옆에 나란히 둔다.</remarks>
+    public int Savings { get; private set; }
+
+    /// <summary>
+    /// 그만큼 저금한다. 소지금이 모자라거나 저금 칸이 다 찼으면 할 수 있는 만큼만 한다.
+    /// </summary>
+    /// <returns>실제로 맡긴 돈.</returns>
+    public int Deposit(int amount)
+    {
+        int moved = Math.Min(Math.Max(0, amount), Math.Min(Gold, MaxGold - Savings));
+        Gold -= moved;
+        Savings += moved;
+        return moved;
+    }
+
+    /// <summary>
+    /// 저금에서 그만큼 꺼낸다. 저금이 모자라거나 소지금이 다 찼으면 되는 만큼만 꺼낸다.
+    /// </summary>
+    /// <returns>실제로 꺼낸 돈.</returns>
+    public int Withdraw(int amount)
+    {
+        int moved = Math.Min(Math.Max(0, amount), Math.Min(Savings, MaxGold - Gold));
+        Savings -= moved;
+        Gold += moved;
+        return moved;
     }
 
     /// <summary>값을 치른다. 모자라면 아무것도 하지 않고 false.</summary>
@@ -385,7 +425,8 @@ public sealed class Player
                         IEnumerable<int>? discoveries = null,
                         int? crew = null,
                         IEnumerable<int>? announced = null,
-                        IEnumerable<int>? stored = null)
+                        IEnumerable<int>? stored = null,
+                        int? savings = null)
     {
         Gold = gold;
         Date = date;
@@ -426,6 +467,7 @@ public sealed class Player
         if (announced != null) foreach (int id in announced) _announced.Add(id);
         _stored.Clear();
         if (stored != null) foreach (int id in stored) _stored.Add(id);
+        Savings = Math.Clamp(savings ?? 0, 0, MaxGold);
         // 선원을 안 적어 둔 옛 세이브는 최저 승원으로 채운다 — 그 전까지 쓰던 값이 그것이다.
         SetCrew(crew ?? MinCrew);
     }
@@ -444,7 +486,7 @@ public sealed class Player
     /// 소지금을 그대로 박는다. 놀이 안에서 쓰는 길은 아니고 개발용 창에서만 부른다 —
     /// 돈이 도는 길(교역)을 아직 흉내내지 않아 시험하려면 넣어 줄 데가 있어야 한다.
     /// </summary>
-    public void SetGold(int gold) => Gold = Math.Max(0, gold);
+    public void SetGold(int gold) => Gold = Math.Clamp(gold, 0, MaxGold);
 
     /// <summary>가지고 있는 배. 산 차례대로다.</summary>
     public IReadOnlyList<Hull> Ships => _ships;
