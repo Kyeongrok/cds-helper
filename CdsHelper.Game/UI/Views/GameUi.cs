@@ -141,7 +141,10 @@ internal static class GameUi
     /// 한동안 <b>밝은 선 둘</b>로 그려 두었는데 그것은 창을 도드라지게 하는 요즘 투라 게임과
     /// 사뭇 달라 보였다. 게임은 거꾸로 어두운 선으로 홈을 파듯 두른다.
     /// </remarks>
-    public static Border InfoFrame(UIElement content, Brush back)
+    public static Border InfoFrame(UIElement content, Brush back) => InfoFrame(content, back, InfoLine);
+
+    /// <summary>테 선 색까지 골라 두르는 갈래. 보급 화면처럼 밤색 판에 쓴다.</summary>
+    public static Border InfoFrame(UIElement content, Brush back, Brush line)
     {
         // 안쪽 선 — 글이 놓이는 자리를 두른다.
         var inner = Line(content, 4);
@@ -152,9 +155,9 @@ internal static class GameUi
         outer.Background = back;
         return outer;
 
-        static Border Line(UIElement child, int gap) => new()
+        Border Line(UIElement child, int gap) => new()
         {
-            BorderBrush = InfoLine,
+            BorderBrush = line,
             BorderThickness = new Thickness(LineWidth),
             Margin = new Thickness(gap),
             Child = child,
