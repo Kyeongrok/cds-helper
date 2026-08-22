@@ -863,7 +863,7 @@ public sealed class ShipMapWindow : Window
             grid.Children.Add(inner);
 
             item = band;
-            item.Margin = new Thickness(0, 0, 0, 2);
+            // 줄과 줄 사이는 붙인다 — 게임 메뉴는 띠가 맞닿아 있고 빈 자리가 없다.
             item.Cursor = run != null ? Cursors.Hand : Cursors.Arrow;
 
             // 게임은 글자 좌우로 넉넉히 비운다 — 글자에 딱 붙이면 띠가 쪼그라들어 보인다.
@@ -877,7 +877,6 @@ public sealed class ShipMapWindow : Window
                 Background = CellFill,
                 BorderBrush = BarEdge,
                 BorderThickness = new Thickness(2),
-                Margin = new Thickness(0, 0, 0, 2),
                 Padding = new Thickness(1),
                 Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
                 Child = new Border

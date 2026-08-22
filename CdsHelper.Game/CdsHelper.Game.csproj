@@ -22,6 +22,7 @@
 
     <ItemGroup>
       <Folder Include="Engine\Dialog\" />
+      <Folder Include="Engine\Menu\" />
     </ItemGroup>
 
 </Project>
