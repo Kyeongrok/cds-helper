@@ -128,6 +128,17 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public const string Announce = "발표";
 
     /// <summary>
+    /// 후원자가 앉은 건물의 첫 줄. 계약 상태로 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 그 자리를 문자열 풀 <c>0x00549DF8</c> 에서 시설 객체 <c>+0xB0</c>(계약 상태)로
+    /// 골라 넣는다(<c>0x0044EAE0</c>) — 0 설득 · 1 계약중단 · <b>2 보고</b> · 3 계약중단.
+    /// 상태를 정하는 곳은 <c>0x0044E630</c> 이고, -1 이면 그 줄 자체가 없다.
+    /// 여기서는 아직 설득과 보고 둘만 쓴다.
+    /// </remarks>
+    public const string Persuade = "설득", Report = "보고";
+
+    /// <summary>
     /// 자택 휴양 창의 줄. 게임 것 그대로다(<c>0x00539778</c> 벌 — 휴양 <c>0x00460660</c>).
     /// </summary>
     public static readonly string[] RestMenu = ["한 달 휴양", "장기 휴양", RestExit];
