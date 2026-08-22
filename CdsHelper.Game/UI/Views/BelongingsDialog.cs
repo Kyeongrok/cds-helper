@@ -48,7 +48,7 @@ public sealed class BelongingsDialog : Window
     private readonly ItemArt? _art;
 
     private readonly List<(int ItemId, Border Row, string Name)> _rows = [];
-    private readonly GameUi.BandButton _decide;
+    private readonly GameButton _decide;
     private int _at = -1;
 
     private BelongingsDialog(Player player, ItemTable? items,
@@ -110,7 +110,7 @@ public sealed class BelongingsDialog : Window
                 Margin = new Thickness(6, 8, 6, 6),
             });
 
-        _decide = new GameUi.BandButton("결정", Decide, 130) { On = false };
+        _decide = new GameButton("결정", Decide, width: 130) { On = false };
 
         var buttons = new StackPanel
         {
@@ -119,7 +119,7 @@ public sealed class BelongingsDialog : Window
             Margin = new Thickness(0, 4, 0, 12),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(new GameUi.BandButton("중단", Close, 130));
+        buttons.Children.Add(new GameButton("중단", Close, width: 130));
 
         var root = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(bands, Dock.Top);

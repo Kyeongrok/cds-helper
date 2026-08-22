@@ -86,7 +86,7 @@ internal static class GameUi
     }
 
     /// <summary>글자 한 줄이 앉는 높이(그림 점). 게임 한글 글리프 14 에 위아래 한 점씩.</summary>
-    private const int ItemTextHeight = 16;
+    public const int ItemTextHeight = 16;
 
     /// <summary>
     /// 창을 두르는 테. 게임은 밝은 선 <b>한 점</b>에 짙은 여백 여섯 점이다 —
@@ -107,47 +107,9 @@ internal static class GameUi
     /// 무늬 벌을 골라 짓는 줄. 게임은 창의 <b>마지막 줄</b>(나가기·취소)만 회녹색으로 낸다 —
     /// 도서관의 "도서관을 나온다", 도시정보의 "취소" 가 그것이다.
     /// </summary>
-    public static Border MenuItem(string text, Action? run, BandStyle style)
-    {
-        // 흐린 줄은 회색(색인 21)으로 찍는다. 그림자는 없다 — 게임 버튼 글자에는 안 붙는다.
-        byte color = run != null ? GameFont.ButtonColor : (byte)21;
-
-        var item = BandFrame(Sprites, style, text, color, shadow: false, 1, null);
-        if (item != null)
-        {
-            item.Cursor = run != null ? Cursors.Hand : Cursors.Arrow;
-        }
-        else
-        {
-            FrameworkElement? label = GameFontLabel(text, color, 1, ItemTextHeight, shadow: false);
-            label ??= new TextBlock
-            {
-                Text = text,
-                Foreground = run != null ? Brushes.Black : Brushes.Gray,
-                FontWeight = FontWeights.Bold,
-                FontSize = 14,
-            };
-            label.HorizontalAlignment = HorizontalAlignment.Center;
-
-            item = new Border
-            {
-                Background = ItemFill,
-                BorderBrush = ItemEdge,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(12, 2, 12, 2),
-                Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
-                Child = label,
-            };
-        }
-        if (run != null)
-        {
-            // 누름도 여기서 삼킨다 — 창 끌기(DragMove)가 먼저 걸리면 마우스를 잡아 버려
-            // 뗌이 오지 않는다. 그러면 눌러도 아무 일이 없어 멈춘 것처럼 보인다.
-            item.MouseLeftButtonDown += (_, e) => e.Handled = true;
-            item.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
-        }
-        return item;
-    }
+    public static Border MenuItem(string text, Action? run, BandStyle style) =>
+        // 메뉴는 줄을 붙여 쌓으므로 단추끼리 벌리는 여백을 덮는다.
+        new GameButton(text, run, style) { Margin = default };
 
     /// <summary>제목 한 줄과 항목들을 세로로 쌓은 명령 창.</summary>
     public static Border CommandBox(string title, params (string Text, Action? Run)[] items) =>
@@ -309,55 +271,6 @@ internal static class GameUi
         var b = new SolidColorBrush(c);
         b.Freeze();
         return b;
-    }
-
-    /// <summary>
-    /// 게임 띠로 그린 단추. 켜고 끌 수 있다 — 끄면 게임처럼 글자가 회색이 된다.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="PushButton"/> 은 민색 네모라 게임 화면과 안 맞는다. 이쪽은 원본 띠 그림을
-    /// 깔아 <see cref="MenuItem(string, Action?, BandStyle)"/> 와 같은 모습으로 낸다.
-    ///
-    /// 켜고 끌 때 글자만 갈아 끼우지 않고 <b>속을 통째로 다시 짓는다</b>. 칸의 속 모양이
-    /// 한 가지가 아니기 때문이다 — 원본 조각을 읽었으면 띠 그림 위에 비트맵 글씨를 얹은
-    /// <c>Grid</c> 가 들어 있고, 못 읽었을 때만 <c>TextBlock</c> 이다.
-    /// </remarks>
-    public sealed class BandButton : Border
-    {
-        private readonly string _text;
-        private readonly Action _run;
-        private readonly double _width;
-        private bool _on = true;
-
-        /// <param name="width">0 이면 글자 길이에 맞춘다.</param>
-        public BandButton(string text, Action run, double width = 0)
-        {
-            _text = text;
-            _run = run;
-            _width = width;
-            Margin = new Thickness(10, 0, 10, 0);
-            Build();
-        }
-
-        /// <summary>눌리게 할지. 끄면 글자가 회색이 되고 손 모양 커서도 사라진다.</summary>
-        public bool On
-        {
-            get => _on;
-            set
-            {
-                if (_on == value) return;
-                _on = value;
-                Build();
-            }
-        }
-
-        private void Build()
-        {
-            var item = MenuItem(_text, _on ? _run : null, BandStyle.Button);
-            if (_width > 0) item.Width = _width;
-            item.Margin = default;      // 바깥 여백은 이 감싸개가 든다
-            Child = item;
-        }
     }
 
     /// <summary>
@@ -529,7 +442,7 @@ internal static class GameUi
     /// 글자가 <see cref="UiSprites.BandHeight"/> 안에서 세로 가운데로 오게 찍고, 통째로
     /// <paramref name="scale"/> 배 키운다. 늘릴 때 섞으면 획이 흐려지므로 안 섞는다.
     /// </remarks>
-    private static Image? GameFontLabel(string text, byte color, int scale,
+    public static Image? GameFontLabel(string text, byte color, int scale,
                                         int height = UiSprites.BandHeight, bool shadow = true)
     {
         if (Font == null) return null;
@@ -799,81 +712,28 @@ internal static class GameUi
     /// </remarks>
     public sealed class FocusGroup
     {
-        private readonly List<(Border Item, SolidColorBrush Ring, Action Run)> _items = [];
+        private readonly List<GameButton> _items = [];
         private int _index = -1;
 
         /// <summary>단추 하나를 만들어 묶음에 넣는다.</summary>
-        public Border Add(string text, Action run, double width = 110)
+        public GameButton Add(string text, Action run, double width = 110)
         {
-            var ring = new SolidColorBrush(Colors.Transparent);
-
-            // 게임 원본 베이지 버튼 띠. 조각을 못 읽었을 때만 민색 상자로 물러선다.
-            var band = BandFrame(Sprites, BandStyle.Button, text, GameFont.ButtonColor,
-                                 shadow: false, 1, null);
-            Border item;
-            if (band?.Child is Grid grid)
-            {
-                var focusRing = new Border
-                {
-                    BorderBrush = ring,
-                    BorderThickness = new Thickness(1),
-                    Margin = new Thickness(2),
-                };
-                Grid.SetColumnSpan(focusRing, 3);
-                grid.Children.Add(focusRing);
-
-                item = band;
-                item.Width = width;
-                item.Margin = new Thickness(10, 0, 10, 0);
-                item.Cursor = Cursors.Hand;
-            }
-            else
-            {
-                item = new Border
-                {
-                    Width = width,
-                    Background = ItemFill,
-                    BorderBrush = ItemEdge,
-                    BorderThickness = new Thickness(2),
-                    Margin = new Thickness(10, 0, 10, 0),
-                    Padding = new Thickness(1),
-                    Cursor = Cursors.Hand,
-                    Child = new Border
-                    {
-                        BorderBrush = ring,
-                        BorderThickness = new Thickness(1),
-                        Padding = new Thickness(0, 1, 0, 1),
-                        Child = new TextBlock
-                        {
-                            Text = text,
-                            Foreground = Brushes.Black,
-                            FontWeight = FontWeights.Bold,
-                            FontSize = 14,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                        },
-                    },
-                };
-            }
-
+            var button = new GameButton(text, run, BandStyle.Button, width);
             int index = _items.Count;
-            _items.Add((item, ring, run));
+            _items.Add(button);
 
-            item.MouseEnter += (_, _) => Focus(index);
-            // 누름은 삼킨다 — 창 끌기(DragMove)가 먼저 걸리면 뗌이 안 온다.
-            item.MouseLeftButtonDown += (_, e) => e.Handled = true;
-            item.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
-
+            button.MouseEnter += (_, _) => Focus(index);
             if (_items.Count == 1) Focus(0);   // 첫 단추에 초점을 두고 시작한다
-            return item;
+            return button;
         }
 
         /// <summary>그 단추로 초점을 옮긴다.</summary>
         public void Focus(int index)
         {
             if (index < 0 || index >= _items.Count || index == _index) return;
-            if (_index >= 0 && _index < _items.Count) StopBlink(_items[_index].Ring);
+            if (_index >= 0 && _index < _items.Count) _items[_index].Focused = false;
             _index = index;
-            StartBlink(_items[index].Ring);
+            _items[index].Focused = true;
         }
 
         /// <summary>방향키·엔터를 받는다. 처리했으면 true.</summary>
@@ -889,7 +749,7 @@ internal static class GameUi
                     Focus((_index + 1) % _items.Count);
                     return true;
                 case Key.Enter or Key.Space:
-                    if (_index >= 0) _items[_index].Run();
+                    if (_index >= 0) _items[_index].Run?.Invoke();
                     return true;
                 default:
                     return false;

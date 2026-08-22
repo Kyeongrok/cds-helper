@@ -68,8 +68,8 @@ public sealed class MateRosterDialog : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 4, 0, 12),
         };
-        buttons.Children.Add(new GameUi.BandButton("결정", Decide, 110));
-        buttons.Children.Add(new GameUi.BandButton("중단", Cancel, 110));
+        buttons.Children.Add(new GameButton("결정", Decide, width: 110));
+        buttons.Children.Add(new GameButton("중단", Cancel, width: 110));
 
         var title = GameUi.TitleBar("부하편성", Cancel);
         GameUi.EnableDrag(this, title);

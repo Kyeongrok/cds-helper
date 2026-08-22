@@ -10,7 +10,7 @@ using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Inn;
 using CdsHelper.Game.Engine.Market;
 using CdsHelper.Game.Local.Helpers;
-using CdsHelper.Game.Local.Models;
+using CdsHelper.Game.Engine.Models;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;

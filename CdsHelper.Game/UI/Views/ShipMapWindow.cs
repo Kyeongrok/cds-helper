@@ -3,7 +3,6 @@ using System.Windows.Documents;
 using System.Windows.Controls.Primitives;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using System.Windows;
@@ -648,7 +647,7 @@ public sealed class ShipMapWindow : Window
         };
         handle.Margin = new Thickness(0, 0, 0, 6);
         items.Children.Add(handle);
-        _titleItems.Clear();
+        _titleFocus = new GameUi.FocusGroup();
         items.Children.Add(TitleMenuItem("NEW GAME", () => StartMap(fresh: true)));
         // 게임도 로드 전에 한 번 묻는다 — 제목은 "게임 로드".
         items.Children.Add(TitleMenuItem("LOAD GAME", () =>
@@ -689,7 +688,6 @@ public sealed class ShipMapWindow : Window
 
         screen.Children.Add(middle);
 
-        FocusTitle(0);   // 게임처럼 첫 줄에 초점을 두고 시작한다
         return screen;
     }
 
@@ -818,139 +816,42 @@ public sealed class ShipMapWindow : Window
         }
     }
 
-    /// <summary>타이틀 메뉴의 고를 수 있는 줄들과, 지금 초점이 가 있는 자리.</summary>
-    private readonly List<(Border Item, SolidColorBrush Inner, Action Run)> _titleItems = [];
-    private int _titleIndex = -1;
+    /// <summary>타이틀 메뉴에서 초점이 오가는 줄 묶음. 화면을 다시 지을 때 새로 잡는다.</summary>
+    private GameUi.FocusGroup _titleFocus = new();
 
     /// <summary>타이틀 메뉴 줄의 최소 폭. 글자 좌우 여백까지 넣은 게임 비율이다.</summary>
     private const double TitleItemMinWidth = 124;
-
-    /// <summary>초점 표시가 오가는 두 색. 게임도 이 둘을 번갈아 보인다.</summary>
-    private static readonly Color FocusLight = Color.FromRgb(0xEC, 0xE4, 0xD2);
-    private static readonly Color FocusDark = Color.FromRgb(0x14, 0x0C, 0x0A);
-
-    /// <summary>초점이 깜빡이는 참. 0.5초마다 색이 바뀐다.</summary>
-    private static readonly TimeSpan FocusBlink = TimeSpan.FromSeconds(0.5);
 
     /// <summary>
     /// 타이틀 메뉴 한 줄. <paramref name="run"/> 이 null 이면 흐리게 두고 못 고른다.
     /// </summary>
     /// <remarks>
-    /// 초점은 안쪽 테 한 줄로 낸다 — 게임은 그 테를 밝은 색과 검은색으로 0.5초마다 갈아
-    /// 깜빡이게 해서 지금 고른 줄을 알린다. 색을 서서히 섞지 않고 딱딱 바꾸는 것이 요령이라
-    /// <see cref="DiscreteColorKeyFrame"/> 을 쓴다(<c>ColorAnimation</c> 은 스며들듯 바뀐다).
+    /// 예전에는 여기서 띠를 짓고 초점 테를 얹고 깜빡임까지 손수 굴렸다 — <see cref="GameUi"/>
+    /// 에 같은 것이 이미 있는데도 <c>FocusLight</c>·<c>FocusDark</c>·<c>FocusBlink</c> 를
+    /// 다시 선언해 두었다. 이제 <see cref="GameButton"/> 과 <see cref="GameUi.FocusGroup"/>
+    /// 이 맡는다.
+    ///
+    /// 못 고르는 줄은 묶음에 안 넣는다 — 초점이 그 줄을 건너뛴다.
     /// </remarks>
     private Border TitleMenuItem(string text, Action? run)
     {
-        // 안쪽 테 — 평소에는 안 보이고, 초점이 오면 깜빡인다.
-        var innerBrush = new SolidColorBrush(Colors.Transparent);
+        var item = run != null
+            ? _titleFocus.Add(text, run, 0)
+            : new GameButton(text, null);
 
-        // 게임 원본 베이지 버튼 띠. 조각을 못 읽었을 때만 민색 상자로 물러선다.
-        var band = GameUi.BandFrame(GameUi.Sprites, BandStyle.Button, text,
-                                    run != null ? GameFont.ButtonColor : (byte)21,
-                                    shadow: false, 1, null);
-        Border item;
-        if (band?.Child is Grid grid)
-        {
-            // 띠 위에 테만 겹친다(바탕 없음). 나중에 넣은 것이 위에 그려진다.
-            var inner = new Border
-            {
-                BorderBrush = innerBrush,
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(2),
-            };
-            Grid.SetColumnSpan(inner, 3);
-            grid.Children.Add(inner);
-
-            item = band;
-            // 줄과 줄 사이는 붙인다 — 게임 메뉴는 띠가 맞닿아 있고 빈 자리가 없다.
-            item.Cursor = run != null ? Cursors.Hand : Cursors.Arrow;
-
-            // 게임은 글자 좌우로 넉넉히 비운다 — 글자에 딱 붙이면 띠가 쪼그라들어 보인다.
-            // 가장 긴 "LOAD GAME"(72점)의 1.7배쯤이 게임 비율이다.
-            item.MinWidth = TitleItemMinWidth;
-        }
-        else
-        {
-            item = new Border
-            {
-                Background = CellFill,
-                BorderBrush = BarEdge,
-                BorderThickness = new Thickness(2),
-                Padding = new Thickness(1),
-                Cursor = run != null ? Cursors.Hand : Cursors.Arrow,
-                Child = new Border
-                {
-                    BorderBrush = innerBrush,
-                    BorderThickness = new Thickness(1),
-                    Padding = new Thickness(20, 1, 20, 1),
-                    Child = new TextBlock
-                    {
-                        Text = text,
-                        Foreground = run != null ? Brushes.Black : Brushes.Gray,
-                        FontWeight = FontWeights.Bold,
-                        FontSize = 13,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                    },
-                },
-            };
-        }
-        if (run == null) return item;
-
-        int index = _titleItems.Count;
-        _titleItems.Add((item, innerBrush, run));
-
-        // 커서가 올라가면 그 줄로 초점이 옮겨 간다 — 게임도 고른 줄이 하나뿐이다.
-        item.MouseEnter += (_, _) => FocusTitle(index);
-        item.MouseLeftButtonUp += (_, _) => run();
+        // 게임은 글자 좌우로 넉넉히 비운다 — 글자에 딱 붙이면 띠가 쪼그라들어 보인다.
+        // 가장 긴 "LOAD GAME"(72점)의 1.7배쯤이 게임 비율이다.
+        item.MinWidth = TitleItemMinWidth;
+        // 줄과 줄 사이는 붙인다 — 게임 메뉴는 띠가 맞닿아 있고 빈 자리가 없다.
+        item.Margin = default;
         return item;
-    }
-
-    /// <summary>그 줄로 초점을 옮긴다. 옛 줄의 깜빡임은 멎는다.</summary>
-    private void FocusTitle(int index)
-    {
-        if (index < 0 || index >= _titleItems.Count || index == _titleIndex) return;
-
-        if (_titleIndex >= 0 && _titleIndex < _titleItems.Count)
-        {
-            var (_, old, _) = _titleItems[_titleIndex];
-            old.BeginAnimation(SolidColorBrush.ColorProperty, null);
-            old.Color = Colors.Transparent;
-        }
-
-        _titleIndex = index;
-        var (_, brush, _) = _titleItems[index];
-
-        var blink = new ColorAnimationUsingKeyFrames
-        {
-            Duration = new Duration(FocusBlink + FocusBlink),
-            RepeatBehavior = RepeatBehavior.Forever,
-        };
-        blink.KeyFrames.Add(new DiscreteColorKeyFrame(FocusLight, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        blink.KeyFrames.Add(new DiscreteColorKeyFrame(FocusDark, KeyTime.FromTimeSpan(FocusBlink)));
-        brush.BeginAnimation(SolidColorBrush.ColorProperty, blink);
     }
 
     /// <summary>타이틀에서 위아래로 옮기고 엔터로 고른다. 지도가 뜨면 아무것도 안 한다.</summary>
     private void OnTitleKey(object sender, KeyEventArgs e)
     {
-        if (_titleItems.Count == 0 || !ReferenceEquals(_screen.Content, _titleRoot)) return;
-
-        switch (e.Key)
-        {
-            case Key.Up:
-                FocusTitle((_titleIndex - 1 + _titleItems.Count) % _titleItems.Count);
-                e.Handled = true;
-                break;
-            case Key.Down:
-                FocusTitle((_titleIndex + 1) % _titleItems.Count);
-                e.Handled = true;
-                break;
-            case Key.Enter or Key.Space:
-                if (_titleIndex >= 0) _titleItems[_titleIndex].Run();
-                e.Handled = true;
-                break;
-        }
+        if (!ReferenceEquals(_screen.Content, _titleRoot)) return;
+        if (_titleFocus.HandleKey(e.Key)) e.Handled = true;
     }
 
     /// <summary>
@@ -1335,7 +1236,7 @@ public sealed class ShipMapWindow : Window
         LoadSprites();
         if (_titleRoot != null && ReferenceEquals(_screen.Content, _titleRoot))
         {
-            _titleIndex = -1;               // 새로 지은 줄에 초점이 다시 가게
+            // 묶음은 BuildTitleScreen 이 새로 잡는다 — 새 줄에 초점이 다시 간다.
             _titleRoot = BuildTitleScreen();
             _screen.Content = _titleRoot;
         }
