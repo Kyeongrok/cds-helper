@@ -258,7 +258,8 @@ public sealed class Player
                         IEnumerable<int>? hints = null,
                         IEnumerable<string>? mates = null,
                         IEnumerable<string>? met = null,
-                        IEnumerable<int>? items = null)
+                        IEnumerable<int>? items = null,
+                        IEnumerable<int>? supplies = null)
     {
         Gold = gold;
         Date = date;
@@ -267,6 +268,17 @@ public sealed class Player
         foreach (var (name, level) in skills) _skills[name] = Math.Clamp(level, 0, Skill.MaxLevel);
         _hints.Clear();
         if (hints != null) foreach (int hint in hints) _hints.Add(hint);
+        // 보급은 자리째로 되돌린다. 옛 세이브에는 없으므로 그때는 빈 채로 둔다.
+        Array.Clear(_supplies);
+        if (supplies != null)
+        {
+            int slot = 0;
+            foreach (int barrels in supplies)
+            {
+                if (slot >= _supplies.Length) break;
+                _supplies[slot++] = Math.Max(0, barrels);
+            }
+        }
         // 자리째로 되돌린다 — 빈 자리가 섞여 있어도 차례가 어긋나지 않게.
         for (int i = 0; i < _mates.Length; i++) _mates[i] = "";
         if (mates != null)
@@ -302,6 +314,46 @@ public sealed class Player
 
     /// <summary>가지고 있는 배. 산 차례대로다.</summary>
     public IReadOnlyList<Hull> Ships => _ships;
+
+    // ── 보급 ─────────────────────────────────────────────────────────────────
+
+    /// <summary>실어 둔 보급품(통). 색인은 <see cref="SupplyKind"/> 다.</summary>
+    private readonly int[] _supplies = new int[Supply.Count];
+
+    /// <summary>그 보급품을 몇 통 실었는지.</summary>
+    public int SupplyOf(SupplyKind kind) => _supplies[(int)kind];
+
+    /// <summary>보급품을 그만큼 싣는다(음수면 던다). 0 밑으로는 안 내려간다.</summary>
+    public void AddSupply(SupplyKind kind, int barrels) =>
+        _supplies[(int)kind] = Math.Max(0, _supplies[(int)kind] + barrels);
+
+    /// <summary>실어 둔 것을 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
+    public void SetSupply(SupplyKind kind, int barrels) =>
+        _supplies[(int)kind] = Math.Max(0, barrels);
+
+    /// <summary>실어 둔 보급품을 통째로. 세이브에 적을 때 쓴다.</summary>
+    public IReadOnlyList<int> Supplies => _supplies;
+
+    /// <summary>함대가 실을 수 있는 통 수(용량). 배마다의 적재량을 더한 것이다.</summary>
+    public int Capacity => _ships.Sum(s => s.Capacity);
+
+    /// <summary>함대가 견디는 무게(중량 한도).</summary>
+    public int Tonnage => _ships.Sum(s => s.Tonnage);
+
+    /// <summary>함대 총 선원수. 식량·물이 며칠 가는지가 이것으로 갈린다.</summary>
+    /// <remarks>게임도 배 여덟 칸의 선원수를 더한다(<c>0x004745F0</c>).</remarks>
+    public int Crew => _ships.Sum(s => s.Crew);
+
+    /// <summary>식량과 물이 며칠 갈지. 적은 쪽이 정한다.</summary>
+    public int SupplyDaysLeft =>
+        Supply.DaysLeft(SupplyOf(SupplyKind.Food), SupplyOf(SupplyKind.Water), Crew);
+
+    /// <summary>지금 실은 통 수.</summary>
+    public int LoadedBarrels => _supplies.Sum();
+
+    /// <summary>지금 실은 무게. 보급품만 센다 — 소지품 무게는 아직 안 센다.</summary>
+    public int LoadedWeight =>
+        Supply.All.Sum(s => _supplies[(int)s.Kind] * s.UnitWeight);
 
     /// <summary>배가 꽉 찼는지.</summary>
     public bool IsFleetFull => _ships.Count >= MaxShips;

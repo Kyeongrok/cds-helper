@@ -67,10 +67,10 @@ public sealed class SettingsDialog : Window
     private static string Label(string name, bool on) => $"{name}   {(on ? "켬" : "끔")}";
 
     private UIElement BgmToggle() =>
-        GameUi.MenuItem(Label("배경음악", AppSettings.BgmEnabled), FlipBgm);
+        new GameButton(Label("배경음악", AppSettings.BgmEnabled), FlipBgm);
 
     private UIElement SfxToggle() =>
-        GameUi.MenuItem(Label("효과음  ", AppSettings.SfxEnabled), FlipSfx);
+        new GameButton(Label("효과음  ", AppSettings.SfxEnabled), FlipSfx);
 
     /// <summary>켜고 끄기를 뒤집는다 — 곡은 그 자리에서 멈추거나 다시 돈다.</summary>
     /// <remarks>
