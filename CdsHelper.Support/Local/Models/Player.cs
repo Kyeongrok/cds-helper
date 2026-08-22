@@ -330,6 +330,49 @@ public sealed class Player
         if (days > 0) Date = Date.AddDays(days);
     }
 
+    // ── 피로도와 항해일 ───────────────────────────────────────────────────────
+
+    /// <summary>피로도가 더 못 올라가는 자리.</summary>
+    /// <remarks>
+    /// 게임은 함대 객체 <c>+0x28</c> 에 0~100 으로 든다(<c>0x00474030</c> 이 그 폭으로 자른다).
+    /// </remarks>
+    public const int MaxFatigue = 100;
+
+    /// <summary>선원들이 지친 만큼(0~<see cref="MaxFatigue"/>).</summary>
+    /// <remarks>
+    /// 폭풍을 맞으면 20~30 오르고 자택에서 휴양하면 도로 0 이 된다. 게임은 이 값이
+    /// 80 을 넘으면 반란을 굴린다(<c>0x00474B5B</c> 의 <c>cmpl $0x50</c>) — 그쪽은
+    /// 아직 안 옮겼다.
+    /// </remarks>
+    public int Fatigue { get; private set; }
+
+    /// <summary>그만큼 지친다.</summary>
+    public void Tire(int amount) => Fatigue = Math.Clamp(Fatigue + amount, 0, MaxFatigue);
+
+    /// <summary>말끔히 쉰다(자택 휴양).</summary>
+    public void Refresh() => Fatigue = 0;
+
+    /// <summary>피로도를 그대로 박는다. 세이브를 되돌릴 때와 개발용 창에서 쓴다.</summary>
+    public void SetFatigue(int fatigue) => Fatigue = Math.Clamp(fatigue, 0, MaxFatigue);
+
+    /// <summary>마을을 떠난 뒤로 바다에서 지낸 날수.</summary>
+    /// <remarks>
+    /// 게임의 <c>0x005A4D40</c> 자리다 — 사건은 이 값이 <b>열을 넘어야</b> 굴러가고
+    /// (<c>0x00474680</c>), 반란은 이레마다 본다(<c>0x00474B4F</c> 의 <c>idiv 7</c>).
+    /// 마을에 들어가면 0 으로 돌아간다.
+    /// </remarks>
+    public int DaysAtSea { get; private set; }
+
+    /// <summary>바다에서 하루를 넘긴다.</summary>
+    public void PassDayAtSea()
+    {
+        DaysAtSea++;
+        Date = Date.AddDays(1);
+    }
+
+    /// <summary>항해일을 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
+    public void SetDaysAtSea(int days) => DaysAtSea = Math.Max(0, days);
+
     /// <summary>
     /// 아이템을 산다. 값을 치르고 소지품에 넣는다. 돈이 모자라면 아무것도 하지 않는다.
     /// </summary>
@@ -483,6 +526,8 @@ public sealed class Player
     {
         CityId = cityId;
         CityName = cityId >= 0 ? cityName : "";
+        // 마을에 들면 항해일이 끊긴다 — 게임도 입항하면 0x5A4D40 을 도로 0 으로 둔다.
+        if (cityId >= 0) DaysAtSea = 0;
     }
 
     /// <summary>소지금(닢).</summary>
@@ -614,6 +659,17 @@ public sealed class Player
 
     /// <summary>맡겨 둔 배를 마을별로. 세이브에 적을 때 쓴다.</summary>
     public IReadOnlyDictionary<int, List<Ship>> Docked => _docked;
+
+    /// <summary>배를 폭풍에 놓친다. 마지막 한 척과 기함은 안 없어진다.</summary>
+    /// <remarks>게임의 <c>0x00473E60</c> 자리다 — 함대에서 빼기만 하고 마을에 안 맡긴다.</remarks>
+    public bool LoseShip(int index)
+    {
+        if (_ships.Count <= 1 || index < 0 || index >= _ships.Count) return false;
+        if (index == Flagship) return false;
+        RemoveShip(index);
+        SetCrew(Crew);   // 배가 줄면 정원도 줄어 선원이 넘칠 수 있다
+        return true;
+    }
 
     /// <summary>함대에서 한 척을 뺀다. 기함 자리가 밀리지 않게 같이 손본다.</summary>
     private void RemoveShip(int index)

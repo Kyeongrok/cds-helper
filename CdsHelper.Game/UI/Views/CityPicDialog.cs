@@ -1316,11 +1316,12 @@ public sealed class CityPicDialog : Window
     /// 서른 날이다. 쉬고 나면 아내가 있으면 아내가, 없으면 지문이 셋 중 하나를 낸다
     /// (<c>0x004607FE</c> 의 <c>rand(3)</c>). 우리 쪽에는 아내가 없어 지문만 쓴다.
     ///
-    /// 게임은 이때 피로도도 풀어 주는데 그 값은 아직 우리 쪽에 없다.
+    /// 쉬면 <b>피로도가 0 으로 풀린다</b> — 폭풍이 올려 놓은 것이 여기서 풀린다.
     /// </remarks>
     private void Rest(int months)
     {
         _player.AdvanceDays(RestDaysPerMonth * months);
+        _player.Refresh();
         GameDialog.Show(Menu.Window ?? this, RestWords[_random.Next(RestWords.Length)]);
     }
 
