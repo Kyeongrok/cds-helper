@@ -145,6 +145,7 @@ public sealed class MarketBuyDialog : Window
         {
             BuyResult.Ok => "고맙네!",
             BuyResult.NotEnoughGold => "가난한 사람에게는 볼일 없네! 안 살 거면 돌아가게!",
+            BuyResult.BagFull => "이 이상 가질 수 없습니다!",
             _ => "미안하네, 지금 물건이 떨어지고 없네.",
         });
 
