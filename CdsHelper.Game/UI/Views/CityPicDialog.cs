@@ -965,7 +965,7 @@ public sealed class CityPicDialog : Window
         ("소지품 정보", ShowBelongings),
         ("도시 정보", ShowCityInfo),
         ("힌트 정보", ShowHints),
-        ("계약 정보", null),
+        ("계약 정보", ShowContract),
         ("후원자 정보", null),
         ("지도를 본다", null),
         ("게임 종료", null),
@@ -1034,7 +1034,11 @@ public sealed class CityPicDialog : Window
     private void ShowBelongings()
     {
         CloseCityMenu();
-        BelongingsDialog.Show(this, _player, ItemTableOrNull, ItemText, ItemPictures);
+
+        var table = Discoveries();
+        BelongingsDialog.Show(this, _player, ItemTableOrNull, ItemText, ItemPictures,
+                              [.. _player.Discoveries.Order()
+                                        .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")]);
     }
 
     /// <summary>아이템 표. <see cref="Market"/> 이 이미 열어 두었으면 그것을 쓴다.</summary>
@@ -1201,19 +1205,77 @@ public sealed class CityPicDialog : Window
             return;
         }
 
-        // 좋아하는 갈래면 사례가 후하다. 게임에도 후원자마다 좋아하는 갈래가 적혀 있다.
-        int reward = patron.Likes(it.Category) ? funds * 2 : funds;
+        // 계약금은 반으로 나뉜다 — 절반은 선금으로 그 자리에서 받고, 절반은 성공한 뒤에
+        // 받는다. 제안 대사도 그 절반을 두 번 부른다(0x004AF1B6 이 계약금/2 를 두 번 넘기고,
+        // 서식은 0x00546B80 "먼저 금화 %ld닢을 주겠다 … %ld닢의 사례" 다).
+        int half = funds / 2;
 
         int pick = TalkDialog.Ask(this, face, "",
-            $"모험하는데 돈은 필요하겠지. 먼저 금화 {funds}닢을 주겠다. " +
-            $"{it.Deadline}년 내에 성공하면 {reward}닢의 사례를 약속하겠네. 이것으로 어떤가.\n\n" +
-            $" 기간{it.Deadline}년 금화 {funds}닢 ",
+            $"모험하는데 돈은 필요하겠지. 먼저 금화 {half}닢을 주겠다. " +
+            $"{it.Deadline}년 내에 성공하면 {half}닢의 사례를 약속하겠네. 이것으로 어떤가.\n\n" +
+            $" 기간{it.Deadline}년 금화 {half}닢 ",
             "승낙한다", "교섭한다");
         if (pick != 0) return;      // 교섭은 아직 흉내내지 않는다
 
-        Say("그러면, 기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게. " +
-            "(계약을 적어 두는 것은 아직 흉내내지 못한다)");
+        // 계약을 적어 두고 선금을 받는다. 게임도 이 자리에서 소지금에 계약금의 절반을
+        // 더한다(0x004ADF3E).
+        _player.Sign(new Contract(it.Id, patron.Name, _cityName, funds,
+                                  _player.Date, it.Deadline));
+
+        Say("그러면, 기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게.");
     }
+
+    /// <summary>
+    /// 계약 정보 창을 낸다. 계약이 없으면 창 대신 "계약을 맺지 않았습니다" 한 줄이다.
+    /// </summary>
+    /// <remarks>
+    /// 증거품은 계약 중 발견한 것이 준 물건 가운데 <b>아직 지니고 있는</b> 것만 센다 —
+    /// 팔아 버렸으면 내밀 증거가 없다.
+    /// </remarks>
+    private void ShowContract()
+    {
+        CloseCityMenu();
+
+        var contract = _player.Contract;
+        if (contract == null)
+        {
+            ContractDialog.Show(this, null, _player.Date, "", [], []);
+            return;
+        }
+
+        var table = Discoveries();
+        var items = ItemTableOrNull;
+
+        var found = new List<string>();
+        var evidence = new List<string>();
+        foreach (int id in contract.Found)
+        {
+            var row = table?.Find(id);
+            found.Add(row?.Name ?? $"발견물 {id}");
+
+            if (row is not { GivesItem: true } got || !_player.HasItem(got.ItemId)) continue;
+            evidence.Add(items?.Find(got.ItemId)?.Name ?? $"아이템 {got.ItemId}");
+        }
+
+        ContractDialog.Show(this, contract, _player.Date,
+                            HintNameOf(contract.Hint), found, evidence);
+    }
+
+    /// <summary>발견물 표. 계약 정보·소지품 정보의 발견물 칸에 쓴다.</summary>
+    private DiscoveryTable? Discoveries()
+    {
+        if (_discoveryTable != null || _discoveryTableTried) return _discoveryTable;
+        _discoveryTableTried = true;
+        if (_gameDirectory.Length == 0) return null;
+
+        _discoveryTable = DiscoveryTable.Open(_gameDirectory);
+        if (_discoveryTable == null)
+            System.Diagnostics.Debug.WriteLine($"[City] 발견물 표 없음: {DiscoveryTable.LastError}");
+        return _discoveryTable;
+    }
+
+    private DiscoveryTable? _discoveryTable;
+    private bool _discoveryTableTried;
 
     /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
     private uint[]? FaceOf(Patron patron)

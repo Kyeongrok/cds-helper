@@ -21,9 +21,8 @@ namespace CdsHelper.Game.UI.Views;
 ///   └─────────┴──────────┘
 ///          [결정]  [중단]
 /// </code>
-/// <b>발견물 쪽은 비워 둔다.</b> 발견물을 놀이 안에서 얻는 길(상륙해서 찾기·발표)을 아직
-/// 흉내내지 않아서, 채울 것이 없는데 칸만 채우면 없는 놀이를 있는 것처럼 보이게 한다.
-/// 자리는 게임처럼 잡아 두었으니 나중에 <see cref="Discoveries"/> 에 넣기만 하면 된다.
+/// 발견물 쪽은 지금까지 찾은 것이 <b>찾은 차례대로</b> 놓인다. 고를 수는 없다 — 게임도
+/// 결정이 소지품 줄에만 걸린다.
 ///
 /// 줄을 고르고 결정을 누르면 그 아이템 창이 뜬다(<see cref="ItemInfoDialog"/>) —
 /// 시장에서 고른 뒤에 뜨는 것과 같은 창이다.
@@ -52,7 +51,8 @@ public sealed class BelongingsDialog : Window
     private int _at = -1;
 
     private BelongingsDialog(Player player, ItemTable? items,
-                             ItemDescriptions? descriptions, ItemArt? art)
+                             ItemDescriptions? descriptions, ItemArt? art,
+                             IReadOnlyList<string> discoveries)
     {
         _items = items;
         _descriptions = descriptions;
@@ -93,6 +93,14 @@ public sealed class BelongingsDialog : Window
         Grid.SetColumn(rightList.Host, 1);
         columns.Children.Add(rightList.Host);
         Discoveries = rightList.Items;
+
+        // 발견물 쪽은 고를 수 없다 — 게임도 결정이 소지품 줄에만 걸린다.
+        foreach (var name in discoveries)
+            Discoveries.Children.Add(new Border
+            {
+                Padding = new Thickness(0, 2, 0, 2),
+                Child = Label(name, picked: false),
+            });
 
         foreach (int id in player.Items)
         {
@@ -141,9 +149,7 @@ public sealed class BelongingsDialog : Window
         KeyDown += OnKey;
     }
 
-    /// <summary>
-    /// 발견물 칸. 지금은 비어 있다 — 발견물을 얻는 길이 생기면 여기에 줄을 넣으면 된다.
-    /// </summary>
+    /// <summary>발견물 칸. 지금까지 발견한 것이 찾은 차례대로 놓인다.</summary>
     public StackPanel Discoveries { get; }
 
     /// <summary>제목 띠 하나. 원본 조각을 못 읽었으면 띠 대신 글자만 낸다.</summary>
@@ -268,7 +274,10 @@ public sealed class BelongingsDialog : Window
     }
 
     /// <summary>소지품 정보 창을 연다.</summary>
+    /// <param name="discoveries">발견물 칸에 늘어놓을 이름. 찾은 차례대로 준다.</param>
     public static void Show(Window owner, Player player, ItemTable? items,
-                            ItemDescriptions? descriptions, ItemArt? art) =>
-        new BelongingsDialog(player, items, descriptions, art) { Owner = owner }.ShowDialog();
+                            ItemDescriptions? descriptions, ItemArt? art,
+                            IReadOnlyList<string> discoveries) =>
+        new BelongingsDialog(player, items, descriptions, art, discoveries) { Owner = owner }
+            .ShowDialog();
 }

@@ -265,7 +265,37 @@ public sealed class Player
     public bool HasFound(int discovery) => _found.Contains(discovery);
 
     /// <summary>발견한 것으로 적는다. 처음 발견하는 것이면 true.</summary>
-    public bool Discover(int discovery) => discovery >= 0 && _found.Add(discovery);
+    /// <remarks>
+    /// 계약 중이면 그 계약에도 얹는다 — 계약 정보 창의 "발견물" 칸이 그것이다.
+    /// </remarks>
+    public bool Discover(int discovery)
+    {
+        if (discovery < 0 || !_found.Add(discovery)) return false;
+        Contract?.Add(discovery);
+        return true;
+    }
+
+    /// <summary>
+    /// 지금 맺고 있는 계약. 없으면 null — 도시 커맨드의 "계약 정보" 가 이것을 낸다.
+    /// </summary>
+    /// <remarks>게임도 계약을 하나만 든다(<c>0x0061D1D0</c>).</remarks>
+    public Contract? Contract { get; private set; }
+
+    /// <summary>
+    /// 계약을 맺는다. 선금은 그 자리에서 받는다 — 게임도 그렇다(<c>0x004ADF3E</c>).
+    /// 이미 맺은 것이 있으면 갈아 끼운다(게임도 계약을 하나만 든다).
+    /// </summary>
+    public void Sign(Contract contract)
+    {
+        Contract = contract;
+        Earn(contract.Advance);
+    }
+
+    /// <summary>계약을 지운다(기한 넘김·파기). 돈은 건드리지 않는다.</summary>
+    public void EndContract() => Contract = null;
+
+    /// <summary>세이브를 되돌릴 때 계약을 그대로 박는다. 선금을 다시 주지 않는다.</summary>
+    public void RestoreContract(Contract? contract) => Contract = contract;
 
     /// <summary>
     /// 적어 둔 것을 되돌린다(불러오기). 배는 부르는 쪽이 그 도시 앞바다에 갖다 놓는다.
@@ -359,6 +389,7 @@ public sealed class Player
 
     /// <summary>함대가 견디는 무게(중량 한도).</summary>
     public int Tonnage => _ships.Sum(s => s.Tonnage);
+
 
     /// <summary>함대 총 선원수. 식량·물이 며칠 가는지가 이것으로 갈린다.</summary>
     /// <remarks>게임도 배 여덟 칸의 선원수를 더한다(<c>0x004745F0</c>).</remarks>
