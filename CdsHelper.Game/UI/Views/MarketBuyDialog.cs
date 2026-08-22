@@ -44,7 +44,7 @@ public sealed class MarketBuyDialog : Window
 
     private readonly ItemTable.Record[] _stock;
     private readonly GameList _list;
-    private readonly GameUi.BandButton _decide;
+    private readonly GameButton _decide;
 
     private MarketBuyDialog(Player player, Market market, int cityId,
                             ItemDescriptions? descriptions, ItemArt? art)
@@ -66,7 +66,7 @@ public sealed class MarketBuyDialog : Window
         _stock = [.. market.StockOf(cityId)];
         _list = new GameList(Columns, Cells, _stock.Length, "  지금 내놓은 물건이 없다.  ");
 
-        _decide = new GameUi.BandButton("결정", Decide, 110) { On = false };
+        _decide = new GameButton("결정", Decide, width: 110) { On = false };
         // 게임도 아무것도 안 고른 동안은 이 단추가 흐리다.
         _list.SelectionChanged += () => _decide.On = _list.Selected >= 0;
 
@@ -77,7 +77,7 @@ public sealed class MarketBuyDialog : Window
             Margin = new Thickness(0, 4, 0, 12),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(new GameUi.BandButton("중단", Close, 110));
+        buttons.Children.Add(new GameButton("중단", Close, width: 110));
 
         var title = GameUi.TitleBar("구입 아이템 선택", Close);
         GameUi.EnableDrag(this, title);

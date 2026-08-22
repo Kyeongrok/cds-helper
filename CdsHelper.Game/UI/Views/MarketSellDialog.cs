@@ -43,7 +43,7 @@ public sealed class MarketSellDialog : Window
 
     private readonly List<ItemTable.Record> _held = [];
     private readonly GameList _list;
-    private readonly GameUi.BandButton _decide;
+    private readonly GameButton _decide;
 
     private MarketSellDialog(Player player, Market market, ItemTable items, int cityId)
     {
@@ -64,7 +64,7 @@ public sealed class MarketSellDialog : Window
 
         _list = new GameList(Columns, Cells, _held.Count, maxHeight: ListMaxHeight);
 
-        _decide = new GameUi.BandButton("결정", Decide, 110) { On = false };
+        _decide = new GameButton("결정", Decide, width: 110) { On = false };
         _list.SelectionChanged += () => _decide.On = _list.Selected >= 0;
 
         var buttons = new StackPanel
@@ -74,7 +74,7 @@ public sealed class MarketSellDialog : Window
             Margin = new Thickness(0, 4, 0, 12),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(new GameUi.BandButton("중단", Close, 110));
+        buttons.Children.Add(new GameButton("중단", Close, width: 110));
 
         var title = GameUi.TitleBar("소지품 일람", Close);
         GameUi.EnableDrag(this, title);

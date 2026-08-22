@@ -1,7 +1,7 @@
 ﻿
 using CdsHelper.Game.Local.Helpers;
 
-namespace CdsHelper.Game.Local.Models;
+namespace CdsHelper.Game.Engine.Models;
 
 /// <summary>도시 그림에서 눌러 들어갈 수 있는 시설.</summary>
 public enum FacilityKind
