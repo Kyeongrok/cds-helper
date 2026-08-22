@@ -35,20 +35,24 @@ public static class GameSave
     /// <param name="Supplies">
     /// 실어 둔 보급품(식량·물·자재·탄약, 통). 판 4 부터 있어 그 전 세이브에서는 null 이다.
     /// </param>
+    /// <param name="Discoveries">
+    /// 발견한 발견물 번호(게임 표의 줄 번호). 판 5 부터 있어 그 전 세이브에서는 null 이다.
+    /// </param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
         List<string>? Mates = null, List<string>? Met = null,
-        List<int>? Items = null, List<int>? Supplies = null);
+        List<int>? Items = null, List<int>? Supplies = null,
+        List<int>? Discoveries = null);
 
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(4, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(5, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
-                            [.. player.Supplies]);
+                            [.. player.Supplies], [.. player.Discoveries]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

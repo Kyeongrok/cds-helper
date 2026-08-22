@@ -12,6 +12,7 @@ using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
+using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Game.Engine.Menu;
 
 namespace CdsHelper.Game.UI.Views;
@@ -90,6 +91,15 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>힌트 번호 -> 이름. DB 에서 한 번만 불러 둔다.</summary>
     private Dictionary<int, string>? _hintNames;
+
+    /// <summary>발견물(CDS_95.EXE). 배가 어디에 서면 무엇이 발견되는지가 여기서 온다.</summary>
+    private DiscoveryLog? _discoveries;
+
+    /// <summary>발견물 표를 한 번 열어 봤는지. 못 열면 틱마다 다시 찾지 않는다.</summary>
+    private bool _discoveriesTried;
+
+    /// <summary>아이템 표(CDS_95.EXE). 발견물이 주는 물건 이름을 여기서 얻는다.</summary>
+    private ItemTable? _itemNames;
 
     /// <summary>한 번 열어 봤는지. 파일이 없으면 입항할 때마다 다시 찾지 않는다.</summary>
     private bool _cityPicsTried;
@@ -385,6 +395,7 @@ public sealed class ShipMapWindow : Window
             SyncMouse();
             _status.Text = _host.Status;
             CheckPort();
+            CheckDiscovery();
             var (lat, lon) = _host.ShipLatLon;
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
@@ -930,7 +941,7 @@ public sealed class ShipMapWindow : Window
         {
             _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
                             saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items,
-                            saved.Supplies);
+                            saved.Supplies, saved.Discoveries);
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
             _status.Text = saved.CityId >= 0
@@ -1020,7 +1031,7 @@ public sealed class ShipMapWindow : Window
         items.Add(("정보", null));
         items.Add(("편성", null));
         items.Add(("대열", null));
-        items.Add(("항해일지를 본다", null));
+        items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
         // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는
         // 방위를 바로 아는 편이 낫다 — 그래서 켜고 끌 수 있게 여기에 둔다.
         items.Add((_host.ShowFlowArrows ? "화살표를 감춘다" : "바람과 해류를 본다", () =>
@@ -1102,6 +1113,98 @@ public sealed class ShipMapWindow : Window
                 _asking = false;
             }
         }
+    }
+
+    /// <summary>
+    /// 발견물. 게임 폴더를 알게 된 뒤 처음 쓸 때 연다. 못 열면 발견이 일어나지 않을 뿐이다.
+    /// </summary>
+    private DiscoveryLog? Discoveries
+    {
+        get
+        {
+            if (_discoveries != null || _discoveriesTried) return _discoveries;
+            _discoveriesTried = true;
+
+            var table = DiscoveryTable.Open(_gameDir);
+            if (table == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShipMap] 발견물 표 없음: {DiscoveryTable.LastError}");
+                return null;
+            }
+
+            // 힌트 표는 없어도 연다 — 그때는 힌트로 열리는 것만 안 뜬다.
+            var hints = HintTable.Open(_gameDir);
+            if (hints == null)
+                System.Diagnostics.Debug.WriteLine($"[ShipMap] 힌트 표 없음: {HintTable.LastError}");
+
+            return _discoveries = new DiscoveryLog(table, hints);
+        }
+    }
+
+    /// <summary>
+    /// 배(또는 말)가 선 칸에 발견물이 있으면 발견한다. 게임의 <c>0x0048D3F0</c> 자리다 —
+    /// 그쪽도 항해 루프를 한 번 돌 때마다 이것을 한다.
+    /// </summary>
+    /// <remarks>
+    /// 판정은 <see cref="DiscoveryLog.At"/> 가 하고, 여기서는 <b>언제 묻는지</b>만 맡는다.
+    /// 창이 떠 있거나 멈춰 있으면 건너뛴다 — 도시 물음창과 겹쳐 뜨면 안 된다.
+    ///
+    /// 원본은 발견물마다 DISEV.CDS 의 사건을 틀지만 여기서는 알림 한 줄로 갈음한다.
+    /// 문구는 게임의 <c>0x00538490</c> ("%s%s [%s]%s 발견했습니다") 그대로다.
+    /// </remarks>
+    private void CheckDiscovery()
+    {
+        if (_asking || _host.Paused || _host.SeaBlocked) return;
+        if (Discoveries is not { } log) return;
+        if (_host.ShipCell is not { } cell) return;
+
+        int id = log.At(_player, cell.CellX, cell.CellY, _host.IsOnLand);
+        if (id < 0) return;
+        if (log.Table.Find(id) is not { } row) return;
+
+        int item = log.Discover(_player, id);
+
+        // 알리는 동안 배가 계속 가면 다음 칸에서 또 뜬다.
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            string me = _player.Name;
+            NoticeDialog.Show(this,
+                $"{me}{GameUi.Josa(me, "은", "는")} [{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다");
+
+            if (item >= 0)
+            {
+                string got = ItemNames?.Find(item)?.Name ?? $"아이템 {item}";
+                NoticeDialog.Show(this, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다");
+            }
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
+    /// <summary>아이템 표. 발견물이 주는 물건 이름에만 쓴다.</summary>
+    private ItemTable? ItemNames =>
+        _itemNames ??= _gameDir.Length == 0 ? null : ItemTable.Open(_gameDir);
+
+    /// <summary>
+    /// 지금까지 발견한 것을 늘어놓는다. 게임 커맨드의 "항해일지를 본다" 자리다 —
+    /// 원본 일지에는 더 많은 것이 적히지만 지금 적히는 것은 발견물뿐이다.
+    /// </summary>
+    private void ShowLogbook()
+    {
+        var log = Discoveries;
+        var lines = _player.Discoveries
+            .Order()
+            .Select(id => log?.Table.Find(id) is { } row
+                        ? $"{row.CategoryName}  {row.Name}"
+                        : $"발견물 {id}")
+            .ToList();
+
+        HintListDialog.Show(this, lines, "발견물 일람", "아직 발견한 것이 없다.");
     }
 
     /// <summary>

@@ -250,6 +250,23 @@ public sealed class Player
     /// <summary>힌트를 얻는다. 처음 얻는 것이면 true.</summary>
     public bool GainHint(int hint) => hint >= 0 && _hints.Add(hint);
 
+    private readonly HashSet<int> _found = [];
+
+    /// <summary>
+    /// 발견한 발견물 번호. 게임 발견물 표(274줄)의 줄 번호다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 발견물마다 164바이트 칸을 두고 발견자·발표자 이름과 그 연월까지 적는다.
+    /// 여기서는 주인공이 하나뿐이라 번호만 든다 — 발표(왕궁 보고)는 아직 흉내내지 않는다.
+    /// </remarks>
+    public IReadOnlyCollection<int> Discoveries => _found;
+
+    /// <summary>그것을 이미 발견했는지.</summary>
+    public bool HasFound(int discovery) => _found.Contains(discovery);
+
+    /// <summary>발견한 것으로 적는다. 처음 발견하는 것이면 true.</summary>
+    public bool Discover(int discovery) => discovery >= 0 && _found.Add(discovery);
+
     /// <summary>
     /// 적어 둔 것을 되돌린다(불러오기). 배는 부르는 쪽이 그 도시 앞바다에 갖다 놓는다.
     /// </summary>
@@ -259,7 +276,8 @@ public sealed class Player
                         IEnumerable<string>? mates = null,
                         IEnumerable<string>? met = null,
                         IEnumerable<int>? items = null,
-                        IEnumerable<int>? supplies = null)
+                        IEnumerable<int>? supplies = null,
+                        IEnumerable<int>? discoveries = null)
     {
         Gold = gold;
         Date = date;
@@ -294,6 +312,8 @@ public sealed class Player
         if (met != null) foreach (var name in met) _met.Add(name);
         _items.Clear();
         if (items != null) foreach (int id in items) Take(id);
+        _found.Clear();
+        if (discoveries != null) foreach (int id in discoveries) _found.Add(id);
     }
 
     /// <summary>도시에 들어가거나(이름과 함께) 바다로 나온다(-1).</summary>

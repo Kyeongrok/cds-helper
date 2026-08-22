@@ -8,38 +8,49 @@ namespace CdsHelper.Game.Local.Helpers;
 /// </summary>
 /// <remarks>
 /// <code>
-///   표     VA 0x004D8E84, 186행 x 80바이트
-///   +0x00  등급(1~5)          +0x04  발견물 일련번호(0~527)
-///   +0x08  갈래(0~7)          +0x10  자금(닢, 5000~300000)
-///   +0x14  기한 기준(0~7)     +0x18  제 번호
-///   +0x4C  이름 ptr("인도항로")
+///   표     VA 0x004D8E80, 186행 x 80바이트
+///   +0x00  이름 ptr("아프리카남단")   +0x04  등급(1~5)
+///   +0x08  발견물 일련번호(0~527)     +0x0C  갈래(0~7)
+///   +0x14  자금(닢, 5000~300000)     +0x18  기한 기준(0~7)
+///   +0x1C  제 번호
 ///   갈래 이름표 0x00560C60[8]
 /// </code>
 /// 왕궁에서 후원자를 설득할 때 게임이 이 표를 그대로 쓴다(<c>0x004AEF50</c>) —
-/// 자금은 <c>+0x10</c> 에 후원율을 곱해 10닢 단위로 내리고, 계약 기한은 <c>+0x14</c> 에 하나를
-/// 더한 햇수다(<c>0x004AF19D</c> 가 <c>0x004D8E98 = 표 + 0x14</c> 를 읽는다).
+/// 자금은 <c>+0x14</c> 에 후원율을 곱해 10닢 단위로 내리고, 계약 기한은 <c>+0x18</c> 에 하나를
+/// 더한 햇수다(<c>0x004AF19D</c> 가 <c>0x004D8E98 = 표 + 0x18</c> 를 읽는다).
+///
+/// <b>표머리는 0x004D8E84 가 아니라 0x004D8E80 이다.</b> 네 바이트 뒤에서 끊어 읽으면 이름만
+/// 한 줄씩 밀려, 힌트 이름이 하나같이 다음 힌트 것으로 나온다("아프리카남단"이 "서회항로"로).
+/// 값 칸은 밀려도 자리가 맞아떨어져서 오래 티가 안 났다 — 발견물 번호로 발견물을 찾아 보고서야
+/// 드러났다. 지금 자리로 읽으면 186줄이 모두 이름을 갖고, 발견물과도 하나씩 정확히 짝을 맺는다
+/// (짝 짓는 곳은 <c>0x004AACFD</c> — 발견물 표 <c>+0x08</c> 과 이 표 <c>+0x08</c> 을 견준다).
 ///
 /// 힌트를 <b>얻었는지</b>는 이 표가 아니라 실행 중 배열(<c>0x0058B4E0</c>, 8바이트 x 186)에
 /// 있다. 그쪽은 EXE 파일에 없다(BSS) — 세이브에서 읽어야 한다.
 ///
 /// 표는 EXE 에서 그때그때 읽는다. 판이 다르면 열리지 않을 뿐 엉뚱한 값을 내지 않도록
-/// 첫 줄이 "서회항로"인지 보고 아니면 물러난다.
+/// 첫 줄이 "아프리카남단"인지 보고 아니면 물러난다.
 /// </remarks>
 public sealed class HintTable
 {
-    private const int TableVa = 0x004D8E84;
+    private const int TableVa = 0x004D8E80;
     private const int RowCount = 186;
     private const int RowSize = 80;
     private const int CategoryNamesVa = 0x00560C60;
 
+    /// <summary>판이 다른 EXE 를 잘못 읽지 않으려고 대 보는 첫 줄.</summary>
+    private const string ProbeName = "아프리카남단";
+
     /// <summary>
     /// 이름이 놓일 수 있는 가장 낮은 자리(.rdata 시작). 이보다 낮으면 코드 구역이라 이름이 아니다.
     /// </summary>
-    /// <remarks>
-    /// 표의 마지막 줄(186번째)은 자리만 채워 둔 것이라 이름 자리에 엉뚱한 값(0x00402F00)이
-    /// 들어 있다. 그대로 읽으면 깨진 글자가 힌트 이름인 척한다 — 그래서 자리부터 본다.
-    /// </remarks>
     private const uint LowestNameVa = 0x004C3000;
+
+    /// <summary>
+    /// 알맹이 모양 판. 이름 자리를 바로잡으면서 올렸다 — 옛 모양으로 적어 둔 JSON 은 버리고
+    /// 다시 굽게 한다.
+    /// </summary>
+    private const int SnapshotVersion = 2;
 
     /// <summary>갈래 수 — 지리·역사·보물·종교·교역품·미신·생물·민족.</summary>
     public const int CategoryCount = 8;
@@ -51,7 +62,10 @@ public sealed class HintTable
     /// <param name="Category">갈래 0~7. 후원자마다 좋아하는 갈래가 다르다.</param>
     /// <param name="Funds">이 힌트를 좇는 데 드는 자금(닢). 후원율을 곱하기 전 값이다.</param>
     /// <param name="Deadline">계약 기한(년).</param>
-    /// <param name="Discovery">발견물 일련번호.</param>
+    /// <param name="Discovery">
+    /// 발견물 일련번호. 발견물 표의 <see cref="DiscoveryTable.Record.Hint"/> 와 <b>같은 값</b>이면
+    /// 그 발견물을 가리킨다 — 게임도 그렇게 짝을 짓는다(<c>0x004AACFD</c>).
+    /// </param>
     /// <remarks>
     /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
     /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
@@ -85,8 +99,8 @@ public sealed class HintTable
 
     /// <summary>그 번호의 힌트. 표 밖이면 null.</summary>
     /// <remarks>
-    /// 자리 채움 줄을 건너뛰므로 자리와 번호가 어긋날 수 있다 — 자리로 먼저 짚어 보고
-    /// 번호가 다르면 훑는다.
+    /// 186줄이 다 차 있어 자리와 번호가 늘 같지만, 옛 판의 JSON 이 남아 있을 수도 있으므로
+    /// 자리로 먼저 짚어 보고 번호가 다르면 훑는다.
     /// </remarks>
     public Hint? Find(int id)
     {
@@ -121,7 +135,8 @@ public sealed class HintTable
     /// </summary>
     public static HintTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               SnapshotVersion);
         LastError = error;
         return snapshot == null ? null : new HintTable(snapshot);
     }
@@ -135,8 +150,8 @@ public sealed class HintTable
         for (int k = 0; k < RowCount; k++)
         {
             int row = TableVa + k * RowSize;
-            uint namePtr = exe.Word(row + 0x4C);
-            if (namePtr < LowestNameVa) continue;        // 자리 채움 줄
+            uint namePtr = exe.Word(row + 0x00);
+            if (namePtr < LowestNameVa) continue;        // 이름이 없는 줄
 
             var name = exe.Text(namePtr);
             if (string.IsNullOrEmpty(name)) continue;
@@ -144,15 +159,15 @@ public sealed class HintTable
             hints.Add(new Hint(
                 Id: k,
                 Name: name,
-                Grade: exe.Int(row + 0x00),
-                Category: exe.Int(row + 0x08),
-                Funds: exe.Int(row + 0x10),
-                Deadline: exe.Int(row + 0x14) + 1,
-                Discovery: exe.Int(row + 0x04)));
+                Grade: exe.Int(row + 0x04),
+                Category: exe.Int(row + 0x0C),
+                Funds: exe.Int(row + 0x14),
+                Deadline: exe.Int(row + 0x18) + 1,
+                Discovery: exe.Int(row + 0x08)));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
-        if (hints.Count == 0 || hints[0].Name != "서회항로")
+        if (hints.Count == 0 || hints[0].Name != ProbeName)
         {
             error = "힌트 표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
             return null;
