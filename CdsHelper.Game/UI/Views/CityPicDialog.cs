@@ -1837,6 +1837,28 @@ public sealed class CityPicDialog : Window
     private bool CanReport(Patron patron) => ReportTargets(patron).Count > 0;
 
     /// <summary>
+    /// 후원자가 앉은 건물의 첫 줄 — 계약 상태로 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 셋을 같은 자리에 갈아 끼운다(<c>0x0044E630</c> 이 <c>+0xB0</c> 을 정한다).
+    /// <code>
+    ///   0x0044E9A0  설득     = 이 자리에 후원자가 있고 내밀 힌트가 있고 <b>계약 중이 아니다</b>
+    ///   0x0044E9E0  계약중단 = 이 후원자와 <b>계약 중</b>이다
+    ///   0x0044EA00  보고     = 계약중단 조건 + <b>보고할 발견물이 있다</b>
+    /// </code>
+    /// 그래서 계약을 맺어 두고 아무것도 못 찾은 채 찾아가면 "계약중단" 만 뜬다 —
+    /// 그 자리에서 다시 설득할 수는 없다.
+    /// </remarks>
+    private string PatronRow(Patron patron) =>
+        CanReport(patron) ? Facility.Report
+      : Contracted(patron) ? Facility.Break
+      : Facility.Persuade;
+
+    /// <summary>이 후원자와 이 자리에서 계약 중인지(<c>0x0044E550</c>).</summary>
+    private bool Contracted(Patron patron) =>
+        _player.Contract is { } c && c.Sponsor == patron.Name && c.City == _cityName;
+
+    /// <summary>
     /// 그 후원자에게 보고할 발견물. 계약의 유적 번호를 가진 것 중 발견했고 아직 안 알린 것이다.
     /// </summary>
     private List<DiscoveryTable.Record> ReportTargets(Patron patron)
@@ -1905,6 +1927,100 @@ public sealed class CityPicDialog : Window
 
         GameDialog.Show(this, $"금화 {paid}닢을 받았다!");
     }
+
+    /// <summary>
+    /// 계약중단 — 계약을 깨고 위약금을 문다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0044F7A0</c> 이다. <b>기한이 지났다고 저절로 무슨 일이 나지는 않는다</b> —
+    /// 후원자를 다시 찾아갔을 때에야 따진다.
+    /// <code>
+    /// 44f7aa  ebx = (남은기한 &gt; 0) ? 1 : 0                ; 0x004ADB40
+    /// 44f7c1  0x0044F2E0(건물, ebx)                        ; 내 쪽 대사
+    /// 44f7c9  0x0044F4C0(건물, ebx)                        ; 집사 대사 — 기한을 넘겼으면 딴 말
+    /// 44f7d6  edi = 0x0044F8B0(후원자, ebx)                 ; 용서받나
+    /// 44f826  위약금 = 계약금 / 2                            ; 받은 선금과 같다
+    /// 44f831  못 내면 "위약금을 지불할 수 없습니다!" 하고 미움을 산다
+    /// 44f895  0x0044EEA0(건물)                              ; 계약을 끝낸다
+    /// </code>
+    /// 용서 판정은 이렇다.
+    /// <code>
+    /// 44f8b0  주사위 = rand(기한을 넘겼으면 150, 아니면 100)
+    /// 44f8ca  문턱  = min(97, [후원자+0x20] + [0x5B60D0] + 1)
+    /// 44f8de  용서받는다 = 주사위 &lt; 문턱
+    /// </code>
+    /// <c>[후원자+0x20]</c> 은 후원자 표(<c>0x005228B8</c>)의 <b>명성 / 100</b> 이다 —
+    /// 국왕이 90 넘고 장사치가 한 자리라 <b>높은 사람일수록 너그럽다</b>.
+    /// <c>[0x5B60D0]</c> 은 설득(<c>0x0044EF62</c>)도 쓰는 주인공 값인데 무엇인지 못 짚었다 —
+    /// 여기서는 <b>내 명성 / 100</b> 을 넣었다.
+    /// </remarks>
+    private void BreakContract(Patron patron)
+    {
+        if (_player.Contract is not { } contract) return;
+
+        var owner = Menu.Window ?? this;
+        var face = FaceOf(patron);
+        void Say(string text) => TalkDialog.Say(this, face, "", text);
+
+        bool overdue = contract.IsOverdue(_player.Date);
+        if (!ConfirmDialog.Ask(owner, overdue
+                ? "기한을 넘겼다. 계약을 그만두겠나?"
+                : "계약을 그만두겠나?")) return;
+
+        CloseCityMenu();
+
+        // 집사가 먼저 알린다. 기한을 넘겼으면 말이 달라진다.
+        string me = _player.Name;
+        Say(overdue
+            ? $"{patron.Name}님. {me}{GameUi.Josa(me, "이", "가")} 돌아왔습니다. " +
+              "기한을 넘은 데다, 아무런 성과도 없는 듯 합니다만."
+            : $"{patron.Name}님. {me}{GameUi.Josa(me, "이", "가")} 왔습니다. " +
+              "뭔가, 계약을 파기하고 싶다고 합니다만.");
+
+        bool forgiven = Forgiven(patron, overdue);
+        if (!forgiven)
+        {
+            Say("후~... 계약을 파기하리라고는.");
+            _player.EndContract();
+            GameDialog.Show(this, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
+                                  "가까이 하지 않는 것이 좋을 것 같군요.");
+            return;
+        }
+
+        Say(overdue
+            ? "기대가 빗나갔군! 이번 실패는 잊어주지. 생각이 바뀌기 전에 나가주게."
+            : "안됐군요, 무리하게 보내서는 성과도 없을테니, 이 계약은 잊어버립시다.");
+
+        int penalty = contract.Penalty;
+        if (!_player.Pay(penalty))
+        {
+            GameDialog.Show(this, "위약금을 지불할 수 없습니다!");
+            Say("바보같은, 위약금을 지불할 수 없다고! 어디까지 어리석은...");
+            _player.EndContract();
+            GameDialog.Show(this, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
+                                  "가까이 하지 않는 것이 좋을 것 같군요.");
+            return;
+        }
+
+        _player.EndContract();
+        GameDialog.Show(this, $"위약금으로 금화 {penalty}닢을 물었다.");
+    }
+
+    /// <summary>
+    /// 계약을 깨는 것을 후원자가 눈감아 주는지(<c>0x0044F8B0</c>).
+    /// </summary>
+    private bool Forgiven(Patron patron, bool overdue) =>
+        _random.Next(overdue ? LateRoll : OnTimeRoll)
+            < Math.Min(ForgiveCap, patron.Fame / 100 + _player.Fame / 100 + 1);
+
+    /// <summary>기한 안에 깰 때 굴리는 주사위 폭(<c>add $0x64,%eax</c>).</summary>
+    private const int OnTimeRoll = 100;
+
+    /// <summary>기한을 넘겨 깰 때의 폭 — 반쯤 넓어져 통과하기 어렵다(<c>and $0x32</c>).</summary>
+    private const int LateRoll = 150;
+
+    /// <summary>문턱을 자르는 값(<c>cmp $0x61,%ecx</c>).</summary>
+    private const int ForgiveCap = 97;
 
     /// <summary>
     /// 보고 사례. 미불에 비율을 먹이고 100닢 단위로 내린다.
@@ -2125,8 +2241,7 @@ public sealed class CityPicDialog : Window
         // 그 자리가 계약을 맺은 자리이고 맡은 것을 찾아 왔으면 그 줄이 "보고" 로 바뀐다 —
         // 게임도 같은 자리를 계약 상태로 갈아 끼운다(0x0044EAE0).
         var patron = PatronAt(kind);
-        if (patron != null)
-            items.Insert(0, CanReport(patron) ? Facility.Report : Facility.Persuade);
+        if (patron != null) items.Insert(0, PatronRow(patron));
 
         return new GameMenu(title, null,
             [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron, title, kind)))]);
@@ -2219,6 +2334,7 @@ public sealed class CityPicDialog : Window
         if (item == "기능") return () => Menu.Push(SystemMenu);
         if (item == Facility.Persuade && patron != null) return () => Persuade(patron);
         if (item == Facility.Report && patron != null) return () => Report(patron);
+        if (item == Facility.Break && patron != null) return () => BreakContract(patron);
 
         return (facility.Kind, item) switch
         {
