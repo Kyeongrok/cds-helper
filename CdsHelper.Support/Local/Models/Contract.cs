@@ -1,0 +1,112 @@
+namespace CdsHelper.Support.Local.Models;
+
+/// <summary>
+/// 후원자와 맺은 계약 하나. 힌트 하나를 좇기로 하고 자금을 받는다.
+/// </summary>
+/// <remarks>
+/// 게임은 계약을 실행 중 객체 하나(<c>0x0061D1D0</c>)로 들고 있다 — <c>+0x10</c> 이 힌트
+/// 번호고(-1 이면 계약 없음), 계약금은 따로 전역 <c>0x005B619C</c> 에 둔다. 계약을 맺는
+/// 자리는 <c>0x004ADEE0</c> 이고 그 안에서
+/// <code>
+///   0x004ADF31  *0x5B619C = 계약금
+///   0x004ADF3E  소지금 += 계약금 / 2      ; 선금은 그 자리에서 받는다
+/// </code>
+/// 를 한다. 계약 정보 화면(<c>0x0047F1D0</c>)은 <b>선금도 미불도 계약금의 절반</b>으로 낸다 —
+/// 둘 다 <c>계약금 / 2</c> 라 홀수면 합이 계약금보다 하나 모자란데, 게임이 그렇게 낸다.
+/// </remarks>
+public sealed class Contract
+{
+    /// <summary>한 해를 며칠로 세는지. 게임이 남은 기한을 셀 때 쓰는 수다(<c>0x0047F3DE</c>).</summary>
+    public const int DaysPerYear = 365;
+
+    /// <summary>한 달을 며칠로 세는지(<c>0x0047F3F8</c>).</summary>
+    public const int DaysPerMonth = 30;
+
+    /// <summary>화면에 내는 개월 수의 위쪽 끝. 게임도 11 로 자른다(<c>0x0047F44A</c>).</summary>
+    public const int MaxMonths = 11;
+
+    /// <param name="Hint">좇기로 한 힌트 번호.</param>
+    /// <param name="Sponsor">후원자 이름.</param>
+    /// <param name="City">계약을 맺은 마을.</param>
+    /// <param name="Amount">계약금(닢). 절반은 선금으로 받고 절반은 성공한 뒤에 받는다.</param>
+    /// <param name="SignedOn">맺은 날.</param>
+    /// <param name="Years">계약 기한(년).</param>
+    public Contract(int hint, string sponsor, string city, int amount,
+                    DateTime signedOn, int years)
+    {
+        Hint = hint;
+        Sponsor = sponsor;
+        City = city;
+        Amount = amount;
+        SignedOn = signedOn;
+        Years = years;
+    }
+
+    /// <summary>좇기로 한 힌트 번호.</summary>
+    public int Hint { get; }
+
+    /// <summary>후원자 이름.</summary>
+    public string Sponsor { get; }
+
+    /// <summary>계약을 맺은 마을.</summary>
+    public string City { get; }
+
+    /// <summary>계약금(닢).</summary>
+    public int Amount { get; }
+
+    /// <summary>맺은 날.</summary>
+    public DateTime SignedOn { get; }
+
+    /// <summary>계약 기한(년).</summary>
+    public int Years { get; }
+
+    /// <summary>선금 — 맺으면서 받은 돈.</summary>
+    public int Advance => Amount / 2;
+
+    /// <summary>미불 — 성공하면 받을 돈.</summary>
+    public int Unpaid => Amount / 2;
+
+    /// <summary>기한이 다하는 날.</summary>
+    public DateTime DueOn => SignedOn.AddYears(Years);
+
+    private readonly List<int> _found = [];
+
+    /// <summary>이 계약을 맺은 뒤에 발견한 것(발견물 번호). 찾은 차례대로다.</summary>
+    public IReadOnlyList<int> Found => _found;
+
+    /// <summary>발견한 것을 이 계약에 얹는다. 처음 얹는 것이면 true.</summary>
+    public bool Add(int discovery)
+    {
+        if (discovery < 0 || _found.Contains(discovery)) return false;
+        _found.Add(discovery);
+        return true;
+    }
+
+    /// <summary>세이브를 되돌릴 때 발견한 것을 그대로 채운다.</summary>
+    public void Restore(IEnumerable<int>? found)
+    {
+        _found.Clear();
+        if (found == null) return;
+        foreach (int id in found) Add(id);
+    }
+
+    /// <summary>그 날 기준으로 남은 날수. 0 이하면 기한이 지난 것이다.</summary>
+    public int DaysLeft(DateTime now) => (int)(DueOn - now).TotalDays;
+
+    /// <summary>
+    /// 남은 기한을 게임처럼 "몇 년 몇 개월" 로 쪼갠다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 남은 <b>날수</b>를 365 로 나눠 햇수를, 그 나머지를 30 으로 나눠 달수를 낸다.
+    /// 달수는 11 을 넘지 않게 자른다.
+    /// </remarks>
+    public (int Years, int Months) Remaining(DateTime now)
+    {
+        int days = DaysLeft(now);
+        if (days <= 0) return (0, 0);
+
+        int years = days / DaysPerYear;
+        int months = (days - years * DaysPerYear) / DaysPerMonth;
+        return (years, Math.Min(months, MaxMonths));
+    }
+}

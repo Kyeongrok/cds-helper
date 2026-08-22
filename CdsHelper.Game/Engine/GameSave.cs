@@ -38,21 +38,33 @@ public static class GameSave
     /// <param name="Discoveries">
     /// 발견한 발견물 번호(게임 표의 줄 번호). 판 5 부터 있어 그 전 세이브에서는 null 이다.
     /// </param>
+    /// <param name="Contract">
+    /// 맺고 있는 계약. 판 6 부터 있어 그 전 세이브에서는 null 이다(= 계약 없음).
+    /// </param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
         List<string>? Mates = null, List<string>? Met = null,
         List<int>? Items = null, List<int>? Supplies = null,
-        List<int>? Discoveries = null);
+        List<int>? Discoveries = null, Deal? Contract = null);
+
+    /// <summary>
+    /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
+    /// 있지만, 세이브 형식은 놀이 쪽 모델이 바뀌어도 그대로여야 하므로 따로 둔다.
+    /// </summary>
+    /// <param name="Found">이 계약을 맺은 뒤 발견한 것(발견물 번호).</param>
+    public sealed record Deal(
+        int Hint, string Sponsor, string City, int Amount, DateTime SignedOn, int Years,
+        List<int>? Found = null);
 
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(5, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(6, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
-                            [.. player.Supplies], [.. player.Discoveries]);
+                            [.. player.Supplies], [.. player.Discoveries], DealOf(player));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
@@ -64,6 +76,21 @@ public static class GameSave
         {
             return ex.Message;
         }
+    }
+
+    /// <summary>맺고 있는 계약을 적을 꼴로. 계약이 없으면 null.</summary>
+    private static Deal? DealOf(Player player) =>
+        player.Contract is not { } c ? null
+        : new Deal(c.Hint, c.Sponsor, c.City, c.Amount, c.SignedOn, c.Years, [.. c.Found]);
+
+    /// <summary>적어 둔 계약을 놀이 쪽 모델로. 없으면 null.</summary>
+    public static Contract? ContractOf(Data saved)
+    {
+        if (saved.Contract is not { } d) return null;
+
+        var contract = new Contract(d.Hint, d.Sponsor, d.City, d.Amount, d.SignedOn, d.Years);
+        contract.Restore(d.Found);
+        return contract;
     }
 
     /// <summary>적어 둔 것을 읽는다. 없거나 깨졌으면 null.</summary>
