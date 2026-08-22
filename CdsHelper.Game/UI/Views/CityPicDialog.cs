@@ -956,13 +956,13 @@ public sealed class CityPicDialog : Window
     {
         var owner = Menu.Window ?? this;
         int rate = Market?.Rates.Of(_cityId) ?? 100;
-        int PriceOf(Hull h) => Math.Max(1, h.SellPrice * rate / 100);
+        int PriceOf(Ship s) => Math.Max(1, s.Hull.SellPrice * rate / 100);
 
         GameDialog.Show(owner, "어느 배를 팔 건가? 봐 주겠네.");
 
         int at = HintListDialog.Pick(owner,
-            [.. _player.Ships.Select((h, i) =>
-                $"{(i == _player.Flagship ? "★" : "  ")}{h.Name}  {PriceOf(h),7}닢")],
+            [.. _player.Ships.Select((s, i) =>
+                $"{(i == _player.Flagship ? "★" : "  ")}{s.Name}  {PriceOf(s),7}닢")],
             "매각", "팔 배가 없습니다");
         if (at < 0) return;
 
@@ -984,9 +984,69 @@ public sealed class CityPicDialog : Window
         _player.Earn(paid);
     }
 
-    /// <summary>배 한 척을 줄로 적는다 — 이름과 내구·추진·적재를 붙인다.</summary>
-    private static string ShipLine(Hull hull, bool flag) =>
-        $"{(flag ? "★" : "  ")}{hull.Name}  내구{hull.Hp,3} 추진{hull.Speed,3} 적재{hull.Capacity,4}";
+    /// <summary>
+    /// 배를 고친다. 게임의 <c>0x0044B9C0</c> 자리다.
+    /// </summary>
+    /// <remarks>
+    /// 고칠 배는 <b>함대와 이 마을에 맡겨 둔 배</b>를 다 훑어 모은다(<c>0x0044BC50</c>).
+    /// 값은 이렇다.
+    /// <code>
+    ///   0x0044BBF0  손상 = (최대내구 - 지금내구) + (최대돛 - 지금돛)   ; 음수는 0
+    ///   0x0044BAA1  값 = (rand(4) + 26) * 손상                        ; 26~29 곱
+    ///   0x0044BABD  값 = 값 x 도시 시세 / 100                          ; 적어도 1
+    /// </code>
+    /// 우리 선체 표에는 돛 값이 없어 <b>내구만</b> 센다.
+    ///
+    /// 게임 화면은 여러 척을 한꺼번에 골라 값을 합치는데 여기서는 한 척씩 고친다.
+    /// </remarks>
+    private void RepairShip()
+    {
+        var owner = Menu.Window ?? this;
+        int rate = Market?.Rates.Of(_cityId) ?? 100;
+
+        // 함대 먼저, 그 뒤가 이 마을이 맡은 배다.
+        var hurt = new List<(Ship Ship, bool Docked)>();
+        foreach (var s in _player.Ships) if (s.NeedsRepair) hurt.Add((s, false));
+        foreach (var s in _player.DockedAt(_cityId)) if (s.NeedsRepair) hurt.Add((s, true));
+
+        if (hurt.Count == 0)
+        {
+            GameDialog.Show(owner, "수리가 필요한 배는 없네!");
+            return;
+        }
+
+        int CostOf(Ship s) => Math.Max(1, (RepairRate + _random.Next(4)) * s.Damage * rate / 100);
+
+        int at = HintListDialog.Pick(owner,
+            [.. hurt.Select(h => $"{(h.Docked ? "맡김 " : "     ")}{h.Ship.Name}  " +
+                                 $"내구 {h.Ship.Hp,3}/{h.Ship.MaxHp,-3}")],
+            "수리선박 선택", "수리가 필요한 배는 없네!");
+        if (at < 0 || at >= hurt.Count) return;
+
+        var ship = hurt[at].Ship;
+        int cost = CostOf(ship);
+        if (!ConfirmDialog.Ask(owner, $"수리하는데 금화 {cost}닢 필요하네. 좋나?")) return;
+
+        if (!_player.Pay(cost))
+        {
+            GameDialog.Show(owner, "소지금이 모자랍니다!");
+            return;
+        }
+        ship.Repair();
+    }
+
+    /// <summary>손상 한 점을 고치는 값의 밑수. 게임은 여기에 rand(4) 를 더한다.</summary>
+    private const int RepairRate = 26;
+
+    /// <summary>
+    /// 배 한 척을 줄로 적는다 — 이름과 내구·추진·적재를 붙인다. 상했으면 내구를 "지금/최대"로 낸다.
+    /// </summary>
+    private static string ShipLine(Ship ship, bool flag)
+    {
+        var hull = ship.Hull;
+        string hp = ship.NeedsRepair ? $"{ship.Hp,3}/{hull.Hp,-3}" : $"{hull.Hp,3}    ";
+        return $"{(flag ? "★" : "  ")}{hull.Name}  내구{hp} 추진{hull.Speed,3} 적재{hull.Capacity,4}";
+    }
 
     /// <summary>기함을 바꾼다. 게임의 <c>0x0046A2F0</c> 자리다.</summary>
     private void ChangeFlagship()
@@ -2074,6 +2134,7 @@ public sealed class CityPicDialog : Window
                                   Market?.Rates.Of(_cityId) ?? 100),
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Shipyard, "매각") when _player.Ships.Count > 1 => SellShip,
+            (FacilityKind.Shipyard, "수리") => RepairShip,
             (FacilityKind.Market, "구입") when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
             (FacilityKind.Market, "매각") when Market != null && ItemTableOrNull != null => () =>
