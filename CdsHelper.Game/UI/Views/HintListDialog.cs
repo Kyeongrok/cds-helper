@@ -123,15 +123,19 @@ public sealed class HintListDialog : Window
         Close();
     }
 
-    /// <summary>얻은 힌트를 늘어놓기만 한다. 하나도 없으면 그렇다고 알린다.</summary>
-    public static void Show(Window owner, IReadOnlyList<string> hints)
+    /// <summary>줄을 늘어놓기만 한다. 하나도 없으면 그렇다고 알린다.</summary>
+    /// <param name="caption">창 제목. 안 주면 「취득 힌트 일람」이다.</param>
+    /// <param name="whenEmpty">줄이 하나도 없을 때 알릴 말.</param>
+    public static void Show(Window owner, IReadOnlyList<string> hints,
+                            string caption = "취득 힌트 일람",
+                            string whenEmpty = "아직 얻은 힌트가 없다.")
     {
         if (hints.Count == 0)
         {
-            NoticeDialog.Show(owner, "아직 얻은 힌트가 없다.");
+            NoticeDialog.Show(owner, whenEmpty);
             return;
         }
-        new HintListDialog(hints, choosing: false, "취득 힌트 일람") { Owner = owner }.ShowDialog();
+        new HintListDialog(hints, choosing: false, caption) { Owner = owner }.ShowDialog();
     }
 
     /// <summary>

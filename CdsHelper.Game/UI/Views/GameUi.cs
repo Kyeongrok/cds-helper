@@ -771,4 +771,23 @@ internal static class GameUi
             },
         };
     }
+
+    /// <summary>
+    /// 이름 뒤에 붙는 조사. 받침이 있으면 <paramref name="closed"/>, 없으면 <paramref name="open"/> 이다.
+    /// </summary>
+    /// <param name="word">앞말. 마지막 글자로 가른다.</param>
+    /// <param name="closed">받침이 있을 때 붙일 것("을"·"은"·"이").</param>
+    /// <param name="open">받침이 없을 때 붙일 것("를"·"는"·"가").</param>
+    /// <remarks>
+    /// 게임도 조사를 따로 끼워 넣는다 — 발견 알림 "%s%s [%s]%s 발견했습니다"
+    /// (<c>0x00538490</c>) 의 두 번째·네 번째 자리가 이것이다. 한글이 아닌 글자로 끝나면
+    /// 받침이 없는 쪽을 쓴다.
+    /// </remarks>
+    public static string Josa(string word, string closed, string open)
+    {
+        if (word.Length == 0) return open;
+        char last = word[^1];
+        if (last is < '가' or > '힣') return open;
+        return (last - '가') % 28 == 0 ? open : closed;
+    }
 }
