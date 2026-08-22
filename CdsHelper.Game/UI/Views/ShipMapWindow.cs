@@ -403,7 +403,8 @@ public sealed class ShipMapWindow : Window
             _purse.Text = $"{_player.Gold}닢";
             _fame.Text = $"명성 {_player.Fame}";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
-            ShipSprites.Skin = _player.Ships.Max(s => s.Skin);
+            // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
+            ShipSprites.Skin = _player.FlagshipHull?.Skin ?? 0;
             // 게임 상단 띠와 같은 말투로 적는다.
             _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
             _cityLabel.Text = _player.CityName.Length > 0 ? _player.CityName : "—";
@@ -943,6 +944,7 @@ public sealed class ShipMapWindow : Window
                             saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items,
                             saved.Supplies, saved.Discoveries, saved.Crew, saved.Announced,
                             saved.Stored, saved.Savings);
+            _player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked);
             _player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.

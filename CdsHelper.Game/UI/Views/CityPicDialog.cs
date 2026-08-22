@@ -914,8 +914,97 @@ public sealed class CityPicDialog : Window
     /// "편성 종료" 를 누르면 항구 창으로 되돌아간다 — 창을 닫는 것이 아니라 담긴 것만 갈린다.
     /// </summary>
     private GameMenu FleetMenu() => new(
-        [.. Facility.FleetMenu.Select(item =>
-            (item, item == Facility.FleetExit ? (Action?)Menu.Pop : null))]);
+        [.. Facility.FleetMenu.Select(item => (item, FleetAction(item)))]);
+
+    /// <summary>
+    /// 함대편성 줄의 켜짐. 게임의 조건을 그대로 옮겼다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   기함 변경  0x0046A220  배가 두 척 이상
+    ///   선박 편입  0x0046A240  함대가 여덟 척 미만이고 이 마을에 맡긴 배가 있다
+    ///   선박 삭제  0x0046A270  배가 두 척 이상(이 마을이 더 맡을 수 있어야)
+    ///   선박 파기  0x0046A2C0  배가 두 척 이상
+    /// </code>
+    /// 조건이 어긋난 줄은 흐리게 둔다.
+    /// </remarks>
+    private Action? FleetAction(string item) => item switch
+    {
+        "기함 변경" when _player.Ships.Count > 1 => ChangeFlagship,
+        "선박 편입" when !_player.IsFleetFull
+                      && _player.DockedAt(_cityId).Count > 0 => TakeShip,
+        "선박 삭제" when _player.Ships.Count > 1
+                      && _player.DockedAt(_cityId).Count < Player.MaxDocked => LeaveShip,
+        "선박 파기" when _player.Ships.Count > 1 => ScrapShip,
+        Facility.FleetExit => Menu.Pop,
+        _ => null,
+    };
+
+    /// <summary>배 한 척을 줄로 적는다 — 이름과 내구·추진·적재를 붙인다.</summary>
+    private static string ShipLine(Hull hull, bool flag) =>
+        $"{(flag ? "★" : "  ")}{hull.Name}  내구{hull.Hp,3} 추진{hull.Speed,3} 적재{hull.Capacity,4}";
+
+    /// <summary>기함을 바꾼다. 게임의 <c>0x0046A2F0</c> 자리다.</summary>
+    private void ChangeFlagship()
+    {
+        var owner = Menu.Window ?? this;
+        var ships = _player.Ships;
+
+        int at = HintListDialog.Pick(owner,
+            [.. ships.Select((h, i) => ShipLine(h, i == _player.Flagship))],
+            "기함 변경", "바꿀 배가 없습니다");
+        if (at < 0) return;
+
+        var name = ships[at].Name;
+        if (!ConfirmDialog.Ask(owner, $"기함을 {name}호로 변경하겠습니다. 좋습니까?")) return;
+
+        _player.SetFlagship(at);
+    }
+
+    /// <summary>맡겨 둔 배를 함대에 넣는다. 게임의 <c>0x0046A350</c> 자리다.</summary>
+    private void TakeShip()
+    {
+        var owner = Menu.Window ?? this;
+        var docked = _player.DockedAt(_cityId);
+
+        int at = HintListDialog.Pick(owner, [.. docked.Select(h => ShipLine(h, false))],
+                                     "편입선박 선택", "이 마을에 맡겨 둔 배가 없습니다");
+        if (at < 0) return;
+
+        if (!_player.Undock(_cityId, at))
+            GameDialog.Show(owner, "이 이상 편입할 수 없습니다.");
+    }
+
+    /// <summary>함대의 배를 이 마을에 맡긴다. 게임의 <c>0x0046A400</c> 자리다.</summary>
+    private void LeaveShip()
+    {
+        var owner = Menu.Window ?? this;
+
+        int at = HintListDialog.Pick(owner,
+            [.. _player.Ships.Select((h, i) => ShipLine(h, i == _player.Flagship))],
+            "선박삭제", "삭제할 배가 없습니다");
+        if (at < 0) return;
+
+        if (!_player.Dock(at, _cityId))
+            GameDialog.Show(owner, "이 이상 삭제할 수 없습니다.");
+    }
+
+    /// <summary>배를 없앤다. 게임의 <c>0x0046A490</c> 자리다 — 되돌릴 수 없어 한 번 묻는다.</summary>
+    private void ScrapShip()
+    {
+        var owner = Menu.Window ?? this;
+
+        int at = HintListDialog.Pick(owner,
+            [.. _player.Ships.Select((h, i) => ShipLine(h, i == _player.Flagship))],
+            "선박파기", "파기할 배가 없습니다");
+        if (at < 0) return;
+
+        var name = _player.Ships[at].Name;
+        if (!ConfirmDialog.Ask(owner, $"{name}호를 파기하겠습니다. 좋습니까?")) return;
+
+        if (!_player.Scrap(at))
+            GameDialog.Show(owner, "이 이상 파기할 수 없습니다.");
+    }
 
     /// <summary>
     /// 선원편성 창. 모집·해고 두 줄과 돌아가기다 — 게임의 <c>0x004774E0</c> 그대로다.

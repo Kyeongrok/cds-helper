@@ -38,8 +38,14 @@ public enum LearnResult
 /// </remarks>
 public sealed class Player
 {
-    /// <summary>가질 수 있는 배의 수. 넘으면 더 못 산다.</summary>
-    public const int MaxShips = 10;
+    /// <summary>
+    /// 함대에 둘 수 있는 배의 수. 넘으면 더 못 산다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 여덟이다 — 항구 함대편성의 "선박 편입" 이 <c>0x0046A24A</c> 에서
+    /// <c>cmp eax, 8</c> 으로 막고, 함대 객체도 여덟 칸이다.
+    /// </remarks>
+    public const int MaxShips = 8;
 
     /// <summary>시작 소지금(닢).</summary>
     public const int StartingGold = 1000;
@@ -490,6 +496,120 @@ public sealed class Player
 
     /// <summary>가지고 있는 배. 산 차례대로다.</summary>
     public IReadOnlyList<Hull> Ships => _ships;
+
+    /// <summary>
+    /// 기함이 함대에서 몇째 자리인지. 배가 없으면 -1 이다.
+    /// </summary>
+    /// <remarks>
+    /// 항구 함대편성의 "기함 변경" 으로 바꾼다. 게임은 배가 <b>두 척 이상</b>일 때만 그 줄을
+    /// 켠다(<c>0x0046A220</c>) — 한 척뿐이면 바꿀 것이 없다.
+    /// </remarks>
+    public int Flagship { get; private set; }
+
+    /// <summary>기함. 배가 없으면 null.</summary>
+    public Hull? FlagshipHull =>
+        Flagship >= 0 && Flagship < _ships.Count ? _ships[Flagship] : _ships.FirstOrDefault();
+
+    /// <summary>기함을 그 자리의 배로 바꾼다. 자리가 이상하면 false.</summary>
+    public bool SetFlagship(int index)
+    {
+        if (index < 0 || index >= _ships.Count) return false;
+        Flagship = index;
+        return true;
+    }
+
+    private readonly Dictionary<int, List<Hull>> _docked = [];
+
+    /// <summary>
+    /// 그 마을에 맡겨 둔 배. 함대에서 <b>삭제</b>하면 여기로 오고, <b>편입</b>하면 도로 나간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 마을마다 배를 맡아 둔다 — 편입·삭제가 그 마을의 수를 세어 줄을 켠다
+    /// (<c>0x0040E280(도시, 0)</c>).
+    /// </remarks>
+    public IReadOnlyList<Hull> DockedAt(int cityId) =>
+        _docked.TryGetValue(cityId, out var list) ? list : [];
+
+    /// <summary>한 마을에 맡길 수 있는 배의 수. 게임도 여덟이다.</summary>
+    public const int MaxDocked = 8;
+
+    /// <summary>
+    /// 함대의 배를 그 마을에 맡긴다(선박 삭제). 기함만 남는 상태로는 못 만든다.
+    /// </summary>
+    public bool Dock(int index, int cityId)
+    {
+        if (_ships.Count <= 1 || index < 0 || index >= _ships.Count) return false;
+        if (DockedAt(cityId).Count >= MaxDocked) return false;
+
+        if (!_docked.TryGetValue(cityId, out var list)) _docked[cityId] = list = [];
+        list.Add(_ships[index]);
+        RemoveShip(index);
+        return true;
+    }
+
+    /// <summary>맡겨 둔 배를 함대에 넣는다(선박 편입).</summary>
+    public bool Undock(int cityId, int index)
+    {
+        if (IsFleetFull) return false;
+        if (!_docked.TryGetValue(cityId, out var list)) return false;
+        if (index < 0 || index >= list.Count) return false;
+
+        _ships.Add(list[index]);
+        list.RemoveAt(index);
+        return true;
+    }
+
+    /// <summary>배를 없앤다(선박 파기). 마지막 한 척은 못 없앤다.</summary>
+    public bool Scrap(int index)
+    {
+        if (_ships.Count <= 1 || index < 0 || index >= _ships.Count) return false;
+        RemoveShip(index);
+        return true;
+    }
+
+    /// <summary>
+    /// 적어 둔 함대를 되돌린다(불러오기). 이름으로 <see cref="Hull.All"/> 에서 찾는다.
+    /// </summary>
+    /// <remarks>
+    /// 배는 선체 다섯 가지 중 하나라 이름만 적어 두면 된다. 모르는 이름은 버린다 —
+    /// 선체 표가 갈려도 세이브가 통째로 깨지지는 않게.
+    /// </remarks>
+    public void RestoreFleet(IEnumerable<string>? ships, int flagship,
+                             IEnumerable<KeyValuePair<int, List<string>>>? docked)
+    {
+        static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name);
+
+        if (ships != null)
+        {
+            _ships.Clear();
+            foreach (var name in ships)
+                if (Find(name) is { } hull) _ships.Add(hull);
+            if (_ships.Count == 0) _ships.Add(Hull.Cheapest);
+        }
+        Flagship = Math.Clamp(flagship, 0, Math.Max(0, _ships.Count - 1));
+
+        _docked.Clear();
+        if (docked == null) return;
+        foreach (var (city, names) in docked)
+        {
+            var list = new List<Hull>();
+            foreach (var name in names)
+                if (Find(name) is { } hull) list.Add(hull);
+            if (list.Count > 0) _docked[city] = list;
+        }
+    }
+
+    /// <summary>맡겨 둔 배를 마을별로. 세이브에 적을 때 쓴다.</summary>
+    public IReadOnlyDictionary<int, List<Hull>> Docked => _docked;
+
+    /// <summary>함대에서 한 척을 뺀다. 기함 자리가 밀리지 않게 같이 손본다.</summary>
+    private void RemoveShip(int index)
+    {
+        _ships.RemoveAt(index);
+        if (Flagship > index) Flagship--;
+        else if (Flagship == index) Flagship = 0;
+        Flagship = Math.Clamp(Flagship, 0, Math.Max(0, _ships.Count - 1));
+    }
 
     // ── 보급 ─────────────────────────────────────────────────────────────────
 
