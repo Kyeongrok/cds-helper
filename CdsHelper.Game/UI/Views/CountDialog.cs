@@ -44,8 +44,8 @@ public sealed class CountDialog : Window
         return b;
     }
 
-    /// <summary>↑↓ 한 번에 움직이는 수. Shift 를 누르면 열 배로 뛴다.</summary>
-    private const int Step = 1, FastStep = 10;
+    /// <summary>Shift 를 누르면 한 번에 이만큼 배로 뛴다.</summary>
+    private const int Fast = 10;
 
     /// <summary>값이 놓이는 칸의 폭. 줄마다 수가 세로로 맞게 못 박는다.</summary>
     private const double ValueWidth = 90;
@@ -56,6 +56,7 @@ public sealed class CountDialog : Window
     public readonly record struct Gauge(string Name, int Value);
 
     private readonly int _max;
+    private readonly int _step;
     private readonly GameUi.GameLabel _count;
     private readonly GameButton _decide;
 
@@ -64,9 +65,11 @@ public sealed class CountDialog : Window
 
     private int _at;
 
-    private CountDialog(string caption, string label, string unit, int max, Gauge[] lines)
+    private CountDialog(string caption, string label, string unit, int max, int step,
+                        bool full, Gauge[] lines)
     {
         _max = max;
+        _step = step;
 
         Title = caption;
         WindowStyle = WindowStyle.None;
@@ -108,6 +111,9 @@ public sealed class CountDialog : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 6, 0, 10),
         };
+        // 돈처럼 자릿수가 큰 것은 ↑↓ 로 끝까지 올리기 어렵다 — 게임은 자릿수를 눌러 넣지만
+        // 여기서는 보급 화면처럼 "최대" 한 단추로 갈음한다.
+        if (full) buttons.Children.Add(new GameButton("최대", () => { _at = _max; Paint(); }));
         buttons.Children.Add(_decide);
         buttons.Children.Add(new GameButton("중단", Close));
 
@@ -138,7 +144,7 @@ public sealed class CountDialog : Window
 
     private void Bump(int by)
     {
-        int step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? FastStep : Step;
+        int step = _step * (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? Fast : 1);
         _at = Math.Clamp(_at + by * step, 0, _max);
         Paint();
     }
@@ -208,13 +214,15 @@ public sealed class CountDialog : Window
     /// <param name="label">고르는 줄 이름("고용할 사람 수").</param>
     /// <param name="unit">단위("명").</param>
     /// <param name="max">고를 수 있는 가장 큰 수.</param>
+    /// <param name="step">↑↓ 한 번에 움직이는 수. Shift 를 누르면 그 열 배로 뛴다.</param>
+    /// <param name="full">참이면 "최대" 단추를 단다 — 돈처럼 자릿수가 큰 것에 쓴다.</param>
     /// <param name="lines">밑에 붙는 눈금 줄들.</param>
     public static int Ask(Window owner, string caption, string label, string unit,
-                          int max, params Gauge[] lines)
+                          int max, int step = 1, bool full = false, params Gauge[] lines)
     {
         if (max <= 0) return 0;
 
-        var dialog = new CountDialog(caption, label, unit, max, lines) { Owner = owner };
+        var dialog = new CountDialog(caption, label, unit, max, step, full, lines) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
     }

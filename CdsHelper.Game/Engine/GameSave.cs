@@ -50,13 +50,15 @@ public static class GameSave
     /// </param>
     /// <param name="Fame">명성. 판 8 부터 있다 — 발표로 오르기 시작해서 적어 둬야 한다.</param>
     /// <param name="Stored">자택에 맡겨 둔 것(아이템 번호). 판 9 부터 있다.</param>
+    /// <param name="Savings">자택에 맡겨 둔 돈(닢). 판 10 부터 있다.</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
         List<string>? Mates = null, List<string>? Met = null,
         List<int>? Items = null, List<int>? Supplies = null,
         List<int>? Discoveries = null, Deal? Contract = null, int? Crew = null,
-        List<int>? Announced = null, int? Fame = null, List<int>? Stored = null);
+        List<int>? Announced = null, int? Fame = null, List<int>? Stored = null,
+        int? Savings = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -70,13 +72,13 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(9, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(10, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
                             [.. player.Supplies], [.. player.Discoveries], DealOf(player),
                             player.Crew, [.. player.Announced], player.Fame,
-                            [.. player.Stored]);
+                            [.. player.Stored], player.Savings);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

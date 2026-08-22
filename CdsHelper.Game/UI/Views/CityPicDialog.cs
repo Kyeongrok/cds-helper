@@ -968,7 +968,7 @@ public sealed class CityPicDialog : Window
             GameDialog.Show(owner, $"몇 명 모집하겠습니까? 한 사람 당 금화 {price}닢 필요합니다.");
 
             int want = CountDialog.Ask(owner, "선원고용", "고용할 사람 수", "명",
-                                       _player.MaxCrew - _player.Crew,
+                                       _player.MaxCrew - _player.Crew, 1, false,
                                        new CountDialog.Gauge("현재의 선원 수", _player.Crew),
                                        new CountDialog.Gauge("최저 선원 수", _player.MinCrew));
             if (want <= 0) return;
@@ -1001,6 +1001,7 @@ public sealed class CityPicDialog : Window
         GameDialog.Show(owner, "선원을 몇 명 해고시키겠습니까?");
 
         int want = CountDialog.Ask(owner, "선원해고", "해고할 사람 수", "명", _player.Crew,
+                                   1, false,
                                    new CountDialog.Gauge("현재의 선원 수", _player.Crew),
                                    new CountDialog.Gauge("최저 승원 수", _player.MinCrew));
         if (want <= 0) return;
@@ -1139,6 +1140,79 @@ public sealed class CityPicDialog : Window
     /// <summary>쉬고 나서 나오는 지문 셋. 게임 것 그대로다(<c>0x00539840</c> 벌).</summary>
     private static readonly string[] RestWords =
         ["피로가 풀렸다!", "체력이 회복되었다!", "기분이 상쾌하다!"];
+
+    /// <summary>
+    /// 자택의 저금 창 — 저금한다 · 꺼낸다 · 중지한다. 게임의 <c>0x004609C0</c> 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 제목이 <c>"저금 %8ld 닢"</c>(<c>0x005398C0</c>) 이라 지금 맡겨 둔 돈이 창 이름에 붙는다.
+    /// 줄의 켜짐도 게임과 같다 — 저금은 소지금이, 꺼내기는 저금이 있어야 눌린다.
+    /// </remarks>
+    private GameMenu SavingsMenu() => new(
+        $"저금 {_player.Savings,8} 닢", null,
+        [.. Facility.SavingsMenu.Select(item => (item, SavingsAction(item)))]);
+
+    private Action? SavingsAction(string item) => item switch
+    {
+        "저금한다" when _player.Gold > 0 => Deposit,
+        "꺼낸다" when _player.Savings > 0 => Withdraw,
+        Facility.SavingsExit => Menu.Pop,
+        _ => null,
+    };
+
+    /// <summary>
+    /// 저금한다. 소지금과 저금 칸이 남은 만큼만 맡길 수 있다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00460AC9</c> 그대로다 — 저금이 이미 백만 닢이면 "더 이상 저금할 수
+    /// 없습니다"(<c>0x00539948</c>) 로 물리고, 아니면 <c>min(백만 - 저금, 소지금)</c> 까지 받는다.
+    /// </remarks>
+    private void Deposit()
+    {
+        var owner = Menu.Window ?? this;
+
+        int room = Player.MaxGold - _player.Savings;
+        if (room <= 0)
+        {
+            GameDialog.Show(owner, "더 이상 저금할 수 없습니다");
+            return;
+        }
+
+        int want = CountDialog.Ask(owner, "저금한다", "금  액", "닢",
+                                   Math.Min(room, _player.Gold), MoneyStep, full: true,
+                                   new CountDialog.Gauge("소지금", _player.Gold),
+                                   new CountDialog.Gauge("저  금", _player.Savings));
+        if (want <= 0) return;
+
+        GameDialog.Show(owner, $"금화 {_player.Deposit(want)}닢을 저금하겠습니다");
+    }
+
+    /// <summary>
+    /// 저금을 꺼낸다. 소지금도 백만 닢에서 막히므로 그만큼만 꺼낼 수 있다.
+    /// </summary>
+    /// <remarks>게임의 <c>0x00460B5F</c> 그대로다.</remarks>
+    private void Withdraw()
+    {
+        var owner = Menu.Window ?? this;
+
+        int room = Player.MaxGold - _player.Gold;
+        if (room <= 0)
+        {
+            GameDialog.Show(owner, "더 이상 꺼낼 수 없습니다");
+            return;
+        }
+
+        int want = CountDialog.Ask(owner, "저금을 꺼낸다", "금  액", "닢",
+                                   Math.Min(room, _player.Savings), MoneyStep, full: true,
+                                   new CountDialog.Gauge("소지금", _player.Gold),
+                                   new CountDialog.Gauge("저  금", _player.Savings));
+        if (want <= 0) return;
+
+        GameDialog.Show(owner, $"금화 {_player.Withdraw(want)}닢을 꺼내겠습니다");
+    }
+
+    /// <summary>돈을 ↑↓ 로 움직이는 단위. Shift 를 누르면 천 닢씩 뛴다.</summary>
+    private const int MoneyStep = 100;
 
     private GameMenu SystemMenu() => new(
         [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
@@ -1759,6 +1833,7 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Harbor, "선원편성") => () => Menu.Push(CrewMenu),
             (FacilityKind.Harbor, Facility.Announce) => Announce,
             (FacilityKind.Home, "휴양") => () => Menu.Push(RestMenu),
+            (FacilityKind.Home, "저금") => () => Menu.Push(SavingsMenu),
             (FacilityKind.Home, "보관") => () =>
                 StorageDialog.Show(Menu.Window ?? this, _player, ItemTableOrNull),
             (FacilityKind.Harbor, "보급") => () =>
