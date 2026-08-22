@@ -58,6 +58,7 @@ public sealed class Player
         Fame = StartingFame;
         Date = StartDate;
         _ships.Add(Hull.Cheapest);
+        Crew = MinCrew;   // 배는 최저 승원을 채우고 시작한다
     }
 
     /// <summary>
@@ -307,7 +308,8 @@ public sealed class Player
                         IEnumerable<string>? met = null,
                         IEnumerable<int>? items = null,
                         IEnumerable<int>? supplies = null,
-                        IEnumerable<int>? discoveries = null)
+                        IEnumerable<int>? discoveries = null,
+                        int? crew = null)
     {
         Gold = gold;
         Date = date;
@@ -344,6 +346,8 @@ public sealed class Player
         if (items != null) foreach (int id in items) Take(id);
         _found.Clear();
         if (discoveries != null) foreach (int id in discoveries) _found.Add(id);
+        // 선원을 안 적어 둔 옛 세이브는 최저 승원으로 채운다 — 그 전까지 쓰던 값이 그것이다.
+        SetCrew(crew ?? MinCrew);
     }
 
     /// <summary>도시에 들어가거나(이름과 함께) 바다로 나온다(-1).</summary>
@@ -390,10 +394,49 @@ public sealed class Player
     /// <summary>함대가 견디는 무게(중량 한도).</summary>
     public int Tonnage => _ships.Sum(s => s.Tonnage);
 
+    /// <summary>
+    /// 지금 태우고 있는 선원 수. 식량·물이 며칠 가는지가 이것으로 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 배 여덟 칸의 선원수를 더한다(<c>0x004745F0</c>). 항구의 "선원편성" 에서
+    /// 모집하고 해고한다 — 배를 사도 선원이 따라오지는 않는다.
+    /// </remarks>
+    public int Crew { get; private set; }
 
-    /// <summary>함대 총 선원수. 식량·물이 며칠 가는지가 이것으로 갈린다.</summary>
-    /// <remarks>게임도 배 여덟 칸의 선원수를 더한다(<c>0x004745F0</c>).</remarks>
-    public int Crew => _ships.Sum(s => s.Crew);
+    /// <summary>
+    /// 최저 승원 수 — 배마다의 필요승인을 더한 것. 이보다 적으면 배가 제대로 안 간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배 레코드 <c>+0x30</c> 에 <b>필요승인에서 10을 뺀</b> 값을 담고 읽을 때 도로
+    /// 더한다(<c>0x0044C780</c>). 선체 표(<c>0x004FC1E0</c>, 64바이트 x 8)의 <c>+0x34</c> 가
+    /// 그 값이다.
+    /// </remarks>
+    public int MinCrew => _ships.Sum(s => s.Crew);
+
+    /// <summary>
+    /// 태울 수 있는 선원 수(정원). 필요승인의 <b>다섯 배</b>다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 선체 표 <c>+0x34</c> 에 5 를 곱하고 50 을 더한다(<c>0x0044C790</c>).
+    /// <c>+0x34</c> 가 필요승인 - 10 이므로 <c>(필요승인-10)*5 + 50 = 필요승인*5</c> 로 같다 —
+    /// 카라벨 15명이면 75명, 갤리온 40명이면 200명이다.
+    /// </remarks>
+    public int MaxCrew => _ships.Sum(s => s.Crew) * 5;
+
+    /// <summary>
+    /// 선원을 그만큼 태운다(음수면 내린다). 0 과 정원 사이로 잘린다.
+    /// </summary>
+    /// <returns>실제로 늘거나 준 수.</returns>
+    /// <remarks>게임의 <c>0x0040E3F0</c> 과 같다 — 그쪽도 0~정원으로 자른 뒤 싣는다.</remarks>
+    public int AddCrew(int count)
+    {
+        int before = Crew;
+        Crew = Math.Clamp(Crew + count, 0, MaxCrew);
+        return Crew - before;
+    }
+
+    /// <summary>선원 수를 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
+    public void SetCrew(int crew) => Crew = Math.Clamp(crew, 0, MaxCrew);
 
     /// <summary>식량과 물이 며칠 갈지. 적은 쪽이 정한다.</summary>
     public int SupplyDaysLeft =>

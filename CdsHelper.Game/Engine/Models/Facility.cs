@@ -115,6 +115,14 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public const string FleetExit = "편성 종료";
 
     /// <summary>
+    /// 선원편성 창의 줄. 게임 것 그대로다(<c>0x00545250</c> 벌 — 항구 <c>0x004774E0</c>).
+    /// </summary>
+    public static readonly string[] CrewMenu = ["선원모집", "선원해고", CrewExit];
+
+    /// <summary>선원편성 창을 접고 항구 창으로 돌아가는 줄.</summary>
+    public const string CrewExit = "돌아간다";
+
+    /// <summary>
     /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는
     /// 종류(성문·상관·모스크 …)는 나가기 한 줄만 있는 창을 준다.
     /// </summary>

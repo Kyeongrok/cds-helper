@@ -917,6 +917,102 @@ public sealed class CityPicDialog : Window
         [.. Facility.FleetMenu.Select(item =>
             (item, item == Facility.FleetExit ? (Action?)Menu.Pop : null))]);
 
+    /// <summary>
+    /// 선원편성 창. 모집·해고 두 줄과 돌아가기다 — 게임의 <c>0x004774E0</c> 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// "선원해고" 는 태운 선원이 있어야 눌린다. 게임도 고르는 창을 지으며 그 줄의 켜짐을
+    /// <c>0x0040E360() &gt; 0</c>(지금 선원 수)으로 정한다(<c>0x0047753E</c>).
+    /// </remarks>
+    private GameMenu CrewMenu() => new(
+        [.. Facility.CrewMenu.Select(item => (item, CrewAction(item)))]);
+
+    private Action? CrewAction(string item) => item switch
+    {
+        "선원모집" => HireCrew,
+        "선원해고" when _player.Crew > 0 => FireCrew,
+        Facility.CrewExit => Menu.Pop,
+        _ => null,
+    };
+
+    /// <summary>
+    /// 선원 한 사람 값. 명성이 높을수록 싸고, 아무리 높아도 10닢 밑으로는 안 내려간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00477370</c> 그대로다 — <c>(10000 - 명성) / 400</c> 을 하고 10 과 견줘
+    /// 큰 쪽을 쓴다. 명성(<c>0x005B614C</c>)이 1700 이면 스무 닢, 6000 을 넘으면 열 닢이다.
+    /// </remarks>
+    private int CrewPrice => Math.Max(10, (10000 - _player.Fame) / 400);
+
+    /// <summary>
+    /// 선원을 모집한다. 게임의 <c>0x00477330</c> 차례 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 정원이 찼으면 아예 묻지 않고 물린다. 값을 못 치르면 다시 묻고, 다 태우고 나서도
+    /// 최저 승원에 모자라면 한 번 더 권한다 — 게임도 그 자리에서 되돌아간다.
+    /// </remarks>
+    private void HireCrew()
+    {
+        var owner = Menu.Window ?? this;
+
+        while (true)
+        {
+            if (_player.Crew >= _player.MaxCrew)
+            {
+                GameDialog.Show(owner,
+                    "선원수가 함대의 상한에 달하고 있습니다! 이 이상 고용해도 승선할 수 없습니다.");
+                return;
+            }
+
+            int price = CrewPrice;
+            GameDialog.Show(owner, $"몇 명 모집하겠습니까? 한 사람 당 금화 {price}닢 필요합니다.");
+
+            int want = CountDialog.Ask(owner, "선원고용", "고용할 사람 수", "명",
+                                       _player.MaxCrew - _player.Crew,
+                                       new CountDialog.Gauge("현재의 선원 수", _player.Crew),
+                                       new CountDialog.Gauge("최저 선원 수", _player.MinCrew));
+            if (want <= 0) return;
+
+            if (price * want > _player.Gold)
+            {
+                GameDialog.Show(owner, "소지금이 모자랍니다.");
+                continue;
+            }
+
+            _player.Pay(price * want);
+            _player.AddCrew(want);
+
+            // 아직 최저 승원에 모자라면 한 번 더 권한다.
+            int lack = _player.MinCrew - _player.Crew;
+            if (lack <= 0) return;
+            if (!ConfirmDialog.Ask(owner,
+                    $"앞으로 적어도 {lack}명은 필요합니다. 좀더 선원을 모집하겠습니까?"))
+                return;
+        }
+    }
+
+    /// <summary>
+    /// 선원을 해고한다. 게임의 <c>0x00477460</c> 차례 그대로다 — 삯은 돌려주지 않는다.
+    /// </summary>
+    private void FireCrew()
+    {
+        var owner = Menu.Window ?? this;
+
+        GameDialog.Show(owner, "선원을 몇 명 해고시키겠습니까?");
+
+        int want = CountDialog.Ask(owner, "선원해고", "해고할 사람 수", "명", _player.Crew,
+                                   new CountDialog.Gauge("현재의 선원 수", _player.Crew),
+                                   new CountDialog.Gauge("최저 승원 수", _player.MinCrew));
+        if (want <= 0) return;
+
+        // 최저 승원을 밑돌게 되면 한 번 물어본다.
+        if (_player.Crew - want < _player.MinCrew
+            && !ConfirmDialog.Ask(owner, "선원 수가 최저 승원 수를 밑돌고 있습니다. 괜찮습니까?"))
+            return;
+
+        _player.AddCrew(-want);
+    }
+
     private GameMenu SystemMenu() => new(
         [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
 
@@ -1528,6 +1624,7 @@ public sealed class CityPicDialog : Window
             // 함대편성은 제목 없는 창이 한 겹 더 뜬다. 줄은 게임 것 그대로 두되, 아직 손이
             // 안 달린 줄은 흐리게 남긴다 — 보급·선원편성과 같은 규칙이다.
             (FacilityKind.Harbor, "함대편성") => () => Menu.Push(FleetMenu),
+            (FacilityKind.Harbor, "선원편성") => () => Menu.Push(CrewMenu),
             (FacilityKind.Harbor, "보급") => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),
