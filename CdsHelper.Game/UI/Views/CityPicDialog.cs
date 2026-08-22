@@ -966,7 +966,7 @@ public sealed class CityPicDialog : Window
         ("도시 정보", ShowCityInfo),
         ("힌트 정보", ShowHints),
         ("계약 정보", ShowContract),
-        ("후원자 정보", null),
+        ("후원자 정보", ShowPatrons),
         ("지도를 본다", null),
         ("게임 종료", null),
         ("취소", CloseCityMenu));
@@ -1168,6 +1168,10 @@ public sealed class CityPicDialog : Window
 
         // 주인이 용건을 묻는다. 게임은 신분마다 말이 다르고 첫 방문이냐에 따라 또 갈리는데,
         // 여기서는 화면에서 본 한 벌만 쓴다.
+        //
+        // 이 자리에서 낯을 튼다. 게임도 이 물음 바로 뒤에 후원자의 "아직 못 만남" 표를
+        // 지운다(0x004AE595 — 객체 +0x28 의 비트 15). 그래야 스폰서 일람에 뜬다.
+        _player.Meet(patron.Name);
         Say($"흐음. {me}, 이번 모험 목적은 무엇인가?");
 
         // 얻은 힌트만 내밀 수 있다. 게임도 상태가 맞는 것만 목록에 올린다(0x0044E7B0).
@@ -1361,6 +1365,50 @@ public sealed class CityPicDialog : Window
     private void ShowHints() =>
         HintListDialog.Show(_cityMenu.Window ?? this,
                             [.. _player.Hints.Order().Select(_hintName)]);
+
+    /// <summary>
+    /// 「스폰서 일람」 — 한 번이라도 만난 후원자를 늘어놓는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 목록 짓는 곳은 <c>0x00476660</c> 이다. 후원자 81명을 죽 훑으며 두 가지를 본다.
+    /// <code>
+    ///   vtbl[0x38]  0x004ADD70  지금 그 자리에 앉아 있는 사람인가(같은 자리를 여럿이 나눠 쓴다)
+    ///   vtbl[0x34]  0x004AD800  후원자 객체 +0x28 의 비트 15 — 서 있으면 뺀다
+    /// </code>
+    /// 비트 15 는 <b>아직 못 만났다</b> 는 표다. 알현이 이루어져 주인이 "…모험 목적을 말해
+    /// 보게" 하고 물을 때 지운다(<c>0x004AE595</c>). 그래서 <b>한 번 만나야 목록에 뜬다.</b>
+    ///
+    /// 우리 쪽은 비트를 따로 들지 않고 <see cref="Player.Met"/>(낯을 튼 사람)로 가른다.
+    /// 자리 판정은 <see cref="Patron.IsActive"/> 로 물러선다 — 게임처럼 같은 자리를 두고
+    /// 다투는 것까지는 못 가리지만, 대가 갈려 물러난 사람은 걸러진다.
+    ///
+    /// 이름은 게임 표에서 가져온다 — <c>patrons.json</c> 은 "페르난 마르틴스" 인데 게임 화면은
+    /// 가운뎃점을 쓴다("페르난·마르틴스").
+    /// </remarks>
+    private void ShowPatrons()
+    {
+        int year = _player.Date.Year;
+        var table = Sponsors();
+
+        var mine = LoadPatrons()
+            .Where(p => p.IsActive(year) && _player.HasMet(p.Name))
+            .Select(p => (Patron: p, Row: table?.FindByName(p.Name)))
+            .ToList();
+        var names = mine.Select(m => m.Row?.Name ?? m.Patron.Name).ToList();
+
+        // 고르면 상세를 띄우고 닫으면 목록으로 돌아온다 — 게임도 그렇다(0x0049348E 가
+        // 목록 짓는 데로 되돌아간다).
+        var owner = _cityMenu.Window ?? this;
+        while (true)
+        {
+            int row = HintListDialog.Pick(owner, names, "스폰서 일람",
+                                          "이 마을에는 아는 스폰서가 없습니다");
+            if (row < 0 || row >= mine.Count) return;
+
+            var (patron, sponsor) = mine[row];
+            PatronInfoDialog.Show(owner, patron, sponsor?.Name, sponsor?.Job);
+        }
+    }
 
     /// <summary>
     /// 시설의 명령 창을 짓는다. 줄은 <see cref="Facility"/> 표에서 오고, 그중 흉내낼 수 있는
