@@ -940,6 +940,50 @@ public sealed class CityPicDialog : Window
         _ => null,
     };
 
+    /// <summary>
+    /// 조선소에 배를 판다. 게임의 <c>0x0044B820</c> 자리다.
+    /// </summary>
+    /// <remarks>
+    /// 값은 산 값의 <b>6할</b>에 도시 시세를 먹인 것이다(<see cref="Hull.SellPrice"/> ·
+    /// <c>0x00423A30</c> → <c>0x00429DC0</c>). 배가 한 척뿐이면 줄 자체가 흐리고
+    /// (<c>0x0044B863</c> 의 <c>cmp esi,1 / jle</c>), <b>기함은 못 판다</b>
+    /// (<c>0x00531188</c> "기함을 처분하는 일은 불가능합니다!").
+    ///
+    /// 게임 화면은 여러 척을 한꺼번에 골라 값을 합쳐 파는 꼴인데(고른 것을 비트로 든다),
+    /// 여기서는 한 척씩 판다 — 목록을 다시 열면 이어서 팔 수 있다.
+    /// </remarks>
+    private void SellShip()
+    {
+        var owner = Menu.Window ?? this;
+        int rate = Market?.Rates.Of(_cityId) ?? 100;
+        int PriceOf(Hull h) => Math.Max(1, h.SellPrice * rate / 100);
+
+        GameDialog.Show(owner, "어느 배를 팔 건가? 봐 주겠네.");
+
+        int at = HintListDialog.Pick(owner,
+            [.. _player.Ships.Select((h, i) =>
+                $"{(i == _player.Flagship ? "★" : "  ")}{h.Name}  {PriceOf(h),7}닢")],
+            "매각", "팔 배가 없습니다");
+        if (at < 0) return;
+
+        if (at == _player.Flagship)
+        {
+            GameDialog.Show(owner, "기함을 처분하는 일은 불가능합니다!");
+            return;
+        }
+
+        int paid = PriceOf(_player.Ships[at]);
+        if (!ConfirmDialog.Ask(owner, $"{paid}닢입니다. 좋습니까?")) return;
+
+        // 파기와 같은 자리에서 뺀다 — 게임도 배를 빼는 길은 하나다. 다른 것은 돈뿐이다.
+        if (!_player.Scrap(at))
+        {
+            GameDialog.Show(owner, "이 이상 배를 처분하는 일은 불가능합니다.");
+            return;
+        }
+        _player.Earn(paid);
+    }
+
     /// <summary>배 한 척을 줄로 적는다 — 이름과 내구·추진·적재를 붙인다.</summary>
     private static string ShipLine(Hull hull, bool flag) =>
         $"{(flag ? "★" : "  ")}{hull.Name}  내구{hull.Hp,3} 추진{hull.Speed,3} 적재{hull.Capacity,4}";
@@ -2029,6 +2073,7 @@ public sealed class CityPicDialog : Window
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
+            (FacilityKind.Shipyard, "매각") when _player.Ships.Count > 1 => SellShip,
             (FacilityKind.Market, "구입") when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
             (FacilityKind.Market, "매각") when Market != null && ItemTableOrNull != null => () =>
