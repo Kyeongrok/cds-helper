@@ -1013,6 +1013,77 @@ public sealed class CityPicDialog : Window
         _player.AddCrew(-want);
     }
 
+    /// <summary>
+    /// 지금 항구에서 알릴 수 있는 발견물. 찾은 차례대로다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00476D20</c> · <c>0x00476DA0</c> 그대로다.
+    /// <code>
+    ///   발견했고(깃발 0x40) · 아직 발표 안 했고(0x80 없음)
+    ///   계약이 있으면 그 계약의 유적 번호와 <b>다른</b> 것만
+    /// </code>
+    /// 계약으로 맡은 것은 항구에서 못 알린다 — 그쪽은 후원자에게 보고해야 한다.
+    /// 그래서 <b>계약 없이 발견한 것</b>이 여기 뜬다.
+    /// </remarks>
+    private List<DiscoveryTable.Record> Announceable()
+    {
+        var table = Discoveries();
+        if (table == null) return [];
+
+        int target = _player.Contract is { } c && Hints()?.Find(c.Hint) is { } hint
+                   ? hint.Discovery : -1;
+
+        var rows = new List<DiscoveryTable.Record>();
+        foreach (int id in _player.Discoveries.Order())
+        {
+            if (_player.HasAnnounced(id)) continue;
+            if (table.Find(id) is not { } row) continue;
+            if (target >= 0 && row.Hint == target) continue;   // 계약의 목표는 뺀다
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// 발견물을 알린다. 게임의 <c>0x00476E10</c> → <c>0x0047EA80</c> 차례다.
+    /// </summary>
+    /// <remarks>
+    /// 알리면 명성이 <b>보수 ÷ 70</b>(적어도 10)만큼 오른다(<c>0x0047E849</c> 가 보수를
+    /// 0x46 으로 나누고 10 과 견준다). 게임은 그 자리에서 피로도도 풀고 규율을 100 으로
+    /// 되돌리는데, 그 둘은 아직 우리 쪽에 없다.
+    ///
+    /// 하나 알리고 나면 목록으로 돌아온다 — 게임도 고른 것을 다 알릴 때까지 돈다.
+    /// </remarks>
+    private void Announce()
+    {
+        var owner = Menu.Window ?? this;
+
+        while (true)
+        {
+            var rows = Announceable();
+            if (rows.Count == 0) return;
+
+            int at = HintListDialog.Pick(owner, [.. rows.Select(r => r.Name)],
+                                         "발표할 발견물 선택", "알릴 발견물이 없습니다");
+            if (at < 0 || at >= rows.Count) return;
+
+            var row = rows[at];
+            if (!_player.Announce(row.Id)) continue;
+
+            int fame = Math.Max(FameFloor, row.Reward / FamePerReward);
+            _player.Fame += fame;
+
+            GameDialog.Show(owner, $"{row.Name}의 발견을 발표했다!");
+            GameDialog.Show(owner, $"명성이 {fame} 올라갔다!");
+        }
+    }
+
+    /// <summary>알려서 오르는 명성 — 보수를 이만큼으로 나눈다(<c>0x0047E851</c>).</summary>
+    private const int FamePerReward = 70;
+
+    /// <summary>아무리 하찮아도 이만큼은 오른다(<c>0x0047E853</c>).</summary>
+    private const int FameFloor = 10;
+
     private GameMenu SystemMenu() => new(
         [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
 
@@ -1522,6 +1593,11 @@ public sealed class CityPicDialog : Window
         if (facility.Kind == FacilityKind.Inn && _player.Gold >= OddJobMaxGold)
             items.Remove(OddJob);
 
+        // 항구의 "발표" 는 알릴 발견물이 있을 때만 뜬다. 게임도 그 줄의 보임 쪽을 조건으로
+        // 켠다(0x00477974 가 0x00476DE0 의 값을 넣는다).
+        if (facility.Kind == FacilityKind.Harbor && Announceable().Count == 0)
+            items.Remove(Facility.Announce);
+
         // 후원자가 앉은 건물이면 "설득" 이 맨 앞에 붙는다 — 왕궁만이 아니라 총독부·상관·
         // 학자 저택 어디든 그렇다. 게임도 물린 후원자가 없으면 그 줄을 아예 감춘다.
         var patron = PatronAt(kind);
@@ -1625,6 +1701,7 @@ public sealed class CityPicDialog : Window
             // 안 달린 줄은 흐리게 남긴다 — 보급·선원편성과 같은 규칙이다.
             (FacilityKind.Harbor, "함대편성") => () => Menu.Push(FleetMenu),
             (FacilityKind.Harbor, "선원편성") => () => Menu.Push(CrewMenu),
+            (FacilityKind.Harbor, Facility.Announce) => Announce,
             (FacilityKind.Harbor, "보급") => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),

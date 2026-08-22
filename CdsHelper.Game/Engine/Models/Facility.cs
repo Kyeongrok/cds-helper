@@ -43,8 +43,10 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     /// </summary>
     public static readonly Facility[] All =
     [
+        // "발표" 는 발표할 발견물이 있을 때만 뜬다 — 게임도 그 줄의 <b>보임</b> 쪽을
+        // 조건(0x00476DE0)으로 켠다(CityPicDialog.BuildMenu 가 없으면 뺀다).
         new(FacilityKind.Harbor, "항구",
-            ["출항", "보급", "함대편성", "선원편성", "마을정보", "마을로 돌아간다"]),
+            ["출항", "보급", "함대편성", "선원편성", "마을정보", Announce, "마을로 돌아간다"]),
 
         new(FacilityKind.Shipyard, "조선소",
             ["구입", "매각", "수리", "개조", "조선소를 나온다"]),
@@ -121,6 +123,9 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
 
     /// <summary>선원편성 창을 접고 항구 창으로 돌아가는 줄.</summary>
     public const string CrewExit = "돌아간다";
+
+    /// <summary>항구에서 발견물을 알리는 줄. 알릴 것이 없으면 아예 안 뜬다.</summary>
+    public const string Announce = "발표";
 
     /// <summary>
     /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는
