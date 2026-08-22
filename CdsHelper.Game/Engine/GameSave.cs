@@ -45,12 +45,17 @@ public static class GameSave
     /// 태우고 있는 선원 수. 판 7 부터 있어 그 전 세이브에서는 null 이다 — 그때는 최저 승원
     /// 수로 채운다(그 전까지 쓰던 값이 그것이다).
     /// </param>
+    /// <param name="Announced">
+    /// 발표한 발견물 번호. 판 8 부터 있어 그 전 세이브에서는 null 이다(= 아직 아무것도 안 알림).
+    /// </param>
+    /// <param name="Fame">명성. 판 8 부터 있다 — 발표로 오르기 시작해서 적어 둬야 한다.</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
         List<string>? Mates = null, List<string>? Met = null,
         List<int>? Items = null, List<int>? Supplies = null,
-        List<int>? Discoveries = null, Deal? Contract = null, int? Crew = null);
+        List<int>? Discoveries = null, Deal? Contract = null, int? Crew = null,
+        List<int>? Announced = null, int? Fame = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -64,12 +69,12 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(7, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(8, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
                             [.. player.Supplies], [.. player.Discoveries], DealOf(player),
-                            player.Crew);
+                            player.Crew, [.. player.Announced], player.Fame);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

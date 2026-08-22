@@ -78,9 +78,9 @@ public sealed class Player
     /// 모자라면 집사가 "…님은 바쁘셔서 만나실 수 없습니다" 로 돌려보낸다.
     /// 요구치는 후원자마다 다르다(<c>patrons.json</c> 의 fame, 0 부터 9900 까지).
     ///
-    /// <b>아직 오르지 않는다.</b> 게임은 발견물을 발표하면 명성이 붙는데 그쪽을 흉내내지
-    /// 않아서, <see cref="StartingFame"/> 에서 멈춰 있다. 그 값이면 여든한 명 가운데
-    /// 열몇은 만나 준다 — 문을 다 닫아 두지도, 다 열어 두지도 않는 자리로 잡았다.
+    /// 항구에서 발견물을 <b>발표</b>하면 오른다 — 그 발견물의 보수를 70 으로 나눈 만큼이고
+    /// 적어도 10 이다(<c>0x0047E849</c>). <see cref="StartingFame"/> 이면 여든한 명 가운데
+    /// 열몇이 만나 주고, 알릴수록 문이 열린다.
     /// </remarks>
     public int Fame { get; set; }
 
@@ -295,6 +295,22 @@ public sealed class Player
     /// <summary>계약을 지운다(기한 넘김·파기). 돈은 건드리지 않는다.</summary>
     public void EndContract() => Contract = null;
 
+    private readonly HashSet<int> _announced = [];
+
+    /// <summary>발표한 발견물 번호.</summary>
+    /// <remarks>
+    /// 게임은 발견물 인스턴스의 깃발 <c>0x80</c> 으로 든다. 발표하면 명성이 오르고, 한 번
+    /// 발표한 것은 다시 못 한다.
+    /// </remarks>
+    public IReadOnlyCollection<int> Announced => _announced;
+
+    /// <summary>그것을 이미 발표했는지.</summary>
+    public bool HasAnnounced(int discovery) => _announced.Contains(discovery);
+
+    /// <summary>발표한 것으로 적는다. 발견한 적 없거나 이미 발표했으면 false.</summary>
+    public bool Announce(int discovery) =>
+        HasFound(discovery) && _announced.Add(discovery);
+
     /// <summary>세이브를 되돌릴 때 계약을 그대로 박는다. 선금을 다시 주지 않는다.</summary>
     public void RestoreContract(Contract? contract) => Contract = contract;
 
@@ -309,7 +325,8 @@ public sealed class Player
                         IEnumerable<int>? items = null,
                         IEnumerable<int>? supplies = null,
                         IEnumerable<int>? discoveries = null,
-                        int? crew = null)
+                        int? crew = null,
+                        IEnumerable<int>? announced = null)
     {
         Gold = gold;
         Date = date;
@@ -346,6 +363,8 @@ public sealed class Player
         if (items != null) foreach (int id in items) Take(id);
         _found.Clear();
         if (discoveries != null) foreach (int id in discoveries) _found.Add(id);
+        _announced.Clear();
+        if (announced != null) foreach (int id in announced) _announced.Add(id);
         // 선원을 안 적어 둔 옛 세이브는 최저 승원으로 채운다 — 그 전까지 쓰던 값이 그것이다.
         SetCrew(crew ?? MinCrew);
     }
