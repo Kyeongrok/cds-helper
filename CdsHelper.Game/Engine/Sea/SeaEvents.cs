@@ -8,7 +8,7 @@ namespace CdsHelper.Game.Engine.Sea;
 /// 뛴다(점프표 <c>0x00474D7C</c>). 여기서 흉내내는 것은 넷째·다섯째 — 폭풍과 눈보라뿐이다.
 /// 나머지는 부하·역병 같은 아직 없는 것을 건드린다.
 /// <code>
-///   0  0x004746F9   암초        3  0x00474B4A  반란
+///   0  0x004746F9   암초        3  0x00474B4A  반란     ← 옮겼다
 ///   1  0x00474812   무풍        4  0x00474BD5  폭풍     ← 옮겼다
 ///   2  0x004749FA   병          5  0x00474BD5  눈보라   ← 옮겼다
 ///                               6  0x004746F9  암초(0 과 같은 자리)
@@ -21,6 +21,9 @@ public enum SeaEventKind
 
     /// <summary>눈보라. 갈래 다섯.</summary>
     Blizzard,
+
+    /// <summary>반란. 갈래 셋.</summary>
+    Mutiny,
 }
 
 /// <summary>폭풍이 지나간 뒤에 남은 것.</summary>
@@ -66,6 +69,15 @@ public static class SeaEvents
     /// <summary>폭풍과 눈보라의 갈래 번호. 점프표에서 둘 다 <c>0x00474BD5</c> 로 간다.</summary>
     public const int StormKind = 4, BlizzardKind = 5;
 
+    /// <summary>반란의 갈래 번호(<c>0x00474B4A</c>).</summary>
+    public const int MutinyKind = 3;
+
+    /// <summary>반란을 그냥 보는 주기(<c>mov $0x7,%ecx ; idiv</c>).</summary>
+    public const int MutinyPeriod = 7;
+
+    /// <summary>이 피로도를 넘으면 주기와 상관없이 본다(<c>cmpl $0x50, 0x28(%esi)</c>).</summary>
+    public const int MutinyFatigue = 80;
+
     /// <summary>안 일어나게 하는 밑값(<c>add edi, 0x1A</c>).</summary>
     public const int SafeBase = 26;
 
@@ -98,10 +110,25 @@ public static class SeaEvents
         if (safe >= rng.Next(SafeRoll)) return null;
 
         int kind = rng.Next(KindCount);
+        if (kind == MutinyKind) return Mutinous(player) ? SeaEventKind.Mutiny : null;
         if (kind != StormKind && kind != BlizzardKind) return null;
 
         return BandOf(lat);
     }
+
+    /// <summary>
+    /// 반란이 일 만한지 — <b>이레마다</b>, 또는 피로도가 80 을 넘었으면 언제든.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    /// 474b4a  ecx = 7 ; eax = [0x5A4D40] ; idiv ecx
+    /// 474b57  if (나머지 == 0) 그냥 본다
+    /// 474b5b  cmpl $0x50, 0x28(%esi) ; jle 끝     ; 아니면 피로도 &gt; 80 이라야
+    /// </code>
+    /// 피로도가 여기서만 쓰인다 — 폭풍이 왜 피로도를 올리는지가 이 줄에 있다.
+    /// </remarks>
+    public static bool Mutinous(Player player) =>
+        player.DaysAtSea % MutinyPeriod == 0 || player.Fatigue > MutinyFatigue;
 
     /// <summary>
     /// 그 위도에서 부는 것. 띠 밖이면 <c>null</c>.
@@ -130,6 +157,65 @@ public static class SeaEvents
     /// <summary>폭풍이 올리는 피로도(<c>0x00474D18</c> 의 <c>rand(11) + 0x14</c>).</summary>
     public static int TireOf(Random rng) => rng.Next(11) + 20;
 
+    /// <summary>폭풍이 깎는 사기(<c>0x00474D2D</c> 의 <c>rand(11) + 0x0A</c>, 부호 뒤집음).</summary>
+    public static int Dishearten(Random rng) => rng.Next(11) + 10;
+
+    /// <summary>선원 대표와 벌인 승부의 끝.</summary>
+    /// <param name="Won">이겼는지.</param>
+    /// <param name="Mine">내가 굴린 값.</param>
+    /// <param name="Rival">대표가 굴린 값.</param>
+    /// <param name="Deserted">져서 떠난 선원 수.</param>
+    public sealed record Fight(bool Won, int Mine, int Rival, int Deserted);
+
+    /// <summary>승부에 걸리는 기술 이름.</summary>
+    public const string SwordName = "검술";
+
+    /// <summary>검술 한 자리가 얹어 주는 값.</summary>
+    public const int SwordPerLevel = 15;
+
+    /// <summary>반란을 눌러 앉히면 오르는 사기(<c>0x004753EA</c> 의 <c>push 0x1E</c>).</summary>
+    public const int MutinyCheer = 30;
+
+    /// <summary>
+    /// 선원 대표와 승부한다.
+    /// </summary>
+    /// <remarks>
+    /// 게임(<c>0x004751E0</c>)은 여기서 <b>진짜 결투 창</b>을 띄운다 —
+    /// <c>0x004AA700(0x113, 상대, 7, -1)</c> 이고, 상대는 그 자리에서 지어낸 사람이다.
+    /// <code>
+    /// 475280  +0x0C = rand(10) + 0x14      ; 20~29
+    /// 47528e  +0x20 = rand(16) + 0x45      ; 69~84
+    /// 47529e  +0x24 = rand(16) + 0x27      ; 39~54
+    /// 4752ae  +0x28 = rand(15) + 0x3B      ; 59~73
+    /// 4752be  +0x2C = rand(16) + 0x27      ; 39~54
+    /// 4752ce  +0x30 = rand(16) + 0x27      ; 39~54
+    /// 4752e3  +0x34 = 0x31                 ; 49
+    /// </code>
+    /// <b>우리에게는 결투 창이 없어 한 판 주사위로 갈음한다</b> — 상대 값은 게임이 지어내는
+    /// 폭(<c>rand(16) + 0x27</c>) 그대로 쓰고, 이쪽은 <c>rand(100)</c> 에 검술 자리를 얹는다.
+    ///
+    /// 이기면 사기가 30 오른다(<c>0x004753EA</c>). <b>지면 게임이 끝난다</b> —
+    /// <c>0x0044AF40(0x5A4D18, 4)</c> 로 놀이 상태를 갈아 버린다. 우리 쪽에는 끝나는 길이
+    /// 없어 <b>선원 절반이 배를 버리고 사기가 바닥나는 것</b>으로 갈음한다. 이 벌은 우리가
+    /// 지은 것이다.
+    /// </remarks>
+    public static Fight Duel(Player player, Random rng)
+    {
+        int rival = rng.Next(16) + 0x27;
+        int mine = rng.Next(100) + player.LevelOf(SwordName) * SwordPerLevel;
+
+        if (mine >= rival)
+        {
+            player.Cheer(MutinyCheer);
+            return new Fight(true, mine, rival, 0);
+        }
+
+        int gone = player.Crew / 2;
+        player.AddCrew(-gone);
+        player.SetMorale(0);
+        return new Fight(false, mine, rival, gone);
+    }
+
     /// <summary>
     /// 폭풍을 맞는다. 배마다 내구를 깎고, 0 이 된 배는 놓친다.
     /// </summary>
@@ -154,6 +240,7 @@ public static class SeaEvents
     public static SeaEventResult Resolve(Player player, SeaEventKind kind, Random rng)
     {
         player.Tire(TireOf(rng));
+        player.Cheer(-Dishearten(rng));
 
         var hurt = new int[player.Ships.Count];
         for (int i = 0; i < hurt.Length; i++)

@@ -316,8 +316,13 @@ public sealed class Player
     /// </summary>
     public void AdvanceMonths(int months)
     {
-        if (months > 0) Date = Date.AddMonths(months);
+        if (months <= 0) return;
+        Date = Date.AddMonths(months);
+        Recover(months * DaysPerMonth);
     }
+
+    /// <summary>게임이 달을 날로 셀 때 쓰는 날수. 달력 달이 아니라 서른 날이다.</summary>
+    public const int DaysPerMonth = 30;
 
     /// <summary>
     /// 날을 넘긴다(자택 휴양). 게임은 달을 셀 때도 <b>서른 날</b>로 세므로 이쪽을 쓴다.
@@ -327,8 +332,34 @@ public sealed class Player
     /// </remarks>
     public void AdvanceDays(int days)
     {
-        if (days > 0) Date = Date.AddDays(days);
+        if (days <= 0) return;
+        Date = Date.AddDays(days);
+        Recover(days);
     }
+
+    /// <summary>
+    /// 마을에서 날을 넘긴 값을 몸에 먹인다 — <b>하루에 피로 -1, 사기 +3</b>.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004A2AD0(날수, 모드)</c> 가 하는 일이다. 휴양만이 아니라 숙박·수련처럼
+    /// <b>마을에서 날이 가는 모든 자리</b>가 이 하나를 거친다.
+    /// <code>
+    /// 4a2b06  0x474030(함대, -날수)      ; 피로도 -= 날수     (+0x28)
+    /// 4a2b14  0x474060(함대, 날수 * 3)   ; 사기   += 날수 x 3 (+0x2C)
+    /// 4a2b1f  0x0044AFD0(달력, 날수)     ; 날짜를 넘긴다
+    /// </code>
+    /// 그래서 한 달 휴양이면 피로가 서른, 사기가 아흔 움직인다 — 한 번에 다 푼다.
+    /// <b>바다에서는 이 길을 안 거친다</b>(<see cref="PassDayAtSea"/>) — 항해 중에는
+    /// 지치기만 하고 안 풀린다.
+    /// </remarks>
+    private void Recover(int days)
+    {
+        Tire(-days);
+        Cheer(days * MoralePerRestDay);
+    }
+
+    /// <summary>마을에서 하루를 나면 오르는 사기(<c>lea (%esi,%esi,2),%ecx</c>).</summary>
+    public const int MoralePerRestDay = 3;
 
     // ── 피로도와 항해일 ───────────────────────────────────────────────────────
 
@@ -349,11 +380,26 @@ public sealed class Player
     /// <summary>그만큼 지친다.</summary>
     public void Tire(int amount) => Fatigue = Math.Clamp(Fatigue + amount, 0, MaxFatigue);
 
-    /// <summary>말끔히 쉰다(자택 휴양).</summary>
-    public void Refresh() => Fatigue = 0;
-
     /// <summary>피로도를 그대로 박는다. 세이브를 되돌릴 때와 개발용 창에서 쓴다.</summary>
     public void SetFatigue(int fatigue) => Fatigue = Math.Clamp(fatigue, 0, MaxFatigue);
+
+    /// <summary>사기가 더 못 올라가는 자리.</summary>
+    public const int MaxMorale = 100;
+
+    /// <summary>선원들의 사기(0~<see cref="MaxMorale"/>). 꽉 찬 채로 시작한다.</summary>
+    /// <remarks>
+    /// 게임은 함대 객체 <c>+0x2C</c> 에 든다(<c>0x00474060</c> 이 0~100 으로 자른다).
+    /// 폭풍이 10~20 깎고(<c>0x00474D2D</c>) 반란을 눌러 앉히면 30 오른다
+    /// (<c>0x004753EA</c>). 반란 대표와 이야기하는 자리도 이 값이 50 을 넘는지로 갈린다
+    /// (<c>0x004754FB</c>) — 그쪽은 아직 안 옮겼다.
+    /// </remarks>
+    public int Morale { get; private set; } = MaxMorale;
+
+    /// <summary>사기를 그만큼 올린다(음수면 깎는다).</summary>
+    public void Cheer(int amount) => Morale = Math.Clamp(Morale + amount, 0, MaxMorale);
+
+    /// <summary>사기를 그대로 박는다. 세이브를 되돌릴 때와 개발용 창에서 쓴다.</summary>
+    public void SetMorale(int morale) => Morale = Math.Clamp(morale, 0, MaxMorale);
 
     /// <summary>마을을 떠난 뒤로 바다에서 지낸 날수.</summary>
     /// <remarks>

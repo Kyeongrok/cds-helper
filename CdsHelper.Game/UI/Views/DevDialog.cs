@@ -161,11 +161,16 @@ public sealed class DevDialog : Window
         line.Children.Add(GameUi.PushButton("모두 고침", () =>
         {
             foreach (var ship in _player.Ships) ship.Repair();
-            _player.Refresh();
+            _player.SetFatigue(0);
+            _player.SetMorale(Player.MaxMorale);
         }, 96));
         line.Children.Add(GameUi.PushButton("항해 20일", () =>
         {
             _player.SetDaysAtSea(20);
+        }, 96));
+        line.Children.Add(GameUi.PushButton("피로 90", () =>
+        {
+            _player.SetFatigue(90);
         }, 96));
         return line;
     }
