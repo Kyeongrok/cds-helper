@@ -14,6 +14,7 @@ using CdsHelper.Game.Engine.Models;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Game.Engine.Menu;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -327,7 +328,7 @@ public sealed class CityPicDialog : Window
             var harbor = Facility.For("항구");
             picBox.Cursor = Cursors.Hand;
             picBox.MouseLeftButtonUp += (_, _) =>
-                ShowMenu(BuildMenu(harbor, harbor.Name, 0, harbor.Name), harbor.BgmTrack);
+                ShowMenu(() => BuildMenu(harbor, harbor.Name, 0, harbor.Name), harbor.BgmTrack);
         }
 
         // 게임 화면에는 제목 줄도 안내 줄도 없다. 그림 한 장이 곧 창이다.
@@ -391,7 +392,7 @@ public sealed class CityPicDialog : Window
             Greet(facility);
             ShowPhoto(facility.Kind, building.Code);
             // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
-            ShowMenu(BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
+            ShowMenu(() => BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
                      facility.BgmTrack);
         };
         _layer.Children.Add(spot);
@@ -862,8 +863,25 @@ public sealed class CityPicDialog : Window
         Canvas.SetTop(tag, below + h <= bottom ? below : Math.Max(0, area.Y * scale - h - 2));
     }
 
-    /// <summary>지금 열린 시설 명령 창. 그림 안이 아니라 그림 옆에 제 창으로 뜬다.</summary>
-    private MenuWindow? _facilityMenu;
+    /// <summary>시설 명령 창. 띄우고 겹치고 되돌아가는 것은 이쪽이 맡는다.</summary>
+    private GameMenuHost? _menu;
+
+    private GameMenuHost Menu
+    {
+        get
+        {
+            if (_menu != null) return _menu;
+            _menu = new GameMenuHost(this);
+            // 창을 그냥 닫아도(줄·ESC·오른쪽 단추) 도시 곡으로 돌아가고 사진도 걷힌다.
+            _menu.Closed += () =>
+            {
+                _photoWindow?.Close();
+                _photoWindow = null;
+                _bgm?.Play(_cityTrack);
+            };
+            return _menu;
+        }
+    }
 
     /// <summary>
     /// 명령 창을 연다. 건물마다 도는 곡이 다르면 <paramref name="track"/> 으로 준다 —
@@ -871,39 +889,21 @@ public sealed class CityPicDialog : Window
     /// </summary>
     /// <remarks>
     /// 그림 안에 그리지 않는다. 자택처럼 줄이 열한 개나 되는 시설은 그림을 통째로 덮어 버려
-    /// 도시가 안 보인다 — 도시 커맨드 창과 같은 까닭으로 그림 옆에 제 창을 띄운다
-    /// (<see cref="MenuWindow"/>). 게임도 그림 옆에 따로 낸다.
+    /// 도시가 안 보인다 — 도시 커맨드 창과 같은 까닭으로 제 창을 띄운다.
     ///
-    /// 이미 떠 있으면 새로 띄우지 않고 담긴 것만 갈아 끼운다 — "기능" 처럼 한 창 안에서
-    /// 줄이 바뀔 때 자리가 튀지 않게.
+    /// <b>자리는 그림 한가운데다.</b> 게임이 그렇게 낸다 — 누른 건물과 상관없이 늘
+    /// <c>그리는 영역의 원점 + 크기/2</c> 다(<c>0x00469E80</c>, 볼트
+    /// <c>15.분석-시설 화면 엔진</c>). 예전에는 그림 오른쪽에 붙여 냈다.
     /// </remarks>
-    private void ShowMenu(UIElement box, int? track = null)
+    private void ShowMenu(Func<GameMenu> build, int? track = null)
     {
         foreach (var tag in _tags) tag.Visibility = Visibility.Collapsed;
-
-        if (_facilityMenu == null)
-        {
-            _facilityMenu = MenuWindow.ShowBeside(this, box);
-            // 창을 그냥 닫아도(ESC·오른쪽 단추) 도시 곡으로 돌아가고 사진도 걷힌다.
-            _facilityMenu.Closed += (_, _) =>
-            {
-                _facilityMenu = null;
-                _photoWindow?.Close();
-                _photoWindow = null;
-                _bgm?.Play(_cityTrack);
-            };
-        }
-        else
-        {
-            _facilityMenu.SetContent(box);
-            _facilityMenu.Activate();
-        }
-
+        Menu.Open(build);
         _bgm?.Play(track ?? _cityTrack);
     }
 
     /// <summary>명령 창을 닫고 도시로 돌아간다 — 곡도 도시 것으로 되돌린다(창의 Closed 가 맡는다).</summary>
-    private void CloseMenu() => _facilityMenu?.Close();
+    private void CloseMenu() => _menu?.Close();
 
     /// <summary>
     /// 시설에서 "기능" 을 골랐을 때 뜨는 창. 제목이 없고 줄만 넷이다 —
@@ -913,11 +913,11 @@ public sealed class CityPicDialog : Window
     /// 함대편성 창. 게임처럼 제목 없이 줄만 쌓고, 마지막 줄만 회녹색 띠가 된다.
     /// "편성 종료" 를 누르면 항구 창으로 되돌아간다 — 창을 닫는 것이 아니라 담긴 것만 갈린다.
     /// </summary>
-    private Border FleetMenu(Func<Border> back) => GameUi.MenuBox(
+    private GameMenu FleetMenu() => new(
         [.. Facility.FleetMenu.Select(item =>
-            (item, item == Facility.FleetExit ? (Action?)(() => ShowMenu(back())) : null))]);
+            (item, item == Facility.FleetExit ? (Action?)Menu.Pop : null))]);
 
-    private Border SystemMenu() => GameUi.MenuBox(
+    private GameMenu SystemMenu() => new(
         [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
 
     private Action? SystemAction(string item) => item switch
@@ -958,7 +958,7 @@ public sealed class CityPicDialog : Window
     /// 도시 커맨드 창. 도시 화면에서 오른쪽 단추를 누르면 뜬다 — 제목은 도시 이름이고
     /// 제목 줄에 닫기(X)가 있다. 지금은 취소만 살아 있다.
     /// </summary>
-    private Border CityMenu(string cityName) => GameUi.CommandBox(cityName, CloseCityMenu,
+    private GameMenu CityMenu(string cityName) => new(cityName, CloseCityMenu,
         ("맵 포인트에 들어간다", null),
         ("인물 정보", null),
         ("함대 정보", null),
@@ -1054,7 +1054,7 @@ public sealed class CityPicDialog : Window
     private ItemTable? _itemTable;
     private bool _itemTableTried;
 
-    /// <summary>도시 커맨드 창. 그림 안이 아니라 그림 창 옆에 제 창으로 띄운다.</summary>
+    /// <summary>도시 커맨드 창. 그림 안이 아니라 제 창으로 띄운다.</summary>
     /// <summary>여관에서 몸으로 값을 치르는 줄.</summary>
     private const string OddJob = "허드렛일";
 
@@ -1063,17 +1063,19 @@ public sealed class CityPicDialog : Window
     /// </summary>
     private const int OddJobMaxGold = 300;
 
-    private MenuWindow? _cityMenu;
+    private GameMenuHost? _cityMenuHost;
+
+    private GameMenuHost _cityMenu => _cityMenuHost ??= new GameMenuHost(this);
 
     /// <summary>
-    /// 도시 커맨드 창을 <b>누른 자리</b>에 띄운다. 시설 창(<see cref="ShowMenu"/>)은 그림 옆에
-    /// 붙이지만 이쪽은 그림 아무 데나 눌러서 내는 것이라, 손이 간 자리에 뜨는 편이 맞다.
+    /// 도시 커맨드 창을 <b>누른 자리</b>에 띄운다. 시설 창(<see cref="ShowMenu"/>)은 게임대로
+    /// 그림 한가운데지만, 이쪽은 게임에 없는 창이고 그림 아무 데나 눌러서 내는 것이라
+    /// 손이 간 자리에 뜨는 편이 맞다.
     /// </summary>
     private void ShowCityMenu(string cityName, Point at)
     {
-        if (_cityMenu != null) { _cityMenu.Activate(); return; }
-        _cityMenu = MenuWindow.ShowAt(this, CityMenu(cityName), at);
-        _cityMenu.Closed += (_, _) => _cityMenu = null;
+        if (_cityMenu.IsOpen) { _cityMenu.Focus(); return; }
+        _cityMenu.Open(() => CityMenu(cityName), at);
     }
 
     /// <summary>창 안의 자리를 화면 자리(WPF 단위)로. 창을 그 자리에 띄울 때 쓴다.</summary>
@@ -1086,7 +1088,7 @@ public sealed class CityPicDialog : Window
             : source.CompositionTarget.TransformFromDevice.Transform(device);
     }
 
-    private void CloseCityMenu() => _cityMenu?.Close();
+    private void CloseCityMenu() => _cityMenu.Close();
 
     /// <summary>
     /// 왕궁의 "설득" — 후원자에게 힌트를 내밀어 자금을 받아 낸다.
@@ -1295,7 +1297,7 @@ public sealed class CityPicDialog : Window
 
     /// <summary>얻은 힌트를 늘어놓는다. 이름은 DB 에서 온다.</summary>
     private void ShowHints() =>
-        HintListDialog.Show(_cityMenu ?? (Window)this,
+        HintListDialog.Show(_cityMenu.Window ?? this,
                             [.. _player.Hints.Order().Select(_hintName)]);
 
     /// <summary>
@@ -1303,7 +1305,7 @@ public sealed class CityPicDialog : Window
     /// 것만 <see cref="ActionFor"/> 가 손을 달아 준다. 나머지는 흐린 채로 둔다.
     /// 제목은 건물 이름이다(게임도 그렇다).
     /// </summary>
-    private Border BuildMenu(Facility facility, string title, uint teachMask, string kind)
+    private GameMenu BuildMenu(Facility facility, string title, uint teachMask, string kind)
     {
         var items = facility.Menu.ToList();
         // 가르치는 건물인데 줄에 수련이 없으면(학자 저택 따위) 맨 앞에 붙여 준다.
@@ -1319,7 +1321,7 @@ public sealed class CityPicDialog : Window
         var patron = PatronAt(kind);
         if (patron != null) items.Insert(0, "설득");
 
-        return GameUi.CommandBox(title,
+        return new GameMenu(title, null,
             [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron, title, kind)))]);
     }
 
@@ -1407,7 +1409,7 @@ public sealed class CityPicDialog : Window
     {
         if (item == facility.ExitItem) return CloseMenu;
         if (item == "수련" && teachMask != 0) return () => Teach(teachMask);
-        if (item == "기능") return () => ShowMenu(SystemMenu());
+        if (item == "기능") return () => Menu.Push(SystemMenu);
         if (item == "설득" && patron != null) return () => Persuade(patron);
 
         return (facility.Kind, item) switch
@@ -1415,8 +1417,10 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
             // 함대편성은 제목 없는 창이 한 겹 더 뜬다. 줄은 게임 것 그대로 두되, 아직 손이
             // 안 달린 줄은 흐리게 남긴다 — 보급·선원편성과 같은 규칙이다.
-            (FacilityKind.Harbor, "함대편성") =>
-                () => ShowMenu(FleetMenu(() => BuildMenu(facility, title, teachMask, kind))),
+            (FacilityKind.Harbor, "함대편성") => () => Menu.Push(FleetMenu),
+            (FacilityKind.Harbor, "보급") => () =>
+                SupplyDialog.Show(Menu.Window ?? this, _player,
+                                  Market?.Rates.Of(_cityId) ?? 100),
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Market, "구입") when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),

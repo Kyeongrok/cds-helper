@@ -12,6 +12,7 @@ using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
+using CdsHelper.Game.Engine.Menu;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -456,7 +457,9 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>도시정보 창. 상단 띠 밑에 붙여 띄운다.</summary>
-    private MenuWindow? _infoMenu;
+    private GameMenuHost? _infoMenuHost;
+
+    private GameMenuHost InfoMenu => _infoMenuHost ??= new GameMenuHost(this);
 
     /// <summary>
     /// 상단 띠에 무엇을 띄울지 고르는 창을 낸다. 게임은 도시 안에서만 이 창을 내므로
@@ -465,18 +468,16 @@ public sealed class ShipMapWindow : Window
     private void ShowCityInfoMenu(FrameworkElement bar, Point at)
     {
         if (!_host.InCity) return;
-        if (_infoMenu != null) { _infoMenu.Activate(); return; }
+        if (InfoMenu.IsOpen) { InfoMenu.Focus(); return; }
 
-        _infoMenu = MenuWindow.ShowAt(this, BuildCityInfo(),
-                                      ToScreen(bar, new Point(at.X, bar.ActualHeight)));
-        _infoMenu.Closed += (_, _) => _infoMenu = null;
+        InfoMenu.Open(BuildCityInfo, ToScreen(bar, new Point(at.X, bar.ActualHeight)));
     }
 
     /// <summary>
     /// 도시정보 창의 지금 모습. 줄을 하나 뒤집을 때마다 다시 지어 갈아 끼운다 —
     /// <c>:ON</c>·<c>:OFF</c> 글자는 게임 글꼴로 찍은 그림이라 고쳐 쓸 수가 없다.
     /// </summary>
-    private Border BuildCityInfo() => CityInfoMenu.Build(
+    private GameMenu BuildCityInfo() => CityInfoMenu.Build(
         name => _infoCells.TryGetValue(name, out var cell)
             ? cell.Visibility == Visibility.Visible
             : null,
@@ -486,9 +487,9 @@ public sealed class ShipMapWindow : Window
             cell.Visibility = cell.Visibility == Visibility.Visible
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            _infoMenu?.SetContent(BuildCityInfo());
+            InfoMenu.Refresh();
         },
-        () => _infoMenu?.Close());
+        InfoMenu.Close);
 
     /// <summary>
     /// 커서가 지금 지도 위 어디에 있는지 다시 잰다.
@@ -649,10 +650,10 @@ public sealed class ShipMapWindow : Window
         items.Children.Add(handle);
         _titleFocus = new GameUi.FocusGroup();
         items.Children.Add(TitleMenuItem("NEW GAME", () => StartMap(fresh: true)));
-        // 게임도 로드 전에 한 번 묻는다 — 제목은 "게임 로드".
+        // 게임도 로드 전에 한 번 묻는다. 제목 줄은 안 단다 — 게임 물음창에는 없다.
         items.Children.Add(TitleMenuItem("LOAD GAME", () =>
         {
-            if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다", "게임 로드"))
+            if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다"))
                 StartMap(fresh: false);
         }));
         items.Children.Add(TitleMenuItem("MINI GAME", null));
@@ -928,7 +929,8 @@ public sealed class ShipMapWindow : Window
         else if (saved != null)
         {
             _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
-                            saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items);
+                            saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items,
+                            saved.Supplies);
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
             _status.Text = saved.CityId >= 0
@@ -997,19 +999,9 @@ public sealed class ShipMapWindow : Window
     private void ShowCommandMenu(FrameworkElement anchor, Point at)
     {
         if (_host.SeaBlocked) return;
-        if (_commandMenu != null) { _commandMenu.Activate(); return; }
+        if (CommandMenu.IsOpen) { CommandMenu.Focus(); return; }
 
-        MenuWindow? menu = null;
-
-        // 닫는 중에 또 닫으라는 말이 들어올 수 있다(창이 닫히며 활성이 풀리면 그때 또 온다).
-        // 닫는 중에 Close 를 부르면 WPF 가 예외를 던지므로 한 번만 받는다.
-        bool closing = false;
-        void Close()
-        {
-            if (closing || menu == null) return;
-            closing = true;
-            menu.Close();
-        }
+        void Close() => CommandMenu.Close();
 
         // 바다에 있으면 상륙, 뭍에 있으면 출항. <b>갈 데가 없으면 줄 자체를 안 낸다</b> —
         // 흐린 줄로 남겨 두면 창 높이만 잡아먹고 게임에도 없는 모습이다.
@@ -1043,20 +1035,26 @@ public sealed class ShipMapWindow : Window
 
         // 넓히는 것은 GameUi 가 창을 지으며 한다 — 커맨드 창만이 아니라 도시 창·시설 창도
         // 같이 넓어야 모양이 맞는다.
-        var box = GameUi.CommandBox("커맨드", [.. items]);
+        var box = new GameMenu("커맨드", null, [.. items]);
 
-        menu = MenuWindow.ShowAt(this, box, ToScreen(anchor, at));
-        _commandMenu = menu;
-
-        // 메뉴가 떠 있는 동안은 게임을 멈춘다. 닫히면 어떻게 닫혔든 다시 흐른다.
-        menu.Closed += (_, _) => { _commandMenu = null; _host.Paused = false; };
-        // 창이 닫히기 시작하면 더 닫으라는 말을 받지 않는다.
-        menu.Closing += (_, _) => closing = true;
+        CommandMenu.Open(() => box, ToScreen(anchor, at));
         _host.Paused = true;
     }
 
-    /// <summary>떠 있는 커맨드 창. 하나만 띄운다.</summary>
-    private MenuWindow? _commandMenu;
+    /// <summary>해상 커맨드 창. 하나만 띄운다.</summary>
+    private GameMenuHost? _commandMenuHost;
+
+    private GameMenuHost CommandMenu
+    {
+        get
+        {
+            if (_commandMenuHost != null) return _commandMenuHost;
+            _commandMenuHost = new GameMenuHost(this);
+            // 메뉴가 떠 있는 동안은 게임을 멈춘다. 닫히면 어떻게 닫혔든 다시 흐른다.
+            _commandMenuHost.Closed += () => _host.Paused = false;
+            return _commandMenuHost;
+        }
+    }
 
     /// <summary>
     /// 바다에서 적는다. 도시 안에서 적는 것(<c>CityPicDialog</c> 의 기능 창)과 같은 자리에
@@ -1155,7 +1153,7 @@ public sealed class ShipMapWindow : Window
             _host.Paused = false;
             _asking = false;
             _player.EnterCity(-1);
-            _infoMenu?.Close();      // 도시를 나오면 도시정보 창도 같이 걷는다
+            InfoMenu.Close();        // 도시를 나오면 도시정보 창도 같이 걷는다
         };
         return true;
     }

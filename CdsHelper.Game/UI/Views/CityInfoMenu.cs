@@ -1,4 +1,5 @@
 ﻿using System.Windows.Controls;
+using CdsHelper.Game.Engine.Menu;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -41,7 +42,7 @@ internal static class CityInfoMenu
     /// </param>
     /// <param name="toggle">그 줄을 뒤집는다. 부른 쪽이 창을 다시 지어 글자를 새로 찍는다.</param>
     /// <param name="close">"취소" 를 눌렀을 때.</param>
-    public static Border Build(Func<string, bool?> state, Action<string> toggle, Action close)
+    public static GameMenu Build(Func<string, bool?> state, Action<string> toggle, Action close)
     {
         int width = RowWidth();
         var items = new List<(string Text, Action? Run)>();
@@ -52,7 +53,7 @@ internal static class CityInfoMenu
         }
         items.Add(("취소", close));
 
-        return GameUi.CommandBox("도시정보", [.. items]);
+        return new GameMenu("도시정보", null, [.. items]);
     }
 
     /// <summary>

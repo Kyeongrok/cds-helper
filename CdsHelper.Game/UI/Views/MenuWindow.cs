@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -39,18 +39,21 @@ public sealed class MenuWindow : Window
     }
 
     /// <summary>
-    /// 주인 창의 오른쪽에 붙여 띄운다. 화면 밖으로 나가면 왼쪽으로 접어 넣는다.
+    /// 주인 창 <b>한가운데</b>에 띄운다. 게임이 시설 명령 창을 내는 자리다.
     /// </summary>
-    public static MenuWindow ShowBeside(Window owner, UIElement content)
+    /// <remarks>
+    /// 게임은 누른 건물과 상관없이 늘 그리는 영역 한가운데에 낸다 — 메뉴 객체의 자리가
+    /// 음수(<c>POINT(-1,-1)</c> = 안 정함)면 <c>원점 + 크기/2</c> 로 잡고, 한 번 잡으면
+    /// 그 자리를 계속 쓴다(<c>0x00469E80</c>, 볼트 <c>15.분석-시설 화면 엔진</c>).
+    ///
+    /// 예전에는 주인 창 오른쪽에 붙여 냈는데 게임에는 없는 모습이었다.
+    /// </remarks>
+    public static MenuWindow ShowCentered(Window owner, UIElement content)
     {
         var window = new MenuWindow(content) { Owner = owner };
         window.Show();      // 크기를 알아야 자리를 잡는다
 
-        double left = owner.Left + owner.Width + 6;
-        if (left + window.ActualWidth > SystemParameters.VirtualScreenWidth)
-            left = Math.Max(0, owner.Left - window.ActualWidth - 6);
-
-        window.Left = left;
+        window.Left = Math.Max(0, owner.Left + (owner.Width - window.ActualWidth) / 2);
         window.Top = Math.Max(0, owner.Top + (owner.Height - window.ActualHeight) / 2);
         return window;
     }
