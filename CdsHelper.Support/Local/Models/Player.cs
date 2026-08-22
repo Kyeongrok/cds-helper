@@ -622,19 +622,23 @@ public sealed class Player
     public void RestoreFleet(IEnumerable<string>? ships, int flagship,
                              IEnumerable<KeyValuePair<int, List<string>>>? docked,
                              IReadOnlyList<int>? shipHp = null,
-                             IReadOnlyDictionary<int, List<int>>? dockedHp = null)
+                             IReadOnlyDictionary<int, List<int>>? dockedHp = null,
+                             IReadOnlyList<Ship.Stats>? shipStats = null,
+                             IReadOnlyDictionary<int, List<Ship.Stats>>? dockedStats = null)
     {
         static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name);
 
-        static List<Ship> Build(IEnumerable<string> names, IReadOnlyList<int>? hps)
+        static List<Ship> Build(IEnumerable<string> names, IReadOnlyList<int>? hps,
+                                IReadOnlyList<Ship.Stats>? stats)
         {
             var list = new List<Ship>();
             int at = 0;
             foreach (var name in names)
             {
                 int? hp = hps != null && at < hps.Count ? hps[at] : null;
+                var st = stats != null && at < stats.Count ? stats[at] : null;
                 at++;
-                if (Find(name) is { } hull) list.Add(new Ship(hull, hp));
+                if (Find(name) is { } hull) list.Add(new Ship(hull, hp, st));
             }
             return list;
         }
@@ -642,7 +646,7 @@ public sealed class Player
         if (ships != null)
         {
             _ships.Clear();
-            _ships.AddRange(Build(ships, shipHp));
+            _ships.AddRange(Build(ships, shipHp, shipStats));
             if (_ships.Count == 0) _ships.Add(new Ship(Hull.Cheapest));
         }
         Flagship = Math.Clamp(flagship, 0, Math.Max(0, _ships.Count - 1));
@@ -651,8 +655,9 @@ public sealed class Player
         if (docked == null) return;
         foreach (var (city, names) in docked)
         {
-            dockedHp?.TryGetValue(city, out var hps);
-            var list = Build(names, dockedHp != null && dockedHp.TryGetValue(city, out var h) ? h : null);
+            var list = Build(names,
+                dockedHp != null && dockedHp.TryGetValue(city, out var h) ? h : null,
+                dockedStats != null && dockedStats.TryGetValue(city, out var t) ? t : null);
             if (list.Count > 0) _docked[city] = list;
         }
     }
@@ -700,10 +705,10 @@ public sealed class Player
     public IReadOnlyList<int> Supplies => _supplies;
 
     /// <summary>함대가 실을 수 있는 통 수(용량). 배마다의 적재량을 더한 것이다.</summary>
-    public int Capacity => _ships.Sum(s => s.Hull.Capacity);
+    public int Capacity => _ships.Sum(s => s.Capacity);
 
     /// <summary>함대가 견디는 무게(중량 한도).</summary>
-    public int Tonnage => _ships.Sum(s => s.Hull.Tonnage);
+    public int Tonnage => _ships.Sum(s => s.Tonnage);
 
     /// <summary>
     /// 지금 태우고 있는 선원 수. 식량·물이 며칠 가는지가 이것으로 갈린다.
@@ -722,7 +727,7 @@ public sealed class Player
     /// 더한다(<c>0x0044C780</c>). 선체 표(<c>0x004FC1E0</c>, 64바이트 x 8)의 <c>+0x34</c> 가
     /// 그 값이다.
     /// </remarks>
-    public int MinCrew => _ships.Sum(s => s.Hull.Crew);
+    public int MinCrew => _ships.Sum(s => s.Crew);
 
     /// <summary>
     /// 태울 수 있는 선원 수(정원). 필요승인의 <b>다섯 배</b>다.
@@ -732,7 +737,7 @@ public sealed class Player
     /// <c>+0x34</c> 가 필요승인 - 10 이므로 <c>(필요승인-10)*5 + 50 = 필요승인*5</c> 로 같다 —
     /// 카라벨 15명이면 75명, 갤리온 40명이면 200명이다.
     /// </remarks>
-    public int MaxCrew => _ships.Sum(s => s.Hull.Crew) * 5;
+    public int MaxCrew => _ships.Sum(s => s.Crew) * 5;
 
     /// <summary>
     /// 선원을 그만큼 태운다(음수면 내린다). 0 과 정원 사이로 잘린다.

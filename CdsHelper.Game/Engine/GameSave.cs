@@ -60,6 +60,11 @@ public static class GameSave
     /// 선원들이 지친 만큼(0~100). 판 13 부터 있다 — 폭풍이 올리고 자택 휴양이 푼다.
     /// </param>
     /// <param name="DaysAtSea">바다에서 지낸 날수. 판 13 부터 있다.</param>
+    /// <param name="ShipStats">
+    /// 개조로 갈린 배마다의 값(내구·추진력·용량·중량·승원). 판 14 부터 있다 — 없으면
+    /// 선체 기본값으로 연다.
+    /// </param>
+    /// <param name="DockedStats">맡겨 둔 배의 개조 값.</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
@@ -70,7 +75,9 @@ public static class GameSave
         int? Savings = null, List<string>? Ships = null, int Flagship = 0,
         Dictionary<int, List<string>>? Docked = null,
         List<int>? ShipHp = null, Dictionary<int, List<int>>? DockedHp = null,
-        int? Fatigue = null, int? DaysAtSea = null);
+        int? Fatigue = null, int? DaysAtSea = null,
+        List<Ship.Stats>? ShipStats = null,
+        Dictionary<int, List<Ship.Stats>>? DockedStats = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -84,7 +91,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(13, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(14, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -97,7 +104,10 @@ public static class GameSave
                             [.. player.Ships.Select(s => s.Hp)],
                             player.Docked.ToDictionary(
                                 e => e.Key, e => e.Value.Select(s => s.Hp).ToList()),
-                            player.Fatigue, player.DaysAtSea);
+                            player.Fatigue, player.DaysAtSea,
+                            [.. player.Ships.Select(s => s.Snapshot())],
+                            player.Docked.ToDictionary(
+                                e => e.Key, e => e.Value.Select(s => s.Snapshot()).ToList()));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

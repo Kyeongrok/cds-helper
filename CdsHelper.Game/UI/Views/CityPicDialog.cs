@@ -1038,14 +1038,115 @@ public sealed class CityPicDialog : Window
     /// <summary>손상 한 점을 고치는 값의 밑수. 게임은 여기에 rand(4) 를 더한다.</summary>
     private const int RepairRate = 26;
 
+    // ── 개조 ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 조선소 개조 — 배를 고르고, 그 배의 개조 창을 연다.
+    /// </summary>
+    /// <remarks>
+    /// 게임(<c>0x00496960</c>)은 배를 고른 뒤 <b>그 마을에서 손댈 수 있는 배인지</b>부터
+    /// 본다 — 도시의 문화권(<c>0x004A1820</c>)이 0~2 나 10 이면 다우선(선체 7)을 못 고치고,
+    /// 그 밖의 문화권에서는 <b>다우선만</b> 고친다. 못 고치면
+    /// "이 배 형은 내가 어떻게 할 수 없다."(<c>0x00532338</c>) 를 내고 도로 고르게 한다.
+    /// 우리 선체 다섯에는 다우선이 없어 그 갈래가 안 생긴다 — 그래서 안 옮겼다.
+    ///
+    /// 배를 고르면 열한 줄짜리 개조 창이 뜨고(<c>0x004966E0</c>), 한 줄을 마치면 게임은
+    /// <b>그 줄만 꺼</b>(<c>0x0049690A</c>) 같은 배를 계속 손보게 둔다. 우리도 그렇게 한다 —
+    /// 더 못 늘리는 줄은 저절로 흐려진다.
+    /// </remarks>
+    private void RefitShip()
+    {
+        var owner = Menu.Window ?? this;
+        if (_player.Ships.Count == 0) { GameDialog.Show(owner, "배가 없습니다"); return; }
+
+        int at = HintListDialog.Pick(owner,
+            [.. _player.Ships.Select((s, i) => ShipLine(s, i == _player.Flagship))],
+            "개조선박의 선택", "배가 없습니다");
+        if (at < 0 || at >= _player.Ships.Count) return;
+
+        Menu.Push(() => RefitMenu(_player.Ships[at]));
+    }
+
+    /// <summary>배 한 척의 개조 창. 줄은 게임 열한 줄 그대로고, 할 수 없는 줄은 흐리다.</summary>
+    private GameMenu RefitMenu(Ship ship) => new(
+        [.. Facility.RefitMenu.Select(item => (item, RefitAction(ship, item)))]);
+
+    private Action? RefitAction(Ship ship, string item) => item switch
+    {
+        Facility.RefitCapacity when ship.CanGrowCapacity => () => DoRefit(ship, item),
+        Facility.RefitTonnage when ship.CanGrowTonnage => () => DoRefit(ship, item),
+        Facility.RefitReinforce when ship.CanReinforce => () => DoRefit(ship, item),
+        Facility.RefitExit => Menu.Pop,
+        _ => null,
+    };
+
+    /// <summary>
+    /// 개조 한 줄을 치른다 — 값을 알리고, 물어보고, 고치고, 바뀐 값을 보여 준다.
+    /// </summary>
+    /// <remarks>
+    /// 차례와 문구는 게임 것 그대로다(<c>0x004955D0</c> 벌).
+    /// <code>
+    ///   0x00531938  "금화 %ld닢이 드네."
+    ///   0x005319A8  "돈이 모자라는 것 같군."
+    ///   0x00531950  "용량과 함께 적재용량도 조금 올라가지만, 스피드와 내구력이 조금 떨어지네. 괜찮겠나?"
+    ///   0x00531920  "이 이상은 무리로군."
+    /// </code>
+    /// 게임처럼 <b>돈 검사를 물어보기 앞</b>에 한다 — 시장 구입과는 차례가 반대다.
+    /// </remarks>
+    private void DoRefit(Ship ship, string item)
+    {
+        var owner = Menu.Window ?? this;
+        int cost = RefitCost(ship);
+
+        GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
+        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
+        if (!ConfirmDialog.Ask(owner, RefitWarning(item))) return;
+
+        _player.Pay(cost);
+        var change = item switch
+        {
+            Facility.RefitTonnage => ship.GrowTonnage(),
+            Facility.RefitReinforce => ship.Reinforce(),
+            _ => ship.GrowCapacity(),
+        };
+
+        // 게임이 개조 뒤에 띄우는 "%-12s%4d → %4d" 상자.
+        NoticeDialog.Show(owner, string.Join(Environment.NewLine,
+            change.Lines.Select(l => $"{GameUi.Pad(l.Name, 12)}{l.Before,4} → {l.After,4}")));
+
+        // 배가 바뀌었으니 줄의 흐림도 다시 잡는다.
+        Menu.Pop();
+        Menu.Push(() => RefitMenu(ship));
+    }
+
+    /// <summary>개조 한 번 값 — 선체 구입값의 <b>15분의 1</b>(<c>0x004955F9</c>).</summary>
+    /// <remarks>
+    /// 게임 선체값은 만~이십오만 닢이라 개조도 수백~만 닢대다. 우리 <see cref="Hull.Price"/>
+    /// 는 조선소 화면에서 옮긴 100~500 짜리 사다리라 <b>자릿수가 다르다</b> — 매각·수리와
+    /// 마찬가지로 비율만 게임 것을 쓴다.
+    /// </remarks>
+    private static int RefitCost(Ship ship) => Math.Max(1, ship.Hull.Price / RefitDivisor);
+
+    /// <summary>개조 값을 나누는 수(<c>mov $0xf,%ecx ; idiv</c>).</summary>
+    private const int RefitDivisor = 15;
+
+    /// <summary>그 줄이 무엇을 얻고 무엇을 잃는지 알려 주는 물음. 게임 문구 그대로다.</summary>
+    private static string RefitWarning(string item) => item switch
+    {
+        Facility.RefitTonnage =>
+            "적재용량과 함께 중량도 조금 올라가지만, 스피드와 내구력이 조금 떨어지네. 괜찮겠나?",
+        Facility.RefitReinforce =>
+            "내구력이 올라가지만, 스피드와 적재중량이 조금 떨어지네. 괜찮겠나?",
+        _ => "용량과 함께 적재용량도 조금 올라가지만, 스피드와 내구력이 조금 떨어지네. 괜찮겠나?",
+    };
+
     /// <summary>
     /// 배 한 척을 줄로 적는다 — 이름과 내구·추진·적재를 붙인다. 상했으면 내구를 "지금/최대"로 낸다.
     /// </summary>
     private static string ShipLine(Ship ship, bool flag)
     {
-        var hull = ship.Hull;
-        string hp = ship.NeedsRepair ? $"{ship.Hp,3}/{hull.Hp,-3}" : $"{hull.Hp,3}    ";
-        return $"{(flag ? "★" : "  ")}{hull.Name}  내구{hp} 추진{hull.Speed,3} 적재{hull.Capacity,4}";
+        string hp = ship.NeedsRepair ? $"{ship.Hp,3}/{ship.MaxHp,-3}" : $"{ship.MaxHp,3}    ";
+        return $"{(flag ? "★" : "  ")}{ship.Name}  내구{hp} 추진{ship.Speed,3} 적재{ship.Capacity,4}";
     }
 
     /// <summary>기함을 바꾼다. 게임의 <c>0x0046A2F0</c> 자리다.</summary>
@@ -2136,6 +2237,7 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Shipyard, "매각") when _player.Ships.Count > 1 => SellShip,
             (FacilityKind.Shipyard, "수리") => RepairShip,
+            (FacilityKind.Shipyard, "개조") => RefitShip,
             (FacilityKind.Market, "구입") when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
             (FacilityKind.Market, "매각") when Market != null && ItemTableOrNull != null => () =>
