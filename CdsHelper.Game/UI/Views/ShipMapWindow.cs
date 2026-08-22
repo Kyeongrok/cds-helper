@@ -955,7 +955,8 @@ public sealed class ShipMapWindow : Window
                             saved.Supplies, saved.Discoveries, saved.Crew, saved.Announced,
                             saved.Stored, saved.Savings);
             _player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked,
-                                 saved.ShipHp, saved.DockedHp);
+                                 saved.ShipHp, saved.DockedHp,
+                                 saved.ShipStats, saved.DockedStats);
             if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
             _player.RestoreContract(GameSave.ContractOf(saved));

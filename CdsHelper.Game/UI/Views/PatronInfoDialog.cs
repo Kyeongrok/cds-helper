@@ -105,20 +105,8 @@ public sealed class PatronInfoDialog : Window
     /// </summary>
     private const int Closeness = 0;
 
-    /// <summary>
-    /// 게임의 <c>%-10s</c> 처럼 왼쪽에 붙이고 빈칸으로 채운다.
-    /// </summary>
-    /// <remarks>
-    /// C 의 <c>%-10s</c> 는 <b>바이트</b>로 센다 — CP949 에서 한글 한 자가 두 바이트라
-    /// "국왕" 은 넷을 먹고 여섯 칸이 남는다. C# 의 <c>,-10</c> 은 글자로 세어 여덟 칸을
-    /// 붙이므로 두 칸이 더 벌어진다. 게임 글꼴도 한글이 빈칸 둘 폭이라 바이트로 세야 맞는다.
-    /// </remarks>
-    private static string Pad(string text, int width)
-    {
-        int cells = 0;
-        foreach (char c in text) cells += c < 0x80 ? 1 : 2;
-        return cells >= width ? text : text + new string(' ', width - cells);
-    }
+    /// <summary>게임의 <c>%-10s</c> 처럼 바이트로 세어 채운다.</summary>
+    private static string Pad(string text, int width) => GameUi.Pad(text, width);
 
     /// <summary>밤색 판 위 그 자리에 밝은 글씨를 얹는다.</summary>
     private static void Put(Canvas board, double x, double y, string text)

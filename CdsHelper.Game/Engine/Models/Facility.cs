@@ -117,6 +117,29 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public const string FleetExit = "편성 종료";
 
     /// <summary>
+    /// 조선소에서 배를 고른 뒤 뜨는 <b>개조</b> 창의 줄. 게임 것 열한 줄 그대로다
+    /// (<c>0x00532228</c> 벌 — <c>0x004966E0</c> 이 쌓는다).
+    /// </summary>
+    /// <remarks>
+    /// 게임도 할 수 없는 줄은 <b>흐리게</b> 둔다(줄마다 켜짐 칸이 둘씩 딸린다). 그래서
+    /// 여기서도 줄을 빼지 않고 그대로 늘어놓고 손이 안 달린 줄로 낸다 —
+    /// 돛·마스트·선두상·대포·배 이름은 우리 쪽에 아직 그 값이 없다.
+    /// </remarks>
+    public static readonly string[] RefitMenu =
+    [
+        "마스트 추가", "돛종류 변경", "돛 추가", RefitCapacity, RefitTonnage, RefitReinforce,
+        "선두상", "포탑수변경", "대포구입", "선명변경", RefitExit,
+    ];
+
+    /// <summary>개조 창에서 우리가 흉내낸 세 줄.</summary>
+    public const string RefitCapacity = "용량증가",
+                        RefitTonnage = "부력증가",
+                        RefitReinforce = "보강";
+
+    /// <summary>개조 창을 접고 배 고르기로 돌아가는 줄.</summary>
+    public const string RefitExit = "개조를 그만둔다";
+
+    /// <summary>
     /// 선원편성 창의 줄. 게임 것 그대로다(<c>0x00545250</c> 벌 — 항구 <c>0x004774E0</c>).
     /// </summary>
     public static readonly string[] CrewMenu = ["선원모집", "선원해고", CrewExit];

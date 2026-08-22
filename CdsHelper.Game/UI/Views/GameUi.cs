@@ -773,6 +773,23 @@ internal static class GameUi
     }
 
     /// <summary>
+    /// 게임의 <c>%-10s</c> 처럼 왼쪽에 붙이고 빈칸으로 채운다.
+    /// </summary>
+    /// <remarks>
+    /// C 의 <c>%-10s</c> 는 <b>바이트</b>로 센다 — CP949 에서 한글 한 자가 두 바이트라
+    /// "국왕" 은 넷을 먹고 여섯 칸이 남는다. C# 의 <c>,-10</c> 은 글자로 세어 여덟 칸을
+    /// 붙이므로 두 칸이 더 벌어진다. 게임 글꼴도 한글이 빈칸 둘 폭이라 바이트로 세야 맞는다.
+    /// </remarks>
+    /// <param name="text">채울 말.</param>
+    /// <param name="width">몇 칸으로 맞출지(바이트).</param>
+    public static string Pad(string text, int width)
+    {
+        int cells = 0;
+        foreach (char c in text) cells += c < 0x80 ? 1 : 2;
+        return cells >= width ? text : text + new string(' ', width - cells);
+    }
+
+    /// <summary>
     /// 이름 뒤에 붙는 조사. 받침이 있으면 <paramref name="closed"/>, 없으면 <paramref name="open"/> 이다.
     /// </summary>
     /// <param name="word">앞말. 마지막 글자로 가른다.</param>

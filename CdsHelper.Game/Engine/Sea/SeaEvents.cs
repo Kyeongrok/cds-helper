@@ -122,6 +122,11 @@ public static class SeaEvents
         return null;
     }
 
+    /// <summary>
+    /// 손상을 재는 기준 내구(<c>0x00474EF9</c> 의 <c>mov $0x64,%esi</c>).
+    /// </summary>
+    public const int HurtBase = 100;
+
     /// <summary>폭풍이 올리는 피로도(<c>0x00474D18</c> 의 <c>rand(11) + 0x14</c>).</summary>
     public static int TireOf(Random rng) => rng.Next(11) + 20;
 
@@ -131,17 +136,20 @@ public static class SeaEvents
     /// <remarks>
     /// <code>
     /// ; 뒷정리  0x00474DA0 — 폭풍/눈보라 자리(0x00474EB1~)
-    /// 474ef9  esi = 100 - 돛(0x44C860)
-    /// 474f0c  esi = esi / 10 + rand(3)                 ; 손상
-    /// 474f28  내구 = clamp(내구 - 손상, 0, 150)          ; 0x44C810 세터
-    /// 474f5a  돛   = clamp(돛   - 손상, 기함?1:0, 250)   ; 0x44C850 세터
-    /// 474f74  if (돛 == 0) 그 배를 함대에서 뺀다(0x473E60) — "눈에 띄지 않습니다"
+    /// 474ef9  esi = 100 - 지금내구(0x44C860)
+    /// 474f0c  esi = esi / 10 + rand(3)                     ; 손상
+    /// 474f28  추진력 = clamp(추진력 - 손상, 0, 150)          ; 0x44C810 세터
+    /// 474f5a  내구   = clamp(내구   - 손상, 기함?1:0, 250)   ; 0x44C850 세터
+    /// 474f74  if (내구 == 0) 그 배를 함대에서 뺀다(0x473E60) — "눈에 띄지 않습니다"
     /// </code>
-    /// <b>손상은 돛이 성할수록 작다</b> — 성한 배는 rand(3), 너덜너덜한 배는 열 남짓 깎인다.
-    /// 우리 배는 돛을 안 들므로 그 자리에 <b>내구 백분율</b>을 넣었다. 뜻은 같다 —
-    /// 한 번 상하기 시작하면 다음 폭풍이 더 아프다.
+    /// <b>손상은 내구가 높을수록 작다.</b> 100 이 기준이라 갤리온(70)은 한 번에 3~5,
+    /// 카라벨(20)은 8~10 씩 깎인다 — <b>작은 배가 훨씬 아프다</b>. 그리고 한 번 상하기
+    /// 시작하면 다음 폭풍이 더 아프다.
     ///
-    /// 기함은 안 잃는다. 게임도 기함 자리의 돛을 1 밑으로 안 내린다(<c>ebp</c>).
+    /// 우리 선체 값이 게임 화면에서 옮긴 그 값이라 <b>기준 100 을 그대로 쓴다</b>.
+    /// 게임은 추진력도 같이 깎지만 우리 추진력은 아직 배를 모는 데 안 쓰여 내구만 깎는다.
+    ///
+    /// 기함은 안 잃는다. 게임도 기함 자리의 내구를 1 밑으로 안 내린다(<c>ebp</c>).
     /// </remarks>
     public static SeaEventResult Resolve(Player player, SeaEventKind kind, Random rng)
     {
@@ -149,11 +157,7 @@ public static class SeaEvents
 
         var hurt = new int[player.Ships.Count];
         for (int i = 0; i < hurt.Length; i++)
-        {
-            var ship = player.Ships[i];
-            int worn = ship.MaxHp <= 0 ? 0 : 100 - ship.Hp * 100 / ship.MaxHp;
-            hurt[i] = worn / 10 + rng.Next(3);
-        }
+            hurt[i] = Math.Max(0, HurtBase - player.Ships[i].Hp) / 10 + rng.Next(3);
 
         // 뒤에서부터 깎아야 배를 잃어도 앞 칸의 짝이 안 어긋난다.
         var lost = new List<string>();
