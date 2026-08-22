@@ -11,6 +11,9 @@ public enum PurchaseResult
 
     /// <summary>배가 이미 <see cref="Player.MaxShips"/> 척이다.</summary>
     FleetFull,
+
+    /// <summary>소지품 칸이 꽉 찼다("이 이상 가질 수 없습니다!").</summary>
+    BagFull,
 }
 
 /// <summary>기술을 배운 결과.</summary>
@@ -179,25 +182,68 @@ public sealed class Player
     /// 소지품 — 산 것·주운 것이 든 차례대로다. 값은 아이템 번호(<c>item.json</c> 의 id)다.
     /// </summary>
     /// <remarks>
-    /// 게임에는 들 수 있는 개수에 한계가 있다("이 이상 가질 수 없습니다!" · "이대로는 %d개
-    /// 들을 수 없습니다"). 그 수가 얼마인지는 아직 안 밝혀서 여기서는 막지 않는다 —
-    /// 알아내면 <see cref="Take"/> 에 걸면 된다.
+    /// 게임은 플레이어 객체 <c>+0x118</c> 에 <b>열여섯 칸</b>을 두고 빈 칸은 -1 로 둔다
+    /// (읽기 <c>0x0047CDD0</c> · 쓰기 <c>0x0047CDB0</c>). 꽉 차면 "이 이상 가질 수
+    /// 없습니다!"(<c>0x00544830</c>) 로 물린다.
     ///
     /// 같은 것을 여럿 들 수 있게 두었다. 게임 소지품 일람에도 같은 이름이 두 줄 나온다.
     /// </remarks>
     public IReadOnlyList<int> Items => _items;
 
+    /// <summary>소지품 칸 수. 게임도 열여섯이다.</summary>
+    public const int MaxItems = 16;
+
+    /// <summary>소지품이 꽉 찼는지.</summary>
+    public bool IsBagFull => _items.Count >= MaxItems;
+
     /// <summary>그 아이템을 지녔는지.</summary>
     public bool HasItem(int itemId) => _items.Contains(itemId);
 
-    /// <summary>소지품에 넣는다.</summary>
-    public void Take(int itemId)
+    /// <summary>소지품에 넣는다. 칸이 꽉 찼으면 아무것도 하지 않고 false.</summary>
+    public bool Take(int itemId)
     {
-        if (itemId >= 0) _items.Add(itemId);
+        if (itemId < 0 || IsBagFull) return false;
+        _items.Add(itemId);
+        return true;
     }
 
     /// <summary>소지품에서 하나 뺀다. 없었으면 false.</summary>
     public bool Drop(int itemId) => _items.Remove(itemId);
+
+    private readonly List<int> _stored = [];
+
+    /// <summary>
+    /// 자택에 보관해 둔 것. 소지품과 같은 아이템 번호다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 소지품 열여섯 칸 바로 뒤(<c>+0x158</c>)에 <b>아흔아홉 칸</b>을 둔다
+    /// (읽기 <c>0x0047CE70</c> · 쓰기 <c>0x0047CE50</c>). 자택의 "보관" 이 두 칸을 주고받는다.
+    /// </remarks>
+    public IReadOnlyList<int> Stored => _stored;
+
+    /// <summary>보관 칸 수. 게임도 아흔아홉이다.</summary>
+    public const int MaxStored = 99;
+
+    /// <summary>보관 칸이 꽉 찼는지.</summary>
+    public bool IsStoreFull => _stored.Count >= MaxStored;
+
+    /// <summary>소지품 한 칸을 자택에 맡긴다. 자리가 없거나 칸이 없으면 false.</summary>
+    public bool Store(int index)
+    {
+        if (index < 0 || index >= _items.Count || IsStoreFull) return false;
+        _stored.Add(_items[index]);
+        _items.RemoveAt(index);
+        return true;
+    }
+
+    /// <summary>보관해 둔 한 칸을 도로 든다. 소지품이 꽉 찼으면 false.</summary>
+    public bool Fetch(int index)
+    {
+        if (index < 0 || index >= _stored.Count || IsBagFull) return false;
+        _items.Add(_stored[index]);
+        _stored.RemoveAt(index);
+        return true;
+    }
 
     /// <summary>그 값을 치를 수 있는지.</summary>
     public bool CanAfford(int price) => Gold >= price;
@@ -249,6 +295,7 @@ public sealed class Player
     public PurchaseResult BuyItem(int itemId, int price)
     {
         if (itemId < 0) return PurchaseResult.NotEnoughGold;
+        if (IsBagFull) return PurchaseResult.BagFull;
         if (!CanAfford(price)) return PurchaseResult.NotEnoughGold;
 
         Gold -= price;
@@ -337,7 +384,8 @@ public sealed class Player
                         IEnumerable<int>? supplies = null,
                         IEnumerable<int>? discoveries = null,
                         int? crew = null,
-                        IEnumerable<int>? announced = null)
+                        IEnumerable<int>? announced = null,
+                        IEnumerable<int>? stored = null)
     {
         Gold = gold;
         Date = date;
@@ -376,6 +424,8 @@ public sealed class Player
         if (discoveries != null) foreach (int id in discoveries) _found.Add(id);
         _announced.Clear();
         if (announced != null) foreach (int id in announced) _announced.Add(id);
+        _stored.Clear();
+        if (stored != null) foreach (int id in stored) _stored.Add(id);
         // 선원을 안 적어 둔 옛 세이브는 최저 승원으로 채운다 — 그 전까지 쓰던 값이 그것이다.
         SetCrew(crew ?? MinCrew);
     }

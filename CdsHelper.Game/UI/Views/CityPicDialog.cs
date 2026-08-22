@@ -1759,6 +1759,8 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Harbor, "선원편성") => () => Menu.Push(CrewMenu),
             (FacilityKind.Harbor, Facility.Announce) => Announce,
             (FacilityKind.Home, "휴양") => () => Menu.Push(RestMenu),
+            (FacilityKind.Home, "보관") => () =>
+                StorageDialog.Show(Menu.Window ?? this, _player, ItemTableOrNull),
             (FacilityKind.Harbor, "보급") => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),

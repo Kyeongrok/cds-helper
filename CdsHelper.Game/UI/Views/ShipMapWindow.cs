@@ -941,7 +941,8 @@ public sealed class ShipMapWindow : Window
         {
             _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
                             saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items,
-                            saved.Supplies, saved.Discoveries, saved.Crew, saved.Announced);
+                            saved.Supplies, saved.Discoveries, saved.Crew, saved.Announced,
+                            saved.Stored);
             _player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.

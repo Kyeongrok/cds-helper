@@ -14,6 +14,9 @@ public enum BuyResult
 
     /// <summary>그 도시가 안 파는 물건이다.</summary>
     NotSold,
+
+    /// <summary>소지품 칸이 꽉 찼다 — "이 이상 가질 수 없습니다!"</summary>
+    BagFull,
 }
 
 /// <summary>팔려고 했을 때 벌어진 일.</summary>
@@ -115,8 +118,11 @@ public sealed class Market
         if (!Sells(cityId, item.Id)) return BuyResult.NotSold;
 
         int price = PriceOf(item, cityId);
-        return player.BuyItem(item.Id, price) == PurchaseResult.Ok
-            ? BuyResult.Ok
-            : BuyResult.NotEnoughGold;
+        return player.BuyItem(item.Id, price) switch
+        {
+            PurchaseResult.Ok => BuyResult.Ok,
+            PurchaseResult.BagFull => BuyResult.BagFull,
+            _ => BuyResult.NotEnoughGold,
+        };
     }
 }
