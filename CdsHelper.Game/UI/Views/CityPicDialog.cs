@@ -1527,6 +1527,101 @@ public sealed class CityPicDialog : Window
     }
 
     /// <summary>
+    /// 그 후원자에게 <b>보고</b>할 수 있는지 — 계약을 맺은 그 자리이고 맡은 것을 찾아 왔는가.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0044EA00</c> 이다.
+    /// <code>
+    ///   0x0044E9E0  계약이 있고 그 계약을 맺은 자리인가(0x0044E550 → 0x00493DB0)
+    ///   0x0044E880  보고할 것이 하나 이상인가 — 계약의 유적 번호(0x00493E60)로 모은다
+    /// </code>
+    /// 게임은 도시와 <b>시설 종류</b>까지 견주는데 우리 계약은 후원자 이름과 마을을 들고
+    /// 있으므로 그 둘로 가른다 — 결과는 같다(한 사람은 한 자리에만 앉는다).
+    /// </remarks>
+    private bool CanReport(Patron patron) => ReportTargets(patron).Count > 0;
+
+    /// <summary>
+    /// 그 후원자에게 보고할 발견물. 계약의 유적 번호를 가진 것 중 발견했고 아직 안 알린 것이다.
+    /// </summary>
+    private List<DiscoveryTable.Record> ReportTargets(Patron patron)
+    {
+        if (_player.Contract is not { } contract) return [];
+        if (contract.Sponsor != patron.Name || contract.City != _cityName) return [];
+        if (Discoveries() is not { } table) return [];
+        if (Hints()?.Find(contract.Hint) is not { } hint) return [];
+
+        var rows = new List<DiscoveryTable.Record>();
+        foreach (int id in _player.Discoveries.Order())
+        {
+            if (_player.HasAnnounced(id)) continue;
+            if (table.Find(id) is not { } row || row.Hint != hint.Discovery) continue;
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// 맡은 것을 찾아 왔다고 후원자에게 알린다 — 사례를 받고 계약이 끝난다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0044ED9A</c> → <c>0x00412020</c> 이다. 사례를 셈하는 자리는
+    /// <c>0x00411D10</c> 이고, 밑값이 <b>미불(계약금/2)</b> 이다.
+    /// <code>
+    ///   411d1f  push 0x1E ; call 0x4B7C0F      ; rand(30)
+    ///   411d29  ecx = eax + 0x78               ; 기한 안이면 120 + rand(30) %
+    ///   411d47  esi = 0x5A - rand(0x14)        ; 늦었으면  90 - rand(20) %
+    ///   411d3b  eax = 계약금 / 2               ; 미불
+    ///   411d3e  imul ; div 100                 ; 미불 x 비율 / 100
+    /// </code>
+    /// 100닢 단위로 내린다(<c>0x004117D0</c> — 100 이하면 그대로 둔다).
+    /// 받은 돈은 <c>0x0041200E</c> 가 소지금에 더한다.
+    ///
+    /// 게임은 여기서 발견물의 사람 칸 2 를 채우고 깃발 <c>0x80</c> 을 세운다
+    /// (<c>0x004AACA0</c>, 볼트 23) — 우리 쪽의 "알림" 과 같은 자리라 그렇게 적는다.
+    /// 그래서 <b>계약으로 맡은 것은 항구에서 못 알리고 여기서만 매듭이 지어진다.</b>
+    ///
+    /// 아직 안 옮긴 것 — 모조품 갈래, 남이 먼저 발표해 버렸을 때 깎이는 갈래, 선대의 계약.
+    /// </remarks>
+    private void Report(Patron patron)
+    {
+        var contract = _player.Contract;
+        var rows = ReportTargets(patron);
+        if (contract == null || rows.Count == 0) return;
+
+        var face = FaceOf(patron);
+        void Say(string text) => TalkDialog.Say(this, face, "", text);
+
+        bool inTime = contract.DaysLeft(_player.Date) > 0;
+        Say(inTime ? "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게."
+                   : "꽤 늦었군. 그래, 결과는 어떤가?");
+
+        foreach (var row in rows)
+        {
+            Say($"[{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다.");
+            _player.Announce(row.Id);
+        }
+
+        Say("굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.");
+
+        int paid = RewardFor(contract, inTime);
+        _player.Earn(paid);
+        _player.EndContract();
+
+        GameDialog.Show(this, $"금화 {paid}닢을 받았다!");
+    }
+
+    /// <summary>
+    /// 보고 사례. 미불에 비율을 먹이고 100닢 단위로 내린다.
+    /// </summary>
+    /// <remarks>게임의 <c>0x00411D10</c> · <c>0x004117D0</c> 그대로다.</remarks>
+    private int RewardFor(Contract contract, bool inTime)
+    {
+        int rate = inTime ? 120 + _random.Next(30) : 90 - _random.Next(20);
+        int paid = (int)((long)contract.Unpaid * rate / 100);
+        return paid > 100 ? paid / 100 * 100 : paid;
+    }
+
+    /// <summary>
     /// 계약 정보 창을 낸다. 계약이 없으면 창 대신 "계약을 맺지 않았습니다" 한 줄이다.
     /// </summary>
     /// <remarks>
@@ -1730,8 +1825,12 @@ public sealed class CityPicDialog : Window
 
         // 후원자가 앉은 건물이면 "설득" 이 맨 앞에 붙는다 — 왕궁만이 아니라 총독부·상관·
         // 학자 저택 어디든 그렇다. 게임도 물린 후원자가 없으면 그 줄을 아예 감춘다.
+        //
+        // 그 자리가 계약을 맺은 자리이고 맡은 것을 찾아 왔으면 그 줄이 "보고" 로 바뀐다 —
+        // 게임도 같은 자리를 계약 상태로 갈아 끼운다(0x0044EAE0).
         var patron = PatronAt(kind);
-        if (patron != null) items.Insert(0, "설득");
+        if (patron != null)
+            items.Insert(0, CanReport(patron) ? Facility.Report : Facility.Persuade);
 
         return new GameMenu(title, null,
             [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron, title, kind)))]);
@@ -1822,7 +1921,8 @@ public sealed class CityPicDialog : Window
         if (item == facility.ExitItem) return CloseMenu;
         if (item == "수련" && teachMask != 0) return () => Teach(teachMask);
         if (item == "기능") return () => Menu.Push(SystemMenu);
-        if (item == "설득" && patron != null) return () => Persuade(patron);
+        if (item == Facility.Persuade && patron != null) return () => Persuade(patron);
+        if (item == Facility.Report && patron != null) return () => Report(patron);
 
         return (facility.Kind, item) switch
         {
