@@ -51,6 +51,9 @@ public static class GameSave
     /// <param name="Fame">명성. 판 8 부터 있다 — 발표로 오르기 시작해서 적어 둬야 한다.</param>
     /// <param name="Stored">자택에 맡겨 둔 것(아이템 번호). 판 9 부터 있다.</param>
     /// <param name="Savings">자택에 맡겨 둔 돈(닢). 판 10 부터 있다.</param>
+    /// <param name="Ships">가진 배(선체 이름). 판 11 부터 있다 — 그 전에는 아예 안 적었다.</param>
+    /// <param name="Flagship">기함이 <paramref name="Ships"/> 에서 몇째인지.</param>
+    /// <param name="Docked">마을에 맡겨 둔 배 — 도시 번호마다 선체 이름들.</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
@@ -58,7 +61,8 @@ public static class GameSave
         List<int>? Items = null, List<int>? Supplies = null,
         List<int>? Discoveries = null, Deal? Contract = null, int? Crew = null,
         List<int>? Announced = null, int? Fame = null, List<int>? Stored = null,
-        int? Savings = null);
+        int? Savings = null, List<string>? Ships = null, int Flagship = 0,
+        Dictionary<int, List<string>>? Docked = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -72,13 +76,16 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(10, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(11, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
                             [.. player.Supplies], [.. player.Discoveries], DealOf(player),
                             player.Crew, [.. player.Announced], player.Fame,
-                            [.. player.Stored], player.Savings);
+                            [.. player.Stored], player.Savings,
+                            [.. player.Ships.Select(h => h.Name)], player.Flagship,
+                            player.Docked.ToDictionary(
+                                e => e.Key, e => e.Value.Select(h => h.Name).ToList()));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
