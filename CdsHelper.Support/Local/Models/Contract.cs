@@ -93,6 +93,19 @@ public sealed class Contract
     /// <summary>그 날 기준으로 남은 날수. 0 이하면 기한이 지난 것이다.</summary>
     public int DaysLeft(DateTime now) => (int)(DueOn - now).TotalDays;
 
+    /// <summary>기한을 넘겼는지.</summary>
+    /// <remarks>
+    /// 게임은 <b>기한이 지났다고 저절로 무슨 일이 일어나지는 않는다</b> — 후원자를 다시
+    /// 찾아갔을 때에야 따진다. 계약중단(<c>0x0044F7B0</c>)과 보고가 이 값으로 갈린다.
+    /// </remarks>
+    public bool IsOverdue(DateTime now) => DaysLeft(now) <= 0;
+
+    /// <summary>
+    /// 계약을 깨는 값 — <b>계약금의 절반</b>이라 받은 선금과 같다.
+    /// </summary>
+    /// <remarks>게임의 <c>0x0044F826</c> 이다 — <c>[0x5B619C] / 2</c>.</remarks>
+    public int Penalty => Amount / 2;
+
     /// <summary>
     /// 남은 기한을 게임처럼 "몇 년 몇 개월" 로 쪼갠다.
     /// </summary>
