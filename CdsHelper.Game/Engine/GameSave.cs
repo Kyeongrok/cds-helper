@@ -56,6 +56,10 @@ public static class GameSave
     /// <param name="Docked">마을에 맡겨 둔 배 — 도시 번호마다 선체 이름들.</param>
     /// <param name="ShipHp">배마다의 지금 내구. 판 12 부터 있다 — 없으면 성한 채로 연다.</param>
     /// <param name="DockedHp">맡겨 둔 배의 지금 내구.</param>
+    /// <param name="Fatigue">
+    /// 선원들이 지친 만큼(0~100). 판 13 부터 있다 — 폭풍이 올리고 자택 휴양이 푼다.
+    /// </param>
+    /// <param name="DaysAtSea">바다에서 지낸 날수. 판 13 부터 있다.</param>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
@@ -65,7 +69,8 @@ public static class GameSave
         List<int>? Announced = null, int? Fame = null, List<int>? Stored = null,
         int? Savings = null, List<string>? Ships = null, int Flagship = 0,
         Dictionary<int, List<string>>? Docked = null,
-        List<int>? ShipHp = null, Dictionary<int, List<int>>? DockedHp = null);
+        List<int>? ShipHp = null, Dictionary<int, List<int>>? DockedHp = null,
+        int? Fatigue = null, int? DaysAtSea = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -79,7 +84,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(12, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(13, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -91,7 +96,8 @@ public static class GameSave
                                 e => e.Key, e => e.Value.Select(s => s.Name).ToList()),
                             [.. player.Ships.Select(s => s.Hp)],
                             player.Docked.ToDictionary(
-                                e => e.Key, e => e.Value.Select(s => s.Hp).ToList()));
+                                e => e.Key, e => e.Value.Select(s => s.Hp).ToList()),
+                            player.Fatigue, player.DaysAtSea);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

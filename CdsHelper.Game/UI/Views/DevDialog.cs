@@ -133,8 +133,8 @@ public sealed class DevDialog : Window
 
     /// <summary>줄 하나 — 이름, 적는 칸, 늘리고 줄이는 단추.</summary>
     /// <summary>
-    /// 배를 조금 상하게 하는 줄. 조선소 수리를 시험하려고 둔다 — 놀이 안에는 배를 상하게 하는
-    /// 길(폭풍·전투)이 아직 없다.
+    /// 배를 조금 상하게 하는 줄. 조선소 수리를 시험하려고 둔다 — 놀이 안에서 배를 상하게 하는
+    /// 것은 폭풍뿐이라, 위도 띠까지 배를 몰지 않고도 손상을 만들 수 있게 남겨 둔다.
     /// </summary>
     private UIElement HurtRow()
     {
@@ -161,6 +161,11 @@ public sealed class DevDialog : Window
         line.Children.Add(GameUi.PushButton("모두 고침", () =>
         {
             foreach (var ship in _player.Ships) ship.Repair();
+            _player.Refresh();
+        }, 96));
+        line.Children.Add(GameUi.PushButton("항해 20일", () =>
+        {
+            _player.SetDaysAtSea(20);
         }, 96));
         return line;
     }

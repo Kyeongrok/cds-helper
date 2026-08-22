@@ -14,6 +14,7 @@ using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
 using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Game.Engine.Menu;
+using CdsHelper.Game.Engine.Sea;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -74,6 +75,9 @@ public sealed class ShipMapWindow : Window
     /// <summary>다이얼로그가 떠 있는 동안 또 묻지 않게.</summary>
     private bool _asking;
 
+    /// <summary>바다 사건 주사위.</summary>
+    private readonly Random _random = new();
+
     /// <summary>주인공 — 소지금과 가진 배. 조선소에서 배를 사면 여기서 돈이 빠진다.</summary>
     private readonly Player _player = new();
 
@@ -115,6 +119,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>게임 상단 바의 명성 칸. 후원자를 만날 수 있는지가 이 값으로 갈린다.</summary>
     private readonly GameUi.GameLabel _fame = new() { Bold = true };
+
+    /// <summary>선원들이 지친 만큼. 폭풍을 맞으면 오르고 자택 휴양이 푼다.</summary>
+    private readonly GameUi.GameLabel _tired = new() { Bold = true };
 
     /// <summary>게임 상단 바의 위경도 칸.</summary>
     private readonly GameUi.GameLabel _coord = new() { Bold = true };
@@ -298,6 +305,7 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(InfoCell(CityInfoMenu.Coord, _coord, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Gold, _purse, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fame, _fame, on: true));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Fatigue, _tired, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.City, _cityLabel, on: false));
 
         // 게임 띠 끝에 설정 칸. 누르면 배경음악을 켜고 끄는 창이 뜬다.
@@ -396,12 +404,14 @@ public sealed class ShipMapWindow : Window
             _status.Text = _host.Status;
             CheckPort();
             CheckDiscovery();
+            PassTime();
             var (lat, lon) = _host.ShipLatLon;
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
             _purse.Text = $"{_player.Gold}닢";
             _fame.Text = $"명성 {_player.Fame}";
+            _tired.Text = $"피로 {_player.Fatigue}";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
             ShipSprites.Skin = _player.FlagshipHull?.Hull.Skin ?? 0;
@@ -946,6 +956,8 @@ public sealed class ShipMapWindow : Window
                             saved.Stored, saved.Savings);
             _player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked,
                                  saved.ShipHp, saved.DockedHp);
+            if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
+            if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
             _player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
@@ -1158,6 +1170,81 @@ public sealed class ShipMapWindow : Window
     /// 원본은 발견물마다 DISEV.CDS 의 사건을 틀지만 여기서는 알림 한 줄로 갈음한다.
     /// 문구는 게임의 <c>0x00538490</c> ("%s%s [%s]%s 발견했습니다") 그대로다.
     /// </remarks>
+    /// <summary>
+    /// 바다에서 날이 가게 한다. 하루가 넘으면 사건을 굴린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 함대를 한 걸음 옮길 때마다 하루를 넘기고 그때 사건을 본다. 우리 지도는
+    /// 걸음이 훨씬 잦으므로(<c>0.1초</c>) <see cref="TicksPerDay"/> 걸음을 하루로 묶었다 —
+    /// 리스본에서 카리브까지 오백 칸 남짓이 스물다섯 날쯤 된다.
+    ///
+    /// 마을에 들어가 있거나 멈춰 있는 동안에는 날이 안 간다.
+    /// </remarks>
+    private void PassTime()
+    {
+        if (_asking || _host.Paused || _host.SeaBlocked) return;
+        if (_host.IsAnchored || _host.IsOnLand) return;
+
+        if (++_dayTicks < TicksPerDay) return;
+        _dayTicks = 0;
+
+        _player.PassDayAtSea();
+        CheckSeaEvent();
+    }
+
+    /// <summary>한 걸음(<c>0.1초</c>) 몇 번을 하루로 세는지.</summary>
+    private const int TicksPerDay = 20;
+
+    private int _dayTicks;
+
+    /// <summary>
+    /// 오늘 바다에서 무슨 일이 있었는지 보고, 있으면 겪게 한다.
+    /// </summary>
+    /// <remarks>
+    /// 판정은 <see cref="SeaEvents"/> 가 하고 여기서는 <b>보여 주는 것</b>만 맡는다.
+    /// 문구는 게임 것 그대로다 — <c>0x00535178</c> "제, 제독, 큰일입니다! %s%s 오고
+    /// 있습니다!!" · <c>0x005351B8</c> "빨리 돛을 접어라!…" · <c>0x005351F0</c> "제독 %s%s
+    /// 눈에 띄지 않습니다…" · <c>0x00535260</c> "간신히 빠져 나왔습니다만…".
+    ///
+    /// 게임은 여기서 폭풍 장면(<c>0x0048E820</c>)을 틀지만 우리는 알림 줄로 갈음한다.
+    /// </remarks>
+    private void CheckSeaEvent()
+    {
+        var (lat, _) = _host.ShipLatLon;
+        if (SeaEvents.Roll(_player, lat, _random) is not { } kind) return;
+
+        var storm = SeaEvents.Resolve(_player, kind, _random);
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            string word = storm.Word;
+            NoticeDialog.Show(this,
+                $"제, 제독, 큰일입니다! {word}{GameUi.Josa(word, "이", "가")} 오고 있습니다!!");
+            NoticeDialog.Show(this, "빨리 돛을 접어라! 어떻게 해서든지 버텨라!!");
+
+            if (storm.Lost.Count > 0)
+            {
+                string names = string.Join(", ", storm.Lost.Select(n => $"{n}호"));
+                NoticeDialog.Show(this,
+                    $"제독 {names}{GameUi.Josa(names, "이", "가")} 눈에 띄지 않습니다. " +
+                    $"{word}에서 놓친 것 같습니다.");
+            }
+            else
+            {
+                NoticeDialog.Show(this, kind == SeaEventKind.Storm
+                    ? "간신히 빠져 나왔습니다만, 선원들이 지쳐 있습니다. 어디서 휴양하는 것이 좋겠습니다."
+                    : "간신히 빠져 나왔습니다만, 선원들이 얼어있습니다. 어딘가 상륙해서 몸을 녹이는 것이 좋을 것 같습니다.");
+            }
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
     private void CheckDiscovery()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;

@@ -40,8 +40,16 @@ public sealed class Ship
     /// <summary>손볼 데가 있는지.</summary>
     public bool NeedsRepair => Damage > 0;
 
-    /// <summary>그만큼 상한다. 0 밑으로는 안 내려간다.</summary>
-    public void Hurt(int amount) => Hp = Math.Clamp(Hp - Math.Max(0, amount), 0, MaxHp);
+    /// <summary>
+    /// 그만큼 상한다. <paramref name="floor"/> 밑으로는 안 내려간다.
+    /// </summary>
+    /// <param name="amount">깎을 만큼. 음수는 0 으로 본다.</param>
+    /// <param name="floor">
+    /// 더 못 내려가는 바닥. 폭풍이 <b>기함</b>을 칠 때 1 을 준다 — 게임도 기함 자리의
+    /// 돛을 1 밑으로 안 내려 기함만은 안 잃는다(<c>0x00474F4E</c>).
+    /// </param>
+    public void Hurt(int amount, int floor = 0) =>
+        Hp = Math.Clamp(Hp - Math.Max(0, amount), Math.Clamp(floor, 0, MaxHp), MaxHp);
 
     /// <summary>말끔히 고친다.</summary>
     public void Repair() => Hp = MaxHp;
