@@ -102,6 +102,17 @@ BALANCE_GOLD = [
     (1, 138240, 208, 168, "coin-scale-2.png"),
 ]
 
+#: TOWER.CDS(발라몬의 탑)는 파트가 둘 — 0 이 점, 1 이 157색 팔레트다. 자리 표는
+#: EXE 의 0x00547400 이고 [200704, 303104, 405504] 다.
+#:
+#:     0       448x448   배경 — 돌 받침 셋
+#:     200704  160x80 x8 돌 판자 (0x00431077 이 크기를 준다)
+#:     303104  160x80 x8 다른 벌
+TOWER = [
+    (0, 1, 448, 448, "tower-bg.png"),
+    (200704, 8, 160, 80, "tower-plank-{0}.png"),
+]
+
 FISHING = [
     (8448, 1, 336, 392, "fish-bg.png"),
     (0, 1, 16, 16, "fish-hook.png"),
@@ -159,6 +170,7 @@ def main():
     strip(args.game, "MAZE.CDS", MAZE, "maze-bg.png")
     strip(args.game, "FISHING.CDS", FISHING, "fish-bg.png")
     balance(args.game)
+    strip(args.game, "TOWER.CDS", TOWER, "tower-bg.png")
 
 
 def strip(game, name, table, out_solid):
