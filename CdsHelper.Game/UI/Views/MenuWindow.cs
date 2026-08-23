@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -36,6 +37,10 @@ public sealed class MenuWindow : Window
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();
+
+        // 초점이 어디로 가는지 보려고 둔 진단(FocusWatch). 다 잡고 나면 지운다.
+        Closed += (_, _) => FocusWatch.After("명령창 닫힘");
+        Deactivated += (_, _) => FocusWatch.After("명령창 초점 잃음");
     }
 
     /// <summary>
