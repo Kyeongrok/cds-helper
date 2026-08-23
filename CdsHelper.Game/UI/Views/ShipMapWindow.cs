@@ -1084,7 +1084,7 @@ public sealed class ShipMapWindow : Window
             items.Add(("상륙", () => { if (_host.Land()) _bgm.Play(BgmPlayer.LandTrack); Close(); }));
         }
 
-        items.Add(("정보", null));
+        items.Add(("정보", () => CommandMenu.Push(InfoMenuBox)));
         items.Add(("편성", null));
         items.Add(("대열", null));
         items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
@@ -1106,6 +1106,79 @@ public sealed class ShipMapWindow : Window
 
         CommandMenu.Open(() => box, ToScreen(anchor, at));
         _host.Paused = true;
+    }
+
+    /// <summary>
+    /// 커맨드의 "정보" 아래 일곱 줄. 게임 <c>0x00425E40</c> 것 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x005331A8  함대정보 → 0x0046F340      0x005331D8  힌트정보
+    ///   0x005331B8  인물정보 → 0x0046DF70      0x005331E8  계약정보
+    ///   0x005331C8  소지품정보 → 0x0044CB20    0x005331F8  지도를 본다
+    ///   0x00533210  돌아간다
+    /// </code>
+    /// 소지품·힌트·계약은 도시 커맨드에서 쓰던 창을 그대로 쓴다 — 게임도 한 창이다.
+    /// "지도를 본다"(항해지도 · 주변지도)는 아직 안 옮겼다.
+    /// </remarks>
+    private GameMenu InfoMenuBox() => new("정보", null,
+    [
+        ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _player))),
+        ("인물정보", () => Info(() =>
+        {
+            var (lat, lon) = _host.ShipLatLon;
+            PersonInfoDialog.Show(this, _player, lat, lon);
+        })),
+        ("소지품정보", () => Info(() => BelongingsDialog.Show(
+            this, _player, ItemNames, null, null, DiscoveryNames()))),
+        ("힌트정보", () => Info(() => HintListDialog.Show(this, HintLines()))),
+        ("계약정보", () => Info(ShowContract)),
+        ("지도를 본다", null),
+        ("돌아간다", CommandMenu.Pop),
+    ]);
+
+    /// <summary>지금까지 발견한 것의 이름. 소지품 창의 발견물 칸에 쓴다.</summary>
+    private List<string> DiscoveryNames()
+    {
+        var log = Discoveries;
+        return [.. _player.Discoveries.Order()
+            .Select(id => log?.Table.Find(id)?.Name ?? $"발견물 {id}")];
+    }
+
+    /// <summary>가지고 있는 힌트를 이름으로. 표를 못 읽었으면 번호로 낸다.</summary>
+    private List<string> HintLines()
+    {
+        var table = HintTable.Open(_gameDir);
+        return [.. _player.Hints.Order()
+            .Select(id => table?.Find(id)?.Name ?? $"힌트 {id}")];
+    }
+
+    /// <summary>
+    /// 계약 정보 판. 계약이 없으면 게임처럼 한 줄로 물린다.
+    /// </summary>
+    private void ShowContract()
+    {
+        if (_player.Contract is not { } contract)
+        {
+            NoticeDialog.Show(this, "계약을 맺지 않았습니다");
+            return;
+        }
+
+        var table = Discoveries?.Table;
+        var names = HintTable.Open(_gameDir);
+        var found = contract.Found
+            .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")
+            .ToList();
+
+        ContractDialog.Show(this, contract, _player.Date,
+                            names?.Find(contract.Hint)?.Name ?? "", found, []);
+    }
+
+    /// <summary>정보 판 하나를 띄운다 — 커맨드 창은 접고, 배는 세워 둔 채다.</summary>
+    private void Info(Action show)
+    {
+        CommandMenu.Close();
+        show();
     }
 
     /// <summary>해상 커맨드 창. 하나만 띄운다.</summary>

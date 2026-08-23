@@ -1,0 +1,159 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using CdsHelper.Game.Local.Helpers;
+
+namespace CdsHelper.Game.UI.Views;
+
+/// <summary>
+/// 커맨드 "정보" 아래에 뜨는 판들의 밑바탕 — 밤색 판에 밝은 글씨, 오른쪽 위에 닫기.
+/// </summary>
+/// <remarks>
+/// 게임의 정보 창(<c>0x00425E40</c>)은 일곱 줄이다.
+/// <code>
+///   함대정보 0x0046F340 · 인물정보 0x0046DF70 · 소지품정보 0x0044CB20
+///   힌트정보 · 계약정보 · 지도를 본다 · 돌아간다
+/// </code>
+/// 판 모양은 계약 정보 창(<see cref="ContractDialog"/>)과 같다 — 게임도 이 판들을 한 벌로
+/// 그린다. 그래서 바탕색·글씨색·닫기 단추를 여기 모아 두고 물려 쓴다.
+/// </remarks>
+internal abstract class InfoDialog : Window
+{
+    /// <summary>화면 바탕. 보급·계약 화면과 같은 밤색 판이다.</summary>
+    protected static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));
+
+    /// <summary>테를 두르는 짙은 선.</summary>
+    protected static readonly Brush Line = Frozen(Color.FromRgb(0x11, 0x09, 0x09));
+
+    /// <summary>글꼴 조각을 못 읽었을 때 물러설 글씨색.</summary>
+    protected static readonly Brush Ink = Frozen(Color.FromRgb(0xCB, 0xC5, 0xC5));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
+    protected InfoDialog()
+    {
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = Back;
+    }
+
+    /// <summary>
+    /// 제목 줄 · 속 · 아래 단추를 한 판으로 묶는다.
+    /// </summary>
+    /// <param name="title">왼쪽 위에 적을 제목.</param>
+    /// <param name="body">판 속.</param>
+    /// <param name="width">판 너비.</param>
+    /// <param name="height">판 높이.</param>
+    /// <param name="buttons">아래 오른쪽에 설 단추들. 마지막은 보통 "취소" 다.</param>
+    protected void Build(string title, UIElement body, double width, double height,
+                         params UIElement[] buttons)
+    {
+        var head = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 6) };
+        var close = CloseBox();
+        DockPanel.SetDock(close, Dock.Right);
+        head.Children.Add(close);
+        head.Children.Add(Label(title));
+
+        var board = new DockPanel
+        {
+            Width = width,
+            Height = height,
+            Margin = new Thickness(14, 10, 14, 2),
+            LastChildFill = false,
+        };
+        DockPanel.SetDock(head, Dock.Top);
+        board.Children.Add(head);
+        DockPanel.SetDock(body, Dock.Top);
+        board.Children.Add(body);
+
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(10, 0, 10, 10),
+        };
+        foreach (var button in buttons) row.Children.Add(button);
+
+        var page = new StackPanel();
+        page.Children.Add(board);
+        page.Children.Add(row);
+
+        var frame = GameUi.InfoFrame(page, Back, Line);
+        GameUi.EnableDrag(this, frame);
+        Content = frame;
+
+        KeyDown += (_, e) => { if (e.Key is Key.Escape or Key.Enter) Close(); };
+        MouseRightButtonUp += (_, _) => Close();
+    }
+
+    /// <summary>
+    /// 밤색 판 위에 얹는 밝은 글씨. 줄이 세로로 쌓이므로 <b>왼쪽에 붙여</b> 둔다.
+    /// </summary>
+    protected static GameUi.GameLabel Label(string text) => new(GameFont.WhiteColor)
+    {
+        Text = text,
+        FallbackBrush = Ink,
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
+
+    /// <summary>줄 사이를 띄우는 빈 칸.</summary>
+    protected static UIElement Gap(double height = 10) => new Border { Height = height };
+
+    /// <summary>
+    /// 묶음 머리 — 게임은 <c>━━━━━━━━기술━━━━━━━━</c> 처럼 줄표로 싼다.
+    /// </summary>
+    protected static UIElement Divider(string text) => Label($"   ━━━━━━━━{text}━━━━━━━━");
+
+    /// <summary>제목 줄 오른쪽 끝의 닫기(X).</summary>
+    private FrameworkElement CloseBox()
+    {
+        var box = new Border
+        {
+            Background = GameUi.ItemFill,
+            BorderBrush = GameUi.ItemEdge,
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(5, 0, 5, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand,
+            ToolTip = "닫기",
+            Child = new TextBlock
+            {
+                Text = "✕",
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold,
+                FontSize = 13,
+            },
+        };
+        // 누름은 삼킨다 — 판 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
+        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; Close(); };
+        return box;
+    }
+
+    /// <summary>줄을 죽 늘어놓는 칸. 비어 있으면 자리만 비워 둔다(게임도 그렇다).</summary>
+    protected static UIElement List(IEnumerable<string> lines, double height)
+    {
+        var stack = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
+        foreach (string line in lines) stack.Children.Add(Label($"      {line}"));
+
+        return new Border
+        {
+            Height = height,
+            Child = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = stack,
+            },
+        };
+    }
+}
