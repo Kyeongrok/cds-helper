@@ -915,6 +915,37 @@ public sealed class ShipMapWindow : Window
     /// 아니면 적어 둔 기록(<see cref="GameSave"/>)을 되돌린다.
     /// </summary>
     /// <summary>
+    /// 「지도를 본다」 — 도시 그림을 잠깐 걷고 지도만 본다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 커맨드의 그 줄이다(<c>0x0053BE98</c> · 아래에 <c>0x00533240</c> "항해지도" ·
+    /// <c>0x00533250</c> "주변지도"). 게임은 지도 화면을 따로 그리는데 우리 지도는 그 자체가
+    /// 세계지도라 <b>배율만 갈아 준다</b>. 도시에서 부르면 그림을 잠깐 감추고, 돌아가면
+    /// 도로 낸다.
+    /// </remarks>
+    /// <param name="wide">참이면 항해지도(통째로), 거짓이면 주변지도(배 둘레).</param>
+    /// <param name="hide">잠깐 감출 창. 도시 그림이다.</param>
+    public void LookAtMap(bool wide, Window? hide = null)
+    {
+        if (wide) _host.ShowWorld(); else _host.ShowAround();
+
+        if (hide == null) return;
+        hide.Visibility = Visibility.Hidden;
+        _host.InCity = false;
+
+        // 지도 위에 "돌아간다" 한 줄만 띄운다 — 누르면 도시로 되돌아간다.
+        var back = new GameMenuHost(this);
+        back.Closed += () =>
+        {
+            hide.Visibility = Visibility.Visible;
+            _host.InCity = true;
+            hide.Activate();
+        };
+        back.Open(() => new GameMenu(wide ? "항해지도" : "주변지도", null,
+            ("돌아간다", back.Close)));
+    }
+
+    /// <summary>
     /// 놀이를 그만두고 첫 화면으로 돌아간다. 자택의 "게임 종료" 가 부른다.
     /// </summary>
     /// <remarks>

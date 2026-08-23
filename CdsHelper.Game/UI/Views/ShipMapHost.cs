@@ -1035,6 +1035,31 @@ public sealed class ShipMapHost : HwndHost
         _mouseInside = inside && !SeaBlocked;
     }
 
+    /// <summary>
+    /// 「항해지도」 — 지도를 통째로 보이게 맞춘다. 배가 가운데에 온다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 정보 창의 "지도를 본다" 아래 두 줄 가운데 하나다(<c>0x00533240</c> "항해지도" ·
+    /// <c>0x00533250</c> "주변지도"). 게임은 따로 그린 지도 화면을 내는데, 우리 지도는
+    /// 그 자체가 세계지도라 <b>배율만 갈아 준다</b>.
+    /// </remarks>
+    public void ShowWorld() => LookAt(WorldCellsPerPixel);
+
+    /// <summary>「주변지도」 — 배 둘레를 크게 본다.</summary>
+    public void ShowAround() => LookAt(AroundCellsPerPixel);
+
+    /// <summary>항해지도·주변지도의 배율. 화면 한 점에 몇 칸이 들어가는지다.</summary>
+    private const double WorldCellsPerPixel = 2.0, AroundCellsPerPixel = 1.0 / 16;
+
+    /// <summary>그 배율로 배를 가운데 두고 본다.</summary>
+    private void LookAt(double cellsPerPixel)
+    {
+        _cellsPerPixel = cellsPerPixel;
+        if (!_shipKnown) return;
+        _centerX = _shipX;
+        _centerY = _shipY;
+    }
+
     /// <summary>휠 확대. 커서 밑 지점이 제자리에 남도록 한다.</summary>
     public void Zoom(int dir, Point cursor)
     {

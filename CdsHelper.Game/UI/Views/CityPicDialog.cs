@@ -385,17 +385,23 @@ public sealed class CityPicDialog : Window
         spot.MouseLeave += (_, _) => tag.Visibility = Visibility.Collapsed;
         // 건물을 누른 것은 여기서 삼킨다 — 안 그러면 그림 끌기가 먼저 걸려 메뉴가 안 열린다.
         spot.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        spot.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            PlayFameCheck(building);
-            Greet(facility);
-            ShowPhoto(facility.Kind, building.Code);
-            // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
-            ShowMenu(() => BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
-                     facility.BgmTrack);
-        };
+        spot.MouseLeftButtonUp += (_, e) => { e.Handled = true; Enter(building); };
         _layer.Children.Add(spot);
+    }
+
+    /// <summary>
+    /// 건물 하나에 들어간다. 그림에서 눌러도, 커맨드의 "맵 포인트에 들어간다" 로 골라도
+    /// 이 길을 지난다.
+    /// </summary>
+    private void Enter(CityBuildingTable.Building building)
+    {
+        var facility = Facility.For(building.Kind);
+        PlayFameCheck(building);
+        Greet(facility);
+        ShowPhoto(facility.Kind, building.Code);
+        // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
+        ShowMenu(() => BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
+                 facility.BgmTrack);
     }
 
     /// <summary>
@@ -1622,17 +1628,71 @@ public sealed class CityPicDialog : Window
     /// 제목 줄에 닫기(X)가 있다. 지금은 취소만 살아 있다.
     /// </summary>
     private GameMenu CityMenu(string cityName) => new(cityName, CloseCityMenu,
-        ("맵 포인트에 들어간다", null),
-        ("인물 정보", null),
-        ("함대 정보", null),
+        ("맵 포인트에 들어간다", EnterMapPoint),
+        ("인물 정보", ShowPerson),
+        ("함대 정보", ShowFleet),
         ("소지품 정보", ShowBelongings),
         ("도시 정보", ShowCityInfo),
         ("힌트 정보", ShowHints),
         ("계약 정보", ShowContract),
         ("후원자 정보", ShowPatrons),
-        ("지도를 본다", null),
-        ("게임 종료", null),
+        ("지도를 본다", () => _cityMenu.Push(MapMenu)),
+        ("게임 종료", QuitToTitle),
         ("취소", CloseCityMenu));
+
+    /// <summary>인물 정보 판. 도시 안이라 함대좌표는 게임처럼 <c>---</c> 다.</summary>
+    private void ShowPerson()
+    {
+        CloseCityMenu();
+        PersonInfoDialog.Show(this, _player);
+    }
+
+    /// <summary>함대 정보 판.</summary>
+    private void ShowFleet()
+    {
+        CloseCityMenu();
+        FleetInfoDialog.Show(this, _player);
+    }
+
+    /// <summary>
+    /// 「맵 포인트에 들어간다」 — 이 도시의 건물을 늘어놓고 고른 데로 들어간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 커맨드의 그 줄이다(<c>0x0053BE10</c>). 그림에서 건물을 눈으로 찾아 누르는 대신
+    /// 목록에서 고르는 길이다 — 작은 건물은 눌러 맞히기가 어렵다.
+    /// 건물이 하나도 없으면 게임 말대로 "맵 포인트 데이터가 없습니다"(<c>0x0053A7FB</c>) 다.
+    /// </remarks>
+    private void EnterMapPoint()
+    {
+        var spots = _table.InCity(_cityId);
+        if (spots.Count == 0)
+        {
+            NoticeDialog.Show(this, "맵 포인트 데이터가 없습니다");
+            return;
+        }
+
+        int at = HintListDialog.Pick(this,
+            [.. spots.Select(b => b.Name.Length > 0 ? $"{GameUi.Pad(b.Kind, 12)}{b.Name}" : b.Kind)],
+            "맵 포인트에 들어간다", "맵 포인트 데이터가 없습니다");
+        if (at < 0 || at >= spots.Count) return;
+
+        CloseCityMenu();
+        Enter(spots[at]);
+    }
+
+    /// <summary>「지도를 본다」 — 항해지도 · 주변지도 · 돌아간다.</summary>
+    private GameMenu MapMenu() => new("지도를 본다", null,
+        ("항해지도", () => LookAtMap(wide: true)),
+        ("주변지도", () => LookAtMap(wide: false)),
+        ("돌아간다", _cityMenu.Pop));
+
+    /// <summary>도시 그림을 잠깐 걷고 지도를 본다. 되돌리는 것은 함대 창이 맡는다.</summary>
+    private void LookAtMap(bool wide)
+    {
+        if (Owner is not ShipMapWindow map) { CloseCityMenu(); return; }
+        CloseCityMenu();
+        map.LookAtMap(wide, this);
+    }
 
     /// <summary>도시 정보 창을 낸다. 표를 못 읽어도 열린다 — 그 줄만 비는 채로 뜬다.</summary>
     private void ShowCityInfo()
