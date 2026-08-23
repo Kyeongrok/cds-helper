@@ -172,6 +172,9 @@ internal sealed class GrailPuzzleDialog : InfoDialog
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
         };
+        // 눌림을 여기서 먹어야 한다 — 안 그러면 판에 걸린 창 끌기(GameUi.EnableDrag)가
+        // 물고 가서 뗌이 안 오고, 그릇을 누를 때마다 창이 끌린다.
+        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
         box.MouseLeftButtonUp += (_, e) => { e.Handled = true; Tap(slot); };
         Canvas.SetLeft(box, x);
         Canvas.SetTop(box, y);
@@ -187,7 +190,12 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         cap.Text = $"{_game.SizeAt(slot)}";
         _now[slot] = now;
 
-        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
+        // 글자가 누름을 가로채면 안 된다 — 밑의 그릇 칸이 받아야 한다.
+        var stack = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            IsHitTestVisible = false,
+        };
         stack.Children.Add(now);
         stack.Children.Add(new Border
         {
