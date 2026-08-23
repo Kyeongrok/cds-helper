@@ -100,8 +100,29 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>한 틱의 길이. 게임처럼 틱마다 한 걸음씩 나아간다.</summary>
     private const double TickSeconds = 0.1;
 
-    /// <summary>한 틱에 나아가는 칸 수. 화면 배율과 상관없이 일정하다.</summary>
+    /// <summary>
+    /// 바람이 없거나 함대를 모를 때 한 틱에 나아가는 칸 수.
+    /// </summary>
+    /// <remarks>
+    /// 여기 오는 일은 거의 없다 — <see cref="FleetSpeed"/> 가 붙어 있으면 게임 셈으로
+    /// 잰다(<see cref="Engine.Sea.Sailing"/>). 바람표를 못 읽었을 때의 물러설 자리다.
+    /// </remarks>
     private const double CellsPerTick = 1.0;
+
+    /// <summary>
+    /// 함대 속도를 물어보는 이 — (풍향, 풍속, 뱃머리, 뭍인지) 를 받아 게임 속도를 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 지도는 함대도 돛 효율표도 모른다. 그래서 붙이는 쪽(<see cref="ShipMapWindow"/>)이
+    /// 손을 하나 걸어 준다 — <see cref="MonthOf"/> 와 같은 얼개다.
+    /// </remarks>
+    public Func<int, int, int, bool, int>? FleetSpeed { get; set; }
+
+    /// <summary>지난 걸음에 잰 함대 속도. 상태줄에 적으려고 남긴다.</summary>
+    public int LastSpeed { get; private set; }
+
+    /// <summary>지난 걸음의 바람(방위·세기)과 상대각.</summary>
+    public (int Dir, int Speed, int Relative) LastWind { get; private set; }
 
     /// <summary>커서가 이 칸 수 안에 있으면 뱃머리를 그대로 둔다 — 배 위에서 빙빙 돌지 않게.</summary>
     private const double TurnDeadZoneCells = 1.0;
@@ -175,6 +196,9 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>
     /// 8방위 이름. 게임 이름표(<c>0x569790</c>)와 같은 차례로 <b>반시계</b>로 돈다.
     /// </summary>
+    /// <summary>8방위 이름. 16방위 번호를 하나 걸러 읽는다.</summary>
+    public static IReadOnlyList<string> Compass => CompassNames;
+
     private static readonly string[] CompassNames =
         ["북", "북서", "서", "남서", "남", "남동", "동", "북동"];
 
@@ -871,8 +895,59 @@ public sealed class ShipMapHost : HwndHost
         while (_tickAccum >= TickSeconds)
         {
             _tickAccum -= TickSeconds;
-            Step(_dirX * CellsPerTick, _dirY * CellsPerTick);
+            var (step, driftX, driftY) = Push();
+            Step(_dirX * step + driftX, _dirY * step + driftY);
         }
+    }
+
+    /// <summary>
+    /// 이 걸음에 나아갈 칸 수와, 해류가 옆으로 미는 만큼.
+    /// </summary>
+    /// <remarks>
+    /// 게임 셈 그대로다(볼트 <c>30.분석-항해 속도(돛·바람·해류)</c>).
+    /// <code>
+    ///   속도  = 0x0048BCF0()                         ; 추진력 x (풍속+1) x 돛효율 / 100
+    ///   부류 1 : 이동 = 9 * 속도 / 10        + 해류
+    ///   그 밖  : 이동 = (3 * 속도 + 54) / 10 , 해류 없음
+    /// </code>
+    /// <b>부류는 칸 그림 번호가 가른다.</b> 게임 부류표(<c>0x004CD048</c>)에서 부류 1 인
+    /// 그림은 <c>0x80</c> 하나뿐이고, 바다 칸은 <c>...00</c> 과 <c>...80</c> 이 지도에
+    /// 반반 섞여 있다 — 그래서 한 칸 걸러 두 식을 오간다.
+    /// </remarks>
+    private (double Step, double DriftX, double DriftY) Push()
+    {
+        if (FleetSpeed == null || _wind == null)
+            return (CellsPerTick, 0, 0);
+
+        int cell = WindTable.CellOf((int)(_shipX * OceanTiles.TileW), (int)(_shipY * OceanTiles.TileW));
+        if (cell < 0) return (CellsPerTick, 0, 0);
+
+        int month = MonthOf?.Invoke() ?? DefaultMonth;
+        var wind = _wind.WindAt(cell, month);
+        int speed = FleetSpeed(wind.Dir, wind.Speed, _heading, _onLand);
+
+        LastSpeed = speed;
+        LastWind = (wind.Dir, wind.Speed, (wind.Dir - _heading) & 0xF);
+
+        bool fast = FastTile();
+        double step = Engine.Sea.Sailing.CellsPerTick(speed, fast);
+        if (!fast || _onLand) return (step, 0, 0);
+
+        var flow = _wind.CurrentAt(cell);
+        if (flow.Speed <= 0) return (step, 0, 0);
+
+        var (dx, dy) = _wind.Vector(flow.Dir);
+        var (driftX, driftY) = Engine.Sea.Sailing.Drift(
+            (dx, dy), flow.Speed, Engine.Sea.Sailing.LonScale(ShipLatLon.Lat));
+        return (step, driftX, driftY);
+    }
+
+    /// <summary>발밑이 빠른 부류(그림 번호 <c>0x80</c>)인지.</summary>
+    private bool FastTile()
+    {
+        if (_world == null) return false;
+        var (_, _, _, _, off) = RawAt(_shipX, _shipY);
+        return (WorldMapRenderer.CellToTile(_world, off) & 0x80) != 0;
     }
 
     /// <summary>

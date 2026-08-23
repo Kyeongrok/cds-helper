@@ -24,13 +24,14 @@ internal static class CityInfoMenu
     /// </summary>
     public const string Date = "날짜", Coord = "위도·경도", Gold = "소지금",
                         Fame = "명성", City = "도시명", Fatigue = "피로도",
-                        Crew = "선원·대원", Stores = "물·식량", DaysLeft = "남은일수";
+                        Crew = "선원·대원", Stores = "물·식량", DaysLeft = "남은일수",
+                        Wind = "바람·속도";
 
     /// <summary>게임 도시정보 창의 줄 차례. 화면에서 그대로 옮겼다.</summary>
     public static readonly string[] Rows =
     [
         Date, Crew, Stores, Coord, Gold, Fatigue,
-        Fame, City, "언어", "시세", DaysLeft,
+        Fame, City, "언어", "시세", DaysLeft, Wind,
     ];
 
     private const string OnMark = ":ON", OffMark = ":OFF";
