@@ -5,9 +5,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
-using CdsHelper.Support.Local.Models;
+using CdsHelper.Game.UI.Views;
 
-namespace CdsHelper.Game.UI.Views;
+namespace CdsHelper.Maze;
 
 /// <summary>
 /// 미니 게임 「미궁 64 퍼즐」 화면.
@@ -24,6 +24,17 @@ namespace CdsHelper.Game.UI.Views;
 ///   0x0042BE99  x  = 0x64(100), 줄마다 -0x16(22), 칸마다 +0x34(52)
 ///   0x0042BECE  밟은 칸에 80x24 조각
 ///   0x0042BF93  상자는 (x + 0x7B, y + 0x13) — 곧 칸에서 (+23, -12)
+///   0x0042C0A0  방향 화살표 여섯 벌 — 32x24
+/// </code>
+/// <b>화살표는 갈 수 있는 칸 위에 뜬다.</b> 여섯 벌의 자리 상수를 풀어 보면 다 같은
+/// 꼴이다 — <b>가는 칸에서 (+25, -2)</b>. 짚은 방향만 금빛 조각으로 갈린다.
+/// <code>
+///   방향 1 위층  y = 층*106 + 줄*22 - 0x4D   x = 0x7D + 칸*52 - 줄*22
+///   방향 2 아래  y = …            + 0x87    x = 0x7D + …
+///   방향 3 줄-1  y = …            + 0x07    x = 0x93 + …
+///   방향 4 줄+1  y = …            + 0x33    x = 0x67 + …
+///   방향 5 칸-1  y = …            + 0x1D    x = 0x49 + …
+///   방향 6 칸+1  y = …            + 0x1D    x = 0xB1 + …
 /// </code>
 /// 그래서 칸 자리가 이렇게 난다.
 /// <code>
@@ -50,13 +61,16 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// <summary>탐험가는 40x40 이고 칸 가운데 선다.</summary>
     private const int HeroSize = 40, HeroDx = 20, HeroDy = -22;
 
+    /// <summary>화살표는 <b>가는 칸</b>에서 이만큼 옮겨 얹는다(<c>0x0042C0A0</c> 벌).</summary>
+    private const int ArrowW = 32, ArrowH = 24, ArrowDx = 25, ArrowDy = -2;
+
     private static readonly Brush Ring = Frozen(Colors.White);
 
     private readonly MazePuzzle _game;
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
     private readonly Image[] _floor = new Image[MazePuzzle.Rooms];
     private readonly Image[] _item = new Image[MazePuzzle.Rooms];
-    private readonly Border[] _ring = new Border[MazePuzzle.Rooms];
+    private readonly Image[] _arrow = new Image[MazePuzzle.Ways.Length];
     private readonly Image _hero = new()
     {
         Width = HeroSize,
@@ -66,6 +80,9 @@ internal sealed class MazePuzzleDialog : InfoDialog
     private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
     private readonly GameButton _undo;
     private readonly GameButton _open;
+
+    /// <summary>지금 짚은 방향. 게임의 <c>[0x2FC]</c> 다.</summary>
+    private int _point = -1;
 
     private MazePuzzleDialog(Random rng)
     {
@@ -81,6 +98,7 @@ internal sealed class MazePuzzleDialog : InfoDialog
         }
 
         for (int room = 0; room < MazePuzzle.Rooms; room++) Cell(room);
+        for (int way = 0; way < MazePuzzle.Ways.Length; way++) Arrow(way);
 
         RenderOptions.SetBitmapScalingMode(_hero, BitmapScalingMode.NearestNeighbor);
         _hero.Source = Picture("maze-hero.png");
@@ -137,19 +155,6 @@ internal sealed class MazePuzzleDialog : InfoDialog
         _scene.Children.Add(floor);
         _floor[room] = floor;
 
-        var ring = new Border
-        {
-            Width = FloorW,
-            Height = FloorH,
-            BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(1),
-            IsHitTestVisible = false,
-        };
-        Canvas.SetLeft(ring, at.X);
-        Canvas.SetTop(ring, at.Y);
-        _scene.Children.Add(ring);
-        _ring[room] = ring;
-
         var item = new Image
         {
             Width = ItemSize,
@@ -163,6 +168,35 @@ internal sealed class MazePuzzleDialog : InfoDialog
         Panel.SetZIndex(item, 20);
         _scene.Children.Add(item);
         _item[room] = item;
+    }
+
+    /// <summary>방향 화살표 하나. 갈 수 있을 때만 뜨고, 누르면 그리로 간다.</summary>
+    private void Arrow(int way)
+    {
+        var image = new Image
+        {
+            Width = ArrowW,
+            Height = ArrowH,
+            Visibility = Visibility.Collapsed,
+            Cursor = Cursors.Hand,
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        Panel.SetZIndex(image, 60);
+
+        image.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        image.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            int next = MazePuzzle.Neighbour(_game.Here, MazePuzzle.Ways[way].Step);
+            if (next >= 0) Step(next);
+        };
+
+        // 짚으면 금빛 조각으로 갈린다 — 게임의 [0x2FC] 자리다.
+        image.MouseEnter += (_, _) => { _point = way; Sync(); };
+        image.MouseLeave += (_, _) => { if (_point == way) { _point = -1; Sync(); } };
+
+        _scene.Children.Add(image);
+        _arrow[way] = image;
     }
 
     /// <summary>뽑아 둔 그림 한 장. 없으면 null.</summary>
@@ -316,7 +350,6 @@ internal sealed class MazePuzzleDialog : InfoDialog
                      $"   취소 {_game.Undone}/{MazePuzzle.MaxUndo}" +
                      $"   다시 {_game.Restarted}/{MazePuzzle.MaxRestart}";
 
-        var reach = _game.Moves().Select(m => m.Room).ToHashSet();
         var floor = Picture("maze-floor.png");
 
         for (int room = 0; room < MazePuzzle.Rooms; room++)
@@ -324,9 +357,6 @@ internal sealed class MazePuzzleDialog : InfoDialog
             bool walked = _game.StepAt(room) != 0;
             _floor[room].Source = floor;
             _floor[room].Visibility = walked ? Visibility.Visible : Visibility.Collapsed;
-
-            // 갈 수 있는 칸에 테를 두른다 — 게임은 화살표 조각을 놓는다.
-            _ring[room].BorderBrush = reach.Contains(room) ? Ring : Brushes.Transparent;
 
             int chest = _game.ChestAt(room);
             var art = room == _game.Exit ? Picture("maze-door.png")
@@ -337,6 +367,22 @@ internal sealed class MazePuzzleDialog : InfoDialog
 
             _item[room].Source = art;
             _item[room].Visibility = art == null ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        // 갈 수 있는 방향에만 화살표를 세운다. <b>가는 칸</b> 위에 뜬다.
+        for (int way = 0; way < MazePuzzle.Ways.Length; way++)
+        {
+            int next = _game.Over == MazePuzzle.Result.Playing
+                     ? MazePuzzle.Neighbour(_game.Here, MazePuzzle.Ways[way].Step) : -1;
+            bool open = next >= 0 && _game.StepAt(next) == 0;
+
+            _arrow[way].Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            if (!open) continue;
+
+            _arrow[way].Source = Picture($"maze-arrow-{way * 2 + (_point == way ? 1 : 0)}.png");
+            var to = Spot(next);
+            Canvas.SetLeft(_arrow[way], to.X + ArrowDx);
+            Canvas.SetTop(_arrow[way], to.Y + ArrowDy);
         }
 
         var at = Spot(_game.Here);
