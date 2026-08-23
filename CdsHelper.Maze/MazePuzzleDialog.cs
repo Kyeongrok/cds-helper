@@ -47,8 +47,14 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// <summary>게임 그림의 크기. 자리 값이 다 이 눈금이다.</summary>
     private const int SceneWidth = 352, SceneHeight = 432;
 
-    /// <summary>정수배로만 늘린다.</summary>
-    private const int Zoom = 2;
+    /// <summary>
+    /// 그림을 <b>화면 점</b> 기준으로 몇 배로 놓을지. 1 이면 원본 크기다.
+    /// </summary>
+    /// <remarks>
+    /// 모니터 배율(DPI)이 얼마든 <b>그림 점 하나가 화면 점 하나</b>가 되게
+    /// <see cref="GameUi.PixelZoom"/> 이 나눠 준다.
+    /// </remarks>
+    private const int Zoom = 1;
 
     /// <summary>바닥 칸 조각과 그 자리 셈(<c>0x0042BE87</c> 벌).</summary>
     private const int FloorW = 80, FloorH = 24;
@@ -109,7 +115,9 @@ internal sealed class MazePuzzleDialog : InfoDialog
         _scene.Background = Brushes.Transparent;
         _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
         _scene.MouseLeftButtonUp += SceneUp;
-        _scene.LayoutTransform = new ScaleTransform(Zoom, Zoom);
+        // 모니터 배율을 물어 나눠 준다 — 그림 점 하나가 화면 점 하나가 되게.
+        double zoom = GameUi.PixelZoom(this, Zoom);
+        _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
         // 셈은 판 밖에 적는다 — 판 안은 게임 그림이 다 쓴다.
         _line.FallbackBrush = Ring;
@@ -118,7 +126,7 @@ internal sealed class MazePuzzleDialog : InfoDialog
         rows.Children.Add(Gap(4));
         rows.Children.Add(_scene);
 
-        Build("미궁 64 퍼즐", rows, SceneWidth * Zoom + 30, SceneHeight * Zoom + 130,
+        Build("미궁 64 퍼즐", rows, SceneWidth * zoom + 30, SceneHeight * zoom + 130,
               _open, _undo,
               new GameButton("게임 설명", Explain),
               new GameButton("포기한다", AskGiveUp));

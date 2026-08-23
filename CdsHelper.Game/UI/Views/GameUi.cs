@@ -184,6 +184,23 @@ internal static class GameUi
     /// 제목 줄을 잡아 창을 옮길 수 있게 한다. 제목 줄이 없는 창(<c>WindowStyle.None</c>)이라
     /// 이렇게 붙여 줘야 옮길 데가 생긴다.
     /// </summary>
+    /// <summary>
+    /// 게임 그림을 <b>화면 점 하나에 그림 점 하나</b>로 놓을 배율.
+    /// </summary>
+    /// <remarks>
+    /// WPF 는 자리를 <b>DIP</b>(96분의 1인치)로 잰다. 화면 배율이 175%면 1 DIP 가
+    /// 화면 점 1.75개라, 그림을 그냥 놓으면 1.75배로 부풀어 점이 뭉갠다. 배율로
+    /// 나눠 주면 그림 점 하나가 화면 점 하나에 딱 떨어진다.
+    ///
+    /// <paramref name="zoom"/> 은 <b>화면 점</b> 단위의 곱이다 — 1 이면 원본 크기,
+    /// 2 면 화면에서 두 배다. 정수로만 줘야 점이 안 뭉갠다.
+    /// </remarks>
+    public static double PixelZoom(Visual visual, int zoom = 1)
+    {
+        double scale = VisualTreeHelper.GetDpi(visual).DpiScaleX;
+        return scale > 0 ? zoom / scale : zoom;
+    }
+
     public static void EnableDrag(Window window, UIElement handle)
     {
         handle.MouseLeftButtonDown += (_, _) =>
