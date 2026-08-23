@@ -46,6 +46,18 @@ OUT_DIR = os.path.join(ROOT, "asset", "minigame")
 #: MGGRAPH 그림마다 (파트, 팔레트 파트, 너비, 높이, 파일 이름).
 PICTURES = [
     (51, 2, 368, 432, "grail-bg.png"),
+    (14, 1, 512, 352, "cube-bg.png"),
+]
+
+#: 화살표 입방체 퍼즐은 제 그림 파일이 없다 — 0x0049B422 가 0x00455DE0 을 부르니
+#: MGGRAPH.CDS 를 함께 쓴다. 조각 11(파트 14)이 512x352 배경이고, 조각 6~10
+#: (파트 9~13)이 좌대와 모험자와 금괴다. 크기는 조각 표(0x00549E98)가 64x48 이라 한다.
+CUBE = [
+    (9, 64, 48, "cube-hero.png"),
+    (10, 64, 80, "cube-hero2.png"),
+    (11, 64, 88, "cube-stand.png"),
+    (12, 64, 88, "cube-mark.png"),
+    (13, 64, 48, "cube-gold.png"),
 ]
 
 #: MAZE.CDS 는 파트 0 하나에 다 들어 있다 — (자리, 개수, 너비, 높이, 이름 꼴).
@@ -157,6 +169,13 @@ def main():
         image.putdata(rgb)
         image.save(os.path.join(OUT_DIR, name))
         print(f"{name}  {width}x{height}  (파트 {part}, 팔레트 {pal_part})")
+
+    for part, width, height, name in CUBE:
+        rgb = decode(archive, part, 1, width, height)
+        image = Image.new("RGBA", (width, height))
+        image.putdata([(0, 0, 0, 0) if c == CLEAR else (*c, 255) for c in rgb])
+        image.save(os.path.join(OUT_DIR, name))
+        print(f"{name}  {width}x{height}  (MGGRAPH 파트 {part})")
 
     for first, count, width, height, shape in SPRITES:
         for i in range(count):
