@@ -16,16 +16,22 @@ namespace CdsHelper.Game.UI.Views;
 ///   0x00560A88  능력치 여섯 — 체력 지력 무력 매력 운 (신앙심은 안 보인다)
 ///   0x00560AA8  직업 여덟   — 화면에는 탐험가 발굴자 사냥꾼 정복자 넷만
 ///   0x0051ACA0  직업마다 32바이트 — 능력치 보정
-///   45d548      값 = 밑값 + rand(나이) + 직업보정 + 나이보정 + 50, 20~100 으로 자른다
+///   0x005472C0  생일마다 32바이트 — 이레만 값이 있다
+///   45d568      값 = 생일보정 + rand(나이) + 직업보정 + 나이보정 + 50, 20~100 으로 자른다
 ///   45d5d5      보너스 = 합으로 갈린다 — 잘 굴렸을수록 덜 준다
 /// </code>
-/// <b>직업을 바꾸면 능력치를 다시 굴린다</b> — 보정이 직업마다 다르기 때문이다.
+/// <b>직업을 바꿔도 다시 안 굴린다.</b> 굴리는 <c>0x0045D450</c> 을 부르는 데는
+/// <c>0x0045D022</c> 한 곳뿐인데, 그 자리는 <b>앞 걸음(신상)의 끝</b>이다 — 이 화면에
+/// 들어오기 전에 이미 굴려 놓는다는 뜻이다. 그래서 직업 보정표는 새 놀이에서는
+/// 늘 0번 줄(탐험가, 값이 다 0)로 걸리고, 표의 나머지 줄은 부하·NPC 쪽에서만 쓰인다.
+/// 직업 단추는 <b>기본 기술</b>만 정한다(다음 걸음).
+///
+/// 다시 굴리고 싶으면 게임처럼 "취소" 로 신상 걸음까지 물러났다가 다시 오면 된다.
 /// </remarks>
 internal sealed class AbilityMakeDialog : InfoDialog
 {
     private const double BoardWidth = 520, BoardHeight = 280;
 
-    private readonly Random _rng;
     private readonly int _age;
 
     private readonly TextBlock[] _values = new TextBlock[Ability.Shown];
@@ -45,10 +51,9 @@ internal sealed class AbilityMakeDialog : InfoDialog
 
     private AbilityMakeDialog(Player player, Random rng)
     {
-        _rng = rng;
         _age = player.Age;
         _job = player.JobIndex;
-        _stats = Ability.Roll(Job.Of(_job), _age, rng);
+        _stats = Ability.Roll(Job.Of(_job), _age, player.BirthMonth, player.BirthDay, rng);
         _left = Ability.BonusFor(_stats, rng);
 
         var left = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
@@ -180,13 +185,12 @@ internal sealed class AbilityMakeDialog : InfoDialog
     }
 
     /// <summary>
-    /// 직업을 바꾼다 — 보정이 다르므로 능력치를 다시 굴린다.
+    /// 직업을 고른다. 게임이 그렇듯 <b>능력치는 다시 안 굴린다</b> — 이 고름은 다음
+    /// 걸음의 기본 기술에만 걸린다.
     /// </summary>
     private void ChooseJob(int pick)
     {
         _job = pick;
-        _stats = Ability.Roll(Job.Of(_job), _age, _rng);
-        _left = Ability.BonusFor(_stats, _rng);
         Sync();
     }
 
@@ -222,6 +226,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
 
         player.JobIndex = dialog._job;
         player.SetAbilities(dialog._stats);
+        player.SetGold(Ability.GoldFor(dialog._stats[Ability.Body]));
         return dialog._left;
     }
 }
