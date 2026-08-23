@@ -261,6 +261,7 @@ public class CdsHelperWindow : CdsWindow
         // 미궁 64 퍼즐은 CdsHelper.Maze 에 따로 있다. 그쪽이 CdsHelper.Game 을 물고
         // 있어서 게임 쪽에서 곧장 못 부른다 — 띄우는 여기서 걸어 준다.
         CdsHelper.Game.UI.Views.ShipMapWindow.MazeGame = CdsHelper.Maze.MazeGame.Play;
+        CdsHelper.Game.UI.Views.ShipMapWindow.DuelGame = CdsHelper.Duel.DuelGame.Play;
 
         var win = new CdsHelper.Game.UI.Views.ShipMapWindow { Owner = this };
         win.Show();
