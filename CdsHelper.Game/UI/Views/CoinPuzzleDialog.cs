@@ -70,6 +70,8 @@ internal sealed class CoinPuzzleDialog : InfoDialog
                 Cursor = Cursors.Hand,
                 Child = text,
             };
+            // 눌림을 먹어야 판에 걸린 창 끌기가 안 물고 간다.
+            box.MouseLeftButtonDown += (_, e) => e.Handled = true;
             box.MouseLeftButtonUp += (_, e) => { e.Handled = true; Tap(coin, left: true); };
             box.MouseRightButtonUp += (_, e) => { e.Handled = true; Tap(coin, left: false); };
             _coin[i] = box;
