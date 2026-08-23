@@ -70,6 +70,21 @@ SPRITES = [
 #: 비어 있음을 뜻하는 색 — 팔레트 마지막 자리(색인 230)다.
 CLEAR = (255, 0, 255)
 
+#: FISHING.CDS 도 파트 0 하나에 다 들어 있다. 자리 표는 EXE 의 0x00569194 다.
+#:
+#:     0      256바이트    16x16   낚싯바늘
+#:     256    3072바이트   32x32x3 배 · 오징어 · 낙지
+#:     3328   2048바이트   32x16x4 대어 두 벌 · 잡어 두 벌
+#:     5376   1024바이트   32x16x2 왼쪽 화살표 · 오른쪽 화살표
+#:     8448   131712바이트 336x392 <b>배경</b>  — 0x0047ADF2 가 (0, 0) 에 찍는다
+FISHING = [
+    (8448, 1, 336, 392, "fish-bg.png"),
+    (0, 1, 16, 16, "fish-hook.png"),
+    (256, 3, 32, 32, "fish-big-{0}.png"),
+    (3328, 4, 32, 16, "fish-small-{0}.png"),
+    (5376, 2, 32, 16, "fish-arrow-{0}.png"),
+]
+
 #: 제 팔레트가 덮기 시작하는 색인.
 BASE = 74
 
@@ -116,16 +131,17 @@ def main():
             image.save(os.path.join(OUT_DIR, name))
         print(f"{shape.format('*')}  {width}x{height} x{count}  (파트 {first}~{first + count - 1})")
 
-    maze(args.game)
+    strip(args.game, "MAZE.CDS", MAZE, "maze-bg.png")
+    strip(args.game, "FISHING.CDS", FISHING, "fish-bg.png")
 
 
-def maze(game):
-    """MAZE.CDS 를 뽑는다. 배경만 통으로, 나머지는 마젠타를 비운다."""
+def strip(game, name, table, out_solid):
+    """파트 0 하나에 다 든 CDS 를 자리 표대로 자른다."""
     from PIL import Image
 
-    path = os.path.join(game, "MAZE.CDS")
+    path = os.path.join(game, name)
     if not os.path.exists(path):
-        print(f"{path} 가 없다 — 미궁 그림은 건너뛴다")
+        print(f"{path} 가 없다 — 건너뛴다")
         return
 
     archive = ls12.Ls12(open(path, "rb").read())
@@ -136,11 +152,11 @@ def maze(game):
         k = v - BASE
         return own[k] if 0 <= k < len(own) else CLEAR
 
-    for first, count, width, height, shape in MAZE:
+    for first, count, width, height, shape in table:
         for i in range(count):
             at = first + i * width * height
             rgb = [color(v) for v in px[at:at + width * height]]
-            solid = shape == "maze-bg.png"
+            solid = shape == out_solid
             image = Image.new("RGB" if solid else "RGBA", (width, height))
             image.putdata(rgb if solid
                           else [(0, 0, 0, 0) if c == CLEAR else (*c, 255) for c in rgb])
