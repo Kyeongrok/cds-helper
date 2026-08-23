@@ -43,9 +43,20 @@ import ls12  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "asset", "minigame")
 
-#: 그림마다 (파트, 팔레트 파트, 너비, 높이, 파일 이름).
+#: MGGRAPH 그림마다 (파트, 팔레트 파트, 너비, 높이, 파일 이름).
 PICTURES = [
     (51, 2, 368, 432, "grail-bg.png"),
+]
+
+#: MAZE.CDS 는 파트 0 하나에 다 들어 있다 — (자리, 개수, 너비, 높이, 이름 꼴).
+MAZE = [
+    (30144, 1, 352, 432, "maze-bg.png"),
+    (0, 1, 80, 24, "maze-floor.png"),
+    (1920, 12, 32, 24, "maze-arrow-{0}.png"),
+    (11136, 4, 32, 32, "maze-chest-{0}.png"),
+    (19328, 4, 32, 32, "maze-chest-open-{0}.png"),
+    (27520, 1, 32, 32, "maze-door.png"),
+    (28544, 1, 40, 40, "maze-hero.png"),
 ]
 
 #: 조각마다 (첫 파트, 개수, 너비, 높이, 이름 꼴). 마젠타는 비운다.
@@ -104,6 +115,37 @@ def main():
             name = shape.format(i)
             image.save(os.path.join(OUT_DIR, name))
         print(f"{shape.format('*')}  {width}x{height} x{count}  (파트 {first}~{first + count - 1})")
+
+    maze(args.game)
+
+
+def maze(game):
+    """MAZE.CDS 를 뽑는다. 배경만 통으로, 나머지는 마젠타를 비운다."""
+    from PIL import Image
+
+    path = os.path.join(game, "MAZE.CDS")
+    if not os.path.exists(path):
+        print(f"{path} 가 없다 — 미궁 그림은 건너뛴다")
+        return
+
+    archive = ls12.Ls12(open(path, "rb").read())
+    px = archive.decode(0)
+    own = ls12.palette(archive.decode(1))
+
+    def color(v):
+        k = v - BASE
+        return own[k] if 0 <= k < len(own) else CLEAR
+
+    for first, count, width, height, shape in MAZE:
+        for i in range(count):
+            at = first + i * width * height
+            rgb = [color(v) for v in px[at:at + width * height]]
+            solid = shape == "maze-bg.png"
+            image = Image.new("RGB" if solid else "RGBA", (width, height))
+            image.putdata(rgb if solid
+                          else [(0, 0, 0, 0) if c == CLEAR else (*c, 255) for c in rgb])
+            image.save(os.path.join(OUT_DIR, shape.format(i)))
+        print(f"{shape.format('*')}  {width}x{height} x{count}  (자리 {first})")
 
 
 if __name__ == "__main__":
