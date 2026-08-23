@@ -717,7 +717,7 @@ public sealed class ShipMapWindow : Window
             if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다", "게임 로드"))
                 StartMap(fresh: false);
         }));
-        items.Children.Add(TitleMenuItem("MINI GAME", null));
+        items.Children.Add(TitleMenuItem("MINI GAME", MiniGames));
         items.Children.Add(TitleMenuItem("END GAME", Close));
 
         var box = new Border
@@ -896,6 +896,40 @@ public sealed class ShipMapWindow : Window
     ///
     /// 못 고르는 줄은 묶음에 안 넣는다 — 초점이 그 줄을 건너뛴다.
     /// </remarks>
+    /// <summary>
+    /// MINI GAME — 일곱 줄을 늘어놓는다(<c>0x0045F957</c> 벌).
+    /// </summary>
+    /// <remarks>
+    /// 이름은 <c>0x00571E00</c> 부터 열여섯 바이트씩이고, 고르면 <c>0x0045FCCC</c> 의
+    /// 뜀표로 갈린다.
+    /// <code>
+    ///   MG00 성배 퍼즐          0x004684D0
+    ///   MG01 스핑크스 퀴즈      0x0047BFE0
+    ///   MG02 미궁 64 퍼즐       0x0042C8A0
+    ///   MG03 낚시 게임          0x0047BDD0
+    ///   MG04 코인 게임          0x004531F0
+    ///   MG05 발라몬의 탑 퍼즐   0x0045FB60
+    ///   MG06 화살표 입방체 퍼즐 0x0045FBBD
+    /// </code>
+    /// 게임은 줄마다 레지스트리를 읽어 <b>풀어 놓은 것만</b> 켠다 —
+    /// <c>Software\KOEI\CostaDelSol.0</c> 의 <c>MG00</c>~<c>MG06</c> 이 1 이어야 한다
+    /// (<c>0x0045FA54</c> 벌). 여기서는 만든 것만 켠다.
+    /// </remarks>
+    private void MiniGames()
+    {
+        string[] names =
+        [
+            "성배 퍼즐", "스핑크스 퀴즈", "미궁 64 퍼즐", "낚시 게임",
+            "코인 게임", "발라몬의 탑 퍼즐", "화살표 입방체 퍼즐",
+        ];
+
+        int pick = MapPointDialog.Ask(this, names, "미니 게임");
+        if (pick < 0) return;
+
+        if (pick == 0) GrailPuzzleDialog.Play(this, _player, _random);
+        else NoticeDialog.Show(this, "아직 만들지 않았습니다");
+    }
+
     private Border TitleMenuItem(string text, Action? run)
     {
         var item = run != null
