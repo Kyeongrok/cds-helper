@@ -75,6 +75,9 @@ public sealed class ShipMapWindow : Window
     /// <summary>다이얼로그가 떠 있는 동안 또 묻지 않게.</summary>
     private bool _asking;
 
+    /// <summary>초점 진단이 마지막으로 찍은 줄. 상태줄 뒤에 붙는다.</summary>
+    private string _focusNote = "";
+
     /// <summary>바다 사건 주사위.</summary>
     private readonly Random _random = new();
 
@@ -410,10 +413,14 @@ public sealed class ShipMapWindow : Window
         input.MouseMove += (_, e) => _host.SetMouse(e.GetPosition(input), true);
         input.MouseLeave += (_, _) => _host.SetMouse(default, false);
 
+        // 초점이 어디로 가는지 보려고 둔 진단(FocusWatch). 다 잡고 나면 지운다.
+        FocusWatch.Sink = note => _focusNote = note;
+
         _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), () =>
         {
             SyncMouse();
-            _status.Text = _host.Status;
+            _status.Text = _focusNote.Length > 0 ? $"{_host.Status}    {_focusNote}"
+                                                 : _host.Status;
             CheckPort();
             CheckDiscovery();
             PassTime();
@@ -444,9 +451,20 @@ public sealed class ShipMapWindow : Window
 
         // 창이 물러나거나 접히면 좌표 상자도 같이 감춘다 — 제 창이라 그냥 두면 남의 앱 위에 뜬다.
         Activated += (_, _) => SyncOverlay();
-        Deactivated += (_, _) => SyncOverlay();
+        Deactivated += (_, _) =>
+        {
+            SyncOverlay();
+            FocusWatch.After("지도창 초점 잃음");
+        };
         StateChanged += (_, _) => SyncOverlay();
-        Closed += (_, _) => { _overlay.IsOpen = false; _statusTimer.Stop(); _bgm.Dispose(); _cityPics = null; };
+        Closed += (_, _) =>
+        {
+            _overlay.IsOpen = false;
+            _statusTimer.Stop();
+            _bgm.Dispose();
+            _cityPics = null;
+            FocusWatch.Sink = null;   // 진단 — 다 잡고 나면 지운다
+        };
     }
 
     /// <summary>

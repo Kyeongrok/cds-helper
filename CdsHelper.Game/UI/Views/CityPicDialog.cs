@@ -2407,6 +2407,9 @@ public sealed class CityPicDialog : Window
             Owner = owner,
         };
         dlg.Show();
+        // 초점이 어디로 가는지 보려고 둔 진단(FocusWatch). 다 잡고 나면 지운다.
+        dlg.Closed += (_, _) => FocusWatch.After("도시그림창 닫힘");
+        dlg.Deactivated += (_, _) => FocusWatch.After("도시그림창 초점 잃음");
         return dlg;
     }
 
