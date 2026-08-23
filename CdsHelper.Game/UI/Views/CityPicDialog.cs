@@ -1127,10 +1127,150 @@ public sealed class CityPicDialog : Window
         Facility.RefitCapacity when ship.CanGrowCapacity => () => DoRefit(ship, item),
         Facility.RefitTonnage when ship.CanGrowTonnage => () => DoRefit(ship, item),
         Facility.RefitReinforce when ship.CanReinforce => () => DoRefit(ship, item),
+        Facility.RefitTurrets => () => ChangeTurrets(ship),
+        Facility.RefitCannon => () => BuyCannon(ship),
         Facility.RefitRename => () => RenameShip(ship),
         Facility.RefitExit => Menu.Pop,
         _ => null,
     };
+
+    /// <summary>
+    /// 포탑수변경 — 대포를 걸 자리를 늘리거나 줄인다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00496190</c> 이다.
+    /// <code>
+    /// 4961d6  상한 = min(선체 표 +0x30, 지금 포탑 + 적재용량)
+    /// 496213  0x00454AA0("포탑수 결정", "포탑수", "문", 상한, "최대포탑수", "현재의 포탑수")
+    /// 49621d  그대로면 "자네와 장난칠 여유없네."          0x00531F10
+    /// 496234  값 = (새 - 지금) x 5 x 5 x 8 = 200 x 늘린 수
+    /// 49624a  "금화 %ld닢 받겠네."                        0x00531F28
+    /// 49625c  줄일 때는 "뗄 거라면 돈은 필요없네."         0x00531F40
+    /// 4960d4  넘치는 대포는 "가격의 30프로로 사 주겠네."   0x00531F80
+    /// </code>
+    /// </remarks>
+    private void ChangeTurrets(Ship ship)
+    {
+        var owner = Menu.Window ?? this;
+        GameDialog.Show(owner, "포탑은 몇 개로 할건가?");
+
+        int want = CountDialog.Ask(owner, "포탑수 결정", "포탑수", "문", ship.MaxTurrets, 1, true,
+            new CountDialog.Gauge("최대포탑수", ship.MaxTurrets),
+            new CountDialog.Gauge("현재의 포탑수", ship.Turrets));
+        if (want < 0) return;
+        if (want == ship.Turrets) { GameDialog.Show(owner, "자네와 장난칠 여유없네."); return; }
+
+        int cost = Math.Max(0, want - ship.Turrets) * Cannon.TurretPrice;
+        GameDialog.Show(owner, cost > 0 ? $"금화 {cost}닢 받겠네." : "뗄 거라면 돈은 필요없네.");
+        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라네."); return; }
+        if (!ConfirmDialog.Ask(owner, "괜찮겠나?")) return;
+
+        var was = ship.Snapshot();
+        var gun = Cannon.Of(ship.Gun);
+        _player.Pay(cost);
+
+        int spilled = ship.SetTurrets(want);
+        if (spilled > 0 && gun != null)
+        {
+            GameDialog.Show(owner, "지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
+            int back = gun.Price * spilled * Cannon.BuyBackPercent / 100;
+            _player.Earn(back);
+            GameDialog.Show(owner, $"금화 {back}닢을 벌었습니다.");
+        }
+
+        ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
+    }
+
+    /// <summary>
+    /// 대포구입 — 포탑에 걸 대포를 골라 싣는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004963E0</c> 이다.
+    /// <code>
+    /// 49643e  포탑이 0 이면 "포탑이 없으면 대포는 실을 수 없네."   0x005320E8
+    /// 496473  "어느 대포를 실을 건가?"                            0x00532110
+    /// 4964ff  남는 무게 = 적재중량 - 실은무게 + 지금 대포 무게      ; 다 내렸다 치고 잰다
+    /// 496520  실을 수 있는 문수 = min(포탑수, 남는무게 / 대포중량)
+    /// 496532  같은 대포를 이미 다 실었으면 "이 대포는 더 이상 실을 수 없네."  0x00532128
+    /// 49654b  단가보다 돈이 적으면 "돈이 모자라는군."               0x00532178
+    /// 4965b7  "실을 수 있을 만큼 싣겠네."(예/아니오) → 아니면 "얼마나 싣겠나?"
+    /// 4965f8  "%s%s %d문 실으면 금화 %d닢이네. 좋은가?"            0x005321F0
+    /// </code>
+    /// 갈래를 바꿔 실으면 실려 있던 것은 <b>30프로</b>로 되사 준다.
+    /// <b>어느 마을에서나 넷 다 판다</b> — 게임은 마을마다 파는 것을 가리는데
+    /// (<c>0x00443FD0</c>) 그 표는 아직 안 읽었다.
+    /// </remarks>
+    private void BuyCannon(Ship ship)
+    {
+        var owner = Menu.Window ?? this;
+        if (ship.Turrets <= 0) { GameDialog.Show(owner, "포탑이 없으면 대포는 실을 수 없네."); return; }
+
+        GameDialog.Show(owner, "어느 대포를 실을 건가?");
+        int at = HintListDialog.Pick(owner,
+            [.. Cannon.All.Select(c => $"{GameUi.Pad(c.Name, 12)}{c.Price,6}닢{c.Weight,5}")],
+            "대포 선택", "대포가 없네.");
+        if (at < 0 || at >= Cannon.Count) return;
+
+        var gun = Cannon.All[at];
+        // 이 배의 대포를 다 내렸다 치고 함대에 남는 무게 — 게임도 그렇게 잰다.
+        int free = _player.Tonnage - _player.LoadedWeight + ship.GunWeight;
+        int room = ship.RoomFor(at, free);
+        if (at == ship.Gun) room -= ship.Guns;
+
+        if (room <= 0)
+        {
+            GameDialog.Show(owner, at == ship.Gun ? "이 대포는 더 이상 실을 수 없네."
+                                                  : "이 대포는 무거워서 실을 수 없네.");
+            return;
+        }
+        if (!_player.CanAfford(gun.Price)) { GameDialog.Show(owner, "돈이 모자라는군."); return; }
+
+        GameDialog.Show(owner, gun.Word);
+        room = Math.Min(room, _player.Gold / gun.Price);
+
+        int want = ConfirmDialog.Ask(owner, "실을 수 있을 만큼 싣겠네.")
+            ? room
+            : CountDialog.Ask(owner, "얼마나 싣겠나?", "대포수", "문", room, 1, true,
+                new CountDialog.Gauge("최대대포수", ship.Turrets),
+                new CountDialog.Gauge("현재의 포수", ship.Guns));
+        if (want <= 0) return;
+
+        int cost = gun.Price * want;
+        string who = gun.Name;
+        if (!ConfirmDialog.Ask(owner,
+                $"{who}{GameUi.Josa(who, "을", "를")} {want}문 실으면 금화 {cost}닢이네. 좋은가?"))
+            return;
+        if (!_player.Pay(cost)) { GameDialog.Show(owner, "돈이 모자라네."); return; }
+
+        var was = ship.Snapshot();
+
+        // 갈래가 갈리면 실려 있던 것은 30프로로 되사 준다.
+        if (at != ship.Gun && Cannon.Of(ship.Gun) is { } old && ship.Guns > 0)
+        {
+            GameDialog.Show(owner, "지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
+            int back = old.Price * ship.Guns * Cannon.BuyBackPercent / 100;
+            _player.Earn(back);
+            GameDialog.Show(owner, $"금화 {back}닢을 벌었습니다.");
+            ship.Load(at, want);
+        }
+        else
+        {
+            ship.Load(at, ship.Guns + want);
+        }
+
+        ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
+    }
+
+    /// <summary>개조 결과 상자를 띄우고 개조 창을 다시 짓는다.</summary>
+    private void ShowRefit(Window owner, Refit change, Ship ship)
+    {
+        if (change.Any)
+            NoticeDialog.Show(owner, string.Join(Environment.NewLine,
+                change.Lines.Select(l => $"{GameUi.Pad(l.Name, 12)}{l.Before,4} → {l.After,4}")));
+
+        Menu.Pop();
+        Menu.Push(() => RefitMenu(ship));
+    }
 
     /// <summary>
     /// 선명변경 — 배 이름을 바꾼다. 값은 안 든다.
@@ -1186,13 +1326,8 @@ public sealed class CityPicDialog : Window
             _ => ship.GrowCapacity(),
         };
 
-        // 게임이 개조 뒤에 띄우는 "%-12s%4d → %4d" 상자.
-        NoticeDialog.Show(owner, string.Join(Environment.NewLine,
-            change.Lines.Select(l => $"{GameUi.Pad(l.Name, 12)}{l.Before,4} → {l.After,4}")));
-
-        // 배가 바뀌었으니 줄의 흐림도 다시 잡는다.
-        Menu.Pop();
-        Menu.Push(() => RefitMenu(ship));
+        // 게임이 개조 뒤에 띄우는 "%-12s%4d → %4d" 상자. 배가 바뀌었으니 줄의 흐림도 다시 잡는다.
+        ShowRefit(owner, change, ship);
     }
 
     /// <summary>개조 한 번 값 — 선체 구입값의 <b>15분의 1</b>(<c>0x004955F9</c>).</summary>

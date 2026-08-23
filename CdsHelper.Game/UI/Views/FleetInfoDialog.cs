@@ -21,8 +21,8 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal sealed class FleetInfoDialog : InfoDialog
 {
-    /// <summary>판 크기. 다른 정보 판과 같다.</summary>
-    private const double BoardWidth = 560, BoardHeight = 420;
+    /// <summary>판 크기. 배 줄이 길어 인물정보 판보다 조금 넓다.</summary>
+    private const double BoardWidth = 640, BoardHeight = 420;
 
     /// <summary>배 목록 칸의 높이.</summary>
     private const double ShipHeight = 232;
@@ -33,7 +33,7 @@ internal sealed class FleetInfoDialog : InfoDialog
         rows.Children.Add(Label($"   배 {player.Ships.Count}척    승원 {player.Crew}명" +
                                 $"    최저 {player.MinCrew}명    정원 {player.MaxCrew}명"));
         rows.Children.Add(Gap(6));
-        rows.Children.Add(Label("   ★는 기함"));
+        rows.Children.Add(Label($"   ★는 기함    포탑 {player.Turrets}자리에 대포 {player.Guns}문"));
         rows.Children.Add(List(Ships(player), ShipHeight));
 
         rows.Children.Add(Gap());
@@ -57,9 +57,10 @@ internal sealed class FleetInfoDialog : InfoDialog
         {
             var s = player.Ships[i];
             yield return $"{(i == player.Flagship ? "★" : "  ")}{GameUi.Pad($"{s.Name}호", 16)}" +
-                         $"{GameUi.Pad(s.Hull.Name, 11)}" +
+                         $"{GameUi.Pad(s.Hull.Name, 10)}" +
                          $"내구{s.Hp,3}/{s.MaxHp,-3}추진{s.Speed,3} " +
-                         $"적재{s.Capacity,4} 승원{s.Crew,3}";
+                         $"승원{s.Crew,3} 포{s.Guns,2}/{s.Turrets,-2} " +
+                         $"{Cannon.Of(s.Gun)?.Name ?? "—"}";
         }
     }
 

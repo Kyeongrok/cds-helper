@@ -1023,7 +1023,8 @@ public sealed class ShipMapWindow : Window
             _player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked,
                                  saved.ShipHp, saved.DockedHp,
                                  saved.ShipStats, saved.DockedStats,
-                                 saved.ShipNames, saved.DockedNames);
+                                 saved.ShipNames, saved.DockedNames,
+                                 gunsInStats: saved.Version >= GameSave.GunsInStatsFrom);
             if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
             if (saved.Morale is { } morale) _player.SetMorale(morale);
