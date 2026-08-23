@@ -32,11 +32,27 @@ public sealed class MazePuzzle
     /// <summary>되돌리기와 처음부터 다시가 각각 몇 번까지인지.</summary>
     public const int MaxUndo = 3, MaxRestart = 3;
 
-    /// <summary>여섯 방향 — 동서, 남북, 위아래.</summary>
+    /// <summary>
+    /// 여섯 방향. <b>차례가 게임 것</b>이다 — 화살표 조각도 이 차례로 두 장씩이다.
+    /// </summary>
+    /// <remarks>
+    /// 갈 수 있는 이웃을 재는 곳이 <c>0x0042A560</c> 이고, 그 결과를 <c>0x2C0</c>부터
+    /// 넉 바이트씩 여섯 자리에 적는다. 화살표를 그리는 곳은 <c>0x0042C0A0</c> 부터
+    /// 여섯 벌인데, 벌마다 <c>[0x2FC]</c>(지금 짚은 방향)와 견줘 <b>흰 것과 금빛 것</b>을
+    /// 갈라 쓴다.
+    /// <code>
+    /// 42c12a  ebp = 3                  ; 이 방향의 금빛 조각 번호
+    /// 42c12f  eax = [0x2FC] - 2        ; 이 방향인가
+    /// 42c136  cmp $1,%eax
+    /// 42c139  adc $-1,%ebp             ; 아니면 하나 앞(흰 것)
+    /// 42c141  ebp = ebp * 256 * 3      ; 조각 하나가 768바이트(32x24)
+    /// </code>
+    /// </remarks>
     public static readonly (int Step, string Name)[] Ways =
     [
-        (+1, "→"), (-1, "←"), (+Side, "↓"), (-Side, "↑"),
-        (+Side * Side, "아래"), (-Side * Side, "위"),
+        (-Side * Side, "위"), (+Side * Side, "아래"),
+        (-Side, "뒤"), (+Side, "앞"),
+        (-1, "왼쪽"), (+1, "오른쪽"),
     ];
 
     /// <summary>
