@@ -982,6 +982,9 @@ public sealed class CityPicDialog : Window
             return;
         }
         _player.Earn(paid);
+
+        // 한 척만 남았으면 "매각" 줄이 그 자리에서 꺼져야 한다.
+        Menu.Refresh();
     }
 
     /// <summary>
@@ -999,16 +1002,28 @@ public sealed class CityPicDialog : Window
     ///
     /// 게임 화면은 여러 척을 한꺼번에 골라 값을 합치는데 여기서는 한 척씩 고친다.
     /// </remarks>
+    /// <summary>
+    /// 이 마을에서 고칠 수 있는 배 — 함대 먼저, 그 뒤가 이 마을이 맡은 배다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0044BC50(도시, 0)</c> 이다. 이 목록이 비면 조선소 차림표의 <b>"수리" 줄이
+    /// 꺼진다</b>(<c>0x0044BD40</c> 이 <c>0x0044BC50 &gt; 0</c> 을 본다) — 그래서 평소에는
+    /// "수리가 필요한 배는 없네!" 를 볼 일이 없다.
+    /// </remarks>
+    private List<(Ship Ship, bool Docked)> RepairTargets()
+    {
+        var hurt = new List<(Ship Ship, bool Docked)>();
+        foreach (var s in _player.Ships) if (s.NeedsRepair) hurt.Add((s, false));
+        foreach (var s in _player.DockedAt(_cityId)) if (s.NeedsRepair) hurt.Add((s, true));
+        return hurt;
+    }
+
     private void RepairShip()
     {
         var owner = Menu.Window ?? this;
         int rate = Market?.Rates.Of(_cityId) ?? 100;
 
-        // 함대 먼저, 그 뒤가 이 마을이 맡은 배다.
-        var hurt = new List<(Ship Ship, bool Docked)>();
-        foreach (var s in _player.Ships) if (s.NeedsRepair) hurt.Add((s, false));
-        foreach (var s in _player.DockedAt(_cityId)) if (s.NeedsRepair) hurt.Add((s, true));
-
+        var hurt = RepairTargets();
         if (hurt.Count == 0)
         {
             GameDialog.Show(owner, "수리가 필요한 배는 없네!");
@@ -1033,6 +1048,9 @@ public sealed class CityPicDialog : Window
             return;
         }
         ship.Repair();
+
+        // 마지막 상한 배를 고쳤으면 "수리" 줄이 그 자리에서 꺼져야 한다.
+        Menu.Refresh();
     }
 
     /// <summary>손상 한 점을 고치는 값의 밑수. 게임은 여기에 rand(4) 를 더한다.</summary>
@@ -2353,7 +2371,8 @@ public sealed class CityPicDialog : Window
                                   Market?.Rates.Of(_cityId) ?? 100),
             (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
             (FacilityKind.Shipyard, "매각") when _player.Ships.Count > 1 => SellShip,
-            (FacilityKind.Shipyard, "수리") => RepairShip,
+            // 게임도 고칠 배가 없으면 이 줄을 흐리게 둔다(0x0044BD40).
+            (FacilityKind.Shipyard, "수리") when RepairTargets().Count > 0 => RepairShip,
             (FacilityKind.Shipyard, "개조") => RefitShip,
             (FacilityKind.Market, "구입") when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
