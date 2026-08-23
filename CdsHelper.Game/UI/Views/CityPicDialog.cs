@@ -1121,9 +1121,34 @@ public sealed class CityPicDialog : Window
         Facility.RefitCapacity when ship.CanGrowCapacity => () => DoRefit(ship, item),
         Facility.RefitTonnage when ship.CanGrowTonnage => () => DoRefit(ship, item),
         Facility.RefitReinforce when ship.CanReinforce => () => DoRefit(ship, item),
+        Facility.RefitRename => () => RenameShip(ship),
         Facility.RefitExit => Menu.Pop,
         _ => null,
     };
+
+    /// <summary>
+    /// 선명변경 — 배 이름을 바꾼다. 값은 안 든다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x00495B90</c> → <c>0x00423BE0</c> 으로 <b>선명입력</b> 창을 띄운다.
+    /// 미리 갖춰 둔 이름 스물하나가 먼저 뜨고(포인터 표 <c>0x0053C178</c>), 오른쪽 위 작은
+    /// 단추를 누르면 글자판이 떠서 하나씩 찍어 지을 수 있다 —
+    /// <see cref="ShipNameDialog"/> · <see cref="TextInputDialog"/> 가 그 둘이다.
+    ///
+    /// 게임은 배를 <b>살 때도</b> 같은 창으로 이름을 받는데 우리 조선소 구입은 아직 안 묻는다 —
+    /// 그때는 안 쓴 이름을 하나 집어 준다(<c>Player.SuggestShipName</c>).
+    /// </remarks>
+    private void RenameShip(Ship ship)
+    {
+        var owner = Menu.Window ?? this;
+        GameDialog.Show(owner, "배의 이름을 정해 주십시오");
+
+        if (ShipNameDialog.Ask(owner, ship.Name) is not { } name) return;
+        if (!ship.Rename(name)) return;
+
+        NoticeDialog.Show(owner, $"{ship.Name}호로 바꾸었다");
+        Menu.Refresh();
+    }
 
     /// <summary>
     /// 개조 한 줄을 치른다 — 값을 알리고, 물어보고, 고치고, 바뀐 값을 보여 준다.

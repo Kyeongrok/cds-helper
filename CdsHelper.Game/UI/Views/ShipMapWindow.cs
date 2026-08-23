@@ -991,7 +991,8 @@ public sealed class ShipMapWindow : Window
                             supplyInBarrels: saved.Version < GameSave.SupplyUnitsFrom);
             _player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked,
                                  saved.ShipHp, saved.DockedHp,
-                                 saved.ShipStats, saved.DockedStats);
+                                 saved.ShipStats, saved.DockedStats,
+                                 saved.ShipNames, saved.DockedNames);
             if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
             if (saved.Morale is { } morale) _player.SetMorale(morale);
