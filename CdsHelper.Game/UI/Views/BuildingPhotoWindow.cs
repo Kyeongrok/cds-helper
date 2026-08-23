@@ -127,6 +127,7 @@ public sealed class BuildingPhotoWindow : Window
         if (photo == null) return null;
 
         var window = new BuildingPhotoWindow(photo, guests, scale) { Owner = owner };
+        Local.Helpers.FocusWatch.KeepInApp(window);   // 닫을 때 초점이 앱 밖으로 안 새게
         window.Show();
 
         double w = window.Width, h = window.Height;
