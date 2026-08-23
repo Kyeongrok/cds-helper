@@ -1,4 +1,5 @@
 using System.IO;
+using System.Windows.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -22,6 +23,11 @@ namespace CdsHelper.Game.UI.Views;
 /// 일곱, 가로로 <c>y = 63 + 줄 * 40</c> 일곱이라 그 사이가 여섯 줄이다. 칸 사이가
 /// 마흔인 것은 <c>0x0047A8F4</c> 의 <c>40 * 칸</c> 과 맞는다.
 ///
+/// 바늘은 <b>스스로 내려간다</b> — 한 틱에 한 점이고 한 줄이 마흔 틱이다
+/// (<c>0x0047AB0F</c>). 옆으로 가는 동안은 가로로도 한 틱에 한 점씩 밀려 딱 한 칸을
+/// 옮겨 간다. 게임은 <c>0x00428000(0, 0)</c> 으로 <b>안 기다리고</b> 그리는 대로
+/// 도는데, 여기서는 20밀리초에 한 틱으로 잡았다(다 내려가는 데 여섯 해 남짓).
+///
 /// <b>바다 것들은 처음부터 다 보인다.</b> 어디에 오징어와 낙지가 있는지 보고 피해
 /// 가는 놀이라 감추면 안 된다. 대어도 바닥에 보인다.
 /// </remarks>
@@ -37,16 +43,22 @@ internal sealed class FishingGameDialog : InfoDialog
 
     private const int BeastSize = 32, HookSize = 16, FishW = 32, FishH = 16;
 
+    /// <summary>한 틱에 얼마나 쉴지. 게임은 안 쉬고 그리는 대로 돈다.</summary>
+    private static readonly TimeSpan TickTime = TimeSpan.FromMilliseconds(20);
+
     private readonly FishingGame _game;
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
     private readonly Image _hook = new() { Width = HookSize, Height = HookSize };
     private readonly Image _boat = new() { Width = BeastSize, Height = BeastSize };
     private readonly Image[] _arrow = new Image[2];
     private readonly GameUi.GameLabel _line = Label("");
+    private readonly DispatcherTimer _clock = new();
+    private readonly GameButton _drop;
 
     private FishingGameDialog(Random rng)
     {
         _game = new FishingGame(rng);
+        _drop = new GameButton("떨어뜨린다", LetGo);
 
         Lay(Picture("fish-bg.png"), 0, 0, SceneWidth, SceneHeight);
 
@@ -100,8 +112,8 @@ internal sealed class FishingGameDialog : InfoDialog
         rows.Children.Add(_scene);
 
         Build("낚시 게임", rows, SceneWidth * Zoom + 30, SceneHeight * Zoom + 130,
+              _drop,
               new GameButton("←", () => Steer(-1)),
-              new GameButton("내린다", Fall),
               new GameButton("→", () => Steer(+1)),
               new GameButton("게임 설명", Explain));
 
@@ -109,8 +121,12 @@ internal sealed class FishingGameDialog : InfoDialog
         {
             if (e.Key == Key.Left) Steer(-1);
             else if (e.Key == Key.Right) Steer(+1);
-            else if (e.Key is Key.Down or Key.Enter or Key.Space) Fall();
+            else if (e.Key is Key.Down or Key.Enter or Key.Space) LetGo();
         };
+
+        _clock.Interval = TickTime;
+        _clock.Tick += (_, _) => Beat();
+        Closed += (_, _) => _clock.Stop();
 
         Sync();
     }
@@ -166,13 +182,28 @@ internal sealed class FishingGameDialog : InfoDialog
         Sync();
     }
 
-    private void Fall()
+    /// <summary>떨어뜨린다. 한 번 놓으면 스스로 내려간다.</summary>
+    private void LetGo()
     {
-        if (_game.Got != FishingGame.Catch.None) return;
+        if (_game.Started || _game.Got != FishingGame.Catch.None) return;
 
-        _game.Fall();
+        _game.Drop();
+        _drop.On = false;
+        _clock.Start();
         Sync();
-        if (_game.Got != FishingGame.Catch.None) Close();
+    }
+
+    /// <summary>한 틱.</summary>
+    private void Beat()
+    {
+        if (!_game.Step())
+        {
+            _clock.Stop();
+            Sync();
+            Close();
+            return;
+        }
+        Sync();
     }
 
     private void Explain() =>
@@ -186,11 +217,13 @@ internal sealed class FishingGameDialog : InfoDialog
     private void Sync()
     {
         string way = _game.Lean > 0 ? "오른쪽으로" : _game.Lean < 0 ? "왼쪽으로" : "곧장 아래로";
-        _line.Text = $"  {_game.Row + 1}/{FishingGame.Rows}줄   다음 걸음: {way}";
+        _line.Text = _game.Started
+            ? $"  {_game.Y}/{FishingGame.FloorY}   다음 교차점에서 {way}"
+            : "  「떨어뜨린다」를 누르면 내려갑니다";
 
-        // 바늘은 줄 위에 걸린다. 아직 안 내려왔으면 배 밑이다.
-        Canvas.SetLeft(_hook, CellX(_game.Column) - HookSize / 2.0);
-        Canvas.SetTop(_hook, _game.Row < 0 ? 60 : CellY(_game.Row) - HookSize / 2.0);
+        // 바늘 자리는 게임이 쓰는 그대로다 — 세로는 [0xF8], 가로는 칸에 틱을 얹는다.
+        Canvas.SetLeft(_hook, GridX + _game.HookX - HookSize / 2.0);
+        Canvas.SetTop(_hook, _game.Y - HookSize / 2.0);
     }
 
     /// <summary>
