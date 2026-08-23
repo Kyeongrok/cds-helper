@@ -160,6 +160,45 @@ public sealed class Player
     /// <summary>고를 수 있는 가장 많은 나이.</summary>
     public const int MaxAge = 40;
 
+    /// <summary>직업 번호(<see cref="Job.All"/>).</summary>
+    public int JobIndex { get; set; }
+
+    /// <summary>직업.</summary>
+    public Job Work => Job.Of(JobIndex);
+
+    /// <summary>능력치 여섯(체력·지력·무력·매력·운·신앙심).</summary>
+    public int[] Abilities { get; private set; } = [50, 50, 50, 50, 50, 50];
+
+    /// <summary>그 능력치.</summary>
+    public int AbilityOf(int which) =>
+        which >= 0 && which < Abilities.Length ? Abilities[which] : 0;
+
+    /// <summary>능력치를 통째로 박는다.</summary>
+    public void SetAbilities(IReadOnlyList<int> values)
+    {
+        var next = new int[Ability.Names.Length];
+        for (int i = 0; i < next.Length; i++)
+            next[i] = i < values.Count ? values[i] : Ability.Base;
+        Abilities = next;
+    }
+
+    /// <summary>언어마다의 자리(0~<see cref="Skill.MaxLevel"/>).</summary>
+    private readonly Dictionary<string, int> _tongues = [];
+
+    /// <summary>배운 언어.</summary>
+    public IReadOnlyDictionary<string, int> Tongues => _tongues;
+
+    /// <summary>그 언어의 자리.</summary>
+    public int TongueOf(string language) => _tongues.GetValueOrDefault(language);
+
+    /// <summary>언어 자리를 박는다.</summary>
+    public void SetTongue(string language, int level) =>
+        _tongues[language] = Math.Clamp(level, 0, Skill.MaxLevel);
+
+    /// <summary>기술 자리를 박는다(새 놀이에서 찍어 줄 때).</summary>
+    public void SetSkill(string skill, int level) =>
+        _skills[skill] = Math.Clamp(level, 0, Skill.MaxLevel);
+
     /// <summary>
     /// 명성. 후원자를 만나려면 그 사람이 요구하는 만큼 있어야 한다.
     /// </summary>
