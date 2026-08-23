@@ -897,6 +897,13 @@ public sealed class ShipMapWindow : Window
     /// 못 고르는 줄은 묶음에 안 넣는다 — 초점이 그 줄을 건너뛴다.
     /// </remarks>
     /// <summary>
+    /// 미궁 64 퍼즐을 여는 자리. <b>그 놀이는 CdsHelper.Maze 에 따로 있다</b> —
+    /// 그쪽이 여기를 물고 있어서 반대로는 못 부른다. 띄우는 쪽(CdsHelper.Form)이
+    /// 이 자리에 걸어 준다.
+    /// </summary>
+    public static Action<Window, Random>? MazeGame { get; set; }
+
+    /// <summary>
     /// MINI GAME — 일곱 줄을 늘어놓는다(<c>0x0045F957</c> 벌).
     /// </summary>
     /// <remarks>
@@ -929,7 +936,10 @@ public sealed class ShipMapWindow : Window
         switch (pick)
         {
             case 0: GrailPuzzleDialog.Play(this, _player, _random); break;
-            case 2: MazePuzzleDialog.Play(this, _random); break;
+            case 2:
+                if (MazeGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
+                else MazeGame(this, _random);
+                break;
             case 4: CoinPuzzleDialog.Play(this, _random); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }

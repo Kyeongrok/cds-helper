@@ -1,4 +1,4 @@
-namespace CdsHelper.Support.Local.Models;
+namespace CdsHelper.Maze;
 
 /// <summary>
 /// 미니 게임 「미궁 64 퍼즐」 — 방 예순넷을 <b>한 번씩만</b> 밟고 출구로 나가는 놀이.
