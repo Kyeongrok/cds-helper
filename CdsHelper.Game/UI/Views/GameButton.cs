@@ -40,7 +40,7 @@ internal sealed class GameButton : Border
     /// <summary>단추 사이를 벌리는 여백. 메뉴 줄은 붙여 쌓으므로 <c>default</c> 로 덮는다.</summary>
     public static readonly Thickness Spacing = new(10, 0, 10, 0);
 
-    private readonly BandStyle _style;
+    private BandStyle _style;
     private readonly double _width;
 
     /// <summary>초점 테 색. 깜빡임이 이 솔에 걸리므로 다시 지어도 이것만은 안 갈아 낸다.</summary>
@@ -114,6 +114,15 @@ internal sealed class GameButton : Border
 
     /// <summary>제목 무늬인지. 제목 줄은 초점도 안 받고 눌리지도 않는다.</summary>
     public bool IsTitle => _style == BandStyle.Title;
+
+    /// <summary>
+    /// 띠 무늬. 바꾸면 다시 짓는다 — 고른 것과 안 고른 것을 갈라 낼 때 쓴다.
+    /// </summary>
+    public BandStyle Band
+    {
+        get => _style;
+        set { if (_style != value) { _style = value; Build(); } }
+    }
 
     private void Build()
     {

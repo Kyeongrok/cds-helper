@@ -17,46 +17,92 @@ namespace CdsHelper.Game.UI.Views;
 ///   0x00571AAC  명   0x00571AB0 성   0x00571AB8 연령   0x00571AC0 생일
 ///   0x00571AC8  월   0x00571ACC 일   0x00571AD0 혈액형
 ///   0x00571B08  "%s·%s"                                  ; 명·성
-///   0x00571B10  "%2d월%2d일생(%2d세)  %-6s  %s형"
 ///   0x00571500  "&lt;&lt;"  "&gt;&gt;"  "일람"  "이름 일람"  "입력 에러"
 ///   0x005609D8  별자리 열둘 — 목양좌부터
 /// </code>
-/// 이름 칸 오른쪽의 작은 단추는 <see cref="TextInputDialog"/> 를 열고, "일람" 은
-/// 미리 갖춰 둔 이름을 늘어놓는다. 숫자 칸의 단추는 계산기 판(<see cref="NumberPadDialog"/>)을 연다.
+/// <b>자리는 화면을 재어 박았다.</b> 쌓기가 아니라 <see cref="Canvas"/> 로 놓는다 —
+/// 행 피치가 일정하지 않고 칸 하나가 어긋나 있어 쌓기로는 그 모양이 안 난다.
+/// <code>
+///   판 644 x 392 · 속 614 x 362 · 테 8 베벨 + 4 빈칸 + 3 줄
+///   가로  13 빈칸 · 초상화 140 · 30 빈칸 · 이름표 42 · 컨트롤 293 · 큰단추 84 · 12 여백
+///   세로  13 성 · 42 명 · 42 연령 · 42 생일 · 47 혈액형 · 50 국적 · 70 단추
+///   단추  일람·취소·다음 76x32 · 혈액형·화살표 62x32 · 국가 215x32 · 사이는 늘 8
+/// </code>
+/// <b>어긋난 데 둘을 그대로 뒀다.</b> 생일 줄의 첫 숫자칸이 연령 줄보다 <b>28(글자 한 칸)</b>
+/// 오른쪽에 있고, 행 피치가 생일부터 47 · 50 으로 벌어진다. 재어 보니 게임이 그렇다.
+///
+/// 이름 칸 오른쪽 작은 단추는 <see cref="TextInputDialog"/> 를, 숫자 칸 것은
+/// <see cref="NumberPadDialog"/> 를 연다. "일람" 은 미리 갖춰 둔 이름을 늘어놓는다.
 ///
 /// <b>이름 일람은 게임 것이 아니다.</b> 게임은 그 목록을 파일에서 읽어 오는데
 /// (<c>0x0045C9DD</c> 가 클래스 <c>0x004FD0D8</c> 을 세운다) 그 파일을 아직 안 짚었다.
 /// 그래서 EXE 의 <b>후원자 이름 여든하나</b>(<see cref="SponsorTable"/>)를 가운뎃점에서
 /// 갈라 명·성 목록으로 쓴다 — 같은 시대의 진짜 이름들이다.
-///
-/// 게임은 이 뒤로 세 걸음이 더 있다(능력치 · 지식·언어 · 마무리). 우리는 아직 이 한
-/// 걸음이라 "다음" 이 곧 시작이다. 자세한 것은 볼트
-/// <c>39.분석-NEW GAME(주인공 만들기와 은퇴)</c>.
 /// </remarks>
-internal sealed class CharacterMakeDialog : InfoDialog
+internal sealed class CharacterMakeDialog : Window
 {
-    /// <summary>판 크기. 게임 화면 비율에 맞춘다.</summary>
-    private const double BoardWidth = 600, BoardHeight = 300;
+    // ── 화면에서 잰 자리 ──────────────────────────────────────────────────────
 
-    /// <summary>초상화를 몇 배로 그릴지.</summary>
-    private const int FaceScale = 2;
+    /// <summary>속 크기. 판은 여기에 테 30 을 두른 644 x 392 가 된다.</summary>
+    private const double ContentWidth = 614, ContentHeight = 362;
+
+    /// <summary>테 — 바깥 베벨 · 빈칸 · 안쪽 줄.</summary>
+    private const double Bevel = 8, FrameGap = 4, FrameLine = 3;
+
+    /// <summary>가로 자리(속 왼쪽에서).</summary>
+    private const double PortraitX = 13, LabelX = 183, ControlX = 225, RightEdge = 602;
+
+    /// <summary>초상화 크기. 얼굴 조각이 80x96 이라 딱 1.75배다.</summary>
+    private const double FaceWidth = 140, FaceHeight = 168;
+
+    /// <summary>세로 자리(속 위에서).</summary>
+    private const double RowFamily = 13, RowGiven = 55, RowAge = 97, RowBirth = 139,
+                         RowBlood = 186, RowNation = 236, RowFooter = 310;
+
+    /// <summary>칸 크기.</summary>
+    private const double FieldWidth = 263, FieldHeight = 28, NumWidth = 39, SpinSize = 28;
+
+    /// <summary>단추 크기.</summary>
+    private const double SmallWidth = 76, SmallHeight = 32, PickWidth = 62, NationWidth = 215;
+
+    /// <summary>단추 사이. 화면 어디서나 8 이다.</summary>
+    private const double Gap = 8;
+
+    /// <summary>칸과 그 옆 작은 단추 사이.</summary>
+    private const double SpinGap = 2;
+
+    /// <summary>생일 줄이 연령 줄보다 밀려 있는 만큼 — 글자 한 칸이다.</summary>
+    private const double BirthShift = 28;
+
+    /// <summary>이름 한 칸에 들어갈 수 있는 길이.</summary>
+    private const int NameLimit = 16;
+
+    /// <summary>새 놀이에서 고를 수 있는 초상화 수 — <b>앞의 열여섯</b>이다.</summary>
+    private const int FaceChoices = 16;
+
+    // ── 색 ────────────────────────────────────────────────────────────────────
+
+    private static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));
+    private static readonly Brush Line = Frozen(Color.FromRgb(0x11, 0x09, 0x09));
+    private static readonly Brush Ink = Frozen(Color.FromRgb(0xCB, 0xC5, 0xC5));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
 
     private readonly Portraits? _faces;
     private readonly IReadOnlyList<string> _givenNames, _familyNames;
+    private readonly Canvas _board = new() { Width = ContentWidth, Height = ContentHeight };
 
     private readonly Image _portrait = new();
     private readonly TextBlock _family = Field(), _given = Field();
-    private readonly TextBlock _age = Field(46), _month = Field(34), _day = Field(34);
-    private readonly TextBlock _zodiac = new()
-    {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 15,
-        VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(6, 0, 0, 0),
-    };
+    private readonly TextBlock _age = Field(), _month = Field(), _day = Field();
+    private readonly TextBlock _zodiac = Glyph("");
 
-    private readonly List<Border> _bloods = [], _nations = [];
+    private readonly List<GameButton> _bloods = [], _nations = [];
 
     private int _face, _blood, _nation;
     private bool _ok;
@@ -77,220 +123,255 @@ internal sealed class CharacterMakeDialog : InfoDialog
         _month.Text = $"{player.BirthMonth}";
         _day.Text = $"{player.BirthDay}";
 
-        var rows = new StackPanel { Margin = new Thickness(6, 0, 0, 0) };
-        rows.Children.Add(NameRow("성", _family, () => _familyNames));
-        rows.Children.Add(NameRow("명", _given, () => _givenNames));
-        rows.Children.Add(AgeRow());
-        rows.Children.Add(BirthRow());
-        rows.Children.Add(BloodRow());
-        rows.Children.Add(NationRow());
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = Back;
 
-        var left = new StackPanel { Width = Portraits.Width * FaceScale + 4 };
-        left.Children.Add(new Border
-        {
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Child = _portrait,
-        });
+        Portrait();
+        NameRow(RowFamily, "성", _family, () => _familyNames);
+        NameRow(RowGiven, "명", _given, () => _givenNames);
+        AgeRow();
+        BirthRow();
+        BloodRow();
+        NationRow();
+        Footer();
 
-        var arrows = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        arrows.Children.Add(Small("<<", () => Turn(-1), 40));
-        arrows.Children.Add(Small(">>", () => Turn(+1), 40));
-        left.Children.Add(arrows);
-
-        var body = new DockPanel { LastChildFill = true };
-        DockPanel.SetDock(left, Dock.Left);
-        body.Children.Add(left);
-        body.Children.Add(rows);
-
-        Build("", body, BoardWidth, BoardHeight,
-              new GameButton("취소", Close), new GameButton("다음", Next));
+        Content = Framed(_board);
+        KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
+        MouseRightButtonUp += (_, _) => Close();
 
         ShowFace();
         Mark();
     }
 
-    private static TextBlock Field(double width = 250) => new()
+    /// <summary>바깥 베벨 · 빈칸 · 안쪽 줄 세 겹.</summary>
+    private UIElement Framed(UIElement content)
+    {
+        var inner = new Border
+        {
+            BorderBrush = GameUi.Edge,
+            BorderThickness = new Thickness(FrameLine),
+            Child = content,
+        };
+        var middle = new Border
+        {
+            Background = Back,
+            Padding = new Thickness(FrameGap),
+            Child = inner,
+        };
+        var outer = new Border
+        {
+            Background = Back,
+            BorderBrush = Line,
+            BorderThickness = new Thickness(Bevel),
+            Child = middle,
+        };
+        GameUi.EnableDrag(this, outer);
+        return outer;
+    }
+
+    // ── 조각 ──────────────────────────────────────────────────────────────────
+
+    private static TextBlock Field() => new()
     {
         Foreground = Brushes.Black,
         FontWeight = FontWeights.Bold,
-        FontSize = 15,
-        MinWidth = width,
+        FontSize = 16,
         VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(6, 2, 6, 2),
+        Margin = new Thickness(6, 0, 6, 0),
     };
 
-    /// <summary>이름을 적는 칸 한 줄 — 이름표 · 글칸 · 글자판 단추 · 일람.</summary>
-    private UIElement NameRow(string label, TextBlock box, Func<IReadOnlyList<string>> list)
-    {
-        var row = Row(label);
-        row.Children.Add(Boxed(box));
-        row.Children.Add(Small("田", () =>
-        {
-            if (TextInputDialog.Ask(this, box.Text, NameLimit) is { } typed) box.Text = typed;
-        }));
-        row.Children.Add(Small("일람", () =>
-        {
-            var names = list();
-            int at = HintListDialog.Pick(this, names, "이름 일람", "이름이 없다.");
-            if (at >= 0 && at < names.Count) box.Text = names[at];
-        }, 52));
-        return row;
-    }
-
-    private UIElement AgeRow()
-    {
-        var row = Row("연령");
-        row.Children.Add(Boxed(_age));
-        row.Children.Add(Small("田", () =>
-        {
-            if (NumberPadDialog.Ask(this, Number(_age, 25), Player.MinAge, Player.MaxAge) is { } n)
-                _age.Text = $"{n}";
-        }));
-        return row;
-    }
-
-    private UIElement BirthRow()
-    {
-        var row = Row("생일");
-        row.Children.Add(Boxed(_month));
-        row.Children.Add(Small("田", () =>
-        {
-            if (NumberPadDialog.Ask(this, Number(_month, 1), 1, 12) is { } n)
-            { _month.Text = $"{n}"; Mark(); }
-        }));
-        row.Children.Add(Text("월"));
-        row.Children.Add(Boxed(_day));
-        row.Children.Add(Small("田", () =>
-        {
-            if (NumberPadDialog.Ask(this, Number(_day, 1), 1, 31) is { } n)
-            { _day.Text = $"{n}"; Mark(); }
-        }));
-        row.Children.Add(Text("일"));
-        row.Children.Add(_zodiac);
-        return row;
-    }
-
-    private UIElement BloodRow()
-    {
-        var row = Row("혈액형");
-        for (int i = 0; i < Player.BloodTypes.Length; i++)
-        {
-            int pick = i;
-            var cell = Pick(Player.BloodTypes[i], 40, () => { _blood = pick; Mark(); });
-            _bloods.Add(cell);
-            row.Children.Add(cell);
-        }
-        return row;
-    }
-
-    private UIElement NationRow()
-    {
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 0),
-        };
-        for (int i = 0; i < Player.Nations.Length; i++)
-        {
-            int pick = i;
-            var cell = Pick(Player.Nations[i], 130, () => { _nation = pick; Mark(); });
-            _nations.Add(cell);
-            row.Children.Add(cell);
-        }
-        return row;
-    }
-
-    private static StackPanel Row(string label)
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 3) };
-        row.Children.Add(new TextBlock
-        {
-            Text = label,
-            Foreground = Ink,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            Width = 54,
-            TextAlignment = TextAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        return row;
-    }
-
-    private static UIElement Text(string text) => new TextBlock
+    private static TextBlock Glyph(string text) => new()
     {
         Text = text,
         Foreground = Ink,
         FontWeight = FontWeights.Bold,
-        FontSize = 15,
-        VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(2, 0, 4, 0),
+        FontSize = 16,
     };
 
-    private static UIElement Boxed(UIElement child) => new Border
+    /// <summary>속에 무엇 하나를 그 자리에 놓는다.</summary>
+    private T Put<T>(T what, double x, double y) where T : UIElement
     {
-        Background = GameUi.PageFill,
-        BorderBrush = GameUi.ItemEdge,
-        BorderThickness = new Thickness(2),
-        Margin = new Thickness(4, 0, 2, 0),
-        Child = child,
-    };
+        Canvas.SetLeft(what, x);
+        Canvas.SetTop(what, y);
+        _board.Children.Add(what);
+        return what;
+    }
 
-    /// <summary>작은 네모 단추(글자판·숫자판·화살표).</summary>
-    private static Border Small(string text, Action run, double width = 26)
+    /// <summary>이름표 한 자리.</summary>
+    private void Label(string text, double y) => Put(Glyph(text), LabelX, y + 3);
+
+    /// <summary>글이나 숫자를 적는 칸.</summary>
+    private void Boxed(UIElement child, double x, double y, double width) =>
+        Put(new Border
+        {
+            Background = GameUi.PageFill,
+            BorderBrush = GameUi.ItemEdge,
+            BorderThickness = new Thickness(2),
+            Width = width,
+            Height = FieldHeight,
+            Child = child,
+        }, x, y);
+
+    /// <summary>칸 옆의 작은 계산기 단추.</summary>
+    private void Spinner(double x, double y, Action run)
     {
         var box = new Border
         {
             Background = GameUi.ItemFill,
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(2),
-            Width = width,
-            Margin = new Thickness(1, 0, 1, 0),
+            Width = SpinSize,
+            Height = SpinSize,
             Cursor = Cursors.Hand,
             Child = new TextBlock
             {
-                Text = text,
+                Text = "田",
                 Foreground = Brushes.Black,
                 FontWeight = FontWeights.Bold,
-                FontSize = 14,
+                FontSize = 15,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 1, 0, 1),
+                VerticalAlignment = VerticalAlignment.Center,
             },
         };
         box.MouseLeftButtonDown += (_, e) => e.Handled = true;
         box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
-        return box;
+        Put(box, x, y);
     }
 
-    /// <summary>고르는 칸(혈액형·국적). 고른 것만 도드라진다.</summary>
-    private static Border Pick(string text, double width, Action run)
+    /// <summary>띠 단추 하나.</summary>
+    private GameButton Band(string text, double x, double y, double width, Action run)
     {
-        var box = Small(text, run, width);
-        box.Margin = new Thickness(3, 0, 3, 0);
-        return box;
+        var button = new GameButton(text, run, BandStyle.Button, width);
+        button.Height = SmallHeight;
+        button.Margin = default;
+        return Put(button, x, y);
     }
 
-    /// <summary>고른 것을 도드라지게 칠하고 별자리를 다시 적는다.</summary>
+    // ── 줄 ────────────────────────────────────────────────────────────────────
+
+    private void Portrait()
+    {
+        Put(new Border
+        {
+            BorderBrush = GameUi.ItemEdge,
+            BorderThickness = new Thickness(2),
+            Width = FaceWidth,
+            Height = FaceHeight,
+            Child = _portrait,
+        }, PortraitX, RowFamily);
+
+        // 화살표 둘은 초상화 한가운데에 맞춘다(62 + 8 + 62 = 132).
+        double x = PortraitX + (FaceWidth - (PickWidth * 2 + Gap)) / 2;
+        double y = RowFamily + FaceHeight + Gap;
+        Band("<<", x, y, PickWidth, () => Turn(-1));
+        Band(">>", x + PickWidth + Gap, y, PickWidth, () => Turn(+1));
+    }
+
+    private void NameRow(double y, string label, TextBlock box, Func<IReadOnlyList<string>> list)
+    {
+        Label(label, y);
+        Boxed(box, ControlX, y, FieldWidth);
+        Spinner(ControlX + FieldWidth + SpinGap, y, () =>
+        {
+            if (TextInputDialog.Ask(this, box.Text, NameLimit) is { } typed) box.Text = typed;
+        });
+        Band("일람", RightEdge - SmallWidth, y - 2, SmallWidth, () =>
+        {
+            var names = list();
+            int at = MapPointDialog.Ask(this, names);
+            if (at >= 0 && at < names.Count) box.Text = names[at];
+        });
+    }
+
+    private void AgeRow()
+    {
+        Label("연령", RowAge);
+        Boxed(_age, ControlX, RowAge, NumWidth);
+        Spinner(ControlX + NumWidth + SpinGap, RowAge, () =>
+        {
+            if (NumberPadDialog.Ask(this, Number(_age, 25), Player.MinAge, Player.MaxAge) is { } n)
+                _age.Text = $"{n}";
+        });
+    }
+
+    /// <summary>
+    /// 생일 줄. 첫 숫자칸이 연령 줄보다 <b>글자 한 칸(28)</b> 오른쪽이다 — 게임이 그렇다.
+    /// </summary>
+    private void BirthRow()
+    {
+        double x = ControlX + BirthShift;
+        double after = NumWidth + SpinGap + SpinSize;
+
+        Label("생일", RowBirth);
+        Boxed(_month, x, RowBirth, NumWidth);
+        Spinner(x + NumWidth + SpinGap, RowBirth, () =>
+        {
+            if (NumberPadDialog.Ask(this, Number(_month, 1), 1, 12) is { } n)
+            { _month.Text = $"{n}"; Mark(); }
+        });
+        Put(Glyph("월"), x + after + 4, RowBirth + 3);
+
+        double x2 = x + after + BirthShift;
+        Boxed(_day, x2, RowBirth, NumWidth);
+        Spinner(x2 + NumWidth + SpinGap, RowBirth, () =>
+        {
+            if (NumberPadDialog.Ask(this, Number(_day, 1), 1, 31) is { } n)
+            { _day.Text = $"{n}"; Mark(); }
+        });
+        Put(Glyph("일"), x2 + after + 4, RowBirth + 3);
+        Put(_zodiac, x2 + after + BirthShift + 4, RowBirth + 3);
+    }
+
+    private void BloodRow()
+    {
+        Label("혈액형", RowBlood);
+        for (int i = 0; i < Player.BloodTypes.Length; i++)
+        {
+            int pick = i;
+            _bloods.Add(Band(Player.BloodTypes[i], ControlX + 12 + i * (PickWidth + Gap), RowBlood,
+                             PickWidth, () => { _blood = pick; Mark(); }));
+        }
+    }
+
+    private void NationRow()
+    {
+        // 두 단추 묶음(215 + 8 + 215)을 속 한가운데에 놓는다.
+        double x = (ContentWidth - (NationWidth * 2 + Gap)) / 2;
+        for (int i = 0; i < Player.Nations.Length; i++)
+        {
+            int pick = i;
+            _nations.Add(Band(Player.Nations[i], x + i * (NationWidth + Gap), RowNation,
+                              NationWidth, () => { _nation = pick; Mark(); }));
+        }
+    }
+
+    private void Footer()
+    {
+        Band("다음", RightEdge - SmallWidth, RowFooter, SmallWidth, Next);
+        Band("취소", RightEdge - SmallWidth * 2 - Gap, RowFooter, SmallWidth, Close);
+    }
+
+    // ── 손 ────────────────────────────────────────────────────────────────────
+
+    /// <summary>고른 것을 도드라지게 하고 별자리를 다시 적는다.</summary>
     private void Mark()
     {
+        // 고른 것은 회녹색 띠로 갈아 낸다 — 게임도 고른 국가를 눌린 모양으로 낸다.
         for (int i = 0; i < _bloods.Count; i++)
-            _bloods[i].Background = i == _blood ? GameUi.PageFill : GameUi.ItemFill;
+            _bloods[i].Band = i == _blood ? BandStyle.Alt : BandStyle.Button;
         for (int i = 0; i < _nations.Count; i++)
-            _nations[i].Background = i == _nation ? GameUi.PageFill : GameUi.ItemFill;
-
+            _nations[i].Band = i == _nation ? BandStyle.Alt : BandStyle.Button;
         _zodiac.Text = Player.ZodiacOf(Number(_month, 1), Number(_day, 1));
     }
 
-    /// <summary>초상화를 하나 옆으로 넘긴다.</summary>
+    /// <summary>초상화를 하나 옆으로 넘긴다. 고를 수 있는 것은 앞의 열여섯뿐이다.</summary>
     private void Turn(int by)
     {
-        int count = _faces?.MaleCount ?? 0;
+        int count = Math.Min(FaceChoices, _faces?.MaleCount ?? 0);
         if (count <= 0) return;
         _face = (_face + by % count + count) % count;
         ShowFace();
@@ -305,16 +386,12 @@ internal sealed class CharacterMakeDialog : InfoDialog
                                       PixelFormats.Bgra32, null, px, Portraits.Width * 4);
         bmp.Freeze();
         _portrait.Source = bmp;
-        _portrait.Width = Portraits.Width * FaceScale;
-        _portrait.Height = Portraits.Height * FaceScale;
+        _portrait.Stretch = Stretch.Fill;
         RenderOptions.SetBitmapScalingMode(_portrait, BitmapScalingMode.NearestNeighbor);
     }
 
     private static int Number(TextBlock box, int fallback) =>
         int.TryParse(box.Text, out int n) ? n : fallback;
-
-    /// <summary>이름 한 칸에 들어갈 수 있는 길이.</summary>
-    private const int NameLimit = 16;
 
     /// <summary>"다음" — 게임처럼 빈 칸을 먼저 따진다.</summary>
     private void Next()
