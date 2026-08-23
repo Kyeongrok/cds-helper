@@ -79,6 +79,87 @@ public sealed class Player
     /// </remarks>
     public string Name { get; set; } = "에르네스토";
 
+    // ── 신상 (NEW GAME 첫 걸음) ────────────────────────────────────────────────
+
+    /// <summary>성. 게임 화면의 첫 칸이다.</summary>
+    public string Family { get; set; } = "";
+
+    /// <summary>명. 화면에는 <c>"%s·%s"</c>(<c>0x00571B08</c>) 로 성과 붙여 낸다.</summary>
+    public string Given { get; set; } = "에르네스토";
+
+    /// <summary>나이. 게임은 25로 시작한다.</summary>
+    public int Age { get; set; } = 25;
+
+    /// <summary>생일(달·날).</summary>
+    public int BirthMonth { get; set; } = 1;
+
+    /// <summary>생일의 날.</summary>
+    public int BirthDay { get; set; } = 1;
+
+    /// <summary>혈액형(<see cref="BloodTypes"/> 의 번호).</summary>
+    public int Blood { get; set; }
+
+    /// <summary>고를 수 있는 혈액형. 게임 화면 차례 그대로다.</summary>
+    public static readonly string[] BloodTypes = ["A", "B", "O", "AB"];
+
+    /// <summary>국적(<see cref="Nations"/> 의 번호).</summary>
+    public int Nation { get; set; }
+
+    /// <summary>고를 수 있는 국적. 게임 화면에 둘만 뜬다.</summary>
+    public static readonly string[] Nations = ["포르투갈 왕국", "에스파니아 왕국"];
+
+    /// <summary>얼굴 번호(MALE.CDS 의 파트). 화면 왼쪽 초상화다.</summary>
+    public int Face { get; set; }
+
+    /// <summary>국적 이름. 번호가 표 밖이면 첫째다.</summary>
+    public string NationName => Nations[Math.Clamp(Nation, 0, Nations.Length - 1)];
+
+    /// <summary>혈액형 이름.</summary>
+    public string BloodName => BloodTypes[Math.Clamp(Blood, 0, BloodTypes.Length - 1)];
+
+    /// <summary>
+    /// 생일이 드는 별자리. 게임 표(<c>0x005609D8</c>, 목양좌부터 열둘)와 같은 이름이다.
+    /// </summary>
+    public string Zodiac => ZodiacOf(BirthMonth, BirthDay);
+
+    /// <summary>별자리 이름 열둘. 목양좌(양자리)부터 돈다.</summary>
+    public static readonly string[] Zodiacs =
+    [
+        "목양좌", "목우좌", "쌍둥이좌", "게좌", "사자좌", "처녀좌",
+        "천칭좌", "전갈좌", "궁수좌", "산양좌", "물병좌", "물고기좌",
+    ];
+
+    /// <summary>그 날짜가 드는 별자리. 경계 날은 흔히 쓰는 자리를 따른다.</summary>
+    public static string ZodiacOf(int month, int day)
+    {
+        // 자리마다 "그 달 며칟날부터"다. 목양좌(양자리)는 3월 21일부터.
+        int[] from = [21, 20, 21, 22, 23, 23, 23, 23, 22, 22, 20, 19];
+        int at = (month + 9) % 12;                 // 3월이 0(목양좌)이 되게 민다
+        if (day < from[at]) at = (at + 11) % 12;    // 아직 안 넘었으면 앞자리
+        return Zodiacs[at];
+    }
+
+    /// <summary>신상을 한꺼번에 박는다. NEW GAME 의 첫 걸음이 부른다.</summary>
+    public void SetProfile(string family, string given, int age, int month, int day,
+                           int blood, int nation, int face)
+    {
+        Family = family.Trim();
+        Given = given.Trim();
+        Name = Family.Length > 0 ? $"{Given}·{Family}" : Given;
+        Age = Math.Clamp(age, MinAge, MaxAge);
+        BirthMonth = Math.Clamp(month, 1, 12);
+        BirthDay = Math.Clamp(day, 1, 31);
+        Blood = Math.Clamp(blood, 0, BloodTypes.Length - 1);
+        Nation = Math.Clamp(nation, 0, Nations.Length - 1);
+        Face = Math.Max(0, face);
+    }
+
+    /// <summary>고를 수 있는 나이.</summary>
+    public const int MinAge = 15;
+
+    /// <summary>고를 수 있는 가장 많은 나이.</summary>
+    public const int MaxAge = 40;
+
     /// <summary>
     /// 명성. 후원자를 만나려면 그 사람이 요구하는 만큼 있어야 한다.
     /// </summary>
