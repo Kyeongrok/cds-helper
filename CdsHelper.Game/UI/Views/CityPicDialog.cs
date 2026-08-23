@@ -514,26 +514,53 @@ public sealed class CityPicDialog : Window
     }
 
     /// <summary>
-    /// 조합장(수련을 맡은 사람)의 얼굴 번호. 사서와 같은 길로 찾았다 — 화면 얼굴을
-    /// 초상화 414장과 맞대어 44번이 나왔다(다음 것과 차이가 12 대 42 로 확연하다).
+    /// 시설마다 말을 거는 사람의 얼굴 번호.
     /// </summary>
     /// <remarks>
-    /// 조합 화면에서 맞춘 얼굴이다. 교회·학자 저택에서 "수련" 을 골라도 지금은 같은 얼굴이
-    /// 나온다 — 게임이 건물마다 다른 사람을 내는지는 아직 안 봤다.
+    /// <b>눈으로 맞출 것이 아니라 표에 있었다.</b> 시설 객체는 화자를
+    /// <c>0x004A2500</c> 에서 <c>0x00477C20(건물종류)</c> 으로 한 번에 정하고, 그 속이
+    /// <c>0x0056823C</c> 를 <c>[건물종류 * 13 + 문화권]</c> 으로 읽는다.
+    /// <code>
+    ///   종류 2  취차    229  (문화권 무관)
+    ///   종류 3  교회    292  (문화권 무관)
+    ///   종류 8  도서관  161 · 311 · 312 · 370 · 349 · 389 · 339 …
+    ///   종류 9  조합     44 · 319 · 351 · 368 · 388 …
+    /// </code>
+    /// 취차 229 · 사서 161 · 조합장 44 는 화면과 맞대어 찾아 둔 값인데 표와 그대로 맞았다.
+    /// <b>교회는 292</b> 다 — 십자가를 건 젊은 수도사다.
+    ///
+    /// 문화권 칸은 아직 안 쓴다. 우리가 내는 건물은 유럽 것뿐이고, 교회·취차는 어느
+    /// 문화권에서나 같은 얼굴이다.
     /// </remarks>
-    private const int InstructorFace = 44;
+    private const int InstructorFace = 44, ChurchFace = 292;
 
     /// <summary>
-    /// 조합의 "수련". 조합장이 먼저 묻고, 창을 닫을 때 아무것도 안 배웠으면 한마디 한다.
-    /// 말은 게임 화면에서 그대로 옮겼다.
+    /// "수련" — 맡은 사람이 먼저 묻고, 창을 닫을 때 아무것도 안 배웠으면 한마디 한다.
     /// </summary>
-    private void Teach(uint teachMask)
+    /// <remarks>
+    /// <b>건물마다 사람도 말도 다르다.</b> 게임은 문구를 <c>0x00490D90(교회, 조합, 그밖)</c>
+    /// 으로 고른다 — 건물 종류로 셋 중 하나를 집는 갈래표다(<c>0x00490DDC</c>).
+    /// <code>
+    ///   0x0055A7E8  교회    "주의 배움의 터전에 잘 오셨습니다. 어떤 학문, 기능을 배우고 싶습니까?"
+    ///   0x0055A830  조합    "기술을 습득하고 싶나?"
+    ///   0x0055A848  그 밖   "가르쳐 드릴 것은 한가지 밖에 없습니다만."   (배울 것이 하나일 때)
+    ///   0x0055A878          "무엇을 배우고 싶은가?"
+    /// </code>
+    /// 우리가 "수련" 을 내는 곳은 교회와 조합 둘이라 그 둘만 갈랐다.
+    /// </remarks>
+    private void Teach(uint teachMask, FacilityKind kind)
     {
-        var face = Faces()?.TryGetBgra(InstructorFace, female: false);
-        TalkDialog.Say(this, face, "", "기술을 습득하고 싶나?");
+        bool church = kind == FacilityKind.Church;
+        var face = Faces()?.TryGetBgra(church ? ChurchFace : InstructorFace, female: false);
+
+        TalkDialog.Say(this, face, "", church
+            ? "주의 배움의 터전에 잘 오셨습니다. 어떤 학문, 기능을 배우고 싶습니까?"
+            : "기술을 습득하고 싶나?");
 
         if (!SkillLearnDialog.Show(this, _player, _table.Teaches(teachMask)))
-            TalkDialog.Say(this, face, "", "용건이 없다면 오지 말게!");
+            TalkDialog.Say(this, face, "", church
+                ? "죄송하지만, 여기서는 수련이 불가능합니다."
+                : "용건이 없다면 오지 말게!");
     }
 
     /// <summary>
@@ -2348,7 +2375,7 @@ public sealed class CityPicDialog : Window
                               string title, string kind)
     {
         if (item == facility.ExitItem) return CloseMenu;
-        if (item == "수련" && teachMask != 0) return () => Teach(teachMask);
+        if (item == "수련" && teachMask != 0) return () => Teach(teachMask, facility.Kind);
         if (item == "기능") return () => Menu.Push(SystemMenu);
         if (item == Facility.Persuade && patron != null) return () => Persuade(patron);
         if (item == Facility.Report && patron != null) return () => Report(patron);
