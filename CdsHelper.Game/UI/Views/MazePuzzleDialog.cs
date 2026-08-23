@@ -1,7 +1,10 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -11,34 +14,56 @@ namespace CdsHelper.Game.UI.Views;
 /// </summary>
 /// <remarks>
 /// 게임의 <c>0x0042C8A0</c> 이다. 규칙과 판정은 <see cref="MazePuzzle"/> 에 모아 두었다.
+///
+/// <b>그림은 게임 것 그대로다</b> — MAZE.CDS 에서 뽑아 <c>asset/minigame</c> 에 둔다
+/// (<c>tools/extract_minigame_art.py</c>). 바탕에 <b>네 층의 돌바닥이 비스듬히</b>
+/// 그려져 있고, 밟은 칸에 바닥 조각을 얹는 식이다 — 1인칭이 아니다.
 /// <code>
-///   0x00559D40  게임 설명
-///   0x00559BE8  보물 상자를 연다 · ＵＮＤＯ(취소) · 포기한다 · 게임 설명
-///   0x005597A0  "보물 상자가 있습니다. 열겠습니까?"
-///   0x00559938  "[U N D O (취소) ] 는 3회까지입니다. 더 이상 사용할 수 없습니다."
+///   0x0042BCEA  배경 352x432 를 (8, 8) 에 찍는다
+///   0x0042BE87  y0 = 0x1F(31), 층마다 0x6A(106) 씩
+///   0x0042BE99  x  = 0x64(100), 줄마다 -0x16(22), 칸마다 +0x34(52)
+///   0x0042BECE  밟은 칸에 80x24 조각
+///   0x0042BF93  상자는 (x + 0x7B, y + 0x13) — 곧 칸에서 (+23, -12)
 /// </code>
-/// 게임은 미궁을 <b>안에서 본 그림</b>으로 그리고 갈 수 있는 쪽에 화살표를 놓는다.
-/// 여기서는 네 층을 나란히 펴 놓고 밟은 차례를 적는다 — 해밀턴 경로 놀이라 길을
-/// 통째로 보는 편이 낫다.
+/// 그래서 칸 자리가 이렇게 난다.
+/// <code>
+///   x = 100 + 칸 * 52 - 줄 * 22
+///   y =  31 + 층 * 106 + 줄 * 22
+/// </code>
 /// </remarks>
 internal sealed class MazePuzzleDialog : InfoDialog
 {
-    private const double BoardWidth = 700, BoardHeight = 300;
+    /// <summary>게임 그림의 크기. 자리 값이 다 이 눈금이다.</summary>
+    private const int SceneWidth = 352, SceneHeight = 432;
 
-    /// <summary>방 한 칸의 크기.</summary>
-    private const double CellSize = 34;
+    /// <summary>정수배로만 늘린다.</summary>
+    private const int Zoom = 2;
 
-    private static readonly Brush Fresh = Frozen(Color.FromRgb(0x21, 0x11, 0x11));
-    private static readonly Brush Walked = Frozen(Color.FromRgb(0x3E, 0x5A, 0x74));
-    private static readonly Brush Standing = Frozen(Color.FromRgb(0xE8, 0xC8, 0x60));
-    private static readonly Brush Reach = Frozen(Color.FromRgb(0x4C, 0x8C, 0xC8));
-    private static readonly Brush Way = Frozen(Color.FromRgb(0x6C, 0xC8, 0x6C));
-    private static readonly Brush Chest = Frozen(Color.FromRgb(0x9A, 0x6C, 0x30));
+    /// <summary>바닥 칸 조각과 그 자리 셈(<c>0x0042BE87</c> 벌).</summary>
+    private const int FloorW = 80, FloorH = 24;
+    private const int OriginX = 100, OriginY = 31;
+    private const int ColStep = 52, RowStep = 22, LayerStep = 106;
+
+    /// <summary>상자·문은 칸에서 이만큼 옮겨 얹는다(<c>0x0042BF93</c>).</summary>
+    private const int ItemDx = 23, ItemDy = -12, ItemSize = 32;
+
+    /// <summary>탐험가는 40x40 이고 칸 가운데 선다.</summary>
+    private const int HeroSize = 40, HeroDx = 20, HeroDy = -22;
+
+    private static readonly Brush Ring = Frozen(Colors.White);
 
     private readonly MazePuzzle _game;
-    private readonly Border[] _cell = new Border[MazePuzzle.Rooms];
-    private readonly TextBlock[] _mark = new TextBlock[MazePuzzle.Rooms];
-    private readonly GameUi.GameLabel _line = Label("");
+    private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
+    private readonly Image[] _floor = new Image[MazePuzzle.Rooms];
+    private readonly Image[] _item = new Image[MazePuzzle.Rooms];
+    private readonly Border[] _ring = new Border[MazePuzzle.Rooms];
+    private readonly Image _hero = new()
+    {
+        Width = HeroSize,
+        Height = HeroSize,
+        IsHitTestVisible = false,
+    };
+    private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
     private readonly GameButton _undo;
     private readonly GameButton _open;
 
@@ -48,17 +73,34 @@ internal sealed class MazePuzzleDialog : InfoDialog
         _undo = new GameButton("ＵＮＤＯ", AskUndo);
         _open = new GameButton("보물 상자를 연다", OpenChest);
 
+        if (Picture("maze-bg.png") is { } back)
+        {
+            var image = new Image { Source = back, Width = SceneWidth, Height = SceneHeight };
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            _scene.Children.Add(image);
+        }
+
+        for (int room = 0; room < MazePuzzle.Rooms; room++) Cell(room);
+
+        RenderOptions.SetBitmapScalingMode(_hero, BitmapScalingMode.NearestNeighbor);
+        _hero.Source = Picture("maze-hero.png");
+        Panel.SetZIndex(_hero, 50);
+        _scene.Children.Add(_hero);
+
+        // 빈 데도 누름을 받아야 한다. 누름을 여기서 먹어야 판에 걸린 창 끌기가 안 물고 간다.
+        _scene.Background = Brushes.Transparent;
+        _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        _scene.MouseLeftButtonUp += SceneUp;
+        _scene.LayoutTransform = new ScaleTransform(Zoom, Zoom);
+
+        // 셈은 판 밖에 적는다 — 판 안은 게임 그림이 다 쓴다.
+        _line.FallbackBrush = Ring;
         var rows = new StackPanel();
         rows.Children.Add(_line);
-        rows.Children.Add(Gap(6));
+        rows.Children.Add(Gap(4));
+        rows.Children.Add(_scene);
 
-        // 네 층을 왼쪽부터 나란히 편다.
-        var layers = new StackPanel { Orientation = Orientation.Horizontal };
-        for (int layer = 0; layer < MazePuzzle.Side; layer++)
-            layers.Children.Add(Layer(layer));
-        rows.Children.Add(layers);
-
-        Build("미궁 64 퍼즐", rows, BoardWidth, BoardHeight,
+        Build("미궁 64 퍼즐", rows, SceneWidth * Zoom + 30, SceneHeight * Zoom + 130,
               _open, _undo,
               new GameButton("게임 설명", Explain),
               new GameButton("포기한다", AskGiveUp));
@@ -67,66 +109,105 @@ internal sealed class MazePuzzleDialog : InfoDialog
         Sync();
     }
 
-    /// <summary>한 층 — 4x4 격자에 층 이름을 붙인다.</summary>
-    private UIElement Layer(int layer)
+    /// <summary>그 칸의 왼쪽 위 자리.</summary>
+    private static Point Spot(int room)
     {
-        var grid = new Grid();
-        for (int i = 0; i < MazePuzzle.Side; i++)
+        int col = room % MazePuzzle.Side;
+        int row = room / MazePuzzle.Side % MazePuzzle.Side;
+        int layer = room / (MazePuzzle.Side * MazePuzzle.Side);
+        return new Point(OriginX + col * ColStep - row * RowStep,
+                         OriginY + layer * LayerStep + row * RowStep);
+    }
+
+    /// <summary>칸 하나 — 밟은 바닥, 갈 수 있음을 알리는 테, 상자나 문.</summary>
+    private void Cell(int room)
+    {
+        var at = Spot(room);
+
+        var floor = new Image
         {
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Width = FloorW,
+            Height = FloorH,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+        };
+        RenderOptions.SetBitmapScalingMode(floor, BitmapScalingMode.NearestNeighbor);
+        Canvas.SetLeft(floor, at.X);
+        Canvas.SetTop(floor, at.Y);
+        _scene.Children.Add(floor);
+        _floor[room] = floor;
+
+        var ring = new Border
+        {
+            Width = FloorW,
+            Height = FloorH,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(1),
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(ring, at.X);
+        Canvas.SetTop(ring, at.Y);
+        _scene.Children.Add(ring);
+        _ring[room] = ring;
+
+        var item = new Image
+        {
+            Width = ItemSize,
+            Height = ItemSize,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+        };
+        RenderOptions.SetBitmapScalingMode(item, BitmapScalingMode.NearestNeighbor);
+        Canvas.SetLeft(item, at.X + ItemDx);
+        Canvas.SetTop(item, at.Y + ItemDy);
+        Panel.SetZIndex(item, 20);
+        _scene.Children.Add(item);
+        _item[room] = item;
+    }
+
+    /// <summary>뽑아 둔 그림 한 장. 없으면 null.</summary>
+    private static BitmapImage? Picture(string name)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "asset", "minigame", name);
+        if (!File.Exists(path)) return null;
+
+        var bmp = new BitmapImage();
+        bmp.BeginInit();
+        bmp.UriSource = new Uri(path);
+        bmp.CacheOption = BitmapCacheOption.OnLoad;
+        bmp.EndInit();
+        bmp.Freeze();
+        return bmp;
+    }
+
+    /// <summary>누른 자리에서 가장 가까운 칸. 너무 멀면 -1.</summary>
+    private static int RoomAt(Point at)
+    {
+        int best = -1;
+        double near = double.MaxValue;
+        for (int room = 0; room < MazePuzzle.Rooms; room++)
+        {
+            var spot = Spot(room);
+            double dx = at.X - (spot.X + FloorW / 2.0);
+            double dy = at.Y - (spot.Y + FloorH / 2.0);
+            // 칸이 마름모라 세로를 늘려 재야 이웃 층으로 안 샌다.
+            double far = dx * dx + dy * dy * 4;
+            if (far < near) { near = far; best = room; }
         }
+        return near <= 40 * 40 ? best : -1;
+    }
 
-        for (int y = 0; y < MazePuzzle.Side; y++)
-        for (int x = 0; x < MazePuzzle.Side; x++)
-        {
-            int room = layer * MazePuzzle.Side * MazePuzzle.Side + y * MazePuzzle.Side + x;
-
-            _mark[room] = new TextBlock
-            {
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 12,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-
-            var box = new Border
-            {
-                Width = CellSize,
-                Height = CellSize,
-                Margin = new Thickness(1),
-                BorderBrush = GameUi.ItemEdge,
-                BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand,
-                Child = _mark[room],
-            };
-            // 눌림을 먹어야 판에 걸린 창 끌기가 안 물고 간다.
-            box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-            box.MouseLeftButtonUp += (_, e) => { e.Handled = true; Tap(room); };
-
-            Grid.SetRow(box, y);
-            Grid.SetColumn(box, x);
-            grid.Children.Add(box);
-            _cell[room] = box;
-        }
-
-        var stack = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
-        stack.Children.Add(new TextBlock
-        {
-            Text = $"{layer + 1}층",
-            Foreground = Ink,
-            FontWeight = FontWeights.Bold,
-            FontSize = 13,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 3),
-        });
-        stack.Children.Add(grid);
-        return stack;
+    private void SceneUp(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        int room = RoomAt(e.GetPosition(_scene));
+        if (room >= 0) Step(room);
     }
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Space) { AskUndo(); return; }
+
         int step = e.Key switch
         {
             Key.Right => +1,
@@ -137,22 +218,20 @@ internal sealed class MazePuzzleDialog : InfoDialog
             Key.PageUp => -MazePuzzle.Side * MazePuzzle.Side,
             _ => 0,
         };
-        if (e.Key == Key.Space) { AskUndo(); return; }
         if (step == 0) return;
 
         int next = MazePuzzle.Neighbour(_game.Here, step);
-        if (next >= 0) Tap(next);
+        if (next >= 0) Step(next);
         e.Handled = true;
     }
 
-    private void Tap(int room)
+    private void Step(int room)
     {
         if (_game.Over != MazePuzzle.Result.Playing) return;
         if (!_game.Walk(room)) return;
 
         Sync();
 
-        // 상자를 밟으면 게임처럼 한 번 묻는다.
         int number = _game.ChestAt(room);
         if (number != 0 && !_game.ChestOpen(number)
             && ConfirmDialog.Ask(this, "보물 상자가 있습니다. 열겠습니까?", "보물 상자 발견"))
@@ -163,11 +242,11 @@ internal sealed class MazePuzzleDialog : InfoDialog
 
         if (room != _game.Exit) return;
 
-        int wasRestart = _game.Restarted;
+        int was = _game.Restarted;
         var result = _game.Arrive();
         Sync();
 
-        if (result == MazePuzzle.Result.Playing && _game.Restarted > wasRestart)
+        if (result == MazePuzzle.Result.Playing && _game.Restarted > was)
         {
             NoticeDialog.Show(this, "방을 전부 돌지 않았기 때문에" + Environment.NewLine +
                                     "입구로 되돌아 오고 말았다!", "처음부터 다시");
@@ -232,44 +311,44 @@ internal sealed class MazePuzzleDialog : InfoDialog
 
     private void Sync()
     {
-        _line.Text = $"  밟은 방 {_game.Walked}/{MazePuzzle.Rooms}   " +
-                     $"상자 {_game.Opened}/{MazePuzzle.Chests}   " +
-                     $"취소 {_game.Undone}/{MazePuzzle.MaxUndo}   " +
-                     $"다시 {_game.Restarted}/{MazePuzzle.MaxRestart}";
+        _line.Text = $"  밟은 방 {_game.Walked}/{MazePuzzle.Rooms}" +
+                     $"   상자 {_game.Opened}/{MazePuzzle.Chests}" +
+                     $"   취소 {_game.Undone}/{MazePuzzle.MaxUndo}" +
+                     $"   다시 {_game.Restarted}/{MazePuzzle.MaxRestart}";
 
         var reach = _game.Moves().Select(m => m.Room).ToHashSet();
+        var floor = Picture("maze-floor.png");
 
         for (int room = 0; room < MazePuzzle.Rooms; room++)
         {
-            int chest = _game.ChestAt(room);
             bool walked = _game.StepAt(room) != 0;
+            _floor[room].Source = floor;
+            _floor[room].Visibility = walked ? Visibility.Visible : Visibility.Collapsed;
 
-            _cell[room].Background = room == _game.Here ? Standing
-                                   : reach.Contains(room) ? Reach
-                                   : walked ? Walked
-                                   : chest != 0 ? Chest
-                                   : Fresh;
+            // 갈 수 있는 칸에 테를 두른다 — 게임은 화살표 조각을 놓는다.
+            _ring[room].BorderBrush = reach.Contains(room) ? Ring : Brushes.Transparent;
 
-            _cell[room].BorderBrush = room == _game.Exit ? Way
-                                    : room == _game.Start ? Standing
-                                    : GameUi.ItemEdge;
-            _cell[room].BorderThickness = new Thickness(
-                room == _game.Exit || room == _game.Start ? 3 : 1);
+            int chest = _game.ChestAt(room);
+            var art = room == _game.Exit ? Picture("maze-door.png")
+                    : chest == 0 ? null
+                    : Picture(_game.ChestOpen(chest)
+                              ? $"maze-chest-open-{chest - 1}.png"
+                              : $"maze-chest-{chest - 1}.png");
 
-            _mark[room].Text = chest != 0 && !_game.ChestOpen(chest) ? $"{chest}"
-                             : walked ? $"{_game.StepAt(room)}"
-                             : "";
-            _mark[room].Foreground = walked || chest != 0 ? Brushes.Black : Ink;
+            _item[room].Source = art;
+            _item[room].Visibility = art == null ? Visibility.Collapsed : Visibility.Visible;
         }
+
+        var at = Spot(_game.Here);
+        Canvas.SetLeft(_hero, at.X + HeroDx);
+        Canvas.SetTop(_hero, at.Y + HeroDy);
 
         _undo.On = _game.CanUndo;
         _open.On = _game.ChestAt(_game.Here) != 0
                    && !_game.ChestOpen(_game.ChestAt(_game.Here));
     }
 
-    /// <summary>
-    /// 놀이를 한 판 하고 <c>0x0042C8A0</c> 이 하듯 결과를 알린다.
-    /// </summary>
+    /// <summary>놀이를 한 판 하고 <c>0x0042C8A0</c> 이 하듯 결과를 알린다.</summary>
     public static void Play(Window owner, Random rng)
     {
         var dialog = new MazePuzzleDialog(rng) { Owner = owner };
