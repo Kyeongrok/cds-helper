@@ -21,9 +21,15 @@ namespace CdsHelper.Game.UI.Views;
 ///   0x0056DFE8  "다시 할 수 없습니다"
 ///   0x0056E048  "게임을 포기하겠습니까?"
 /// </code>
-/// <b>바탕은 게임 그림 그대로다</b> — MGGRAPH.CDS 파트 51(368x432)이고
-/// <c>tools/extract_minigame_art.py</c> 가 뽑아 <c>asset/minigame/grail-bg.png</c> 에
-/// 둔다. 그릇 자리도 게임이 쓰는 좌표를 그대로 쓴다.
+/// <b>그림은 게임 것 그대로다</b> — MGGRAPH.CDS 에서 뽑아 <c>asset/minigame</c> 에
+/// 둔다(<c>tools/extract_minigame_art.py</c>). 조각 크기는 <c>0x00549E98</c> 표에
+/// 있고 <b>조각 n 이 곧 파트 n+3</b> 이다.
+/// <code>
+///   조각 14~16 · 20~22  48x64  바가지 소·중·대 — 빈 것과 물 든 것
+///   조각 26~35 · 36~45  24x72  성배 열       — 빈 것과 찬 것
+///   조각 48            368x432 배경
+/// </code>
+/// 그릇 자리도 게임이 쓰는 좌표를 그대로 쓴다.
 /// <code>
 ///   0x0046810E  바가지 셋 — x = 12 · 60 · 108, y = 0x90 (144)
 ///   0x004681AE  성배 열   — x = 0x00559040 의 열 값, y = 0x13E (318)
@@ -45,21 +51,21 @@ internal sealed class GrailPuzzleDialog : InfoDialog
 
     /// <summary>바가지 셋의 왼쪽 끝과 줄 높이(<c>0x0046810E</c>).</summary>
     private static readonly int[] DipperX = [12, 60, 108];
-    private const int DipperY = 142, DipperBoxW = 46, DipperBoxH = 62;
+    private const int DipperY = 144, DipperW = 48, DipperH = 64;
 
     /// <summary>성배 열의 왼쪽 끝(<c>0x00559040</c>)과 줄 높이(<c>0x004681AE</c>).</summary>
     private static readonly int[] GrailX = [19, 49, 80, 112, 145, 179, 214, 250, 287, 325];
-    private const int GrailY = 316, GrailBoxW = 40, GrailBoxH = 50;
+    private const int GrailY = 318, GrailW = 24, GrailH = 72;
 
     /// <summary>큰 항아리 자리(<c>0x00468077</c>) 언저리.</summary>
     private const int JarX = 196, JarY = 100, JarBoxW = 132, JarBoxH = 158;
 
     private static readonly Brush Ring = Frozen(Colors.White);
-    private static readonly Brush Done = Frozen(Color.FromRgb(0x6C, 0xE8, 0x6C));
 
     private readonly GrailPuzzle _game;
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
     private readonly Dictionary<int, Border> _spot = [];
+    private readonly Dictionary<int, Image> _art = [];
     private readonly Dictionary<int, GameUi.GameLabel> _now = [];
     private readonly GameUi.GameLabel _count = new(GameFont.WhiteColor) { Bold = true };
     private readonly GameButton _undo;
@@ -78,11 +84,17 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         Canvas.SetTop(_count, 12);
         _scene.Children.Add(_count);
 
+        // 성배를 먼저 얹고 바가지를 나중에 — 겹치는 데는 없지만 차례는 게임과 같다.
+        for (int i = 0; i < GrailPuzzle.Grails; i++)
+            Art(GrailPuzzle.FirstGrail + i, GrailX[i], GrailY, GrailW, GrailH);
+        for (int i = 0; i < GrailPuzzle.Dippers; i++)
+            Art(GrailPuzzle.FirstDipper + i, DipperX[i], DipperY, DipperW, DipperH);
+
         Spot(GrailPuzzle.Jar, JarX, JarY, JarBoxW, JarBoxH, label: false);
         for (int i = 0; i < GrailPuzzle.Dippers; i++)
-            Spot(GrailPuzzle.FirstDipper + i, DipperX[i], DipperY, DipperBoxW, DipperBoxH);
+            Spot(GrailPuzzle.FirstDipper + i, DipperX[i], DipperY, DipperW, DipperH);
         for (int i = 0; i < GrailPuzzle.Grails; i++)
-            Spot(GrailPuzzle.FirstGrail + i, GrailX[i], GrailY, GrailBoxW, GrailBoxH);
+            Spot(GrailPuzzle.FirstGrail + i, GrailX[i], GrailY + 4, GrailW, GrailH - 8);
 
         _scene.LayoutTransform = new ScaleTransform(Zoom, Zoom);
 
@@ -97,10 +109,10 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         Sync();
     }
 
-    /// <summary>게임 그림. 못 읽으면 안 깐다 — 자리 네모만으로도 놀 수는 있다.</summary>
-    private static UIElement? Backdrop()
+    /// <summary>뽑아 둔 그림 한 장. 없으면 null.</summary>
+    private static BitmapImage? Picture(string name)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "asset", "minigame", "grail-bg.png");
+        var path = Path.Combine(AppContext.BaseDirectory, "asset", "minigame", name);
         if (!File.Exists(path)) return null;
 
         var bmp = new BitmapImage();
@@ -109,10 +121,43 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         bmp.CacheOption = BitmapCacheOption.OnLoad;
         bmp.EndInit();
         bmp.Freeze();
+        return bmp;
+    }
+
+    /// <summary>게임 그림. 못 읽으면 안 깐다 — 자리 네모만으로도 놀 수는 있다.</summary>
+    private static UIElement? Backdrop()
+    {
+        if (Picture("grail-bg.png") is not { } bmp) return null;
 
         var image = new Image { Source = bmp, Width = SceneWidth, Height = SceneHeight };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
         return image;
+    }
+
+    /// <summary>그릇 조각을 그 자리에 얹는다. 물이 들면 다른 조각으로 갈아 끼운다.</summary>
+    private void Art(int slot, int x, int y, int width, int height)
+    {
+        var image = new Image { Width = width, Height = height, IsHitTestVisible = false };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        Canvas.SetLeft(image, x);
+        Canvas.SetTop(image, y);
+        _scene.Children.Add(image);
+        _art[slot] = image;
+    }
+
+    /// <summary>그 자리에 지금 놓일 조각.</summary>
+    private BitmapImage? ArtFor(int slot)
+    {
+        if (slot >= GrailPuzzle.FirstGrail)
+        {
+            int i = slot - GrailPuzzle.FirstGrail;
+            bool full = _game.WaterAt(slot) == _game.SizeAt(slot);
+            return Picture(full ? $"grail-cup-full-{i}.png" : $"grail-cup-{i}.png");
+        }
+
+        int d = slot - GrailPuzzle.FirstDipper;
+        return Picture(_game.WaterAt(slot) > 0
+                       ? $"grail-dipper-full-{d}.png" : $"grail-dipper-{d}.png");
     }
 
     /// <summary>그릇 한 자리 — 누르는 칸과, 게임처럼 <b>분수</b>로 적는 값.</summary>
@@ -154,8 +199,8 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         stack.Children.Add(cap);
 
         // 성배는 잔 밑동에, 바가지는 자루 왼쪽에 붙는다.
-        Canvas.SetLeft(stack, x + (grail ? 3 : 9));
-        Canvas.SetTop(stack, y + (grail ? 20 : 0));
+        Canvas.SetLeft(stack, x + (grail ? 4 : 1));
+        Canvas.SetTop(stack, y + (grail ? 16 : 2));
         _scene.Children.Add(stack);
     }
 
@@ -217,12 +262,11 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     {
         _count.Text = $"{_game.Moves}번째";
 
+        foreach (var (slot, image) in _art) image.Source = ArtFor(slot);
+
         foreach (var (slot, box) in _spot)
         {
-            bool grail = _game.KindAt(slot) == GrailPuzzle.KindGrail;
-            bool full = grail && _game.WaterAt(slot) == _game.SizeAt(slot);
-
-            box.BorderBrush = slot == _pick ? Ring : full ? Done : Brushes.Transparent;
+            box.BorderBrush = slot == _pick ? Ring : Brushes.Transparent;
             if (_now.TryGetValue(slot, out var now)) now.Text = $"{_game.WaterAt(slot)}";
         }
 

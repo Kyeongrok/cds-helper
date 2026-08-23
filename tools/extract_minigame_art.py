@@ -8,10 +8,20 @@ MGGRAPH.CDS 는 LS12 아카이브고 파트가 쉰여덟이다. 큰 것 둘이 �
     파트 0     48바이트   — 16색 팔레트
     파트 1    471바이트   — 157색 팔레트 (파트 14 것)
     파트 2    471바이트   — 157색 팔레트 (파트 51 것)
-    파트 14  180224바이트 — 352x512, 색이 열넷뿐인 무늬
-    파트 51  158976바이트 — 368x432, <b>성배 퍼즐 배경</b>
-    파트 29~48  1728바이트씩 — 48x36 성배 조각 스물
-    파트 3~13·17~28 3072바이트씩 — 64x48 바가지 조각들
+
+<b>조각 크기는 CDS_95.EXE 의 표 0x00549E98 에 있다</b> — 여덟 바이트씩 쉰다섯 칸이고
+앞이 너비, 뒤가 높이다(꺼내는 곳은 0x00455DE0). 그리고 <b>조각 n 이 곧 파트 n+3</b>
+이다 — 쉰다섯 칸이 파트 3~57 과 하나씩 맞아떨어진다.
+
+    조각 14~16  48x64  파트 17~19  바가지 소·중·대 (빈 것)
+    조각 20~22  48x64  파트 23~25  바가지 소·중·대 (물 든 것)
+    조각 17~19  48x64  파트 20~22  자루가 반대쪽인 벌
+    조각 26~35  24x72  파트 29~38  성배 열 (빈 것)
+    조각 36~45  24x72  파트 39~48  성배 열 (찬 것)
+    조각 48    368x432 파트 51     성배 퍼즐 배경
+
+성배 조각은 뒤에 돌담이 같이 들어 있어 그 칸을 통째로 덮는다. 바가지 조각은
+둘레가 <b>색인 230</b>(마젠타)이라 그것만 비운다.
 
 색인은 <b>74 를 빼서</b> 제 팔레트 자리로 삼는다. 팔레트 한 색은 파일에
 (파랑, 빨강, 초록) 차례로 적혀 있다 — 도시 그림·아이템 그림과 같은 규칙이다.
@@ -37,6 +47,17 @@ OUT_DIR = os.path.join(ROOT, "asset", "minigame")
 PICTURES = [
     (51, 2, 368, 432, "grail-bg.png"),
 ]
+
+#: 조각마다 (첫 파트, 개수, 너비, 높이, 이름 꼴). 마젠타는 비운다.
+SPRITES = [
+    (17, 3, 48, 64, "grail-dipper-{0}.png"),
+    (23, 3, 48, 64, "grail-dipper-full-{0}.png"),
+    (29, 10, 24, 72, "grail-cup-{0}.png"),
+    (39, 10, 24, 72, "grail-cup-full-{0}.png"),
+]
+
+#: 비어 있음을 뜻하는 색 — 팔레트 마지막 자리(색인 230)다.
+CLEAR = (255, 0, 255)
 
 #: 제 팔레트가 덮기 시작하는 색인.
 BASE = 74
@@ -74,6 +95,15 @@ def main():
         image.putdata(rgb)
         image.save(os.path.join(OUT_DIR, name))
         print(f"{name}  {width}x{height}  (파트 {part}, 팔레트 {pal_part})")
+
+    for first, count, width, height, shape in SPRITES:
+        for i in range(count):
+            rgb = decode(archive, first + i, 2, width, height)
+            image = Image.new("RGBA", (width, height))
+            image.putdata([(0, 0, 0, 0) if c == CLEAR else (*c, 255) for c in rgb])
+            name = shape.format(i)
+            image.save(os.path.join(OUT_DIR, name))
+        print(f"{shape.format('*')}  {width}x{height} x{count}  (파트 {first}~{first + count - 1})")
 
 
 if __name__ == "__main__":
