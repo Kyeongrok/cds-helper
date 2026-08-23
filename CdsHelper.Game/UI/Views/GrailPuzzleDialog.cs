@@ -38,8 +38,10 @@ namespace CdsHelper.Game.UI.Views;
 /// 값은 게임처럼 <b>분수</b>로 적는다 — 위가 든 물, 아래가 용량이다. 잡은 그릇에는
 /// 흰 네모를 두른다.
 ///
-/// 그릇을 하나 누르면 <b>주는 쪽</b>이 잡히고, 다음에 누른 것이 <b>받는 쪽</b>이 된다.
-/// 오른쪽 단추로 잡은 것을 놓는다.
+/// <b>바가지를 끌어다 놓는다.</b> 게임과 같다 — 바가지를 집어 큰 항아리에 놓으면
+/// 물이 떠지고, 성배나 다른 바가지에 놓으면 부어진다. 무슨 일이 일어날지는
+/// <b>놓는 자리</b>가 정한다(<see cref="GrailPuzzle.Drop"/>). 끌지 않고 딸깍 눌렀다
+/// 놓으면 집힌 채로 있어서, 다음에 누른 자리에 놓인다.
 /// </remarks>
 internal sealed class GrailPuzzleDialog : InfoDialog
 {
@@ -64,13 +66,17 @@ internal sealed class GrailPuzzleDialog : InfoDialog
 
     private readonly GrailPuzzle _game;
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
+    private readonly Dictionary<int, Rect> _box = [];
     private readonly Dictionary<int, Border> _spot = [];
     private readonly Dictionary<int, Image> _art = [];
     private readonly Dictionary<int, GameUi.GameLabel> _now = [];
     private readonly GameUi.GameLabel _count = new(GameFont.WhiteColor) { Bold = true };
     private readonly GameButton _undo;
 
-    private int _pick = -1;
+    /// <summary>끌고 다니는 그림.</summary>
+    private readonly Image _ghost = new() { Visibility = Visibility.Collapsed, IsHitTestVisible = false };
+
+    private int _pick = -1, _grab = -1, _over = -1;
 
     private GrailPuzzleDialog(int problem)
     {
@@ -95,6 +101,16 @@ internal sealed class GrailPuzzleDialog : InfoDialog
             Spot(GrailPuzzle.FirstDipper + i, DipperX[i], DipperY, DipperW, DipperH);
         for (int i = 0; i < GrailPuzzle.Grails; i++)
             Spot(GrailPuzzle.FirstGrail + i, GrailX[i], GrailY + 4, GrailW, GrailH - 8);
+
+        RenderOptions.SetBitmapScalingMode(_ghost, BitmapScalingMode.NearestNeighbor);
+        Panel.SetZIndex(_ghost, 100);
+        _scene.Children.Add(_ghost);
+
+        // 빈 데도 누름을 받아야 끌기가 끊기지 않는다.
+        _scene.Background = Brushes.Transparent;
+        _scene.MouseLeftButtonDown += SceneDown;
+        _scene.MouseMove += SceneMove;
+        _scene.MouseLeftButtonUp += SceneUp;
 
         _scene.LayoutTransform = new ScaleTransform(Zoom, Zoom);
 
@@ -170,16 +186,13 @@ internal sealed class GrailPuzzleDialog : InfoDialog
             Background = Brushes.Transparent,
             BorderBrush = Brushes.Transparent,
             BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
+            IsHitTestVisible = false,
         };
-        // 눌림을 여기서 먹어야 한다 — 안 그러면 판에 걸린 창 끌기(GameUi.EnableDrag)가
-        // 물고 가서 뗌이 안 오고, 그릇을 누를 때마다 창이 끌린다.
-        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; Tap(slot); };
         Canvas.SetLeft(box, x);
         Canvas.SetTop(box, y);
         _scene.Children.Add(box);
         _spot[slot] = box;
+        _box[slot] = new Rect(x, y, width, height);
 
         if (!label) return;
 
@@ -212,22 +225,81 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         _scene.Children.Add(stack);
     }
 
-    /// <summary>그릇을 눌렀다 — 처음이면 잡고, 두 번째면 붓는다.</summary>
-    private void Tap(int slot)
+    /// <summary>그 자리에 있는 그릇. 없으면 -1.</summary>
+    private int SlotAt(Point at)
     {
+        foreach (var (slot, box) in _box)
+            if (box.Contains(at)) return slot;
+        return -1;
+    }
+
+    private void SceneDown(object sender, MouseButtonEventArgs e)
+    {
+        // 판에 걸린 창 끌기(GameUi.EnableDrag)가 물고 가지 않게 여기서 먹는다.
+        e.Handled = true;
         if (_game.Over != null) return;
 
-        if (_pick < 0)
+        int slot = SlotAt(e.GetPosition(_scene));
+
+        // 이미 집어 둔 것이 있으면 여기가 놓을 자리다.
+        if (_pick >= 0 && slot >= 0 && slot != _pick)
         {
-            if (_game.WaterAt(slot) == 0) return;   // 빈 그릇은 못 잡는다
-            _pick = slot;
-            Sync();
+            PutDown(_pick, slot);
             return;
         }
 
-        if (_pick == slot) { _pick = -1; Sync(); return; }
+        if (slot < 0 || !_game.CanGrab(slot)) { _pick = -1; Sync(); return; }
 
-        _game.Pour(_pick, slot);
+        _grab = slot;
+        _pick = slot;
+        _scene.CaptureMouse();
+        Sync();
+        Follow(e.GetPosition(_scene));
+    }
+
+    private void SceneMove(object sender, MouseEventArgs e)
+    {
+        if (_grab < 0) return;
+
+        var at = e.GetPosition(_scene);
+        int slot = SlotAt(at);
+        if (slot != _over) { _over = slot; Sync(); }
+        Follow(at);
+    }
+
+    private void SceneUp(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_grab < 0) return;
+
+        int from = _grab;
+        _grab = -1;
+        _over = -1;
+        _scene.ReleaseMouseCapture();
+        _ghost.Visibility = Visibility.Collapsed;
+
+        int slot = SlotAt(e.GetPosition(_scene));
+
+        // 집은 자리에서 그냥 뗐으면 집힌 채로 둔다 — 다음에 누른 자리에 놓인다.
+        if (slot < 0 || slot == from) { Sync(); return; }
+        PutDown(from, slot);
+    }
+
+    /// <summary>끌고 다니는 그림을 손 자리에 맞춘다.</summary>
+    private void Follow(Point at)
+    {
+        _ghost.Source = ArtFor(_grab);
+        _ghost.Width = DipperW;
+        _ghost.Height = DipperH;
+        _ghost.Visibility = Visibility.Visible;
+        Canvas.SetLeft(_ghost, at.X - DipperW / 2.0);
+        Canvas.SetTop(_ghost, at.Y - DipperH / 2.0);
+    }
+
+    /// <summary>놓는다. 무슨 일이 일어날지는 놓는 자리가 정한다.</summary>
+    private void PutDown(int from, int to)
+    {
+        _game.Drop(from, to);
         _pick = -1;
         Sync();
 
@@ -270,13 +342,21 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     {
         _count.Text = $"{_game.Moves}번째";
 
-        foreach (var (slot, image) in _art) image.Source = ArtFor(slot);
+        foreach (var (slot, image) in _art)
+        {
+            image.Source = ArtFor(slot);
+            image.Visibility = Visibility.Visible;
+        }
 
         foreach (var (slot, box) in _spot)
         {
-            box.BorderBrush = slot == _pick ? Ring : Brushes.Transparent;
+            // 집은 자리와, 끌고 온 손 밑의 자리에 흰 네모를 두른다.
+            box.BorderBrush = slot == _pick || slot == _over ? Ring : Brushes.Transparent;
             if (_now.TryGetValue(slot, out var now)) now.Text = $"{_game.WaterAt(slot)}";
         }
+
+        // 집은 바가지는 제자리에서 감춘다 — 손에 들려 있으니.
+        if (_art.TryGetValue(_grab, out var held)) held.Visibility = Visibility.Hidden;
 
         _undo.On = _game.CanUndo;
     }

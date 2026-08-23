@@ -98,7 +98,8 @@ public sealed class GrailPuzzle
     private readonly int[] _kind = new int[Slots];
 
     // 되돌리기는 <b>한 수뿐</b>이다(0x00424C60 이 열여섯 바이트에 둘만 적는다).
-    private int _backFrom = -1, _backTo, _backFromWater, _backToWater;
+    // 항아리에서 뜨거나 버릴 때는 한쪽만 적힌다 — 그때 _backTo 는 -1 이다.
+    private int _backFrom = -1, _backTo = -1, _backFromWater, _backToWater;
 
     /// <summary>몇 번째 문제인지(0~23).</summary>
     public int Problem { get; }
@@ -144,6 +145,71 @@ public sealed class GrailPuzzle
     /// <summary>되돌릴 수가 있는지.</summary>
     public bool CanUndo => Moves > 0 && _backFrom >= 0;
 
+    /// <summary>집을 수 있는 그릇인지 — <b>바가지뿐</b>이다.</summary>
+    /// <remarks>
+    /// 설명 글이 못 박아 둔다 — "탐험자가 움직일 수 있는 것은 물바가지 뿐이다".
+    /// </remarks>
+    public bool CanGrab(int slot) => Over == null && _kind[slot] == KindDipper;
+
+    /// <summary>
+    /// 집은 그릇을 다른 그릇 위에 놓는다.
+    /// </summary>
+    /// <remarks>
+    /// <b>무슨 일이 일어날지는 놓는 자리의 종류가 정한다</b>(<c>0x00467BD0</c>). 집은
+    /// 그릇의 종류는 안 본다.
+    /// <code>
+    /// 467bf6  eax = 놓는 자리.Kind()
+    /// 467c07  jmp *0x467cf0(,%eax-1,4)
+    /// 467c0e  종류 1 큰 항아리 — 집은 것이 안 찼으면 0x00424CC0 으로 가득 채운다
+    /// 467c34  종류 2 버리는 곳 — 집은 것에 물이 있으면 0x00424C90 으로 비운다
+    /// 467c55  종류 3 바가지    — 0x00424CF0(집은 것, 놓는 자리)
+    /// 467c85  종류 4 성배      — 0x00424CF0(집은 것, 놓는 자리)
+    /// </code>
+    /// 그래서 <b>바가지를 항아리에 끌어다 놓으면 물이 떠진다</b> — 붓는 것이 아니다.
+    /// </remarks>
+    public bool Drop(int grabbed, int target)
+    {
+        if (Over != null || grabbed == target) return false;
+
+        return _kind[target] switch
+        {
+            KindJar => Fill(grabbed),
+            KindIdle => Spill(grabbed),
+            _ => Pour(grabbed, target),
+        };
+    }
+
+    /// <summary>가득 채운다(<c>0x00424CC0</c>). 이미 찼으면 아무 일도 안 한다.</summary>
+    private bool Fill(int slot)
+    {
+        if (_size[slot] <= _water[slot]) return false;
+
+        Remember(slot, -1);
+        _water[slot] = _size[slot];
+        Moves++;
+        return true;
+    }
+
+    /// <summary>비운다(<c>0x00424C90</c>). 빈 것이면 아무 일도 안 한다.</summary>
+    private bool Spill(int slot)
+    {
+        if (_water[slot] == 0) return false;
+
+        Remember(slot, -1);
+        _water[slot] = 0;
+        Moves++;
+        return true;
+    }
+
+    /// <summary>되돌리기 한 수를 적어 둔다(<c>0x00424C60</c>).</summary>
+    private void Remember(int from, int to)
+    {
+        _backFrom = from;
+        _backTo = to;
+        _backFromWater = _water[from];
+        _backToWater = to >= 0 ? _water[to] : 0;
+    }
+
     /// <summary>
     /// <paramref name="from"/> 의 물을 <paramref name="to"/> 에 붓는다.
     /// </summary>
@@ -172,11 +238,7 @@ public sealed class GrailPuzzle
         if (have == 0) return false;
         if (_kind[to] == KindDipper && _size[to] <= _water[to]) return false;
 
-        _backFrom = from;
-        _backTo = to;
-        _backFromWater = have;
-        _backToWater = _water[to];
-
+        Remember(from, to);
         Moves++;
 
         int took = Take(from, have);
@@ -202,7 +264,7 @@ public sealed class GrailPuzzle
         if (Over != null || !CanUndo) return false;
 
         _water[_backFrom] = _backFromWater;
-        _water[_backTo] = _backToWater;
+        if (_backTo >= 0) _water[_backTo] = _backToWater;
         _backFrom = -1;
         Moves--;                                // 0x00424C00 — 0 밑으로는 안 내려간다
         return true;
