@@ -27,7 +27,7 @@ internal sealed class MapPointDialog : Window
 
     private int _picked = -1;
 
-    private MapPointDialog(IReadOnlyList<string> names)
+    private MapPointDialog(IReadOnlyList<string> names, string title)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -46,11 +46,11 @@ internal sealed class MapPointDialog : Window
             rows.Children.Add(button);
         }
 
-        var title = GameUi.TitleBar("어디로 들어 가시겠습니까?", Close);
-        GameUi.EnableDrag(this, title);
+        var bar = GameUi.TitleBar(title, Close);
+        GameUi.EnableDrag(this, bar);
 
         var stack = new StackPanel();
-        stack.Children.Add(title);
+        stack.Children.Add(bar);
         stack.Children.Add(new ScrollViewer
         {
             MaxHeight = RowsShown * RowHeight,
@@ -80,11 +80,13 @@ internal sealed class MapPointDialog : Window
     /// <summary>
     /// 창을 띄우고 고른 줄 번호를 낸다. 물렀으면 -1.
     /// </summary>
-    public static int Ask(Window owner, IReadOnlyList<string> names)
+    /// <param name="title">제목 줄. 미니 게임 고르기처럼 다른 데서도 쓴다.</param>
+    public static int Ask(Window owner, IReadOnlyList<string> names,
+                          string title = "어디로 들어 가시겠습니까?")
     {
         if (names.Count == 0) return -1;
 
-        var dialog = new MapPointDialog(names) { Owner = owner };
+        var dialog = new MapPointDialog(names, title) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
     }

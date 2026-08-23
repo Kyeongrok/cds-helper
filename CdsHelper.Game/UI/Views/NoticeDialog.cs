@@ -9,7 +9,7 @@ public sealed class NoticeDialog : Window
 {
     private readonly GameUi.FocusGroup _focus = new();
 
-    private NoticeDialog(string text)
+    private NoticeDialog(string text, string? title)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -27,6 +27,12 @@ public sealed class NoticeDialog : Window
         buttons.Children.Add(_focus.Add("확인", Close, 96));
 
         var stack = new StackPanel();
+        // 게임 알림 상자에도 제목 띠가 붙는 것이 있다 — "대실패" · "성스러운 항아리" 처럼.
+        if (!string.IsNullOrEmpty(title) && GameUi.TitleFrame(GameUi.Sprites, title!) is { } bar)
+        {
+            bar.Margin = new Thickness(0, 6, 0, 0);
+            stack.Children.Add(bar);
+        }
         stack.Children.Add(new TextBlock
         {
             Text = text,
@@ -51,6 +57,7 @@ public sealed class NoticeDialog : Window
         MouseRightButtonUp += (_, _) => Close();
     }
 
-    public static void Show(Window owner, string text) =>
-        new NoticeDialog(text) { Owner = owner }.ShowDialog();
+    /// <param name="title">제목 띠에 얹을 글. 비우면 띠를 안 단다.</param>
+    public static void Show(Window owner, string text, string? title = null) =>
+        new NoticeDialog(text, title) { Owner = owner }.ShowDialog();
 }
