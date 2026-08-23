@@ -45,6 +45,10 @@ public sealed class Ship
         Capacity = Bound(s.Capacity, hull.Capacity);
         Tonnage = Bound(s.Tonnage, hull.Tonnage);
         Crew = Bound(s.Crew, hull.Crew);
+        Turrets = Math.Clamp(s.Turrets, 0, Math.Max(0, hull.Guns));
+        Gun = Cannon.Of(s.Gun) == null ? -1 : s.Gun;
+        Guns = Gun < 0 ? 0 : Math.Clamp(s.Guns, 0, Turrets);
+        if (Guns == 0) Gun = -1;
         Hp = Math.Clamp(hp ?? MaxHp, 0, MaxHp);
     }
 
@@ -72,8 +76,80 @@ public sealed class Ship
     /// <summary>필요승원. 용량을 늘리면 하나씩 는다.</summary>
     public int Crew { get; private set; }
 
-    /// <summary>대포 수. 아직 개조로 안 바뀐다(포탑수변경·대포구입을 안 옮겼다).</summary>
-    public int Guns => Hull.Guns;
+    /// <summary>
+    /// 포탑 수 — 대포를 걸 수 있는 자리. 개조 "포탑수변경" 이 늘리고 줄인다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 배 레코드의 <c>0x0044C9B0</c>(세터) · <c>0x0044C9C0</c>(게터) 자리다.
+    /// 조선소 구입 화면의 "대포수" 가 <b>이 값의 상한</b>이라 <see cref="Models.Hull.Guns"/>
+    /// 를 그대로 쓴다(게임은 선체 표 <c>+0x30</c> 에 따로 든다).
+    /// </remarks>
+    public int Turrets { get; private set; }
+
+    /// <summary>실은 대포 갈래(<see cref="Cannon.All"/> 의 번호). 안 실었으면 -1.</summary>
+    /// <remarks>게임의 <c>0x0044C9D0</c>·<c>0x0044C9E0</c> 자리다.</remarks>
+    public int Gun { get; private set; } = -1;
+
+    /// <summary>실은 대포 문수. 포탑 수를 넘을 수 없다.</summary>
+    /// <remarks>게임의 <c>0x0044C950</c>·<c>0x0044C960</c> 자리다.</remarks>
+    public int Guns { get; private set; }
+
+    /// <summary>실은 대포의 무게. 적재중량을 먹는다.</summary>
+    public int GunWeight => (Cannon.Of(Gun)?.Weight ?? 0) * Guns;
+
+    /// <summary>
+    /// 포탑을 이만큼까지 달 수 있다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>min(선체 표 +0x30, 지금 포탑 + 적재용량)</c> 으로 자른다
+    /// (<c>0x004961D6</c>). 우리 선체 표의 "대포수" 가 그 <c>+0x30</c> 자리다.
+    /// </remarks>
+    public int MaxTurrets => Math.Min(Hull.Guns, Turrets + Capacity);
+
+    /// <summary>
+    /// 포탑 수를 바꾼다. 줄여서 대포가 넘치면 그만큼 내린다.
+    /// </summary>
+    /// <returns>넘쳐서 내린 대포 문수. 없으면 0.</returns>
+    /// <remarks>게임의 <c>0x004960A0</c> 이다.</remarks>
+    public int SetTurrets(int count)
+    {
+        Turrets = Math.Clamp(count, 0, MaxTurrets);
+        if (Guns <= Turrets) return 0;
+
+        int spilled = Guns - Turrets;
+        Guns = Turrets;
+        if (Guns == 0) Gun = -1;
+        return spilled;
+    }
+
+    /// <summary>
+    /// 대포를 싣는다. 갈래가 갈리면 실려 있던 것은 부르는 쪽이 되사 준 뒤에 부른다.
+    /// </summary>
+    /// <remarks>게임의 <c>0x004962E0</c> 이다 — 갈래를 넣고 문수를 넣는다.</remarks>
+    public void Load(int kind, int count)
+    {
+        Gun = Cannon.Of(kind) == null ? -1 : kind;
+        Guns = Gun < 0 ? 0 : Math.Clamp(count, 0, Turrets);
+        if (Guns == 0) Gun = -1;
+    }
+
+    /// <summary>
+    /// 그 대포를 몇 문까지 실을 수 있는지 — 포탑 수와 남는 무게가 가른다.
+    /// </summary>
+    /// <param name="kind">실을 대포 갈래.</param>
+    /// <param name="free">
+    /// 쓸 수 있는 무게. 게임은 <b>지금 실린 대포를 다 내렸다 치고</b> 잰다
+    /// (<c>0x004964FF</c>) — 갈래를 바꿔 실을 때 앞엣것이 자리를 막지 않게. 그래서 부르는
+    /// 쪽이 <c>남는 중량 + <see cref="GunWeight"/></c> 를 준다.
+    ///
+    /// 게임은 <b>배마다</b> 짐을 싣지만 우리는 함대가 통째로 싣는다 — 그래서 이 값도
+    /// 함대 것으로 잰다.
+    /// </param>
+    public int RoomFor(int kind, int free)
+    {
+        if (Cannon.Of(kind) is not { } gun || gun.Weight <= 0) return 0;
+        return Math.Clamp(Math.Max(0, free) / gun.Weight, 0, Turrets);
+    }
 
     /// <summary>상한 만큼. 성하면 0 이다.</summary>
     public int Damage => Math.Max(0, MaxHp - Hp);
@@ -220,15 +296,16 @@ public sealed class Ship
     /// <param name="Capacity">적재용량.</param>
     /// <param name="Tonnage">적재중량.</param>
     /// <param name="Crew">필요승원.</param>
-    public sealed record Stats(int MaxHp, int Speed, int Capacity, int Tonnage, int Crew)
+    public sealed record Stats(int MaxHp, int Speed, int Capacity, int Tonnage, int Crew,
+                               int Turrets = 0, int Gun = -1, int Guns = 0)
     {
-        /// <summary>선체 기본값 그대로.</summary>
+        /// <summary>선체 기본값 그대로. 포탑은 다 달린 채로 나오고 대포는 안 실려 있다.</summary>
         public static Stats Of(Hull hull) =>
-            new(hull.Hp, hull.Speed, hull.Capacity, hull.Tonnage, hull.Crew);
+            new(hull.Hp, hull.Speed, hull.Capacity, hull.Tonnage, hull.Crew, hull.Guns);
     }
 
     /// <summary>지금 값을 통째로.</summary>
-    public Stats Snapshot() => new(MaxHp, Speed, Capacity, Tonnage, Crew);
+    public Stats Snapshot() => new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns);
 
     /// <summary>개조로 값이 갈렸는지.</summary>
     public bool IsRefitted => Snapshot() != Stats.Of(Hull);
@@ -262,6 +339,8 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
         Add("최대추진력", was.Speed, now.Speed);
         Add("최대내구력", was.MaxHp, now.MaxHp);
         Add("최저승원수", was.Crew, now.Crew);
+        Add("포탑수", was.Turrets, now.Turrets);
+        Add("대포수", was.Guns, now.Guns);
         return new Refit(lines);
     }
 }

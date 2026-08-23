@@ -26,6 +26,9 @@ public static class GameSave
     /// </summary>
     public const int SupplyUnitsFrom = 16;
 
+    /// <summary>이 판부터 <c>ShipStats</c> 에 포탑수·대포가 함께 적힌다.</summary>
+    public const int GunsInStatsFrom = 18;
+
     /// <summary>세이브 파일 자리.</summary>
     public static string Path => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -76,6 +79,11 @@ public static class GameSave
     /// 배마다의 이름. 판 17 부터 있다 — 없으면 선체 이름을 쓴다.
     /// </param>
     /// <param name="DockedNames">맡겨 둔 배의 이름.</param>
+    /// <remarks>
+    /// 판 18 부터 <c>ShipStats</c> 에 포탑수·대포갈래·대포수가 함께 적힌다. 그 앞 세이브는
+    /// 그 칸이 비어(0·0·0) 들어오므로 <b>선체 기본값으로 되살린다</b> —
+    /// <see cref="Support.Local.Models.Player.RestoreFleet"/> 의 <c>gunsInStats</c>.
+    /// </remarks>
     public sealed record Data(
         int Version, DateTime SavedAt, int Gold, DateTime Date,
         int CityId, string CityName, Dictionary<string, int> Skills, List<int> Hints,
@@ -103,7 +111,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(17, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(18, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],

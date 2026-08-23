@@ -684,12 +684,13 @@ public sealed class Player
                              IReadOnlyList<Ship.Stats>? shipStats = null,
                              IReadOnlyDictionary<int, List<Ship.Stats>>? dockedStats = null,
                              IReadOnlyList<string>? shipNames = null,
-                             IReadOnlyDictionary<int, List<string>>? dockedNames = null)
+                             IReadOnlyDictionary<int, List<string>>? dockedNames = null,
+                             bool gunsInStats = true)
     {
         static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name);
 
-        static List<Ship> Build(IEnumerable<string> hulls, IReadOnlyList<int>? hps,
-                                IReadOnlyList<Ship.Stats>? stats, IReadOnlyList<string>? names)
+        List<Ship> Build(IEnumerable<string> hulls, IReadOnlyList<int>? hps,
+                         IReadOnlyList<Ship.Stats>? stats, IReadOnlyList<string>? names)
         {
             var list = new List<Ship>();
             int at = 0;
@@ -699,6 +700,9 @@ public sealed class Player
                 var st = stats != null && at < stats.Count ? stats[at] : null;
                 var nm = names != null && at < names.Count ? names[at] : null;
                 at++;
+                // 판 18 앞 세이브에는 포탑·대포 칸이 없다 — 그때는 선체 기본값으로 되살린다.
+                if (st != null && !gunsInStats)
+                    st = st with { Turrets = Find(hull)?.Guns ?? 0, Gun = -1, Guns = 0 };
                 if (Find(hull) is { } found) list.Add(new Ship(found, hp, st, nm));
             }
             return list;
@@ -842,9 +846,20 @@ public sealed class Player
     /// <summary>지금 실은 통 수.</summary>
     public int LoadedBarrels => Supply.All.Sum(s => SupplyOf(s.Kind));
 
-    /// <summary>지금 실은 무게. 보급품만 센다 — 소지품 무게는 아직 안 센다.</summary>
+    /// <summary>
+    /// 지금 실은 무게 — 보급품과 <b>대포</b>를 센다. 소지품 무게는 아직 안 센다.
+    /// </summary>
     public int LoadedWeight =>
-        Supply.All.Sum(s => SupplyOf(s.Kind) * s.UnitWeight);
+        Supply.All.Sum(s => SupplyOf(s.Kind) * s.UnitWeight) + GunWeight;
+
+    /// <summary>함대가 실은 대포의 무게.</summary>
+    public int GunWeight => _ships.Sum(s => s.GunWeight);
+
+    /// <summary>함대의 대포 문수.</summary>
+    public int Guns => _ships.Sum(s => s.Guns);
+
+    /// <summary>함대의 포탑 수.</summary>
+    public int Turrets => _ships.Sum(s => s.Turrets);
 
     /// <summary>
     /// 바다에서 하루치 식량과 물을 축낸다.
