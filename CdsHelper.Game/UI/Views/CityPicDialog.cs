@@ -2453,6 +2453,8 @@ public sealed class CityPicDialog : Window
             Owner = owner,
         };
         dlg.Show();
+        // 닫을 때 초점이 앱 밖으로 새지 않게 붙든다.
+        FocusWatch.KeepInApp(dlg);
         // 초점이 어디로 가는지 보려고 둔 진단(FocusWatch). 다 잡고 나면 지운다.
         dlg.Closed += (_, _) => FocusWatch.After("도시그림창 닫힘");
         dlg.Deactivated += (_, _) => FocusWatch.After("도시그림창 초점 잃음");
