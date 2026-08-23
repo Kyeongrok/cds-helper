@@ -22,7 +22,7 @@ namespace CdsHelper.Game.UI.Views;
 ///   0x005609D8  별자리 열둘 — 목양좌부터
 /// </code>
 /// 이름 칸 오른쪽의 작은 단추는 <see cref="TextInputDialog"/> 를 열고, "일람" 은
-/// 미리 갖춰 둔 이름을 늘어놓는다. 숫자 칸도 같은 작은 단추로 받는다.
+/// 미리 갖춰 둔 이름을 늘어놓는다. 숫자 칸의 단추는 계산기 판(<see cref="NumberPadDialog"/>)을 연다.
 ///
 /// <b>이름 일람은 게임 것이 아니다.</b> 게임은 그 목록을 파일에서 읽어 오는데
 /// (<c>0x0045C9DD</c> 가 클래스 <c>0x004FD0D8</c> 을 세운다) 그 파일을 아직 안 짚었다.
@@ -149,8 +149,8 @@ internal sealed class CharacterMakeDialog : InfoDialog
         row.Children.Add(Boxed(_age));
         row.Children.Add(Small("田", () =>
         {
-            int n = CountDialog.Ask(this, "연령", "연령", "세", Player.MaxAge);
-            if (n >= Player.MinAge) _age.Text = $"{n}";
+            if (NumberPadDialog.Ask(this, Number(_age, 25), Player.MinAge, Player.MaxAge) is { } n)
+                _age.Text = $"{n}";
         }));
         return row;
     }
@@ -161,15 +161,15 @@ internal sealed class CharacterMakeDialog : InfoDialog
         row.Children.Add(Boxed(_month));
         row.Children.Add(Small("田", () =>
         {
-            int n = CountDialog.Ask(this, "생일", "달", "월", 12);
-            if (n >= 1) { _month.Text = $"{n}"; Mark(); }
+            if (NumberPadDialog.Ask(this, Number(_month, 1), 1, 12) is { } n)
+            { _month.Text = $"{n}"; Mark(); }
         }));
         row.Children.Add(Text("월"));
         row.Children.Add(Boxed(_day));
         row.Children.Add(Small("田", () =>
         {
-            int n = CountDialog.Ask(this, "생일", "날", "일", 31);
-            if (n >= 1) { _day.Text = $"{n}"; Mark(); }
+            if (NumberPadDialog.Ask(this, Number(_day, 1), 1, 31) is { } n)
+            { _day.Text = $"{n}"; Mark(); }
         }));
         row.Children.Add(Text("일"));
         row.Children.Add(_zodiac);

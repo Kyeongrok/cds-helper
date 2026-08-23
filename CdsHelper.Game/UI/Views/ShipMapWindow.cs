@@ -960,7 +960,7 @@ public sealed class ShipMapWindow : Window
                                    who == 0 ? "라몬" : "에밀리오",
                                    25, 1, 1, 0, 0, who == 0 ? 0 : 1);
             }
-            else if (!CharacterMakeDialog.Show(this, _player, _gameDir))
+            else if (!MakeCharacter())
             {
                 return;
             }
@@ -972,6 +972,67 @@ public sealed class ShipMapWindow : Window
         }
 
         StartMap(fresh: true);
+        OpenHome();
+    }
+
+    /// <summary>
+    /// 주인공을 짓는 네 걸음. 어느 걸음에서 물러도 앞 걸음으로 되돌아간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 걸음마다 0 을 내면 한 걸음 되돌아간다(<c>0x0045EC7E</c> 벌).
+    /// <code>
+    ///   0x0045BF80  신상        → CharacterMakeDialog
+    ///   0x0045D6C0  능력치·직업 → AbilityMakeDialog
+    ///   0x0045DE20  기술·언어   → SkillMakeDialog
+    ///   0x0045E260  마무리      → CharacterSheetDialog
+    /// </code>
+    /// </remarks>
+    private bool MakeCharacter()
+    {
+        var rng = new Random();
+        int step = 0;
+
+        while (true)
+            switch (step)
+            {
+                case 0:
+                    if (!CharacterMakeDialog.Show(this, _player, _gameDir)) return false;
+                    step = 1;
+                    break;
+
+                case 1:
+                    _bonus = AbilityMakeDialog.Show(this, _player, rng);
+                    step = _bonus < 0 ? 0 : 2;
+                    break;
+
+                case 2:
+                    step = SkillMakeDialog.Show(this, _player, _bonus) ? 3 : 1;
+                    break;
+
+                default:
+                    if (CharacterSheetDialog.Show(this, _player)) return true;
+                    step = 2;
+                    break;
+            }
+    }
+
+    /// <summary>능력치 걸음에서 남겨 온 보너스 포인트. 기술 걸음이 이어 쓴다.</summary>
+    private int _bonus;
+
+    /// <summary>
+    /// 새 놀이는 <b>고른 국적의 자택</b>에서 시작한다 — 포르투갈이면 리스본,
+    /// 에스파니아면 세빌리아다.
+    /// </summary>
+    private void OpenHome()
+    {
+        string want = _player.Nation == 1 ? "세빌리아" : "리스본";
+        var found = CityTable.Cities.FirstOrDefault(c => c.Name == want);
+        if (found.Name != want) return;
+
+        if (!_host.PlaceAtCity(found.Id)) return;
+        _askedCity = found.Id;                    // 곧바로 다시 묻지 않게
+        _host.EnterPort(found.Name);
+        if (ShowCityPicture(found.Id, found.Name)) _host.Paused = true;
     }
 
     /// <summary>
