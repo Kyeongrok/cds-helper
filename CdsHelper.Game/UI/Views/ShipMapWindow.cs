@@ -729,6 +729,7 @@ public sealed class ShipMapWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Child = items,
         };
+        _titleMenuBox = box;
         // 게임 메뉴처럼 제목 띠를 잡아 옮길 수 있게 한다. 가운데 놓는 것은 그대로 두고
         // 옮긴 만큼만 얹으므로, 창 크기가 바뀌어도 가운데가 기준이 된다.
         var move = new TranslateTransform(_titleMenuOffset.X, _titleMenuOffset.Y);
@@ -941,27 +942,53 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void NewGame()
     {
-        int at = ChoiceDialog.Ask(this, "NEW GAME",
-            ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"]);
-        if (at < 0) return;
+        // 게임도 여기부터는 메인메뉴를 걷는다 — 고르는 창이 그 자리에 뜬다.
+        HideTitleMenu(true);
+        try
+        {
+            int at = ChoiceDialog.Ask(this, "NEW GAME",
+                ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"]);
+            if (at < 0) return;
 
-        if (at == 0)
-        {
-            // 미리 만든 주인공 둘. 이야기(STORY0/1.CDS)는 아직 안 읽어 이름만 쓴다.
-            int who = ChoiceDialog.Ask(this, "시작할 주인공을 선택해 주십시오",
-                                       ["라몬·데·마르시아스", "에밀리오·알발레스"]);
-            if (who < 0) return;
-            _player.SetProfile(who == 0 ? "데·마르시아스" : "알발레스",
-                               who == 0 ? "라몬" : "에밀리오",
-                               25, 1, 1, 0, 0, who == 0 ? 0 : 1);
+            if (at == 0)
+            {
+                // 미리 만든 주인공 둘. 이야기(STORY0/1.CDS)는 아직 안 읽어 이름만 쓴다.
+                int who = ChoiceDialog.Ask(this, "시작할 주인공을 선택해 주십시오",
+                                           ["라몬·데·마르시아스", "에밀리오·알발레스"]);
+                if (who < 0) return;
+                _player.SetProfile(who == 0 ? "데·마르시아스" : "알발레스",
+                                   who == 0 ? "라몬" : "에밀리오",
+                                   25, 1, 1, 0, 0, who == 0 ? 0 : 1);
+            }
+            else if (!CharacterMakeDialog.Show(this, _player, _gameDir))
+            {
+                return;
+            }
         }
-        else if (!CharacterMakeDialog.Show(this, _player, _gameDir))
+        finally
         {
-            return;
+            // 물러났으면 메뉴가 도로 나와야 한다. 놀이로 들어갔으면 타이틀째로 사라진다.
+            HideTitleMenu(false);
         }
 
         StartMap(fresh: true);
     }
+
+    /// <summary>
+    /// 타이틀의 메인메뉴 상자를 걷거나 도로 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 NEW GAME 을 고르면 메인메뉴를 지우고 그 자리에 고르는 창을 낸다. 우리 타이틀은
+    /// 무늬 바탕 위에 상자를 얹은 것이라 <b>상자만 감춘다</b> — 바탕은 그대로 남는다.
+    /// </remarks>
+    private void HideTitleMenu(bool hide)
+    {
+        if (_titleMenuBox != null)
+            _titleMenuBox.Visibility = hide ? Visibility.Hidden : Visibility.Visible;
+    }
+
+    /// <summary>타이틀의 메인메뉴 상자. NEW GAME 으로 들어갈 때 잠깐 걷는다.</summary>
+    private FrameworkElement? _titleMenuBox;
 
     /// <summary>
     /// 「지도를 본다」 — 도시 그림을 잠깐 걷고 지도만 본다.
