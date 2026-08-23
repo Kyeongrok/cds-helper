@@ -709,7 +709,7 @@ public sealed class ShipMapWindow : Window
         handle.Margin = new Thickness(0, 0, 0, 6);
         items.Children.Add(handle);
         _titleFocus = new GameUi.FocusGroup();
-        items.Children.Add(TitleMenuItem("NEW GAME", () => StartMap(fresh: true)));
+        items.Children.Add(TitleMenuItem("NEW GAME", NewGame));
         // 게임도 로드 전에 한 번 묻는다. 제목 줄은 안 단다 — 게임 물음창에는 없다.
         items.Children.Add(TitleMenuItem("LOAD GAME", () =>
         {
@@ -919,6 +919,50 @@ public sealed class ShipMapWindow : Window
     /// 타이틀을 걷고 지도를 띄운다. <paramref name="fresh"/> 면 배를 리스본 앞바다에 새로 놓고,
     /// 아니면 적어 둔 기록(<see cref="GameSave"/>)을 되돌린다.
     /// </summary>
+    /// <summary>
+    /// NEW GAME — 초심자로 할지 새로 지을지 묻고, 새로 지으면 신상부터 받는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0045EBE0</c> 이다.
+    /// <code>
+    ///   0x00552728  표 두 줄
+    ///     0x00571A18  초심자용 주인공으로 시작한다(EASY)
+    ///     0x00571A40  새로운 주인공으로 시작한다(NORMAL)
+    ///   45ec61  EASY   → 0x0045E670  "시작할 주인공을 선택해 주십시오"
+    ///   45ec6e            [0x5A4D1A] |= 8      ; 이 비트 때문에 나중에 은퇴를 못 한다
+    ///   45ec7e  NORMAL → 0x0045BF80 신상 → 0x0045D6C0 능력치 → 0x0045DE20 지식·언어 → 0x0045E260
+    /// </code>
+    /// 우리는 아직 <b>NORMAL 의 첫 걸음(신상)</b>만 옮겼다. 능력치와 지식·언어는 우리 쪽에
+    /// 보너스 포인트가 없어 그대로 시작한다. EASY 는 미리 만든 주인공 둘(라몬·데·마르시아스,
+    /// 에밀리오·알발레스)이 STORY0/1.CDS 에 걸려 있어 아직 못 옮겼다 —
+    /// 고르면 그 이름으로만 시작한다.
+    ///
+    /// 자세한 것은 볼트 <c>39.분석-NEW GAME(주인공 만들기와 은퇴)</c>.
+    /// </remarks>
+    private void NewGame()
+    {
+        int at = ChoiceDialog.Ask(this, "NEW GAME",
+            ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"]);
+        if (at < 0) return;
+
+        if (at == 0)
+        {
+            // 미리 만든 주인공 둘. 이야기(STORY0/1.CDS)는 아직 안 읽어 이름만 쓴다.
+            int who = ChoiceDialog.Ask(this, "시작할 주인공을 선택해 주십시오",
+                                       ["라몬·데·마르시아스", "에밀리오·알발레스"]);
+            if (who < 0) return;
+            _player.SetProfile(who == 0 ? "데·마르시아스" : "알발레스",
+                               who == 0 ? "라몬" : "에밀리오",
+                               25, 1, 1, 0, 0, who == 0 ? 0 : 1);
+        }
+        else if (!CharacterMakeDialog.Show(this, _player, _gameDir))
+        {
+            return;
+        }
+
+        StartMap(fresh: true);
+    }
+
     /// <summary>
     /// 「지도를 본다」 — 도시 그림을 잠깐 걷고 지도만 본다.
     /// </summary>
