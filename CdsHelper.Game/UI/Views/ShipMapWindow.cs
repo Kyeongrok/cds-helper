@@ -926,8 +926,12 @@ public sealed class ShipMapWindow : Window
         int pick = MapPointDialog.Ask(this, names, "미니 게임");
         if (pick < 0) return;
 
-        if (pick == 0) GrailPuzzleDialog.Play(this, _player, _random);
-        else NoticeDialog.Show(this, "아직 만들지 않았습니다");
+        switch (pick)
+        {
+            case 0: GrailPuzzleDialog.Play(this, _player, _random); break;
+            case 2: MazePuzzleDialog.Play(this, _random); break;
+            default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
+        }
     }
 
     private Border TitleMenuItem(string text, Action? run)
