@@ -46,6 +46,8 @@ public sealed class Ship
         Tonnage = Bound(s.Tonnage, hull.Tonnage);
         Crew = Bound(s.Crew, hull.Crew);
         Turrets = Math.Clamp(s.Turrets, 0, Math.Max(0, hull.Guns));
+        for (int i = 0; i < MastSlots; i++)
+            _sails[i] = i < (s.Sails?.Count ?? 0) ? Math.Clamp(s.Sails![i], NoSail, Square) : NoSail;
         Gun = Cannon.Of(s.Gun) == null ? -1 : s.Gun;
         Guns = Gun < 0 ? 0 : Math.Clamp(s.Guns, 0, Turrets);
         if (Guns == 0) Gun = -1;
@@ -96,6 +98,125 @@ public sealed class Ship
 
     /// <summary>실은 대포의 무게. 적재중량을 먹는다.</summary>
     public int GunWeight => (Cannon.Of(Gun)?.Weight ?? 0) * Guns;
+
+    // ── 마스트와 돛 ───────────────────────────────────────────────────────────
+
+    /// <summary>마스트 자리 셋. 게임도 셋이다.</summary>
+    public const int MastSlots = 3;
+
+    /// <summary>마스트 이름. 게임 것 그대로다(<c>0x005314B0</c> 벌).</summary>
+    public static readonly string[] MastNames = ["메인마스트", "세브마스트", "선미마스트"];
+
+    /// <summary>돛 이름. 번호가 곧 <see cref="Sails"/> 의 값이다(<c>0x00531498</c> 벌).</summary>
+    public static readonly string[] SailNames = ["없음", "삼각돛", "사각돛"];
+
+    /// <summary>돛 번호.</summary>
+    public const int NoSail = 0, Lateen = 1, Square = 2;
+
+    private readonly int[] _sails = new int[MastSlots];
+
+    /// <summary>
+    /// 마스트마다 달린 돛(0 없음 · 1 삼각돛 · 2 사각돛).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배 레코드 <c>+0x68</c> 의 16비트에 <b>2비트씩 셋</b>으로 담는다 —
+    /// 메인 0~1, 세브 2~3, 선미 4~5 (<c>0x00494AE0</c> 이 그 자리를 쓴다).
+    /// </remarks>
+    public IReadOnlyList<int> Sails => _sails;
+
+    /// <summary>서 있는 마스트 수(돛이 달린 자리). 게임의 <c>0x00422CE0</c> 이다.</summary>
+    public int Masts => _sails.Count(v => v != NoSail);
+
+    /// <summary>
+    /// 이 배에 세울 수 있는 마스트 수.
+    /// </summary>
+    /// <remarks>
+    /// 게임(<c>0x00494A50</c>)은 선체 종류로 가른다 — 코구(0)·다우(7)는 못 늘리고,
+    /// 카라벨(1)은 둘까지, 그 밖은 셋까지다. 우리 선체 다섯에는 코구도 다우도 없으므로
+    /// <b>카라벨만 둘, 나머지는 셋</b>이다.
+    /// </remarks>
+    public int MaxMasts => Hull.Name == "카라벨" ? 2 : MastSlots;
+
+    /// <summary>마스트를 더 세울 수 있는지.</summary>
+    public bool CanAddMast => Masts < MaxMasts;
+
+    /// <summary>
+    /// 돛 종류를 바꿀 수 있는 배인지.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 못 바꾸는 배에 "안됐지만, 이 타입은 돛의 종류를 바꿀 수 없네."
+    /// (<c>0x00531678</c>) 를 낸다. 마스트를 달 때 <b>삼각돛으로 못 박는</b> 배가 그쪽이다
+    /// (<c>0x00494C9A</c> 의 선체 종류 1·2) — 카라벨과 대형카라벨이다.
+    /// </remarks>
+    public bool CanChangeSail => Hull.Name is not ("카라벨" or "대형카라벨");
+
+    /// <summary>
+    /// 마스트 하나를 세운다 — 적재용량이 25 줄고 필요승원이 둘 는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00494AB0</c> 이다.
+    /// <code>
+    /// 494b52  적재용량 = max(1, 적재용량 - 25)
+    /// 494b67  필요승원 += 2
+    /// </code>
+    /// </remarks>
+    /// <param name="sail">달 돛(<see cref="Lateen"/> · <see cref="Square"/>).</param>
+    /// <returns>세운 자리 번호. 못 세웠으면 -1.</returns>
+    public int AddMast(int sail)
+    {
+        if (!CanAddMast || sail is not (Lateen or Square)) return -1;
+
+        int at = Array.FindIndex(_sails, v => v == NoSail);
+        if (at < 0) return -1;
+
+        _sails[at] = sail;
+        Capacity = Math.Max(1, Capacity - MastCapacityCost);
+        Crew += MastCrewCost;
+        return at;
+    }
+
+    /// <summary>마스트 하나가 먹는 적재용량과 승원.</summary>
+    public const int MastCapacityCost = 25, MastCrewCost = 2;
+
+    /// <summary>그 자리의 돛을 삼각↔사각으로 바꾼다.</summary>
+    public bool SwapSail(int at)
+    {
+        if (!CanChangeSail || at < 0 || at >= MastSlots || _sails[at] == NoSail) return false;
+        _sails[at] = _sails[at] == Lateen ? Square : Lateen;
+        return true;
+    }
+
+    /// <summary>돛을 더 달 수 있는지 — 최대 추진력이 상한에 안 닿았으면.</summary>
+    /// <remarks>게임은 선체 표 <c>+0x10</c>(추진력 상한)과 견준다(<c>0x004951C0</c>).</remarks>
+    public bool CanAddSail => Masts > 0 && Speed < Hull.Speed * RefitCeiling;
+
+    /// <summary>돛 한 벌을 더 달면 오르는 추진력.</summary>
+    public const int SailSpeedStep = 10;
+
+    /// <summary>
+    /// 돛 추가 — 추진력을 올리고 그만큼 배가 여려진다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00495200</c> 이다.
+    /// <code>
+    /// 495212  새 추진력 = min(추진력 + 10, 선체 표 +0x10)
+    /// 49527f  최대내구 -= 늘어난 / 2       (적어도 1)
+    /// 4952bc  필요승원 += 1
+    /// </code>
+    /// 물음도 그렇게 이른다 — "마스트에 부담이 되어 배가 조그마한 충격에도 약해지지만,
+    /// 괜찮겠나?"
+    /// </remarks>
+    public Refit AddSail()
+    {
+        var was = Snapshot();
+        int grown = Math.Min(Speed + SailSpeedStep, Hull.Speed * RefitCeiling) - Speed;
+
+        Speed += grown;
+        MaxHp = Math.Max(1, MaxHp - grown / 2);
+        Hp = Math.Min(Hp, MaxHp);
+        Crew++;
+        return Refit.Between(was, Snapshot());
+    }
 
     /// <summary>
     /// 포탑을 이만큼까지 달 수 있다.
@@ -296,16 +417,23 @@ public sealed class Ship
     /// <param name="Capacity">적재용량.</param>
     /// <param name="Tonnage">적재중량.</param>
     /// <param name="Crew">필요승원.</param>
+    /// <param name="Sails">마스트 셋에 달린 돛. 안 주면 메인마스트에 삼각돛 하나다.</param>
     public sealed record Stats(int MaxHp, int Speed, int Capacity, int Tonnage, int Crew,
-                               int Turrets = 0, int Gun = -1, int Guns = 0)
+                               int Turrets = 0, int Gun = -1, int Guns = 0,
+                               IReadOnlyList<int>? Sails = null)
     {
-        /// <summary>선체 기본값 그대로. 포탑은 다 달린 채로 나오고 대포는 안 실려 있다.</summary>
+        /// <summary>
+        /// 선체 기본값 그대로. 포탑은 다 달린 채로 나오고 대포는 안 실려 있으며,
+        /// 마스트는 <b>메인 하나에 삼각돛</b>만 서 있다.
+        /// </summary>
         public static Stats Of(Hull hull) =>
-            new(hull.Hp, hull.Speed, hull.Capacity, hull.Tonnage, hull.Crew, hull.Guns);
+            new(hull.Hp, hull.Speed, hull.Capacity, hull.Tonnage, hull.Crew, hull.Guns,
+                Sails: [Lateen, NoSail, NoSail]);
     }
 
     /// <summary>지금 값을 통째로.</summary>
-    public Stats Snapshot() => new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns);
+    public Stats Snapshot() =>
+        new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns, [.. _sails]);
 
     /// <summary>개조로 값이 갈렸는지.</summary>
     public bool IsRefitted => Snapshot() != Stats.Of(Hull);
@@ -331,6 +459,8 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
     /// </summary>
     public static Refit Between(Ship.Stats was, Ship.Stats now)
     {
+        static int Standing(IReadOnlyList<int>? sails) => sails?.Count(v => v != 0) ?? 0;
+
         var lines = new List<Line>();
         void Add(string name, int a, int b) { if (a != b) lines.Add(new Line(name, a, b)); }
 
@@ -341,6 +471,7 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
         Add("최저승원수", was.Crew, now.Crew);
         Add("포탑수", was.Turrets, now.Turrets);
         Add("대포수", was.Guns, now.Guns);
+        Add("마스트수", Standing(was.Sails), Standing(now.Sails));
         return new Refit(lines);
     }
 }

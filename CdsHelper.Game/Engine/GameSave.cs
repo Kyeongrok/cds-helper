@@ -29,6 +29,9 @@ public static class GameSave
     /// <summary>이 판부터 <c>ShipStats</c> 에 포탑수·대포가 함께 적힌다.</summary>
     public const int GunsInStatsFrom = 18;
 
+    /// <summary>이 판부터 <c>ShipStats</c> 에 마스트의 돛도 함께 적힌다.</summary>
+    public const int SailsInStatsFrom = 19;
+
     /// <summary>세이브 파일 자리.</summary>
     public static string Path => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -111,7 +114,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(18, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(19, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],

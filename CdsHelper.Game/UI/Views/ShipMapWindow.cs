@@ -1024,7 +1024,8 @@ public sealed class ShipMapWindow : Window
                                  saved.ShipHp, saved.DockedHp,
                                  saved.ShipStats, saved.DockedStats,
                                  saved.ShipNames, saved.DockedNames,
-                                 gunsInStats: saved.Version >= GameSave.GunsInStatsFrom);
+                                 gunsInStats: saved.Version >= GameSave.GunsInStatsFrom,
+                                 sailsInStats: saved.Version >= GameSave.SailsInStatsFrom);
             if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
             if (saved.Morale is { } morale) _player.SetMorale(morale);

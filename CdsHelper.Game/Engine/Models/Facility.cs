@@ -127,12 +127,15 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     /// </remarks>
     public static readonly string[] RefitMenu =
     [
-        "마스트 추가", "돛종류 변경", "돛 추가", RefitCapacity, RefitTonnage, RefitReinforce,
+        RefitMast, RefitSailKind, RefitSail, RefitCapacity, RefitTonnage, RefitReinforce,
         "선두상", RefitTurrets, RefitCannon, RefitRename, RefitExit,
     ];
 
     /// <summary>개조 창에서 우리가 흉내낸 줄.</summary>
-    public const string RefitCapacity = "용량증가",
+    public const string RefitMast = "마스트 추가",
+                        RefitSailKind = "돛종류 변경",
+                        RefitSail = "돛 추가",
+                        RefitCapacity = "용량증가",
                         RefitTonnage = "부력증가",
                         RefitReinforce = "보강",
                         RefitTurrets = "포탑수변경",

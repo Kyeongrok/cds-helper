@@ -685,7 +685,8 @@ public sealed class Player
                              IReadOnlyDictionary<int, List<Ship.Stats>>? dockedStats = null,
                              IReadOnlyList<string>? shipNames = null,
                              IReadOnlyDictionary<int, List<string>>? dockedNames = null,
-                             bool gunsInStats = true)
+                             bool gunsInStats = true,
+                             bool sailsInStats = true)
     {
         static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name);
 
@@ -700,9 +701,11 @@ public sealed class Player
                 var st = stats != null && at < stats.Count ? stats[at] : null;
                 var nm = names != null && at < names.Count ? names[at] : null;
                 at++;
-                // 판 18 앞 세이브에는 포탑·대포 칸이 없다 — 그때는 선체 기본값으로 되살린다.
+                // 판 18·19 앞 세이브에는 포탑·대포·돛 칸이 없다 — 선체 기본값으로 되살린다.
                 if (st != null && !gunsInStats)
                     st = st with { Turrets = Find(hull)?.Guns ?? 0, Gun = -1, Guns = 0 };
+                if (st != null && !sailsInStats)
+                    st = st with { Sails = [Ship.Lateen, Ship.NoSail, Ship.NoSail] };
                 if (Find(hull) is { } found) list.Add(new Ship(found, hp, st, nm));
             }
             return list;

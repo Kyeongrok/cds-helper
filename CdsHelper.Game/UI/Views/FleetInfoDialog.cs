@@ -61,7 +61,18 @@ internal sealed class FleetInfoDialog : InfoDialog
                          $"내구{s.Hp,3}/{s.MaxHp,-3}추진{s.Speed,3} " +
                          $"승원{s.Crew,3} 포{s.Guns,2}/{s.Turrets,-2} " +
                          $"{Cannon.Of(s.Gun)?.Name ?? "—"}";
+            yield return $"   {GameUi.Pad("", 14)}{Sails(s)}";
         }
+    }
+
+    /// <summary>마스트에 달린 돛을 한 줄로. 안 선 자리는 안 적는다.</summary>
+    private static string Sails(Ship ship)
+    {
+        var parts = new List<string>();
+        for (int i = 0; i < Ship.MastSlots; i++)
+            if (ship.Sails[i] != Ship.NoSail)
+                parts.Add($"{Ship.MastNames[i]} {Ship.SailNames[ship.Sails[i]]}");
+        return parts.Count == 0 ? "마스트 없음" : string.Join(" · ", parts);
     }
 
     /// <summary>함대정보 판을 연다.</summary>
