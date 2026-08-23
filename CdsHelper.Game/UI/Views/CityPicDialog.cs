@@ -1127,12 +1127,142 @@ public sealed class CityPicDialog : Window
         Facility.RefitCapacity when ship.CanGrowCapacity => () => DoRefit(ship, item),
         Facility.RefitTonnage when ship.CanGrowTonnage => () => DoRefit(ship, item),
         Facility.RefitReinforce when ship.CanReinforce => () => DoRefit(ship, item),
+        Facility.RefitMast when ship.CanAddMast => () => AddMast(ship),
+        Facility.RefitSailKind when ship.CanChangeSail && ship.Masts > 0 => () => SwapSail(ship),
+        Facility.RefitSail when ship.CanAddSail => () => AddSail(ship),
         Facility.RefitTurrets => () => ChangeTurrets(ship),
         Facility.RefitCannon => () => BuyCannon(ship),
         Facility.RefitRename => () => RenameShip(ship),
         Facility.RefitExit => Menu.Pop,
         _ => null,
     };
+
+    /// <summary>
+    /// 마스트 추가 — 돛대를 하나 더 세운다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00494BD0</c> 이다.
+    /// <code>
+    /// 494a50  코구·다우는 못 늘리고, 카라벨은 둘까지, 그 밖은 셋까지
+    /// 494c2c  값 = 선체 구입값 / 5
+    /// 494c7b  "적재용량이 조금 주는데 괜찮나?"
+    /// 494c9a  카라벨·대형카라벨은 "마스트에는 삼각돛을 달겠네." — 고를 것 없이 삼각돛이다
+    /// 494cc5  그 밖은 "마스트에 달 돛의 종류를 정해 주게." → 삼각 · 사각 · 그만둔다
+    /// 494b52  적재용량 -= 25 · 필요승원 += 2
+    /// </code>
+    /// </remarks>
+    private void AddMast(Ship ship)
+    {
+        var owner = Menu.Window ?? this;
+        int cost = Math.Max(1, ship.Hull.Price / MastDivisor);
+
+        GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
+        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
+        if (!ConfirmDialog.Ask(owner, "적재용량이 조금 주는데 괜찮나?")) return;
+
+        int sail;
+        if (!ship.CanChangeSail)
+        {
+            if (!ConfirmDialog.Ask(owner, "마스트에는 삼각돛을 달겠네.")) return;
+            sail = Ship.Lateen;
+        }
+        else
+        {
+            GameDialog.Show(owner, "마스트에 달 돛의 종류를 정해 주게.");
+            int at = HintListDialog.Pick(owner, [Ship.SailNames[Ship.Lateen], Ship.SailNames[Ship.Square]],
+                                         "돛 종류", "");
+            if (at < 0) return;
+            sail = at == 0 ? Ship.Lateen : Ship.Square;
+            if (!ConfirmDialog.Ask(owner, sail == Ship.Lateen
+                    ? "이것은 역풍에 뛰어나네. 이 돛을 달겠네?"
+                    : "이것은 순풍에 뛰어나네. 이 돛을 달겠네?")) return;
+        }
+
+        var was = ship.Snapshot();
+        _player.Pay(cost);
+
+        int mast = ship.AddMast(sail);
+        if (mast < 0) return;
+
+        string where = Ship.MastNames[mast], what = Ship.SailNames[sail];
+        NoticeDialog.Show(owner, $"{where}에 {what}{GameUi.Josa(what, "을", "를")} 달았습니다");
+        ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
+    }
+
+    /// <summary>
+    /// 돛종류 변경 — 마스트 하나의 돛을 삼각↔사각으로 바꾼다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00494F10</c> 이다. 값은 <b>선체 구입값 / 20</b>(<c>0x004950CB</c>).
+    /// <code>
+    ///   0x005316A8  "어느 마스트의 돛을 바꿀건가?"
+    ///   0x005316D8  "삼각돛을 순풍에 뛰어난 사각돛으로 바꿀 건가?"
+    ///   0x00531708  "사각돛을 역풍에 뛰어난 삼각돛으로 바꿀 건가?"
+    ///   0x00531738  "금화 %ld닢이 드는데, 좋나?"
+    ///   0x00531660  "%s%s %s%s 변경했습니다"
+    /// </code>
+    /// </remarks>
+    private void SwapSail(Ship ship)
+    {
+        var owner = Menu.Window ?? this;
+        var standing = new List<int>();
+        for (int i = 0; i < Ship.MastSlots; i++)
+            if (ship.Sails[i] != Ship.NoSail) standing.Add(i);
+        if (standing.Count == 0) return;
+
+        GameDialog.Show(owner, "어느 마스트의 돛을 바꿀건가?");
+        int pick = HintListDialog.Pick(owner,
+            [.. standing.Select(i => $"{GameUi.Pad(Ship.MastNames[i], 14)}{Ship.SailNames[ship.Sails[i]]}")],
+            "돛종류 변경", "");
+        if (pick < 0 || pick >= standing.Count) return;
+
+        int mast = standing[pick];
+        bool lateen = ship.Sails[mast] == Ship.Lateen;
+        if (!ConfirmDialog.Ask(owner, lateen
+                ? "삼각돛을 순풍에 뛰어난 사각돛으로 바꿀 건가?"
+                : "사각돛을 역풍에 뛰어난 삼각돛으로 바꿀 건가?")) return;
+
+        int cost = Math.Max(1, ship.Hull.Price / SailDivisor);
+        if (!ConfirmDialog.Ask(owner, $"금화 {cost}닢이 드는데, 좋나?")) return;
+        if (!_player.Pay(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
+        if (!ship.SwapSail(mast)) return;
+
+        string where = Ship.MastNames[mast], what = Ship.SailNames[ship.Sails[mast]];
+        NoticeDialog.Show(owner,
+            $"{where}{GameUi.Josa(where, "을", "를")} {what}{GameUi.Josa(what, "으로", "로")} 변경했습니다");
+        Menu.Refresh();
+    }
+
+    /// <summary>
+    /// 돛 추가 — 추진력을 올리고 그만큼 배가 여려진다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00495320</c> 이다. 값은 <b>선체 구입값 / 20</b>.
+    /// <code>
+    ///   0x005317D8  "이 이상 돛을 단다면 마스트가 부러지네."
+    ///   0x00531800  "금화 %ld닢이 드네."
+    ///   0x00531818  "마스트에 부담이 되어 배가 조그마한 충격에도 약해지지만, 괜찮겠나?"
+    /// </code>
+    /// </remarks>
+    private void AddSail(Ship ship)
+    {
+        var owner = Menu.Window ?? this;
+        int cost = Math.Max(1, ship.Hull.Price / SailDivisor);
+
+        GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
+        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
+        if (!ConfirmDialog.Ask(owner,
+                "마스트에 부담이 되어 배가 조그마한 충격에도 약해지지만, 괜찮겠나?")) return;
+
+        _player.Pay(cost);
+        ShowRefit(owner, ship.AddSail(), ship);
+    }
+
+    /// <summary>마스트 값을 나누는 수(<c>0x00494C32</c> 의 <c>mov $5,%ecx</c>).</summary>
+    private const int MastDivisor = 5;
+
+    /// <summary>돛 값을 나누는 수(<c>mov $0x14,%ecx</c>) — 돛종류 변경도 같다.</summary>
+    private const int SailDivisor = 20;
 
     /// <summary>
     /// 포탑수변경 — 대포를 걸 자리를 늘리거나 줄인다.
