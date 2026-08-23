@@ -129,6 +129,9 @@ public sealed class ShipMapWindow : Window
     /// <summary>태우고 있는 선원 수.</summary>
     private readonly GameUi.GameLabel _crew = new() { Bold = true };
 
+    /// <summary>바람과 배 속도. 게임 띠에는 없는 칸이라 꺼 둔 채로 낸다.</summary>
+    private readonly GameUi.GameLabel _windText = new() { Bold = true };
+
     /// <summary>실어 둔 물과 식량(통).</summary>
     private readonly GameUi.GameLabel _stores = new() { Bold = true };
 
@@ -317,6 +320,7 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(InfoCell(CityInfoMenu.Crew, _crew, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Stores, _stores, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.DaysLeft, _left, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Wind, _windText, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Coord, _coord, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Gold, _purse, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fame, _fame, on: true));
@@ -431,6 +435,7 @@ public sealed class ShipMapWindow : Window
             _purse.Text = $"{_player.Gold}닢";
             _fame.Text = $"명성 {_player.Fame}";
             _tired.Text = $"피로 {_player.Fatigue}";
+            _windText.Text = WindLine();
             _crew.Text = $"선원 {_player.Crew}";
             _stores.Text = $"물 {_player.SupplyOf(SupplyKind.Water)} 식량 {_player.SupplyOf(SupplyKind.Food)}";
             _left.Text = $"남은 {_player.SupplyDaysLeft}일";
@@ -1002,6 +1007,9 @@ public sealed class ShipMapWindow : Window
         {
             // 바람 표는 달에 따라 갈린다. 지도가 날짜를 들고 있지 않으니 물어보게 해 둔다.
             _host.MonthOf = () => _player.Date.Month;
+            // 배가 얼마나 빨리 가는지는 함대와 돛 효율표가 정한다 — 지도는 그 둘을 모른다.
+            _host.FleetSpeed = (dir, speed, heading, onLand) =>
+                Sailing.SpeedOf(_player, Sails, dir, speed, heading, onLand);
             if (!_host.Start(_gameDir)) { _status.Text = _host.Status; return; }
             _host.ShowFlowArrows = AppSettings.ShowFlowArrows;
             _started = true;
@@ -1506,6 +1514,20 @@ public sealed class ShipMapWindow : Window
         }
     }
 
+    /// <summary>
+    /// 바람 칸의 글 — 풍향·풍속과 상대각, 그리고 그 바람이 내는 함대 속도.
+    /// </summary>
+    /// <remarks>
+    /// 게임 띠에는 없는 칸이다. 돛 효율표가 상대각으로 갈리는 것이 눈에 보여야 삼각돛·
+    /// 사각돛을 고르는 뜻이 생겨서 뒀다 — <b>0 이 정순풍, 8 이 정면 역풍</b>이다.
+    /// </remarks>
+    private string WindLine()
+    {
+        var (dir, speed, relative) = _host.LastWind;
+        string where = ShipMapHost.Compass[(dir & 0xF) >> 1];
+        return $"바람 {where} {speed}  각 {relative,2}  속도 {_host.LastSpeed,3}";
+    }
+
     private void CheckDiscovery()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;
@@ -1539,6 +1561,11 @@ public sealed class ShipMapWindow : Window
             _asking = false;
         }
     }
+
+    /// <summary>돛 효율표. 배 속도를 잴 때만 연다.</summary>
+    private SailTable? Sails => _sails ??= _gameDir.Length == 0 ? null : SailTable.Open(_gameDir);
+
+    private SailTable? _sails;
 
     /// <summary>아이템 표. 발견물이 주는 물건 이름에만 쓴다.</summary>
     private ItemTable? ItemNames =>
