@@ -27,6 +27,15 @@ public sealed class FishingGame
     /// <summary>뿌리는 것 수(<c>0x0047B8D5</c> 의 <c>cmp $0xF</c>).</summary>
     private const int Scattered = 15;
 
+    /// <summary>한 줄에 드는 틱(<c>0x0047AB0F</c> 의 <c>cmp $0x28</c>).</summary>
+    public const int TicksPerRow = 40;
+
+    /// <summary>바다 것을 만나는 틱(<c>0x0047AB7A</c> 의 <c>cmp $0xA</c>).</summary>
+    private const int MeetTick = 10;
+
+    /// <summary>바늘의 첫 높이와 바닥(<c>0x0047B7D7</c> 의 <c>0x40</c>, <c>0x0047AC50</c> 의 <c>0x168</c>).</summary>
+    public const int TopY = 0x40, FloorY = 0x168;
+
     /// <summary>칸에 든 것.</summary>
     public const int Empty = 0, Path = 1, Squid = 2, Octopus = 4;
 
@@ -76,6 +85,27 @@ public sealed class FishingGame
 
     /// <summary>낚은 것. <see cref="Catch.None"/> 이면 아직이다.</summary>
     public Catch Got { get; private set; }
+
+    /// <summary>바늘의 높이(<c>[0xF8]</c>). 한 틱에 한 점씩 내려간다.</summary>
+    public int Y { get; private set; } = TopY;
+
+    /// <summary>이 줄에서 몇 틱째인지(<c>[0x1E4]</c>). 마흔이면 다음 줄이다.</summary>
+    public int Tick { get; private set; }
+
+    /// <summary>떨어뜨리기 시작했나(<c>[0x200]</c>). 누르기 전에는 배 밑에 매달려 있다.</summary>
+    public bool Started { get; private set; }
+
+    /// <summary>이번 틱은 안 내려간다(<c>[0x1F8]</c>). 옆으로 가겠다고 한 틱이 그렇다.</summary>
+    private bool _hold = true;
+
+    /// <summary>
+    /// 바늘의 가로 자리. 옆으로 가는 동안은 틱만큼 밀린다(<c>0x0047B0AC</c> ·
+    /// <c>0x0047B0F0</c> 의 <c>± [0x1E4]</c>).
+    /// </summary>
+    public double HookX => Column * 40 + (Lean > 0 ? Tick : Lean < 0 ? -Tick : 0);
+
+    /// <summary>떨어뜨린다.</summary>
+    public void Drop() => Started = true;
 
     /// <summary>대어를 낚았나(<c>0x0047AD6C</c> 의 <c>[0x9C] = 1</c>).</summary>
     public bool Won => Got == Catch.BigOne;
@@ -147,43 +177,64 @@ public sealed class FishingGame
     /// </remarks>
     public void Steer(int way)
     {
-        if (Got != Catch.None) return;
+        if (Got != Catch.None || !Started) return;
+
+        int was = Lean;
         if (way > 0 && Column < Columns - 1) Lean = 1;
         else if (way < 0 && Column > 0) Lean = -1;
         else Lean = 0;
+
+        // 옆으로 가겠다고 한 틱은 안 내려간다 — 게임도 [0x1F8] 을 세운다.
+        if (Lean != was) _hold = true;
     }
 
     /// <summary>
-    /// 한 줄 내려간다.
+    /// 한 틱. 게임은 <c>0x0047AAA0</c> 이 화면을 새로 그릴 때마다 이걸 한다.
     /// </summary>
     /// <remarks>
     /// <code>
-    /// 47ab41  옆으로 갈 참이면 +8(오른쪽) 또는 +6(왼쪽), 아니면 +7
-    /// 47ab8e  내려선 칸이 2 면 오징어, 4 면 낙지 — 그 자리에서 끝난다
-    /// 47ac6c  바닥이면 자리 % 7 을 대어 칸과 견준다
+    /// 47aae9  [0x1E4]++                 ; 이 줄의 틱
+    /// 47b05c  [0x1F8] 이 0 이면 [0xF8]++ ; 한 틱에 한 점 내려간다
+    /// 47ab0f  [0x1E4] 이 0x28(40)이면 줄을 넘긴다 — 옆으로 갈 참이면 대각선으로
+    /// 47ab7a  [0x1E4] 이 0xA(10)이면 그 칸에 뭐가 있는지 본다
+    /// 47ac50  [0xF8] 이 0x168(360)이면 바닥이다
     /// </code>
+    /// 한 줄이 마흔 틱이고 옆으로 가면 그동안 가로로도 한 틱에 한 점씩 밀려,
+    /// 딱 마흔 점(한 칸)을 옮겨 간다.
     /// </remarks>
-    /// <returns>아직 내려갈 데가 있으면 true.</returns>
-    public bool Fall()
+    /// <returns>아직 내려가는 중이면 true.</returns>
+    public bool Step()
     {
-        if (Got != Catch.None) return false;
+        if (Got != Catch.None || !Started) return Got == Catch.None;
 
-        At += Lean > 0 ? Columns + 1 : Lean < 0 ? Columns - 1 : Columns;
-        Lean = 0;
+        Tick++;
 
-        if (At >= Cells)
+        if (_hold) _hold = false;
+        else Y++;
+
+        if (Tick >= TicksPerRow)
         {
-            // 바닥. 칸이 맞으면 대어, 아니면 그냥 바닥에 걸린다.
-            Got = At % Columns == BigOneColumn ? Catch.BigOne : Catch.Seabed;
-            return false;
+            Tick = 0;
+            At += Lean > 0 ? Columns + 1 : Lean < 0 ? Columns - 1 : Columns;
+            Lean = 0;
+        }
+        else if (Tick == MeetTick && At >= 0 && At < Cells)
+        {
+            Got = _cell[At] switch
+            {
+                Squid => Catch.SquidCaught,
+                Octopus => Catch.OctopusCaught,
+                _ => Catch.None,
+            };
+            if (Got != Catch.None) return false;
         }
 
-        Got = _cell[At] switch
+        if (Y >= FloorY)
         {
-            Squid => Catch.SquidCaught,
-            Octopus => Catch.OctopusCaught,
-            _ => Catch.None,
-        };
-        return Got == Catch.None;
+            Got = Column == BigOneColumn ? Catch.BigOne : Catch.Seabed;
+            return false;
+        }
+        return true;
     }
+
 }
