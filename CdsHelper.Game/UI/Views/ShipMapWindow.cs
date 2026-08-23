@@ -930,6 +930,7 @@ public sealed class ShipMapWindow : Window
         {
             case 0: GrailPuzzleDialog.Play(this, _player, _random); break;
             case 2: MazePuzzleDialog.Play(this, _random); break;
+            case 4: CoinPuzzleDialog.Play(this, _random); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
     }
