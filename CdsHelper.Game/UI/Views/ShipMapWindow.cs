@@ -904,6 +904,12 @@ public sealed class ShipMapWindow : Window
     public static Action<Window, Random>? MazeGame { get; set; }
 
     /// <summary>
+    /// 일기토를 여는 자리. <b>그 놀이는 CdsHelper.Duel 에 따로 있다</b> — 미궁과
+    /// 같은 까닭으로 반대로는 못 부른다.
+    /// </summary>
+    public static Action<Window, Random>? DuelGame { get; set; }
+
+    /// <summary>
     /// MINI GAME — 일곱 줄을 늘어놓는다(<c>0x0045F957</c> 벌).
     /// </summary>
     /// <remarks>
@@ -921,6 +927,9 @@ public sealed class ShipMapWindow : Window
     /// 게임은 줄마다 레지스트리를 읽어 <b>풀어 놓은 것만</b> 켠다 —
     /// <c>Software\KOEI\CostaDelSol.0</c> 의 <c>MG00</c>~<c>MG06</c> 이 1 이어야 한다
     /// (<c>0x0045FA54</c> 벌). 여기서는 만든 것만 켠다.
+    ///
+    /// <b>여덟째 「일기토」는 원본 차림표에 없다.</b> 게임에서는 해전에서 기함끼리
+    /// 붙었을 때만 열리는데(<c>0x0043A347</c>) 아직 해전이 없어서 여기에 붙여 둔다.
     /// </remarks>
     private void MiniGames()
     {
@@ -928,6 +937,7 @@ public sealed class ShipMapWindow : Window
         [
             "성배 퍼즐", "스핑크스 퀴즈", "미궁 64 퍼즐", "낚시 게임",
             "코인 게임", "발라몬의 탑 퍼즐", "화살표 입방체 퍼즐",
+            "일기토",
         ];
 
         int pick = MapPointDialog.Ask(this, names, "미니 게임");
@@ -945,6 +955,10 @@ public sealed class ShipMapWindow : Window
             case 4: CoinPuzzleDialog.Play(this, _random); break;
             case 5: TowerPuzzleDialog.Play(this, _random); break;
             case 6: CubePuzzleDialog.Play(this, _player, _random); break;
+            case 7:
+                if (DuelGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
+                else DuelGame(this, _random);
+                break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
     }
