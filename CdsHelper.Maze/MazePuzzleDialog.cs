@@ -51,10 +51,10 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// 그림을 <b>화면 점</b> 기준으로 몇 배로 놓을지. 1 이면 원본 크기다.
     /// </summary>
     /// <remarks>
-    /// 모니터 배율(DPI)이 얼마든 <b>그림 점 하나가 화면 점 하나</b>가 되게
-    /// <see cref="GameUi.PixelZoom"/> 이 나눠 준다.
+    /// <see cref="GameUi.PixelZoom"/> 이 <b>모니터 배율로 나눠</b> 준다. 그냥 2 를
+    /// 걸면 배율 175% 인 화면에서 3.5배가 돼 점이 뭉갠다.
     /// </remarks>
-    private const int Zoom = 1;
+    private const int Zoom = 2;
 
     /// <summary>바닥 칸 조각과 그 자리 셈(<c>0x0042BE87</c> 벌).</summary>
     private const int FloorW = 80, FloorH = 24;
