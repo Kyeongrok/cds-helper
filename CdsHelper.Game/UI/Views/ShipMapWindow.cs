@@ -713,7 +713,8 @@ public sealed class ShipMapWindow : Window
         // 게임도 로드 전에 한 번 묻는다. 제목 줄은 안 단다 — 게임 물음창에는 없다.
         items.Children.Add(TitleMenuItem("LOAD GAME", () =>
         {
-            if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다"))
+            // 게임도 제목 띠를 얹는다 — 0x00571A78 "게임 로드" · 0x00571A88 본문.
+            if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다", "게임 로드"))
                 StartMap(fresh: false);
         }));
         items.Children.Add(TitleMenuItem("MINI GAME", null));

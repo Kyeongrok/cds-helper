@@ -1923,8 +1923,9 @@ public sealed class CityPicDialog : Window
     /// 「맵 포인트에 들어간다」 — 이 도시의 건물을 늘어놓고 고른 데로 들어간다.
     /// </summary>
     /// <remarks>
-    /// 게임 커맨드의 그 줄이다(<c>0x0053BE10</c>). 그림에서 건물을 눈으로 찾아 누르는 대신
-    /// 목록에서 고르는 길이다 — 작은 건물은 눌러 맞히기가 어렵다.
+    /// 게임 커맨드의 그 줄이다(<c>0x0053BE10</c>). 누르면 <b>"어디로 들어 가시겠습니까?"</b>
+    /// (<c>0x0053BF38</c>) 창이 뜨고 그 도시의 건물이 줄줄이 선다 — 고르면 그 건물의 명령
+    /// 창이 열린다. 그림에서 작은 건물을 눈으로 찾아 누르지 않아도 되는 길이다.
     /// 건물이 하나도 없으면 게임 말대로 "맵 포인트 데이터가 없습니다"(<c>0x0053A7FB</c>) 다.
     /// </remarks>
     private void EnterMapPoint()
@@ -1936,9 +1937,9 @@ public sealed class CityPicDialog : Window
             return;
         }
 
-        int at = HintListDialog.Pick(this,
-            [.. spots.Select(b => b.Name.Length > 0 ? $"{GameUi.Pad(b.Kind, 12)}{b.Name}" : b.Kind)],
-            "맵 포인트에 들어간다", "맵 포인트 데이터가 없습니다");
+        // 줄은 건물 이름이다 — "베렌의 탑" 처럼 그 도시만의 이름이 뜨고, 없으면 종류를 낸다.
+        int at = MapPointDialog.Ask(this,
+            [.. spots.Select(b => b.Name.Length > 0 ? b.Name : b.Kind)]);
         if (at < 0 || at >= spots.Count) return;
 
         CloseCityMenu();
