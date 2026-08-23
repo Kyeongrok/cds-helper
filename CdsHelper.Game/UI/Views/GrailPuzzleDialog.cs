@@ -48,8 +48,15 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     /// <summary>게임 그림의 크기. 자리 값이 다 이 눈금이다.</summary>
     private const int SceneWidth = 368, SceneHeight = 432;
 
-    /// <summary>그림을 몇 배로 늘릴지. <b>정수배</b>라야 점이 안 뭉갠다.</summary>
-    private const int Zoom = 2;
+    /// <summary>
+    /// 그림을 <b>화면 점</b> 기준으로 몇 배로 놓을지. 1 이면 원본 크기다.
+    /// </summary>
+    /// <remarks>
+    /// 모니터 배율(DPI)이 얼마든 <b>그림 점 하나가 화면 점 하나</b>가 되게
+    /// <see cref="GameUi.PixelZoom"/> 이 나눠 준다. 그냥 2 를 걸면 배율 175% 인
+    /// 화면에서 3.5배가 돼 점이 뭉갠다.
+    /// </remarks>
+    private const int Zoom = 1;
 
     /// <summary>바가지 셋의 왼쪽 끝과 줄 높이(<c>0x0046810E</c>).</summary>
     private static readonly int[] DipperX = [12, 60, 108];
@@ -112,9 +119,11 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         _scene.MouseMove += SceneMove;
         _scene.MouseLeftButtonUp += SceneUp;
 
-        _scene.LayoutTransform = new ScaleTransform(Zoom, Zoom);
+        // 모니터 배율을 물어 나눠 준다 — 그림 점 하나가 화면 점 하나가 되게.
+        double zoom = GameUi.PixelZoom(this, Zoom);
+        _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        Build("성배 퍼즐", _scene, SceneWidth * Zoom + 30, SceneHeight * Zoom + 100,
+        Build("성배 퍼즐", _scene, SceneWidth * zoom + 30, SceneHeight * zoom + 100,
               _undo,
               new GameButton("게임 설명", Explain),
               new GameButton("항복", AskGiveUp));

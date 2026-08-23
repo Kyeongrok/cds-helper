@@ -35,8 +35,14 @@ internal sealed class FishingGameDialog : InfoDialog
 {
     private const int SceneWidth = 336, SceneHeight = 392;
 
-    /// <summary>정수배로만 늘린다.</summary>
-    private const int Zoom = 2;
+    /// <summary>
+    /// 그림을 <b>화면 점</b> 기준으로 몇 배로 놓을지. 1 이면 원본 크기다.
+    /// </summary>
+    /// <remarks>
+    /// 모니터 배율(DPI)이 얼마든 <b>그림 점 하나가 화면 점 하나</b>가 되게
+    /// <see cref="GameUi.PixelZoom"/> 이 나눠 준다.
+    /// </remarks>
+    private const int Zoom = 1;
 
     /// <summary>물빛 줄 자리. 그림에서 잰 것이다.</summary>
     private const int GridX = 48, GridY = 63, Step = 40;
@@ -104,14 +110,16 @@ internal sealed class FishingGameDialog : InfoDialog
 
         _scene.Background = Brushes.Transparent;
         _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        _scene.LayoutTransform = new ScaleTransform(Zoom, Zoom);
+        // 모니터 배율을 물어 나눠 준다 — 그림 점 하나가 화면 점 하나가 되게.
+        double zoom = GameUi.PixelZoom(this, Zoom);
+        _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
         var rows = new StackPanel();
         rows.Children.Add(_line);
         rows.Children.Add(Gap(4));
         rows.Children.Add(_scene);
 
-        Build("낚시 게임", rows, SceneWidth * Zoom + 30, SceneHeight * Zoom + 130,
+        Build("낚시 게임", rows, SceneWidth * zoom + 30, SceneHeight * zoom + 130,
               _drop,
               new GameButton("←", () => Steer(-1)),
               new GameButton("→", () => Steer(+1)),
