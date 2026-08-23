@@ -75,13 +75,20 @@ public sealed class ConfirmDialog : Window
         });
         stack.Children.Add(buttons);
 
+        // 바깥 테 6 은 <b>한 줄이 아니라 두 단</b>이다 — 밝은 베벨 바깥, 어두운 줄 안쪽.
         Content = new Border
         {
             Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(FrameEdge),
-            Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
-            Child = stack,
+            BorderThickness = new Thickness(FrameOuter),
+            Child = new Border
+            {
+                Background = GameUi.Back,
+                BorderBrush = FrameInk,
+                BorderThickness = new Thickness(FrameInner),
+                Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
+                Child = stack,
+            },
         };
 
         KeyDown += (_, e) =>
@@ -95,8 +102,13 @@ public sealed class ConfirmDialog : Window
 
     // ── 게임 화면에서 잰 자리 ────────────────────────────────────────────────
 
-    /// <summary>바깥 테의 굵기.</summary>
-    private const double FrameEdge = 6;
+    /// <summary>바깥 테 — 밝은 베벨과 어두운 안쪽 줄 두 단이 합쳐 6 이다.</summary>
+    private const double FrameOuter = 3, FrameInner = 3;
+
+    /// <summary>안쪽 줄 색.</summary>
+    private static readonly System.Windows.Media.Brush FrameInk =
+        new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(0x11, 0x09, 0x09));
 
     /// <summary>테 안쪽 여백.</summary>
     private const double SidePad = 10, TopPad = 10, BottomPad = 26;
