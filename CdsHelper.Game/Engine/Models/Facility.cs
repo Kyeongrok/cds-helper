@@ -128,13 +128,14 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public static readonly string[] RefitMenu =
     [
         "마스트 추가", "돛종류 변경", "돛 추가", RefitCapacity, RefitTonnage, RefitReinforce,
-        "선두상", "포탑수변경", "대포구입", "선명변경", RefitExit,
+        "선두상", "포탑수변경", "대포구입", RefitRename, RefitExit,
     ];
 
-    /// <summary>개조 창에서 우리가 흉내낸 세 줄.</summary>
+    /// <summary>개조 창에서 우리가 흉내낸 줄.</summary>
     public const string RefitCapacity = "용량증가",
                         RefitTonnage = "부력증가",
-                        RefitReinforce = "보강";
+                        RefitReinforce = "보강",
+                        RefitRename = "선명변경";
 
     /// <summary>개조 창을 접고 배 고르기로 돌아가는 줄.</summary>
     public const string RefitExit = "개조를 그만둔다";

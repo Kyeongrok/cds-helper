@@ -66,7 +66,7 @@ public sealed class Player
         Gold = StartingGold;
         Fame = StartingFame;
         Date = StartDate;
-        _ships.Add(new Ship(Hull.Cheapest));
+        _ships.Add(new Ship(Hull.Cheapest, name: ShipNames.All[0]));
         Crew = MinCrew;   // 배는 최저 승원을 채우고 시작한다
     }
 
@@ -590,6 +590,13 @@ public sealed class Player
     /// </summary>
     public void SetGold(int gold) => Gold = Math.Clamp(gold, 0, MaxGold);
 
+    /// <summary>
+    /// 아직 안 쓴 배 이름 하나. 함대에 있는 것도 맡겨 둔 것도 다 피한다.
+    /// </summary>
+    public string SuggestShipName() =>
+        ShipNames.Suggest(_ships.Select(s => s.Name)
+                                .Concat(_docked.Values.SelectMany(l => l).Select(s => s.Name)));
+
     /// <summary>가지고 있는 배. 산 차례대로다.</summary>
     public IReadOnlyList<Ship> Ships => _ships;
 
@@ -675,21 +682,24 @@ public sealed class Player
                              IReadOnlyList<int>? shipHp = null,
                              IReadOnlyDictionary<int, List<int>>? dockedHp = null,
                              IReadOnlyList<Ship.Stats>? shipStats = null,
-                             IReadOnlyDictionary<int, List<Ship.Stats>>? dockedStats = null)
+                             IReadOnlyDictionary<int, List<Ship.Stats>>? dockedStats = null,
+                             IReadOnlyList<string>? shipNames = null,
+                             IReadOnlyDictionary<int, List<string>>? dockedNames = null)
     {
         static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name);
 
-        static List<Ship> Build(IEnumerable<string> names, IReadOnlyList<int>? hps,
-                                IReadOnlyList<Ship.Stats>? stats)
+        static List<Ship> Build(IEnumerable<string> hulls, IReadOnlyList<int>? hps,
+                                IReadOnlyList<Ship.Stats>? stats, IReadOnlyList<string>? names)
         {
             var list = new List<Ship>();
             int at = 0;
-            foreach (var name in names)
+            foreach (var hull in hulls)
             {
                 int? hp = hps != null && at < hps.Count ? hps[at] : null;
                 var st = stats != null && at < stats.Count ? stats[at] : null;
+                var nm = names != null && at < names.Count ? names[at] : null;
                 at++;
-                if (Find(name) is { } hull) list.Add(new Ship(hull, hp, st));
+                if (Find(hull) is { } found) list.Add(new Ship(found, hp, st, nm));
             }
             return list;
         }
@@ -697,8 +707,8 @@ public sealed class Player
         if (ships != null)
         {
             _ships.Clear();
-            _ships.AddRange(Build(ships, shipHp, shipStats));
-            if (_ships.Count == 0) _ships.Add(new Ship(Hull.Cheapest));
+            _ships.AddRange(Build(ships, shipHp, shipStats, shipNames));
+            if (_ships.Count == 0) _ships.Add(new Ship(Hull.Cheapest, name: ShipNames.All[0]));
         }
         Flagship = Math.Clamp(flagship, 0, Math.Max(0, _ships.Count - 1));
 
@@ -708,7 +718,8 @@ public sealed class Player
         {
             var list = Build(names,
                 dockedHp != null && dockedHp.TryGetValue(city, out var h) ? h : null,
-                dockedStats != null && dockedStats.TryGetValue(city, out var t) ? t : null);
+                dockedStats != null && dockedStats.TryGetValue(city, out var t) ? t : null,
+                dockedNames != null && dockedNames.TryGetValue(city, out var n) ? n : null);
             if (list.Count > 0) _docked[city] = list;
         }
     }
@@ -867,7 +878,7 @@ public sealed class Player
         if (can != PurchaseResult.Ok) return can;
 
         Gold -= hull.Price;
-        _ships.Add(new Ship(hull));
+        _ships.Add(new Ship(hull, name: SuggestShipName()));
         return PurchaseResult.Ok;
     }
 

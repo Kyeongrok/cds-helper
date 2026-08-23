@@ -34,9 +34,11 @@ public sealed class Ship
     /// <param name="hull">선체 종류.</param>
     /// <param name="hp">지금 내구. 안 주면 성한 채로 시작한다.</param>
     /// <param name="stats">개조로 갈린 값. 안 주면 선체 것 그대로다.</param>
-    public Ship(Hull hull, int? hp = null, Stats? stats = null)
+    /// <param name="name">배 이름. 안 주면 선체 이름을 쓴다.</param>
+    public Ship(Hull hull, int? hp = null, Stats? stats = null, string? name = null)
     {
         Hull = hull;
+        Name = Trim(name) is { Length: > 0 } given ? given : hull.Name;
         var s = stats ?? Stats.Of(hull);
         MaxHp = Bound(s.MaxHp, hull.Hp);
         Speed = Bound(s.Speed, hull.Speed);
@@ -93,8 +95,30 @@ public sealed class Ship
     /// <summary>말끔히 고친다.</summary>
     public void Repair() => Hp = MaxHp;
 
-    /// <summary>이름은 선체 이름을 그대로 쓴다 — 배마다의 이름("%s호")은 아직 없다.</summary>
-    public string Name => Hull.Name;
+    /// <summary>
+    /// 배 이름. 게임 문구에서는 뒤에 "호" 가 붙는다("산타마리아호").
+    /// </summary>
+    /// <remarks>
+    /// 조선소 개조의 "선명변경" 으로 바꾼다. 고를 수 있는 이름은
+    /// <see cref="ShipNames.All"/> 이고, 글자를 하나씩 찍어 지어 넣을 수도 있다.
+    /// </remarks>
+    public string Name { get; private set; }
+
+    /// <summary>이름을 바꾼다. 빈 이름은 안 받는다.</summary>
+    /// <returns>바꿨으면 true.</returns>
+    public bool Rename(string name)
+    {
+        if (Trim(name) is not { Length: > 0 } given || given == Name) return false;
+        Name = given;
+        return true;
+    }
+
+    /// <summary>앞뒤 빈칸을 떼고 너무 길면 자른다.</summary>
+    private static string Trim(string? name)
+    {
+        string text = (name ?? "").Trim();
+        return text.Length > ShipNames.MaxLength ? text[..ShipNames.MaxLength] : text;
+    }
 
     // ── 개조 ─────────────────────────────────────────────────────────────────
 
