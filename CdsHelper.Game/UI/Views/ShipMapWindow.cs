@@ -944,6 +944,7 @@ public sealed class ShipMapWindow : Window
             case 3: FishingGameDialog.Play(this, _random); break;
             case 4: CoinPuzzleDialog.Play(this, _random); break;
             case 5: TowerPuzzleDialog.Play(this, _random); break;
+            case 6: CubePuzzleDialog.Play(this, _player, _random); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
     }
