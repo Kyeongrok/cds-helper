@@ -77,6 +77,31 @@ CLEAR = (255, 0, 255)
 #:     3328   2048바이트   32x16x4 대어 두 벌 · 잡어 두 벌
 #:     5376   1024바이트   32x16x2 왼쪽 화살표 · 오른쪽 화살표
 #:     8448   131712바이트 336x392 <b>배경</b>  — 0x0047ADF2 가 (0, 0) 에 찍는다
+#: BALANCE.CDS(코인 게임 = 천칭 퍼즐)는 파트가 넷이다 — 0·1·2 가 점, 3 이 157색
+#: 팔레트다. 자리 표가 EXE 에 셋으로 나뉘어 있다.
+#:
+#:     파트 0  0x00549E10  금화 32x32 두 벌 (26624 · 27648)
+#:     파트 1  0x00549E20  천칭 — 대 176x16, 나무 192x144 둘, 금 208x168 셋
+#:     파트 2  0x00549E3C  단추 64x32 셋 · 접시 80x144 둘 · 받침 96x48 · 배경 448x384
+#:
+#: 배경은 0x00451F91 이 (8, 8) 에 찍는다 — 창이 464x400 이니 8점 테를 두른 꼴이다.
+BALANCE_COIN = [
+    (0, 26624, 2, 32, 32, "coin-gold-{0}.png"),
+    (2, 33792, 1, 448, 384, "coin-bg.png"),
+    (2, 6144, 2, 80, 144, "coin-pan-{0}.png"),
+    (2, 29184, 1, 96, 48, "coin-stand.png"),
+    (2, 0, 3, 64, 32, "coin-button-{0}.png"),
+    (1, 10240, 1, 176, 16, "coin-beam.png"),
+    (1, 13056, 2, 192, 144, "coin-wood-{0}.png"),
+]
+
+#: 금 천칭 셋은 자리가 안 이어져 따로 적는다 — (파트, 자리, 너비, 높이, 이름).
+BALANCE_GOLD = [
+    (1, 68352, 208, 168, "coin-scale-0.png"),
+    (1, 103296, 208, 168, "coin-scale-1.png"),
+    (1, 138240, 208, 168, "coin-scale-2.png"),
+]
+
 FISHING = [
     (8448, 1, 336, 392, "fish-bg.png"),
     (0, 1, 16, 16, "fish-hook.png"),
@@ -133,6 +158,7 @@ def main():
 
     strip(args.game, "MAZE.CDS", MAZE, "maze-bg.png")
     strip(args.game, "FISHING.CDS", FISHING, "fish-bg.png")
+    balance(args.game)
 
 
 def strip(game, name, table, out_solid):
@@ -162,6 +188,41 @@ def strip(game, name, table, out_solid):
                           else [(0, 0, 0, 0) if c == CLEAR else (*c, 255) for c in rgb])
             image.save(os.path.join(OUT_DIR, shape.format(i)))
         print(f"{shape.format('*')}  {width}x{height} x{count}  (자리 {first})")
+
+
+def balance(game):
+    """BALANCE.CDS 는 점이 파트 셋에 나뉘어 있어 따로 자른다."""
+    from PIL import Image
+
+    path = os.path.join(game, "BALANCE.CDS")
+    if not os.path.exists(path):
+        print(f"{path} 가 없다 — 건너뛴다")
+        return
+
+    archive = ls12.Ls12(open(path, "rb").read())
+    px = [archive.decode(0), archive.decode(1), archive.decode(2)]
+    own = ls12.palette(archive.decode(3))
+
+    def color(v):
+        k = v - BASE
+        return own[k] if 0 <= k < len(own) else CLEAR
+
+    def save(part, at, width, height, name):
+        rgb = [color(v) for v in px[part][at:at + width * height]]
+        solid = name == "coin-bg.png"
+        image = Image.new("RGB" if solid else "RGBA", (width, height))
+        image.putdata(rgb if solid
+                      else [(0, 0, 0, 0) if c == CLEAR else (*c, 255) for c in rgb])
+        image.save(os.path.join(OUT_DIR, name))
+
+    for part, first, count, width, height, shape in BALANCE_COIN:
+        for i in range(count):
+            save(part, first + i * width * height, width, height, shape.format(i))
+        print(f"{shape.format('*')}  {width}x{height} x{count}  (파트 {part}, 자리 {first})")
+
+    for part, at, width, height, name in BALANCE_GOLD:
+        save(part, at, width, height, name)
+    print("coin-scale-*.png  208x168 x3  (파트 1)")
 
 
 if __name__ == "__main__":
