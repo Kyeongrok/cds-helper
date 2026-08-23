@@ -1909,7 +1909,7 @@ public sealed class CityPicDialog : Window
     private void ShowPerson()
     {
         CloseCityMenu();
-        PersonInfoDialog.Show(this, _player);
+        PersonInfoDialog.Show(this, _player, _gameDirectory);
     }
 
     /// <summary>함대 정보 판.</summary>

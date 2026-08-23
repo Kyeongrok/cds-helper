@@ -29,7 +29,14 @@ internal abstract class InfoDialog : Window
     /// <summary>글꼴 조각을 못 읽었을 때 물러설 글씨색.</summary>
     protected static readonly Brush Ink = Frozen(Color.FromRgb(0xCB, 0xC5, 0xC5));
 
-    private static Brush Frozen(Color c)
+    /// <summary>판 바탕. 화면마다 다르면 물려받아 갈아 끼운다.</summary>
+    protected virtual Brush Board => Back;
+
+    /// <summary>판 테. 화면마다 다르면 물려받아 갈아 끼운다.</summary>
+    protected virtual Brush BoardEdge => Line;
+
+    /// <summary>얼려서 돌려준다. 물려받은 쪽이 제 색을 만들 때 쓴다.</summary>
+    protected static Brush Frozen(Color c)
     {
         var b = new SolidColorBrush(c);
         b.Freeze();
@@ -43,7 +50,7 @@ internal abstract class InfoDialog : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
-        Background = Back;
+        Background = Back;   // 물려받은 쪽이 Board 를 갈면 Build 에서 다시 잡힌다
     }
 
     /// <summary>
@@ -87,7 +94,8 @@ internal abstract class InfoDialog : Window
         page.Children.Add(board);
         page.Children.Add(row);
 
-        var frame = GameUi.InfoFrame(page, Back, Line);
+        Background = Board;
+        var frame = GameUi.InfoFrame(page, Board, BoardEdge);
         GameUi.EnableDrag(this, frame);
         Content = frame;
 
