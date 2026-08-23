@@ -1297,11 +1297,7 @@ public sealed class ShipMapWindow : Window
     private GameMenu InfoMenuBox() => new("정보", null,
     [
         ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _player))),
-        ("인물정보", () => Info(() =>
-        {
-            var (lat, lon) = _host.ShipLatLon;
-            PersonInfoDialog.Show(this, _player, lat, lon);
-        })),
+        ("인물정보", () => Info(() => PersonInfoDialog.Show(this, _player, _gameDir))),
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
             this, _player, ItemNames, null, null, DiscoveryNames()))),
         ("힌트정보", () => Info(() => HintListDialog.Show(this, HintLines()))),

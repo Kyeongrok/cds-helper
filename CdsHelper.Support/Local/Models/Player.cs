@@ -147,6 +147,7 @@ public sealed class Player
         Given = given.Trim();
         Name = Family.Length > 0 ? $"{Given}·{Family}" : Given;
         Age = Math.Clamp(age, MinAge, MaxAge);
+        BirthYear = Date.Year - Age;
         BirthMonth = Math.Clamp(month, 1, 12);
         BirthDay = Math.Clamp(day, 1, 31);
         Blood = Math.Clamp(blood, 0, BloodTypes.Length - 1);
@@ -159,6 +160,18 @@ public sealed class Player
 
     /// <summary>고를 수 있는 가장 많은 나이.</summary>
     public const int MaxAge = 40;
+
+    /// <summary>악명치 — 인물정보 판의 명성 맞은편 칸이다.</summary>
+    /// <remarks>
+    /// 게임은 나쁜 짓(해적질·약탈)으로 올린다. 우리 쪽에는 아직 올릴 길이 없어 늘 0 이다.
+    /// </remarks>
+    public int Infamy { get; set; }
+
+    /// <summary>빚(닢). 아직 빌려 주는 데가 없어 늘 0 이다.</summary>
+    public int Debt { get; set; }
+
+    /// <summary>태어난 해. 인물정보 판이 생년월일로 적는다.</summary>
+    public int BirthYear { get; set; } = StartDate.Year - 25;
 
     /// <summary>직업 번호(<see cref="Job.All"/>).</summary>
     public int JobIndex { get; set; }
