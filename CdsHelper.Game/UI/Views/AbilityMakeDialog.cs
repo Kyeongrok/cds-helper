@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -30,20 +30,28 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal sealed class AbilityMakeDialog : InfoDialog
 {
-    private const double BoardWidth = 520, BoardHeight = 280;
+    /// <summary>
+    /// 판 크기(그림 점). 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 도로 나눴다 —
+    /// 띠 단추만 제 크기(24)로 그려져 있어 혼자 작아 보였다.
+    /// </summary>
+    private const double BoardWidth = 296, BoardHeight = 160;
+
+    /// <summary>능력치 줄의 이름 칸과 값 칸.</summary>
+    private const double NameWidth = 32, ValueWidth = 24;
+
+    /// <summary>값 옆 화살표 단추의 폭. 직업 단추는 마구리 둘에 가운데 여섯 칸이다.</summary>
+    private const double ArrowWidth = 13, JobWidth = 80;
 
     private readonly int _age;
 
-    private readonly TextBlock[] _values = new TextBlock[Ability.Shown];
-    private readonly TextBlock _bonus = new()
+    private readonly GameUi.GameLabel[] _values = new GameUi.GameLabel[Ability.Shown];
+    private readonly GameUi.GameLabel _bonus = new(GameFont.WhiteColor)
     {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 16,
+        Bold = true,
+        FallbackBrush = Ink,
         HorizontalAlignment = HorizontalAlignment.Right,
-        Margin = new Thickness(0, 0, 8, 0),
     };
-    private readonly List<Border> _jobs = [];
+    private readonly List<GameButton> _jobs = [];
 
     private int[] _stats;
     private int _left, _job;
@@ -56,30 +64,27 @@ internal sealed class AbilityMakeDialog : InfoDialog
         _stats = Ability.Roll(Job.Of(_job), _age, player.BirthMonth, player.BirthDay, rng);
         _left = Ability.BonusFor(_stats, rng);
 
-        var left = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+        var left = new StackPanel { Margin = new Thickness(6, 0, 0, 0) };
         for (int i = 0; i < Ability.Shown; i++)
         {
             int which = i;
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-            row.Children.Add(new TextBlock
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+            row.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
             {
                 Text = Ability.Names[i],
-                Foreground = Ink,
-                FontWeight = FontWeights.Bold,
-                FontSize = 16,
-                Width = 54,
-                VerticalAlignment = VerticalAlignment.Center,
+                Bold = true,
+                FallbackBrush = Ink,
+                Width = NameWidth,
+                HorizontalAlignment = HorizontalAlignment.Left,
             });
-            _values[i] = new TextBlock
+            // 값은 오른쪽에 맞춘다 — 한 자리와 두 자리가 섞여도 화살표 자리가 안 흔들린다.
+            _values[i] = new GameUi.GameLabel(GameFont.WhiteColor)
             {
-                Foreground = Ink,
-                FontWeight = FontWeights.Bold,
-                FontSize = 16,
-                Width = 40,
-                TextAlignment = TextAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
+                Bold = true,
+                FallbackBrush = Ink,
+                HorizontalAlignment = HorizontalAlignment.Right,
             };
-            row.Children.Add(_values[i]);
+            row.Children.Add(new Grid { Width = ValueWidth, Children = { _values[i] } });
             row.Children.Add(Arrow("↑", () => Move(which, +1)));
             row.Children.Add(Arrow("↓", () => Move(which, -1)));
             left.Children.Add(row);
@@ -88,18 +93,18 @@ internal sealed class AbilityMakeDialog : InfoDialog
         left.Children.Add(new Border
         {
             BorderBrush = Ink,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(0, 12, 8, 0),
-            Padding = new Thickness(6, 2, 6, 2),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 7, 5, 0),
+            Padding = new Thickness(3, 1, 3, 1),
             Child = Bonus(),
         });
 
-        var right = new StackPanel { Margin = new Thickness(24, 2, 0, 0) };
+        var right = new StackPanel { Margin = new Thickness(14, 1, 0, 0) };
         for (int i = 0; i < Job.Choosable; i++)
         {
             int pick = i;
-            var cell = new GameButton(Job.All[i].Name, () => ChooseJob(pick), BandStyle.Button, 140);
-            cell.Margin = new Thickness(0, 4, 0, 4);
+            var cell = new GameButton(Job.All[i].Name, () => ChooseJob(pick), BandStyle.Button, JobWidth);
+            cell.Margin = new Thickness(0, 2, 0, 2);
             _jobs.Add(cell);
             right.Children.Add(cell);
         }
@@ -120,23 +125,21 @@ internal sealed class AbilityMakeDialog : InfoDialog
     private UIElement Bonus()
     {
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
+        stack.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
         {
             Text = "보너스",
-            Foreground = Ink,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
+            Bold = true,
+            FallbackBrush = Ink,
+            HorizontalAlignment = HorizontalAlignment.Left,
         });
         var line = new StackPanel { Orientation = Orientation.Horizontal };
-        line.Children.Add(new TextBlock
+        line.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
         {
             Text = "  포인트:",
-            Foreground = Ink,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
-            VerticalAlignment = VerticalAlignment.Center,
+            Bold = true,
+            FallbackBrush = Ink,
         });
-        _bonus.MinWidth = 40;
+        _bonus.MinWidth = ValueWidth;
         line.Children.Add(_bonus);
         stack.Children.Add(line);
         return stack;
@@ -148,17 +151,19 @@ internal sealed class AbilityMakeDialog : InfoDialog
         {
             Background = GameUi.ItemFill,
             BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Width = 22,
-            Margin = new Thickness(2, 0, 0, 0),
+            BorderThickness = new Thickness(1),
+            Width = ArrowWidth,
+            Margin = new Thickness(1, 0, 0, 0),
             Cursor = Cursors.Hand,
             Child = new TextBlock
             {
+                // 화살표는 게임 비트맵 글꼴에 없는 글자라 윈도 글꼴로 찍는다.
                 Text = glyph,
                 Foreground = Brushes.Black,
                 FontWeight = FontWeights.Bold,
-                FontSize = 13,
+                FontSize = 9,
                 HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
             },
         };
         box.MouseLeftButtonDown += (_, e) => e.Handled = true;
@@ -198,8 +203,12 @@ internal sealed class AbilityMakeDialog : InfoDialog
     {
         for (int i = 0; i < Ability.Shown; i++) _values[i].Text = $"{_stats[i]}";
         _bonus.Text = $"{_left}";
+
+        // 고른 직업은 <b>띠 무늬를 갈아</b> 알린다. 예전에는 테 색만 바꿨는데 이 단추에는
+        // 테가 없어(굵기 0) 아무 일도 안 일어나 보였다 — 눌리지 않는 줄 알 만했다.
+        // 혈액형·국적 단추도 같은 길로 고른 것을 낸다(CharacterMakeDialog).
         for (int i = 0; i < _jobs.Count; i++)
-            _jobs[i].BorderBrush = i == _job ? GameUi.PageFill : GameUi.ItemEdge;
+            _jobs[i].Band = i == _job ? BandStyle.Alt : BandStyle.Button;
     }
 
     /// <summary>"다음" — 보너스를 다 안 썼으면 게임처럼 한 번 묻는다.</summary>
