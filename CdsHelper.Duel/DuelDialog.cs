@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -54,7 +54,8 @@ internal sealed class DuelDialog : InfoDialog
 
     private static readonly Brush Spent = Frozen(Color.FromArgb(0xD0, 0x14, 0x10, 0x0E));
     private static readonly Brush Blood = Frozen(Color.FromRgb(0xC8, 0x3A, 0x30));
-    private static readonly Brush Steel = Frozen(Color.FromRgb(0x6C, 0xA8, 0xD8));
+    /// <summary>상대 얼굴 자리를 채우는 푸른색. 내 쪽 <see cref="Blood"/> 와 짝이다.</summary>
+    private static readonly Brush Foe = Frozen(Color.FromRgb(0x6C, 0xA8, 0xD8));
 
     private readonly Duel _game;
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
@@ -87,7 +88,7 @@ internal sealed class DuelDialog : InfoDialog
         Lay(Picture("duel-deck.png"), 0, 0, SceneWidth, ArenaHeight);
         Lay(Picture("duel-panel.png"), 0, ArenaHeight, SceneWidth, PanelHeight);
 
-        Face(TheirFaceX, Steel);
+        Face(TheirFaceX, Foe);
         Face(MyFaceX, Blood);
 
         Caption(_game.Theirs.Name, TheirNameX);
