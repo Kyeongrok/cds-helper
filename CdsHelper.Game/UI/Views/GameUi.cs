@@ -262,7 +262,22 @@ internal static class GameUi
     /// 게임 폴더에서 읽은 비트맵 글꼴. 게임 폴더를 알게 되면 한 번 넣어 둔다.
     /// 못 읽었으면 null 이고 그때는 윈도 글꼴로 물러선다.
     /// </summary>
-    public static GameFont? Font { get; set; }
+    /// <remarks>
+    /// 넣는 순간 이미 지어진 글자 칸들이 다시 찍는다(<see cref="GameLabel"/>). 상단 띠는
+    /// 게임 폴더를 알기 전에 지어지는데, 값이 바뀔 때만 다시 찍게 두면 "설정" 처럼 한 번
+    /// 적고 마는 칸이 윈도 글꼴로 남아 띠 안에서 글꼴이 섞였다.
+    /// </remarks>
+    public static GameFont? Font
+    {
+        get => _font;
+        set
+        {
+            _font = value;
+            GameLabel.RedrawAll();
+        }
+    }
+
+    private static GameFont? _font;
 
     /// <summary>
     /// 게임 비트맵 글꼴로 찍는 글자 칸. 글이 바뀔 때마다 다시 찍는다 — 상단 띠처럼 값이
@@ -284,7 +299,7 @@ internal static class GameUi
         };
         private TextBlock? _fallback;
         private string _text = "";
-        private Brush _fallbackBrush = Brushes.Black;
+        private Brush _fallbackBrush;
 
         /// <summary>
         /// 게임 글꼴을 못 읽어 윈도 글꼴로 물러설 때의 글씨색. 어두운 바탕에 놓는 칸은
@@ -310,9 +325,40 @@ internal static class GameUi
         {
             _color = color;
             _height = height;
+            _fallbackBrush = PaletteBrush(color);
             RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.NearestNeighbor);
             RenderOptions.SetEdgeMode(_image, EdgeMode.Aliased);
             VerticalAlignment = VerticalAlignment.Center;
+            lock (Living) Living.Add(new WeakReference<GameLabel>(this));
+        }
+
+        /// <summary>
+        /// 지어 둔 글자 칸들. 글꼴이 들어오면 다시 찍어야 해서 들고 있는다 — 약한 참조라
+        /// 창이 닫히면 그대로 걷힌다.
+        /// </summary>
+        private static readonly List<WeakReference<GameLabel>> Living = [];
+
+        /// <summary>살아 있는 글자 칸을 다 다시 찍는다. 걷힌 것은 목록에서 뺀다.</summary>
+        internal static void RedrawAll()
+        {
+            lock (Living)
+                for (int i = Living.Count - 1; i >= 0; i--)
+                    if (Living[i].TryGetTarget(out var label)) label.Redraw();
+                    else Living.RemoveAt(i);
+        }
+
+        /// <summary>
+        /// 그 색인의 게임 색. 윈도 글꼴로 물러설 때에도 글씨색은 게임 것으로 둔다 —
+        /// 검정으로 두면 게임 글꼴로 찍힌 옆 칸과 색이 어긋난다(띠 글씨는 <c>341C14</c> 다).
+        /// </summary>
+        private static Brush PaletteBrush(byte color)
+        {
+            int i = color * 3;
+            var brush = new SolidColorBrush(Color.FromRgb(GamePalette.Rgb[i],
+                                                          GamePalette.Rgb[i + 1],
+                                                          GamePalette.Rgb[i + 2]));
+            brush.Freeze();
+            return brush;
         }
 
         public string Text
@@ -516,38 +562,6 @@ internal static class GameUi
     ///
     /// 안의 것은 테 두께만큼 안으로 들여 놓는다.
     /// </remarks>
-    /// <summary>
-    /// 띠 안에 놓는 밝은 상자. 게임 날짜 칸처럼 테에 구슬 무늬가 있고 속이 반짝인다.
-    /// </summary>
-    public static Grid CellFrame(UIElement content)
-    {
-        var host = new Grid();
-        var back = new Border();
-        host.Children.Add(back);
-        host.Children.Add(new Border
-        {
-            Margin = new Thickness(CellArt.BorderX, CellArt.BorderY, CellArt.BorderX, CellArt.BorderY),
-            Child = content,
-        });
-
-        host.SizeChanged += (_, _) =>
-        {
-            var art = CellArt.Draw((int)Math.Round(host.ActualWidth),
-                                        (int)Math.Round(host.ActualHeight));
-            if (art == null) return;
-            var brush = new ImageBrush(art)
-            {
-                Stretch = Stretch.None,
-                AlignmentX = AlignmentX.Left,
-                AlignmentY = AlignmentY.Top,
-            };
-            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
-            RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
-            brush.Freeze();
-            back.Background = brush;
-        };
-        return host;
-    }
 
     /// <summary>띠 속(테 안쪽)이 적어도 이만큼은 되어야 한다.</summary>
     private const int BarInside = 15;

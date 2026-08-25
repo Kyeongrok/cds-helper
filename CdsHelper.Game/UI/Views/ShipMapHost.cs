@@ -559,11 +559,12 @@ public sealed class ShipMapHost : HwndHost
     {
         if (_wind == null) return 0;
 
-        // 도시 창이 떠 있는 동안에는 물결도 구름도 선다 — 지도가 남색 막 아래로 물러난 채
-        // 혼자 흐르면 어색하다. 커맨드 창이나 물음창 때문에 멈춘 동안(<see cref="Paused"/>)에는
-        // 그대로 흐른다. 게임도 그때는 하늘이 살아 있다.
+        // 창이 떠 있는 동안에는 물결도 구름도 선다 — 도시 창이 지도를 남색 막으로 덮은
+        // 때(<see cref="_inCity"/>)만이 아니라 커맨드 창·물음창으로 멈춘 때
+        // (<see cref="Paused"/>)도 그렇다. 게임은 창이 뜨면 항해 루프째로 서서
+        // 날짜도 구름도 그 자리에 멎는다 — 하늘만 살아 있으면 멈춘 것으로 안 보인다.
         int ticks = 0;
-        if (!_inCity)
+        if (!_inCity && !Paused)
         {
             _rippleAccum += dt;
             while (_rippleAccum >= TickSeconds) { _rippleAccum -= TickSeconds; _rippleTick++; ticks++; }

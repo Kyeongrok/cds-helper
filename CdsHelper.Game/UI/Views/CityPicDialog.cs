@@ -396,7 +396,7 @@ public sealed class CityPicDialog : Window
     private void Enter(CityBuildingTable.Building building)
     {
         var facility = Facility.For(building.Kind);
-        PlayFameCheck(building);
+        if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
         Greet(facility);
         ShowPhoto(facility.Kind, building.Code);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
@@ -419,23 +419,47 @@ public sealed class CityPicDialog : Window
     private bool _playing;
 
     /// <summary>
+    /// 후원자가 앉은 건물의 <b>명성 관문</b>. 통과하면 true, 문 앞에서 돌아섰으면 false 다.
+    /// </summary>
+    /// <remarks>
+    /// 명성이 모자라면 설득이 엎어지고 <b>명령 창이 아예 안 열린다</b> — 게임도 그 자리에서
+    /// 도시 그림으로 돌아가고 집사가 돌려보내는 소리(효과음 파트 1)를 낸다.
+    ///
+    /// <b>왕궁과 교회는 뺀다.</b> 그 둘은 후원자를 못 만나도 건물 자체에는 들어간다 —
+    /// 왕궁에는 알현·의뢰 같은 제 줄이 있고 교회는 수련하는 데다. 막히는 것은 후원자만
+    /// 앉아 있는 곳(총독부·상관·저택 따위)이다.
+    /// </remarks>
+    private bool PassFameGate(CityBuildingTable.Building building, Facility facility)
+    {
+        var patron = PatronAt(building.Kind);
+        if (patron == null) return true;
+
+        bool passed = _player.Fame >= patron.Fame;
+        PlayFameCheck(passed);
+        if (passed) return true;
+
+        if (facility.Kind is FacilityKind.Palace or FacilityKind.Church) return true;
+
+        SoundBank.Shared(_gameDirectory)?.Play(SoundBank.TurnedAwayPart);
+        return false;
+    }
+
+    /// <summary>
     /// 후원자가 앉은 건물에 들어설 때 도는 <b>설득 애니메이션</b>(MPEFFECT 5번).
     /// </summary>
     /// <remarks>
     /// 게임은 이것을 명성 관문 안에서 돌린다 — <c>0x0044E740</c> 이 후원자의 필요 명성과 내
-    /// 명성을 견주고, 그 결과를 그대로 애니메이션의 인자로 넘긴다. 그림 넉 장이 곧 결말까지
+    /// 명성을 견주고, 그 결과를 그대로 애니메이션의 인자로 넘긴다(우리도 <paramref name="passed"/>
+    /// 로 받는다). 그림 넉 장이 곧 결말까지
     /// 담고 있어서, <b>통과면 청을 들어주는 셋째 장에서 멈추고 모자라면 엎어지는 끝 장까지</b>
     /// 간다. 자세한 것은 볼트 <c>22.분석-애니메이션(MPEFFECT·EVANIME)</c> 참고.
     ///
     /// 계약을 이미 맺은 뒤에는 게임도 관문을 건너뛰므로 여기서도 안 돈다 — 그 자리는
     /// <see cref="Patron"/> 쪽에 아직 없어 후원자가 앉아 있기만 하면 돈다.
     /// </remarks>
-    private void PlayFameCheck(CityBuildingTable.Building building)
+    private void PlayFameCheck(bool passed)
     {
         if (_playing) return;                       // 도는 동안 또 누르면 겹친다
-
-        var patron = PatronAt(building.Kind);
-        if (patron == null) return;
 
         var effects = Effects();
         if (effects == null) return;
@@ -453,7 +477,7 @@ public sealed class CityPicDialog : Window
 
         // 청하는 두 장을 두 번 흔들고 결말 장을 낸다 — 넉 장을 한 번씩만 넘기면 눈에
         // 들어오기 전에 지나간다. 결말은 명성이 되면 받아 드는 장, 모자라면 엎어지는 장이다.
-        int[] order = [.. Plead, _player.Fame >= patron.Fame ? Granted : Refused];
+        int[] order = [.. Plead, passed ? Granted : Refused];
 
         // 같은 장이 두 번 나오므로 한 번만 풀어 둔다.
         var art = new BitmapSource?[EffectAnim.FrameCount];
@@ -579,10 +603,37 @@ public sealed class CityPicDialog : Window
     /// </remarks>
     private void Greet(Facility facility)
     {
-        if (facility.Kind != FacilityKind.Library) return;
-        TalkDialog.Say(this, Faces()?.TryGetBgra(LibrarianFace, female: false),
-                       "", "책을 찾고 계십니까?");
+        if (facility.Kind == FacilityKind.Library)
+        {
+            TalkDialog.Say(this, Faces()?.TryGetBgra(LibrarianFace, female: false),
+                           "", "책을 찾고 계십니까?");
+            return;
+        }
+
+        // 항구에서는 부관이 먼저 말을 건다. 자리가 비었으면 아무도 안 나온다.
+        if (facility.Kind == FacilityKind.Harbor) GreetMate();
     }
+
+    /// <summary>
+    /// 항구에 들어설 때 부관이 건네는 한마디. 부관 자리가 비었으면 아무 일도 없다.
+    /// </summary>
+    /// <remarks>
+    /// 부하는 이름만 들고 있어(<see cref="Player.Mates"/>) 얼굴은 세이브 인물표에서 되짚는다
+    /// (<see cref="TavernRoster.Find"/>). 못 찾으면 얼굴 없이 말만 낸다 — 그림이 없다고
+    /// 말까지 막을 일은 아니다. 게임 화면에도 단추가 "확인" 하나뿐이라 물음이 아니라 인사다.
+    /// </remarks>
+    private void GreetMate()
+    {
+        string mate = _player.MateAt(MateSlot);
+        if (mate.Length == 0) return;
+
+        var who = Roster()?.Find(mate);
+        TalkDialog.Say(this, who is { } person ? FaceOf(person) : null,
+                       "", "제독, 바다에 나가시겠습니까?");
+    }
+
+    /// <summary>부관이 앉는 자리. <see cref="Player.MateRoles"/> 의 첫 자리다.</summary>
+    private const int MateSlot = 0;
 
     /// <summary>지금 떠 있는 건물 사진. 명령 창을 닫으면 같이 걷는다.</summary>
     private BuildingPhotoWindow? _photoWindow;
@@ -1905,11 +1956,66 @@ public sealed class CityPicDialog : Window
         ("게임 종료", QuitToTitle),
         ("취소", CloseCityMenu));
 
-    /// <summary>인물 정보 판. 도시 안이라 함대좌표는 게임처럼 <c>---</c> 다.</summary>
+    /// <summary>
+    /// 인물 정보. <b>부하가 하나라도 있으면</b> 게임처럼 누구를 볼지 먼저 묻고,
+    /// 아무도 없으면 곧바로 제독의 판을 낸다.
+    /// </summary>
+    /// <remarks>도시 안이라 함대좌표는 게임처럼 <c>---</c> 다.</remarks>
     private void ShowPerson()
     {
+        if (_player.MateCount == 0)
+        {
+            CloseCityMenu();
+            PersonInfoDialog.Show(this, _player, _gameDirectory);
+            return;
+        }
+        _cityMenu.Push(PersonMenu);
+    }
+
+    /// <summary>
+    /// 누구의 인물정보를 볼지 고르는 창 — 제독과 부하 네 자리다.
+    /// </summary>
+    /// <remarks>
+    /// 자리는 늘 넷 다 낸다(게임 화면이 그렇다). <b>빈 자리는 흐려 두고 안 먹는다</b> —
+    /// 앉은 사람이 없으면 낼 판도 없기 때문이다.
+    /// </remarks>
+    private GameMenu PersonMenu()
+    {
+        var rows = new List<(string, Action?)>
+        {
+            ("플레이어", () =>
+            {
+                CloseCityMenu();
+                PersonInfoDialog.Show(this, _player, _gameDirectory);
+            }),
+        };
+
+        for (int i = 0; i < Player.MaxMates; i++)
+        {
+            int slot = i;
+            string name = _player.MateAt(slot);
+            rows.Add((Player.MateRoles[slot],
+                      name.Length == 0 ? null : () => ShowMate(slot)));
+        }
+
+        rows.Add(("취소", CloseCityMenu));
+        return new GameMenu("", null, [.. rows]);
+    }
+
+    /// <summary>
+    /// 그 자리에 앉은 부하의 인물정보 판. 세이브 인물표에서 그 사람을 되짚는다 —
+    /// 못 찾으면 이름만이라도 알린다.
+    /// </summary>
+    private void ShowMate(int slot)
+    {
+        string name = _player.MateAt(slot);
+        var who = Roster()?.Find(name);
         CloseCityMenu();
-        PersonInfoDialog.Show(this, _player, _gameDirectory);
+
+        if (who is { } person)
+            PersonInfoDialog.ShowMate(this, person, Player.MateRoles[slot], _gameDirectory);
+        else
+            NoticeDialog.Show(this, $"{name}의 자료를 찾지 못했다");
     }
 
     /// <summary>함대 정보 판.</summary>
