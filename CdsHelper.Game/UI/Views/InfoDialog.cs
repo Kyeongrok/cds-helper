@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -25,6 +25,15 @@ internal abstract class InfoDialog : Window
 
     /// <summary>테를 두르는 짙은 선.</summary>
     protected static readonly Brush Line = Frozen(Color.FromRgb(0x11, 0x09, 0x09));
+
+    /// <summary>
+    /// 강청색 판. 정보 판 가운데 <b>인물정보와 함대정보</b>가 이 색이다 — 나머지는 밤색이다.
+    /// 화면에서 뽑은 값이다.
+    /// </summary>
+    protected static readonly Brush Steel = Frozen(Color.FromRgb(92, 111, 147));
+
+    /// <summary>강청색 판의 테.</summary>
+    protected static readonly Brush SteelEdge = Frozen(Color.FromRgb(54, 65, 86));
 
     /// <summary>글꼴 조각을 못 읽었을 때 물러설 글씨색.</summary>
     protected static readonly Brush Ink = Frozen(Color.FromRgb(0xCB, 0xC5, 0xC5));

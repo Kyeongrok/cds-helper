@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -49,6 +49,7 @@ internal sealed class GameButton : Border
     private string _text;
     private Action? _run;
     private bool _on = true;
+    private bool _lit;
     private bool _focused;
 
     /// <param name="text">줄에 적히는 글.</param>
@@ -112,6 +113,20 @@ internal sealed class GameButton : Border
         }
     }
 
+    /// <summary>
+    /// 누를 일이 없어도 밝은 글씨로 둘지. <b>보여 주기만 하는 칸</b>이 그렇다 —
+    /// 상단 띠의 날짜·좌표 칸은 눌리지 않지만 흐리지도 않다.
+    /// </summary>
+    /// <remarks>
+    /// 이것이 없으면 <see cref="Run"/> 이 null 인 줄은 무조건 회색(색인 21)이 된다.
+    /// 못 누르는 것과 할 일이 없는 것은 다르다.
+    /// </remarks>
+    public bool Lit
+    {
+        get => _lit;
+        set { if (_lit != value) { _lit = value; Build(); } }
+    }
+
     /// <summary>제목 무늬인지. 제목 줄은 초점도 안 받고 눌리지도 않는다.</summary>
     public bool IsTitle => _style == BandStyle.Title;
 
@@ -126,7 +141,7 @@ internal sealed class GameButton : Border
 
     private void Build()
     {
-        bool live = _on && _run != null;
+        bool live = _on && (_run != null || _lit);
 
         // 제목은 밝은 글씨에 그림자를 지고, 나머지는 검은 글씨에 그림자가 없다.
         // 흐린 줄은 회색(색인 21)이다.
@@ -180,6 +195,7 @@ internal sealed class GameButton : Border
             };
         }
 
-        Cursor = live ? Cursors.Hand : Cursors.Arrow;
+        // 손 모양은 <b>정말 눌리는</b> 줄에만 준다 — 보여 주기만 하는 칸은 밝아도 화살표다.
+        Cursor = _on && _run != null ? Cursors.Hand : Cursors.Arrow;
     }
 }

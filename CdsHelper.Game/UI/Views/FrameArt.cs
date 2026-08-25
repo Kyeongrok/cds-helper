@@ -1,4 +1,4 @@
-using System.Windows.Media;
+﻿using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace CdsHelper.Game.UI.Views;
@@ -21,8 +21,8 @@ namespace CdsHelper.Game.UI.Views;
 /// 그래서 그림을 잘라 늘리는 대신 그때그때 그린다. 잘라 쓰면 늘릴 때 이음매가 보이고 크기마다
 /// 조각을 따로 떠야 하는데, 그릴 줄 알면 그 수고가 다 없어진다.
 ///
-/// 띠 안에 놓는 밝은 칸은 <see cref="CellArt"/> 가 <b>따로</b> 그린다. 얼핏 같아 보여도 겹
-/// 구성이 달라서, 무늬를 나눠 쓰면 한쪽을 손볼 때 다른 쪽이 같이 틀어진다.
+/// 띠 <b>안에 놓는 칸은 여기서 그리지 않는다</b> — 게임 것은 손으로 그린 상자가 아니라
+/// 원본 조각으로 지은 <b>베이지 버튼 띠</b>였다(<see cref="GameButton"/>).
 ///
 /// 색은 원본에서 그대로 뽑았다.
 /// </remarks>

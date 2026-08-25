@@ -40,6 +40,13 @@ public class AppSettingsData
     /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>
     public bool ShowToolBar { get; set; } = true;
 
+    /// <summary>
+    /// 게임 상단 띠에 켜 둔 칸 이름들("날짜"·"소지금" …). 도시정보 창에서 켜고 끈 것이
+    /// 다음에 켤 때도 그대로이게 적어 둔다. 아직 한 번도 안 건드렸으면 null 이라
+    /// 부르는 쪽 기본값(날짜·위도경도·소지금·명성)이 선다.
+    /// </summary>
+    public List<string>? BarCells { get; set; }
+
     /// <summary>지도 위에 바람·해류 화살표를 얹을지. 함대 창 커맨드에서 켜고 끈다.</summary>
     public bool ShowFlowArrows { get; set; }
     public RerollOptions Reroll { get; set; } = new();
@@ -131,6 +138,7 @@ public static class AppSettings
     private static CityOpenEffect _cityOpenEffect = Settings.CityOpenEffect.Expand;
     private static bool _showCoordOverlay = true;
     private static bool _showToolBar = true;
+    private static List<string>? _barCells;
     private static bool _showFlowArrows;
     private static bool _sfxEnabled = true;
     private static int _bandPad = DefaultBandPad;
@@ -328,6 +336,23 @@ public static class AppSettings
     }
 
     /// <summary>
+    /// 게임 상단 띠에 켜 둔 칸 이름들. 도시정보 창에서 줄을 뒤집을 때마다 적어 둔다.
+    /// </summary>
+    /// <remarks>
+    /// 한 번도 안 건드렸으면 <b>null</b> 이다 — 빈 목록과 다르다. 빈 목록은 "다 꺼 두었다"
+    /// 는 뜻이라 그대로 지켜야 하고, null 이라야 부르는 쪽이 기본값을 세울 수 있다.
+    /// </remarks>
+    public static IReadOnlyList<string>? BarCells
+    {
+        get => _barCells;
+        set
+        {
+            _barCells = value == null ? null : [.. value];
+            SaveSettings();
+        }
+    }
+
+    /// <summary>
     /// 지도 위 바람·해류 화살표를 켜 둘지. 게임에는 없는 것이라 기본은 끔이다 —
     /// 원본은 화살표 대신 물결이 흐르는 것으로 해류를 보인다.
     /// </summary>
@@ -382,6 +407,7 @@ public static class AppSettings
                         ? eff : Settings.CityOpenEffect.Expand;
                     _showCoordOverlay = data.ShowCoordOverlay;
                     _showToolBar = data.ShowToolBar;
+                    _barCells = data.BarCells;
                     _showFlowArrows = data.ShowFlowArrows;
                     _reroll = data.Reroll ?? new();
                 }
@@ -419,6 +445,7 @@ public static class AppSettings
                 CityOpenEffect = _cityOpenEffect.ToString(),
                 ShowCoordOverlay = _showCoordOverlay,
                 ShowToolBar = _showToolBar,
+                BarCells = _barCells,
                 ShowFlowArrows = _showFlowArrows,
                 Reroll = _reroll
             };

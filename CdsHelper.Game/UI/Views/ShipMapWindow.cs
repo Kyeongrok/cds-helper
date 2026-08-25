@@ -111,38 +111,41 @@ public sealed class ShipMapWindow : Window
     /// <summary>한 번 열어 봤는지. 파일이 없으면 입항할 때마다 다시 찾지 않는다.</summary>
     private bool _cityPicsTried;
 
-    // 상단 띠의 칸들. 글자는 게임 비트맵 글꼴로 찍는다(<see cref="GameUi.GameLabel"/>) —
-    // 윈도 글꼴은 같은 자리에서 획이 굵고 커서 게임 화면과 결이 안 맞는다.
+    // 상단 띠의 칸들. 게임 것은 <b>베이지 버튼 띠</b>다 — MISC.CDS 파트 4 의 왼끝(16) ·
+    // 가운데(8, 되풀이) · 오른끝(16) 을 이어 붙이고 그 위에 비트맵 글꼴을 짙은 갈색(색인 17)
+    // 으로 찍는다(<see cref="GameButton"/>). 칸을 따로 그리던 것을 이것으로 바꿨다 —
+    // 확대해 보면 칸 사이 이음매가 마구리 둘이 맞닿은 모양이라 버튼임이 드러난다.
+    // 모드 쪽 ButtonMakerKR 이 같은 길로 짓는다(진홍=타이틀 · 베이지=버튼 · 회녹색=다른 상태).
 
     /// <summary>게임 상단 바의 날짜 칸. 조합에서 기술을 배우면 달이 넘어간다.</summary>
-    private readonly GameUi.GameLabel _date = new() { Bold = true };
+    private readonly GameButton _date = new("") { Lit = true, Margin = default };
 
     /// <summary>게임 상단 바의 소지금·함선 칸.</summary>
-    private readonly GameUi.GameLabel _purse = new() { Bold = true };
+    private readonly GameButton _purse = new("") { Lit = true, Margin = default };
 
     /// <summary>게임 상단 바의 명성 칸. 후원자를 만날 수 있는지가 이 값으로 갈린다.</summary>
-    private readonly GameUi.GameLabel _fame = new() { Bold = true };
+    private readonly GameButton _fame = new("") { Lit = true, Margin = default };
 
     /// <summary>선원들이 지친 만큼. 폭풍을 맞으면 오르고 자택 휴양이 푼다.</summary>
-    private readonly GameUi.GameLabel _tired = new() { Bold = true };
+    private readonly GameButton _tired = new("") { Lit = true, Margin = default };
 
     /// <summary>태우고 있는 선원 수.</summary>
-    private readonly GameUi.GameLabel _crew = new() { Bold = true };
+    private readonly GameButton _crew = new("") { Lit = true, Margin = default };
 
     /// <summary>바람과 배 속도. 게임 띠에는 없는 칸이라 꺼 둔 채로 낸다.</summary>
-    private readonly GameUi.GameLabel _windText = new() { Bold = true };
+    private readonly GameButton _windText = new("") { Lit = true, Margin = default };
 
     /// <summary>실어 둔 물과 식량(통).</summary>
-    private readonly GameUi.GameLabel _stores = new() { Bold = true };
+    private readonly GameButton _stores = new("") { Lit = true, Margin = default };
 
     /// <summary>보급이 며칠 갈지. 게임 셈(<c>0x00494010</c>)을 그대로 낸다.</summary>
-    private readonly GameUi.GameLabel _left = new() { Bold = true };
+    private readonly GameButton _left = new("") { Lit = true, Margin = default };
 
     /// <summary>게임 상단 바의 위경도 칸.</summary>
-    private readonly GameUi.GameLabel _coord = new() { Bold = true };
+    private readonly GameButton _coord = new("") { Lit = true, Margin = default };
 
     /// <summary>게임 상단 바의 도시명 칸. 바다에서는 빈 채로 둔다.</summary>
-    private readonly GameUi.GameLabel _cityLabel = new() { Bold = true };
+    private readonly GameButton _cityLabel = new("") { Lit = true, Margin = default };
 
     /// <summary>지도 위에 겹쳐 띄우는 좌표 상자의 글.</summary>
     private readonly TextBlock _overlayText = new()
@@ -165,7 +168,6 @@ public sealed class ShipMapWindow : Window
 
     // 게임 화면 위쪽 띠에서 뽑은 색. 누런 양피지 바탕에 어두운 테두리다.
     private static readonly Brush BarFill = new SolidColorBrush(Color.FromRgb(0xC8, 0xBF, 0xA0));
-    private static readonly Brush CellFill = new SolidColorBrush(Color.FromRgb(0xD2, 0xCA, 0xAD));
     private static readonly Brush BarEdge = new SolidColorBrush(Color.FromRgb(0x4A, 0x40, 0x30));
 
     // 게임 커맨드 창에서 뽑은 색. 짙은 밤색 바탕에 밝은 테를 두르고, 항목만 양피지다.
@@ -174,36 +176,26 @@ public sealed class ShipMapWindow : Window
     private static readonly Brush MenuTitleFg = new SolidColorBrush(Color.FromRgb(0xEC, 0xDF, 0xC0));
 
     /// <summary>
-    /// 게임 띠 안에 놓는 칸 하나. 테에 구슬 무늬가 있고 속이 반짝이는 밝은 상자다
-    /// (<see cref="FrameArt.DrawCell"/>).
-    /// </summary>
-    private static FrameworkElement GameCell(UIElement content)
-    {
-        var inner = new Border
-        {
-            // 게임 띠는 꽤 얇다. 칸이 두꺼우면 액자가 그만큼 벌어져 비율이 어긋난다.
-            Padding = new Thickness(4, 0, 4, 0),
-            Child = content,
-        };
-        // 칸끼리는 붙여 놓는다 — 게임 띠도 칸 사이가 벌어져 있지 않고 테끼리 맞닿는다.
-        var cell = GameUi.CellFrame(inner);
-        return cell;
-    }
-
-    /// <summary>
     /// 도시정보 창에서 켜고 끄는 칸. 켠 상태를 따로 들고 있지 않고 칸의
     /// <see cref="UIElement.Visibility"/> 를 그대로 본다 — 둘로 나누면 어긋난다.
     /// </summary>
     private readonly Dictionary<string, FrameworkElement> _infoCells = [];
 
     /// <summary>도시정보 창의 줄 이름을 달아 띠에 놓는 칸.</summary>
-    private FrameworkElement InfoCell(string name, UIElement content, bool on)
+    private FrameworkElement InfoCell(string name, GameButton cell, bool on)
     {
-        var cell = GameCell(content);
-        cell.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        // 지난번에 켜고 끈 것이 있으면 그것이 먼저다. 한 번도 안 건드렸으면(null)
+        // 여기 적힌 기본값으로 선다.
+        var saved = AppSettings.BarCells;
+        cell.Visibility = (saved?.Contains(name) ?? on) ? Visibility.Visible : Visibility.Collapsed;
         _infoCells[name] = cell;
         return cell;
     }
+
+    /// <summary>지금 띠에 켜져 있는 칸을 적어 둔다. 다음에 켤 때 이대로 선다.</summary>
+    private void SaveBarCells() =>
+        AppSettings.BarCells =
+            [.. _infoCells.Where(p => p.Value.Visibility == Visibility.Visible).Select(p => p.Key)];
 
     public ShipMapWindow()
     {
@@ -327,12 +319,6 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fatigue, _tired, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.City, _cityLabel, on: false));
 
-        // 게임 띠 끝에 설정 칸. 누르면 배경음악을 켜고 끄는 창이 뜬다.
-        var settings = GameCell(new GameUi.GameLabel { Text = "설정" });
-        settings.Cursor = Cursors.Hand;
-        settings.MouseLeftButtonUp += (_, _) => SettingsDialog.Show(this, _bgm);
-        gameCells.Children.Add(settings);
-
         // 게임처럼 액자를 깔고 그 위에 칸들을 얹는다(asset/ui/misc-00.png).
         // 그림이 없으면 예전처럼 민색 띠로 물러선다.
         FrameworkElement gameBar = (FrameworkElement?)GameUi.BarFrame(gameCells)
@@ -380,6 +366,9 @@ public sealed class ShipMapWindow : Window
         // 왼쪽 위 햄버거에는 앱이 적어 둔 것을 들여다보는 줄을 단다.
         var shell = new DockPanel { LastChildFill = true };
         var titleBar = ChromeTitleBar.Attach(this,
+            // 설정은 게임 띠에 두었다가 햄버거로 옮겼다 — 게임 띠에 없는 칸이라
+            // 섞여 있으면 원본과 달라 보인다(개발 창을 옮긴 것과 같은 까닭이다).
+            ("설정", () => SettingsDialog.Show(this, _bgm)),
             ("게임데이터", () => GameDataDialog.Show(this)),
             ("다이얼로그", () => GameDialog.Show(this, "출항합니다.")),
             ("개발", ShowDevDialog));
@@ -547,6 +536,7 @@ public sealed class ShipMapWindow : Window
             cell.Visibility = cell.Visibility == Visibility.Visible
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+            SaveBarCells();
             InfoMenu.Refresh();
         },
         InfoMenu.Close);
@@ -706,7 +696,7 @@ public sealed class ShipMapWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Center,
             },
         };
-        handle.Margin = new Thickness(0, 0, 0, 6);
+        // 게임 메인메뉴는 제목 띠와 첫 줄이 맞붙어 있다 — 사이를 띄우지 않는다.
         items.Children.Add(handle);
         _titleFocus = new GameUi.FocusGroup();
         items.Children.Add(TitleMenuItem("NEW GAME", NewGame));
@@ -778,7 +768,7 @@ public sealed class ShipMapWindow : Window
     {
         Point grabbed = default;
         Point start = default;
-        handle.Cursor = Cursors.SizeAll;
+        // 커서는 그대로 둔다 — 게임은 끌 수 있는 자리라고 십자로 바꿔 알리지 않는다.
 
         handle.MouseLeftButtonDown += (_, e) =>
         {
@@ -817,15 +807,7 @@ public sealed class ShipMapWindow : Window
         var inside = new StackPanel { Orientation = Orientation.Horizontal };
         if (text != null)
         {
-            var label = new TextBlock
-            {
-                Text = text,
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 14,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            inside.Children.Add(GameCell(label));
+            inside.Children.Add(new GameButton(text) { Lit = true, Margin = default });
         }
         else
         {
@@ -847,8 +829,15 @@ public sealed class ShipMapWindow : Window
     /// 타이틀 바탕. <c>asset/title/title-tile.png</c> 가 있으면 바둑판처럼 깔고,
     /// 없으면 무늬 없이 양피지색만 채운다.
     /// </summary>
-    /// <summary>바탕 무늬를 얼마로 줄여 깔지. 1 이면 원본 크기다.</summary>
-    private const double TilePack = 0.72;
+    /// <summary>
+    /// 바탕 무늬를 얼마로 줄여 깔지. 1 이면 원본 크기다.
+    /// </summary>
+    /// <remarks>
+    /// 원본 <c>140x112</c> 은 <b>1.75배로 늘어난 화면</b>에서 뜬 것이다 — 게임 무늬는
+    /// <c>80x64</c> 다(갈무리에서 잰 마디 가로 114 · 세로 91 을 그 갈무리 배율 1.425 로
+    /// 나누면 딱 떨어진다). 그 배로 도로 줄여야 창들과 결이 맞는다.
+    /// </remarks>
+    private const double TilePack = 1.0 / 1.75;
 
     private static Brush TitleBackground()
     {
@@ -866,8 +855,7 @@ public sealed class ShipMapWindow : Window
             {
                 TileMode = TileMode.Tile,
                 ViewportUnits = BrushMappingMode.Absolute,
-                // 무늬 원본은 큰 창에서 찍은 것이라 그대로 깔면 성기다. 게임 화면과 견주어
-                // 촘촘한 정도를 맞춘다.
+                // 무늬 원본은 1.75배 화면에서 찍은 것이라 그대로 깔면 성기다.
                 Viewport = new Rect(0, 0, bmp.PixelWidth * TilePack, bmp.PixelHeight * TilePack),
                 Stretch = Stretch.Fill,
             };
@@ -1364,7 +1352,8 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private GameMenu InfoMenuBox() => new("정보", null,
     [
-        ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _player))),
+        // 바다에서는 함대좌표 칸에 지금 자리를 적는다. 도시 안이라면 게임처럼 "---" 다.
+        ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _player, CoordLine()))),
         ("인물정보", () => Info(() => PersonInfoDialog.Show(this, _player, _gameDir))),
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
             this, _player, ItemNames, null, null, DiscoveryNames()))),
@@ -1373,6 +1362,15 @@ public sealed class ShipMapWindow : Window
         ("지도를 본다", null),
         ("돌아간다", CommandMenu.Pop),
     ]);
+
+    /// <summary>함대정보 판의 함대좌표 줄. 게임 말투 그대로 "북위 38도 서경 9도" 다.</summary>
+    private string CoordLine()
+    {
+        if (_host.SeaBlocked) return "";
+        var (lat, lon) = _host.ShipLatLon;
+        return $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}도" +
+               $"  {(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}도";
+    }
 
     /// <summary>지금까지 발견한 것의 이름. 소지품 창의 발견물 칸에 쓴다.</summary>
     private List<string> DiscoveryNames()

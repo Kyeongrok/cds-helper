@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -39,8 +39,11 @@ public sealed class TavernRoster
 
     /// <summary>술집·여관에 앉아 있는 사람 하나.</summary>
     /// <param name="Index">세이브 안 인물 번호. 그림을 고르는 씨앗으로도 쓴다.</param>
+    /// <param name="Body">체력 · <paramref name="Mind"/> 지력 · <paramref name="Might"/> 무력
+    /// · <paramref name="Charm"/> 매력. 레코드 맨 앞 다섯 바이트가 능력치다(운까지).</param>
     public readonly record struct Person(int Index, string Name, int Fame, int Age,
-                                         byte Hire, int FaceCode, byte City, byte Building);
+                                         byte Hire, int FaceCode, byte City, byte Building,
+                                         byte Body, byte Mind, byte Might, byte Charm, byte Luck);
 
     private readonly List<Person> _people;
 
@@ -84,7 +87,9 @@ public sealed class TavernRoster
                 unchecked((sbyte)data[at + 0x5C]),
                 data[at + 0x62],
                 BitConverter.ToUInt16(data, at + 0x58),
-                data[at + 0x2E], building));
+                data[at + 0x2E], building,
+                data[at + 0x00], data[at + 0x01], data[at + 0x02],
+                data[at + 0x03], data[at + 0x04]));
         }
         return new TavernRoster(people);
     }
@@ -98,6 +103,22 @@ public sealed class TavernRoster
         foreach (var p in _people)
             if (p.City == city && p.Building == building) found.Add(p);
         return found;
+    }
+
+    /// <summary>
+    /// 그 이름으로 적힌 사람. 없으면 null 이다.
+    /// </summary>
+    /// <remarks>
+    /// 부하로 삼은 사람은 이름만 적어 두므로(<see cref="Support.Local.Models.Player.Mates"/>)
+    /// 얼굴을 다시 구하려면 이렇게 되짚어야 한다. 부하가 되어도 세이브의 소재지는 그대로라
+    /// 표에서 빠지지 않는다.
+    /// </remarks>
+    public Person? Find(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        foreach (var p in _people)
+            if (p.Name == name) return p;
+        return null;
     }
 
     /// <summary>이름은 "이름·성" 으로 잇는다. 세이브가 cp949 다.</summary>

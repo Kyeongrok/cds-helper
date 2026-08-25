@@ -1,6 +1,8 @@
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -11,16 +13,20 @@ namespace CdsHelper.Game.UI.Views;
 /// 게임은 말하는 사람 얼굴을 왼쪽에 같이 띄우지만 초상화는 아직 안 꺼내 오므로 글만 낸다.
 /// <see cref="PortDialog"/> 와 달리 문구를 밖에서 준다.
 ///
-/// <b>자리는 게임 화면을 재어 맞췄다.</b> 세로로 쌓이는 차례가 이렇다.
+/// <b>자리는 게임 화면을 재어 맞췄다 — 그림 점 그대로다.</b> 예전 값은 <b>1.75배로 늘어난
+/// 갈무리</b>에서 잰 것이라 창이 통째로 그만큼 부풀어 있었다(띠 높이 42 = 24 x 1.75).
+/// 갈무리의 배경 무늬 마디가 가로 114 · 세로 91 이고 게임 무늬가 80x64 이므로 그 갈무리는
+/// 1.425배였다. 그 배로 도로 나눈 값이 아래 것이다. 세로로 쌓이는 차례가 이렇다.
 /// <code>
-///   외곽 프레임  6      본문 글    25
-///   위 여백     10      사이       17
-///   제목 띠     42      단추 줄    42
-///   사이        14      아래 여백  26
-///                       외곽 프레임 6
+///   위 여백     6      본문 글    16
+///   제목 띠    24      사이        8
+///   사이        6      단추 줄    24
+///                      아래 여백  16   →  모두 100
 /// </code>
-/// 가로는 프레임 안쪽 좌우 10 을 두어 <b>제목 띠가 520</b>, 본문 글이 488 이다.
-/// 단추는 <b>114 x 42</b> 두 개를 26 띄워 가운데 놓는다(묶음 254).
+/// 가로는 좌우 6 을 두어 <b>제목 띠가 296</b>(마구리 32 + 가운데 33칸), 창이 308 이다.
+/// 단추는 <b>64 x 24</b> 두 개를 16 띄워 가운데 놓는다.
+///
+/// 게임 상자에는 <b>테가 없다</b> — 양피지 바탕에서 곧바로 짙은 밤색으로 넘어간다.
 /// </remarks>
 public sealed class ConfirmDialog : Window
 {
@@ -40,6 +46,7 @@ public sealed class ConfirmDialog : Window
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
             Height = ButtonHeight,
+            Margin = new Thickness(0, TextGap, 0, 0),
         };
         // 초점이 간 단추의 안쪽 테가 깜빡인다 — 게임이 지금 고른 것을 그렇게 알린다.
         var yes = _focus.Add("YES", () => { DialogResult = true; }, ButtonWidth);
@@ -50,45 +57,42 @@ public sealed class ConfirmDialog : Window
         buttons.Children.Add(yes);
         buttons.Children.Add(no);
 
-        var stack = new StackPanel { Width = BarWidth };
+        // 글이 길면 띠도 창도 그만큼 넓어진다 — 띠 폭은 8점 칸으로만 늘어나므로 칸에 맞춘다.
+        var lines = Wrap(text);
+        double widest = 0;
+        foreach (string line in lines) widest = Math.Max(widest, GameUi.Font?.TextWidth(line) ?? 0);
+        double barWidth = Math.Max(BarWidth,
+                                   UiSprites.WidthFor(UiSprites.CellsFor(widest + TextInset * 2)));
+
+        var stack = new StackPanel { Width = barWidth };
 
         // 게임은 물음창에도 진홍 장식 띠로 제목을 얹는다("게임 로드" 따위).
         bool titled = !string.IsNullOrEmpty(title);
         if (titled && GameUi.TitleFrame(GameUi.Sprites, title!) is { } bar)
         {
-            bar.Width = BarWidth;
+            bar.Width = barWidth;
             bar.Height = BarHeight;
             stack.Children.Add(bar);
         }
 
-        stack.Children.Add(new TextBlock
-        {
-            Text = text,
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 17,
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            LineHeight = TextHeight,
-            LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-            Margin = new Thickness(TextInset, titled ? TitleGap : 0, TextInset, TextGap),
-        });
+        // 본문은 게임 비트맵 글꼴로 찍는다 — 윈도 글꼴로 두면 이 크기에서 획이 뭉갠다.
+        var body = new StackPanel { Margin = new Thickness(0, titled ? TitleGap : 0, 0, 0) };
+        foreach (string line in lines)
+            body.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, TextHeight)
+            {
+                Text = line,
+                Bold = true,
+                FallbackBrush = GameUi.Text,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+        stack.Children.Add(body);
         stack.Children.Add(buttons);
 
-        // 바깥 테 6 은 <b>한 줄이 아니라 두 단</b>이다 — 밝은 베벨 바깥, 어두운 줄 안쪽.
         Content = new Border
         {
             Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(FrameOuter),
-            Child = new Border
-            {
-                Background = GameUi.Back,
-                BorderBrush = FrameInk,
-                BorderThickness = new Thickness(FrameInner),
-                Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
-                Child = stack,
-            },
+            Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
+            Child = stack,
         };
 
         KeyDown += (_, e) =>
@@ -100,30 +104,56 @@ public sealed class ConfirmDialog : Window
         GameUi.EnableDrag(this, stack);
     }
 
-    // ── 게임 화면에서 잰 자리 ────────────────────────────────────────────────
+    /// <summary>
+    /// 본문을 <see cref="MaxTextWidth"/> 안에 들도록 띄어쓰기에서 끊는다. 게임 글꼴이 아직
+    /// 없으면 재 볼 것이 없어 통째로 한 줄이다.
+    /// </summary>
+    private static List<string> Wrap(string text)
+    {
+        var font = GameUi.Font;
+        if (font == null) return [text];
 
-    /// <summary>바깥 테 — 밝은 베벨과 어두운 안쪽 줄 두 단이 합쳐 6 이다.</summary>
-    private const double FrameOuter = 3, FrameInner = 3;
+        var lines = new List<string>();
+        var line = new StringBuilder();
+        foreach (string word in text.Split(' '))
+        {
+            string joined = line.Length == 0 ? word : $"{line} {word}";
+            if (line.Length > 0 && font.TextWidth(joined) > MaxTextWidth)
+            {
+                lines.Add(line.ToString());
+                line.Clear();
+                line.Append(word);
+            }
+            else
+            {
+                line.Clear();
+                line.Append(joined);
+            }
+        }
+        if (line.Length > 0) lines.Add(line.ToString());
+        return lines.Count > 0 ? lines : [text];
+    }
 
-    /// <summary>안쪽 줄 색.</summary>
-    private static readonly System.Windows.Media.Brush FrameInk =
-        new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(0x11, 0x09, 0x09));
+    // ── 게임 화면에서 잰 자리(그림 점) ──────────────────────────────────────
 
     /// <summary>테 안쪽 여백.</summary>
-    private const double SidePad = 10, TopPad = 10, BottomPad = 26;
+    private const double SidePad = 6, TopPad = 6, BottomPad = 16;
 
-    /// <summary>제목 띠의 크기.</summary>
-    private const double BarWidth = 520, BarHeight = 42;
+    /// <summary>제목 띠의 크기. 높이는 게임 띠 높이 그대로다.</summary>
+    private const double BarWidth = 296, BarHeight = UiSprites.BandHeight;
 
     /// <summary>제목 띠와 본문 사이, 본문과 단추 줄 사이.</summary>
-    private const double TitleGap = 14, TextGap = 17;
+    private const double TitleGap = 6, TextGap = 8;
 
-    /// <summary>본문 한 줄의 높이와 좌우 여백(글 너비 488).</summary>
-    private const double TextHeight = 25, TextInset = 16;
+    /// <summary>본문 한 줄의 높이와 좌우 여백.</summary>
+    private const int TextHeight = GameUi.ItemTextHeight;
+    private const double TextInset = 6;
 
-    /// <summary>단추 크기와 사이.</summary>
-    private const double ButtonWidth = 114, ButtonHeight = 42, ButtonGap = 26;
+    /// <summary>한 줄이 이보다 길면 끊는다. 게임도 긴 말은 두 줄로 낸다.</summary>
+    private const double MaxTextWidth = 320;
+
+    /// <summary>단추 크기와 사이. 폭은 마구리 둘에 가운데 넉 칸이다(16+8*4+16).</summary>
+    private const double ButtonWidth = 64, ButtonHeight = UiSprites.BandHeight, ButtonGap = 16;
 
     /// <summary>
     /// 물어보고 YES 를 골랐으면 true. <paramref name="title"/> 을 주면 제목 띠를 얹는다.

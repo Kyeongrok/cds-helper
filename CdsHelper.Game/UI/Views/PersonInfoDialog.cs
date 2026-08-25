@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -37,11 +37,6 @@ internal sealed class PersonInfoDialog : InfoDialog
     /// <summary>초상화를 몇 배로 그릴지.</summary>
     private const int FaceScale = 2;
 
-    /// <summary>강청색 판. 게임 화면에서 뽑았다.</summary>
-    private static readonly Brush Steel = Frozen(Color.FromRgb(92, 111, 147));
-
-    private static readonly Brush SteelEdge = Frozen(Color.FromRgb(54, 65, 86));
-
     /// <inheritdoc/>
     protected override Brush Board => Steel;
 
@@ -79,10 +74,39 @@ internal sealed class PersonInfoDialog : InfoDialog
               new GameButton("특기", () => ShowSkills(player)), new GameButton("취소", Close));
     }
 
-    /// <summary>왼쪽 위 초상화. 얼굴을 못 읽었으면 안 세운다.</summary>
-    private static UIElement? Face(Player player, Portraits? faces)
+    /// <summary>
+    /// 부하 하나의 판. 제독 판과 같은 틀이되 <b>세이브가 아는 것만</b> 적는다 —
+    /// 직업·소지금·저금·빚·국적은 부하에게 없는 칸이라 아예 안 낸다.
+    /// </summary>
+    private PersonInfoDialog(TavernRoster.Person who, string role, Portraits? faces)
     {
-        var px = faces?.TryGetBgra(player.Face, female: false);
+        var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+        head.Children.Add(Label($"  {who.Name}"));
+        head.Children.Add(Label($"  체  력/{who.Body,4}    명성치/{who.Fame,8}"));
+        head.Children.Add(Label($"  지  력/{who.Mind,4}    자리  /{role}"));
+        head.Children.Add(Label($"  무  력/{who.Might,4}"));
+        head.Children.Add(Label($"  매  력/{who.Charm,4}"));
+
+        var top = new StackPanel { Orientation = Orientation.Horizontal };
+        if (Face(faces?.TryGetBgra(who.FaceCode, female: false)) is { } portrait)
+            top.Children.Add(portrait);
+        top.Children.Add(head);
+
+        var rows = new StackPanel();
+        rows.Children.Add(top);
+        rows.Children.Add(Gap(14));
+        rows.Children.Add(Label($"  연령  /{who.Age,2}세"));
+
+        Build("인물정보", rows, BoardWidth, BoardHeight, new GameButton("취소", Close));
+    }
+
+    /// <summary>왼쪽 위 초상화. 얼굴을 못 읽었으면 안 세운다.</summary>
+    private static UIElement? Face(Player player, Portraits? faces) =>
+        Face(faces?.TryGetBgra(player.Face, female: false));
+
+    /// <summary>이미 꺼내 둔 얼굴 점으로 초상화를 세운다.</summary>
+    private static UIElement? Face(uint[]? px)
+    {
         if (px == null) return null;
 
         var bmp = BitmapSource.Create(Portraits.Width, Portraits.Height, 96, 96,
@@ -125,5 +149,14 @@ internal sealed class PersonInfoDialog : InfoDialog
     {
         var faces = gameDirectory.Length == 0 ? null : Portraits.Open(gameDirectory);
         new PersonInfoDialog(player, faces) { Owner = owner }.ShowDialog();
+    }
+
+    /// <summary>부하 하나의 인물정보 판을 연다.</summary>
+    /// <param name="role">그가 앉은 자리("부관" 따위). 판에 한 줄로 적는다.</param>
+    public static void ShowMate(Window owner, TavernRoster.Person who, string role,
+                                string gameDirectory = "")
+    {
+        var faces = gameDirectory.Length == 0 ? null : Portraits.Open(gameDirectory);
+        new PersonInfoDialog(who, role, faces) { Owner = owner }.ShowDialog();
     }
 }
