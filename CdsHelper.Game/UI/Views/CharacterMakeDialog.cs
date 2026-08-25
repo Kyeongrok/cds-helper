@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -23,13 +23,17 @@ namespace CdsHelper.Game.UI.Views;
 /// <b>자리는 화면을 재어 박았다.</b> 쌓기가 아니라 <see cref="Canvas"/> 로 놓는다 —
 /// 행 피치가 일정하지 않고 칸 하나가 어긋나 있어 쌓기로는 그 모양이 안 난다.
 /// <code>
-///   판 644 x 392 · 속 614 x 362 · 테 8 베벨 + 4 빈칸 + 3 줄
-///   가로  13 빈칸 · 초상화 140 · 30 빈칸 · 이름표 42 · 컨트롤 293 · 큰단추 84 · 12 여백
-///   세로  13 성 · 42 명 · 42 연령 · 42 생일 · 47 혈액형 · 50 국적 · 70 단추
-///   단추  일람·취소·다음 76x32 · 혈액형·화살표 62x32 · 국가 215x32 · 사이는 늘 8
+///   판 368 x 224 · 속 350 x 206 · 테 5 베벨 + 2 빈칸 + 2 줄
+///   가로  8 빈칸 · 초상화 80 · 이름표 104 · 컨트롤 128 · 오른끝 344
+///   세로  8 성 · 24 명 · 24 연령 · 24 생일 · 27 혈액형 · 29 국적 · 40 단추
+///   단추  높이는 게임 띠 그대로 24 · 일람·취소·다음 40 · 국가 120 · 사이는 4
 /// </code>
-/// <b>어긋난 데 둘을 그대로 뒀다.</b> 생일 줄의 첫 숫자칸이 연령 줄보다 <b>28(글자 한 칸)</b>
-/// 오른쪽에 있고, 행 피치가 생일부터 47 · 50 으로 벌어진다. 재어 보니 게임이 그렇다.
+/// 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 그 배로 도로 나눴다. 띠 단추만
+/// 제 크기(24)로 그려지고 있어서 다른 것들 사이에서 혼자 작아 보였다. 생일 줄이 밀린
+/// <b>16</b>이 곧 한글 한 글자 폭인 것도 그제야 맞아떨어진다(늘어난 화면에서는 28이었다).
+///
+/// <b>어긋난 데 둘을 그대로 뒀다.</b> 생일 줄의 첫 숫자칸이 연령 줄보다 <b>16(글자 한 칸)</b>
+/// 오른쪽에 있고, 행 피치가 생일부터 27 · 29 로 벌어진다. 재어 보니 게임이 그렇다.
 ///
 /// 이름 칸 오른쪽 작은 단추는 <see cref="TextInputDialog"/> 를, 숫자 칸 것은
 /// <see cref="NumberPadDialog"/> 를 연다. "일람" 은 미리 갖춰 둔 이름을 늘어놓는다.
@@ -43,36 +47,40 @@ internal sealed class CharacterMakeDialog : Window
 {
     // ── 화면에서 잰 자리 ──────────────────────────────────────────────────────
 
-    /// <summary>속 크기. 판은 여기에 테 30 을 두른 644 x 392 가 된다.</summary>
-    private const double ContentWidth = 614, ContentHeight = 362;
+    /// <summary>속 크기. 판은 여기에 테 9 를 두른 368 x 224 가 된다.</summary>
+    private const double ContentWidth = 350, ContentHeight = 206;
 
     /// <summary>테 — 바깥 베벨 · 빈칸 · 안쪽 줄.</summary>
-    private const double Bevel = 8, FrameGap = 4, FrameLine = 3;
+    private const double Bevel = 5, FrameGap = 2, FrameLine = 2;
 
     /// <summary>가로 자리(속 왼쪽에서).</summary>
-    private const double PortraitX = 13, LabelX = 183, ControlX = 225, RightEdge = 602;
+    private const double PortraitX = 8, LabelX = 104, ControlX = 128, RightEdge = 344;
 
-    /// <summary>초상화 크기. 얼굴 조각이 80x96 이라 딱 1.75배다.</summary>
-    private const double FaceWidth = 140, FaceHeight = 168;
+    /// <summary>초상화 크기. 얼굴 조각 그대로 놓는다 — 늘리지 않는다.</summary>
+    private const double FaceWidth = Portraits.Width, FaceHeight = Portraits.Height;
 
     /// <summary>세로 자리(속 위에서).</summary>
-    private const double RowFamily = 13, RowGiven = 55, RowAge = 97, RowBirth = 139,
-                         RowBlood = 186, RowNation = 236, RowFooter = 310;
+    private const double RowFamily = 8, RowGiven = 32, RowAge = 56, RowBirth = 80,
+                         RowBlood = 107, RowNation = 136, RowFooter = 176;
 
-    /// <summary>칸 크기.</summary>
-    private const double FieldWidth = 263, FieldHeight = 28, NumWidth = 39, SpinSize = 28;
+    /// <summary>칸 크기. 글 한 줄(16)에 위아래 한 점씩이다.</summary>
+    private const double FieldWidth = 150, FieldHeight = 18, NumWidth = 22, SpinSize = 18;
 
-    /// <summary>단추 크기.</summary>
-    private const double SmallWidth = 76, SmallHeight = 32, PickWidth = 62, NationWidth = 215;
+    /// <summary>
+    /// 단추 크기. 높이는 게임 띠 높이 그대로고, 폭은 띠가 늘어나는 8점 칸에 맞춘다
+    /// (<c>16 + 8*n + 16</c>) — 가장 좁은 것이 40 이다.
+    /// </summary>
+    private const double SmallWidth = 40, SmallHeight = UiSprites.BandHeight,
+                         PickWidth = 40, NationWidth = 120;
 
-    /// <summary>단추 사이. 화면 어디서나 8 이다.</summary>
-    private const double Gap = 8;
+    /// <summary>단추 사이. 화면 어디서나 4 다.</summary>
+    private const double Gap = 4;
 
     /// <summary>칸과 그 옆 작은 단추 사이.</summary>
-    private const double SpinGap = 2;
+    private const double SpinGap = 1;
 
-    /// <summary>생일 줄이 연령 줄보다 밀려 있는 만큼 — 글자 한 칸이다.</summary>
-    private const double BirthShift = 28;
+    /// <summary>생일 줄이 연령 줄보다 밀려 있는 만큼 — 한글 한 글자 폭이다.</summary>
+    private const double BirthShift = 16;
 
     /// <summary>이름 한 칸에 들어갈 수 있는 길이.</summary>
     private const int NameLimit = 16;
@@ -98,9 +106,9 @@ internal sealed class CharacterMakeDialog : Window
     private readonly Canvas _board = new() { Width = ContentWidth, Height = ContentHeight };
 
     private readonly Image _portrait = new();
-    private readonly TextBlock _family = Field(), _given = Field();
-    private readonly TextBlock _age = Field(), _month = Field(), _day = Field();
-    private readonly TextBlock _zodiac = Glyph("");
+    private readonly GameUi.GameLabel _family = Field(), _given = Field();
+    private readonly GameUi.GameLabel _age = Field(), _month = Field(), _day = Field();
+    private readonly GameUi.GameLabel _zodiac = Glyph("");
 
     private readonly List<GameButton> _bloods = [], _nations = [];
 
@@ -175,21 +183,22 @@ internal sealed class CharacterMakeDialog : Window
 
     // ── 조각 ──────────────────────────────────────────────────────────────────
 
-    private static TextBlock Field() => new()
+    /// <summary>글이나 숫자가 적히는 칸의 속. 양피지 위라 글씨는 짙은 갈색이다.</summary>
+    private static GameUi.GameLabel Field() => new(GameFont.ButtonColor)
     {
-        Foreground = Brushes.Black,
-        FontWeight = FontWeights.Bold,
-        FontSize = 16,
+        Bold = true,
+        FallbackBrush = Brushes.Black,
+        HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(6, 0, 6, 0),
+        Margin = new Thickness(3, 0, 3, 0),
     };
 
-    private static TextBlock Glyph(string text) => new()
+    /// <summary>판 위에 그냥 얹는 글자 — 이름표와 "월"·"일"·별자리가 그렇다.</summary>
+    private static GameUi.GameLabel Glyph(string text) => new(GameFont.WhiteColor)
     {
         Text = text,
-        Foreground = Ink,
-        FontWeight = FontWeights.Bold,
-        FontSize = 16,
+        Bold = true,
+        FallbackBrush = Ink,
     };
 
     /// <summary>속에 무엇 하나를 그 자리에 놓는다.</summary>
@@ -202,7 +211,7 @@ internal sealed class CharacterMakeDialog : Window
     }
 
     /// <summary>이름표 한 자리.</summary>
-    private void Label(string text, double y) => Put(Glyph(text), LabelX, y + 3);
+    private void Label(string text, double y) => Put(Glyph(text), LabelX, y + 1);
 
     /// <summary>글이나 숫자를 적는 칸.</summary>
     private void Boxed(UIElement child, double x, double y, double width) =>
@@ -210,7 +219,7 @@ internal sealed class CharacterMakeDialog : Window
         {
             Background = GameUi.PageFill,
             BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
+            BorderThickness = new Thickness(1),
             Width = width,
             Height = FieldHeight,
             Child = child,
@@ -223,7 +232,7 @@ internal sealed class CharacterMakeDialog : Window
         {
             Background = GameUi.ItemFill,
             BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
+            BorderThickness = new Thickness(1),
             Width = SpinSize,
             Height = SpinSize,
             Cursor = Cursors.Hand,
@@ -232,7 +241,8 @@ internal sealed class CharacterMakeDialog : Window
                 Text = "田",
                 Foreground = Brushes.Black,
                 FontWeight = FontWeights.Bold,
-                FontSize = 15,
+                // 게임 비트맵 글꼴에 없는 글자라 윈도 글꼴로 찍는다. 칸이 18점이니 그 안에 들게.
+                FontSize = 11,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             },
@@ -258,20 +268,20 @@ internal sealed class CharacterMakeDialog : Window
         Put(new Border
         {
             BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
+            BorderThickness = new Thickness(1),
             Width = FaceWidth,
             Height = FaceHeight,
             Child = _portrait,
         }, PortraitX, RowFamily);
 
-        // 화살표 둘은 초상화 한가운데에 맞춘다(62 + 8 + 62 = 132).
-        double x = PortraitX + (FaceWidth - (PickWidth * 2 + Gap)) / 2;
+        // 화살표 둘을 얼굴 밑에 붙여 놓는다 — 띠 가장 좁은 폭이 40 이라 둘이 얼굴 폭 80 과
+        // 딱 떨어진다. 사이를 벌리면 얼굴 밖으로 비어져 나간다.
         double y = RowFamily + FaceHeight + Gap;
-        Band("<<", x, y, PickWidth, () => Turn(-1));
-        Band(">>", x + PickWidth + Gap, y, PickWidth, () => Turn(+1));
+        Band("<<", PortraitX, y, PickWidth, () => Turn(-1));
+        Band(">>", PortraitX + PickWidth, y, PickWidth, () => Turn(+1));
     }
 
-    private void NameRow(double y, string label, TextBlock box, Func<IReadOnlyList<string>> list)
+    private void NameRow(double y, string label, GameUi.GameLabel box, Func<IReadOnlyList<string>> list)
     {
         Label(label, y);
         Boxed(box, ControlX, y, FieldWidth);
@@ -279,7 +289,7 @@ internal sealed class CharacterMakeDialog : Window
         {
             if (TextInputDialog.Ask(this, box.Text, NameLimit) is { } typed) box.Text = typed;
         });
-        Band("일람", RightEdge - SmallWidth, y - 2, SmallWidth, () =>
+        Band("일람", RightEdge - SmallWidth, y - 1, SmallWidth, () =>
         {
             var names = list();
             int at = MapPointDialog.Ask(this, names);
@@ -313,7 +323,7 @@ internal sealed class CharacterMakeDialog : Window
             if (NumberPadDialog.Ask(this, Number(_month, 1), 1, 12) is { } n)
             { _month.Text = $"{n}"; Mark(); }
         });
-        Put(Glyph("월"), x + after + 4, RowBirth + 3);
+        Put(Glyph("월"), x + after + 2, RowBirth + 1);
 
         double x2 = x + after + BirthShift;
         Boxed(_day, x2, RowBirth, NumWidth);
@@ -322,8 +332,8 @@ internal sealed class CharacterMakeDialog : Window
             if (NumberPadDialog.Ask(this, Number(_day, 1), 1, 31) is { } n)
             { _day.Text = $"{n}"; Mark(); }
         });
-        Put(Glyph("일"), x2 + after + 4, RowBirth + 3);
-        Put(_zodiac, x2 + after + BirthShift + 4, RowBirth + 3);
+        Put(Glyph("일"), x2 + after + 2, RowBirth + 1);
+        Put(_zodiac, x2 + after + BirthShift + 2, RowBirth + 1);
     }
 
     private void BloodRow()
@@ -332,14 +342,14 @@ internal sealed class CharacterMakeDialog : Window
         for (int i = 0; i < Player.BloodTypes.Length; i++)
         {
             int pick = i;
-            _bloods.Add(Band(Player.BloodTypes[i], ControlX + 12 + i * (PickWidth + Gap), RowBlood,
+            _bloods.Add(Band(Player.BloodTypes[i], ControlX + 7 + i * (PickWidth + Gap), RowBlood,
                              PickWidth, () => { _blood = pick; Mark(); }));
         }
     }
 
     private void NationRow()
     {
-        // 두 단추 묶음(215 + 8 + 215)을 속 한가운데에 놓는다.
+        // 두 단추 묶음(120 + 4 + 120)을 속 한가운데에 놓는다.
         double x = (ContentWidth - (NationWidth * 2 + Gap)) / 2;
         for (int i = 0; i < Player.Nations.Length; i++)
         {
@@ -390,7 +400,7 @@ internal sealed class CharacterMakeDialog : Window
         RenderOptions.SetBitmapScalingMode(_portrait, BitmapScalingMode.NearestNeighbor);
     }
 
-    private static int Number(TextBlock box, int fallback) =>
+    private static int Number(GameUi.GameLabel box, int fallback) =>
         int.TryParse(box.Text, out int n) ? n : fallback;
 
     /// <summary>"다음" — 게임처럼 빈 칸을 먼저 따진다.</summary>
