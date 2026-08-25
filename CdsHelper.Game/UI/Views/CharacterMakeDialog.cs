@@ -433,7 +433,7 @@ internal sealed class CharacterMakeDialog : Window
     /// </summary>
     public static bool Show(Window owner, Player player, string gameDirectory)
     {
-        var faces = gameDirectory.Length == 0 ? null : Portraits.Open(gameDirectory);
+        var faces = Portraits.Open(gameDirectory);
         var (given, family) = NamePool(gameDirectory);
 
         var dialog = new CharacterMakeDialog(player, faces, given, family) { Owner = owner };

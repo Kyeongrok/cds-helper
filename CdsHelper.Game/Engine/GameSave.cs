@@ -82,6 +82,10 @@ public static class GameSave
     /// 배마다의 이름. 판 17 부터 있다 — 없으면 선체 이름을 쓴다.
     /// </param>
     /// <param name="DockedNames">맡겨 둔 배의 이름.</param>
+    /// <param name="MateBook">
+    /// 부하로 삼은 사람의 됨됨이(얼굴·능력치·명성·연령). 판 20 부터 있다 — 그 전
+    /// 세이브에서는 null 이라 게임 세이브를 뒤져 채운다.
+    /// </param>
     /// <remarks>
     /// 판 18 부터 <c>ShipStats</c> 에 포탑수·대포갈래·대포수가 함께 적힌다. 그 앞 세이브는
     /// 그 칸이 비어(0·0·0) 들어오므로 <b>선체 기본값으로 되살린다</b> —
@@ -100,7 +104,8 @@ public static class GameSave
         int? Fatigue = null, int? DaysAtSea = null,
         List<Ship.Stats>? ShipStats = null,
         Dictionary<int, List<Ship.Stats>>? DockedStats = null, int? Morale = null,
-        List<string>? ShipNames = null, Dictionary<int, List<string>>? DockedNames = null);
+        List<string>? ShipNames = null, Dictionary<int, List<string>>? DockedNames = null,
+        List<Support.Local.Models.Player.MateInfo>? MateBook = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -114,7 +119,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(19, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(20, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -134,7 +139,8 @@ public static class GameSave
                             player.Morale,
                             [.. player.Ships.Select(s => s.Name)],
                             player.Docked.ToDictionary(
-                                e => e.Key, e => e.Value.Select(s => s.Name).ToList()));
+                                e => e.Key, e => e.Value.Select(s => s.Name).ToList()),
+                            [.. player.MateBook]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
