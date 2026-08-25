@@ -78,7 +78,7 @@ internal sealed class PersonInfoDialog : InfoDialog
     /// 부하 하나의 판. 제독 판과 같은 틀이되 <b>세이브가 아는 것만</b> 적는다 —
     /// 직업·소지금·저금·빚·국적은 부하에게 없는 칸이라 아예 안 낸다.
     /// </summary>
-    private PersonInfoDialog(TavernRoster.Person who, string role, Portraits? faces)
+    private PersonInfoDialog(Player.MateInfo who, string role, Portraits? faces)
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
         head.Children.Add(Label($"  {who.Name}"));
@@ -88,7 +88,7 @@ internal sealed class PersonInfoDialog : InfoDialog
         head.Children.Add(Label($"  매  력/{who.Charm,4}"));
 
         var top = new StackPanel { Orientation = Orientation.Horizontal };
-        if (Face(faces?.TryGetBgra(who.FaceCode, female: false)) is { } portrait)
+        if (Face(faces?.TryGetBgra(who.Face, female: false)) is { } portrait)
             top.Children.Add(portrait);
         top.Children.Add(head);
 
@@ -147,16 +147,16 @@ internal sealed class PersonInfoDialog : InfoDialog
     /// <param name="gameDirectory">초상화를 읽을 게임 폴더. 없으면 얼굴 없이 뜬다.</param>
     public static void Show(Window owner, Player player, string gameDirectory = "")
     {
-        var faces = gameDirectory.Length == 0 ? null : Portraits.Open(gameDirectory);
+        var faces = Portraits.Open(gameDirectory);
         new PersonInfoDialog(player, faces) { Owner = owner }.ShowDialog();
     }
 
     /// <summary>부하 하나의 인물정보 판을 연다.</summary>
     /// <param name="role">그가 앉은 자리("부관" 따위). 판에 한 줄로 적는다.</param>
-    public static void ShowMate(Window owner, TavernRoster.Person who, string role,
+    public static void ShowMate(Window owner, Player.MateInfo who, string role,
                                 string gameDirectory = "")
     {
-        var faces = gameDirectory.Length == 0 ? null : Portraits.Open(gameDirectory);
+        var faces = Portraits.Open(gameDirectory);
         new PersonInfoDialog(who, role, faces) { Owner = owner }.ShowDialog();
     }
 }

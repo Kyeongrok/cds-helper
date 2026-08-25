@@ -308,6 +308,41 @@ public sealed class Player
         if (slot >= 0 && slot < _mates.Length) _mates[slot] = name ?? "";
     }
 
+    /// <summary>
+    /// 부하 하나의 됨됨이. 자리에는 이름만 앉히고 자료는 여기에 따로 적어 둔다.
+    /// </summary>
+    /// <remarks>
+    /// 술집에서 사람을 들일 때 <b>그 자리에서 베껴 둔다</b>. 이름만 들고 있으면 나중에
+    /// 인물정보를 낼 때마다 게임 세이브(SAVEDATA.CDS)를 다시 뒤져야 하는데, 그 파일은
+    /// 우리 것이 아니라 이름이 바뀌거나 없어질 수 있다 — 그러면 제 부하를 두고도
+    /// "자료를 찾지 못했다" 가 뜬다.
+    /// </remarks>
+    public readonly record struct MateInfo(string Name, int Face, int Fame, int Age,
+                                           int Body, int Mind, int Might, int Charm, int Luck);
+
+    private readonly Dictionary<string, MateInfo> _mateBook = [];
+
+    /// <summary>적어 둔 부하 자료. 세이브에 그대로 적힌다.</summary>
+    public IReadOnlyCollection<MateInfo> MateBook => _mateBook.Values;
+
+    /// <summary>부하 자료를 적어 둔다. 같은 이름이면 새것으로 갈아 낸다.</summary>
+    public void RememberMate(MateInfo who)
+    {
+        if (!string.IsNullOrEmpty(who.Name)) _mateBook[who.Name] = who;
+    }
+
+    /// <summary>그 이름으로 적어 둔 자료. 없으면 null.</summary>
+    public MateInfo? MateInfoOf(string name) =>
+        _mateBook.TryGetValue(name ?? "", out var who) ? who : null;
+
+    /// <summary>세이브에서 부하 자료를 되돌린다.</summary>
+    public void RestoreMateBook(IEnumerable<MateInfo>? book)
+    {
+        _mateBook.Clear();
+        if (book == null) return;
+        foreach (var who in book) RememberMate(who);
+    }
+
     /// <summary>두 자리를 맞바꾼다. 빈 자리와도 바꿀 수 있다.</summary>
     public void SwapMates(int a, int b)
     {

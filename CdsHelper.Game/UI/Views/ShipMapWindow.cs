@@ -727,6 +727,12 @@ public sealed class ShipMapWindow : Window
         box.RenderTransform = move;
 
         var middle = new Grid { Background = TitleBackground(), Children = { box } };
+
+        // 게임 메인메뉴는 화면 한가운데보다 조금 위에 앉는다. 아래에 빈칸을 두면 가운데맞춤이
+        // 그만큼 올라가는데, 올라가는 것은 빈칸의 <b>절반</b>이라 두 배로 잡는다.
+        middle.SizeChanged += (_, e) =>
+            box.Margin = new Thickness(0, 0, 0, e.NewSize.Height * TitleMenuRise * 2);
+
         EnableMenuDrag(handle, box, middle, move);
 
         // 게임 타이틀에도 위아래로 액자 띠가 있다. 위 띠에는 날짜 칸 하나만 있고 나머지는 비었다.
@@ -869,6 +875,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>타이틀 메뉴에서 초점이 오가는 줄 묶음. 화면을 다시 지을 때 새로 잡는다.</summary>
     private GameUi.FocusGroup _titleFocus = new();
+
+    /// <summary>메인메뉴를 화면 높이의 몇 만큼 위로 올릴지.</summary>
+    private const double TitleMenuRise = 0.05;
 
     /// <summary>타이틀 메뉴 줄의 최소 폭. 글자 좌우 여백까지 넣은 게임 비율이다.</summary>
     private const double TitleItemMinWidth = 124;
@@ -1222,6 +1231,7 @@ public sealed class ShipMapWindow : Window
                                  saved.ShipNames, saved.DockedNames,
                                  gunsInStats: saved.Version >= GameSave.GunsInStatsFrom,
                                  sailsInStats: saved.Version >= GameSave.SailsInStatsFrom);
+            _player.RestoreMateBook(saved.MateBook);
             if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
             if (saved.Morale is { } morale) _player.SetMorale(morale);

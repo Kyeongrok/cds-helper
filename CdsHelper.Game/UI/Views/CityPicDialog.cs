@@ -627,9 +627,25 @@ public sealed class CityPicDialog : Window
         string mate = _player.MateAt(MateSlot);
         if (mate.Length == 0) return;
 
-        var who = Roster()?.Find(mate);
-        TalkDialog.Say(this, who is { } person ? FaceOf(person) : null,
-                       "", "제독, 바다에 나가시겠습니까?");
+        // 얼굴도 우리가 적어 둔 자료에서 꺼낸다 — 게임 세이브가 없어도 부관은 말을 건다.
+        TalkDialog.Say(this, MateFace(mate), "", "제독, 바다에 나가시겠습니까?");
+    }
+
+    /// <summary>
+    /// 그 부하의 얼굴. 적어 둔 자료의 얼굴번호로 꺼낸다 — 없으면 게임 세이브의 인물표를
+    /// 한 번 뒤져 채운다(<see cref="ShowMate"/> 와 같은 길이다).
+    /// </summary>
+    private uint[]? MateFace(string name)
+    {
+        var who = _player.MateInfoOf(name);
+        if (who == null && Roster()?.Find(name) is { } person)
+        {
+            who = MateInfoOf(person);
+            _player.RememberMate(who.Value);
+        }
+        return who is { } mate && mate.Face is >= 0 and < 0xFFFF
+            ? Faces()?.TryGetBgra(mate.Face, female: false)
+            : null;
     }
 
     /// <summary>부관이 앉는 자리. <see cref="Player.MateRoles"/> 의 첫 자리다.</summary>
@@ -829,6 +845,8 @@ public sealed class CityPicDialog : Window
         if (slot < 0) return;                       // 물렀다
 
         _player.SetMate(slot, who.Name);
+        // 됨됨이를 지금 베껴 둔다 — 나중에 인물정보를 낼 때 게임 세이브를 다시 안 뒤지게.
+        _player.RememberMate(MateInfoOf(who));
         TalkDialog.Say(this, face, "",
                        $"좋네. {Player.MateRoles[slot]}(으)로서 자네와 함께 가지.");
     }
@@ -858,6 +876,11 @@ public sealed class CityPicDialog : Window
         int picked = TalkDialog.Ask(this, face, "", "어느 자리에 앉히겠나?", choices);
         return picked >= 0 && picked < open.Count ? open[picked] : -1;
     }
+
+    /// <summary>세이브에서 읽은 인물을 우리 부하 자료로 옮긴다.</summary>
+    private static Player.MateInfo MateInfoOf(TavernRoster.Person who) =>
+        new(who.Name, who.FaceCode, who.Fame, who.Age,
+            who.Body, who.Mind, who.Might, who.Charm, who.Luck);
 
     /// <summary>이름 뒤에 붙는 주격 조사. 받침이 있으면 "이", 없으면 "가".</summary>
     /// <remarks>
@@ -2003,17 +2026,29 @@ public sealed class CityPicDialog : Window
     }
 
     /// <summary>
-    /// 그 자리에 앉은 부하의 인물정보 판. 세이브 인물표에서 그 사람을 되짚는다 —
-    /// 못 찾으면 이름만이라도 알린다.
+    /// 그 자리에 앉은 부하의 인물정보 판.
     /// </summary>
+    /// <remarks>
+    /// <b>우리 세이브에 적어 둔 것을 먼저 본다.</b> 없으면(판 20 앞에 들인 부하) 게임
+    /// 세이브의 인물표를 뒤져 그 자리에서 채워 넣는다 — 한 번 채우면 다음부터는 우리
+    /// 것만으로 뜬다. 게임 세이브가 없거나 이름이 바뀌었어도 이미 적어 둔 부하는 그대로
+    /// 보인다.
+    /// </remarks>
     private void ShowMate(int slot)
     {
         string name = _player.MateAt(slot);
-        var who = Roster()?.Find(name);
+        var who = _player.MateInfoOf(name);
+
+        if (who == null && Roster()?.Find(name) is { } person)
+        {
+            who = MateInfoOf(person);
+            _player.RememberMate(who.Value);
+        }
+
         CloseCityMenu();
 
-        if (who is { } person)
-            PersonInfoDialog.ShowMate(this, person, Player.MateRoles[slot], _gameDirectory);
+        if (who is { } mate)
+            PersonInfoDialog.ShowMate(this, mate, Player.MateRoles[slot], _gameDirectory);
         else
             NoticeDialog.Show(this, $"{name}의 자료를 찾지 못했다");
     }
@@ -2643,7 +2678,7 @@ public sealed class CityPicDialog : Window
     {
         if (_faces != null || _facesTried) return _faces;
         _facesTried = true;
-        if (_gameDirectory.Length == 0) return null;
+        // 게임 폴더를 몰라도 연다 — 초상화는 우리 asset 폴더에도 있다.
         _faces = Portraits.Open(_gameDirectory);
         if (_faces == null)
             System.Diagnostics.Debug.WriteLine($"[City] 초상화 없음: {Portraits.LastError}");

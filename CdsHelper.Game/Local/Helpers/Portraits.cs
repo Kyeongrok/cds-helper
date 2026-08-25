@@ -4,7 +4,7 @@ using CdsHelper.Support.Local.Helpers;
 namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
-/// 게임 폴더의 MALE.CDS · FEMALE.CDS — 인물 초상화. 대사 창에 얼굴을 띄울 때 쓴다.
+/// MALE.CDS · FEMALE.CDS — 인물 초상화. 대사 창에 얼굴을 띄울 때 쓴다.
 /// </summary>
 /// <remarks>
 /// 도시 그림과 같은 LS12 아카이브인데 훨씬 단순하다 — 파트 하나가 곧 얼굴 한 장이고,
@@ -17,6 +17,10 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 다 그려진다 — 그래서 도시 그림과 달리 팔레트 파트가 붙어 있지 않다.
 ///
 /// 어느 얼굴을 쓰는지는 인물 표에 적혀 있다(<see cref="SponsorTable"/>).
+///
+/// <b>우리 asset 폴더에 둔 것을 먼저 본다.</b> 얼굴은 놀이 내내 쓰이는 것이라 게임 폴더가
+/// 잡혀 있어야만 나오면 곤란하다 — 부하 인물정보처럼 우리 세이브만으로 서야 하는 자리도
+/// 있다. 없을 때에만 게임 폴더로 물러선다.
 /// </remarks>
 public sealed class Portraits
 {
@@ -42,8 +46,16 @@ public sealed class Portraits
     /// <summary>여자 얼굴 장수.</summary>
     public int FemaleCount => _female.PartCount;
 
-    /// <summary>게임 폴더의 초상화 두 벌을 연다. 하나라도 없으면 null.</summary>
-    public static Portraits? Open(string gameDirectory)
+    /// <summary>실행 파일 옆에 두는 초상화 자리.</summary>
+    private static string AssetDirectory =>
+        Path.Combine(AppContext.BaseDirectory, "asset");
+
+    /// <summary>
+    /// 초상화 두 벌을 연다. <c>asset</c> 폴더 것을 먼저 보고 없으면
+    /// <paramref name="gameDirectory"/> 로 물러선다. 하나라도 못 구하면 null.
+    /// </summary>
+    /// <param name="gameDirectory">게임 폴더. 몰라도 되므로 비워 둘 수 있다.</param>
+    public static Portraits? Open(string gameDirectory = "")
     {
         LastError = "";
         var male = OpenOne(gameDirectory, "MALE.CDS");
@@ -55,8 +67,13 @@ public sealed class Portraits
 
     private static Ls12Reader? OpenOne(string gameDirectory, string file)
     {
-        var path = Path.Combine(gameDirectory, file);
-        if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
+        var path = Path.Combine(AssetDirectory, file);
+        if (!File.Exists(path))
+        {
+            if (gameDirectory.Length == 0) { LastError = $"{path} 가 없습니다"; return null; }
+            path = Path.Combine(gameDirectory, file);
+            if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
+        }
 
         var archive = Ls12Reader.Open(path);
         if (archive == null) { LastError = $"{path} 를 읽지 못했습니다"; return null; }
