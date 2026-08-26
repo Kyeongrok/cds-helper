@@ -19,36 +19,6 @@ public class AppSettingsData
     public WorldMapOptions WorldMap { get; set; } = new();
     public bool AutoConfirmDialog { get; set; } = true;
 
-    /// <summary>앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지. 기본은 켬.</summary>
-    public bool AutoOpenShipMap { get; set; } = true;
-
-    /// <summary>함대 창에서 배경음악을 틀지. 기본은 켬.</summary>
-    public bool BgmEnabled { get; set; } = true;
-
-    /// <summary>효과음(닻·거절 따위)을 낼지. 기본은 켬.</summary>
-    public bool SfxEnabled { get; set; } = true;
-
-    /// <summary>게임 창 단추의 좌우 여백(점). 띠 마구리가 앉을 자리다.</summary>
-    public int BandPad { get; set; } = AppSettings.DefaultBandPad;
-
-    /// <summary>도시 창이 열릴 때 줄 효과. <see cref="CityOpenEffect"/> 의 이름이다.</summary>
-    public string CityOpenEffect { get; set; } = "Expand";
-
-    /// <summary>지도 위에 좌표 상자를 겹쳐 보일지. 개발 창에서 켜고 끈다.</summary>
-    public bool ShowCoordOverlay { get; set; } = true;
-
-    /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>
-    public bool ShowToolBar { get; set; } = true;
-
-    /// <summary>
-    /// 게임 상단 띠에 켜 둔 칸 이름들("날짜"·"소지금" …). 도시정보 창에서 켜고 끈 것이
-    /// 다음에 켤 때도 그대로이게 적어 둔다. 아직 한 번도 안 건드렸으면 null 이라
-    /// 부르는 쪽 기본값(날짜·위도경도·소지금·명성)이 선다.
-    /// </summary>
-    public List<string>? BarCells { get; set; }
-
-    /// <summary>지도 위에 바람·해류 화살표를 얹을지. 함대 창 커맨드에서 켜고 끈다.</summary>
-    public bool ShowFlowArrows { get; set; }
     public RerollOptions Reroll { get; set; } = new();
 }
 
@@ -88,17 +58,6 @@ public static class AppSettings
 {
     public const double DefaultMarkerSize = 11.0;
 
-    /// <summary>
-    /// 게임 창 단추의 좌우 여백 기본값(점).
-    /// </summary>
-    /// <remarks>
-    /// 띠 마구리는 실제로 16점이지만 그만큼 다 비우면 창이 훨씬 넓어 보인다 — 게임 창은
-    /// 글자가 마구리 무늬에 꽤 가깝게 붙는다. 눈으로 맞춰 3 으로 잡았다.
-    /// </remarks>
-    public const int DefaultBandPad = 3;
-
-    /// <summary>단추 여백을 이 사이로만 잡는다.</summary>
-    public const int MinBandPad = 0, MaxBandPad = 32;
     public const string DefaultDefaultView = "PlayerContent";
 
     private static readonly string SettingsFilePath = Path.Combine(
@@ -133,15 +92,6 @@ public static class AppSettings
     private static string _trailDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "trails");
     private static WorldMapOptions _worldMap = new();
     private static bool _autoConfirmDialog = true;
-    private static bool _autoOpenShipMap = true;
-    private static bool _bgmEnabled = true;
-    private static CityOpenEffect _cityOpenEffect = Settings.CityOpenEffect.Expand;
-    private static bool _showCoordOverlay = true;
-    private static bool _showToolBar = true;
-    private static List<string>? _barCells;
-    private static bool _showFlowArrows;
-    private static bool _sfxEnabled = true;
-    private static int _bandPad = DefaultBandPad;
     private static RerollOptions _reroll = new();
 
     static AppSettings()
@@ -240,133 +190,6 @@ public static class AppSettings
         }
     }
 
-    /// <summary>
-    /// 앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지. 기본은 <b>켬</b>이다 — 이 앱이
-    /// 하는 일이 곧 그 창이라, 켤 때마다 메뉴에서 한 번 더 누르게 할 까닭이 없다.
-    /// 이미 설정을 적어 둔 사람은 적힌 값을 그대로 따른다(없는 칸만 이 기본값이 든다).
-    /// </summary>
-    public static bool AutoOpenShipMap
-    {
-        get => _autoOpenShipMap;
-        set
-        {
-            _autoOpenShipMap = value;
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
-    /// <summary>함대 창의 배경음악을 틀지. 설정 창에서 켜고 끈다.</summary>
-    public static bool BgmEnabled
-    {
-        get => _bgmEnabled;
-        set
-        {
-            _bgmEnabled = value;
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
-    /// <summary>효과음을 낼지. 설정 창에서 켜고 끈다. 배경음악과 따로 논다.</summary>
-    public static bool SfxEnabled
-    {
-        get => _sfxEnabled;
-        set
-        {
-            _sfxEnabled = value;
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
-    /// <summary>
-    /// 게임 창 단추의 좌우 여백(점). 개발 창에서 맞춘다.
-    /// </summary>
-    /// <remarks>
-    /// 띠는 왼끝·가운데·오른끝 셋으로 짓고 양 끝(마구리)이 16점씩이다. 이 값만큼을 글자
-    /// 바깥에 비워 두므로, 16 이면 마구리가 통째로 글자 밖에 서고 그보다 작으면 글자가
-    /// 마구리 위로 조금씩 올라앉는다. 바꾼 값은 <b>다음에 여는 창</b>부터 든다.
-    /// </remarks>
-    public static int BandPad
-    {
-        get => _bandPad;
-        set
-        {
-            _bandPad = Math.Clamp(value, MinBandPad, MaxBandPad);
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
-    /// <summary>도시 창이 열릴 때 줄 효과. 개발 창에서 고른다.</summary>
-    public static CityOpenEffect CityOpenEffect
-    {
-        get => _cityOpenEffect;
-        set
-        {
-            _cityOpenEffect = value;
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
-    /// <summary>지도 위 좌표 상자를 켜 둘지. 개발 창에서 바꾸면 다음에 켤 때도 그대로다.</summary>
-    public static bool ShowCoordOverlay
-    {
-        get => _showCoordOverlay;
-        set
-        {
-            _showCoordOverlay = value;
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
-    /// <summary>지도 위 까만 조작 줄을 켜 둘지.</summary>
-    public static bool ShowToolBar
-    {
-        get => _showToolBar;
-        set
-        {
-            _showToolBar = value;
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
-    /// <summary>
-    /// 게임 상단 띠에 켜 둔 칸 이름들. 도시정보 창에서 줄을 뒤집을 때마다 적어 둔다.
-    /// </summary>
-    /// <remarks>
-    /// 한 번도 안 건드렸으면 <b>null</b> 이다 — 빈 목록과 다르다. 빈 목록은 "다 꺼 두었다"
-    /// 는 뜻이라 그대로 지켜야 하고, null 이라야 부르는 쪽이 기본값을 세울 수 있다.
-    /// </remarks>
-    public static IReadOnlyList<string>? BarCells
-    {
-        get => _barCells;
-        set
-        {
-            _barCells = value == null ? null : [.. value];
-            SaveSettings();
-        }
-    }
-
-    /// <summary>
-    /// 지도 위 바람·해류 화살표를 켜 둘지. 게임에는 없는 것이라 기본은 끔이다 —
-    /// 원본은 화살표 대신 물결이 흐르는 것으로 해류를 보인다.
-    /// </summary>
-    public static bool ShowFlowArrows
-    {
-        get => _showFlowArrows;
-        set
-        {
-            _showFlowArrows = value;
-            SaveSettings();
-            SettingsChanged?.Invoke();
-        }
-    }
-
     public static readonly List<ViewOption> AvailableViews = new()
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
@@ -399,16 +222,6 @@ public static class AppSettings
                     _checkedDiscoveryIds = data.CheckedDiscoveryIds ?? new();
                     _worldMap = data.WorldMap ?? new();
                     _autoConfirmDialog = data.AutoConfirmDialog;
-                    _autoOpenShipMap = data.AutoOpenShipMap;
-                    _bgmEnabled = data.BgmEnabled;
-                    _sfxEnabled = data.SfxEnabled;
-                    _bandPad = Math.Clamp(data.BandPad, MinBandPad, MaxBandPad);
-                    _cityOpenEffect = Enum.TryParse<CityOpenEffect>(data.CityOpenEffect, out var eff)
-                        ? eff : Settings.CityOpenEffect.Expand;
-                    _showCoordOverlay = data.ShowCoordOverlay;
-                    _showToolBar = data.ShowToolBar;
-                    _barCells = data.BarCells;
-                    _showFlowArrows = data.ShowFlowArrows;
                     _reroll = data.Reroll ?? new();
                 }
             }
@@ -438,15 +251,6 @@ public static class AppSettings
                 CheckedDiscoveryIds = _checkedDiscoveryIds,
                 WorldMap = _worldMap,
                 AutoConfirmDialog = _autoConfirmDialog,
-                AutoOpenShipMap = _autoOpenShipMap,
-                BgmEnabled = _bgmEnabled,
-                SfxEnabled = _sfxEnabled,
-                BandPad = _bandPad,
-                CityOpenEffect = _cityOpenEffect.ToString(),
-                ShowCoordOverlay = _showCoordOverlay,
-                ShowToolBar = _showToolBar,
-                BarCells = _barCells,
-                ShowFlowArrows = _showFlowArrows,
                 Reroll = _reroll
             };
 

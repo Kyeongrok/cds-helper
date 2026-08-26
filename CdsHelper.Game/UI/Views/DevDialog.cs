@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -73,9 +74,9 @@ public sealed class DevDialog : Window
 
         // 게임 창 단추의 좌우 여백. 띠 마구리(양 끝 조각)가 앉을 자리다 — 크게 잡으면
         // 글자에서 멀어지고 작게 잡으면 글자가 마구리 위로 올라앉는다.
-        rows.Children.Add(Tune("단추 여백", AppSettings.BandPad,
-            AppSettings.MinBandPad, AppSettings.MaxBandPad, v => AppSettings.BandPad = v,
-            $"게임 창 단추의 좌우 여백(점). 띠 마구리는 실제로 16점입니다. 기본값 {AppSettings.DefaultBandPad}."
+        rows.Children.Add(Tune("단추 여백", GameSettings.BandPad,
+            GameSettings.MinBandPad, GameSettings.MaxBandPad, v => GameSettings.BandPad = v,
+            $"게임 창 단추의 좌우 여백(점). 띠 마구리는 실제로 16점입니다. 기본값 {GameSettings.DefaultBandPad}."
             + " 바꾼 값은 다음에 여는 창부터 듭니다."));
 
         // 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다.
@@ -317,13 +318,13 @@ public sealed class DevDialog : Window
         foreach (var (effect, label) in choices)
             box.Items.Add(new ComboBoxItem { Content = label, Tag = effect });
 
-        box.SelectedIndex = Array.FindIndex(choices, c => c.Effect == AppSettings.CityOpenEffect);
+        box.SelectedIndex = Array.FindIndex(choices, c => c.Effect == GameSettings.CityOpenEffect);
         if (box.SelectedIndex < 0) box.SelectedIndex = 0;
 
         box.SelectionChanged += (_, _) =>
         {
             if (box.SelectedItem is ComboBoxItem { Tag: CityOpenEffect picked })
-                AppSettings.CityOpenEffect = picked;
+                GameSettings.CityOpenEffect = picked;
         };
 
         line.Children.Add(box);

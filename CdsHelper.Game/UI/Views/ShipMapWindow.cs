@@ -15,6 +15,7 @@ using Prism.Ioc;
 using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Sea;
+using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -164,7 +165,7 @@ public sealed class ShipMapWindow : Window
     private Popup _overlay = null!;
 
     /// <summary>좌표 상자를 켜 두었는지. 실제로 뜨는지는 <see cref="SyncOverlay"/> 가 정한다.</summary>
-    private bool _overlayWanted = AppSettings.ShowCoordOverlay;
+    private bool _overlayWanted = GameSettings.ShowCoordOverlay;
 
     // 게임 화면 위쪽 띠에서 뽑은 색. 누런 양피지 바탕에 어두운 테두리다.
     private static readonly Brush BarFill = new SolidColorBrush(Color.FromRgb(0xC8, 0xBF, 0xA0));
@@ -186,7 +187,7 @@ public sealed class ShipMapWindow : Window
     {
         // 지난번에 켜고 끈 것이 있으면 그것이 먼저다. 한 번도 안 건드렸으면(null)
         // 여기 적힌 기본값으로 선다.
-        var saved = AppSettings.BarCells;
+        var saved = GameSettings.BarCells;
         cell.Visibility = (saved?.Contains(name) ?? on) ? Visibility.Visible : Visibility.Collapsed;
         _infoCells[name] = cell;
         return cell;
@@ -194,7 +195,7 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>지금 띠에 켜져 있는 칸을 적어 둔다. 다음에 켤 때 이대로 선다.</summary>
     private void SaveBarCells() =>
-        AppSettings.BarCells =
+        GameSettings.BarCells =
             [.. _infoCells.Where(p => p.Value.Visibility == Visibility.Visible).Select(p => p.Key)];
 
     public ShipMapWindow()
@@ -345,7 +346,7 @@ public sealed class ShipMapWindow : Window
         {
             Child = bar,
             Height = 30,
-            Visibility = AppSettings.ShowToolBar ? Visibility.Visible : Visibility.Collapsed,
+            Visibility = GameSettings.ShowToolBar ? Visibility.Visible : Visibility.Collapsed,
         };
         DockPanel.SetDock(_toolBar, Dock.Top);
         root.Children.Add(_toolBar);
@@ -430,7 +431,7 @@ public sealed class ShipMapWindow : Window
             _left.Text = $"남은 {_player.SupplyDaysLeft}일";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
-            ShipSprites.Skin = _player.FlagshipHull?.Hull.Skin ?? 0;
+            ShipSprites.Use(_player.FlagshipHull?.Hull);
             // 게임 상단 띠와 같은 말투로 적는다.
             _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
             _cityLabel.Text = _player.CityName.Length > 0 ? _player.CityName : "—";
@@ -1208,7 +1209,7 @@ public sealed class ShipMapWindow : Window
             _host.FleetSpeed = (dir, speed, heading, onLand) =>
                 Sailing.SpeedOf(_player, Sails, dir, speed, heading, onLand);
             if (!_host.Start(_gameDir)) { _status.Text = _host.Status; return; }
-            _host.ShowFlowArrows = AppSettings.ShowFlowArrows;
+            _host.ShowFlowArrows = GameSettings.ShowFlowArrows;
             _started = true;
             _statusTimer.Start();
         }
@@ -1276,13 +1277,13 @@ public sealed class ShipMapWindow : Window
         SetCoords = on =>
         {
             _overlayWanted = on;
-            AppSettings.ShowCoordOverlay = on;   // 다음에 켤 때도 그대로
+            GameSettings.ShowCoordOverlay = on;   // 다음에 켤 때도 그대로
             SyncOverlay();
         },
-        ToolBarOn = () => AppSettings.ShowToolBar,
+        ToolBarOn = () => GameSettings.ShowToolBar,
         SetToolBar = on =>
         {
-            AppSettings.ShowToolBar = on;
+            GameSettings.ShowToolBar = on;
             if (_toolBar != null)
                 _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         },
@@ -1333,7 +1334,7 @@ public sealed class ShipMapWindow : Window
         {
             bool on = !_host.ShowFlowArrows;
             _host.ShowFlowArrows = on;
-            AppSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
+            GameSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
             Close();
         }));
         items.Add(("기능", () => { Close(); SaveGame(); }));
@@ -1928,7 +1929,7 @@ public sealed class ShipMapWindow : Window
         }
 
         _bgm.SetGameDirectory(dir);
-        _bgm.Enabled = AppSettings.BgmEnabled;   // 설정 창에서 꺼 뒀으면 조용히 시작한다
+        _bgm.Enabled = GameSettings.BgmEnabled;   // 설정 창에서 꺼 뒀으면 조용히 시작한다
         _bgm.Play(BgmPlayer.TitleTrack);   // 메뉴 화면에서는 bgm/Track23.mp3
         if (_bgm.LastError.Length > 0)
         {

@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Form.UI.Views;
 
@@ -91,7 +92,7 @@ public class SettingsDialog : Window
             _autoConfirmDialogCheckBox.IsChecked = AppSettings.AutoConfirmDialog;
 
         if (_autoOpenShipMapCheckBox != null)
-            _autoOpenShipMapCheckBox.IsChecked = AppSettings.AutoOpenShipMap;
+            _autoOpenShipMapCheckBox.IsChecked = GameSettings.AutoOpenShipMap;
     }
 
     private void OnOkClick(object sender, RoutedEventArgs e)
@@ -114,7 +115,7 @@ public class SettingsDialog : Window
 
         if (_autoOpenShipMapCheckBox != null)
         {
-            AppSettings.AutoOpenShipMap = _autoOpenShipMapCheckBox.IsChecked == true;
+            GameSettings.AutoOpenShipMap = _autoOpenShipMapCheckBox.IsChecked == true;
         }
 
         DialogResult = true;

@@ -21,6 +21,9 @@ public sealed class HullSelectDialog : Window
 
     private static readonly double[] Widths = [110, 84, 84, 84, 84, 84, 84, 90];
 
+    /// <summary>표가 이보다 길어지면 굴린다.</summary>
+    private const double TableMaxHeight = 420;
+
     private readonly Player _player;
     private readonly Border _decide;
     private readonly TextBlock _purse;
@@ -73,7 +76,14 @@ public sealed class HullSelectDialog : Window
             BorderThickness = new Thickness(2),
             Margin = new Thickness(4, 4, 4, 0),
             Padding = new Thickness(10, 6, 10, 6),
-            Child = BuildTable(),
+            // 배를 등록해 넣으면 줄이 얼마든 늘 수 있다 — 화면 밖으로 자라지 않게 굴린다.
+            Child = new ScrollViewer
+            {
+                Content = BuildTable(),
+                MaxHeight = TableMaxHeight,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            },
         });
         stack.Children.Add(_purse);
         stack.Children.Add(buttons);
@@ -166,25 +176,42 @@ public sealed class HullSelectDialog : Window
         _decide.Cursor = enabled ? Cursors.Hand : Cursors.Arrow;
     }
 
+    /// <summary>
+    /// 결정 — 살 건지 묻고, 사겠다면 이름을 짓게 한 뒤에 산다.
+    /// </summary>
+    /// <remarks>
+    /// 차례가 셋이다.
+    /// <list type="number">
+    ///   <item>못 사는 까닭이 있으면 여기서 끝낸다 — 물어 놓고 "소지금이 모자랍니다" 를 내면 헛걸음이다.</item>
+    ///   <item>"사겠나?" 를 묻는다. 아니오면 아무 일도 없다.</item>
+    ///   <item>「선명입력」(<see cref="ShipNameDialog"/>)을 낸다. <b>여기엔 중단이 없다</b> —
+    ///         살지 말지는 앞에서 이미 정했으므로, 이름을 지어야 넘어간다.</item>
+    /// </list>
+    /// 돈은 이름까지 정해진 뒤에 뺀다.
+    /// </remarks>
     private void Decide()
     {
         if (_picked is not { } hull) return;
 
-        var result = _player.Buy(hull);
-        switch (result)
+        switch (_player.CanBuy(hull))
         {
-            case PurchaseResult.Ok:
-                Bought = hull;
-                NoticeDialog.Show(this, $"「{hull.Name}」을(를) 샀습니다 · {hull.Price}닢");
-                Close();
-                break;
             case PurchaseResult.NotEnoughGold:
                 NoticeDialog.Show(this, "소지금이 모자랍니다");
-                break;
+                return;
             case PurchaseResult.FleetFull:
                 NoticeDialog.Show(this, $"배는 {Player.MaxShips}척까지만 가질 수 있습니다");
-                break;
+                return;
         }
+
+        if (!ConfirmDialog.Ask(this, $"「{hull.Name}」은(는) {hull.Price}닢일세. 사겠나?")) return;
+
+        string name = ShipNameDialog.Ask(this, _player.SuggestShipName(), mustName: true)!;
+
+        if (_player.Buy(hull, name) != PurchaseResult.Ok) return;
+
+        Bought = hull;
+        NoticeDialog.Show(this, $"「{name}」을(를) 샀습니다 · {hull.Name} · {hull.Price}닢");
+        Close();
     }
 
     private void UpdatePurse()

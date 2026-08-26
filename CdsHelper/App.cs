@@ -8,6 +8,7 @@ using CdsHelper.Form.UI.Views;
 using CdsHelper.Main.Local.ViewModels;
 using CdsHelper.Main.UI.Views;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Game.Local.Settings;
 
 namespace cds_helper;
 
@@ -35,6 +36,10 @@ internal class App : PrismApplication
 
         // EUC-KR 인코딩 지원 등록
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+        // 놀이 설정을 앱 설정보다 먼저 읽어 둔다. 옛 settings.json 에서 옮겨 오는 일이
+        // 여기서 벌어지는데, 앱 설정이 먼저 저장되면 옛 값이 지워진 뒤라 놓치게 된다.
+        GameSettings.Load();
 
         base.OnStartup(e);
     }
