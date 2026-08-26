@@ -1058,13 +1058,17 @@ public sealed class Player
       : PurchaseResult.Ok;
 
     /// <summary>배를 산다. 살 수 없으면 아무것도 하지 않고 까닭을 낸다.</summary>
-    public PurchaseResult Buy(Hull hull)
+    /// <param name="name">
+    /// 새 배에 붙일 이름. 안 주면 <see cref="SuggestShipName"/> 이 골라 준다 —
+    /// 조선소 창은 「선명입력」 에서 받은 것을 넘긴다.
+    /// </param>
+    public PurchaseResult Buy(Hull hull, string? name = null)
     {
         var can = CanBuy(hull);
         if (can != PurchaseResult.Ok) return can;
 
         Gold -= hull.Price;
-        _ships.Add(new Ship(hull, name: SuggestShipName()));
+        _ships.Add(new Ship(hull, name: string.IsNullOrWhiteSpace(name) ? SuggestShipName() : name.Trim()));
         return PurchaseResult.Ok;
     }
 

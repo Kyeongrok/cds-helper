@@ -8,6 +8,7 @@ using System.Windows;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -502,7 +503,7 @@ internal static class GameUi
         // 눌린다. 짧은 줄이 창 폭에 맞춰 늘어나며 다시 그려지는 것과 달리, 가장 긴 줄은
         // 제 폭이 곧 창 폭이라 늘어날 일이 없어 눌린 채로 남는다.
         double least = Math.Max(UiSprites.WidthFor(1),
-                                AppSettings.BandPad * 2 + (Font?.TextWidth(title) ?? 0));
+                                GameSettings.BandPad * 2 + (Font?.TextWidth(title) ?? 0));
         grid.MinWidth = least * scale;
         Redraw(least * scale);
 

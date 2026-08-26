@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -34,6 +35,7 @@ public static class ShipSprites
     public const int SkinCount = 4;
 
     private static int _skin = -1;
+    private static string? _folder;
 
     /// <summary>
     /// 어느 벌의 배 그림을 쓸지(0~3). <c>asset/ship-g0</c> ~ <c>ship-g3</c> 에서 읽는다 —
@@ -54,6 +56,35 @@ public static class ShipSprites
                 for (int i = 0; i < Directions; i++) Frames[0][i] = null;   // 배만 다시 읽는다
             }
         }
+    }
+
+    /// <summary>
+    /// 등록해 넣은 배가 제 그림을 들고 있는 폴더의 온 경로. null 이면 <see cref="Skin"/> 대로 읽는다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Skin"/> 보다 이쪽이 세다. 앱에서 손으로 등록한 배는 <c>asset</c> 밖
+    /// (<c>%APPDATA%\CdsHelper\ships\{Id}</c>)에 그림을 두기 때문이다.
+    /// </remarks>
+    public static string? Folder
+    {
+        get => _folder;
+        set
+        {
+            string? next = string.IsNullOrWhiteSpace(value) ? null : value;
+            if (_folder == next) return;
+            lock (Gate)
+            {
+                _folder = next;
+                for (int i = 0; i < Directions; i++) Frames[0][i] = null;   // 배만 다시 읽는다
+            }
+        }
+    }
+
+    /// <summary>어느 배의 그림을 쓸지 한 번에 정한다 — 폴더와 벌 번호를 같이 맞춘다.</summary>
+    public static void Use(Hull? hull)
+    {
+        Folder = hull?.SpriteFolder;
+        Skin = hull?.Skin ?? 0;
     }
 
     /// <summary>[0] 배, [1] 말(육상·정박).</summary>
@@ -83,10 +114,21 @@ public static class ShipSprites
 
     private static uint[]? Load(int set, int index)
     {
-        var dir = set == 1 ? HorseDirectory : _skin >= 0 ? $"asset/ship-g{_skin}" : ShipDirectory;
-        var name = set == 1 ? "horse" : "ship";
-        var path = Path.Combine(AppContext.BaseDirectory, dir, $"{name}_{index}.png");
-        if (!File.Exists(path) && set == 0 && _skin >= 0)
+        string path;
+        if (set == 0 && _folder != null)
+        {
+            // 등록해 넣은 배 — 그림이 asset 밖에 있으므로 온 경로 그대로 쓴다.
+            path = Path.Combine(_folder, $"ship_{index}.png");
+        }
+        else
+        {
+            var dir = set == 1 ? HorseDirectory : _skin >= 0 ? $"asset/ship-g{_skin}" : ShipDirectory;
+            var name = set == 1 ? "horse" : "ship";
+            path = Path.Combine(AppContext.BaseDirectory, dir, $"{name}_{index}.png");
+        }
+
+        // 못 찾으면 기본 벌로 물러선다 — 반쪽짜리라도 배는 그려야 한다.
+        if (!File.Exists(path) && set == 0 && (_skin >= 0 || _folder != null))
             path = Path.Combine(AppContext.BaseDirectory, ShipDirectory, $"ship_{index}.png");
         if (!File.Exists(path))
         {

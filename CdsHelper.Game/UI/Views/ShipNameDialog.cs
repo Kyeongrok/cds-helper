@@ -16,7 +16,8 @@ namespace CdsHelper.Game.UI.Views;
 /// 을 골라도 된다.
 ///
 /// 게임은 이 창을 <c>0x00454D30(창, 버퍼, 0x24, 목록수, 목록, "선명입력")</c> 하나로 내고
-/// 배를 살 때도 같은 창을 쓴다. 우리는 아직 개조의 "선명변경" 에서만 쓴다.
+/// 배를 살 때도 같은 창을 쓴다. 우리도 그렇다 — 개조의 "선명변경" 과 조선소의 "구입" 둘 다
+/// 이 창을 낸다(<see cref="HullSelectDialog"/>).
 /// <code>
 ///   0x0053C178  이름 포인터 표 스물하나 (문자열은 0x00531350 부터)
 ///   0x00531468  "선명입력"
@@ -29,8 +30,12 @@ public sealed class ShipNameDialog : Window
     private readonly List<Border> _rows = [];
     private string? _result;
 
-    private ShipNameDialog(string current)
+    /// <summary>물러날 길이 없는 창인지 — 배를 살 때가 그렇다.</summary>
+    private readonly bool _mustName;
+
+    private ShipNameDialog(string current, bool mustName)
     {
+        _mustName = mustName;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -100,9 +105,10 @@ public sealed class ShipNameDialog : Window
             Margin = new Thickness(0, 8, 0, 8),
         };
         buttons.Children.Add(GameUi.PushButton("결정", Decide));
-        buttons.Children.Add(GameUi.PushButton("중단", Cancel));
+        if (!_mustName) buttons.Children.Add(GameUi.PushButton("중단", Cancel));
 
-        var title = GameUi.TitleBar("선명입력", Cancel);
+        // 이름을 꼭 지어야 하는 창은 제목 줄의 닫기도 안 단다.
+        var title = _mustName ? GameUi.TitleBar("선명입력", null) : GameUi.TitleBar("선명입력", Cancel);
         GameUi.EnableDrag(this, title);
 
         var stack = new StackPanel();
@@ -129,6 +135,9 @@ public sealed class ShipNameDialog : Window
         Mark(current);
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Cancel(); };
         MouseRightButtonUp += (_, _) => Cancel();
+
+        // 창을 닫는 다른 길(Alt+F4 따위)로 빠져나가도 이름은 남아야 한다.
+        Closing += (_, _) => { if (_mustName) _result ??= _name.Text.Trim(); };
     }
 
     private static Border Framed(UIElement child, Thickness margin) => new()
@@ -165,29 +174,44 @@ public sealed class ShipNameDialog : Window
         }
     }
 
+    /// <summary>결정 — 이름이 비었으면 안 닫는다. 배 이름이 빈 채로 넘어갈 수는 없다.</summary>
     private void Decide()
     {
-        _result = _name.Text.Trim();
+        string name = _name.Text.Trim();
+        if (_mustName && name.Length == 0) return;
+
+        _result = name;
         Close();
     }
 
     private void Cancel()
     {
+        if (_mustName) return;   // 물러날 길이 없는 창이다
+
         _result = null;
         Close();
     }
 
     /// <summary>
-    /// 창을 띄우고 정한 이름을 낸다. 중단했거나 그대로면 null.
+    /// 창을 띄우고 정한 이름을 낸다. 중단했거나 이름이 비었으면 null.
     /// </summary>
+    /// <remarks>
+    /// <b>그대로 결정한 것도 답이다.</b> 예전에는 <paramref name="current"/> 와 같으면 null 을
+    /// 냈는데, 그러면 배를 살 때 골라 준 이름을 그대로 받아들인 것과 중단한 것을 가릴 수 없다.
+    /// "안 바뀌었으니 할 일 없다" 는 판단은 이름을 고치는 쪽(선명변경)이 하면 된다.
+    /// </remarks>
     /// <param name="owner">주인 창.</param>
-    /// <param name="current">지금 이름.</param>
-    public static string? Ask(Window owner, string current)
+    /// <param name="current">지금 이름. 창을 열 때 위 줄에 올려 둔다.</param>
+    /// <param name="mustName">
+    /// 참이면 중단이 없다 — 결정 말고는 나갈 길이 없고, 늘 이름을 낸다.
+    /// 배를 살 때가 그렇다(<see cref="HullSelectDialog"/>). 살지 말지는 그 앞에서 이미 물었다.
+    /// </param>
+    public static string? Ask(Window owner, string current, bool mustName = false)
     {
-        var dialog = new ShipNameDialog(current) { Owner = owner };
+        var dialog = new ShipNameDialog(current, mustName) { Owner = owner };
         dialog.ShowDialog();
 
         string? name = dialog._result;
-        return string.IsNullOrWhiteSpace(name) || name == current ? null : name;
+        return string.IsNullOrWhiteSpace(name) ? (mustName ? current : null) : name;
     }
 }

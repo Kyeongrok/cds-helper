@@ -14,6 +14,7 @@ using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
 using Prism.Events;
 using Prism.Ioc;
+using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Form.UI.Views;
 
@@ -22,6 +23,8 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DiscoveryMenu, Type = typeof(MenuItem))]
@@ -37,6 +40,8 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
+    private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
+    private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
     private const string PART_HelpMenu = "PART_HelpMenu";
     private const string PART_DiscoveryMenu = "PART_DiscoveryMenu";
@@ -117,6 +122,16 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_WaveBankMenu) is MenuItem waveBankMenu)
         {
             waveBankMenu.Click += OnWaveBankMenuClick;
+        }
+
+        if (GetTemplateChild(PART_ImageShrinkMenu) is MenuItem imageShrinkMenu)
+        {
+            imageShrinkMenu.Click += OnImageShrinkMenuClick;
+        }
+
+        if (GetTemplateChild(PART_ShipRegistryMenu) is MenuItem shipRegistryMenu)
+        {
+            shipRegistryMenu.Click += OnShipRegistryMenuClick;
         }
 
         if (GetTemplateChild(PART_ShipMapMenu) is MenuItem shipMapMenu)
@@ -253,6 +268,26 @@ public class CdsHelperWindow : CdsWindow
         dialog.ShowDialog();
     }
 
+    // 그림 파일을 골라 크기·용량을 줄이는 창. 게임과는 상관없는 손도구다.
+    private void OnImageShrinkMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ImageShrinkDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
+    // 이 앱이 품은 놀이의 조선소에 낼 배를 등록하는 창. 게임 EXE 는 건드리지 않는다.
+    private void OnShipRegistryMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ShipRegistryDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
     // 게임 화면처럼 지도 위에 함대만 띄우는 창. 세계지도 탭과 달리 D3D 로 그린다.
     private void OnShipMapMenuClick(object sender, RoutedEventArgs e) => OpenShipMap();
 
@@ -270,7 +305,7 @@ public class CdsHelperWindow : CdsWindow
     /// <summary>설정에서 켜 뒀으면 앱을 띄울 때 함대 보기도 같이 연다.</summary>
     private void OpenShipMapIfWanted()
     {
-        if (!AppSettings.AutoOpenShipMap) return;
+        if (!GameSettings.AutoOpenShipMap) return;
         // 본 창이 자리를 잡은 뒤에 연다 — Owner 가 아직 뜨지 않은 채로 열면 가운데가 안 맞는다.
         Dispatcher.BeginInvoke(new Action(OpenShipMap), System.Windows.Threading.DispatcherPriority.Loaded);
     }

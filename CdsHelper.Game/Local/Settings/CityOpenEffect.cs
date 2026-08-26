@@ -1,4 +1,4 @@
-namespace CdsHelper.Support.Local.Settings;
+namespace CdsHelper.Game.Local.Settings;
 
 /// <summary>도시 창이 열릴 때 주는 효과.</summary>
 public enum CityOpenEffect

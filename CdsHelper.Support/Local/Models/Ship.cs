@@ -132,10 +132,10 @@ public sealed class Ship
     /// </summary>
     /// <remarks>
     /// 게임(<c>0x00494A50</c>)은 선체 종류로 가른다 — 코구(0)·다우(7)는 못 늘리고,
-    /// 카라벨(1)은 둘까지, 그 밖은 셋까지다. 우리 선체 다섯에는 코구도 다우도 없으므로
-    /// <b>카라벨만 둘, 나머지는 셋</b>이다.
+    /// 카라벨(1)은 둘까지, 그 밖은 셋까지다. 우리 붙박이 다섯에는 코구도 다우도 없으므로
+    /// <b>카라벨만 둘, 나머지는 셋</b>이다. 등록해 넣은 배는 제가 들고 있는 값을 쓴다.
     /// </remarks>
-    public int MaxMasts => Hull.Name == "카라벨" ? 2 : MastSlots;
+    public int MaxMasts => Math.Clamp(Hull.MaxMasts, 1, MastSlots);
 
     /// <summary>마스트를 더 세울 수 있는지.</summary>
     public bool CanAddMast => Masts < MaxMasts;
@@ -147,8 +147,9 @@ public sealed class Ship
     /// 게임은 못 바꾸는 배에 "안됐지만, 이 타입은 돛의 종류를 바꿀 수 없네."
     /// (<c>0x00531678</c>) 를 낸다. 마스트를 달 때 <b>삼각돛으로 못 박는</b> 배가 그쪽이다
     /// (<c>0x00494C9A</c> 의 선체 종류 1·2) — 카라벨과 대형카라벨이다.
+    /// 등록해 넣은 배는 제가 들고 있는 값을 쓴다.
     /// </remarks>
-    public bool CanChangeSail => Hull.Name is not ("카라벨" or "대형카라벨");
+    public bool CanChangeSail => Hull.CanChangeSail;
 
     /// <summary>
     /// 마스트 하나를 세운다 — 적재용량이 25 줄고 필요승원이 둘 는다.

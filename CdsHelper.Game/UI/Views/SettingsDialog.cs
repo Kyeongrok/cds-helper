@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -11,7 +12,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 함대 창 설정. 배경음악과 효과음을 따로 켜고 끈다.
 /// </summary>
 /// <remarks>
-/// 켜고 끈 것은 <see cref="AppSettings.BgmEnabled"/> 에 적혀 다음에 켤 때도 그대로다.
+/// 켜고 끈 것은 <see cref="GameSettings.BgmEnabled"/> 에 적혀 다음에 켤 때도 그대로다.
 /// </remarks>
 public sealed class SettingsDialog : Window
 {
@@ -67,10 +68,10 @@ public sealed class SettingsDialog : Window
     private static string Label(string name, bool on) => $"{name}   {(on ? "켬" : "끔")}";
 
     private UIElement BgmToggle() =>
-        new GameButton(Label("배경음악", AppSettings.BgmEnabled), FlipBgm);
+        new GameButton(Label("배경음악", GameSettings.BgmEnabled), FlipBgm);
 
     private UIElement SfxToggle() =>
-        new GameButton(Label("효과음  ", AppSettings.SfxEnabled), FlipSfx);
+        new GameButton(Label("효과음  ", GameSettings.SfxEnabled), FlipSfx);
 
     /// <summary>켜고 끄기를 뒤집는다 — 곡은 그 자리에서 멈추거나 다시 돈다.</summary>
     /// <remarks>
@@ -81,8 +82,8 @@ public sealed class SettingsDialog : Window
     /// </remarks>
     private void FlipBgm()
     {
-        AppSettings.BgmEnabled = !AppSettings.BgmEnabled;
-        _bgm.Enabled = AppSettings.BgmEnabled;
+        GameSettings.BgmEnabled = !GameSettings.BgmEnabled;
+        _bgm.Enabled = GameSettings.BgmEnabled;
         _bgmRow.Child = BgmToggle();
     }
 
@@ -92,7 +93,7 @@ public sealed class SettingsDialog : Window
     /// </summary>
     private void FlipSfx()
     {
-        AppSettings.SfxEnabled = !AppSettings.SfxEnabled;
+        GameSettings.SfxEnabled = !GameSettings.SfxEnabled;
         _sfxRow.Child = SfxToggle();
     }
 

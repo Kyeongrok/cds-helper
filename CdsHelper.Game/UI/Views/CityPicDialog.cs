@@ -15,6 +15,7 @@ using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Game.Engine.Menu;
+using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -252,7 +253,7 @@ public sealed class CityPicDialog : Window
             Left = _openLeft;
             Top = _openTop;
 
-            var effect = AppSettings.CityOpenEffect;
+            var effect = GameSettings.CityOpenEffect;
             if (effect == CityOpenEffect.Expand)
             {
                 Width = fullW * OpenFrom;
@@ -1493,7 +1494,8 @@ public sealed class CityPicDialog : Window
         var owner = Menu.Window ?? this;
         GameDialog.Show(owner, "배의 이름을 정해 주십시오");
 
-        if (ShipNameDialog.Ask(owner, ship.Name) is not { } name) return;
+        // 그대로 결정했으면 고칠 게 없다 — 창은 그 둘을 가려 주지 않는다.
+        if (ShipNameDialog.Ask(owner, ship.Name) is not { } name || name == ship.Name) return;
         if (!ship.Rename(name)) return;
 
         NoticeDialog.Show(owner, $"{ship.Name}호로 바꾸었다");
