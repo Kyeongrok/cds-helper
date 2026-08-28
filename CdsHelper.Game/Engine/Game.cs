@@ -3,6 +3,7 @@ using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
+using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
 
 namespace CdsHelper.Game.Engine;
@@ -173,6 +174,43 @@ public sealed class Game
     }
 
     /// <summary>
+    /// 게임 세이브의 인물표 — 술집에 앉은 사람과 부하의 신상이 여기서 온다.
+    /// </summary>
+    /// <remarks>
+    /// 이것만은 게임 폴더가 아니라 <b>세이브 파일</b>에서 읽는다. 사람은 판마다 다르다.
+    /// </remarks>
+    public TavernRoster? Roster
+    {
+        get
+        {
+            if (_roster != null || _rosterTried) return _roster;
+            _rosterTried = true;
+
+            string path = AppSettings.LastSaveFilePath;
+            if (string.IsNullOrEmpty(path)) return null;
+
+            _roster = TavernRoster.Open(path);
+            if (_roster == null) Debug.WriteLine($"[Game] 술집 인물 없음: {TavernRoster.LastError}");
+            return _roster;
+        }
+    }
+
+    /// <summary>
+    /// 그 부하의 신상. 우리 세이브에 적어 둔 것을 먼저 보고, 없으면(판 20 앞에 들인 부하)
+    /// 게임 세이브의 인물표에서 채워 <b>그 자리에서 적어 둔다</b> — 한 번 채우면 다음부터는
+    /// 우리 것만으로 뜬다.
+    /// </summary>
+    public Player.MateInfo? MateInfo(string name)
+    {
+        if (Player.MateInfoOf(name) is { } mine) return mine;
+        if (Roster?.Find(name) is not { } person) return null;
+
+        var filled = Town.Tavern.MateInfoOf(person);
+        Player.RememberMate(filled);
+        return filled;
+    }
+
+    /// <summary>
     /// 힌트 이름. 게임 표를 읽었으면 그것으로, 아니면 우리 DB 것으로, 그것도 없으면 번호로 낸다.
     /// </summary>
     public string HintName(int id)
@@ -243,6 +281,7 @@ public sealed class Game
     private GoodsTable? _goods;
     private CityExeTable? _cityRows;
     private DiscoveryLog? _discoveries;
+    private TavernRoster? _roster;
     private Portraits? _faces;
     private EffectAnim? _effects;
     private TavernGuests? _guests;
@@ -254,5 +293,5 @@ public sealed class Game
     private bool _cityPicsTried, _buildingsTried, _booksTried, _hintsTried;
     private bool _sponsorsTried, _itemsTried, _sailsTried, _discoveriesTried;
     private bool _nationsTried, _goodsTried, _cityRowsTried, _facesTried;
-    private bool _effectsTried, _guestsTried, _photosTried, _itemTextTried;
+    private bool _effectsTried, _guestsTried, _photosTried, _itemTextTried, _rosterTried;
 }
