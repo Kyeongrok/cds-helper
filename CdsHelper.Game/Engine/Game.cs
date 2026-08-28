@@ -186,7 +186,7 @@ public sealed class Game
             if (_roster != null || _rosterTried) return _roster;
             _rosterTried = true;
 
-            string path = AppSettings.LastSaveFilePath;
+            string? path = AppSettings.LastSaveFilePath;
             if (string.IsNullOrEmpty(path)) return null;
 
             _roster = TavernRoster.Open(path);
