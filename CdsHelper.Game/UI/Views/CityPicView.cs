@@ -31,7 +31,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그대로 온다. 표에 항구가 없는 도시라면 그림 아무 데나 눌러도 항구 명령 창이 열리게 해
 /// 두었다 — 출항할 길은 어디서나 있어야 한다.
 /// </remarks>
-public sealed class CityPicDialog : Window
+public sealed class CityPicView : Window
 {
     /// <summary>건물 이름표와 명령 창을 얹는 자리. 그림과 같은 격자 칸에 둔다.</summary>
     private readonly Canvas _layer = new();
@@ -39,7 +39,10 @@ public sealed class CityPicDialog : Window
     /// <summary>건물 이름표들. 명령 창이 열리면 다 감춘다.</summary>
     private readonly List<Border> _tags = [];
 
-    /// <summary>배를 사면 여기서 돈이 빠진다.</summary>
+    /// <summary>이 판. 게임 폴더 · 표 · 소리를 여기서 얻는다.</summary>
+    private readonly Engine.Game _game;
+
+    /// <summary>배를 사면 여기서 돈이 빠진다. 판이 든 것을 그대로 쓴다.</summary>
     private readonly Player _player;
 
     /// <summary>건물에 들어갈 때 곡을 바꾼다. 없으면(시험용) 아무것도 안 한다.</summary>
@@ -48,22 +51,13 @@ public sealed class CityPicDialog : Window
     /// <summary>건물 표. 가르치는 기능을 이름으로 풀 때 쓴다.</summary>
     private readonly CityBuildingTable _table;
 
-    /// <summary>힌트 표(CDS_95.EXE). 왕궁 설득에서 등급·자금·기한이 여기서 온다.</summary>
-    private HintTable? _hintTable;
-    private bool _hintTableTried;
-
     /// <summary>후원자 자료(patrons.json). 한 번만 읽어 둔다.</summary>
     private static List<Patron>? _patrons;
 
-    /// <summary>후원자 표와 초상화(게임 자료). 설득할 때에야 연다.</summary>
-    private SponsorTable? _sponsorTable;
-    private bool _sponsorTried;
-    private Portraits? _faces;
-    private bool _facesTried;
+    /// <summary>초상화(게임 자료). 설득할 때에야 연다.</summary>
 
-    // 도서관 열람에 쓰는 것들. 책 표를 못 읽었으면 열람 줄이 흐린 채로 남는다.
+    // 도서관 열람에 쓴다. 책 표를 못 읽었으면 열람 줄이 흐린 채로 남는다.
     private readonly BookTable? _library;
-    private readonly Func<int, string> _hintName;
     private readonly string _gameDirectory;
     private readonly string _cityName;
     private readonly int _cityId;
@@ -208,20 +202,20 @@ public sealed class CityPicDialog : Window
     /// <summary>확대/축소가 시작하는 배율.</summary>
     private const double ZoomFrom = 0.3;
 
-    private CityPicDialog(string cityName, BitmapSource picture, int scale, int cityId,
-                          CityBuildingTable table, Player player, BgmPlayer? bgm, Rect mapArea,
-                          BookTable? library, Func<int, string>? hintName, string gameDirectory,
-                          int cityTrack, string culture)
+    private CityPicView(Engine.Game game, string cityName, BitmapSource picture, int scale,
+                          int cityId, Rect mapArea, int cityTrack, string culture)
     {
+        // 판이 든 것을 그대로 든다 — 표를 여기서 따로 열지 않는다.
+        _game = game;
+        _player = game.Player;
+        _bgm = game.Bgm;
+        _table = game.Buildings!;      // 부르는 쪽에서 없으면 창을 아예 안 연다
+        _library = game.Books;
+        _gameDirectory = game.Directory;
+
         _culture = culture;
         _scale = scale;
         _cityTrack = cityTrack;
-        _player = player;
-        _bgm = bgm;
-        _table = table;
-        _library = library;
-        _hintName = hintName ?? (h => $"힌트 {h}");
-        _gameDirectory = gameDirectory;
         _cityName = cityName;
         _cityId = cityId;
 
@@ -317,7 +311,7 @@ public sealed class CityPicDialog : Window
 
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
         bool harborPlaced = false;
-        foreach (var building in table.InCity(cityId))
+        foreach (var building in _table.InCity(cityId))
         {
             AddSpot(building, scale);
             if (building.Kind == "항구") harborPlaced = true;
@@ -415,8 +409,6 @@ public sealed class CityPicDialog : Window
     /// <summary>한 장이 머무는 참. 다섯 장을 이으면 1.1초쯤 된다.</summary>
     private static readonly TimeSpan FrameSpan = TimeSpan.FromMilliseconds(220);
 
-    private EffectAnim? _effects;
-    private bool _effectsTried;
     private bool _playing;
 
     /// <summary>
@@ -441,7 +433,7 @@ public sealed class CityPicDialog : Window
 
         if (facility.Kind is FacilityKind.Palace or FacilityKind.Church) return true;
 
-        SoundBank.Shared(_gameDirectory)?.Play(SoundBank.TurnedAwayPart);
+        _game.Sfx?.Play(SoundBank.TurnedAwayPart);
         return false;
     }
 
@@ -462,7 +454,7 @@ public sealed class CityPicDialog : Window
     {
         if (_playing) return;                       // 도는 동안 또 누르면 겹친다
 
-        var effects = Effects();
+        var effects = _game.Effects;
         if (effects == null) return;
 
         double side = EffectAnim.Size * _scale;
@@ -531,19 +523,6 @@ public sealed class CityPicDialog : Window
         finally { timer.Stop(); }
     }
 
-    /// <summary>애니메이션을 처음 쓸 때 연다. 못 읽으면 애니메이션만 안 돈다.</summary>
-    private EffectAnim? Effects()
-    {
-        if (_effects != null || _effectsTried) return _effects;
-        _effectsTried = true;
-        if (_gameDirectory.Length == 0) return null;
-
-        _effects = EffectAnim.Open(_gameDirectory);
-        if (_effects == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 애니메이션 없음: {EffectAnim.LastError}");
-        return _effects;
-    }
-
     /// <summary>
     /// 시설마다 말을 거는 사람의 얼굴 번호.
     /// </summary>
@@ -582,7 +561,7 @@ public sealed class CityPicDialog : Window
     private void Teach(uint teachMask, FacilityKind kind)
     {
         bool church = kind == FacilityKind.Church;
-        var face = Faces()?.TryGetBgra(church ? ChurchFace : InstructorFace, female: false);
+        var face = _game.Faces?.TryGetBgra(church ? ChurchFace : InstructorFace, female: false);
 
         TalkDialog.Say(this, face, "", church
             ? "주의 배움의 터전에 잘 오셨습니다. 어떤 학문, 기능을 배우고 싶습니까?"
@@ -606,7 +585,7 @@ public sealed class CityPicDialog : Window
     {
         if (facility.Kind == FacilityKind.Library)
         {
-            TalkDialog.Say(this, Faces()?.TryGetBgra(LibrarianFace, female: false),
+            TalkDialog.Say(this, _game.Faces?.TryGetBgra(LibrarianFace, female: false),
                            "", "책을 찾고 계십니까?");
             return;
         }
@@ -645,7 +624,7 @@ public sealed class CityPicDialog : Window
             _player.RememberMate(who.Value);
         }
         return who is { } mate && mate.Face is >= 0 and < 0xFFFF
-            ? Faces()?.TryGetBgra(mate.Face, female: false)
+            ? _game.Faces?.TryGetBgra(mate.Face, female: false)
             : null;
     }
 
@@ -654,9 +633,6 @@ public sealed class CityPicDialog : Window
 
     /// <summary>지금 떠 있는 건물 사진. 명령 창을 닫으면 같이 걷는다.</summary>
     private BuildingPhotoWindow? _photoWindow;
-
-    private BuildingPhoto? _photos;
-    private bool _photosTried;
 
     /// <summary>
     /// 게임 640x480 화면에서 타원 사진이 앉는 자리. 도시 그림은 (0,0)~(400,320) 이고
@@ -674,7 +650,7 @@ public sealed class CityPicDialog : Window
         _photoWindow?.Close();
         _photoWindow = null;
 
-        var photos = Photos();
+        var photos = _game.Photos;
         if (photos == null) return;
 
         int k = photos.Pick(_culture, buildingCode);
@@ -696,7 +672,7 @@ public sealed class CityPicDialog : Window
     {
         if (kind is not (FacilityKind.Tavern or FacilityKind.Inn)) return [];
 
-        var book = Guests();
+        var book = _game.Guests;
         if (book == null) return [];
 
         byte building = kind == FacilityKind.Tavern ? TavernRoster.Tavern : TavernRoster.Inn;
@@ -900,7 +876,7 @@ public sealed class CityPicDialog : Window
     /// </summary>
     private uint[]? FaceOf(TavernRoster.Person who) =>
         who.FaceCode is >= 0 and < 0xFFFF
-            ? Faces()?.TryGetBgra(who.FaceCode, female: false)
+            ? _game.Faces?.TryGetBgra(who.FaceCode, female: false)
             : null;
 
     /// <summary>한잔 사는 값. 게임은 도시마다 파는 술이 달라 값도 다른데 아직 그 표를 안 읽는다.</summary>
@@ -917,35 +893,6 @@ public sealed class CityPicDialog : Window
         _player.SetGold(_player.Gold - DrinkPrice);
         NoticeDialog.Show(this, $"금화 {DrinkPrice}닢으로 한잔 샀다.");
         return true;
-    }
-
-    /// <summary>손님 그림을 처음 쓸 때 연다. 못 읽으면 손님만 안 선다.</summary>
-    private TavernGuests? Guests()
-    {
-        if (_guests != null || _guestsTried) return _guests;
-        _guestsTried = true;
-        if (_gameDirectory.Length == 0) return null;
-
-        _guests = TavernGuests.Open(_gameDirectory);
-        if (_guests == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 손님 그림 없음: {TavernGuests.LastError}");
-        return _guests;
-    }
-
-    private TavernGuests? _guests;
-    private bool _guestsTried;
-
-    /// <summary>건물 사진 아카이브를 처음 쓸 때 연다. 못 읽으면 사진만 안 뜬다.</summary>
-    private BuildingPhoto? Photos()
-    {
-        if (_photos != null || _photosTried) return _photos;
-        _photosTried = true;
-        if (_gameDirectory.Length == 0) return null;
-
-        _photos = BuildingPhoto.Open(_gameDirectory);
-        if (_photos == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 건물 사진 없음: {BuildingPhoto.LastError}");
-        return _photos;
     }
 
     /// <summary>누를 자리의 크기(그림 점). 건물끼리 겹치지 않을 만큼만 잡았다.</summary>
@@ -1739,10 +1686,10 @@ public sealed class CityPicDialog : Window
     /// </remarks>
     private List<DiscoveryTable.Record> Announceable()
     {
-        var table = Discoveries();
+        var table = _game.Discoveries?.Table;
         if (table == null) return [];
 
-        int target = _player.Contract is { } c && Hints()?.Find(c.Hint) is { } hint
+        int target = _player.Contract is { } c && _game.Hints?.Find(c.Hint) is { } hint
                    ? hint.Discovery : -1;
 
         var rows = new List<DiscoveryTable.Record>();
@@ -1955,13 +1902,22 @@ public sealed class CityPicDialog : Window
     }
 
     /// <summary>
-    /// 지금 상태(소지금·날짜·있는 도시·배운 기술)를 적는다.
+    /// 지금 상태(소지금·날짜·있는 도시·배운 기술)를 적는다. 게임처럼 <b>겹쳐 쓸지 먼저 묻고</b>
+    /// 다 적은 뒤에 겹쳐 썼다고 알린다 — 세이브 자리가 하나뿐이라 적는 일은 늘 겹쳐 쓰기다.
     /// 게임 폴더가 아니라 우리 자리에 쓴다 — <see cref="GameSave"/> 참고.
     /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004A2800</c> 그대로다 — 물음(<c>0x00568CB8</c>) · 쓰기 · 알림(<c>0x00568CE0</c>).
+    /// 물음에 YES 가 아니면 아무것도 쓰지 않고 그냥 돌아간다.
+    /// </remarks>
     private void SaveGame()
     {
-        var error = GameSave.Save(_player);
-        NoticeDialog.Show(this, error.Length == 0 ? "기록했다!" : $"기록하지 못했다 — {error}");
+        var owner = Menu.Window ?? this;
+        if (!ConfirmDialog.Ask(owner, "데이터를 겹쳐 쓰겠습니다. 좋습니까?")) return;
+
+        string error = GameSave.Save(_player);
+        ConfirmDialog.Tell(owner, error.Length == 0 ? "데이터를 겹쳐 썼습니다"
+                                                    : $"기록하지 못했다 — {error}");
     }
 
     /// <summary>
@@ -2107,29 +2063,10 @@ public sealed class CityPicDialog : Window
     private void ShowCityInfo()
     {
         CloseCityMenu();
-        CityInfoDialog.Show(this, _cityName, _cityId, CityRows,
-                            _nations ??= NationTable.Open(_gameDirectory),
-                            Goods, ItemPictures, Market?.Rates ?? MarketRates.Open());
+        CityInfoDialog.Show(this, _cityName, _cityId, _game.CityRows,
+                            _game.Nations, _game.Goods, _game.ItemPictures,
+                            Market?.Rates ?? MarketRates.Open());
     }
-
-    private NationTable? _nations;
-
-    /// <summary>교역품 표. 도시 특산품을 낼 때 쓴다.</summary>
-    private GoodsTable? Goods
-    {
-        get
-        {
-            if (_goods == null && !_goodsTried)
-            {
-                _goodsTried = true;
-                _goods = GoodsTable.Open(_gameDirectory);
-            }
-            return _goods;
-        }
-    }
-
-    private GoodsTable? _goods;
-    private bool _goodsTried;
 
     /// <summary>
     /// 여관에 묵는다. 게임 차례 그대로 — 값을 부르고, YES 면 그때서야 돈을 본다.
@@ -2139,7 +2076,7 @@ public sealed class CityPicDialog : Window
     /// </remarks>
     private void Stay()
     {
-        var inn = _lodging ??= new Lodging(CityRows, MarketRates.Open());
+        var inn = _lodging ??= new Lodging(_game.CityRows, MarketRates.Open());
         int price = inn.PriceAt(_cityId);
 
         if (!ConfirmDialog.Ask(this, $"선불이네. 우리 집은 한 달에 금화 {price}닢인데, 머물고 갈텐가?"))
@@ -2167,28 +2104,11 @@ public sealed class CityPicDialog : Window
     {
         CloseCityMenu();
 
-        var table = Discoveries();
-        BelongingsDialog.Show(this, _player, ItemTableOrNull, ItemText, ItemPictures,
+        var table = _game.Discoveries?.Table;
+        BelongingsDialog.Show(this, _player, _game.Items, _game.ItemText, _game.ItemPictures,
                               [.. _player.Discoveries.Order()
                                         .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")]);
     }
-
-    /// <summary>아이템 표. <see cref="Market"/> 이 이미 열어 두었으면 그것을 쓴다.</summary>
-    private ItemTable? ItemTableOrNull
-    {
-        get
-        {
-            if (_itemTable == null && !_itemTableTried)
-            {
-                _itemTableTried = true;
-                _itemTable = ItemTable.Open(_gameDirectory);
-            }
-            return _itemTable;
-        }
-    }
-
-    private ItemTable? _itemTable;
-    private bool _itemTableTried;
 
     /// <summary>도시 커맨드 창. 그림 안이 아니라 제 창으로 띄운다.</summary>
     /// <summary>여관에서 몸으로 값을 치르는 줄.</summary>
@@ -2247,7 +2167,7 @@ public sealed class CityPicDialog : Window
     /// </remarks>
     private void Persuade(Patron patron)
     {
-        var sponsor = Sponsors()?.FindByName(patron.Name);
+        var sponsor = _game.Sponsors?.FindByName(patron.Name);
         string shown = sponsor?.Name ?? patron.Name;             // 게임 이름은 가운뎃점이 들어간다
         string sir = sponsor?.Honorific ?? "각하";
         string me = _player.Name;
@@ -2269,7 +2189,7 @@ public sealed class CityPicDialog : Window
         if (_player.Fame < patron.Fame)
         {
             // 문 앞에서 돌려보낼 때 소리가 한 번 난다(닻 소리와 같은 파트다).
-            SoundBank.Shared(_gameDirectory)?.Play(SoundBank.TurnedAwayPart);
+            _game.Sfx?.Play(SoundBank.TurnedAwayPart);
             Steward($"{shown}님은 바쁘셔서 만나실 수 없습니다.");
             return;
         }
@@ -2316,7 +2236,7 @@ public sealed class CityPicDialog : Window
             return;
         }
 
-        var hint = Hints()?.Find(mine[row]);
+        var hint = _game.Hints?.Find(mine[row]);
         if (hint == null)
         {
             Say("흠, 원조해 주고 싶은 마음은 많지만.");
@@ -2404,8 +2324,8 @@ public sealed class CityPicDialog : Window
     {
         if (_player.Contract is not { } contract) return [];
         if (contract.Sponsor != patron.Name || contract.City != _cityName) return [];
-        if (Discoveries() is not { } table) return [];
-        if (Hints()?.Find(contract.Hint) is not { } hint) return [];
+        if (_game.Discoveries?.Table is not { } table) return [];
+        if (_game.Hints?.Find(contract.Hint) is not { } hint) return [];
 
         var rows = new List<DiscoveryTable.Record>();
         foreach (int id in _player.Discoveries.Order())
@@ -2590,8 +2510,8 @@ public sealed class CityPicDialog : Window
             return;
         }
 
-        var table = Discoveries();
-        var items = ItemTableOrNull;
+        var table = _game.Discoveries?.Table;
+        var items = _game.Items;
 
         var found = new List<string>();
         var evidence = new List<string>();
@@ -2608,33 +2528,17 @@ public sealed class CityPicDialog : Window
                             HintNameOf(contract.Hint), found, evidence);
     }
 
-    /// <summary>발견물 표. 계약 정보·소지품 정보의 발견물 칸에 쓴다.</summary>
-    private DiscoveryTable? Discoveries()
-    {
-        if (_discoveryTable != null || _discoveryTableTried) return _discoveryTable;
-        _discoveryTableTried = true;
-        if (_gameDirectory.Length == 0) return null;
-
-        _discoveryTable = DiscoveryTable.Open(_gameDirectory);
-        if (_discoveryTable == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 발견물 표 없음: {DiscoveryTable.LastError}");
-        return _discoveryTable;
-    }
-
-    private DiscoveryTable? _discoveryTable;
-    private bool _discoveryTableTried;
-
     /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
     private uint[]? FaceOf(Patron patron)
     {
-        var sponsor = Sponsors()?.FindByName(patron.Name);
+        var sponsor = _game.Sponsors?.FindByName(patron.Name);
         if (sponsor == null) return null;
-        return Faces()?.TryGetBgra(sponsor.Value.Face, sponsor.Value.IsFemale);
+        return _game.Faces?.TryGetBgra(sponsor.Value.Face, sponsor.Value.IsFemale);
     }
 
     /// <summary>취차(집사)의 얼굴. 어느 후원자에게 가든 같은 사람이다.</summary>
     private uint[]? StewardFace() =>
-        Faces()?.TryGetBgra(SponsorTable.StewardFace, female: false);
+        _game.Faces?.TryGetBgra(SponsorTable.StewardFace, female: false);
 
     /// <summary>이름 뒤에 붙는 목적격 조사. 받침이 있으면 "을", 없으면 "를".</summary>
     /// <remarks>
@@ -2648,44 +2552,8 @@ public sealed class CityPicDialog : Window
         return (last - '가') % 28 == 0 ? "를" : "을";
     }
 
-    /// <summary>힌트 이름. 게임 표를 읽었으면 그것으로, 아니면 DB 이름으로 물러선다.</summary>
-    private string HintNameOf(int id) => _hintTable?.NameOf(id) ?? _hintName(id);
-
-    /// <summary>힌트 표를 처음 쓸 때 연다. 못 읽으면 이름만 DB 것으로 물러선다.</summary>
-    private HintTable? Hints()
-    {
-        if (_hintTable != null || _hintTableTried) return _hintTable;
-        _hintTableTried = true;
-        if (_gameDirectory.Length == 0) return null;
-        _hintTable = HintTable.Open(_gameDirectory);
-        if (_hintTable == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 힌트 표 없음: {HintTable.LastError}");
-        return _hintTable;
-    }
-
-    /// <summary>후원자 표(CDS_95.EXE). 얼굴 번호가 여기서 온다.</summary>
-    private SponsorTable? Sponsors()
-    {
-        if (_sponsorTable != null || _sponsorTried) return _sponsorTable;
-        _sponsorTried = true;
-        if (_gameDirectory.Length == 0) return null;
-        _sponsorTable = SponsorTable.Open(_gameDirectory);
-        if (_sponsorTable == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 후원자 표 없음: {SponsorTable.LastError}");
-        return _sponsorTable;
-    }
-
-    /// <summary>초상화(MALE.CDS · FEMALE.CDS). 처음 쓸 때 연다.</summary>
-    private Portraits? Faces()
-    {
-        if (_faces != null || _facesTried) return _faces;
-        _facesTried = true;
-        // 게임 폴더를 몰라도 연다 — 초상화는 우리 asset 폴더에도 있다.
-        _faces = Portraits.Open(_gameDirectory);
-        if (_faces == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 초상화 없음: {Portraits.LastError}");
-        return _faces;
-    }
+    /// <summary>힌트 이름. 판이 게임 표 · DB · 번호 차례로 물러서며 찾아 준다.</summary>
+    private string HintNameOf(int id) => _game.HintName(id);
 
     /// <summary>후원자 자료. 못 읽으면 빈 목록이다 — 그렇다고 도시 화면까지 막을 일은 아니다.</summary>
     private static List<Patron> LoadPatrons()
@@ -2704,10 +2572,10 @@ public sealed class CityPicDialog : Window
         return _patrons;
     }
 
-    /// <summary>얻은 힌트를 늘어놓는다. 이름은 DB 에서 온다.</summary>
+    /// <summary>얻은 힌트를 늘어놓는다. 이름은 판이 찾아 준다.</summary>
     private void ShowHints() =>
         HintListDialog.Show(_cityMenu.Window ?? this,
-                            [.. _player.Hints.Order().Select(_hintName)]);
+                            [.. _player.Hints.Order().Select(HintNameOf)]);
 
     /// <summary>
     /// 「스폰서 일람」 — 한 번이라도 만난 후원자를 늘어놓는다.
@@ -2731,7 +2599,7 @@ public sealed class CityPicDialog : Window
     private void ShowPatrons()
     {
         int year = _player.Date.Year;
-        var table = Sponsors();
+        var table = _game.Sponsors;
 
         var mine = LoadPatrons()
             .Where(p => p.IsActive(year) && _player.HasMet(p.Name))
@@ -2797,59 +2665,20 @@ public sealed class CityPicDialog : Window
             if (_market != null || _marketTried) return _market;
             _marketTried = true;
 
-            var items = ItemTable.Open(_gameDirectory);
+            var items = _game.Items;
             if (items == null)
             {
                 System.Diagnostics.Debug.WriteLine($"[City] 아이템 표 없음: {ItemTable.LastError}");
                 return null;
             }
             // 시세는 아직 다 100 이다. 나중에 채우면 값이 저절로 따라 움직인다.
-            _market = new Market(items, MarketRates.Open(), CityRows);
+            _market = new Market(items, MarketRates.Open(), _game.CityRows);
             return _market;
         }
     }
 
     private Market? _market;
     private bool _marketTried;
-
-    /// <summary>EXE 도시 표(문화권·시장 물건). 시장과 여관이 같이 쓴다.</summary>
-    private CityExeTable? CityRows
-    {
-        get
-        {
-            if (_cityRows == null && !_cityRowsTried)
-            {
-                _cityRowsTried = true;
-                _cityRows = CityExeTable.Open(_gameDirectory);
-            }
-            return _cityRows;
-        }
-    }
-
-    private CityExeTable? _cityRows;
-    private bool _cityRowsTried;
-
-    /// <summary>아이템 설명문. 없으면 설명 자리가 빈 채로 뜬다.</summary>
-    private ItemDescriptions? ItemText
-    {
-        get
-        {
-            if (_itemText == null && !_itemTextTried)
-            {
-                _itemTextTried = true;
-                _itemText = ItemDescriptions.Open(_gameDirectory);
-            }
-            return _itemText;
-        }
-    }
-
-    private ItemDescriptions? _itemText;
-    private bool _itemTextTried;
-
-    /// <summary>아이템 그림. asset/item 만 있으면 게임 폴더가 없어도 나온다.</summary>
-    private ItemArt? ItemPictures => _itemArt ??= ItemArt.Open(_gameDirectory);
-
-    private ItemArt? _itemArt;
 
     /// <summary>이 건물에 앉아 있는 후원자. 없으면 null.</summary>
     private Patron? PatronAt(string kind) =>
@@ -2886,7 +2715,7 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Home, "휴양") => () => Menu.Push(RestMenu),
             (FacilityKind.Home, "저금") => () => Menu.Push(SavingsMenu),
             (FacilityKind.Home, "보관") => () =>
-                StorageDialog.Show(Menu.Window ?? this, _player, ItemTableOrNull),
+                StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
             (FacilityKind.Harbor, "보급") => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),
@@ -2896,16 +2725,16 @@ public sealed class CityPicDialog : Window
             (FacilityKind.Shipyard, "수리") when RepairTargets().Count > 0 => RepairShip,
             (FacilityKind.Shipyard, "개조") => RefitShip,
             (FacilityKind.Market, "구입") when Market != null => () =>
-                MarketBuyDialog.Show(this, _player, Market, _cityId, ItemText, ItemPictures),
-            (FacilityKind.Market, "매각") when Market != null && ItemTableOrNull != null => () =>
-                MarketSellDialog.Show(this, _player, Market, ItemTableOrNull, _cityId),
+                MarketBuyDialog.Show(this, _player, Market, _cityId, _game.ItemText, _game.ItemPictures),
+            (FacilityKind.Market, "매각") when Market != null && _game.Items != null => () =>
+                MarketSellDialog.Show(this, _player, Market, _game.Items, _cityId),
             (FacilityKind.Inn, "숙박") => Stay,
             // 부하편성은 여관과 술집 둘 다에 있다.
             (FacilityKind.Inn or FacilityKind.Tavern, "부하편성") => () =>
                 MateRosterDialog.Show(this, _player),
             (FacilityKind.Library, "열람") when _library != null => () =>
                 LibraryDialog.Show(this, _gameDirectory, _cityName, _cityId,
-                                   _player, _library, _table, _hintName),
+                                   _player, _library, _table, HintNameOf),
             _ => null,
         };
     }
@@ -2922,14 +2751,14 @@ public sealed class CityPicDialog : Window
     /// 지도가 놓인 자리(화면 좌표, WPF 단위). 그 자리를 통째로 덮는다. 비워 두면 그림 크기에
     /// 맞춰 owner 한가운데에 띄운다.
     /// </param>
-    public static CityPicDialog? Open(Window owner, CityPictures pictures, CityBuildingTable table,
-                                      int cityId, string cityName,
-                                      Player player, BgmPlayer? bgm = null, Rect mapArea = default,
-                                      BookTable? library = null, Func<int, string>? hintName = null,
-                                      string gameDirectory = "",
+    public static CityPicView? Open(Window owner, Engine.Game game, int cityId, string cityName,
+                                      Rect mapArea = default,
                                       int cityTrack = BgmPlayer.CityTrack,
                                       string culture = "")
     {
+        // 그림도 건물 표도 없으면 열지 않는다 — 건물 자리를 모르면 도시 안에서 할 일이 없다.
+        if (game.CityPics is not { } pictures || game.Buildings == null) return null;
+
         var bgra = pictures.TryGetBgra(cityId);
         if (bgra == null) return null;
 
@@ -2940,9 +2769,8 @@ public sealed class CityPicDialog : Window
         double areaW = mapArea.Width > 0 ? mapArea.Width : owner.ActualWidth;
         double areaH = mapArea.Height > 0 ? mapArea.Height : owner.ActualHeight;
 
-        var dlg = new CityPicDialog(cityName, picture, PickScale(areaW, areaH), cityId,
-                                    table, player, bgm, mapArea, library, hintName, gameDirectory,
-                                    cityTrack, culture)
+        var dlg = new CityPicView(game, cityName, picture, PickScale(areaW, areaH), cityId,
+                                    mapArea, cityTrack, culture)
         {
             Owner = owner,
         };

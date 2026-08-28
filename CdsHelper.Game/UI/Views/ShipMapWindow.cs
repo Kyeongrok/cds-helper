@@ -39,10 +39,9 @@ public sealed class ShipMapWindow : Window
         FontFamily = new FontFamily("Consolas"),
     };
     private readonly DispatcherTimerLite _statusTimer;
-    private readonly BgmPlayer _bgm = new();
 
-    /// <summary>효과음. 게임 폴더를 알게 되면 연다. 못 열면 소리가 안 날 뿐이다.</summary>
-    private SoundBank? _sfx;
+    /// <summary>한 판 — 게임 폴더 · 주인공 · 표들 · 소리. 화면들이 이것을 받아 쓴다.</summary>
+    private readonly Engine.Game _game = new();
 
     /// <summary>지도 쪽 화면. 타이틀에서 고르면 이것으로 갈아 끼운다.</summary>
     private FrameworkElement _mapRoot = null!;
@@ -64,9 +63,6 @@ public sealed class ShipMapWindow : Window
     /// <summary>지도 위의 까만 조작 줄. 개발 창에서 끄고 켠다.</summary>
     private Border? _toolBar;
 
-    /// <summary>게임 폴더. WORLD.CDS 도 bgm 도 여기서 읽는다.</summary>
-    private string _gameDir = "";
-
     /// <summary>지도를 한 번 띄웠는지. <see cref="ShipMapHost.Start"/> 는 한 번만 부른다.</summary>
     private bool _started;
 
@@ -79,38 +75,8 @@ public sealed class ShipMapWindow : Window
     /// <summary>초점 진단이 마지막으로 찍은 줄. 상태줄 뒤에 붙는다.</summary>
     private string _focusNote = "";
 
-    /// <summary>바다 사건 주사위.</summary>
-    private readonly Random _random = new();
-
-    /// <summary>주인공 — 소지금과 가진 배. 조선소에서 배를 사면 여기서 돈이 빠진다.</summary>
-    private readonly Player _player = new();
-
     /// <summary>지도 위에 겹쳐 둔 투명한 입력 판. 커서 자리를 이것 기준으로 잰다.</summary>
     private Border _input = null!;
-
-    /// <summary>도시 그림(CITYCG.CDS). 20MB 라 입항을 처음 할 때에야 연다.</summary>
-    private CityPictures? _cityPics;
-
-    /// <summary>건물 표(CDS_95.EXE). 건물 자리·이름·가르치는 기능이 여기서 온다.</summary>
-    private CityBuildingTable? _buildings;
-
-    /// <summary>책 표(CDS_95.EXE). 도서관 서가를 채운다.</summary>
-    private BookTable? _bookTable;
-
-    /// <summary>힌트 번호 -> 이름. DB 에서 한 번만 불러 둔다.</summary>
-    private Dictionary<int, string>? _hintNames;
-
-    /// <summary>발견물(CDS_95.EXE). 배가 어디에 서면 무엇이 발견되는지가 여기서 온다.</summary>
-    private DiscoveryLog? _discoveries;
-
-    /// <summary>발견물 표를 한 번 열어 봤는지. 못 열면 틱마다 다시 찾지 않는다.</summary>
-    private bool _discoveriesTried;
-
-    /// <summary>아이템 표(CDS_95.EXE). 발견물이 주는 물건 이름을 여기서 얻는다.</summary>
-    private ItemTable? _itemNames;
-
-    /// <summary>한 번 열어 봤는지. 파일이 없으면 입항할 때마다 다시 찾지 않는다.</summary>
-    private bool _cityPicsTried;
 
     // 상단 띠의 칸들. 게임 것은 <b>베이지 버튼 띠</b>다 — MISC.CDS 파트 4 의 왼끝(16) ·
     // 가운데(8, 되풀이) · 오른끝(16) 을 이어 붙이고 그 위에 비트맵 글꼴을 짙은 갈색(색인 17)
@@ -369,9 +335,11 @@ public sealed class ShipMapWindow : Window
         var titleBar = ChromeTitleBar.Attach(this,
             // 설정은 게임 띠에 두었다가 햄버거로 옮겼다 — 게임 띠에 없는 칸이라
             // 섞여 있으면 원본과 달라 보인다(개발 창을 옮긴 것과 같은 까닭이다).
-            ("설정", () => SettingsDialog.Show(this, _bgm)),
+            ("설정", () => SettingsDialog.Show(this, _game.Bgm)),
             ("게임데이터", () => GameDataDialog.Show(this)),
             ("다이얼로그", () => GameDialog.Show(this, "출항합니다.")),
+            // 물음창(YES/NO)도 눈으로 재 보게 하나 둔다 — 고른 값은 여기서 쓸 데가 없다.
+            ("다이얼로그2", () => { ConfirmDialog.Ask(this, "구입 하시겠습니까?"); }),
             ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
         shell.Children.Add(titleBar);
@@ -402,7 +370,7 @@ public sealed class ShipMapWindow : Window
             // 그냥 찍으면 닻을 내리고 그 자리에 선다. 한 번 더 찍으면 올리고 다시 간다.
             _host.ToggleAnchor();
             // 내릴 때도 올릴 때도 같은 소리가 난다.
-            _sfx?.Play(SoundBank.AnchorPart);
+            _game.Sfx?.Play(SoundBank.AnchorPart);
         };
         input.MouseMove += (_, e) => _host.SetMouse(e.GetPosition(input), true);
         input.MouseLeave += (_, _) => _host.SetMouse(default, false);
@@ -422,19 +390,19 @@ public sealed class ShipMapWindow : Window
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
                           $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
-            _purse.Text = $"{_player.Gold}닢";
-            _fame.Text = $"명성 {_player.Fame}";
-            _tired.Text = $"피로 {_player.Fatigue}";
+            _purse.Text = $"{_game.Player.Gold}닢";
+            _fame.Text = $"명성 {_game.Player.Fame}";
+            _tired.Text = $"피로 {_game.Player.Fatigue}";
             _windText.Text = WindLine();
-            _crew.Text = $"선원 {_player.Crew}";
-            _stores.Text = $"물 {_player.SupplyOf(SupplyKind.Water)} 식량 {_player.SupplyOf(SupplyKind.Food)}";
-            _left.Text = $"남은 {_player.SupplyDaysLeft}일";
+            _crew.Text = $"선원 {_game.Player.Crew}";
+            _stores.Text = $"물 {_game.Player.SupplyOf(SupplyKind.Water)} 식량 {_game.Player.SupplyOf(SupplyKind.Food)}";
+            _left.Text = $"남은 {_game.Player.SupplyDaysLeft}일";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
-            ShipSprites.Use(_player.FlagshipHull?.Hull);
+            ShipSprites.Use(_game.Player.FlagshipHull?.Hull);
             // 게임 상단 띠와 같은 말투로 적는다.
-            _date.Text = $"{_player.Date.Year}년 {_player.Date.Month}월{_player.Date.Day}일";
-            _cityLabel.Text = _player.CityName.Length > 0 ? _player.CityName : "—";
+            _date.Text = $"{_game.Player.Date.Year}년 {_game.Player.Date.Month}월{_game.Player.Date.Day}일";
+            _cityLabel.Text = _game.Player.CityName.Length > 0 ? _game.Player.CityName : "—";
             if (_overlay.IsOpen) FillOverlay(lat, lon);
             SyncSeaMusic();
         });
@@ -456,8 +424,7 @@ public sealed class ShipMapWindow : Window
         {
             _overlay.IsOpen = false;
             _statusTimer.Stop();
-            _bgm.Dispose();
-            _cityPics = null;
+            _game.Close();
             FocusWatch.Sink = null;   // 진단 — 다 잡고 나면 지운다
         };
     }
@@ -573,7 +540,7 @@ public sealed class ShipMapWindow : Window
         if (!_started || _host.SeaBlocked || _host.IsOnLand || _host.Paused) return;
         if (_host.ShipCell is not { } cell) return;
 
-        _bgm.PlayWhenDone(BgmPlayer.SeaTrackAt(cell.X, cell.Y));
+        _game.Bgm.PlayWhenDone(BgmPlayer.SeaTrackAt(cell.X, cell.Y));
     }
 
     /// <summary>좌표 상자를 띄울 때인지 다시 따진다 — 켜 두었고, 지도가 떠 있고, 이 창이 앞일 때만.</summary>
@@ -614,7 +581,7 @@ public sealed class ShipMapWindow : Window
 
         // 40칸까지만 본다. 더 넓히면 도시마다 항구 칸을 찾느라 100ms 틱이 무거워진다.
         var (city, cells) = _host.NearestDock(40);
-        if (city >= 0) lines.Add($"가까운 항구 [{CityName(city)}] {cells:F1}칸");
+        if (city >= 0) lines.Add($"가까운 항구 [{_game.CityName(city)}] {cells:F1}칸");
 
         var m = _host.MouseCell;
         if (m != null)
@@ -640,7 +607,7 @@ public sealed class ShipMapWindow : Window
 
         if (tile != _overlayTile)
         {
-            var ocean = OceanTiles.LoadFromDirectory(_gameDir);
+            var ocean = OceanTiles.LoadFromDirectory(_game.Directory);
             if (ocean == null) return null;
 
             int w = OceanTiles.TileW;
@@ -738,7 +705,7 @@ public sealed class ShipMapWindow : Window
 
         // 게임 타이틀에도 위아래로 액자 띠가 있다. 위 띠에는 날짜 칸 하나만 있고 나머지는 비었다.
         var screen = new DockPanel();
-        var top = TitleBarStrip($"{_player.Date.Year}년 {_player.Date.Month}월 {_player.Date.Day}일");
+        var top = TitleBarStrip($"{_game.Player.Date.Year}년 {_game.Player.Date.Month}월 {_game.Player.Date.Day}일");
         DockPanel.SetDock(top, Dock.Top);
         screen.Children.Add(top);
 
@@ -943,19 +910,19 @@ public sealed class ShipMapWindow : Window
 
         switch (pick)
         {
-            case 0: GrailPuzzleDialog.Play(this, _player, _random); break;
-            case 1: SphinxQuizDialog.Play(this, _random); break;
+            case 0: GrailPuzzleDialog.Play(this, _game.Player, _game.Random); break;
+            case 1: SphinxQuizDialog.Play(this, _game.Random); break;
             case 2:
                 if (MazeGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
-                else MazeGame(this, _random);
+                else MazeGame(this, _game.Random);
                 break;
-            case 3: FishingGameDialog.Play(this, _random); break;
-            case 4: CoinPuzzleDialog.Play(this, _random); break;
-            case 5: TowerPuzzleDialog.Play(this, _random); break;
-            case 6: CubePuzzleDialog.Play(this, _player, _random); break;
+            case 3: FishingGameDialog.Play(this, _game.Random); break;
+            case 4: CoinPuzzleDialog.Play(this, _game.Random); break;
+            case 5: TowerPuzzleDialog.Play(this, _game.Random); break;
+            case 6: CubePuzzleDialog.Play(this, _game.Player, _game.Random); break;
             case 7:
                 if (DuelGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
-                else DuelGame(this, _random);
+                else DuelGame(this, _game.Random);
                 break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
@@ -1022,7 +989,7 @@ public sealed class ShipMapWindow : Window
                 int who = ChoiceDialog.Ask(this, "시작할 주인공을 선택해 주십시오",
                                            ["라몬·데·마르시아스", "에밀리오·알발레스"]);
                 if (who < 0) return;
-                _player.SetProfile(who == 0 ? "데·마르시아스" : "알발레스",
+                _game.Player.SetProfile(who == 0 ? "데·마르시아스" : "알발레스",
                                    who == 0 ? "라몬" : "에밀리오",
                                    25, 1, 1, 0, 0, who == 0 ? 0 : 1);
             }
@@ -1062,21 +1029,21 @@ public sealed class ShipMapWindow : Window
             switch (step)
             {
                 case 0:
-                    if (!CharacterMakeDialog.Show(this, _player, _gameDir)) return false;
+                    if (!CharacterMakeDialog.Show(this, _game.Player, _game.Directory)) return false;
                     step = 1;
                     break;
 
                 case 1:
-                    _bonus = AbilityMakeDialog.Show(this, _player, rng);
+                    _bonus = AbilityMakeDialog.Show(this, _game.Player, rng);
                     step = _bonus < 0 ? 0 : 2;
                     break;
 
                 case 2:
-                    step = SkillMakeDialog.Show(this, _player, _bonus) ? 3 : 1;
+                    step = SkillMakeDialog.Show(this, _game.Player, _bonus) ? 3 : 1;
                     break;
 
                 default:
-                    if (CharacterSheetDialog.Show(this, _player)) return true;
+                    if (CharacterSheetDialog.Show(this, _game.Player)) return true;
                     step = 2;
                     break;
             }
@@ -1091,8 +1058,8 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     private void OpenHome()
     {
-        string want = _player.Nation == 1 ? "세빌리아" : "리스본";
-        var found = CityTable.Cities.FirstOrDefault(c => c.Name == want);
+        string want = _game.Player.Nation == 1 ? "세빌리아" : "리스본";
+        var found = _game.CityTable.Cities.FirstOrDefault(c => c.Name == want);
         if (found.Name != want) return;
 
         if (!_host.PlaceAtCity(found.Id)) return;
@@ -1170,7 +1137,7 @@ public sealed class ShipMapWindow : Window
         _askedCity = -1;                 // 다시 들어가면 도시를 새로 묻게
 
         _screen.Content = _titleRoot;
-        _bgm.Play(BgmPlayer.TitleTrack);
+        _game.Bgm.Play(BgmPlayer.TitleTrack);
         _status.Text = "";
     }
 
@@ -1190,7 +1157,7 @@ public sealed class ShipMapWindow : Window
 
         _screen.Content = _mapRoot;
 
-        if (string.IsNullOrEmpty(_gameDir))
+        if (string.IsNullOrEmpty(_game.Directory))
         {
             _status.Text = "세이브 파일 경로가 없습니다 — 먼저 세이브를 열어 주세요";
             return;
@@ -1199,16 +1166,14 @@ public sealed class ShipMapWindow : Window
         // 타이틀을 지을 때 게임 폴더를 몰랐을 수 있다. 여기서 한 번 더 챙긴다.
         LoadSprites();
 
-        _sfx ??= SoundBank.Shared(_gameDir);
-
         if (!_started)
         {
             // 바람 표는 달에 따라 갈린다. 지도가 날짜를 들고 있지 않으니 물어보게 해 둔다.
-            _host.MonthOf = () => _player.Date.Month;
+            _host.MonthOf = () => _game.Player.Date.Month;
             // 배가 얼마나 빨리 가는지는 함대와 돛 효율표가 정한다 — 지도는 그 둘을 모른다.
             _host.FleetSpeed = (dir, speed, heading, onLand) =>
-                Sailing.SpeedOf(_player, Sails, dir, speed, heading, onLand);
-            if (!_host.Start(_gameDir)) { _status.Text = _host.Status; return; }
+                Sailing.SpeedOf(_game.Player, _game.Sails, dir, speed, heading, onLand);
+            if (!_host.Start(_game.Directory)) { _status.Text = _host.Status; return; }
             _host.ShowFlowArrows = GameSettings.ShowFlowArrows;
             _started = true;
             _statusTimer.Start();
@@ -1220,24 +1185,24 @@ public sealed class ShipMapWindow : Window
         }
         else if (saved != null)
         {
-            _player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
+            _game.Player.Restore(saved.Gold, saved.Date, saved.CityId, saved.CityName,
                             saved.Skills, saved.Hints, saved.Mates, saved.Met, saved.Items,
                             saved.Supplies, saved.Discoveries, saved.Crew, saved.Announced,
                             saved.Stored, saved.Savings,
                             // 판 16 앞에는 식량·물도 통으로 적혔다.
                             supplyInBarrels: saved.Version < GameSave.SupplyUnitsFrom);
-            _player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked,
+            _game.Player.RestoreFleet(saved.Ships, saved.Flagship, saved.Docked,
                                  saved.ShipHp, saved.DockedHp,
                                  saved.ShipStats, saved.DockedStats,
                                  saved.ShipNames, saved.DockedNames,
                                  gunsInStats: saved.Version >= GameSave.GunsInStatsFrom,
                                  sailsInStats: saved.Version >= GameSave.SailsInStatsFrom);
-            _player.RestoreMateBook(saved.MateBook);
-            if (saved.Fatigue is { } tired) _player.SetFatigue(tired);
-            if (saved.DaysAtSea is { } atSea) _player.SetDaysAtSea(atSea);
-            if (saved.Morale is { } morale) _player.SetMorale(morale);
-            _player.RestoreContract(GameSave.ContractOf(saved));
-            if (saved.Fame is { } fame) _player.Fame = fame;
+            _game.Player.RestoreMateBook(saved.MateBook);
+            if (saved.Fatigue is { } tired) _game.Player.SetFatigue(tired);
+            if (saved.DaysAtSea is { } atSea) _game.Player.SetDaysAtSea(atSea);
+            if (saved.Morale is { } morale) _game.Player.SetMorale(morale);
+            _game.Player.RestoreContract(GameSave.ContractOf(saved));
+            if (saved.Fame is { } fame) _game.Player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
             _status.Text = saved.CityId >= 0
@@ -1245,7 +1210,7 @@ public sealed class ShipMapWindow : Window
                 : $"바다에서 이어 간다 — {saved.Date:yyyy년 M월 d일}";
         }
 
-        _bgm.Play(BgmPlayer.SeaTrack);
+        _game.Bgm.Play(BgmPlayer.SeaTrack);
         SyncOverlay();
 
         // 적어 둔 자리가 도시면 도시 화면부터 연다. 바다에서 적었으면(CityId 가 -1) 그대로 둔다 —
@@ -1256,7 +1221,7 @@ public sealed class ShipMapWindow : Window
         if (!fresh && saved is { CityId: >= 0 })
         {
             int city = saved.CityId;
-            string name = saved.CityName.Length > 0 ? saved.CityName : CityName(city);
+            string name = saved.CityName.Length > 0 ? saved.CityName : _game.CityName(city);
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (ShowCityPicture(city, name)) _host.Paused = true;
@@ -1271,7 +1236,7 @@ public sealed class ShipMapWindow : Window
     /// 게임 상단 띠에 칸으로 두었던 것을 제목 줄 햄버거로 옮겼다. 놀이에는 없는 자리라
     /// 게임 띠에 섞여 있으면 원본과 달라 보인다 — 앱이 얹은 것은 앱 쪽 차림표에 둔다.
     /// </remarks>
-    private void ShowDevDialog() => DevDialog.Show(this, _player, new DevDialog.Options
+    private void ShowDevDialog() => DevDialog.Show(this, _game.Player, new DevDialog.Options
     {
         CoordsOn = () => _overlayWanted,
         SetCoords = on =>
@@ -1287,7 +1252,7 @@ public sealed class ShipMapWindow : Window
             if (_toolBar != null)
                 _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         },
-        GameDirectory = _gameDir,
+        GameDirectory = _game.Directory,
     });
 
     /// <summary>
@@ -1317,11 +1282,11 @@ public sealed class ShipMapWindow : Window
         if (_host.IsOnLand)
         {
             if (_host.IsNearWater())
-                items.Add(("출항", () => { if (_host.Embark()) _bgm.Play(BgmPlayer.SeaTrack); Close(); }));
+                items.Add(("출항", () => { if (_host.Embark()) _game.Bgm.Play(BgmPlayer.SeaTrack); Close(); }));
         }
         else if (_host.IsNearLand())
         {
-            items.Add(("상륙", () => { if (_host.Land()) _bgm.Play(BgmPlayer.LandTrack); Close(); }));
+            items.Add(("상륙", () => { if (_host.Land()) _game.Bgm.Play(BgmPlayer.LandTrack); Close(); }));
         }
 
         items.Add(("정보", () => CommandMenu.Push(InfoMenuBox)));
@@ -1364,10 +1329,10 @@ public sealed class ShipMapWindow : Window
     private GameMenu InfoMenuBox() => new("정보", null,
     [
         // 바다에서는 함대좌표 칸에 지금 자리를 적는다. 도시 안이라면 게임처럼 "---" 다.
-        ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _player, CoordLine()))),
-        ("인물정보", () => Info(() => PersonInfoDialog.Show(this, _player, _gameDir))),
+        ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _game.Player, CoordLine()))),
+        ("인물정보", () => Info(() => PersonInfoDialog.Show(this, _game.Player, _game.Directory))),
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
-            this, _player, ItemNames, null, null, DiscoveryNames()))),
+            this, _game.Player, _game.Items, null, null, DiscoveryNames()))),
         ("힌트정보", () => Info(() => HintListDialog.Show(this, HintLines()))),
         ("계약정보", () => Info(ShowContract)),
         ("지도를 본다", null),
@@ -1386,16 +1351,16 @@ public sealed class ShipMapWindow : Window
     /// <summary>지금까지 발견한 것의 이름. 소지품 창의 발견물 칸에 쓴다.</summary>
     private List<string> DiscoveryNames()
     {
-        var log = Discoveries;
-        return [.. _player.Discoveries.Order()
+        var log = _game.Discoveries;
+        return [.. _game.Player.Discoveries.Order()
             .Select(id => log?.Table.Find(id)?.Name ?? $"발견물 {id}")];
     }
 
     /// <summary>가지고 있는 힌트를 이름으로. 표를 못 읽었으면 번호로 낸다.</summary>
     private List<string> HintLines()
     {
-        var table = HintTable.Open(_gameDir);
-        return [.. _player.Hints.Order()
+        var table = _game.Hints;
+        return [.. _game.Player.Hints.Order()
             .Select(id => table?.Find(id)?.Name ?? $"힌트 {id}")];
     }
 
@@ -1404,19 +1369,19 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     private void ShowContract()
     {
-        if (_player.Contract is not { } contract)
+        if (_game.Player.Contract is not { } contract)
         {
             NoticeDialog.Show(this, "계약을 맺지 않았습니다");
             return;
         }
 
-        var table = Discoveries?.Table;
-        var names = HintTable.Open(_gameDir);
+        var table = _game.Discoveries?.Table;
+        var names = _game.Hints;
         var found = contract.Found
             .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")
             .ToList();
 
-        ContractDialog.Show(this, contract, _player.Date,
+        ContractDialog.Show(this, contract, _game.Player.Date,
                             names?.Find(contract.Hint)?.Name ?? "", found, []);
     }
 
@@ -1449,7 +1414,7 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     private void SaveGame()
     {
-        var error = GameSave.Save(_player);
+        var error = GameSave.Save(_game.Player);
         NoticeDialog.Show(this, error.Length == 0 ? "기록했다!" : $"기록하지 못했다 — {error}");
     }
 
@@ -1466,7 +1431,7 @@ public sealed class ShipMapWindow : Window
         if (city == _askedCity) return;                 // 이미 물어본 도시다
         _askedCity = city;
 
-        var name = CityName(city);
+        var name = _game.CityName(city);
         // 물음창이 떠 있는 동안 배가 계속 가면 대답할 새가 없다.
         _asking = true;
         _host.Paused = true;
@@ -1487,32 +1452,6 @@ public sealed class ShipMapWindow : Window
                 _host.Paused = false;
                 _asking = false;
             }
-        }
-    }
-
-    /// <summary>
-    /// 발견물. 게임 폴더를 알게 된 뒤 처음 쓸 때 연다. 못 열면 발견이 일어나지 않을 뿐이다.
-    /// </summary>
-    private DiscoveryLog? Discoveries
-    {
-        get
-        {
-            if (_discoveries != null || _discoveriesTried) return _discoveries;
-            _discoveriesTried = true;
-
-            var table = DiscoveryTable.Open(_gameDir);
-            if (table == null)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ShipMap] 발견물 표 없음: {DiscoveryTable.LastError}");
-                return null;
-            }
-
-            // 힌트 표는 없어도 연다 — 그때는 힌트로 열리는 것만 안 뜬다.
-            var hints = HintTable.Open(_gameDir);
-            if (hints == null)
-                System.Diagnostics.Debug.WriteLine($"[ShipMap] 힌트 표 없음: {HintTable.LastError}");
-
-            return _discoveries = new DiscoveryLog(table, hints);
         }
     }
 
@@ -1545,9 +1484,9 @@ public sealed class ShipMapWindow : Window
         if (++_dayTicks < TicksPerDay) return;
         _dayTicks = 0;
 
-        _player.PassDayAtSea();
+        _game.Player.PassDayAtSea();
         var (lat, _) = _host.ShipLatLon;
-        Tell(SeaEvents.PassDay(_player, lat, _random));
+        Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
         CheckSeaEvent();
     }
 
@@ -1629,11 +1568,11 @@ public sealed class ShipMapWindow : Window
     private void CheckSeaEvent()
     {
         var (lat, _) = _host.ShipLatLon;
-        if (SeaEvents.Roll(_player, lat, _random) is not { } kind) return;
+        if (SeaEvents.Roll(_game.Player, lat, _game.Random) is not { } kind) return;
 
         if (kind == SeaEventKind.Mutiny) { Mutiny(); return; }
 
-        var storm = SeaEvents.Resolve(_player, kind, _random);
+        var storm = SeaEvents.Resolve(_game.Player, kind, _game.Random);
 
         _asking = true;
         _host.Paused = true;
@@ -1698,7 +1637,7 @@ public sealed class ShipMapWindow : Window
                 "그러니, 모두가 보는 앞에서 나와 승부하자! 당신이 이기면 얌전히 따르겠다. " +
                 $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.");
 
-            var fight = SeaEvents.Duel(_player, _random);
+            var fight = SeaEvents.Duel(_game.Player, _game.Random);
             if (fight.Won)
             {
                 NoticeDialog.Show(this, "이것으로 불만 없겠지!");
@@ -1736,27 +1675,27 @@ public sealed class ShipMapWindow : Window
     private void CheckDiscovery()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;
-        if (Discoveries is not { } log) return;
+        if (_game.Discoveries is not { } log) return;
         if (_host.ShipCell is not { } cell) return;
 
-        int id = log.At(_player, cell.CellX, cell.CellY, _host.IsOnLand);
+        int id = log.At(_game.Player, cell.CellX, cell.CellY, _host.IsOnLand);
         if (id < 0) return;
         if (log.Table.Find(id) is not { } row) return;
 
-        int item = log.Discover(_player, id);
+        int item = log.Discover(_game.Player, id);
 
         // 알리는 동안 배가 계속 가면 다음 칸에서 또 뜬다.
         _asking = true;
         _host.Paused = true;
         try
         {
-            string me = _player.Name;
+            string me = _game.Player.Name;
             NoticeDialog.Show(this,
                 $"{me}{GameUi.Josa(me, "은", "는")} [{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다");
 
             if (item >= 0)
             {
-                string got = ItemNames?.Find(item)?.Name ?? $"아이템 {item}";
+                string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
                 NoticeDialog.Show(this, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다");
             }
         }
@@ -1767,23 +1706,14 @@ public sealed class ShipMapWindow : Window
         }
     }
 
-    /// <summary>돛 효율표. 배 속도를 잴 때만 연다.</summary>
-    private SailTable? Sails => _sails ??= _gameDir.Length == 0 ? null : SailTable.Open(_gameDir);
-
-    private SailTable? _sails;
-
-    /// <summary>아이템 표. 발견물이 주는 물건 이름에만 쓴다.</summary>
-    private ItemTable? ItemNames =>
-        _itemNames ??= _gameDir.Length == 0 ? null : ItemTable.Open(_gameDir);
-
     /// <summary>
     /// 지금까지 발견한 것을 늘어놓는다. 게임 커맨드의 "항해일지를 본다" 자리다 —
     /// 원본 일지에는 더 많은 것이 적히지만 지금 적히는 것은 발견물뿐이다.
     /// </summary>
     private void ShowLogbook()
     {
-        var log = Discoveries;
-        var lines = _player.Discoveries
+        var log = _game.Discoveries;
+        var lines = _game.Player.Discoveries
             .Order()
             .Select(id => log?.Table.Find(id) is { } row
                         ? $"{row.CategoryName}  {row.Name}"
@@ -1804,44 +1734,27 @@ public sealed class ShipMapWindow : Window
     /// <returns>도시 창을 띄웠으면 true.</returns>
     private bool ShowCityPicture(int city, string name)
     {
-        if (_cityPics == null)
-        {
-            if (_cityPicsTried || string.IsNullOrEmpty(_gameDir)) return false;
-            _cityPicsTried = true;
-            _cityPics = CityPictures.Open(_gameDir);
-            if (_cityPics == null)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ShipMap] 도시 그림 없음: {CityPictures.LastError}");
-                return false;
-            }
-            _buildings = CityBuildingTable.Open(_gameDir);
-            if (_buildings == null)
-                System.Diagnostics.Debug.WriteLine($"[ShipMap] 건물 표 없음: {CityBuildingTable.LastError}");
-        }
-        if (_buildings == null) return false;   // 건물 표가 없으면 도시 화면을 열지 않는다
-
-        _bookTable ??= BookTable.Open(_gameDir);   // 도서관 열람에 쓴다. 없으면 그 줄만 흐리다
+        // 그림도 건물 표도 Game 이 처음 쓸 때 연다. 둘 중 하나라도 없으면 도시 화면을 안 연다.
+        if (_game.CityPics == null || _game.Buildings == null) return false;
 
         // 도는 곡은 문화권마다 다르다 — 세우타 같은 중근동 도시는 딴 곡이다.
         // 문화권은 건물에 들어갈 때 뜨는 타원 사진을 고르는 데도 쓴다(BuildingPhoto).
-        string culture = CultureOf(city);
+        string culture = _game.CultureOf(city);
         int track = BgmPlayer.CityTrackFor(culture);
 
-        var dialog = CityPicDialog.Open(this, _cityPics, _buildings, city, name,
-                                        _player, _bgm, MapAreaOnScreen(),
-                                        _bookTable, HintName, _gameDir, track, culture);
+        var dialog = CityPicView.Open(this, _game, city, name, MapAreaOnScreen(), track, culture);
         if (dialog == null) return false;
 
-        _bgm.Play(track);
+        _game.Bgm.Play(track);
         SetInCity(true);          // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
-        _player.EnterCity(city, name);
+        _game.Player.EnterCity(city, name);
         dialog.Closed += (_, _) =>
         {
             SetInCity(false);
-            _bgm.Play(BgmPlayer.SeaTrack);
+            _game.Bgm.Play(BgmPlayer.SeaTrack);
             _host.Paused = false;
             _asking = false;
-            _player.EnterCity(-1);
+            _game.Player.EnterCity(-1);
             InfoMenu.Close();        // 도시를 나오면 도시정보 창도 같이 걷는다
         };
         return true;
@@ -1853,53 +1766,19 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     private void LoadSprites()
     {
-        if (_spritesTried || string.IsNullOrEmpty(_gameDir)) return;
+        if (_spritesTried || string.IsNullOrEmpty(_game.Directory)) return;
         _spritesTried = true;
 
-        GameUi.Sprites = UiSprites.Open(_gameDir);
+        GameUi.Sprites = UiSprites.Open(_game.Directory);
         if (GameUi.Sprites == null)
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 화면 조각 없음: {UiSprites.LastError}");
 
-        GameUi.Font = GameFont.Open(_gameDir);
+        GameUi.Font = GameFont.Open(_game.Directory);
         if (GameUi.Font == null)
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 게임 글꼴 없음: {GameFont.LastError}");
     }
 
     private bool _spritesTried;
-
-    /// <summary>
-    /// 도시 표(번호·이름·문화권). 건물 표의 도시 번호가 가리키는 쪽이다.
-    /// 처음 쓸 때 한 번만 연다.
-    /// </summary>
-    private CityTable? _cities;
-
-    private CityTable CityTable => _cities ??= Local.Helpers.CityTable.Open();
-
-    /// <summary>그 도시의 문화권("이슬람", "북유럽" …). 모르면 빈 문자열.</summary>
-    private string CultureOf(int city) => CityTable.CultureOf(city);
-
-    /// <summary>힌트 이름. DB 를 못 읽으면 번호로 물러선다.</summary>
-    private string HintName(int id)
-    {
-        if (_hintNames == null)
-        {
-            _hintNames = [];
-            try
-            {
-                var svc = ContainerLocator.Container.Resolve<HintService>();
-                svc.InitializeAsync(Path.Combine(AppContext.BaseDirectory, "cdshelper.db")).Wait();
-                _hintNames = svc.GetAllHintNames();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ShipMap] 힌트 이름 로드 실패: {ex.Message}");
-            }
-        }
-        return _hintNames.TryGetValue(id, out var name) && name.Length > 0 ? name : $"힌트 {id}";
-    }
-
-    /// <summary>도시 이름. 표에 없으면 번호로 물러선다.</summary>
-    private string CityName(int id) => CityTable.NameOf(id);
 
     /// <summary>
     /// 게임 폴더를 잡고 타이틀 곡을 튼다. 지도는 아직 띄우지 않는다 —
@@ -1916,7 +1795,7 @@ public sealed class ShipMapWindow : Window
             return;
         }
 
-        _gameDir = dir;
+        _game.SetDirectory(dir);
 
         // 타이틀 화면은 생성자에서 지었는데, 그때는 게임 폴더를 몰라 원본 조각도 글꼴도
         // 없었다(민색 상자로 물러선 채였다). 이제 알았으니 다시 짓는다.
@@ -1928,13 +1807,12 @@ public sealed class ShipMapWindow : Window
             _screen.Content = _titleRoot;
         }
 
-        _bgm.SetGameDirectory(dir);
-        _bgm.Enabled = GameSettings.BgmEnabled;   // 설정 창에서 꺼 뒀으면 조용히 시작한다
-        _bgm.Play(BgmPlayer.TitleTrack);   // 메뉴 화면에서는 bgm/Track23.mp3
-        if (_bgm.LastError.Length > 0)
+        _game.Bgm.Enabled = GameSettings.BgmEnabled;   // 설정 창에서 꺼 뒀으면 조용히 시작한다
+        _game.Bgm.Play(BgmPlayer.TitleTrack);   // 메뉴 화면에서는 bgm/Track23.mp3
+        if (_game.Bgm.LastError.Length > 0)
         {
-            _status.Text = _bgm.LastError;
-            System.Diagnostics.Debug.WriteLine($"[ShipMap] BGM — {_bgm.LastError}");
+            _status.Text = _game.Bgm.LastError;
+            System.Diagnostics.Debug.WriteLine($"[ShipMap] BGM — {_game.Bgm.LastError}");
         }
     }
 }

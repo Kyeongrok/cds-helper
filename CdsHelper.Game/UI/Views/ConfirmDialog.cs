@@ -7,32 +7,41 @@ using CdsHelper.Game.Local.Helpers;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 게임 대사 창처럼 한 마디 건네고 YES/NO 를 받는 창.
+/// 게임 물음창 — 한 마디 건네고 YES/NO 를 받는다. 단추를 확인 하나로 세우면
+/// 알림창이 된다(<see cref="Tell"/>).
 /// </summary>
 /// <remarks>
+/// 게임도 이 둘이 <b>한 함수</b>다(<c>0x00469060</c>). 첫 인자가 창의 종류라서 <c>0</c> 이면
+/// 확인만, <c>2</c> 면 YES/NO 다 — 부르는 자리 146 곳 가운데 117 곳이 확인, 21 곳이 YES/NO 다.
+/// YES 를 고르면 <c>2</c> 가 나온다.
+///
 /// 게임은 말하는 사람 얼굴을 왼쪽에 같이 띄우지만 초상화는 아직 안 꺼내 오므로 글만 낸다.
 /// <see cref="PortDialog"/> 와 달리 문구를 밖에서 준다.
 ///
-/// <b>자리는 게임 화면을 재어 맞췄다 — 그림 점 그대로다.</b> 예전 값은 <b>1.75배로 늘어난
-/// 갈무리</b>에서 잰 것이라 창이 통째로 그만큼 부풀어 있었다(띠 높이 42 = 24 x 1.75).
-/// 갈무리의 배경 무늬 마디가 가로 114 · 세로 91 이고 게임 무늬가 80x64 이므로 그 갈무리는
-/// 1.425배였다. 그 배로 도로 나눈 값이 아래 것이다. 세로로 쌓이는 차례가 이렇다.
+/// <b>자리는 재지 않고 게임 코드에서 그대로 옮겼다</b> — 창을 짓는 곳이 <c>0x0049D7B0</c>,
+/// 글을 찍는 곳이 <c>0x0049DFD0</c> 다. 갈무리를 재어 맞추던 예전 값(308 x 100)은 갈무리가
+/// 몇 배로 늘어난 것인지를 잘못 짚어 가로로 부풀고 위 여백이 모자랐다.
 /// <code>
-///   위 여백     6      본문 글    16
-///   제목 띠    24      사이        8
-///   사이        6      단추 줄    24
-///                      아래 여백  16   →  모두 100
+///   칸수 = max(30, 줄 가운데 가장 긴 것)   ; 한 칸 8점, 한글 한 자가 두 칸
+///   너비 = 칸수 * 8 + 32                   ; 글자 자리(칸수*8+16) 에 좌우 8 씩
+///   높이 = (줄수 * 20 + 71) &amp; ~15          ; 제목 띠가 있으면 + 24
+///   단추 = 64 x 24, 사이 16, 창 아래에서 40 자리
 /// </code>
-/// 가로는 좌우 6 을 두어 <b>제목 띠가 296</b>(마구리 32 + 가운데 33칸), 창이 308 이다.
-/// 단추는 <b>64 x 24</b> 두 개를 16 띄워 가운데 놓는다.
-///
-/// 게임 상자에는 <b>테가 없다</b> — 양피지 바탕에서 곧바로 짙은 밤색으로 넘어간다.
+/// 그래서 <b>한 줄짜리 창은 늘 272 x 80</b> 이다. 세로로 쌓이는 차례가 이렇다.
+/// <code>
+///   테        1      본문 글    16
+///   위 여백   7      사이       10
+///   사이      6      단추 줄    24
+///                    아래 여백  15 + 테 1   →  모두 80
+/// </code>
+/// 글은 창 한가운데에 놓인다 — 게임도 한 줄일 때는 남는 칸의 반만큼 밀어 가운데로 맞춘다.
+/// 상자에는 <b>밝은 테가 한 점</b> 둘린다(게임 색표의 <c>0x2B</c> = 212,200,176).
 /// </remarks>
 public sealed class ConfirmDialog : Window
 {
     private readonly GameUi.FocusGroup _focus = new();
 
-    private ConfirmDialog(string text, string? title)
+    private ConfirmDialog(string text, string? title, bool yesNo)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -49,20 +58,30 @@ public sealed class ConfirmDialog : Window
             Margin = new Thickness(0, TextGap, 0, 0),
         };
         // 초점이 간 단추의 안쪽 테가 깜빡인다 — 게임이 지금 고른 것을 그렇게 알린다.
-        var yes = _focus.Add("YES", () => { DialogResult = true; }, ButtonWidth);
-        var no = _focus.Add("NO", () => { DialogResult = false; }, ButtonWidth);
-        yes.Height = no.Height = ButtonHeight;
-        yes.Margin = new Thickness(0, 0, ButtonGap / 2, 0);
-        no.Margin = new Thickness(ButtonGap / 2, 0, 0, 0);
-        buttons.Children.Add(yes);
-        buttons.Children.Add(no);
+        if (yesNo)
+        {
+            var yes = _focus.Add("YES", () => { DialogResult = true; }, ButtonWidth);
+            var no = _focus.Add("NO", () => { DialogResult = false; }, ButtonWidth);
+            yes.Height = no.Height = ButtonHeight;
+            yes.Margin = new Thickness(0, 0, ButtonGap / 2, 0);
+            no.Margin = new Thickness(ButtonGap / 2, 0, 0, 0);
+            buttons.Children.Add(yes);
+            buttons.Children.Add(no);
+        }
+        else
+        {
+            // 알림창은 확인 하나뿐이다. 폭은 YES/NO 와 같다 — 게임 갈무리에서 잰 폭이 같다.
+            var ok = _focus.Add("확인", () => { DialogResult = true; }, ButtonWidth);
+            ok.Height = ButtonHeight;
+            buttons.Children.Add(ok);
+        }
 
-        // 글이 길면 띠도 창도 그만큼 넓어진다 — 띠 폭은 8점 칸으로만 늘어나므로 칸에 맞춘다.
+        // 글이 길면 창도 그만큼 넓어진다 — 게임처럼 8점 칸으로 세되 서른 칸 밑으로는 안 줄인다.
         var lines = Wrap(text);
         double widest = 0;
         foreach (string line in lines) widest = Math.Max(widest, GameUi.Font?.TextWidth(line) ?? 0);
-        double barWidth = Math.Max(BarWidth,
-                                   UiSprites.WidthFor(UiSprites.CellsFor(widest + TextInset * 2)));
+        int cells = Math.Max(MinCells, (int)Math.Ceiling(widest / CellWidth));
+        double barWidth = cells * CellWidth + CellWidth * 2;
 
         var stack = new StackPanel { Width = barWidth };
 
@@ -76,7 +95,7 @@ public sealed class ConfirmDialog : Window
         }
 
         // 본문은 게임 비트맵 글꼴로 찍는다 — 윈도 글꼴로 두면 이 크기에서 획이 뭉갠다.
-        var body = new StackPanel { Margin = new Thickness(0, titled ? TitleGap : 0, 0, 0) };
+        var body = new StackPanel { Margin = new Thickness(0, BodyGap, 0, 0) };
         foreach (string line in lines)
             body.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, TextHeight)
             {
@@ -91,6 +110,8 @@ public sealed class ConfirmDialog : Window
         Content = new Border
         {
             Background = GameUi.Back,
+            BorderBrush = GameUi.Edge,
+            BorderThickness = new Thickness(EdgeThickness),
             Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
             Child = stack,
         };
@@ -136,21 +157,29 @@ public sealed class ConfirmDialog : Window
 
     // ── 게임 화면에서 잰 자리(그림 점) ──────────────────────────────────────
 
-    /// <summary>테 안쪽 여백.</summary>
-    private const double SidePad = 6, TopPad = 6, BottomPad = 16;
+    /// <summary>테 안쪽 여백. 밝은 테 한 점까지 세면 좌우·위가 8, 아래가 16 이다.</summary>
+    private const double SidePad = 7, TopPad = 7, BottomPad = 15;
 
-    /// <summary>제목 띠의 크기. 높이는 게임 띠 높이 그대로다.</summary>
-    private const double BarWidth = 296, BarHeight = UiSprites.BandHeight;
+    /// <summary>상자를 두르는 밝은 테. 게임 물음창에도 한 점 있다.</summary>
+    private const double EdgeThickness = 1;
 
-    /// <summary>제목 띠와 본문 사이, 본문과 단추 줄 사이.</summary>
-    private const double TitleGap = 6, TextGap = 8;
+    /// <summary>제목 띠의 높이. 게임도 제목이 붙으면 창이 이만큼 길어진다.</summary>
+    private const double BarHeight = UiSprites.BandHeight;
 
-    /// <summary>본문 한 줄의 높이와 좌우 여백.</summary>
+    /// <summary>창 위(또는 제목 띠)와 본문 사이, 본문과 단추 줄 사이.</summary>
+    private const double BodyGap = 6, TextGap = 10;
+
+    /// <summary>본문 한 줄의 높이.</summary>
     private const int TextHeight = GameUi.ItemTextHeight;
-    private const double TextInset = 6;
 
-    /// <summary>한 줄이 이보다 길면 끊는다. 게임도 긴 말은 두 줄로 낸다.</summary>
-    private const double MaxTextWidth = 320;
+    /// <summary>글자 한 칸. 반각 한 자 · 한글 반 자가 이만큼이다.</summary>
+    private const double CellWidth = UiSprites.MidWidth;
+
+    /// <summary>가장 좁은 창의 칸 수. 게임도 서른 칸(= 272점) 밑으로는 안 줄인다.</summary>
+    private const int MinCells = 30;
+
+    /// <summary>한 줄이 이보다 길면 끊는다 — 게임이 예순 칸에서 끊는다.</summary>
+    private const double MaxTextWidth = 480;
 
     /// <summary>단추 크기와 사이. 폭은 마구리 둘에 가운데 넉 칸이다(16+8*4+16).</summary>
     private const double ButtonWidth = 64, ButtonHeight = UiSprites.BandHeight, ButtonGap = 16;
@@ -159,5 +188,11 @@ public sealed class ConfirmDialog : Window
     /// 물어보고 YES 를 골랐으면 true. <paramref name="title"/> 을 주면 제목 띠를 얹는다.
     /// </summary>
     public static bool Ask(Window owner, string text, string? title = null) =>
-        new ConfirmDialog(text, title) { Owner = owner }.ShowDialog() == true;
+        new ConfirmDialog(text, title, yesNo: true) { Owner = owner }.ShowDialog() == true;
+
+    /// <summary>
+    /// 한 마디 알리고 확인만 받는다 — 게임 물음창의 <b>종류 0</b> 이다.
+    /// </summary>
+    public static void Tell(Window owner, string text, string? title = null) =>
+        new ConfirmDialog(text, title, yesNo: false) { Owner = owner }.ShowDialog();
 }
