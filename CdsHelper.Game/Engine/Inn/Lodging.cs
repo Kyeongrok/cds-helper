@@ -1,4 +1,4 @@
-using CdsHelper.Game.Engine.Market;
+﻿using CdsHelper.Game.Engine.Market;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
@@ -59,6 +59,11 @@ public sealed class Lodging
 
     /// <summary>한 번 묵으면 가는 달 수.</summary>
     public const int Months = 1;
+
+    /// <summary>
+    /// 이 돈부터는 허드렛일 줄이 안 나온다. 주머니가 넉넉하면 몸으로 갚을 까닭이 없다.
+    /// </summary>
+    public const int OddJobMaxGold = 300;
 
     /// <summary>묵고 일어났을 때 하는 말. 셋 중 하나가 무작위로 나온다.</summary>
     public static readonly string[] WakeWords =

@@ -1332,8 +1332,8 @@ public sealed class ShipMapWindow : Window
         ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _game.Player, CoordLine()))),
         ("인물정보", () => Info(() => PersonInfoDialog.Show(this, _game.Player, _game.Directory))),
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
-            this, _game.Player, _game.Items, null, null, DiscoveryNames()))),
-        ("힌트정보", () => Info(() => HintListDialog.Show(this, HintLines()))),
+            this, _game.Player, _game.Items, null, null, GameInfo.DiscoveryNames(_game)))),
+        ("힌트정보", () => Info(() => HintListDialog.Show(this, GameInfo.HintNames(_game)))),
         ("계약정보", () => Info(ShowContract)),
         ("지도를 본다", null),
         ("돌아간다", CommandMenu.Pop),
@@ -1348,41 +1348,20 @@ public sealed class ShipMapWindow : Window
                $"  {(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}도";
     }
 
-    /// <summary>지금까지 발견한 것의 이름. 소지품 창의 발견물 칸에 쓴다.</summary>
-    private List<string> DiscoveryNames()
-    {
-        var log = _game.Discoveries;
-        return [.. _game.Player.Discoveries.Order()
-            .Select(id => log?.Table.Find(id)?.Name ?? $"발견물 {id}")];
-    }
-
-    /// <summary>가지고 있는 힌트를 이름으로. 표를 못 읽었으면 번호로 낸다.</summary>
-    private List<string> HintLines()
-    {
-        var table = _game.Hints;
-        return [.. _game.Player.Hints.Order()
-            .Select(id => table?.Find(id)?.Name ?? $"힌트 {id}")];
-    }
-
     /// <summary>
     /// 계약 정보 판. 계약이 없으면 게임처럼 한 줄로 물린다.
     /// </summary>
+    /// <remarks>판에 채울 것은 도시 창과 한 벌이다 — <see cref="GameInfo.ContractSheetOf"/>.</remarks>
     private void ShowContract()
     {
-        if (_game.Player.Contract is not { } contract)
+        var sheet = GameInfo.ContractSheetOf(_game);
+        if (sheet.Contract == null)
         {
             NoticeDialog.Show(this, "계약을 맺지 않았습니다");
             return;
         }
-
-        var table = _game.Discoveries?.Table;
-        var names = _game.Hints;
-        var found = contract.Found
-            .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")
-            .ToList();
-
-        ContractDialog.Show(this, contract, _game.Player.Date,
-                            names?.Find(contract.Hint)?.Name ?? "", found, []);
+        ContractDialog.Show(this, sheet.Contract, _game.Player.Date,
+                            sheet.HintName, sheet.Found, sheet.Evidence);
     }
 
     /// <summary>정보 판 하나를 띄운다 — 커맨드 창은 접고, 배는 세워 둔 채다.</summary>

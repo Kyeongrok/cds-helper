@@ -15,6 +15,7 @@ using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Game.Engine.Menu;
+using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
@@ -879,19 +880,16 @@ public sealed class CityPicView : Window
             ? _game.Faces?.TryGetBgra(who.FaceCode, female: false)
             : null;
 
-    /// <summary>한잔 사는 값. 게임은 도시마다 파는 술이 달라 값도 다른데 아직 그 표를 안 읽는다.</summary>
-    private const int DrinkPrice = 10;
-
     /// <summary>한잔 산다. 정말 샀으면 true — 낯을 트는 것은 부르는 쪽이 판단한다.</summary>
     private bool BuyDrink()
     {
-        if (_player.Gold < DrinkPrice)
+        if (_player.Gold < Tavern.DrinkPrice)
         {
             NoticeDialog.Show(this, "돈 먼저 지불하게.");
             return false;
         }
-        _player.SetGold(_player.Gold - DrinkPrice);
-        NoticeDialog.Show(this, $"금화 {DrinkPrice}닢으로 한잔 샀다.");
+        _player.SetGold(_player.Gold - Tavern.DrinkPrice);
+        NoticeDialog.Show(this, $"금화 {Tavern.DrinkPrice}닢으로 한잔 샀다.");
         return true;
     }
 
@@ -1011,7 +1009,7 @@ public sealed class CityPicView : Window
     {
         var owner = Menu.Window ?? this;
         int rate = Market?.Rates.Of(_cityId) ?? 100;
-        int PriceOf(Ship s) => Math.Max(1, s.Hull.SellPrice * rate / 100);
+        int PriceOf(Ship s) => Shipyard.SellPrice(s, rate);
 
         GameDialog.Show(owner, "어느 배를 팔 건가? 봐 주겠네.");
 
@@ -1065,13 +1063,8 @@ public sealed class CityPicView : Window
     /// 꺼진다</b>(<c>0x0044BD40</c> 이 <c>0x0044BC50 &gt; 0</c> 을 본다) — 그래서 평소에는
     /// "수리가 필요한 배는 없네!" 를 볼 일이 없다.
     /// </remarks>
-    private List<(Ship Ship, bool Docked)> RepairTargets()
-    {
-        var hurt = new List<(Ship Ship, bool Docked)>();
-        foreach (var s in _player.Ships) if (s.NeedsRepair) hurt.Add((s, false));
-        foreach (var s in _player.DockedAt(_cityId)) if (s.NeedsRepair) hurt.Add((s, true));
-        return hurt;
-    }
+    private List<(Ship Ship, bool Docked)> RepairTargets() =>
+        Shipyard.RepairTargets(_player, _cityId);
 
     private void RepairShip()
     {
@@ -1085,7 +1078,7 @@ public sealed class CityPicView : Window
             return;
         }
 
-        int CostOf(Ship s) => Math.Max(1, (RepairRate + _random.Next(4)) * s.Damage * rate / 100);
+        int CostOf(Ship s) => Shipyard.RepairCost(s, rate, _random);
 
         int at = HintListDialog.Pick(owner,
             [.. hurt.Select(h => $"{(h.Docked ? "맡김 " : "     ")}{h.Ship.Name}  " +
@@ -1107,9 +1100,6 @@ public sealed class CityPicView : Window
         // 마지막 상한 배를 고쳤으면 "수리" 줄이 그 자리에서 꺼져야 한다.
         Menu.Refresh();
     }
-
-    /// <summary>손상 한 점을 고치는 값의 밑수. 게임은 여기에 rand(4) 를 더한다.</summary>
-    private const int RepairRate = 26;
 
     // ── 개조 ─────────────────────────────────────────────────────────────────
 
@@ -1176,7 +1166,7 @@ public sealed class CityPicView : Window
     private void AddMast(Ship ship)
     {
         var owner = Menu.Window ?? this;
-        int cost = Math.Max(1, ship.Hull.Price / MastDivisor);
+        int cost = Shipyard.MastCost(ship);
 
         GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
         if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
@@ -1244,7 +1234,7 @@ public sealed class CityPicView : Window
                 ? "삼각돛을 순풍에 뛰어난 사각돛으로 바꿀 건가?"
                 : "사각돛을 역풍에 뛰어난 삼각돛으로 바꿀 건가?")) return;
 
-        int cost = Math.Max(1, ship.Hull.Price / SailDivisor);
+        int cost = Shipyard.SailCost(ship);
         if (!ConfirmDialog.Ask(owner, $"금화 {cost}닢이 드는데, 좋나?")) return;
         if (!_player.Pay(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
         if (!ship.SwapSail(mast)) return;
@@ -1269,7 +1259,7 @@ public sealed class CityPicView : Window
     private void AddSail(Ship ship)
     {
         var owner = Menu.Window ?? this;
-        int cost = Math.Max(1, ship.Hull.Price / SailDivisor);
+        int cost = Shipyard.SailCost(ship);
 
         GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
         if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
@@ -1279,12 +1269,6 @@ public sealed class CityPicView : Window
         _player.Pay(cost);
         ShowRefit(owner, ship.AddSail(), ship);
     }
-
-    /// <summary>마스트 값을 나누는 수(<c>0x00494C32</c> 의 <c>mov $5,%ecx</c>).</summary>
-    private const int MastDivisor = 5;
-
-    /// <summary>돛 값을 나누는 수(<c>mov $0x14,%ecx</c>) — 돛종류 변경도 같다.</summary>
-    private const int SailDivisor = 20;
 
     /// <summary>
     /// 포탑수변경 — 대포를 걸 자리를 늘리거나 줄인다.
@@ -1465,11 +1449,11 @@ public sealed class CityPicView : Window
     private void DoRefit(Ship ship, string item)
     {
         var owner = Menu.Window ?? this;
-        int cost = RefitCost(ship);
+        int cost = Shipyard.RefitCost(ship);
 
         GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
         if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
-        if (!ConfirmDialog.Ask(owner, RefitWarning(item))) return;
+        if (!ConfirmDialog.Ask(owner, Shipyard.RefitWarning(item))) return;
 
         _player.Pay(cost);
         var change = item switch
@@ -1482,27 +1466,6 @@ public sealed class CityPicView : Window
         // 게임이 개조 뒤에 띄우는 "%-12s%4d → %4d" 상자. 배가 바뀌었으니 줄의 흐림도 다시 잡는다.
         ShowRefit(owner, change, ship);
     }
-
-    /// <summary>개조 한 번 값 — 선체 구입값의 <b>15분의 1</b>(<c>0x004955F9</c>).</summary>
-    /// <remarks>
-    /// 게임 선체값은 만~이십오만 닢이라 개조도 수백~만 닢대다. 우리 <see cref="Hull.Price"/>
-    /// 는 조선소 화면에서 옮긴 100~500 짜리 사다리라 <b>자릿수가 다르다</b> — 매각·수리와
-    /// 마찬가지로 비율만 게임 것을 쓴다.
-    /// </remarks>
-    private static int RefitCost(Ship ship) => Math.Max(1, ship.Hull.Price / RefitDivisor);
-
-    /// <summary>개조 값을 나누는 수(<c>mov $0xf,%ecx ; idiv</c>).</summary>
-    private const int RefitDivisor = 15;
-
-    /// <summary>그 줄이 무엇을 얻고 무엇을 잃는지 알려 주는 물음. 게임 문구 그대로다.</summary>
-    private static string RefitWarning(string item) => item switch
-    {
-        Facility.RefitTonnage =>
-            "적재용량과 함께 중량도 조금 올라가지만, 스피드와 내구력이 조금 떨어지네. 괜찮겠나?",
-        Facility.RefitReinforce =>
-            "내구력이 올라가지만, 스피드와 적재중량이 조금 떨어지네. 괜찮겠나?",
-        _ => "용량과 함께 적재용량도 조금 올라가지만, 스피드와 내구력이 조금 떨어지네. 괜찮겠나?",
-    };
 
     /// <summary>
     /// 배 한 척을 줄로 적는다 — 이름과 내구·추진·적재를 붙인다. 상했으면 내구를 "지금/최대"로 낸다.
@@ -1593,14 +1556,8 @@ public sealed class CityPicView : Window
         _ => null,
     };
 
-    /// <summary>
-    /// 선원 한 사람 값. 명성이 높을수록 싸고, 아무리 높아도 10닢 밑으로는 안 내려간다.
-    /// </summary>
-    /// <remarks>
-    /// 게임의 <c>0x00477370</c> 그대로다 — <c>(10000 - 명성) / 400</c> 을 하고 10 과 견줘
-    /// 큰 쪽을 쓴다. 명성(<c>0x005B614C</c>)이 1700 이면 스무 닢, 6000 을 넘으면 열 닢이다.
-    /// </remarks>
-    private int CrewPrice => Math.Max(10, (10000 - _player.Fame) / 400);
+    /// <summary>선원 한 사람 값. 이름이 높을수록 싸다(<see cref="CrewHire"/>).</summary>
+    private int CrewPrice => CrewHire.PriceFor(_player.Fame);
 
     /// <summary>
     /// 선원을 모집한다. 게임의 <c>0x00477330</c> 차례 그대로다.
@@ -1672,36 +1629,9 @@ public sealed class CityPicView : Window
         _player.AddCrew(-want);
     }
 
-    /// <summary>
-    /// 지금 항구에서 알릴 수 있는 발견물. 찾은 차례대로다.
-    /// </summary>
-    /// <remarks>
-    /// 게임의 <c>0x00476D20</c> · <c>0x00476DA0</c> 그대로다.
-    /// <code>
-    ///   발견했고(깃발 0x40) · 아직 발표 안 했고(0x80 없음)
-    ///   계약이 있으면 그 계약의 유적 번호와 <b>다른</b> 것만
-    /// </code>
-    /// 계약으로 맡은 것은 항구에서 못 알린다 — 그쪽은 후원자에게 보고해야 한다.
-    /// 그래서 <b>계약 없이 발견한 것</b>이 여기 뜬다.
-    /// </remarks>
-    private List<DiscoveryTable.Record> Announceable()
-    {
-        var table = _game.Discoveries?.Table;
-        if (table == null) return [];
-
-        int target = _player.Contract is { } c && _game.Hints?.Find(c.Hint) is { } hint
-                   ? hint.Discovery : -1;
-
-        var rows = new List<DiscoveryTable.Record>();
-        foreach (int id in _player.Discoveries.Order())
-        {
-            if (_player.HasAnnounced(id)) continue;
-            if (table.Find(id) is not { } row) continue;
-            if (target >= 0 && row.Hint == target) continue;   // 계약의 목표는 뺀다
-            rows.Add(row);
-        }
-        return rows;
-    }
+    /// <summary>지금 항구에서 알릴 수 있는 발견물(<see cref="Harbor.Announceable"/>).</summary>
+    private List<DiscoveryTable.Record> Announceable() =>
+        Harbor.Announceable(_player, _game.Discoveries?.Table, _game.Hints);
 
     /// <summary>
     /// 발견물을 알린다. 게임의 <c>0x00476E10</c> → <c>0x0047EA80</c> 차례다.
@@ -1729,19 +1659,13 @@ public sealed class CityPicView : Window
             var row = rows[at];
             if (!_player.Announce(row.Id)) continue;
 
-            int fame = Math.Max(FameFloor, row.Reward / FamePerReward);
+            int fame = Harbor.FameFor(row);
             _player.Fame += fame;
 
             GameDialog.Show(owner, $"{row.Name}의 발견을 발표했다!");
             GameDialog.Show(owner, $"명성이 {fame} 올라갔다!");
         }
     }
-
-    /// <summary>알려서 오르는 명성 — 보수를 이만큼으로 나눈다(<c>0x0047E851</c>).</summary>
-    private const int FamePerReward = 70;
-
-    /// <summary>아무리 하찮아도 이만큼은 오른다(<c>0x0047E853</c>).</summary>
-    private const int FameFloor = 10;
 
     /// <summary>
     /// 자택의 휴양 창 — 한 달 휴양 · 장기 휴양 · 취소. 게임의 <c>0x00460660</c> 그대로다.
@@ -1769,7 +1693,7 @@ public sealed class CityPicView : Window
         var owner = Menu.Window ?? this;
 
         GameDialog.Show(owner, "몇 개월 동안 휴양하겠습니까?");
-        int months = CountDialog.Ask(owner, "휴양", "휴양할 달수", "개월", MaxRestMonths);
+        int months = CountDialog.Ask(owner, "휴양", "휴양할 달수", "개월", Home.MaxRestMonths);
         if (months > 0) Rest(months);
     }
 
@@ -1787,19 +1711,9 @@ public sealed class CityPicView : Window
     /// </remarks>
     private void Rest(int months)
     {
-        _player.AdvanceDays(RestDaysPerMonth * months);
-        GameDialog.Show(Menu.Window ?? this, RestWords[_random.Next(RestWords.Length)]);
+        _player.AdvanceDays(Home.RestDays(months));
+        GameDialog.Show(Menu.Window ?? this, Home.RestWord(_random));
     }
-
-    /// <summary>장기 휴양으로 고를 수 있는 가장 긴 달수(<c>0x00460782</c> 의 <c>push 0xC</c>).</summary>
-    private const int MaxRestMonths = 12;
-
-    /// <summary>휴양 한 달을 며칠로 세는지. 게임도 서른 날이다.</summary>
-    private const int RestDaysPerMonth = 30;
-
-    /// <summary>쉬고 나서 나오는 지문 셋. 게임 것 그대로다(<c>0x00539840</c> 벌).</summary>
-    private static readonly string[] RestWords =
-        ["피로가 풀렸다!", "체력이 회복되었다!", "기분이 상쾌하다!"];
 
     /// <summary>
     /// 자택의 저금 창 — 저금한다 · 꺼낸다 · 중지한다. 게임의 <c>0x004609C0</c> 그대로다.
@@ -1874,51 +1788,11 @@ public sealed class CityPicView : Window
     /// <summary>돈을 ↑↓ 로 움직이는 단위. Shift 를 누르면 천 닢씩 뛴다.</summary>
     private const int MoneyStep = 100;
 
-    private GameMenu SystemMenu() => new(
-        [.. Facility.SystemMenu.Select(item => (item, SystemAction(item)))]);
-
-    private Action? SystemAction(string item) => item switch
-    {
-        "저장" => SaveGame,
-        "게임 종료" => QuitToTitle,
-        "게임 재개" => CloseMenu,
-        _ => null,
-    };
-
     /// <summary>
-    /// 놀이를 그만두고 첫 화면으로 돌아간다. 게임도 창을 닫지 않고 첫 화면으로만 되돌아간다.
+    /// 자택·여관의 "기능" 줄 — 저장·로드·게임 종료다. 도시 일이 아니라 판 일이라
+    /// <see cref="GameSystemMenu"/> 가 든다.
     /// </summary>
-    /// <remarks>
-    /// 되돌리는 일은 함대 창이 맡는다 — 이 창은 그 창이 거느린 것이라 곧 닫힌다.
-    /// 물어보고 나서 하는 것은 되돌릴 수 없기 때문이다(적어 두지 않은 것은 사라진다).
-    /// </remarks>
-    private void QuitToTitle()
-    {
-        if (Owner is not ShipMapWindow map) { CloseMenu(); return; }
-        if (!ConfirmDialog.Ask(this, "게임을 그만두고 첫 화면으로 돌아갈까?")) return;
-
-        CloseMenu();
-        map.ReturnToTitle();
-    }
-
-    /// <summary>
-    /// 지금 상태(소지금·날짜·있는 도시·배운 기술)를 적는다. 게임처럼 <b>겹쳐 쓸지 먼저 묻고</b>
-    /// 다 적은 뒤에 겹쳐 썼다고 알린다 — 세이브 자리가 하나뿐이라 적는 일은 늘 겹쳐 쓰기다.
-    /// 게임 폴더가 아니라 우리 자리에 쓴다 — <see cref="GameSave"/> 참고.
-    /// </summary>
-    /// <remarks>
-    /// 게임의 <c>0x004A2800</c> 그대로다 — 물음(<c>0x00568CB8</c>) · 쓰기 · 알림(<c>0x00568CE0</c>).
-    /// 물음에 YES 가 아니면 아무것도 쓰지 않고 그냥 돌아간다.
-    /// </remarks>
-    private void SaveGame()
-    {
-        var owner = Menu.Window ?? this;
-        if (!ConfirmDialog.Ask(owner, "데이터를 겹쳐 쓰겠습니다. 좋습니까?")) return;
-
-        string error = GameSave.Save(_player);
-        ConfirmDialog.Tell(owner, error.Length == 0 ? "데이터를 겹쳐 썼습니다"
-                                                    : $"기록하지 못했다 — {error}");
-    }
+    private GameMenu SystemMenu() => GameSystemMenu.Build(this, _game, Menu);
 
     /// <summary>
     /// 도시 커맨드 창. 도시 화면에서 오른쪽 단추를 누르면 뜬다 — 제목은 도시 이름이고
@@ -1934,7 +1808,7 @@ public sealed class CityPicView : Window
         ("계약 정보", ShowContract),
         ("후원자 정보", ShowPatrons),
         ("지도를 본다", () => _cityMenu.Push(MapMenu)),
-        ("게임 종료", QuitToTitle),
+        ("게임 종료", () => GameSystemMenu.Quit(this, Menu)),
         ("취소", CloseCityMenu));
 
     /// <summary>
@@ -2104,21 +1978,11 @@ public sealed class CityPicView : Window
     {
         CloseCityMenu();
 
-        var table = _game.Discoveries?.Table;
         BelongingsDialog.Show(this, _player, _game.Items, _game.ItemText, _game.ItemPictures,
-                              [.. _player.Discoveries.Order()
-                                        .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")]);
+                              GameInfo.DiscoveryNames(_game));
     }
 
     /// <summary>도시 커맨드 창. 그림 안이 아니라 제 창으로 띄운다.</summary>
-    /// <summary>여관에서 몸으로 값을 치르는 줄.</summary>
-    private const string OddJob = "허드렛일";
-
-    /// <summary>
-    /// 이 돈부터는 허드렛일 줄이 안 나온다. 주머니가 넉넉하면 몸으로 갚을 까닭이 없다.
-    /// </summary>
-    private const int OddJobMaxGold = 300;
-
     private GameMenuHost? _cityMenuHost;
 
     private GameMenuHost _cityMenu => _cityMenuHost ??= new GameMenuHost(this);
@@ -2320,22 +2184,9 @@ public sealed class CityPicView : Window
     /// <summary>
     /// 그 후원자에게 보고할 발견물. 계약의 유적 번호를 가진 것 중 발견했고 아직 안 알린 것이다.
     /// </summary>
-    private List<DiscoveryTable.Record> ReportTargets(Patron patron)
-    {
-        if (_player.Contract is not { } contract) return [];
-        if (contract.Sponsor != patron.Name || contract.City != _cityName) return [];
-        if (_game.Discoveries?.Table is not { } table) return [];
-        if (_game.Hints?.Find(contract.Hint) is not { } hint) return [];
-
-        var rows = new List<DiscoveryTable.Record>();
-        foreach (int id in _player.Discoveries.Order())
-        {
-            if (_player.HasAnnounced(id)) continue;
-            if (table.Find(id) is not { } row || row.Hint != hint.Discovery) continue;
-            rows.Add(row);
-        }
-        return rows;
-    }
+    private List<DiscoveryTable.Record> ReportTargets(Patron patron) =>
+        Palace.ReportTargets(_player, patron.Name, _cityName,
+                             _game.Discoveries?.Table, _game.Hints);
 
     /// <summary>
     /// 맡은 것을 찾아 왔다고 후원자에게 알린다 — 사례를 받고 계약이 끝난다.
@@ -2465,32 +2316,13 @@ public sealed class CityPicView : Window
         GameDialog.Show(this, $"위약금으로 금화 {penalty}닢을 물었다.");
     }
 
-    /// <summary>
-    /// 계약을 깨는 것을 후원자가 눈감아 주는지(<c>0x0044F8B0</c>).
-    /// </summary>
+    /// <summary>계약을 깨는 것을 후원자가 눈감아 주는지(<see cref="Palace.Forgiven"/>).</summary>
     private bool Forgiven(Patron patron, bool overdue) =>
-        _random.Next(overdue ? LateRoll : OnTimeRoll)
-            < Math.Min(ForgiveCap, patron.Fame / 100 + _player.Fame / 100 + 1);
+        Palace.Forgiven(patron.Fame, _player.Fame, overdue, _random);
 
-    /// <summary>기한 안에 깰 때 굴리는 주사위 폭(<c>add $0x64,%eax</c>).</summary>
-    private const int OnTimeRoll = 100;
-
-    /// <summary>기한을 넘겨 깰 때의 폭 — 반쯤 넓어져 통과하기 어렵다(<c>and $0x32</c>).</summary>
-    private const int LateRoll = 150;
-
-    /// <summary>문턱을 자르는 값(<c>cmp $0x61,%ecx</c>).</summary>
-    private const int ForgiveCap = 97;
-
-    /// <summary>
-    /// 보고 사례. 미불에 비율을 먹이고 100닢 단위로 내린다.
-    /// </summary>
-    /// <remarks>게임의 <c>0x00411D10</c> · <c>0x004117D0</c> 그대로다.</remarks>
-    private int RewardFor(Contract contract, bool inTime)
-    {
-        int rate = inTime ? 120 + _random.Next(30) : 90 - _random.Next(20);
-        int paid = (int)((long)contract.Unpaid * rate / 100);
-        return paid > 100 ? paid / 100 * 100 : paid;
-    }
+    /// <summary>보고 사례(<see cref="Palace.RewardFor"/>).</summary>
+    private int RewardFor(Contract contract, bool inTime) =>
+        Palace.RewardFor(contract.Unpaid, inTime, _random);
 
     /// <summary>
     /// 계약 정보 창을 낸다. 계약이 없으면 창 대신 "계약을 맺지 않았습니다" 한 줄이다.
@@ -2503,29 +2335,10 @@ public sealed class CityPicView : Window
     {
         CloseCityMenu();
 
-        var contract = _player.Contract;
-        if (contract == null)
-        {
-            ContractDialog.Show(this, null, _player.Date, "", [], []);
-            return;
-        }
-
-        var table = _game.Discoveries?.Table;
-        var items = _game.Items;
-
-        var found = new List<string>();
-        var evidence = new List<string>();
-        foreach (int id in contract.Found)
-        {
-            var row = table?.Find(id);
-            found.Add(row?.Name ?? $"발견물 {id}");
-
-            if (row is not { GivesItem: true } got || !_player.HasItem(got.ItemId)) continue;
-            evidence.Add(items?.Find(got.ItemId)?.Name ?? $"아이템 {got.ItemId}");
-        }
-
-        ContractDialog.Show(this, contract, _player.Date,
-                            HintNameOf(contract.Hint), found, evidence);
+        // 계약이 없어도 빈 판을 낸다 — 도시 커맨드는 그 자리에서 물리지 않는다.
+        var sheet = GameInfo.ContractSheetOf(_game);
+        ContractDialog.Show(this, sheet.Contract, _player.Date,
+                            sheet.HintName, sheet.Found, sheet.Evidence);
     }
 
     /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
@@ -2574,8 +2387,7 @@ public sealed class CityPicView : Window
 
     /// <summary>얻은 힌트를 늘어놓는다. 이름은 판이 찾아 준다.</summary>
     private void ShowHints() =>
-        HintListDialog.Show(_cityMenu.Window ?? this,
-                            [.. _player.Hints.Order().Select(HintNameOf)]);
+        HintListDialog.Show(_cityMenu.Window ?? this, GameInfo.HintNames(_game));
 
     /// <summary>
     /// 「스폰서 일람」 — 한 번이라도 만난 후원자를 늘어놓는다.
@@ -2628,27 +2440,13 @@ public sealed class CityPicView : Window
     /// </summary>
     private GameMenu BuildMenu(Facility facility, string title, uint teachMask, string kind)
     {
-        var items = facility.Menu.ToList();
-        // 가르치는 건물인데 줄에 수련이 없으면(학자 저택 따위) 맨 앞에 붙여 준다.
-        if (teachMask != 0 && !items.Contains("수련")) items.Insert(0, "수련");
-
-        // 여관 허드렛일은 주머니가 가벼울 때만 나온다. 게임은 조건이 어긋난 줄을 흐리게
-        // 두지 않고 아예 감춘다 — 설득·감찰관 매수와 같은 규칙이다.
-        if (facility.Kind == FacilityKind.Inn && _player.Gold >= OddJobMaxGold)
-            items.Remove(OddJob);
-
-        // 항구의 "발표" 는 알릴 발견물이 있을 때만 뜬다. 게임도 그 줄의 보임 쪽을 조건으로
-        // 켠다(0x00477974 가 0x00476DE0 의 값을 넣는다).
-        if (facility.Kind == FacilityKind.Harbor && Announceable().Count == 0)
-            items.Remove(Facility.Announce);
-
-        // 후원자가 앉은 건물이면 "설득" 이 맨 앞에 붙는다 — 왕궁만이 아니라 총독부·상관·
-        // 학자 저택 어디든 그렇다. 게임도 물린 후원자가 없으면 그 줄을 아예 감춘다.
-        //
-        // 그 자리가 계약을 맺은 자리이고 맡은 것을 찾아 왔으면 그 줄이 "보고" 로 바뀐다 —
-        // 게임도 같은 자리를 계약 상태로 갈아 끼운다(0x0044EAE0).
+        // 어느 줄이 언제 붙고 떨어지는지는 일 표가 안다.
         var patron = PatronAt(kind);
-        if (patron != null) items.Insert(0, PatronRow(patron));
+        var items = TownWorks.LinesOf(facility, new TownWorks.TownState(
+            Teaches: TownWorks.Teaches(teachMask),
+            Poor: _player.Gold < Lodging.OddJobMaxGold,
+            CanAnnounce: Announceable().Count > 0,
+            PatronRow: patron == null ? null : PatronRow(patron)));
 
         return new GameMenu(title, null,
             [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron, title, kind)))]);
@@ -2691,53 +2489,54 @@ public sealed class CityPicView : Window
     private HashSet<string>? _kindsHere;
 
     /// <summary>
-    /// 그 줄이 하는 일. 지금 되는 것은 나가기와 출항·구입·수련뿐이다 —
-    /// 보급·함대편성 따위는 이 창이 흉내내는 범위 밖이라 손을 달지 않는다(흐리게 나온다).
+    /// 그 줄이 하는 일에 손을 달아 준다. 어느 자리의 어느 줄이 무슨 일인지는
+    /// <see cref="TownWorks"/> 가 안다 — 여기서는 <b>일마다 무엇을 하는지</b>만 적는다.
+    /// 손이 안 달린 일은 null 이라 줄이 흐리게 나온다(보급·회화 따위).
     /// </summary>
     private Action? ActionFor(Facility facility, string item, uint teachMask, Patron? patron,
-                              string title, string kind)
-    {
-        if (item == facility.ExitItem) return CloseMenu;
-        if (item == "수련" && teachMask != 0) return () => Teach(teachMask, facility.Kind);
-        if (item == "기능") return () => Menu.Push(SystemMenu);
-        if (item == Facility.Persuade && patron != null) return () => Persuade(patron);
-        if (item == Facility.Report && patron != null) return () => Report(patron);
-        if (item == Facility.Break && patron != null) return () => BreakContract(patron);
-
-        return (facility.Kind, item) switch
+                              string title, string kind) =>
+        TownWorks.WorkOf(facility, item, TownWorks.Teaches(teachMask), patron != null) switch
         {
-            (FacilityKind.Harbor, "출항") => () => { Sailed = true; Close(); },
-            // 함대편성은 제목 없는 창이 한 겹 더 뜬다. 줄은 게임 것 그대로 두되, 아직 손이
-            // 안 달린 줄은 흐리게 남긴다 — 보급·선원편성과 같은 규칙이다.
-            (FacilityKind.Harbor, "함대편성") => () => Menu.Push(FleetMenu),
-            (FacilityKind.Harbor, "선원편성") => () => Menu.Push(CrewMenu),
-            (FacilityKind.Harbor, Facility.Announce) => Announce,
-            (FacilityKind.Home, "휴양") => () => Menu.Push(RestMenu),
-            (FacilityKind.Home, "저금") => () => Menu.Push(SavingsMenu),
-            (FacilityKind.Home, "보관") => () =>
-                StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
-            (FacilityKind.Harbor, "보급") => () =>
+            TownWork.Exit => CloseMenu,
+            TownWork.Train => () => Teach(teachMask, facility.Kind),
+            TownWork.System => () => Menu.Push(SystemMenu),
+            TownWork.Persuade => () => Persuade(patron!),
+            TownWork.Report => () => Report(patron!),
+            TownWork.BreakContract => () => BreakContract(patron!),
+
+            TownWork.Sail => () => { Sailed = true; Close(); },
+            // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
+            TownWork.FleetForm => () => Menu.Push(FleetMenu),
+            TownWork.CrewForm => () => Menu.Push(CrewMenu),
+            TownWork.Announce => Announce,
+            TownWork.Supply => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),
-            (FacilityKind.Shipyard, "구입") => () => HullSelectDialog.Show(this, _player),
-            (FacilityKind.Shipyard, "매각") when _player.Ships.Count > 1 => SellShip,
+
+            TownWork.BuyShip => () => HullSelectDialog.Show(this, _player),
+            TownWork.SellShip when _player.Ships.Count > 1 => SellShip,
             // 게임도 고칠 배가 없으면 이 줄을 흐리게 둔다(0x0044BD40).
-            (FacilityKind.Shipyard, "수리") when RepairTargets().Count > 0 => RepairShip,
-            (FacilityKind.Shipyard, "개조") => RefitShip,
-            (FacilityKind.Market, "구입") when Market != null => () =>
+            TownWork.RepairShip when RepairTargets().Count > 0 => RepairShip,
+            TownWork.RefitShip => RefitShip,
+
+            TownWork.BuyGoods when Market != null => () =>
                 MarketBuyDialog.Show(this, _player, Market, _cityId, _game.ItemText, _game.ItemPictures),
-            (FacilityKind.Market, "매각") when Market != null && _game.Items != null => () =>
+            TownWork.SellGoods when Market != null && _game.Items != null => () =>
                 MarketSellDialog.Show(this, _player, Market, _game.Items, _cityId),
-            (FacilityKind.Inn, "숙박") => Stay,
-            // 부하편성은 여관과 술집 둘 다에 있다.
-            (FacilityKind.Inn or FacilityKind.Tavern, "부하편성") => () =>
-                MateRosterDialog.Show(this, _player),
-            (FacilityKind.Library, "열람") when _library != null => () =>
+
+            TownWork.Stay => Stay,
+            TownWork.MateForm => () => MateRosterDialog.Show(this, _player),
+
+            TownWork.Rest => () => Menu.Push(RestMenu),
+            TownWork.Savings => () => Menu.Push(SavingsMenu),
+            TownWork.Store => () =>
+                StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
+
+            TownWork.Read when _library != null => () =>
                 LibraryDialog.Show(this, _gameDirectory, _cityName, _cityId,
                                    _player, _library, _table, HintNameOf),
             _ => null,
         };
-    }
 
     /// <summary>
     /// 도시 그림 창을 연다. 그림을 못 풀면 null 이다 — 그림이 없다고 입항까지 막을 일은 아니다.
