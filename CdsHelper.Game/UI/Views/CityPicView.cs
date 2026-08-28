@@ -52,9 +52,6 @@ public sealed class CityPicView : Window
     /// <summary>건물 표. 가르치는 기능을 이름으로 풀 때 쓴다.</summary>
     private readonly CityBuildingTable _table;
 
-    /// <summary>후원자 자료(patrons.json). 한 번만 읽어 둔다.</summary>
-    private static List<Patron>? _patrons;
-
     /// <summary>초상화(게임 자료). 설득할 때에야 연다.</summary>
 
     // 도서관 열람에 쓴다. 책 표를 못 읽었으면 열람 줄이 흐린 채로 남는다.
