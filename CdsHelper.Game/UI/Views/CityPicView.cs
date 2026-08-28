@@ -613,21 +613,13 @@ public sealed class CityPicView : Window
     }
 
     /// <summary>
-    /// 그 부하의 얼굴. 적어 둔 자료의 얼굴번호로 꺼낸다 — 없으면 게임 세이브의 인물표를
-    /// 한 번 뒤져 채운다(<see cref="ShowMate"/> 와 같은 길이다).
+    /// 그 부하의 얼굴. 신상은 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>) —
+    /// 적어 둔 것이 없으면 게임 세이브의 인물표를 한 번 뒤져 채운다.
     /// </summary>
-    private uint[]? MateFace(string name)
-    {
-        var who = _player.MateInfoOf(name);
-        if (who == null && Roster()?.Find(name) is { } person)
-        {
-            who = MateInfoOf(person);
-            _player.RememberMate(who.Value);
-        }
-        return who is { } mate && mate.Face is >= 0 and < 0xFFFF
+    private uint[]? MateFace(string name) =>
+        _game.MateInfo(name) is { } mate && mate.Face is >= 0 and < 0xFFFF
             ? _game.Faces?.TryGetBgra(mate.Face, female: false)
             : null;
-    }
 
     /// <summary>부관이 앉는 자리. <see cref="Player.MateRoles"/> 의 첫 자리다.</summary>
     private const int MateSlot = 0;
@@ -677,7 +669,7 @@ public sealed class CityPicView : Window
         if (book == null) return [];
 
         byte building = kind == FacilityKind.Tavern ? TavernRoster.Tavern : TavernRoster.Inn;
-        var people = Roster()?.At(_cityId, building) ?? [];
+        var people = _game.Roster?.At(_cityId, building) ?? [];
         var keys = new List<int>(people.Count);
         foreach (var p in people) keys.Add(p.Index);
 
@@ -704,27 +696,6 @@ public sealed class CityPicView : Window
             }
         }
         return art;
-    }
-
-    private TavernRoster? _roster;
-    private bool _rosterTried;
-
-    /// <summary>
-    /// 게임 세이브에서 술집·여관에 앉은 인물을 한 번만 읽는다. 못 읽으면 인물 없이
-    /// 지나가는 손님만 선다.
-    /// </summary>
-    private TavernRoster? Roster()
-    {
-        if (_roster != null || _rosterTried) return _roster;
-        _rosterTried = true;
-
-        var path = AppSettings.LastSaveFilePath;
-        if (string.IsNullOrEmpty(path)) return null;
-
-        _roster = TavernRoster.Open(path);
-        if (_roster == null)
-            System.Diagnostics.Debug.WriteLine($"[City] 술집 인물 없음: {TavernRoster.LastError}");
-        return _roster;
     }
 
     /// <summary>
@@ -824,7 +795,7 @@ public sealed class CityPicView : Window
 
         _player.SetMate(slot, who.Name);
         // 됨됨이를 지금 베껴 둔다 — 나중에 인물정보를 낼 때 게임 세이브를 다시 안 뒤지게.
-        _player.RememberMate(MateInfoOf(who));
+        _player.RememberMate(Tavern.MateInfoOf(who));
         TalkDialog.Say(this, face, "",
                        $"좋네. {Player.MateRoles[slot]}(으)로서 자네와 함께 가지.");
     }
@@ -854,11 +825,6 @@ public sealed class CityPicView : Window
         int picked = TalkDialog.Ask(this, face, "", "어느 자리에 앉히겠나?", choices);
         return picked >= 0 && picked < open.Count ? open[picked] : -1;
     }
-
-    /// <summary>세이브에서 읽은 인물을 우리 부하 자료로 옮긴다.</summary>
-    private static Player.MateInfo MateInfoOf(TavernRoster.Person who) =>
-        new(who.Name, who.FaceCode, who.Fame, who.Age,
-            who.Body, who.Mind, who.Might, who.Charm, who.Luck);
 
     /// <summary>이름 뒤에 붙는 주격 조사. 받침이 있으면 "이", 없으면 "가".</summary>
     /// <remarks>
@@ -1816,74 +1782,7 @@ public sealed class CityPicView : Window
     /// 아무도 없으면 곧바로 제독의 판을 낸다.
     /// </summary>
     /// <remarks>도시 안이라 함대좌표는 게임처럼 <c>---</c> 다.</remarks>
-    private void ShowPerson()
-    {
-        if (_player.MateCount == 0)
-        {
-            CloseCityMenu();
-            PersonInfoDialog.Show(this, _player, _gameDirectory);
-            return;
-        }
-        _cityMenu.Push(PersonMenu);
-    }
-
-    /// <summary>
-    /// 누구의 인물정보를 볼지 고르는 창 — 제독과 부하 네 자리다.
-    /// </summary>
-    /// <remarks>
-    /// 자리는 늘 넷 다 낸다(게임 화면이 그렇다). <b>빈 자리는 흐려 두고 안 먹는다</b> —
-    /// 앉은 사람이 없으면 낼 판도 없기 때문이다.
-    /// </remarks>
-    private GameMenu PersonMenu()
-    {
-        var rows = new List<(string, Action?)>
-        {
-            ("플레이어", () =>
-            {
-                CloseCityMenu();
-                PersonInfoDialog.Show(this, _player, _gameDirectory);
-            }),
-        };
-
-        for (int i = 0; i < Player.MaxMates; i++)
-        {
-            int slot = i;
-            string name = _player.MateAt(slot);
-            rows.Add((Player.MateRoles[slot],
-                      name.Length == 0 ? null : () => ShowMate(slot)));
-        }
-
-        rows.Add(("취소", CloseCityMenu));
-        return new GameMenu("", null, [.. rows]);
-    }
-
-    /// <summary>
-    /// 그 자리에 앉은 부하의 인물정보 판.
-    /// </summary>
-    /// <remarks>
-    /// <b>우리 세이브에 적어 둔 것을 먼저 본다.</b> 없으면(판 20 앞에 들인 부하) 게임
-    /// 세이브의 인물표를 뒤져 그 자리에서 채워 넣는다 — 한 번 채우면 다음부터는 우리
-    /// 것만으로 뜬다. 게임 세이브가 없거나 이름이 바뀌었어도 이미 적어 둔 부하는 그대로
-    /// 보인다.
-    /// </remarks>
-    private void ShowMate(int slot)
-    {
-        string name = _player.MateAt(slot);
-        var who = _player.MateInfoOf(name);
-
-        if (who == null && Roster()?.Find(name) is { } person)
-        {
-            who = MateInfoOf(person);
-            _player.RememberMate(who.Value);
-        }
-
-        CloseCityMenu();
-
-        if (who is { } mate)
-            PersonInfoDialog.ShowMate(this, mate, Player.MateRoles[slot], _gameDirectory);
-        else
-            NoticeDialog.Show(this, $"{name}의 자료를 찾지 못했다");
-    }
+    private void ShowPerson() => PersonInfoMenu.Show(this, _game, _cityMenu);
 
     /// <summary>함대 정보 판.</summary>
     private void ShowFleet()
