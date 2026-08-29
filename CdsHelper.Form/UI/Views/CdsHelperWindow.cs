@@ -24,6 +24,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PortraitBookMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_CityCultureMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
@@ -42,6 +43,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
     private const string PART_PortraitBookMenu = "PART_PortraitBookMenu";
+    private const string PART_CityCultureMenu = "PART_CityCultureMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
@@ -129,6 +131,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_PortraitBookMenu) is MenuItem portraitBookMenu)
         {
             portraitBookMenu.Click += OnPortraitBookMenuClick;
+        }
+
+        if (GetTemplateChild(PART_CityCultureMenu) is MenuItem cityCultureMenu)
+        {
+            cityCultureMenu.Click += OnCityCultureMenuClick;
         }
 
         if (GetTemplateChild(PART_ImageShrinkMenu) is MenuItem imageShrinkMenu)
@@ -280,6 +287,16 @@ public class CdsHelperWindow : CdsWindow
     private void OnPortraitBookMenuClick(object sender, RoutedEventArgs e)
     {
         var dialog = new CdsHelper.Game.UI.Views.PortraitBookDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
+    // 도시마다의 문화권과, 그 문화권이 부르는 시설 화자 얼굴을 맞대어 보는 창.
+    private void OnCityCultureMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new CdsHelper.Game.UI.Views.CityCultureDialog
         {
             Owner = this
         };

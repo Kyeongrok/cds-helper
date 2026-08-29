@@ -225,6 +225,10 @@
                                             x:Name="PART_PortraitBookMenu"
                                             Header="초상화 보기"
                                             ToolTip="MALE.CDS · FEMALE.CDS 의 얼굴을 번호와 함께 본다" />
+                                        <MenuItem
+                                            x:Name="PART_CityCultureMenu"
+                                            Header="도시 · 문화권"
+                                            ToolTip="도시마다의 문화권과 그 문화권이 부르는 시설 화자 얼굴" />
                                         <Separator />
                                         <MenuItem
                                             x:Name="PART_ImageShrinkMenu"
