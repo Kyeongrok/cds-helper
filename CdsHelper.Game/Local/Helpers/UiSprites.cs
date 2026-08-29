@@ -52,6 +52,15 @@ public sealed class UiSprites
 {
     private const int BandPart = 4;
 
+    /// <summary>화살표 조각이 든 파트. 16x8 짜리 칸이 두 줄 x 세 칸이다.</summary>
+    private const int ArrowPart = 3;
+
+    /// <summary>화살표 한 칸의 크기.</summary>
+    public const int ArrowWidth = 16, ArrowHeight = 8;
+
+    /// <summary>화살표 칸 차례 — 0 못 누름(X) · 1 위 · 2 아래.</summary>
+    public const int ArrowNone = 0, ArrowUp = 1, ArrowDown = 2;
+
     /// <summary>띠 한 벌의 크기와 조각 배치.</summary>
     private const int StyleBytes = 960, StyleCount = 3;
 
@@ -69,8 +78,13 @@ public sealed class UiSprites
     private static readonly int[] PieceWidth = [CapWidth, MidWidth, CapWidth];
 
     private readonly byte[] _band;
+    private readonly byte[]? _arrow;
 
-    private UiSprites(byte[] band) => _band = band;
+    private UiSprites(byte[] band, byte[]? arrow)
+    {
+        _band = band;
+        _arrow = arrow;
+    }
 
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
@@ -92,7 +106,11 @@ public sealed class UiSprites
             LastError = "띠 조각이 기대한 크기가 아닙니다";
             return null;
         }
-        return new UiSprites(part);
+        // 화살표는 없어도 창은 열린다 — 그때는 글자 화살표로 물러선다.
+        var arrows = archive.PartCount > ArrowPart ? archive.Decode(ArrowPart) : null;
+        if (arrows != null && arrows.Length < ArrowWidth * ArrowHeight * 6) arrows = null;
+
+        return new UiSprites(part, arrows);
     }
 
     /// <summary>가운데를 <paramref name="cells"/> 번 되풀이했을 때의 띠 폭.</summary>
@@ -153,6 +171,34 @@ public sealed class UiSprites
         width = PieceWidth[k];
         var bgra = new uint[width * BandHeight];
         Blit(bgra, width, style, k, 0);
+        return bgra;
+    }
+
+    /// <summary>
+    /// 화살표 한 칸을 BGRA 로 꺼낸다. 조각이 없으면 null.
+    /// </summary>
+    /// <param name="row">0 못 누름(X) · 1 위 · 2 아래(<see cref="ArrowUp"/>).</param>
+    /// <param name="pressed">눌린 꼴(오른쪽 칸)이면 true.</param>
+    /// <remarks>
+    /// 파트 3 은 16x8 칸이 <b>두 줄(왼쪽 뗌 · 오른쪽 눌림) x 세 칸</b>으로 놓여 있다.
+    /// 한 줄이 통째로 이어져 있으므로 줄 폭은 32 다.
+    /// </remarks>
+    public uint[]? Arrow(int row, bool pressed)
+    {
+        if (_arrow == null) return null;
+
+        int stride = ArrowWidth * 2;
+        int x0 = pressed ? ArrowWidth : 0;
+        int y0 = Math.Clamp(row, 0, 2) * ArrowHeight;
+
+        var bgra = new uint[ArrowWidth * ArrowHeight];
+        for (int r = 0; r < ArrowHeight; r++)
+            for (int c = 0; c < ArrowWidth; c++)
+            {
+                int i = _arrow[(y0 + r) * stride + x0 + c] * 3;
+                bgra[r * ArrowWidth + c] = (uint)(0xFF << 24 | GamePalette.Rgb[i] << 16
+                                                | GamePalette.Rgb[i + 1] << 8 | GamePalette.Rgb[i + 2]);
+            }
         return bgra;
     }
 
