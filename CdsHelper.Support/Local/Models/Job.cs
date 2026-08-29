@@ -1,4 +1,4 @@
-namespace CdsHelper.Support.Local.Models;
+﻿namespace CdsHelper.Support.Local.Models;
 
 /// <summary>
 /// 주인공의 직업 — 능력치가 어느 쪽으로 기우는지와, 처음에 든 기술을 정한다.
@@ -6,6 +6,7 @@ namespace CdsHelper.Support.Local.Models;
 /// <param name="Name">이름.</param>
 /// <param name="Bias">능력치 보정(체력·지력·무력·매력·운·신앙심 차례).</param>
 /// <param name="Skills">처음부터 든 기술 — (기술 번호, 자리).</param>
+/// <param name="Tongues">처음부터 든 언어 — (언어 번호, 자리). 국적이 주는 것과는 딴 몫이다.</param>
 /// <remarks>
 /// 이름은 게임 표(<c>0x00560AA8</c>) 여덟 그대로다. 능력치 보정은
 /// <c>0x0051ACA0</c>(직업마다 32바이트 = int 여덟)에서 읽은 값이다 — 탐험가가 온통 0 인
@@ -20,11 +21,23 @@ namespace CdsHelper.Support.Local.Models;
 ///   상인   -3  2  4 -2 -1  0  3  1
 ///   군인    2  2  2 -5  2  0  2 -1
 /// </code>
-/// <b>처음 든 기술은 게임 표에서 읽은 것이 아니다</b> — 화면(탐험가 · 항해술2 · 측량2 ·
-/// 회계2)에서 본 것을 밑삼아 직업 결에 맞춰 지었다. 게임이 어느 표에서 꺼내는지는 아직
-/// 못 짚었다.
+/// <b>처음 든 기술과 언어는 화면에서 옮겼다.</b> 고를 수 있는 넷을 한 번씩 만들어
+/// 기능 창을 맞대어 보고 얻은 것이다 — EXE 에서는 이 표를 아직 못 짚었다.
+/// <code>
+///   탐험가  항해술2 측량2 회계2            + 로망스어3
+///   발굴자  웅변2 측량2 역사학2            + 슬라브·그리스어3
+///   사냥꾼  운용술3 사격술2 의학2 과학2
+///   정복자  검술3 포술2 조선기술2 신학2
+/// </code>
+/// <b>넷 다 합이 9점</b>이다 — 기술만 아홉을 받거나, 여섯에 언어 셋을 얹는다. 언어를
+/// 받는 둘은 그만큼 기술이 적다.
+///
+/// 국적이 주는 <b>모국어 3 · 이웃 2</b> 는 여기 없다(<see cref="Skill.TongueOf"/>).
+///
+/// 뒤의 넷(해적·전도사·상인·군인)은 새 놀이에서 못 고르므로 아직 <b>지어 둔 값</b>이다.
 /// </remarks>
-public sealed record Job(string Name, int[] Bias, (int Skill, int Level)[] Skills)
+public sealed record Job(string Name, int[] Bias, (int Skill, int Level)[] Skills,
+                         (int Language, int Level)[] Tongues)
 {
     /// <summary>새 놀이에서 고를 수 있는 직업 넷. 게임 화면에도 이 넷만 뜬다.</summary>
     public const int Choosable = 4;
@@ -33,21 +46,27 @@ public sealed record Job(string Name, int[] Bias, (int Skill, int Level)[] Skill
     public static readonly Job[] All =
     [
         new("탐험가", [0, 0, 0, 0, 0, 0],
-            [(Skill.Sailing, 2), (Skill.Survey, 2), (Skill.Accounting, 2)]),
+            [(Skill.Sailing, 2), (Skill.Survey, 2), (Skill.Accounting, 2)],
+            [(Skill.Romance, 3)]),
         new("발굴자", [2, -3, -2, 5, -2, 0],
-            [(Skill.Survey, 3), (Skill.History, 2), (Skill.Sailing, 1)]),
+            [(Skill.Rhetoric, 2), (Skill.Survey, 2), (Skill.History, 2)],
+            [(Skill.SlavGreek, 3)]),
         new("사냥꾼", [2, -3, 2, -3, 2, 0],
-            [(Skill.Shooting, 3), (Skill.Sword, 2), (Skill.Sailing, 1)]),
+            [(Skill.Handling, 3), (Skill.Shooting, 2), (Skill.Medicine, 2), (Skill.Science, 2)],
+            []),
         new("정복자", [-2, 3, -2, 3, -2, 0],
-            [(Skill.Sword, 2), (Skill.Gunnery, 2), (Skill.Sailing, 2)]),
+            [(Skill.Sword, 3), (Skill.Gunnery, 2), (Skill.Shipwright, 2), (Skill.Theology, 2)],
+            []),
+
+        // 아래 넷은 새 놀이에서 못 고른다 — 값은 아직 지어 둔 것이다.
         new("해적", [-2, -4, 5, -1, 2, 0],
-            [(Skill.Sword, 3), (Skill.Gunnery, 2), (Skill.Handling, 1)]),
+            [(Skill.Sword, 3), (Skill.Gunnery, 2), (Skill.Handling, 1)], []),
         new("전도사", [-2, 4, -3, -1, 2, 0],
-            [(Skill.Theology, 3), (Skill.Medicine, 2), (Skill.Rhetoric, 1)]),
+            [(Skill.Theology, 3), (Skill.Medicine, 2), (Skill.Rhetoric, 1)], []),
         new("상인", [-3, 2, 4, -2, -1, 0],
-            [(Skill.Accounting, 3), (Skill.Rhetoric, 2), (Skill.Sailing, 1)]),
+            [(Skill.Accounting, 3), (Skill.Rhetoric, 2), (Skill.Sailing, 1)], []),
         new("군인", [2, 2, 2, -5, 2, 0],
-            [(Skill.Gunnery, 3), (Skill.Sword, 2), (Skill.Handling, 1)]),
+            [(Skill.Gunnery, 3), (Skill.Sword, 2), (Skill.Handling, 1)], []),
     ];
 
     /// <summary>번호로 찾는다. 표 밖이면 탐험가.</summary>

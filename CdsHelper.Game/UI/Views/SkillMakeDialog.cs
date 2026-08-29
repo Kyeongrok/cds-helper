@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -59,6 +59,9 @@ internal sealed class SkillMakeDialog : InfoDialog
         foreach (var (skill, level) in player.Work.Skills)
             _skills[skill] = _skillFloor[skill] = level;
         foreach (var (tongue, level) in Skill.TongueOf(player.Nation))
+            _tongues[tongue] = _tongueFloor[tongue] = level;
+        // 직업이 주는 언어는 국적 것과 따로다 — 탐험가는 로망스어, 발굴자는 슬라브·그리스어다.
+        foreach (var (tongue, level) in player.Work.Tongues)
             _tongues[tongue] = _tongueFloor[tongue] = level;
 
         var left = new StackPanel();

@@ -61,12 +61,23 @@ public static class Skill
     /// 국적이 처음부터 주는 언어 — (언어 번호, 자리).
     /// </summary>
     /// <remarks>
-    /// 화면에서 본 것이다(포르투갈 왕국 · 스페인어2 · 포르투갈어3 · 로망스어3). 게임이 어느
-    /// 표에서 꺼내는지는 못 짚었고, 에스파니아 쪽은 앞의 둘을 뒤집어 지었다.
+    /// <b>모국어 3 에 이웃 2</b> 다. 직업 넷을 한 번씩 만들어 기능 창을 맞대어 보고
+    /// 얻었다 — 포르투갈 국적으로 만든 넷이 모두 포르투갈어 3 · 스페인어 2 로 같았고,
+    /// 에스파니아로 만든 판은 그 둘이 뒤집혔다.
+    ///
+    /// 예전에는 여기에 로망스어 3 도 얹었는데 그것은 <b>국적이 아니라 직업</b> 몫이었다
+    /// (탐험가만 받는다 — <see cref="Job.Tongues"/>).
     /// </remarks>
-    public static (int Language, int Level)[] TongueOf(int nation) => nation == 1
-        ? [(0, 3), (1, 2), (2, 3)]
-        : [(0, 2), (1, 3), (2, 3)];
+    public static (int Language, int Level)[] TongueOf(int nation) => nation == Spain
+        ? [(Spanish, 3), (Portuguese, 2)]
+        : [(Portuguese, 3), (Spanish, 2)];
+
+    /// <summary>언어 번호. 표 차례와 같다.</summary>
+    public const int Spanish = 0, Portuguese = 1, Romance = 2, German = 3,
+                     SlavGreek = 4, Arabic = 5;
+
+    /// <summary>국적 번호 — 새 놀이에서 고르는 둘.</summary>
+    public const int Portugal = 0, Spain = 1;
 
     /// <summary>한 자리 올리는 데 드는 값(닢). 자리와 상관없이 같다.</summary>
     public const int Price = 120;
