@@ -155,27 +155,18 @@ internal sealed class CharacterMakeDialog : Window
         Mark();
     }
 
-    /// <summary>바깥 베벨 · 빈칸 · 안쪽 줄 세 겹.</summary>
+    /// <summary>
+    /// 바깥 베벨 한 겹. 안쪽 줄과 빈칸은 걷어냈다 — 그만큼 창이 넓어져 오른쪽 끝의
+    /// 일람·다음 단추가 잘렸다.
+    /// </summary>
     private UIElement Framed(UIElement content)
     {
-        var inner = new Border
-        {
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(FrameLine),
-            Child = content,
-        };
-        var middle = new Border
-        {
-            Background = Back,
-            Padding = new Thickness(FrameGap),
-            Child = inner,
-        };
         var outer = new Border
         {
             Background = Back,
             BorderBrush = Line,
             BorderThickness = new Thickness(Bevel),
-            Child = middle,
+            Child = content,
         };
         GameUi.EnableDrag(this, outer);
         return outer;
