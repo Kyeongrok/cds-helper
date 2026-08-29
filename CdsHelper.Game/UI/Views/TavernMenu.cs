@@ -20,15 +20,39 @@ namespace CdsHelper.Game.UI.Views;
 /// <param name="view">이 술집을 낸 도시 창. 대사 창의 주인이다.</param>
 /// <param name="game">이 판 — 주인공과 인물표가 여기서 온다.</param>
 /// <param name="cityId">이 마을 번호. 그 마을 그 건물에 앉은 사람을 찾는다.</param>
-/// <param name="culture">이 마을 문화권. 손님 그림을 고르는 데 쓴다.</param>
-internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, string culture)
+/// <param name="culture">이 마을 문화권 이름. 손님 그림을 고르는 데 쓴다.</param>
+/// <param name="cultureNo">이 마을 문화권 번호. 주인 얼굴이 여기 따라 갈린다.</param>
+internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, string culture,
+                                 int cultureNo)
 {
+    /// <summary>술집의 건물 코드. 화자표에서 주인을 찾을 때 쓴다.</summary>
+    private const int BuildingCode = 4;
+
+    /// <summary>
+    /// 들어설 때 손님이 건네는 말. 게임 표(<c>0x005473C0</c>) 다섯 줄 그대로다 —
+    /// 하나를 집어 내므로 <b>들어갈 때마다 갈린다</b>.
+    /// </summary>
+    private static readonly string[] Greetings =
+    [
+        "여어! 당신, 음...누구였더라? 자, 이쪽으로 오게나.",
+        "헤헤, 오늘, 좋은 일이 있었는데 기분좋으니 함께 마시자구.",
+        "여어, 함께 마시자구. 오늘 밤은 실컷 마시고 싶은 기분이라네.",
+        "으음, 기분좋군. 여, 거기, 자네 말일세, 자네. 이쪽으로 오게 해 둘 말이 있네.",
+        "헤에, 너무 마셨나. 거기 자네, 좀더 마시고 싶으니 같이 마십시다.",
+    ];
+
     private readonly Window _view = view;
     private readonly Engine.Game _game = game;
     private readonly int _cityId = cityId;
     private readonly string _culture = culture;
+    private readonly int _cultureNo = cultureNo;
 
     private Player _player => _game.Player;
+
+    /// <summary>들어설 때 건네는 한마디. 다섯 줄 가운데 하나라 올 때마다 다르다.</summary>
+    public void Greet() =>
+        ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)],
+                           face: _game.SpeakerFace(BuildingCode, _cultureNo));
 
     /// <summary>
     /// 사진 앞에 세울 손님들. 술집·여관이 아니거나 그림을 못 읽었으면 빈 목록이다.
