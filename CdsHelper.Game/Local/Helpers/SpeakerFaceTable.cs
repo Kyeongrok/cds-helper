@@ -6,7 +6,9 @@ namespace CdsHelper.Game.Local.Helpers;
 /// <remarks>
 /// <code>
 ///   표 VA 0x0056823C, 한 줄 13개 int32 x 건물코드 16줄
-///   [건물코드][문화권]  (문화권 0~10, 뒤 두 칸은 딸린 값이라 안 쓴다)
+///   +0x00~+0x28  [문화권 0~10] 얼굴 번호
+///   +0x2C        여자 얼굴인지 — 1 이면 FEMALE.CDS 에서 꺼낸다
+///   +0x30        딸린 값(안 쓴다)
 /// </code>
 /// 시설 객체는 들어설 때 화자를 <c>0x004A2500</c> 에서 <c>0x00477C20(건물종류)</c> 으로
 /// 한 번에 정하고, 그 속이 이 표를 <c>[건물종류 * 13 + 문화권]</c> 으로 읽어 제 <c>+0x80</c>
@@ -20,6 +22,8 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   도서관(8)  161 …                        조합(9)  44 …
 /// </code>
 /// 자택(11)·저택(12)·상관(13,14)·학자 저택(15) 줄은 통째로 0 이다 — 말을 거는 사람이 없다.
+///
+/// <b>여관(5)만 여자 칸이 서 있다</b> — 그래서 여관 주인은 FEMALE.CDS 에서 나온다.
 /// </remarks>
 public sealed class SpeakerFaceTable
 {
@@ -40,11 +44,19 @@ public sealed class SpeakerFaceTable
     /// <summary>판이 다른 EXE 를 잘못 읽지 않으려고 대 보는 칸 — 교회는 어디서나 292 다.</summary>
     private const int ProbeKind = 3, ProbeFace = 292;
 
-    internal sealed record Snapshot(int[] Faces);
+    /// <summary>표가 갈리면 적어 둔 JSON 을 버리고 다시 읽는다.</summary>
+    private const int SnapshotVersion = 2;
+
+    internal sealed record Snapshot(int[] Faces, bool[] Female);
 
     private readonly int[] _faces;
+    private readonly bool[] _female;
 
-    private SpeakerFaceTable(Snapshot snapshot) => _faces = snapshot.Faces;
+    private SpeakerFaceTable(Snapshot snapshot)
+    {
+        _faces = snapshot.Faces;
+        _female = snapshot.Female;
+    }
 
     /// <summary>못 열었을 때의 까닭. 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
@@ -52,7 +64,8 @@ public sealed class SpeakerFaceTable
     /// <summary>표를 연다. 한 번 읽으면 JSON 으로 적어 두고 다음부터는 그것을 쓴다.</summary>
     public static SpeakerFaceTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               SnapshotVersion);
         LastError = error;
         return snapshot == null ? null : new SpeakerFaceTable(snapshot);
     }
@@ -62,17 +75,22 @@ public sealed class SpeakerFaceTable
         error = "";
 
         var faces = new int[Kinds * Cultures];
+        var female = new bool[Kinds];
         for (int kind = 0; kind < Kinds; kind++)
+        {
             for (int culture = 0; culture < Cultures; culture++)
                 faces[kind * Cultures + culture] =
                     exe.Int(TableVa + (kind * Columns + culture) * 4);
+
+            female[kind] = exe.Int(TableVa + (kind * Columns + Cultures) * 4) != 0;
+        }
 
         if (faces[ProbeKind * Cultures] != ProbeFace)
         {
             error = "화자표가 기대한 모양이 아닙니다(다른 판의 EXE 일 수 있습니다)";
             return null;
         }
-        return new Snapshot(faces);
+        return new Snapshot(faces, female);
     }
 
     /// <summary>
@@ -88,4 +106,10 @@ public sealed class SpeakerFaceTable
         int face = _faces[buildingCode * Cultures + culture];
         return face > 0 ? face : -1;
     }
+
+    /// <summary>
+    /// 그 건물의 화자가 여자인지. <b>여관만 그렇다</b> — 그때는 FEMALE.CDS 에서 꺼낸다.
+    /// </summary>
+    public bool IsFemale(int buildingCode) =>
+        buildingCode >= 0 && buildingCode < Kinds && _female[buildingCode];
 }

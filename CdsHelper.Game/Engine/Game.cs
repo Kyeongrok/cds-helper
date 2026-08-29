@@ -215,8 +215,11 @@ public sealed class Game
     /// <param name="culture">그 마을 문화권 번호.</param>
     public uint[]? SpeakerFace(int buildingCode, int culture)
     {
-        int face = Speakers?.FaceOf(buildingCode, culture) ?? -1;
-        return face < 0 ? null : Faces?.TryGetBgra(face, female: false);
+        if (Speakers is not { } speakers) return null;
+
+        int face = speakers.FaceOf(buildingCode, culture);
+        // 여관 주인은 여자다 — 표의 성별 칸이 어느 CDS 에서 꺼낼지 일러 준다.
+        return face < 0 ? null : Faces?.TryGetBgra(face, speakers.IsFemale(buildingCode));
     }
 
     /// <summary>

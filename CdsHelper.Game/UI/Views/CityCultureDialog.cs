@@ -152,12 +152,12 @@ public sealed class CityCultureDialog : Window
         foreach (var (code, name) in Kinds)
         {
             int face = speakers.FaceOf(code, culture);
-            _faces.Children.Add(Cell(name, code, face));
+            _faces.Children.Add(Cell(name, code, face, speakers.IsFemale(code)));
         }
     }
 
     /// <summary>시설 한 칸 — 이름 · 얼굴 · 번호.</summary>
-    private UIElement Cell(string name, int code, int face)
+    private UIElement Cell(string name, int code, int face, bool female)
     {
         var box = new StackPanel { Margin = new Thickness(8), Width = 96 };
         box.Children.Add(new TextBlock
@@ -167,7 +167,7 @@ public sealed class CityCultureDialog : Window
             Margin = new Thickness(0, 0, 0, 4),
         });
 
-        var px = face < 0 ? null : _portraits?.TryGetBgra(face, female: false);
+        var px = face < 0 ? null : _portraits?.TryGetBgra(face, female);
         if (px != null)
         {
             var bmp = BitmapSource.Create(Portraits.Width, Portraits.Height, 96, 96,
@@ -196,7 +196,7 @@ public sealed class CityCultureDialog : Window
 
         box.Children.Add(new TextBlock
         {
-            Text = face < 0 ? "—" : face.ToString(),
+            Text = face < 0 ? "—" : female ? $"{face} (여)" : face.ToString(),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 2, 0, 0),
         });
