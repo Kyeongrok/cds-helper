@@ -435,6 +435,13 @@ public sealed class CityPicView : Window
         if (facility.Kind is FacilityKind.Palace or FacilityKind.Church) return true;
 
         _game.Sfx?.Play(SoundBank.TurnedAwayPart);
+
+        // 문지기가 내쫓는다. 얼굴은 그 건물의 화자 그대로다 — 게임도 시설 객체가 든
+        // 같은 얼굴을 쓴다(0x0040D385 가 +0x84 를 넘긴다).
+        ConfirmDialog.Tell(this, "너 같은 녀석이 들어올 장소가 아니다! 꺼지지 못할까!",
+                           face: _game.SpeakerFace(building.Code, _cultureNo));
+        // 지도 아래 띠에도 한마디 적힌다(0x005459A0).
+        (Owner as ShipMapWindow)?.Say("명성치가 모자랍니다.");
         return false;
     }
 

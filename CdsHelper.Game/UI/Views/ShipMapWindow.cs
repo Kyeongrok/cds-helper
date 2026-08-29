@@ -40,6 +40,12 @@ public sealed class ShipMapWindow : Window
     };
     private readonly DispatcherTimerLite _statusTimer;
 
+    /// <summary>
+    /// 지도 아래 띠에 적는 글. 게임은 이 자리에 짧은 알림을 낸다 —
+    /// "명성치가 모자랍니다." 처럼 창을 띄울 것도 없는 한마디다.
+    /// </summary>
+    private readonly GameButton _note = new("") { Lit = true, Margin = default };
+
     /// <summary>한 판 — 게임 폴더 · 주인공 · 표들 · 소리. 화면들이 이것을 받아 쓴다.</summary>
     private readonly Engine.Game _game = new();
 
@@ -317,8 +323,8 @@ public sealed class ShipMapWindow : Window
         DockPanel.SetDock(_toolBar, Dock.Top);
         root.Children.Add(_toolBar);
 
-        // 게임은 지도 아래에도 같은 띠를 하나 둔다. 안은 비어 있다.
-        var footer = TitleBarStrip(null);
+        // 게임은 지도 아래에도 같은 띠를 하나 둔다 — 짧은 알림이 이 자리에 뜬다.
+        var footer = TitleBarStrip(null, _note);
         DockPanel.SetDock(footer, Dock.Bottom);
         root.Children.Add(footer);
         root.Children.Add(surface);
@@ -776,10 +782,14 @@ public sealed class ShipMapWindow : Window
     /// <summary>
     /// 타이틀 화면 위아래에 두는 액자 띠. <paramref name="text"/> 를 주면 왼쪽에 칸 하나를 둔다.
     /// </summary>
-    private static FrameworkElement TitleBarStrip(string? text)
+    private static FrameworkElement TitleBarStrip(string? text, GameButton? slot = null)
     {
         var inside = new StackPanel { Orientation = Orientation.Horizontal };
-        if (text != null)
+        if (slot != null)
+        {
+            inside.Children.Add(slot);
+        }
+        else if (text != null)
         {
             inside.Children.Add(new GameButton(text) { Lit = true, Margin = default });
         }
@@ -1364,6 +1374,12 @@ public sealed class ShipMapWindow : Window
         ContractDialog.Show(this, sheet.Contract, _game.Player.Date,
                             sheet.HintName, sheet.Found, sheet.Evidence);
     }
+
+    /// <summary>
+    /// 지도 아래 띠에 한마디 적는다. 게임이 창을 띄우지 않고 알리는 자리다.
+    /// </summary>
+    /// <remarks>도시 창처럼 이 창이 거느린 쪽에서도 부른다.</remarks>
+    public void Say(string text) => _note.Text = text;
 
     /// <summary>정보 판 하나를 띄운다 — 커맨드 창은 접고, 배는 세워 둔 채다.</summary>
     private void Info(Action show)
