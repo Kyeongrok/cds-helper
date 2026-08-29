@@ -41,20 +41,23 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
     private uint[]? Face => _game.SpeakerFace(_buildingCode, _culture);
 
     /// <summary>
-    /// "수련" — 맡은 사람이 먼저 묻고, 창을 닫을 때 아무것도 안 배웠으면 한마디 한다.
+    /// 들어설 때 가르치는 사람이 건네는 물음. 문 앞에서 이미 묻는다 —
+    /// 수련을 고르면 그때는 기술 목록만 뜬다.
+    /// </summary>
+    public void Greet() =>
+        ConfirmDialog.Tell(_view, Church == _buildingCode
+            ? "주의 배움의 터전에 잘 오셨습니다. 어떤 학문, 기능을 배우고 싶습니까?"
+            : "기술을 습득하고 싶나?", face: Face);
+
+    /// <summary>
+    /// "수련" — 배울 것을 늘어놓고, 아무것도 안 배웠으면 한마디 한다.
     /// </summary>
     public void Teach(uint teachMask)
     {
-        bool church = _buildingCode == Church;
-        var face = Face;
+        if (SkillLearnDialog.Show(_view, _game.Player, _buildings.Teaches(teachMask))) return;
 
-        ConfirmDialog.Tell(_view, church
-            ? "주의 배움의 터전에 잘 오셨습니다. 어떤 학문, 기능을 배우고 싶습니까?"
-            : "기술을 습득하고 싶나?", face: face);
-
-        if (!SkillLearnDialog.Show(_view, _game.Player, _buildings.Teaches(teachMask)))
-            ConfirmDialog.Tell(_view, church
-                ? "죄송하지만, 여기서는 수련이 불가능합니다."
-                : "용건이 없다면 오지 말게!", face: face);
+        ConfirmDialog.Tell(_view, Church == _buildingCode
+            ? "죄송하지만, 여기서는 수련이 불가능합니다."
+            : "용건이 없다면 오지 말게!", face: Face);
     }
 }
