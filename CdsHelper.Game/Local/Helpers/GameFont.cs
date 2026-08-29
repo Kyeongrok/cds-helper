@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -44,6 +44,11 @@ public sealed class GameFont
 
     /// <summary>글자 그림자색. 거의 검정인 <c>12,7,6</c> 이다.</summary>
     public const byte ShadowColor = 74;
+
+    /// <summary>
+    /// 검정 글자색. 그림자와 같은 칸이다 — 강청색 판(인물정보)은 글씨가 검정이다.
+    /// </summary>
+    public const byte BlackColor = ShadowColor;
 
     private readonly byte[] _han;
     private readonly short[] _index;      // 코드 - HanLow → 레코드 번호, 없으면 -1

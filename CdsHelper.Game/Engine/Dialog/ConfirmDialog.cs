@@ -1,7 +1,9 @@
-using System.Text;
+﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -41,7 +43,7 @@ public sealed class ConfirmDialog : Window
 {
     private readonly GameUi.FocusGroup _focus = new();
 
-    private ConfirmDialog(string text, string? title, bool yesNo)
+    private ConfirmDialog(string text, string? title, bool yesNo, uint[]? face)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -81,7 +83,8 @@ public sealed class ConfirmDialog : Window
         double widest = 0;
         foreach (string line in lines) widest = Math.Max(widest, GameUi.Font?.TextWidth(line) ?? 0);
         int cells = Math.Max(MinCells, (int)Math.Ceiling(widest / CellWidth));
-        double barWidth = cells * CellWidth + CellWidth * 2;
+        // 얼굴이 서면 그만큼 창이 넓어진다 — 게임도 96 을 더한다(0x0049DA18 의 and eax,0x60).
+        double barWidth = cells * CellWidth + CellWidth * 2 + (face != null ? FaceColumn : 0);
 
         var stack = new StackPanel { Width = barWidth };
 
@@ -95,15 +98,34 @@ public sealed class ConfirmDialog : Window
         }
 
         // 본문은 게임 비트맵 글꼴로 찍는다 — 윈도 글꼴로 두면 이 크기에서 획이 뭉갠다.
-        var body = new StackPanel { Margin = new Thickness(0, BodyGap, 0, 0) };
+        // 얼굴이 서면 글은 그 오른쪽에 왼쪽맞춤으로 붙는다(게임도 얼굴이 있으면 가운데로
+        // 밀지 않는다 — 0x0049DFDF 가 얼굴 칸을 보고 가르마를 탄다).
+        var words = new StackPanel();
         foreach (string line in lines)
-            body.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, TextHeight)
+            words.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, TextHeight)
             {
                 Text = line,
                 Bold = true,
                 FallbackBrush = GameUi.Text,
-                HorizontalAlignment = HorizontalAlignment.Center,
+                HorizontalAlignment = face == null ? HorizontalAlignment.Center
+                                                   : HorizontalAlignment.Left,
             });
+
+        var body = new StackPanel { Margin = new Thickness(0, BodyGap, 0, 0) };
+        if (face == null)
+        {
+            body.Children.Add(words);
+        }
+        else
+        {
+            // 얼굴은 왼쪽 위에 조각 그대로 80x96 으로 선다. 글은 그 오른쪽 8 부터다.
+            var row = new StackPanel { Orientation = Orientation.Horizontal, MinHeight = FaceHeight };
+            row.Children.Add(Portrait(face));
+            words.Margin = new Thickness(CellWidth, 0, 0, 0);
+            words.VerticalAlignment = VerticalAlignment.Top;
+            row.Children.Add(words);
+            body.Children.Add(row);
+        }
         stack.Children.Add(body);
         stack.Children.Add(buttons);
 
@@ -178,6 +200,31 @@ public sealed class ConfirmDialog : Window
     /// <summary>가장 좁은 창의 칸 수. 게임도 서른 칸(= 272점) 밑으로는 안 줄인다.</summary>
     private const int MinCells = 30;
 
+    /// <summary>얼굴이 설 때 창이 넓어지는 만큼 — 얼굴 80 에 좌우 8 씩이다.</summary>
+    private const double FaceColumn = 96;
+
+    /// <summary>얼굴 높이. 글이 한 줄이어도 창은 이만큼 자리를 낸다.</summary>
+    private const double FaceHeight = Portraits.Height;
+
+    /// <summary>얼굴 한 장. 조각 그대로 걸고 위에 붙인다.</summary>
+    private static UIElement Portrait(uint[] face)
+    {
+        var bmp = BitmapSource.Create(Portraits.Width, Portraits.Height, 96, 96,
+                                      PixelFormats.Bgra32, null, face, Portraits.Width * 4);
+        bmp.Freeze();
+
+        var image = new Image
+        {
+            Source = bmp,
+            Width = Portraits.Width,
+            Height = Portraits.Height,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+        return image;
+    }
+
     /// <summary>한 줄이 이보다 길면 끊는다 — 게임이 예순 칸에서 끊는다.</summary>
     private const double MaxTextWidth = 480;
 
@@ -187,12 +234,14 @@ public sealed class ConfirmDialog : Window
     /// <summary>
     /// 물어보고 YES 를 골랐으면 true. <paramref name="title"/> 을 주면 제목 띠를 얹는다.
     /// </summary>
-    public static bool Ask(Window owner, string text, string? title = null) =>
-        new ConfirmDialog(text, title, yesNo: true) { Owner = owner }.ShowDialog() == true;
+    public static bool Ask(Window owner, string text, string? title = null,
+                           uint[]? face = null) =>
+        new ConfirmDialog(text, title, yesNo: true, face) { Owner = owner }.ShowDialog() == true;
 
     /// <summary>
     /// 한 마디 알리고 확인만 받는다 — 게임 물음창의 <b>종류 0</b> 이다.
     /// </summary>
-    public static void Tell(Window owner, string text, string? title = null) =>
-        new ConfirmDialog(text, title, yesNo: false) { Owner = owner }.ShowDialog();
+    public static void Tell(Window owner, string text, string? title = null,
+                            uint[]? face = null) =>
+        new ConfirmDialog(text, title, yesNo: false, face) { Owner = owner }.ShowDialog();
 }
