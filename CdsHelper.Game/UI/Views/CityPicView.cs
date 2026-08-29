@@ -63,6 +63,12 @@ public sealed class CityPicView : Window
     /// <summary>이 도시의 문화권("이슬람", "북유럽" …). 건물 사진을 고르는 데 쓴다.</summary>
     private readonly string _culture;
 
+    /// <summary>
+    /// 이 마을 문화권 번호(0~10). 시설의 화자 얼굴이 여기 따라 갈린다 —
+    /// 같은 조선소라도 리스본과 이스탄불에 딴 사람이 앉는다.
+    /// </summary>
+    private readonly int _cultureNo;
+
     /// <summary>그림 배율. 건물 사진도 같은 배율로 놓아야 자리가 맞는다.</summary>
     private readonly int _scale;
 
@@ -212,6 +218,8 @@ public sealed class CityPicView : Window
         _gameDirectory = game.Directory;
 
         _culture = culture;
+        // 문화권 번호는 열 때 한 번만 묻는다 — 시설들이 제 화자 얼굴을 찾는 데 쓴다.
+        _cultureNo = game.CityRows?.CultureOf(cityId) ?? 0;
         _scale = scale;
         _cityTrack = cityTrack;
         _cityName = cityName;
@@ -390,7 +398,7 @@ public sealed class CityPicView : Window
     {
         var facility = Facility.For(building.Kind);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
-        Greet(facility, building);
+        Greet(facility);
         ShowPhoto(facility.Kind, building.Code);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
@@ -564,74 +572,23 @@ public sealed class CityPicView : Window
                 : "용건이 없다면 오지 말게!");
     }
 
-    /// <summary>
-    /// 건물에 들어설 때 사람이 먼저 말을 거는 곳이 있다. 도서관 사서가 그렇다 —
-    /// 게임도 서가를 보여 주기 전에 이 한마디를 내고 확인을 받는다.
-    /// </summary>
+    /// <summary>건물에 들어설 때 그 시설 사람이 건네는 한마디.</summary>
     /// <remarks>
-    /// 대답은 받지 않는다. 게임 화면에도 단추가 "확인" 하나뿐이라 물음이 아니라 인사다 —
-    /// 확인을 누르면 도서관 명령 창(열람·나온다)이 열린다.
+    /// 인사말도 얼굴도 <b>시설이 든다</b> — 게임도 시설 객체마다 제 인사 자리가 있다
+    /// (조선소 <c>0x0044B4A0</c>). 도시 창이 하는 일은 어느 시설인지 가르는 것뿐이고,
+    /// 시설은 이 창이 든 문화권(<see cref="_cultureNo"/>)으로 제 화자를 찾는다.
+    ///
+    /// 문구를 아직 못 찾은 시설은 창이 없거나 조용하다.
     /// </remarks>
-    private void Greet(Facility facility, CityBuildingTable.Building building)
+    private void Greet(Facility facility)
     {
-        // 항구에서는 부관이 먼저 말을 건다. 자리가 비었으면 아무도 안 나온다.
-        if (facility.Kind == FacilityKind.Harbor) { GreetMate(); return; }
-
-        string word = GreetWord(facility.Kind);
-        if (word.Length == 0) return;
-
-        // 말을 거는 사람은 <b>건물과 문화권</b>이 정한다 — 게임도 들어설 때 화자표에서
-        // 얼굴을 집어 시설 객체에 넣어 둔다(0x004A2500). 그래서 같은 조선소라도 마을에
-        // 따라 딴 사람이 나온다.
-        int culture = _game.CityRows?.CultureOf(_cityId) ?? 0;
-        int face = _game.Speakers?.FaceOf(building.Code, culture) ?? -1;
-        if (face < 0) return;
-
-        ConfirmDialog.Tell(this, word, face: _game.Faces?.TryGetBgra(face, female: false));
+        switch (facility.Kind)
+        {
+            case FacilityKind.Harbor: Port.Greet(); break;     // 부관은 제 얼굴로 인사한다
+            case FacilityKind.Shipyard: Yard.Greet(); break;
+            case FacilityKind.Library: Books.Greet(); break;
+        }
     }
-
-    /// <summary>
-    /// 시설에 들어설 때 건네는 한마디. 아직 문구를 못 찾은 시설은 빈 문자열이라 조용하다.
-    /// </summary>
-    /// <remarks>
-    /// 게임은 시설 객체마다 제 인사 자리를 든다 — 조선소가 <c>0x0044B4D7</c> 이고 문구가
-    /// <c>0x00530F38</c> 이다. 얼굴 대사 창(<c>0x004692E0</c>)에 화자 얼굴과 함께 넘긴다.
-    /// </remarks>
-    private static string GreetWord(FacilityKind kind) => kind switch
-    {
-        FacilityKind.Shipyard => "형씨, 바다에 나갈 거면 좋은 배를 사요.",
-        FacilityKind.Library => "책을 찾고 계십니까?",
-        _ => "",
-    };
-
-    /// <summary>
-    /// 항구에 들어설 때 부관이 건네는 한마디. 부관 자리가 비었으면 아무 일도 없다.
-    /// </summary>
-    /// <remarks>
-    /// 부하는 이름만 들고 있어(<see cref="Player.Mates"/>) 얼굴은 세이브 인물표에서 되짚는다
-    /// (<see cref="TavernRoster.Find"/>). 못 찾으면 얼굴 없이 말만 낸다 — 그림이 없다고
-    /// 말까지 막을 일은 아니다. 게임 화면에도 단추가 "확인" 하나뿐이라 물음이 아니라 인사다.
-    /// </remarks>
-    private void GreetMate()
-    {
-        string mate = _player.MateAt(MateSlot);
-        if (mate.Length == 0) return;
-
-        // 얼굴도 우리가 적어 둔 자료에서 꺼낸다 — 게임 세이브가 없어도 부관은 말을 건다.
-        TalkDialog.Say(this, MateFace(mate), "", "제독, 바다에 나가시겠습니까?");
-    }
-
-    /// <summary>
-    /// 그 부하의 얼굴. 신상은 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>) —
-    /// 적어 둔 것이 없으면 게임 세이브의 인물표를 한 번 뒤져 채운다.
-    /// </summary>
-    private uint[]? MateFace(string name) =>
-        _game.MateInfo(name) is { } mate && mate.Face is >= 0 and < 0xFFFF
-            ? _game.Faces?.TryGetBgra(mate.Face, female: false)
-            : null;
-
-    /// <summary>부관이 앉는 자리. <see cref="Player.MateRoles"/> 의 첫 자리다.</summary>
-    private const int MateSlot = 0;
 
     /// <summary>지금 떠 있는 건물 사진. 명령 창을 닫으면 같이 걷는다.</summary>
     private BuildingPhotoWindow? _photoWindow;
@@ -1108,6 +1065,12 @@ public sealed class CityPicView : Window
             [.. items.Select(item => (item, ActionFor(facility, item, teachMask, patron, title, kind)))]);
     }
 
+    /// <summary>이 마을 도서관 — 사서 인사와 서가는 도서관이 든다.</summary>
+    private LibraryMenu Books => _books ??=
+        new LibraryMenu(this, _game, _cityId, _cityName, _cultureNo, _table);
+
+    private LibraryMenu? _books;
+
     /// <summary>이 마을 후원자 — 설득·보고·계약은 자리가 아니라 사람이 든다.</summary>
     private PatronMenu Patrons => _patronMenu ??=
         new PatronMenu(this, _game, _cityName, Menu, _cityMenu, _cityTrack);
@@ -1134,7 +1097,8 @@ public sealed class CityPicView : Window
     /// (<see cref="ShipyardMenu"/>) — 이 창은 명령 창과 시세만 대 준다.
     /// </summary>
     private ShipyardMenu Yard => _yard ??=
-        new ShipyardMenu(this, _game, Menu, _cityId, Market?.Rates.Of(_cityId) ?? 100);
+        new ShipyardMenu(this, _game, Menu, _cityId, _cultureNo,
+                         Market?.Rates.Of(_cityId) ?? 100);
 
     private ShipyardMenu? _yard;
 
@@ -1245,9 +1209,7 @@ public sealed class CityPicView : Window
             TownWork.Store => () =>
                 StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
 
-            TownWork.Read when _library != null => () =>
-                LibraryDialog.Show(this, _gameDirectory, _cityName, _cityId,
-                                   _player, _library, _table, HintNameOf),
+            TownWork.Read when Books.CanRead => Books.Read,
             _ => null,
         };
 

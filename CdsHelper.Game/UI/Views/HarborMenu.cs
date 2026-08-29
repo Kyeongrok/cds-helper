@@ -31,6 +31,29 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// <summary>물음창을 얹을 창 — 명령 창이 떠 있으면 그 위다.</summary>
     private Window Owner => _menu.Window ?? _view;
 
+    /// <summary>부관이 앉는 자리. <see cref="Player.MateRoles"/> 의 첫 자리다.</summary>
+    private const int MateSlot = 0;
+
+    /// <summary>
+    /// 항구에 들어설 때 부관이 건네는 한마디. 부관 자리가 비었으면 아무 일도 없다.
+    /// </summary>
+    /// <remarks>
+    /// 여기만은 화자표가 아니라 <b>부하 제 얼굴</b>이다. 부하는 이름만 들고 있어 신상은
+    /// 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>) — 못 찾으면 얼굴 없이 말만
+    /// 낸다. 그림이 없다고 말까지 막을 일은 아니다.
+    /// </remarks>
+    public void Greet()
+    {
+        string mate = _player.MateAt(MateSlot);
+        if (mate.Length == 0) return;
+
+        uint[]? face = _game.MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
+            ? _game.Faces?.TryGetBgra(who.Face, female: false)
+            : null;
+
+        ConfirmDialog.Tell(_view, "제독, 바다에 나가시겠습니까?", face: face);
+    }
+
     /// <summary>
     /// 함대편성 창. 게임처럼 제목 없이 줄만 쌓고, 마지막 줄만 회녹색 띠가 된다.
     /// "편성 종료" 를 누르면 항구 창으로 되돌아간다 — 창을 닫는 것이 아니라 담긴 것만 갈린다.

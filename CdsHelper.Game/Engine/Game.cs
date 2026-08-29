@@ -204,6 +204,22 @@ public sealed class Game
     }
 
     /// <summary>
+    /// 그 건물에서 말을 거는 사람의 얼굴. 없으면 null 이다.
+    /// </summary>
+    /// <remarks>
+    /// 화자표(<see cref="Speakers"/>)에서 번호를 집어 초상화를 푼다. 게임도 시설에
+    /// 들어설 때 <c>[건물코드][문화권]</c> 으로 한 번 집어 시설 객체에 넣어 둔다
+    /// (<c>0x004A2500</c>).
+    /// </remarks>
+    /// <param name="buildingCode">건물 코드(항구 0 · 조선소 6 · 도서관 8 …).</param>
+    /// <param name="culture">그 마을 문화권 번호.</param>
+    public uint[]? SpeakerFace(int buildingCode, int culture)
+    {
+        int face = Speakers?.FaceOf(buildingCode, culture) ?? -1;
+        return face < 0 ? null : Faces?.TryGetBgra(face, female: false);
+    }
+
+    /// <summary>
     /// 그 부하의 신상. 우리 세이브에 적어 둔 것을 먼저 보고, 없으면(판 20 앞에 들인 부하)
     /// 게임 세이브의 인물표에서 채워 <b>그 자리에서 적어 둔다</b> — 한 번 채우면 다음부터는
     /// 우리 것만으로 뜬다.
