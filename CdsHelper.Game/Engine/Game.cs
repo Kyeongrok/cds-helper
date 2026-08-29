@@ -47,6 +47,7 @@ public sealed class Game
         _sponsors = null; _sponsorsTried = false;
         _items = null; _itemsTried = false;
         _sails = null; _sailsTried = false;
+        _speakers = null; _speakersTried = false;
         _nations = null; _nationsTried = false;
         _goods = null; _goodsTried = false;
         _cityRows = null; _cityRowsTried = false;
@@ -107,6 +108,13 @@ public sealed class Game
     public CityExeTable? CityRows =>
         Once(ref _cityRows, ref _cityRowsTried, CityExeTable.Open,
              () => CityExeTable.LastError, "EXE 도시 표");
+
+    /// <summary>
+    /// 시설 화자표(CDS_95.EXE). 어느 건물에서 누가 말을 거는지 — 문화권마다 다르다.
+    /// </summary>
+    public SpeakerFaceTable? Speakers =>
+        Once(ref _speakers, ref _speakersTried, SpeakerFaceTable.Open,
+             () => SpeakerFaceTable.LastError, "화자표");
 
     /// <summary>돛 효율표(CDS_95.EXE). 배 속도를 잴 때 쓴다.</summary>
     public SailTable? Sails =>
@@ -277,6 +285,7 @@ public sealed class Game
     private SponsorTable? _sponsors;
     private ItemTable? _items;
     private SailTable? _sails;
+    private SpeakerFaceTable? _speakers;
     private NationTable? _nations;
     private GoodsTable? _goods;
     private CityExeTable? _cityRows;
@@ -292,6 +301,6 @@ public sealed class Game
 
     private bool _cityPicsTried, _buildingsTried, _booksTried, _hintsTried;
     private bool _sponsorsTried, _itemsTried, _sailsTried, _discoveriesTried;
-    private bool _nationsTried, _goodsTried, _cityRowsTried, _facesTried;
+    private bool _nationsTried, _goodsTried, _cityRowsTried, _facesTried, _speakersTried;
     private bool _effectsTried, _guestsTried, _photosTried, _itemTextTried, _rosterTried;
 }

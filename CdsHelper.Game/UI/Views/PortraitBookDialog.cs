@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
+using CdsHelper.Support.UI.Units;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -26,7 +27,15 @@ public sealed class PortraitBookDialog : Window
 
     private readonly WrapPanel _sheet = new() { Margin = new Thickness(8) };
     private readonly TextBlock _status = new() { Margin = new Thickness(10, 6, 10, 8) };
-    private readonly TextBox _find = new() { Width = 70, VerticalContentAlignment = VerticalAlignment.Center };
+    /// <summary>보러 갈 얼굴 번호. 열씩 뛴다 — 한 장씩은 손으로 고친다.</summary>
+    private readonly NumericSpinner _find = new()
+    {
+        Minimum = 0,
+        Maximum = 9999,
+        Step = 10,
+        DecimalPlaces = 0,
+        Width = 90,
+    };
     private Portraits? _faces;
     private bool _female;
     private int _scale = 1;
@@ -49,7 +58,8 @@ public sealed class PortraitBookDialog : Window
 
         var go = new Button { Content = "번호로 가기", Padding = new Thickness(10, 2, 10, 2) };
         go.Click += (_, _) => ScrollTo();
-        _find.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) ScrollTo(); };
+        // 숫자를 굴리는 대로 따라간다 — 단추를 또 누르지 않아도 된다.
+        _find.ValueChanged += (_, _) => ScrollTo();
 
         var bar = new StackPanel
         {
@@ -135,7 +145,7 @@ public sealed class PortraitBookDialog : Window
     /// <summary>적어 넣은 번호의 얼굴로 굴려 간다.</summary>
     private void ScrollTo()
     {
-        if (!int.TryParse(_find.Text.Trim(), out int want)) return;
+        int want = (int)_find.Value;
 
         foreach (var child in _sheet.Children)
             if (child is FrameworkElement { Tag: int face } cell && face == want)

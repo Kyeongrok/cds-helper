@@ -390,19 +390,12 @@ public sealed class CityPicView : Window
     {
         var facility = Facility.For(building.Kind);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
-        Greet(facility);
+        Greet(facility, building);
         ShowPhoto(facility.Kind, building.Code);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.TeachMask, building.Kind),
                  facility.BgmTrack);
     }
-
-    /// <summary>
-    /// 도서관 사서의 얼굴 번호(MALE.CDS). 표에 적힌 것을 읽은 것이 아니라 게임 화면의 얼굴을
-    /// 초상화 414장과 맞대어 찾았다 — 집사 얼굴(<see cref="SponsorTable.StewardFace"/>)을
-    /// 찾은 것과 같은 길이다.
-    /// </summary>
-    private const int LibrarianFace = 161;
 
     /// <summary>한 장이 머무는 참. 다섯 장을 이으면 1.1초쯤 된다.</summary>
     private static readonly TimeSpan FrameSpan = TimeSpan.FromMilliseconds(220);
@@ -579,18 +572,37 @@ public sealed class CityPicView : Window
     /// 대답은 받지 않는다. 게임 화면에도 단추가 "확인" 하나뿐이라 물음이 아니라 인사다 —
     /// 확인을 누르면 도서관 명령 창(열람·나온다)이 열린다.
     /// </remarks>
-    private void Greet(Facility facility)
+    private void Greet(Facility facility, CityBuildingTable.Building building)
     {
-        if (facility.Kind == FacilityKind.Library)
-        {
-            TalkDialog.Say(this, _game.Faces?.TryGetBgra(LibrarianFace, female: false),
-                           "", "책을 찾고 계십니까?");
-            return;
-        }
-
         // 항구에서는 부관이 먼저 말을 건다. 자리가 비었으면 아무도 안 나온다.
-        if (facility.Kind == FacilityKind.Harbor) GreetMate();
+        if (facility.Kind == FacilityKind.Harbor) { GreetMate(); return; }
+
+        string word = GreetWord(facility.Kind);
+        if (word.Length == 0) return;
+
+        // 말을 거는 사람은 <b>건물과 문화권</b>이 정한다 — 게임도 들어설 때 화자표에서
+        // 얼굴을 집어 시설 객체에 넣어 둔다(0x004A2500). 그래서 같은 조선소라도 마을에
+        // 따라 딴 사람이 나온다.
+        int culture = _game.CityRows?.CultureOf(_cityId) ?? 0;
+        int face = _game.Speakers?.FaceOf(building.Code, culture) ?? -1;
+        if (face < 0) return;
+
+        ConfirmDialog.Tell(this, word, face: _game.Faces?.TryGetBgra(face, female: false));
     }
+
+    /// <summary>
+    /// 시설에 들어설 때 건네는 한마디. 아직 문구를 못 찾은 시설은 빈 문자열이라 조용하다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 시설 객체마다 제 인사 자리를 든다 — 조선소가 <c>0x0044B4D7</c> 이고 문구가
+    /// <c>0x00530F38</c> 이다. 얼굴 대사 창(<c>0x004692E0</c>)에 화자 얼굴과 함께 넘긴다.
+    /// </remarks>
+    private static string GreetWord(FacilityKind kind) => kind switch
+    {
+        FacilityKind.Shipyard => "형씨, 바다에 나갈 거면 좋은 배를 사요.",
+        FacilityKind.Library => "책을 찾고 계십니까?",
+        _ => "",
+    };
 
     /// <summary>
     /// 항구에 들어설 때 부관이 건네는 한마디. 부관 자리가 비었으면 아무 일도 없다.
