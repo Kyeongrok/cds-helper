@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using System.Windows;
+using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
@@ -46,7 +47,7 @@ public sealed class LibraryDialog : Window
     private readonly TextBlock _tagText;
     private readonly int _scale;
 
-    private LibraryDialog(string cityName, BookShelf art, IReadOnlyList<BookTable.Book> books,
+    private LibraryDialog(string cityName, BookShelf art, IReadOnlyList<Library.Slot> shelved,
                           Player player, BookTable table, CityBuildingTable names,
                           Func<int, string> hintName, int scale)
     {
@@ -104,8 +105,11 @@ public sealed class LibraryDialog : Window
             ToBitmap(art.Spines[1], BookShelf.SpineWidth, BookShelf.SpineHeight),
             ToBitmap(art.Spines[2], BookShelf.SpineWidth, BookShelf.SpineHeight),
         };
-        for (int i = 0; i < books.Count && i < ShelfTops.Length * SlotsPerShelf; i++)
-            AddBook(books[i], i, spines);
+        for (int i = 0; i < shelved.Count && i < ShelfTops.Length * SlotsPerShelf; i++)
+        {
+            if (shelved[i].Book is { } book) AddBook(book, i, spines);
+            else if (shelved[i].Filler) AddFiller(i, spines);
+        }
 
         var title = GameUi.TitleBar($"{cityName} 도서관", Close);
         GameUi.EnableDrag(this, title);
@@ -130,6 +134,27 @@ public sealed class LibraryDialog : Window
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();
+    }
+
+    /// <summary>
+    /// 읽을 수 없는 책 한 권. 게임이 책 번호 -1 로 끼워 넣는 것이라 늘 초록이고,
+    /// 이름표도 없고 눌러도 열리지 않는다 — 서가를 채우는 것이 하는 일의 전부다.
+    /// </summary>
+    private void AddFiller(int slot, BitmapSource[] spines)
+    {
+        int shelfRow = slot / SlotsPerShelf, column = slot % SlotsPerShelf;
+
+        var image = new Image
+        {
+            Source = spines[0],                     // 0 = 초록
+            Width = BookShelf.SpineWidth * _scale,
+            Height = BookShelf.SpineHeight * _scale,
+            Stretch = Stretch.Fill,
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        Canvas.SetLeft(image, (FirstSlotX + column * SlotStep) * _scale);
+        Canvas.SetTop(image, ShelfTops[shelfRow] * _scale);
+        _layer.Children.Add(image);
     }
 
     /// <summary>책 한 권을 서가에 꽂는다.</summary>
@@ -255,9 +280,12 @@ public sealed class LibraryDialog : Window
             return;
         }
 
+        // 진짜 책 사이사이에 읽을 수 없는 초록 책이 끼인다 — 그 마을 그 해면 늘 같은 모양이다.
+        var shelved = Library.Shelve(books, Library.RandomFor(cityId, player.Date.Year));
+
         // 창 크기에 맞춰 정수배로 키운다(책장이 384x320 이라 두 배면 넉넉하다).
         int scale = owner.ActualHeight > 800 ? 2 : 1;
-        new LibraryDialog(cityName, art, books, player, table, names, hintName, scale)
+        new LibraryDialog(cityName, art, shelved, player, table, names, hintName, scale)
         {
             Owner = owner,
         }.ShowDialog();
