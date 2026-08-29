@@ -23,6 +23,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_PortraitBookMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
@@ -40,6 +41,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
+    private const string PART_PortraitBookMenu = "PART_PortraitBookMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
@@ -122,6 +124,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_WaveBankMenu) is MenuItem waveBankMenu)
         {
             waveBankMenu.Click += OnWaveBankMenuClick;
+        }
+
+        if (GetTemplateChild(PART_PortraitBookMenu) is MenuItem portraitBookMenu)
+        {
+            portraitBookMenu.Click += OnPortraitBookMenuClick;
         }
 
         if (GetTemplateChild(PART_ImageShrinkMenu) is MenuItem imageShrinkMenu)
@@ -262,6 +269,17 @@ public class CdsHelperWindow : CdsWindow
     private void OnWaveBankMenuClick(object sender, RoutedEventArgs e)
     {
         var dialog = new WaveBankDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
+    // MALE.CDS · FEMALE.CDS 의 얼굴을 번호와 함께 늘어놓는 창. 게임 자료가 사람을
+    // 얼굴 번호로 가리키므로(인물표 · 후원자표 · 시설 화자표) 그 번호를 찾아볼 데가 필요하다.
+    private void OnPortraitBookMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new CdsHelper.Game.UI.Views.PortraitBookDialog
         {
             Owner = this
         };

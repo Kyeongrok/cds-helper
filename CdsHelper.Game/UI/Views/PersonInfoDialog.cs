@@ -31,11 +31,20 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal sealed class PersonInfoDialog : InfoDialog
 {
-    /// <summary>판 크기. 게임 화면 비율에 맞춘다.</summary>
-    private const double BoardWidth = 620, BoardHeight = 380;
+    /// <summary>
+    /// 판 크기(그림 점). 게임 갈무리를 재어 맞췄다 — 판 바탕이 <b>430 x 270</b> 이고,
+    /// 좌우 여백 14 씩과 아래 단추 줄을 빼면 속이 이만큼이다.
+    /// </summary>
+    private const double BoardWidth = 402, BoardHeight = 224;
 
-    /// <summary>초상화를 몇 배로 그릴지.</summary>
-    private const int FaceScale = 2;
+    /// <summary>
+    /// 초상화를 몇 배로 그릴지. 게임은 <b>조각 그대로</b> 80x96 이다 —
+    /// 두 배로 걸면 얼굴만 커져 글자와 어긋난다.
+    /// </summary>
+    private const int FaceScale = 1;
+
+    /// <summary>이 판은 글씨가 검정이다. 밤색 판들과 다른 자리다.</summary>
+    private const byte BlackInk = GameFont.BlackColor;
 
     /// <inheritdoc/>
     protected override Brush Board => Steel;
@@ -46,14 +55,14 @@ internal sealed class PersonInfoDialog : InfoDialog
     private PersonInfoDialog(Player player, Portraits? faces)
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
-        head.Children.Add(Label($"  {player.Name}"));
-        head.Children.Add(Label($"  체  력/{player.AbilityOf(Ability.Body),4}" +
+        head.Children.Add(BlackLine($"  {player.Name}"));
+        head.Children.Add(BlackLine($"  체  력/{player.AbilityOf(Ability.Body),4}" +
                                 $"    명성치/{player.Fame,8}"));
-        head.Children.Add(Label($"  지  력/{player.AbilityOf(Ability.Mind),4}" +
+        head.Children.Add(BlackLine($"  지  력/{player.AbilityOf(Ability.Mind),4}" +
                                 $"    악명치/{player.Infamy,8}"));
-        head.Children.Add(Label($"  무  력/{player.AbilityOf(Ability.Might),4}" +
+        head.Children.Add(BlackLine($"  무  력/{player.AbilityOf(Ability.Might),4}" +
                                 $"    직업  /{player.Work.Name}"));
-        head.Children.Add(Label($"  매  력/{player.AbilityOf(Ability.Charm),4}"));
+        head.Children.Add(BlackLine($"  매  력/{player.AbilityOf(Ability.Charm),4}"));
 
         var top = new StackPanel { Orientation = Orientation.Horizontal };
         if (Face(player, faces) is { } portrait) top.Children.Add(portrait);
@@ -62,15 +71,15 @@ internal sealed class PersonInfoDialog : InfoDialog
         var rows = new StackPanel();
         rows.Children.Add(top);
         rows.Children.Add(Gap(14));
-        rows.Children.Add(Label($"  연령  /{player.Age,2}세          " +
+        rows.Children.Add(BlackLine($"  연령  /{player.Age,2}세          " +
                                 $"생년월일/{player.BirthYear,4}년{player.BirthMonth,2}월{player.BirthDay,2}일"));
-        rows.Children.Add(Label($"  별자리/{GameUi.Pad(player.Zodiac, 12)}혈액형  /{player.BloodName}"));
-        rows.Children.Add(Label($"  국적  /{player.NationName}"));
-        rows.Children.Add(Label($"  소지금/{player.Gold,10}닢"));
-        rows.Children.Add(Label($"  저금  /{player.Savings,10}닢"));
-        rows.Children.Add(Label($"  빚    /{player.Debt,10}닢"));
+        rows.Children.Add(BlackLine($"  별자리/{GameUi.Pad(player.Zodiac, 12)}혈액형  /{player.BloodName}"));
+        rows.Children.Add(BlackLine($"  국적  /{player.NationName}"));
+        rows.Children.Add(BlackLine($"  소지금/{player.Gold,10}닢"));
+        rows.Children.Add(BlackLine($"  저금  /{player.Savings,10}닢"));
+        rows.Children.Add(BlackLine($"  빚    /{player.Debt,10}닢"));
 
-        Build("인물정보", rows, BoardWidth, BoardHeight,
+        Build("", rows, BoardWidth, BoardHeight,
               new GameButton("특기", () => ShowSkills(player)), new GameButton("취소", Close));
     }
 
@@ -81,11 +90,11 @@ internal sealed class PersonInfoDialog : InfoDialog
     private PersonInfoDialog(Player.MateInfo who, string role, Portraits? faces)
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
-        head.Children.Add(Label($"  {who.Name}"));
-        head.Children.Add(Label($"  체  력/{who.Body,4}    명성치/{who.Fame,8}"));
-        head.Children.Add(Label($"  지  력/{who.Mind,4}    자리  /{role}"));
-        head.Children.Add(Label($"  무  력/{who.Might,4}"));
-        head.Children.Add(Label($"  매  력/{who.Charm,4}"));
+        head.Children.Add(BlackLine($"  {who.Name}"));
+        head.Children.Add(BlackLine($"  체  력/{who.Body,4}    명성치/{who.Fame,8}"));
+        head.Children.Add(BlackLine($"  지  력/{who.Mind,4}    자리  /{role}"));
+        head.Children.Add(BlackLine($"  무  력/{who.Might,4}"));
+        head.Children.Add(BlackLine($"  매  력/{who.Charm,4}"));
 
         var top = new StackPanel { Orientation = Orientation.Horizontal };
         if (Face(faces?.TryGetBgra(who.Face, female: false)) is { } portrait)
@@ -95,10 +104,13 @@ internal sealed class PersonInfoDialog : InfoDialog
         var rows = new StackPanel();
         rows.Children.Add(top);
         rows.Children.Add(Gap(14));
-        rows.Children.Add(Label($"  연령  /{who.Age,2}세"));
+        rows.Children.Add(BlackLine($"  연령  /{who.Age,2}세"));
 
-        Build("인물정보", rows, BoardWidth, BoardHeight, new GameButton("취소", Close));
+        Build("", rows, BoardWidth, BoardHeight, new GameButton("취소", Close));
     }
+
+    /// <summary>이 판의 글 한 줄 — 검정 글씨다.</summary>
+    private static GameUi.GameLabel BlackLine(string text) => Label(text, BlackInk);
 
     /// <summary>왼쪽 위 초상화. 얼굴을 못 읽었으면 안 세운다.</summary>
     private static UIElement? Face(Player player, Portraits? faces) =>

@@ -113,12 +113,17 @@ internal abstract class InfoDialog : Window
     }
 
     /// <summary>
-    /// 밤색 판 위에 얹는 밝은 글씨. 줄이 세로로 쌓이므로 <b>왼쪽에 붙여</b> 둔다.
+    /// 판 위에 얹는 글씨. 줄이 세로로 쌓이므로 <b>왼쪽에 붙여</b> 둔다.
     /// </summary>
-    protected static GameUi.GameLabel Label(string text) => new(GameFont.WhiteColor)
+    /// <param name="text">적을 글.</param>
+    /// <param name="color">
+    /// 글자색(공용 색표 색인). 밤색 판은 밝은 글씨지만 강청색 판(인물정보)은 검정이다.
+    /// </param>
+    protected static GameUi.GameLabel Label(string text,
+                                            byte color = GameFont.WhiteColor) => new(color)
     {
         Text = text,
-        FallbackBrush = Ink,
+        FallbackBrush = color == GameFont.WhiteColor ? Ink : System.Windows.Media.Brushes.Black,
         HorizontalAlignment = HorizontalAlignment.Left,
     };
 

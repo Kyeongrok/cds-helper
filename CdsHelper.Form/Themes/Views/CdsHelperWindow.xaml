@@ -221,6 +221,10 @@
                                             x:Name="PART_WaveBankMenu"
                                             Header="효과음 보기"
                                             ToolTip="WAVES.CDS 에 든 게임 효과음" />
+                                        <MenuItem
+                                            x:Name="PART_PortraitBookMenu"
+                                            Header="초상화 보기"
+                                            ToolTip="MALE.CDS · FEMALE.CDS 의 얼굴을 번호와 함께 본다" />
                                         <Separator />
                                         <MenuItem
                                             x:Name="PART_ImageShrinkMenu"
