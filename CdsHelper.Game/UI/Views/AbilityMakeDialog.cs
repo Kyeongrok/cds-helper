@@ -171,6 +171,9 @@ internal sealed class AbilityMakeDialog : InfoDialog
             };
             RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.NearestNeighbor);
             RenderOptions.SetEdgeMode(art, EdgeMode.Aliased);
+            // 눌림을 여기서 막아야 한다 — 안 막으면 창 끌기(EnableDrag)가 마우스를
+            // 채 가서 뗌이 안 온다. 예전 글자 화살표도 그래서 막아 두었었다.
+            art.MouseLeftButtonDown += (_, e) => e.Handled = true;
             art.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
             return art;
         }
