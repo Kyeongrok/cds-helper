@@ -75,9 +75,10 @@ public sealed class Player
     /// </summary>
     /// <remarks>
     /// 세이브에서 읽어 오지 않고 여기서 들고 있는다 — 함대 창은 세이브와 따로 굴러가기
-    /// 때문이다(<see cref="PlayerData"/> 참고). 게임 화면에서 본 이름을 기본값으로 둔다.
+    /// 때문이다(<see cref="PlayerData"/> 참고). <b>처음에는 비어 있다</b> — 게임도 신상
+    /// 창을 빈 칸으로 열고 사람이 적어 넣는다.
     /// </remarks>
-    public string Name { get; set; } = "에르네스토";
+    public string Name { get; set; } = "";
 
     // ── 신상 (NEW GAME 첫 걸음) ────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ public sealed class Player
     public string Family { get; set; } = "";
 
     /// <summary>명. 화면에는 <c>"%s·%s"</c>(<c>0x00571B08</c>) 로 성과 붙여 낸다.</summary>
-    public string Given { get; set; } = "에르네스토";
+    public string Given { get; set; } = "";
 
     /// <summary>나이. 게임은 25로 시작한다.</summary>
     public int Age { get; set; } = 25;

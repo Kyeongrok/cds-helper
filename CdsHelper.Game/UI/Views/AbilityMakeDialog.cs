@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -171,10 +172,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
             };
             RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.NearestNeighbor);
             RenderOptions.SetEdgeMode(art, EdgeMode.Aliased);
-            // 눌림을 여기서 막아야 한다 — 안 막으면 창 끌기(EnableDrag)가 마우스를
-            // 채 가서 뗌이 안 온다. 예전 글자 화살표도 그래서 막아 두었었다.
-            art.MouseLeftButtonDown += (_, e) => e.Handled = true;
-            art.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+            Hold(art, run);
             return art;
         }
 
@@ -198,9 +196,48 @@ internal sealed class AbilityMakeDialog : InfoDialog
                 VerticalAlignment = VerticalAlignment.Center,
             },
         };
-        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        Hold(box, run);
         return box;
+    }
+
+    /// <summary>누르는 동안 잇달아 도는 참 — 처음 한 박자 쉬고, 그 뒤로는 빨리 돈다.</summary>
+    private static readonly TimeSpan HoldFirst = TimeSpan.FromMilliseconds(400),
+                                     HoldNext = TimeSpan.FromMilliseconds(60);
+
+    /// <summary>
+    /// 누르면 한 번 돌고, <b>누르고 있으면 잇달아</b> 돈다.
+    /// </summary>
+    /// <remarks>
+    /// 눌림을 여기서 막아야 한다 — 안 막으면 창 끌기(<see cref="GameUi.EnableDrag"/>)가
+    /// 마우스를 채 가서 뗌이 안 온다.
+    ///
+    /// 마우스를 붙들어(<see cref="UIElement.CaptureMouse"/>) 두므로 손이 칸 밖으로 나가도
+    /// 뗄 때까지 이어진다. 창이 닫힐 때도 참을 세운다.
+    /// </remarks>
+    private void Hold(UIElement box, Action run)
+    {
+        var timer = new DispatcherTimer { Interval = HoldFirst };
+        timer.Tick += (_, _) =>
+        {
+            timer.Interval = HoldNext;
+            run();
+        };
+
+        box.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            run();
+            box.CaptureMouse();
+            timer.Start();
+        };
+        box.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            timer.Stop();
+            timer.Interval = HoldFirst;
+            box.ReleaseMouseCapture();
+        };
+        Closed += (_, _) => timer.Stop();
     }
 
     /// <summary>보너스 포인트를 능력치에 넣거나 도로 뺀다.</summary>
