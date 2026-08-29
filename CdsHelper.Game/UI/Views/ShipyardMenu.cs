@@ -23,12 +23,16 @@ namespace CdsHelper.Game.UI.Views;
 /// <param name="cityId">이 마을 번호. 맡겨 둔 배를 찾을 때 쓴다.</param>
 /// <param name="rate">이 마을 시세(%). 매각·수리 값에 먹인다.</param>
 internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost menu,
-                                   int cityId, int rate)
+                                   int cityId, int culture, int rate)
 {
+    /// <summary>조선소의 건물 코드. 화자표에서 목수를 찾을 때 쓴다.</summary>
+    private const int BuildingCode = 6;
+
     private readonly Window _view = view;
     private readonly Engine.Game _game = game;
     private readonly GameMenuHost _menu = menu;
     private readonly int _cityId = cityId;
+    private readonly int _culture = culture;
     private readonly int _rate = rate;
 
     private Player _player => _game.Player;
@@ -36,6 +40,15 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
     /// <summary>물음창을 얹을 창 — 명령 창이 떠 있으면 그 위다.</summary>
     private Window Owner => _menu.Window ?? _view;
+
+    /// <summary>
+    /// 들어설 때 목수가 건네는 한마디. 게임의 <c>0x0044B4A0</c> 자리다 — 문구가
+    /// <c>0x00530F38</c> 이고, 얼굴은 이 마을 문화권이 정한다(리스본은 402, 이슬람권은
+    /// 315 다).
+    /// </summary>
+    public void Greet() =>
+        ConfirmDialog.Tell(_view, "형씨, 바다에 나갈 거면 좋은 배를 사요.",
+                           face: _game.SpeakerFace(BuildingCode, _culture));
 
     /// <summary>고칠 배가 있는지. 없으면 게임처럼 "수리" 줄이 흐리다.</summary>
     public bool CanRepair => RepairTargets().Count > 0;
