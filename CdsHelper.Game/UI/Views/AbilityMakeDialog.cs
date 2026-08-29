@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
@@ -34,10 +35,10 @@ internal sealed class AbilityMakeDialog : InfoDialog
     /// 판 크기(그림 점). 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 도로 나눴다 —
     /// 띠 단추만 제 크기(24)로 그려져 있어 혼자 작아 보였다.
     /// </summary>
-    private const double BoardWidth = 296, BoardHeight = 160;
+    private const double BoardWidth = 296, BoardHeight = 178;
 
     /// <summary>능력치 줄의 이름 칸과 값 칸.</summary>
-    private const double NameWidth = 32, ValueWidth = 24;
+    private const double NameWidth = 48, ValueWidth = 28;
 
     /// <summary>값 옆 화살표 단추의 폭. 직업 단추는 마구리 둘에 가운데 여섯 칸이다.</summary>
     private const double ArrowWidth = 13, JobWidth = 80;
@@ -85,8 +86,9 @@ internal sealed class AbilityMakeDialog : InfoDialog
                 HorizontalAlignment = HorizontalAlignment.Right,
             };
             row.Children.Add(new Grid { Width = ValueWidth, Children = { _values[i] } });
-            row.Children.Add(Arrow("↑", () => Move(which, +1)));
-            row.Children.Add(Arrow("↓", () => Move(which, -1)));
+            // 게임은 화살표 둘을 세로로 쌓지 않고 나란히 놓는다.
+            row.Children.Add(Arrow(up: true, () => Move(which, +1)));
+            row.Children.Add(Arrow(up: false, () => Move(which, -1)));
             left.Children.Add(row);
         }
 
@@ -145,8 +147,35 @@ internal sealed class AbilityMakeDialog : InfoDialog
         return stack;
     }
 
-    private Border Arrow(string glyph, Action run)
+    /// <summary>
+    /// 위·아래 화살표. 게임 조각(<c>MISC.CDS</c> 파트 3)을 그대로 건다 —
+    /// 원본은 16x8 짜리 작은 칸이고, 못 누를 때 쓰는 X 칸도 같은 줄에 있다.
+    /// </summary>
+    private UIElement Arrow(bool up, Action run)
     {
+        if (GameUi.Sprites?.Arrow(up ? UiSprites.ArrowUp : UiSprites.ArrowDown, pressed: false)
+            is { } px)
+        {
+            var bmp = BitmapSource.Create(UiSprites.ArrowWidth, UiSprites.ArrowHeight, 96, 96,
+                                          PixelFormats.Bgra32, null, px, UiSprites.ArrowWidth * 4);
+            bmp.Freeze();
+
+            var art = new Image
+            {
+                Source = bmp,
+                Width = UiSprites.ArrowWidth,
+                Height = UiSprites.ArrowHeight,
+                Margin = new Thickness(1, 0, 0, 0),
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetEdgeMode(art, EdgeMode.Aliased);
+            art.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+            return art;
+        }
+
+        // 조각을 못 읽었으면 글자 화살표로 물러선다.
         var box = new Border
         {
             Background = GameUi.ItemFill,
@@ -158,7 +187,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
             Child = new TextBlock
             {
                 // 화살표는 게임 비트맵 글꼴에 없는 글자라 윈도 글꼴로 찍는다.
-                Text = glyph,
+                Text = up ? "↑" : "↓",
                 Foreground = Brushes.Black,
                 FontWeight = FontWeights.Bold,
                 FontSize = 9,
@@ -204,11 +233,10 @@ internal sealed class AbilityMakeDialog : InfoDialog
         for (int i = 0; i < Ability.Shown; i++) _values[i].Text = $"{_stats[i]}";
         _bonus.Text = $"{_left}";
 
-        // 고른 직업은 <b>띠 무늬를 갈아</b> 알린다. 예전에는 테 색만 바꿨는데 이 단추에는
-        // 테가 없어(굵기 0) 아무 일도 안 일어나 보였다 — 눌리지 않는 줄 알 만했다.
-        // 혈액형·국적 단추도 같은 길로 고른 것을 낸다(CharacterMakeDialog).
+        // 고른 직업은 <b>띠 무늬를 갈아</b> 알린다. 게임은 <b>고른 것이 밝은 베이지</b>고
+        // 안 고른 것이 어두운 쪽이다 — 우리가 거꾸로 걸고 있었다.
         for (int i = 0; i < _jobs.Count; i++)
-            _jobs[i].Band = i == _job ? BandStyle.Alt : BandStyle.Button;
+            _jobs[i].Band = i == _job ? BandStyle.Button : BandStyle.Alt;
     }
 
     /// <summary>"다음" — 보너스를 다 안 썼으면 게임처럼 한 번 묻는다.</summary>
