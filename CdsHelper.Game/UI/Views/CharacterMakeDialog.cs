@@ -23,14 +23,17 @@ namespace CdsHelper.Game.UI.Views;
 /// <b>자리는 화면을 재어 박았다.</b> 쌓기가 아니라 <see cref="Canvas"/> 로 놓는다 —
 /// 행 피치가 일정하지 않고 칸 하나가 어긋나 있어 쌓기로는 그 모양이 안 난다.
 /// <code>
-///   판 368 x 224 · 속 350 x 206 · 테 5 베벨 + 2 빈칸 + 2 줄
-///   가로  8 빈칸 · 초상화 80 · 이름표 104 · 컨트롤 128 · 오른끝 344
+///   속 384 x 206 · 테 밝은 줄 2
+///   가로  8 빈칸 · 초상화 80 · 이름표 104 · 컨트롤 128 · 오른끝 378
 ///   세로  8 성 · 24 명 · 24 연령 · 24 생일 · 27 혈액형 · 29 국적 · 40 단추
-///   단추  높이는 게임 띠 그대로 24 · 일람·취소·다음 40 · 국가 120 · 사이는 4
+///   단추  높이는 게임 띠 그대로 24 · 일람·취소·다음 64 · 국가 152 · 사이는 4
 /// </code>
-/// 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 그 배로 도로 나눴다. 띠 단추만
-/// 제 크기(24)로 그려지고 있어서 다른 것들 사이에서 혼자 작아 보였다. 생일 줄이 밀린
+/// 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 그 배로 도로 나눴다. 생일 줄이 밀린
 /// <b>16</b>이 곧 한글 한 글자 폭인 것도 그제야 맞아떨어진다(늘어난 화면에서는 28이었다).
+///
+/// 처음에 잰 판(368 x 224)은 <b>단추 폭을 잘못 잡아</b> 오른쪽 끝이 잘렸다 — 띠는 마구리
+/// 둘(32) 안에 글자가 들어야 해서 두 자짜리도 64 가 있어야 한다. 단추를 제 폭으로 키우고
+/// 속을 384 로 넓혔다. 테도 검은 베벨 다섯 겹에서 <b>밝은 줄 둘</b>로 줄였다.
 ///
 /// <b>어긋난 데 둘을 그대로 뒀다.</b> 생일 줄의 첫 숫자칸이 연령 줄보다 <b>16(글자 한 칸)</b>
 /// 오른쪽에 있고, 행 피치가 생일부터 27 · 29 로 벌어진다. 재어 보니 게임이 그렇다.
@@ -47,14 +50,14 @@ internal sealed class CharacterMakeDialog : Window
 {
     // ── 화면에서 잰 자리 ──────────────────────────────────────────────────────
 
-    /// <summary>속 크기. 판은 여기에 테 9 를 두른 368 x 224 가 된다.</summary>
-    private const double ContentWidth = 350, ContentHeight = 206;
+    /// <summary>속 크기. 판은 여기에 테 둘을 두른 388 x 210 이 된다.</summary>
+    private const double ContentWidth = 384, ContentHeight = 206;
 
-    /// <summary>테 — 바깥 베벨 · 빈칸 · 안쪽 줄.</summary>
-    private const double Bevel = 5, FrameGap = 2, FrameLine = 2;
+    /// <summary>테 — 밝은 줄 한 겹이다. 안쪽 줄과 빈칸은 걷어냈다.</summary>
+    private const double Bevel = 2;
 
     /// <summary>가로 자리(속 왼쪽에서).</summary>
-    private const double PortraitX = 8, LabelX = 104, ControlX = 128, RightEdge = 344;
+    private const double PortraitX = 8, LabelX = 104, ControlX = 128, RightEdge = 378;
 
     /// <summary>초상화 크기. 얼굴 조각 그대로 놓는다 — 늘리지 않는다.</summary>
     private const double FaceWidth = Portraits.Width, FaceHeight = Portraits.Height;
@@ -68,10 +71,15 @@ internal sealed class CharacterMakeDialog : Window
 
     /// <summary>
     /// 단추 크기. 높이는 게임 띠 높이 그대로고, 폭은 띠가 늘어나는 8점 칸에 맞춘다
-    /// (<c>16 + 8*n + 16</c>) — 가장 좁은 것이 40 이다.
+    /// (<c>16 + 8*n + 16</c>).
     /// </summary>
-    private const double SmallWidth = 40, SmallHeight = UiSprites.BandHeight,
-                         PickWidth = 40, NationWidth = 120;
+    /// <remarks>
+    /// 한글 두 자(32점)가 <b>마구리 둘(32점) 안쪽</b>에 들어야 하므로 가장 좁은 것이 64 다.
+    /// 40 으로 두면 글자가 띠 밖으로 비어져 나가 잘려 보인다 — "일람"·"취소"·"다음" 이
+    /// 그랬다. 나라 이름은 여덟 자라 152 다.
+    /// </remarks>
+    private const double SmallWidth = 64, SmallHeight = UiSprites.BandHeight,
+                         PickWidth = 40, NationWidth = 152;
 
     /// <summary>단추 사이. 화면 어디서나 4 다.</summary>
     private const double Gap = 4;
@@ -91,7 +99,7 @@ internal sealed class CharacterMakeDialog : Window
     // ── 색 ────────────────────────────────────────────────────────────────────
 
     private static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));
-    private static readonly Brush Line = Frozen(Color.FromRgb(0x11, 0x09, 0x09));
+    private static readonly Brush Line = GameUi.Edge;
     private static readonly Brush Ink = Frozen(Color.FromRgb(0xCB, 0xC5, 0xC5));
 
     private static Brush Frozen(Color c)
@@ -361,11 +369,12 @@ internal sealed class CharacterMakeDialog : Window
     /// <summary>고른 것을 도드라지게 하고 별자리를 다시 적는다.</summary>
     private void Mark()
     {
-        // 고른 것은 회녹색 띠로 갈아 낸다 — 게임도 고른 국가를 눌린 모양으로 낸다.
+        // 게임은 <b>고른 것이 밝은 베이지</b>고 안 고른 것이 어두운 쪽이다 —
+        // 직업 단추와 같은 규칙이다(AbilityMakeDialog).
         for (int i = 0; i < _bloods.Count; i++)
-            _bloods[i].Band = i == _blood ? BandStyle.Alt : BandStyle.Button;
+            _bloods[i].Band = i == _blood ? BandStyle.Button : BandStyle.Alt;
         for (int i = 0; i < _nations.Count; i++)
-            _nations[i].Band = i == _nation ? BandStyle.Alt : BandStyle.Button;
+            _nations[i].Band = i == _nation ? BandStyle.Button : BandStyle.Alt;
         _zodiac.Text = Player.ZodiacOf(Number(_month, 1), Number(_day, 1));
     }
 
