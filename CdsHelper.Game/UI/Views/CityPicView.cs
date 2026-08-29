@@ -399,7 +399,7 @@ public sealed class CityPicView : Window
     {
         var facility = Facility.For(building.Kind);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
-        Greet(facility);
+        Greet(facility, building);
         ShowPhoto(facility.Kind, building.Code);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.Code, building.TeachMask,
@@ -547,8 +547,11 @@ public sealed class CityPicView : Window
     ///
     /// 문구를 아직 못 찾은 시설은 창이 없거나 조용하다.
     /// </remarks>
-    private void Greet(Facility facility)
+    private void Greet(Facility facility, CityBuildingTable.Building building)
     {
+        // 가르치는 건물이면 자리를 가리지 않고 먼저 묻는다 — 조합·교회·학자 저택이다.
+        if (TownWorks.Teaches(building.TeachMask)) { Training(building.Code).Greet(); return; }
+
         switch (facility.Kind)
         {
             case FacilityKind.Harbor: Port.Greet(); break;     // 부관은 제 얼굴로 인사한다
