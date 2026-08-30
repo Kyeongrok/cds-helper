@@ -64,6 +64,21 @@ public sealed class CityCultureDialog : Window
     private readonly WrapPanel _faces = new() { Margin = new Thickness(8) };
     private readonly TextBlock _status = new() { Margin = new Thickness(10, 6, 10, 8) };
 
+    private readonly ComboBox _nation = new()
+    {
+        Width = 200,
+        Margin = new Thickness(16, 0, 0, 0),
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    private readonly Button _applyNation = new()
+    {
+        Content = "왕국 씌우기",
+        Padding = new Thickness(10, 2, 10, 2),
+        Margin = new Thickness(6, 0, 0, 0),
+    };
+
+    private NationTable? _kingdoms;
     private CityTable? _names;
     private CityExeTable? _rows;
     private SpeakerFaceTable? _speakers;
@@ -71,7 +86,7 @@ public sealed class CityCultureDialog : Window
 
     public CityCultureDialog()
     {
-        Title = "도시 · 문화권 — 시설 화자";
+        Title = "도시 · 문화권 · 왕국";
         Width = 980;
         Height = 640;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -80,6 +95,7 @@ public sealed class CityCultureDialog : Window
         Col("도시", nameof(Row.Name), 130);
         Col("문화권", nameof(Row.CultureNo), 60);
         Col("이름", nameof(Row.Culture), 90);
+        Col("왕국", nameof(Row.Nation), 160);
         Col("씌움", nameof(Row.Mark), 44);
         _cities.SelectionChanged += (_, _) => PickCity();
 
@@ -88,6 +104,7 @@ public sealed class CityCultureDialog : Window
         _apply.Click += (_, _) => Apply();
         _reset.Click += (_, _) => Undo();
         _resetAll.Click += (_, _) => UndoAll();
+        _applyNation.Click += (_, _) => ApplyNation();
 
         var bar = new StackPanel
         {
@@ -100,6 +117,14 @@ public sealed class CityCultureDialog : Window
                 _apply,
                 _reset,
                 _resetAll,
+                new TextBlock
+                {
+                    Text = "왕국:",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(20, 0, 0, 0),
+                },
+                _nation,
+                _applyNation,
             },
         };
 
@@ -128,7 +153,8 @@ public sealed class CityCultureDialog : Window
 
     /// <summary>목록 한 줄 — 도시와 그 문화권.</summary>
     /// <param name="Mark">손으로 씌운 줄에만 <c>●</c> 가 선다.</param>
-    private sealed record Row(int Id, string Name, int CultureNo, string Culture, string Mark);
+    private sealed record Row(int Id, string Name, int CultureNo, string Culture,
+                              string Nation, int NationNo, string Mark);
 
     private void Col(string header, string path, double width) => _cities.Columns.Add(
         new DataGridTextColumn
@@ -145,6 +171,7 @@ public sealed class CityCultureDialog : Window
         _rows = CityExeTable.Open(dir);
         _speakers = SpeakerFaceTable.Open(dir);
         _portraits = Portraits.Open(dir);
+        _kingdoms = NationTable.Open(dir);
 
         if (_rows == null || _speakers == null)
         {
@@ -155,6 +182,11 @@ public sealed class CityCultureDialog : Window
 
         for (int i = 0; i < SpeakerFaceTable.Cultures; i++)
             _culture.Items.Add($"{i}  {CityCultureEdits.NameOf(i)}");
+
+        // 왕국은 나라 표에서 온다 — 못 읽으면 그 칸만 비워 둔다.
+        foreach (var nation in _kingdoms?.Nations ?? [])
+            _nation.Items.Add($"{nation.Id}  {nation.Name}");
+        _applyNation.IsEnabled = _nation.Items.Count > 0;
 
         Rebuild();
         if (_cities.Items.Count > 0) _cities.SelectedIndex = 0;
@@ -172,15 +204,19 @@ public sealed class CityCultureDialog : Window
         {
             int changed = CityCultureEdits.Of(city.Id);
             int no = table.CultureOf(city.Id);
+            int nationNo = table.NationOf(city.Id);
+            bool marked = changed != CityCultureEdits.None
+                       || CityNationEdits.Of(city.Id) != CityNationEdits.None;
             rows.Add(new Row(city.Id, city.Name, no,
                              changed == CityCultureEdits.None
                                  ? city.Culture : CityCultureEdits.NameOf(changed),
-                             changed == CityCultureEdits.None ? "" : "●"));
+                             _kingdoms?.Find(nationNo)?.Name ?? "", nationNo,
+                             marked ? "●" : ""));
         }
         _cities.ItemsSource = rows;
         if (keep >= 0) _cities.SelectedItem = rows.FirstOrDefault(r => r.Id == keep);
 
-        int edits = CityCultureEdits.All.Count;
+        int edits = CityCultureEdits.All.Count + CityNationEdits.All.Count;
         _status.Text = $"도시 {rows.Count}곳 · 문화권 {SpeakerFaceTable.Cultures}가지 — "
                      + "화자표 0x0056823C 를 [건물코드][문화권] 으로 읽는다"
                      + (edits == 0 ? "" : $" · 손으로 씌운 곳 {edits}곳");
@@ -194,11 +230,20 @@ public sealed class CityCultureDialog : Window
         Rebuild();
     }
 
+    /// <summary>고른 왕국을 이 도시에 씌운다 — 그 도시가 그 나라 것이 된다.</summary>
+    private void ApplyNation()
+    {
+        if (_cities.SelectedItem is not Row row || _nation.SelectedIndex < 0) return;
+        CityNationEdits.Set(row.Id, _nation.SelectedIndex);
+        Rebuild();
+    }
+
     /// <summary>이 도시에 씌운 것을 걷는다 — 게임 표의 값으로 돌아간다.</summary>
     private void Undo()
     {
         if (_cities.SelectedItem is not Row row) return;
         CityCultureEdits.Reset(row.Id);
+        CityNationEdits.Reset(row.Id);
         Rebuild();
         PickCity();
     }
@@ -207,6 +252,7 @@ public sealed class CityCultureDialog : Window
     private void UndoAll()
     {
         CityCultureEdits.ResetAll();
+        CityNationEdits.ResetAll();
         Rebuild();
         PickCity();
     }
@@ -216,6 +262,8 @@ public sealed class CityCultureDialog : Window
     {
         if (_cities.SelectedItem is not Row row) return;
         _culture.SelectedIndex = row.CultureNo;   // 고르면 ShowFaces 가 따라 돈다
+        if (row.NationNo >= 0 && row.NationNo < _nation.Items.Count)
+            _nation.SelectedIndex = row.NationNo;
         ShowFaces();
     }
 
