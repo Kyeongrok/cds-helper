@@ -41,8 +41,24 @@ namespace CdsHelper.Game.Engine.Sea;
 /// </remarks>
 public static class Sailing
 {
-    /// <summary>누산기가 한 칸을 넘기는 값. 방위 벡터의 크기와 같다.</summary>
+    /// <summary>누산기가 <b>한 걸음</b>을 넘기는 값. 방위 벡터의 크기와 같다.</summary>
+    /// <remarks>
+    /// 게임은 누산기가 <c>±0x20</c> 을 넘으면 <c>0x40</c> 씩 덜어내며 한 걸음씩 옮긴다
+    /// (<c>0x0048D2BA</c>). 벡터의 크기가 곧 이 값이라, 한 틱에 배는 <b>이동값 걸음</b>을
+    /// 간다.
+    /// </remarks>
     public const int CellUnits = 64;
+
+    /// <summary>한 칸에 든 걸음 수. 게임의 자리 단위가 <b>1/16 칸</b>이다.</summary>
+    /// <remarks>
+    /// 위도 값(<c>0x005B63B4</c>)이 0~20000 인데 지도가 세로 1250칸이라 한 칸이 16 이다.
+    /// 발견 판정도(<c>칸 = 0x5B63B4 / 16</c>), 주변지도가 배 자리를 넘길 때도
+    /// (<c>0x00426150</c>) 같은 값으로 나눈다.
+    ///
+    /// <b>여기를 빠뜨려 배가 게임보다 네 배 느렸다.</b> 걸음을 <see cref="CellUnits"/> 로
+    /// 나눠 곧장 칸으로 삼았는데, 그것은 누산기 눈금이지 칸이 아니다.
+    /// </remarks>
+    public const int StepsPerCell = 16;
 
     /// <summary>뭍(말)일 때의 붙박이 속도.</summary>
     public const int LandSpeed = 2;
@@ -118,7 +134,7 @@ public static class Sailing
     /// 물어보는 길이 있으므로 그대로 쓴다.
     /// </remarks>
     public static double CellsPerTick(int speed, bool fastTile) =>
-        (fastTile ? 9.0 * speed / 10.0 : (3.0 * speed + 54.0) / 10.0) / CellUnits;
+        (fastTile ? 9.0 * speed / 10.0 : (3.0 * speed + 54.0) / 10.0) / StepsPerCell;
 
     /// <summary>
     /// 해류가 미는 만큼(칸). 빠른 부류의 칸에서만 받는다.
@@ -139,11 +155,14 @@ public static class Sailing
     /// 64배로 세졌다. 역풍에 배가 뒤로 밀려나던 것이 이것이다 — 게임에서는 삼각돛이 정면
     /// 역풍에서도 1 을 내며 앞으로 나아간다.
     ///
+    /// 걸음을 칸으로 바꾸는 것은 <see cref="StepsPerCell"/> 몫이다. 배와 해류가 같은
+    /// 눈금을 쓰므로 둘 다 같은 수로 나눠야 한다.
+    ///
     /// 경도 보정은 위도가 높을수록 경도 한 칸이 짧아지는 것을 메우는 값이다.
     /// </remarks>
     public static (double X, double Y) Drift((int X, int Y) vector, int strength, double lonScale) =>
-        (vector.X * strength / 8.0 / CellUnits / CellUnits * lonScale,
-         vector.Y * strength / 8.0 / CellUnits / CellUnits);
+        (vector.X * strength / 8.0 / CellUnits / StepsPerCell * lonScale,
+         vector.Y * strength / 8.0 / CellUnits / StepsPerCell);
 
     /// <summary>
     /// 경도 보정 — 위도가 높을수록 경도 한 칸이 짧다.
