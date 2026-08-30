@@ -401,6 +401,7 @@ public sealed class ShipMapWindow : Window
             CheckPort();
             CheckDiscovery();
             PassTime();
+            MarkSeen();
             var (lat, lon) = _host.ShipLatLon;
             // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
             _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
@@ -1260,6 +1261,8 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreMateBook(saved.MateBook);
             if (saved.Fatigue is { } tired) _game.Player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _game.Player.SetDaysAtSea(atSea);
+            // 밝힌 바다. 판 21 앞의 세이브에는 없어 빈 채로 시작한다.
+            _game.Player.Explored.Restore(saved.Explored);
             if (saved.Morale is { } morale) _game.Player.SetMorale(morale);
             _game.Player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
@@ -1384,7 +1387,7 @@ public sealed class ShipMapWindow : Window
     ///   0x00533210  돌아간다
     /// </code>
     /// 소지품·힌트·계약은 도시 커맨드에서 쓰던 창을 그대로 쓴다 — 게임도 한 창이다.
-    /// "지도를 본다"(항해지도 · 주변지도)는 아직 안 옮겼다.
+    /// "지도를 본다" 는 창이 한 겹 더 뜬다(<see cref="MapMenuBox"/>).
     /// </remarks>
     /// <summary>
     /// 바다 커맨드의 "기능" 에서 뻗는 창 — 게임 중단 · 게임 종료 · 취소.
@@ -1452,7 +1455,26 @@ public sealed class ShipMapWindow : Window
             this, _game.Player, _game.Items, null, null, GameInfo.DiscoveryNames(_game)))),
         ("힌트정보", () => Info(() => HintListDialog.Show(this, GameInfo.HintNames(_game)))),
         ("계약정보", () => Info(ShowContract)),
-        ("지도를 본다", null),
+        ("지도를 본다", () => CommandMenu.Push(MapMenuBox)),
+        ("돌아간다", CommandMenu.Pop),
+    ]);
+
+    /// <summary>
+    /// 「지도를 본다」에서 뻗는 창 — 항해지도 · 주변지도 · 돌아간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0042602E</c> 자리다(<c>0x00533240</c> · <c>0x00533250</c> ·
+    /// <c>0x00533260</c>, 창 제목 <c>0x00533270</c>).
+    ///
+    /// 둘은 아주 다른 그림이다. <b>항해지도</b>는 밝힌 자리만 드러나는 양피지 지도고
+    /// (<see cref="SeaChartDialog"/>), <b>주변지도</b>는 배 둘레를 크게 본 것이라 우리
+    /// 지도의 배율만 갈면 된다.
+    /// </remarks>
+    private GameMenu MapMenuBox() => new("지도를 본다", null,
+    [
+        ("항해지도", () => Info(() =>
+            SeaChartDialog.Show(this, _host, _game.Player.Explored))),
+        ("주변지도", () => { CommandMenu.Close(); LookAtMap(wide: false); }),
         ("돌아간다", CommandMenu.Pop),
     ]);
 
@@ -1761,6 +1783,16 @@ public sealed class ShipMapWindow : Window
         var (dir, speed, relative) = _host.LastWind;
         string where = ShipMapHost.Compass[(dir & 0xF) >> 1];
         return $"바람 {where} {speed}  각 {relative,2}  속도 {_host.LastSpeed,3}";
+    }
+
+    /// <summary>
+    /// 배가 선 자리 둘레를 항해지도에 밝힌다. 게임의 <c>0x00468D90</c> 자리다 —
+    /// 지금 칸을 가운데로 반지름만큼 원을 칠한다.
+    /// </summary>
+    private void MarkSeen()
+    {
+        if (_host.ShipCell is not { } cell) return;
+        _game.Player.Explored.Mark(cell.CellX, cell.CellY);
     }
 
     private void CheckDiscovery()
