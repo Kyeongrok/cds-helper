@@ -56,10 +56,10 @@ public sealed class NationEditDialog : Window
 
         Col("번호", nameof(Row.Id), 56, readOnly: true);
         Col("이름", nameof(Row.Name), 220);
-        Col("말", nameof(Row.Language), 60);
-        Col("말 이름", nameof(Row.LanguageName), 130, readOnly: true);
-        Col("수도", nameof(Row.Capital), 60);
-        Col("수도 이름", nameof(Row.CapitalName), 130, readOnly: true);
+        Col("언어ID", nameof(Row.Language), 60);
+        Col("언어", nameof(Row.LanguageName), 130, readOnly: true);
+        Col("수도ID", nameof(Row.Capital), 60);
+        Col("수도", nameof(Row.CapitalName), 130, readOnly: true);
         Col("고침", nameof(Row.Mark), 44, readOnly: true);
 
         _grid.CellEditEnding += (_, e) =>

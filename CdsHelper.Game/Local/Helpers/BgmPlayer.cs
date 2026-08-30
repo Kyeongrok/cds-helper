@@ -156,6 +156,9 @@ public sealed class BgmPlayer : IDisposable
 
     public BgmPlayer()
     {
+        // 지난번에 맞춰 둔 소리 크기로 시작한다.
+        Volume = Settings.GameSettings.BgmVolume / (double)Settings.GameSettings.MaxVolume;
+
         _player.MediaEnded += (_, _) =>
         {
             // 기다리라고 해 둔 곡이 있으면 이제 갈아탄다(해상에서 해역이 바뀔 때다).
@@ -244,6 +247,7 @@ public sealed class BgmPlayer : IDisposable
         try
         {
             _player.Open(new Uri(path));
+            _player.Volume = Volume;
             _player.Play();
             _track = track;
             LastError = "";
@@ -253,6 +257,21 @@ public sealed class BgmPlayer : IDisposable
             LastError = $"{path} 를 틀지 못했습니다 — {ex.Message}";
         }
     }
+
+    /// <summary>
+    /// 소리 크기(0~1). 설정 창에서 갈면 <b>틀고 있는 곡에 곧바로</b> 먹는다.
+    /// </summary>
+    public double Volume
+    {
+        get => _volume;
+        set
+        {
+            _volume = Math.Clamp(value, 0, 1);
+            _player.Volume = _volume;
+        }
+    }
+
+    private double _volume = 1;
 
     public void Stop()
     {

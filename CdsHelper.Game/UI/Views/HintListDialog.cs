@@ -20,6 +20,9 @@ public sealed class HintListDialog : Window
     /// <summary>목록 칸의 폭과 가장 높은 자리. 게임 갈무리에서 잰 값이다.</summary>
     private const double ListWidth = 300, ListMaxHeight = 280;
 
+    /// <summary>줄 좌우 여백. 게임은 종이 테에 바짝 붙여 찍는다.</summary>
+    private const double RowPad = 3;
+
     /// <summary>아래 단추 둘의 폭·높이와 사이. 게임 조각 단추다.</summary>
     private const double ButtonWidth = 128, ButtonGap = 12;
 
@@ -47,14 +50,14 @@ public sealed class HintListDialog : Window
             var row = new Border
             {
                 Background = Brushes.Transparent,
-                Padding = new Thickness(8, 0, 4, 0),
+                Padding = new Thickness(RowPad, 0, RowPad, 0),
                 Cursor = choosing ? Cursors.Hand : Cursors.Arrow,
-                Child = new TextBlock
+                // 줄은 게임 비트맵 글꼴로 찍는다 — 종이 위라 검은 벌이다.
+                Child = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
                 {
                     Text = hints[i],
-                    Foreground = Brushes.Black,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 15,
+                    Bold = true,
+                    FallbackBrush = Brushes.Black,
                 },
             };
             if (choosing) row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(index); };
@@ -95,7 +98,7 @@ public sealed class HintListDialog : Window
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(2),
             Margin = new Thickness(3, 3, 3, 0),
-            Padding = new Thickness(5, 2, 5, 2),
+            Padding = new Thickness(2, 1, 2, 1),
             // <b>가로로 넓고 세로는 줄 수를 따라간다.</b> 게임 창이 그렇다 — 두 줄이면
             // 두 줄만큼만 높고, 길어지면 그때 늘어나다 스무 줄쯤에서 멎고 굴러간다.
             // 예전에는 280x300 으로 박아 두어 줄이 몇 없어도 아래가 텅 비었다.

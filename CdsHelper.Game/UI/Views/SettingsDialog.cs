@@ -20,7 +20,9 @@ public sealed class SettingsDialog : Window
 
     /// <summary>켜고 끄는 칸이 앉는 자리. 뒤집을 때마다 칸을 통째로 갈아 끼운다.</summary>
     private readonly Border _bgmRow = new() { Padding = new Thickness(8, 8, 8, 2) };
-    private readonly Border _sfxRow = new() { Padding = new Thickness(8, 2, 8, 4) };
+    private readonly Border _sfxRow = new() { Padding = new Thickness(8, 2, 8, 2) };
+    private readonly Border _bgmVolRow = new() { Padding = new Thickness(8, 2, 8, 2) };
+    private readonly Border _sfxVolRow = new() { Padding = new Thickness(8, 2, 8, 4) };
 
     private SettingsDialog(BgmPlayer bgm)
     {
@@ -35,6 +37,8 @@ public sealed class SettingsDialog : Window
 
         _bgmRow.Child = BgmToggle();
         _sfxRow.Child = SfxToggle();
+        _bgmVolRow.Child = VolumeRow("배경음악", GameSettings.BgmVolume, StepBgm);
+        _sfxVolRow.Child = VolumeRow("효과음  ", GameSettings.SfxVolume, StepSfx);
 
         var title = GameUi.TitleBar("설정", Close);
         GameUi.EnableDrag(this, title);
@@ -42,7 +46,9 @@ public sealed class SettingsDialog : Window
         var stack = new StackPanel();
         stack.Children.Add(title);
         stack.Children.Add(_bgmRow);
+        stack.Children.Add(_bgmVolRow);
         stack.Children.Add(_sfxRow);
+        stack.Children.Add(_sfxVolRow);
         stack.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -95,6 +101,34 @@ public sealed class SettingsDialog : Window
     {
         GameSettings.SfxEnabled = !GameSettings.SfxEnabled;
         _sfxRow.Child = SfxToggle();
+    }
+
+    /// <summary>소리 크기 한 줄 — <c>◀ 100 ▶</c> 로 열씩 오르내린다.</summary>
+    private static UIElement VolumeRow(string name, int volume, Action<int> step)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new GameButton("◀", () => step(-GameSettings.VolumeStep),
+                                        BandStyle.Button, StepWidth));
+        row.Children.Add(new GameButton($"{name} {volume,3}", null, BandStyle.Button, NumberWidth));
+        row.Children.Add(new GameButton("▶", () => step(GameSettings.VolumeStep),
+                                        BandStyle.Button, StepWidth));
+        return row;
+    }
+
+    /// <summary>소리 크기 줄의 칸 폭.</summary>
+    private const double StepWidth = 32, NumberWidth = 120;
+
+    private void StepBgm(int by)
+    {
+        GameSettings.BgmVolume += by;
+        _bgm.Volume = GameSettings.BgmVolume / (double)GameSettings.MaxVolume;
+        _bgmVolRow.Child = VolumeRow("배경음악", GameSettings.BgmVolume, StepBgm);
+    }
+
+    private void StepSfx(int by)
+    {
+        GameSettings.SfxVolume += by;
+        _sfxVolRow.Child = VolumeRow("효과음  ", GameSettings.SfxVolume, StepSfx);
     }
 
     public static void Show(Window owner, BgmPlayer bgm) =>

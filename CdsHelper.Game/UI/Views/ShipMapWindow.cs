@@ -1297,6 +1297,21 @@ public sealed class ShipMapWindow : Window
         _status.Text = "";
     }
 
+    /// <summary>
+    /// 적어 둔 판을 도로 불러온다 — 자택·여관의 <b>기능 · 로드</b> 가 부른다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 그 자리에서 곧바로 불러온다(<c>0x004A2830</c>). 도시 창이며 명령 창이
+    /// 떠 있으므로 먼저 걷는다 — 불러온 판은 세이브에 적힌 자리에서 다시 시작한다.
+    /// </remarks>
+    public void LoadGame()
+    {
+        foreach (var child in OwnedWindows.OfType<Window>().ToList()) child.Close();
+        _overlay.IsOpen = false;
+        _askedCity = -1;
+        StartMap(fresh: false);
+    }
+
     private void StartMap(bool fresh)
     {
         // 불러올 것이 없으면 타이틀에 그대로 머문다 — 화면부터 갈아 끼우면 되돌리기 번거롭다.

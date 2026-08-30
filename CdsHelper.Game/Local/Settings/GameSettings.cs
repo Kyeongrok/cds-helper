@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 
 namespace CdsHelper.Game.Local.Settings;
@@ -14,6 +14,10 @@ public sealed class GameSettingsData
 
     /// <summary>효과음(닻·거절 따위)을 낼지. 기본은 켬.</summary>
     public bool SfxEnabled { get; set; } = true;
+
+    /// <summary>배경음악·효과음의 크기(0~100). 기본은 다 크게.</summary>
+    public int BgmVolume { get; set; } = GameSettings.MaxVolume;
+    public int SfxVolume { get; set; } = GameSettings.MaxVolume;
 
     /// <summary>게임 창 단추의 좌우 여백(점).</summary>
     public int BandPad { get; set; } = GameSettings.DefaultBandPad;
@@ -213,6 +217,23 @@ public static class GameSettings
     }
 
     /// <summary>함대 창의 배경음악을 틀지. 설정 창에서 켜고 끈다.</summary>
+    /// <summary>소리 크기의 위와 한 번에 오르내리는 폭.</summary>
+    public const int MaxVolume = 100, VolumeStep = 10;
+
+    /// <summary>배경음악 크기(0~100).</summary>
+    public static int BgmVolume
+    {
+        get => Math.Clamp(Get(d => d.BgmVolume), 0, MaxVolume);
+        set => Set(d => d.BgmVolume = Math.Clamp(value, 0, MaxVolume));
+    }
+
+    /// <summary>효과음 크기(0~100).</summary>
+    public static int SfxVolume
+    {
+        get => Math.Clamp(Get(d => d.SfxVolume), 0, MaxVolume);
+        set => Set(d => d.SfxVolume = Math.Clamp(value, 0, MaxVolume));
+    }
+
     public static bool BgmEnabled
     {
         get => Get(d => d.BgmEnabled);
