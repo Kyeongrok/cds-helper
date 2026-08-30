@@ -1364,6 +1364,7 @@ public sealed class ShipMapWindow : Window
             if (!string.IsNullOrEmpty(saved.Name)) _game.Player.Name = saved.Name;
             if (saved.Family != null) _game.Player.Family = saved.Family;
             if (saved.Given != null) _game.Player.Given = saved.Given;
+            _game.Player.RestoreTongues(saved.Tongues);
             if (saved.Morale is { } morale) _game.Player.SetMorale(morale);
             _game.Player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
