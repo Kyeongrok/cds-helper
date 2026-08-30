@@ -70,9 +70,6 @@ public sealed class DevDialog : Window
         rows.Children.Add(Toggle("좌표 겹쳐 보기", options.CoordsOn(), options.SetCoords,
             "배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄웁니다"));
 
-        rows.Children.Add(Toggle("조작 줄 보기", options.ToolBarOn(), options.SetToolBar,
-            "지도 위의 까만 줄 — 커서로 몰기·화면 따라가기 같은 개발용 단추들입니다"));
-
         // 게임 창 단추의 좌우 여백. 띠 마구리(양 끝 조각)가 앉을 자리다 — 크게 잡으면
         // 글자에서 멀어지고 작게 잡으면 글자가 마구리 위로 올라앉는다.
         rows.Children.Add(Tune("단추 여백", GameSettings.BandPad,

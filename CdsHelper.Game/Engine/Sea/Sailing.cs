@@ -133,8 +133,13 @@ public static class Sailing
     /// 그 둘이 지도에 <b>반반 섞여</b> 있어 한 칸 걸러 두 식을 오간다. 우리 쪽에도 부류를
     /// 물어보는 길이 있으므로 그대로 쓴다.
     /// </remarks>
-    public static double CellsPerTick(int speed, bool fastTile) =>
-        (fastTile ? 9.0 * speed / 10.0 : (3.0 * speed + 54.0) / 10.0) / StepsPerCell;
+    /// <param name="onLand">
+    /// 뭍이면 <b>칸 부류를 안 본다</b>. 부류는 바다 칸 그림이 가르는 것이라 뭍에서는 뜻이
+    /// 없는데, 빠른 식에 넣으면 말이 <c>9x2/10 = 1.8</c> 걸음(0.11칸)으로 <b>기어간다</b> —
+    /// 칸에 따라 섰다 갔다 하던 것이 그것이다. 뭍은 늘 같은 걸음이다.
+    /// </param>
+    public static double CellsPerTick(int speed, bool fastTile, bool onLand = false) =>
+        (!onLand && fastTile ? 9.0 * speed / 10.0 : (3.0 * speed + 54.0) / 10.0) / StepsPerCell;
 
     /// <summary>
     /// 해류가 미는 만큼(칸). 빠른 부류의 칸에서만 받는다.

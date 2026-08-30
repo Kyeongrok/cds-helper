@@ -188,8 +188,10 @@ public sealed class TavernGuests
     /// (<c>0x0049D440</c>: 인물 고유값을 그 문화권 남자 수로 나눈 나머지 번째),
     /// 빈 자리는 무작위 남자로 채운다(<c>0x0049D6C0</c>).
     ///
-    /// 여급과 지나가는 손님은 <paramref name="seed"/> 로 도시마다 고정한다 — 창을 여닫을
-    /// 때마다 얼굴이 바뀌면 그 도시 술집처럼 보이지 않는다.
+    /// <b>여급만 도시마다 고정이고 지나가는 손님은 들어갈 때마다 바뀐다.</b> 게임도
+    /// 빈 자리를 채울 때마다 <c>rand(그 문화권 손님 수)</c> 를 새로 굴린다
+    /// (<c>0x0049D6C0</c> → <c>0x0049D630</c>) — 그래서 술집을 여닫으면 서 있는 사람이
+    /// 달라진다. 예전에는 <paramref name="seed"/> 로 둘 다 묶어 두어 늘 같았다.
     /// </remarks>
     /// <param name="withMaid">
     /// 맨 앞에 여자를 세울지. <b>술집에만</b> 여급이 선다 — 여관에는 여급이 없어서
@@ -209,15 +211,18 @@ public sealed class TavernGuests
         var seats = new List<Slot>(MaxOnScreen);
 
         // 여급 — 그 문화권에 여자가 없으면 그냥 건너뛴다(구간이 열한 명뿐인 문화권도 있다).
-        var rng = new Random(seed);
+        // 여급은 그 마을 사람이라 늘 같은 모습이어야 하므로 도시 번호로 고정한다.
+        var fixedRng = new Random(seed);
         if (withMaid && women.Count > 0)
-            seats.Add(new Slot(_guests[women[rng.Next(women.Count)]], -1));
+            seats.Add(new Slot(_guests[women[fixedRng.Next(women.Count)]], -1));
 
         // 인물 — 각자 제 그림으로 앉는다.
         for (int i = 0; i < personKeys.Count && seats.Count < MaxOnScreen; i++)
             seats.Add(new Slot(_guests[men[Mod(personKeys[i], men.Count)]], i));
 
         // 남는 자리는 지나가는 손님. 앞서 선 사람과 겹치지 않게 고른다.
+        // 지나가는 손님은 들어갈 때마다 새로 굴린다.
+        var rng = new Random();
         var taken = new HashSet<int>();
         foreach (var s in seats) taken.Add(s.Art.Index);
         Shuffle(men, rng);

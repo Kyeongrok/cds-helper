@@ -651,9 +651,6 @@ public sealed class CityPicView : Window
     /// </remarks>
     private void Greet(Facility facility, CityBuildingTable.Building building)
     {
-        // 가르치는 건물이면 자리를 가리지 않고 먼저 묻는다 — 조합·교회·학자 저택이다.
-        if (TownWorks.Teaches(building.TeachMask)) { Training(building.Code).Greet(); return; }
-
         switch (facility.Kind)
         {
             case FacilityKind.Harbor: Port.Greet(); break;     // 부관은 제 얼굴로 인사한다
@@ -1110,7 +1107,8 @@ public sealed class CityPicView : Window
         TownWorks.WorkOf(facility, item, TownWorks.Teaches(teachMask), patron != null) switch
         {
             TownWork.Exit => CloseMenu,
-            TownWork.Train => () => Training(code).Teach(teachMask),
+            // 가르치는 사람은 <b>수련을 눌러야</b> 말을 건다 — 들어서자마자가 아니다.
+            TownWork.Train => () => { Training(code).Greet(); Training(code).Teach(teachMask); },
             TownWork.System => () => Menu.Push(SystemMenu),
             TownWork.Persuade => () => Patrons.Persuade(patron!),
             TownWork.Report => () => Patrons.Report(patron!),

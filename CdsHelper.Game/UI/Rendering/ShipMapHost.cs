@@ -942,7 +942,7 @@ public sealed class ShipMapHost : HwndHost
         LastWind = (wind.Dir, wind.Speed, (wind.Dir - _heading) & 0xF);
 
         bool fast = FastTile();
-        double step = Engine.Sea.Sailing.CellsPerTick(speed, fast);
+        double step = Engine.Sea.Sailing.CellsPerTick(speed, fast, _onLand);
         LastFast = fast;
         LastStep = step;
         LastFlow = (0, 0);

@@ -90,8 +90,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     public void Greet()
     {
         if (_game.Random.Next(GreetDice) != 0) return;
-        ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)],
-                           face: DrinkerFace());
+
+        // 자리에서 얼굴을 못 구하면 그 마을 술집 화자로 물러선다 — 게임은 늘
+        // 얼굴을 걸고 말하므로 얼굴 없는 창이 뜨는 것이 더 어긋난다.
+        var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
+        ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)], face: face);
     }
 
     /// <summary>말을 걸 낯을 가리는 주사위 — 셋에 하나다.</summary>
