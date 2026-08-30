@@ -63,6 +63,7 @@ public sealed class DevDialog : Window
         rows.Children.Add(Row("명성", _fame, FameStep, v => _player.Fame = v));
         rows.Children.Add(EffectRow());
         rows.Children.Add(HurtRow());
+        rows.Children.Add(SpouseRow());
 
         // 좌표 겹쳐 보기 — 배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄운다.
         // 놀이에는 없는 것이라 이 창으로 옮겨 두었다.
@@ -132,7 +133,50 @@ public sealed class DevDialog : Window
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
     }
 
-    /// <summary>줄 하나 — 이름, 적는 칸, 늘리고 줄이는 단추.</summary>
+    /// <summary>
+    /// 아내를 붙였다 뗀다 — 자택 "후손을 남긴다" 줄이 아내가 있어야 눌린다.
+    /// </summary>
+    /// <remarks>
+    /// 놀이에는 없는 줄이다. 게임에서 아내를 맞는 길(여관·술집 사건)을 아직 안 옮겨서,
+    /// 그 줄을 눌러 보려면 여기서 붙여 주는 수밖에 없다.
+    /// </remarks>
+    private UIElement SpouseRow()
+    {
+        var line = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 4, 0, 4),
+        };
+
+        var shown = new TextBlock
+        {
+            Width = 120,
+            Foreground = GameUi.Text,
+            FontSize = 15,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        void Paint() => shown.Text = _player.Spouse.Length > 0 ? _player.Spouse : "— 없음";
+        Paint();
+
+        line.Children.Add(new TextBlock
+        {
+            Text = "아내",
+            Width = 64,
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        line.Children.Add(GameUi.PushButton("맞는다", () =>
+        {
+            _player.Marry("카타리나");
+            Paint();
+        }, 96));
+        line.Children.Add(GameUi.PushButton("없앤다", () => { _player.Marry(""); Paint(); }, 96));
+        line.Children.Add(shown);
+        return line;
+    }
+
     /// <summary>
     /// 배를 조금 상하게 하는 줄. 조선소 수리를 시험하려고 둔다 — 놀이 안에서 배를 상하게 하는
     /// 것은 폭풍뿐이라, 위도 띠까지 배를 몰지 않고도 손상을 만들 수 있게 남겨 둔다.
@@ -176,6 +220,7 @@ public sealed class DevDialog : Window
         return line;
     }
 
+    /// <summary>줄 하나 — 이름, 적는 칸, 늘리고 줄이는 단추.</summary>
     private UIElement Row(string label, TextBox box, int step, Action<int> set)
     {
         var line = new StackPanel

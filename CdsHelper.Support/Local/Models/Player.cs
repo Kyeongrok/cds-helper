@@ -584,6 +584,39 @@ public sealed class Player
     /// <remarks>배가 지나며 저절로 칠해진다(<see cref="ExploredMap.Mark"/>).</remarks>
     public ExploredMap Explored { get; } = new();
 
+    /// <summary>
+    /// 아내 이름. 없으면 빈 문자열이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x005B61B0</c> 에 아내 번호를 들고 <b>-1 이면 없는 것</b>으로 본다
+    /// (<c>0x00460650</c> 이 그 값 하나로 "후손을 남긴다" 줄의 켜짐을 정한다).
+    /// 우리는 아직 사람 표를 안 들고 있어 이름만 든다.
+    /// </remarks>
+    public string Spouse { get; private set; } = "";
+
+    /// <summary>얻은 후손들. 차례가 곧 태어난 차례다.</summary>
+    public IReadOnlyList<string> Heirs => _heirs;
+
+    private readonly List<string> _heirs = [];
+
+    /// <summary>아내를 맞는다. 빈 이름을 주면 홀로 돌아간다.</summary>
+    public void Marry(string? name) => Spouse = (name ?? "").Trim();
+
+    /// <summary>후손을 하나 얻는다.</summary>
+    public void AddHeir(string name)
+    {
+        string given = (name ?? "").Trim();
+        if (given.Length > 0) _heirs.Add(given);
+    }
+
+    /// <summary>적어 둔 것을 되돌린다.</summary>
+    public void RestoreFamily(string? spouse, IEnumerable<string>? heirs)
+    {
+        Spouse = (spouse ?? "").Trim();
+        _heirs.Clear();
+        foreach (string h in heirs ?? []) AddHeir(h);
+    }
+
     /// <summary>바다에서 하루를 넘긴다.</summary>
     public void PassDayAtSea()
     {
