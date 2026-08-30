@@ -103,6 +103,12 @@ public static class Barmaids
         "그대, 그 눈빛, 뜨거운 입김에 나는 흐물흐물해졌소. 그대는 나의 것.",
     ];
 
+    /// <summary>맺어질 때 여급이 하는 말(<c>0x0055B690</c>).</summary>
+    public const string Yes = "기뻐요. 어디든지 당신을 따라가겠어요.";
+
+    /// <summary>맺어졌다고 알리는 서식(<c>0x00539080</c>). 게임 것 그대로다.</summary>
+    public const string Married = "{0}는(은) {1}와(과) 결혼했습니다";
+
     /// <summary>그 문화권의 유혹의 말. 벌이 모자라면 앞에서부터 돌려 쓴다.</summary>
     public static string WooWord(int culture) =>
         Wooing[Math.Abs(culture) % Wooing.Length];

@@ -202,6 +202,9 @@ public sealed class ConfirmDialog : Window
     /// <summary>가장 좁은 창의 칸 수. 게임도 서른 칸(= 272점) 밑으로는 안 줄인다.</summary>
     private const int MinCells = 30;
 
+    /// <summary>얼굴 왼쪽에 더 두는 여백. 창 안쪽 여백(7)만으로는 얼굴이 테에 붙어 보인다.</summary>
+    private const double FacePad = 3;
+
     /// <summary>얼굴이 설 때 창이 넓어지는 만큼 — 얼굴 80 에 좌우 8 씩이다.</summary>
     private const double FaceColumn = 96;
 
@@ -221,6 +224,7 @@ public sealed class ConfirmDialog : Window
             Width = Portraits.Width,
             Height = Portraits.Height,
             VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(FacePad, 0, 0, 0),
         };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);

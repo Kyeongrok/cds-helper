@@ -27,8 +27,10 @@ namespace CdsHelper.Game.UI.Views;
 /// 손님과 이야기하는 동안 시설 명령 창을 접어 두라는 부탁. 게임은 손님을 누르면
 /// <b>명령 창을 지우고 그 자리에</b> 고르는 줄을 낸다.
 /// </param>
+/// <param name="leave">술집을 나가라는 부탁 — 설득을 한 번 하고 나면 게임이 그렇게 한다.</param>
 internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, string culture,
-                                 int cultureNo, Action<bool>? hideMenu = null)
+                                 int cultureNo, Action<bool>? hideMenu = null,
+                                 Action? leave = null)
 {
     /// <summary>술집의 건물 코드. 화자표에서 주인을 찾을 때 쓴다.</summary>
     private const int BuildingCode = 4;
@@ -53,6 +55,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     private readonly int _cultureNo = cultureNo;
 
     private readonly Action<bool>? _hideMenu = hideMenu;
+    private readonly Action? _leave = leave;
 
     /// <summary>명령 창을 접어 두고 한 가지를 치른 뒤 도로 편다.</summary>
     private void Alone(Action run)
@@ -239,10 +242,15 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                                    "이야기한다", "설득한다", "떠난다"))
             {
                 case 0: Chat(her, destined); break;
-                case 1: if (Woo(her, face)) return; break;
+
+                // 설득은 한 번뿐이다 — 되든 안 되든 그 자리에서 술집을 나온다.
+                case 1: Woo(her, face); _leave?.Invoke(); return;
+
                 default: return;
             }
-            words = "무슨 일이시죠?";
+            // 한 번 인사를 나눈 뒤로는 <b>줄만 다시 뜬다</b> — 게임은 "무슨 일이시죠?" 를
+            // 되풀이하지 않는다. 빈 글이면 대사 창을 건너뛴다(TalkDialog.Ask).
+            words = "";
         }
     }
 
@@ -283,28 +291,20 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///
     /// <b>문턱은 우리가 정했다</b> — 게임에서 그 자리를 아직 못 짚었다.
     /// </remarks>
-    private bool Woo(in BarmaidTable.Barmaid her, uint[]? face)
+    private void Woo(in BarmaidTable.Barmaid her, uint[]? face)
     {
-        TalkDialog.Say(_view, face, "", Barmaids.WooWord(_cultureNo));
-
-        if (_player.LikingOf(her.Id) < Barmaids.WooNeeded)
+        // 유혹의 말은 <b>제독이 하는 것</b>이라 대사 창에 안 뜬다 — 여급 얼굴을 걸고
+        // 제독이 말하는 창은 게임에 없다. 바로 대답부터 나온다.
+        if (_player.LikingOf(her.Id) < Barmaids.WooNeeded || _player.Spouse.Length > 0)
         {
             TalkDialog.Say(_view, face, "",
                            Barmaids.Refusals[_game.Random.Next(Barmaids.Refusals.Length)]);
-            return false;
-        }
-
-        if (_player.Spouse.Length > 0)
-        {
-            TalkDialog.Say(_view, face, "", "당신, 이미 사람이 있잖아요.");
-            return false;
+            return;
         }
 
         _player.Marry(her.Name, her.Id);
-        TalkDialog.Say(_view, face, "", "네··· 당신을 따라가겠어요.");
-        NoticeDialog.Show(_view, $"{_player.Name}{GameUi.Josa(_player.Name, "은", "는")} "
-                               + $"{her.Name}{GameUi.Josa(her.Name, "과", "와")} 결혼했습니다");
-        return true;
+        TalkDialog.Say(_view, face, "", Barmaids.Yes);
+        ConfirmDialog.Tell(_view, string.Format(Barmaids.Married, _player.Name, her.Name));
     }
 
     /// <summary>
