@@ -1,6 +1,7 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Models;
+using CdsHelper.Game.Engine.Sea;
 using CdsHelper.Game.Engine.Town;
 using CdsHelper.Support.Local.Models;
 
@@ -201,10 +202,78 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         Facility.RefitSail when ship.CanAddSail => () => AddSail(ship),
         Facility.RefitTurrets => () => ChangeTurrets(ship),
         Facility.RefitCannon => () => BuyCannon(ship),
+        "선두상" when Carried().Count > 0 => () => Carve(ship),
         Facility.RefitRename => () => RenameShip(ship),
         Facility.RefitExit => _menu.Pop,
         _ => null,
     };
+
+    /// <summary>지금 지니고 있는 선두상들 — 소지품에서 갈래 6 을 골라낸 것이다.</summary>
+    /// <remarks>
+    /// 조선소는 선두상을 <b>팔지 않는다</b>. 어디선가 얻어 지닌 것을 달아 줄 뿐이라
+    /// (<c>0x00495CF0</c> 이 소지품을 뒤진다) 지닌 것이 없으면 줄이 흐리다.
+    /// </remarks>
+    private List<int> Carried() =>
+        [.. _player.Items.Select(Figureheads.FromItem).Where(Figureheads.Known).Distinct()];
+
+    /// <summary>
+    /// 선두상 — 지닌 조각 하나를 뱃머리에 단다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00495C10</c> 언저리다.
+    /// <code>
+    ///   531bc0  "지금 붙어있는 선두상은 놓아 가고 가는가?"      이미 달았을 때
+    ///   531cc0  "…자네가 지금 달고 있는 선두상은 저주받아 풀 수가 없네."   저주는 못 뗀다
+    ///   531d40  "이! 이 선두상은... 이보게, 정말 이것을 달아도 좋단 말이지?"  저주받은 것을 달 때
+    ///   531dd0  "선두상을 단 값으로 금화 %1d닢 받겠네."
+    ///   531e08  "돈이 모자라는 것 같군."
+    /// </code>
+    /// 삯은 <b>등급</b>이 정한다(<see cref="Figureheads.PriceOf"/>) — 값이 아니라 등급이라
+    /// 저주받은 것이 서른 배로 비싸다.
+    /// </remarks>
+    private void Carve(Ship ship)
+    {
+        var owner = Owner;
+        var carried = Carried();
+        if (carried.Count == 0) return;
+
+        // 저주받은 것을 달고 있으면 갈아 낼 수가 없다.
+        if (Figureheads.Cursed(ship.Figurehead))
+        {
+            GameDialog.Show(owner,
+                $"안됐지만, 자네가 지금 달고 있는 선두상은 저주받아 풀 수가 없네. {NameOf(ship.Figurehead)}");
+            return;
+        }
+
+        int at = HintListDialog.Pick(owner,
+            [.. carried.Select(i => $"{NameOf(i),-12}{Figureheads.PriceOf(i),7}닢")],
+            "선두상 선택", "지니고 있는 선두상이 없습니다");
+        if (at < 0) return;
+
+        int pick = carried[at];
+        if (ship.Figurehead >= 0
+            && !ConfirmDialog.Ask(owner, "지금 붙어있는 선두상은 놓아 가고 가는가?")) return;
+
+        if (Figureheads.Cursed(pick)
+            && !ConfirmDialog.Ask(owner, "이! 이 선두상은... 이보게, 정말 이것을 달아도 좋단 말이지?"))
+            return;
+
+        int cost = Figureheads.PriceOf(pick);
+        GameDialog.Show(owner, $"선두상을 단 값으로 금화 {cost}닢 받겠네.");
+        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
+
+        _player.Pay(cost);
+        _player.Drop(Figureheads.ToItem(pick));
+        ship.Carve(pick);
+
+        GameDialog.Show(owner, $"{NameOf(pick)}을 달았네. 좋은 항해가 되기를!");
+        _menu.Pop();
+        _menu.Push(() => RefitMenu(ship));
+    }
+
+    /// <summary>선두상 이름 — 아이템 표에서 낸다(213 송골매상 …). 못 읽으면 번호로 물러선다.</summary>
+    private string NameOf(int index) =>
+        _game.Items?.Find(Figureheads.ToItem(index))?.Name ?? $"선두상 {index}";
 
     /// <summary>
     /// 마스트 추가 — 돛대를 하나 더 세운다.

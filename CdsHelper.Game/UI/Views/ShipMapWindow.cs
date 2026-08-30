@@ -1448,7 +1448,7 @@ public sealed class ShipMapWindow : Window
     private GameMenu InfoMenuBox() => new("정보", null,
     [
         // 바다에서는 함대좌표 칸에 지금 자리를 적는다. 도시 안이라면 게임처럼 "---" 다.
-        ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _game.Player, CoordLine()))),
+        ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _game.Player, CoordLine(), _game.Items))),
         // 부하가 있으면 게임처럼 누구를 볼지 먼저 묻는다 — 도시 창과 한 벌이다.
         ("인물정보", () => PersonInfoMenu.Show(this, _game, CommandMenu)),
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
