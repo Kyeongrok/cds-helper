@@ -459,14 +459,25 @@ public sealed class ShipMapWindow : Window
 
         // 지도를 막 갈아 끼운 참이면 아직 자리를 안 잡았을 수 있다. 그때 빈 자리를 내면
         // 도시 창이 제 크기를 못 잡는다 — 한 번 재워 두고 다시 본다.
-        if (_input.ActualWidth <= 0 || _input.ActualHeight <= 0) UpdateLayout();
-        if (_input.ActualWidth <= 0 || _input.ActualHeight <= 0) return default;
+        //
+        // <b>크기만 봐서는 모자란다.</b> WPF 는 <c>Content</c> 를 갈아 끼워도 그 아래
+        // 것들을 <b>다음 자리잡기 때</b> 트리에 붙인다. 앞서 한 번 떠 있었던 지도는
+        // 크기가 남아 있어서 이 검사를 그냥 지나치는데, 그 참에 <c>PointToScreen</c> 을
+        // 부르면 "이 Visual이 PresentationSource에 연결되지 않았습니다" 로 터진다 —
+        // 타이틀로 돌아갔다가 NEW GAME 을 다시 고르면 늘 이 자리였다.
+        if (!Ready(_input)) UpdateLayout();
+        if (!Ready(_input)) return default;
 
         // PointToScreen 은 실픽셀을 내므로 WPF 단위로 되돌린다(고해상도 화면에서 어긋난다).
         var device = _input.PointToScreen(new Point(0, 0));
         var topLeft = source.CompositionTarget.TransformFromDevice.Transform(device);
         return new Rect(topLeft.X, topLeft.Y, _input.ActualWidth, _input.ActualHeight);
     }
+
+    /// <summary>트리에 붙었고 자리도 잡았는가 — <c>PointToScreen</c> 을 부르기 전에 본다.</summary>
+    private static bool Ready(FrameworkElement element) =>
+        PresentationSource.FromVisual(element) != null
+        && element.ActualWidth > 0 && element.ActualHeight > 0;
 
     /// <summary>요소 안의 한 자리를 화면 좌표(WPF 단위)로 옮긴다.</summary>
     private Point ToScreen(FrameworkElement element, Point at)

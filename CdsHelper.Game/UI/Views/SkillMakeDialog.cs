@@ -190,12 +190,32 @@ internal sealed class SkillMakeDialog : InfoDialog
         return box;
     }
 
+    /// <summary>
+    /// <b>한 자리 올리는 값은 그 자리 값만큼이다</b> — 0→1 은 1 점, 1→2 는 2 점,
+    /// 2→3 은 3 점이다. 내릴 때도 같은 값으로 되돌려 준다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    /// 45dfc2  ecx = 밑자리[i] + 올린만큼[i]          ; 지금 자리
+    /// 45dfd3  ecx >= 3 이면 못 올린다
+    /// 45e021  ecx++                                  ; 드는 점수 = 지금 자리 + 1
+    /// 45e028  남은 보너스보다 크면 못 올린다
+    /// 45e031  남은 보너스 -= ecx
+    ///
+    /// 45e060  edx = 밑자리[i] + 올린만큼[i]          ; 내릴 때는 그 값을 그대로 돌려준다
+    /// 45e068  남은 보너스 += edx
+    /// </code>
+    /// 그래서 한 기술을 3 까지 올리려면 <b>여섯 점</b>이 든다. 보너스가 세 점이면
+    /// 세 자리를 하나씩 올리거나 한 자리를 2 까지만 올릴 수 있다.
+    /// </remarks>
+    private static int CostOf(int level) => level + 1;
+
     /// <summary>한 자리 올리거나 내린다. 밑자리 밑으로는 못 내리고 상한을 못 넘는다.</summary>
     private void Move(int[] values, int[] floors, int at, int by)
     {
         if (by > 0)
         {
-            if (_left <= 0 || values[at] >= Skill.MaxLevel) return;
+            if (values[at] >= Skill.MaxLevel || _left < CostOf(values[at])) return;
             if (Total() >= _cap)
             {
                 NoticeDialog.Show(this, ReferenceEquals(values, _skills)
@@ -203,14 +223,14 @@ internal sealed class SkillMakeDialog : InfoDialog
                     : "더 이상 언어를 습득할 수 없습니다");
                 return;
             }
+            _left -= CostOf(values[at]);
             values[at]++;
-            _left--;
         }
         else
         {
             if (values[at] <= floors[at]) return;
             values[at]--;
-            _left++;
+            _left += CostOf(values[at]);
         }
         Sync();
     }
