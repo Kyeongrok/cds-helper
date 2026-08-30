@@ -68,6 +68,7 @@ public sealed class DuelDialog : Window
     private readonly Duel _duel;
     private readonly GameRandom _dice;
     private readonly uint[]? _face;
+    private readonly DuelStage? _stage;
 
     private readonly StackPanel _keys = new();
     private readonly TextBlock _says = new();
@@ -77,11 +78,13 @@ public sealed class DuelDialog : Window
     private readonly TextBlock[] _mineText = new TextBlock[Duel.Lines];
     private readonly TextBlock[] _theirsText = new TextBlock[Duel.Lines];
 
-    private DuelDialog(Duel duel, GameRandom dice, uint[]? face)
+    private DuelDialog(Duel duel, GameRandom dice, uint[]? face,
+                       FighterSprites? art, int foeSet)
     {
         _duel = duel;
         _dice = dice;
         _face = face;
+        if (art != null) _stage = new DuelStage(art, foeSet);
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -92,6 +95,18 @@ public sealed class DuelDialog : Window
         Width = Width_;
 
         var body = new StackPanel { Margin = new Thickness(Pad) };
+
+        if (_stage != null)
+        {
+            body.Children.Add(new Border
+            {
+                BorderBrush = GameUi.Edge,
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 0, 8),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Child = _stage,
+            });
+        }
 
         var sides = new Grid();
         sides.ColumnDefinitions.Add(new ColumnDefinition());
@@ -252,16 +267,56 @@ public sealed class DuelDialog : Window
         if (_focus != null && _focus.HandleKey(e.Key)) e.Handled = true;
     }
 
-    /// <summary>한 판을 치르고 그 자취를 말로 낸다.</summary>
+    /// <summary>한 판을 치른다. 그림이 있으면 다 돌고 나서 말을 낸다.</summary>
     private void Step(int pick)
     {
         var turn = _duel.Play(pick);
-        Refresh();
 
-        _says.Text = Line(turn) + "\n\n" + Taunt(turn);
+        if (_stage == null) { Settle(turn); return; }
+
+        // 손을 고르고 나면 단추를 걷는다 — 그림이 도는 동안은 아무것도 못 누른다.
+        _keys.Children.Clear();
+        _focus = null;
+        _says.Text = "";
+
+        var (mine, theirs, myLunge, foeLunge) = Moves(turn);
+        _stage.Play(mine, theirs, myLunge, foeLunge,
+                    onSay: () => _says.Text = Line(turn),
+                    onHurt: Refresh,
+                    onDone: () => Settle(turn));
+    }
+
+    /// <summary>이번 판에 두 사람이 지을 몸짓.</summary>
+    private static (FighterSprites.Move Mine, FighterSprites.Move Theirs,
+                    bool MyLunge, bool FoeLunge) Moves(in Duel.Turn turn)
+    {
+        static FighterSprites.Move Cut(int line) => (FighterSprites.Move)line;
+        static FighterSprites.Move Guard(int g) => (FighterSprites.Move)(3 + g);
+
+        return turn.Was switch
+        {
+            // 맞부딪힘 — 둘이 한꺼번에 내지른다.
+            Duel.Phase.Clash => (Cut(turn.MyMove), Cut(turn.FoeMove), true, true),
+
+            // 내가 친다 — 상대는 막는 몸짓이다.
+            Duel.Phase.Attack => (turn.Finisher ? FighterSprites.Move.Finisher : Cut(turn.MyMove),
+                                  Guard(turn.FoeMove), true, false),
+
+            // 내가 막는다.
+            _ => (Guard(turn.MyMove),
+                  turn.Finisher ? FighterSprites.Move.Finisher : Cut(turn.FoeMove), false, true),
+        };
+    }
+
+    /// <summary>판이 끝난 자리 — 말을 내고 다음 손을 묻는다.</summary>
+    private void Settle(in Duel.Turn turn)
+    {
+        Refresh();
+        _says.Text = Line(turn) + Environment.NewLine + Environment.NewLine + Taunt(turn);
 
         if (_duel.Over)
         {
+            _stage?.Fall(mine: _duel.Won != true);
             _keys.Children.Clear();
             var focus = new GameUi.FocusGroup();
             var ok = focus.Add("확인", () => { DialogResult = _duel.Won; }, 96);
@@ -272,6 +327,7 @@ public sealed class DuelDialog : Window
             return;
         }
 
+        _stage?.Rest();
         Rebuild();
     }
 
@@ -314,9 +370,12 @@ public sealed class DuelDialog : Window
     }
 
     /// <summary>판을 연다. 이겼으면 true.</summary>
-    public static bool Show(Window owner, Duel duel, GameRandom dice, uint[]? face)
+    /// <param name="art">싸움 그림. 없으면 막대와 글로만 낸다.</param>
+    /// <param name="foeSet">상대 그림벌(1~8).</param>
+    public static bool Show(Window owner, Duel duel, GameRandom dice, uint[]? face,
+                            FighterSprites? art = null, int foeSet = 1)
     {
-        var window = new DuelDialog(duel, dice, face) { Owner = owner };
+        var window = new DuelDialog(duel, dice, face, art, foeSet) { Owner = owner };
         window.ShowDialog();
         return duel.Won == true;
     }

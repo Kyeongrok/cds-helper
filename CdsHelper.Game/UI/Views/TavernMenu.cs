@@ -415,7 +415,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var mate = SendMate(dice);
         var duel = new Engine.Town.Duel(mate is { } m ? MateSide(m) : Mine(),
                                         Theirs(who), Shielded(), Environment.TickCount);
-        DuelDialog.Show(_view, duel, dice, face);
+        DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
+                        FighterSprites.SetForCulture(_cultureNo));
 
         int lost = duel.BodyLost;
 
