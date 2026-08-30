@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -17,10 +18,10 @@ namespace CdsHelper.Game.UI.Views;
 public sealed class HintListDialog : Window
 {
     /// <summary>목록 칸의 폭과 가장 높은 자리. 게임 갈무리에서 잰 값이다.</summary>
-    private const double ListWidth = 420, ListMaxHeight = 300;
+    private const double ListWidth = 300, ListMaxHeight = 280;
 
-    /// <summary>아래 단추 둘의 폭과 사이.</summary>
-    private const double ButtonWidth = 150, ButtonGap = 16;
+    /// <summary>아래 단추 둘의 폭·높이와 사이. 게임 조각 단추다.</summary>
+    private const double ButtonWidth = 128, ButtonGap = 12;
 
     /// <summary>고른 줄. 아무것도 안 골랐으면 -1.</summary>
     private int _picked = -1;
@@ -28,7 +29,7 @@ public sealed class HintListDialog : Window
     /// <summary>줄마다의 판. 고른 줄만 도드라지게 칠한다.</summary>
     private readonly List<Border> _rows = [];
 
-    private readonly Border _decide;
+    private readonly GameButton _decide;
 
     private HintListDialog(IReadOnlyList<string> hints, bool choosing, string caption)
     {
@@ -46,7 +47,7 @@ public sealed class HintListDialog : Window
             var row = new Border
             {
                 Background = Brushes.Transparent,
-                Padding = new Thickness(10, 1, 6, 1),
+                Padding = new Thickness(8, 0, 4, 0),
                 Cursor = choosing ? Cursors.Hand : Cursors.Arrow,
                 Child = new TextBlock
                 {
@@ -62,18 +63,24 @@ public sealed class HintListDialog : Window
         }
 
         // 고르는 창이라도 아직 아무것도 안 골랐으면 결정은 흐리다 — 게임도 그렇다.
-        _decide = GameUi.PushButton("결정", null);
+        _decide = new GameButton("결정", Decide, BandStyle.Button, ButtonWidth)
+        {
+            Height = UiSprites.BandHeight,
+            Margin = new Thickness(0, 0, ButtonGap / 2, 0),
+            On = false,
+        };
 
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 8),
+            Margin = new Thickness(0, 5, 0, 5),
         };
-        _decide.Width = ButtonWidth;
-        _decide.Margin = new Thickness(0, 0, ButtonGap / 2, 0);
-        var stop = GameUi.PushButton("중단", Cancel, ButtonWidth);
-        stop.Margin = new Thickness(ButtonGap / 2, 0, 0, 0);
+        var stop = new GameButton("중단", Cancel, BandStyle.Button, ButtonWidth)
+        {
+            Height = UiSprites.BandHeight,
+            Margin = new Thickness(ButtonGap / 2, 0, 0, 0),
+        };
         buttons.Children.Add(_decide);
         buttons.Children.Add(stop);
 
@@ -87,8 +94,8 @@ public sealed class HintListDialog : Window
             Background = GameUi.PageFill,
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(2),
-            Margin = new Thickness(4, 4, 4, 0),
-            Padding = new Thickness(6, 4, 6, 4),
+            Margin = new Thickness(3, 3, 3, 0),
+            Padding = new Thickness(5, 2, 5, 2),
             // <b>가로로 넓고 세로는 줄 수를 따라간다.</b> 게임 창이 그렇다 — 두 줄이면
             // 두 줄만큼만 높고, 길어지면 그때 늘어나다 스무 줄쯤에서 멎고 굴러간다.
             // 예전에는 280x300 으로 박아 두어 줄이 몇 없어도 아래가 텅 비었다.
@@ -107,7 +114,7 @@ public sealed class HintListDialog : Window
             Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
             BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
+            Margin = new Thickness(2),
             Child = stack,
         };
 
@@ -122,13 +129,17 @@ public sealed class HintListDialog : Window
         for (int i = 0; i < _rows.Count; i++)
             _rows[i].Background = i == index ? GameUi.ItemFill : Brushes.Transparent;
 
-        // 결정 단추를 살아 있는 것으로 갈아 끼운다(단추는 만들 때 손이 정해진다).
-        if (_decide.Child is TextBlock label) label.Foreground = Brushes.Black;
-        _decide.Cursor = Cursors.Hand;
+        _decide.On = true;
         _decideReady = true;
     }
 
     private bool _decideReady;
+
+    /// <summary>결정 — 고른 것이 있어야 눌린다.</summary>
+    private void Decide()
+    {
+        if (_decideReady) Close();
+    }
 
     private void Cancel()
     {
@@ -170,11 +181,6 @@ public sealed class HintListDialog : Window
         }
 
         var dlg = new HintListDialog(items, choosing: true, caption) { Owner = owner };
-        dlg._decide.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            if (dlg._decideReady) dlg.Close();
-        };
         dlg.ShowDialog();
         return dlg._picked;
     }
