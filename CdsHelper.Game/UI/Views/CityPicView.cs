@@ -61,13 +61,17 @@ public sealed class CityPicView : Window
     private readonly int _cityId;
 
     /// <summary>이 도시의 문화권("이슬람", "북유럽" …). 건물 사진을 고르는 데 쓴다.</summary>
-    private readonly string _culture;
+    private string _culture;
 
     /// <summary>
     /// 이 마을 문화권 번호(0~10). 시설의 화자 얼굴이 여기 따라 갈린다 —
     /// 같은 조선소라도 리스본과 이스탄불에 딴 사람이 앉는다.
     /// </summary>
-    private readonly int _cultureNo;
+    /// <remarks>
+    /// 도구 창에서 이 마을 문화권을 갈면 창을 열어 둔 채로 바뀐다
+    /// (<see cref="CityCultureEdits"/>) — 그래서 <c>readonly</c> 가 아니다.
+    /// </remarks>
+    private int _cultureNo;
 
     /// <summary>그림 배율. 건물 사진도 같은 배율로 놓아야 자리가 맞는다.</summary>
     private readonly int _scale;
@@ -224,6 +228,11 @@ public sealed class CityPicView : Window
         _cityTrack = cityTrack;
         _cityName = cityName;
         _cityId = cityId;
+
+        // 도구 창에서 문화권을 갈면 그 자리에서 따라간다 — 창을 닫았다 열 것 없이
+        // 조선소 얼굴이 바뀌는지 보려는 것이 그 기능의 뜻이다.
+        CityCultureEdits.Changed += OnCultureChanged;
+        Closed += (_, _) => CityCultureEdits.Changed -= OnCultureChanged;
 
         Title = cityName;                 // 화면에는 안 나온다 — 창 목록에서만 쓴다
         WindowStyle = WindowStyle.None;
@@ -838,6 +847,24 @@ public sealed class CityPicView : Window
         return new GameMenu(title, null,
             [.. items.Select(item =>
                 (item, ActionFor(facility, item, code, teachMask, patron, title, kind)))]);
+    }
+
+    /// <summary>
+    /// 도구 창에서 문화권이 갈렸다 — 이 마을 것을 다시 묻고, 그 값을 품고 있는 시설을 놓는다.
+    /// </summary>
+    /// <remarks>
+    /// 시설 창은 한 번 지으면 그대로 두고 쓴다(<see cref="Yard"/> 따위). 문화권을 지을 때
+    /// 받아 들고 있으므로 놓아 주지 않으면 <b>옛 얼굴이 그대로</b> 나온다. 놓기만 하면
+    /// 다음에 그 시설을 누를 때 새 문화권으로 다시 지어진다.
+    /// </remarks>
+    private void OnCultureChanged()
+    {
+        _cultureNo = _game.CityRows?.CultureOf(_cityId) ?? 0;
+        _culture = _game.CultureOf(_cityId);
+
+        _yard = null;      // 조선소 — 화자 얼굴
+        _books = null;     // 도서관 — 사서 얼굴
+        _guests = null;    // 술집·여관 — 주인 얼굴과 손님 그림
     }
 
     /// <summary>항구의 건물 코드. 배에서 곧바로 항구 창을 열 때 쓴다.</summary>

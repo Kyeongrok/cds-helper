@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
@@ -263,7 +263,19 @@ public sealed class Game
     }
 
     /// <summary>그 도시의 문화권("이슬람" · "북유럽" …). 모르면 빈 문자열.</summary>
-    public string CultureOf(int city) => CityTable.CultureOf(city);
+    /// <remarks>
+    /// 이름은 앱 DB 에서 나온다. 도구 창에서 손으로 갈아 둔 것이 있으면 그 번호의
+    /// 이름으로 낸다(<see cref="CityCultureEdits"/>) — 건물 사진과 술집 손님이 번호가
+    /// 아니라 <b>이름</b>으로 갈리기 때문에, 여기까지 따라오지 않으면 얼굴만 바뀌고
+    /// 사진은 그대로인 어정쩡한 마을이 된다.
+    /// </remarks>
+    public string CultureOf(int city)
+    {
+        int changed = CityCultureEdits.Of(city);
+        return changed == CityCultureEdits.None
+            ? CityTable.CultureOf(city)
+            : CityCultureEdits.NameOf(changed);
+    }
 
     /// <summary>그 도시의 이름. 표에 없으면 번호로 물러선다.</summary>
     public string CityName(int city) => CityTable.NameOf(city);

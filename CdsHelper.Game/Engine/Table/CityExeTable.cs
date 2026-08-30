@@ -127,9 +127,17 @@ public sealed class CityExeTable
     /// <remarks>
     /// 0 이베리아 · 1 북유럽 · 2 지중해 · 3 아프리카 · 4 이슬람 · 5 인도 · 6 중국 ·
     /// 7 중앙아시아 · 8 동남아시아 · 9 일본 · 10 아메리카.
+    ///
+    /// 사람이 갈아 둔 것이 있으면 그것이 이긴다(<see cref="CityCultureEdits"/>) — 도구
+    /// 창에서 세빌리아를 이슬람으로 갈면 그 마을 조선소에 앉는 얼굴까지 따라 바뀐다.
+    /// EXE 는 그대로고, 앱이 읽은 값만 덮는 것이다.
     /// </remarks>
-    public int CultureOf(int cityId) =>
-        cityId >= 0 && cityId < _cultures.Length ? _cultures[cityId] : -1;
+    public int CultureOf(int cityId)
+    {
+        int changed = CityCultureEdits.Of(cityId);
+        if (changed != CityCultureEdits.None) return changed;
+        return cityId >= 0 && cityId < _cultures.Length ? _cultures[cityId] : -1;
+    }
 
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
