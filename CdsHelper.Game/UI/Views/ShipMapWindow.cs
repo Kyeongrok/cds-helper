@@ -2064,7 +2064,10 @@ public sealed class ShipMapWindow : Window
         dialog.Closed += (_, _) =>
         {
             SetInCity(false);
-            _game.Bgm.Play(BgmPlayer.SeaTrack);
+
+            // 성문으로 나섰으면 뭍에 올라 말로 걷는다 — 곡도 뭍 것으로 바뀐다.
+            bool walking = dialog.Explored && _host.Land();
+            _game.Bgm.Play(walking ? BgmPlayer.LandTrack : BgmPlayer.SeaTrack);
             _host.Paused = false;
             _asking = false;
             _game.Player.EnterCity(-1);

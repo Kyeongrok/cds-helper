@@ -84,6 +84,15 @@ public sealed class CityPicView : Window
     /// <summary>출항을 골랐는지. 창을 그냥 닫으면 false.</summary>
     public bool Sailed { get; private set; }
 
+    /// <summary>
+    /// 성문에서 <b>탐험을 떠난다</b> 를 골랐는지.
+    /// </summary>
+    /// <remarks>
+    /// 마을이 닫히고 뭍으로 나선다 — 배는 항구에 대 둔 채 말을 타고 걷는다. 되돌아오는
+    /// 것은 바다 커맨드의 "출항" 이 맡는다(<see cref="Rendering.ShipMapHost.Embark"/>).
+    /// </remarks>
+    public bool Explored { get; private set; }
+
     /// <summary>펼치기 시작하는 크기(제 크기의 몇 곱).</summary>
     private const double OpenFrom = 0.1;
 
@@ -1109,6 +1118,9 @@ public sealed class CityPicView : Window
 
             // 나가도 좋은지는 항구가 따진다 — 선원과 보급을 보고 막거나 묻는다.
             TownWork.Sail => () => { if (Port.ConfirmSail()) { Sailed = true; Close(); } },
+
+            // 성문 — 마을을 나서 뭍을 걷는다. 배는 항구에 그대로 둔다.
+            TownWork.Explore => () => { Explored = true; Close(); },
             // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
             TownWork.FleetForm => () => Menu.Push(Port.FleetMenu),
             TownWork.CrewForm => Port.CrewForm,
