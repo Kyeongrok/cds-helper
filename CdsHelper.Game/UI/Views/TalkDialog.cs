@@ -193,8 +193,14 @@ public sealed class TalkDialog : Window
     }
 
     /// <summary>얼굴을 띄우고 한마디 한다. 확인만 받는다.</summary>
+    /// <remarks>
+    /// <b>게임 알림창을 그대로 쓴다</b>(<see cref="ConfirmDialog"/>). 이 창은 폭이
+    /// 360 으로 박혀 있어서, 얼굴이 없으면 짧은 말에도 창이 넓게 남고 얼굴이 있으면
+    /// 한 줄이면 될 말이 두 줄로 접혔다 — 게임은 <b>글 길이에 맞춰 창을 늘인다</b>
+    /// (칸수 = max(30, 가장 긴 줄), 너비 = 칸수 x 8 + 32, 얼굴이 서면 + 96).
+    /// </remarks>
     public static void Say(Window owner, uint[]? face, string speaker, string text) =>
-        new TalkDialog(face, speaker, text, []) { Owner = owner }.ShowDialog();
+        ConfirmDialog.Tell(owner, text, speaker.Length > 0 ? speaker : null, face);
 
     /// <summary>
     /// 얼굴을 띄우고 물어본다. 고른 자리를 내고, 그냥 닫으면 -1 이다.
