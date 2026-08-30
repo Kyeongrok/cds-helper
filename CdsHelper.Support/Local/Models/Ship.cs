@@ -1,4 +1,4 @@
-namespace CdsHelper.Support.Local.Models;
+﻿namespace CdsHelper.Support.Local.Models;
 
 /// <summary>
 /// 가지고 있는 배 한 척 — 선체와, 그 배만의 값.
@@ -48,6 +48,10 @@ public sealed class Ship
         Turrets = Math.Clamp(s.Turrets, 0, Math.Max(0, hull.Guns));
         for (int i = 0; i < MastSlots; i++)
             _sails[i] = i < (s.Sails?.Count ?? 0) ? Math.Clamp(s.Sails![i], NoSail, Square) : NoSail;
+        // 물음표를 붙여 둔 것은 <b>옛 세이브</b> 때문이다 — 그 칸이 없으면 0(송골매상)이
+        // 아니라 null 로 들어와야 안 단 것이 된다.
+        Figurehead = s.Figurehead is { } carved && carved >= 0 && carved < FigureheadCount
+            ? carved : -1;
         Gun = Cannon.Of(s.Gun) == null ? -1 : s.Gun;
         Guns = Gun < 0 ? 0 : Math.Clamp(s.Guns, 0, Turrets);
         if (Guns == 0) Gun = -1;
@@ -65,6 +69,23 @@ public sealed class Ship
 
     /// <summary>성할 때의 내구. 개조 "보강" 이 올린다.</summary>
     public int MaxHp { get; private set; }
+
+    /// <summary>
+    /// 뱃머리에 단 선두상의 번호. 안 달았으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배 레코드의 <c>+0x5C</c> 에 든다(<c>0x0044CA30</c> 이 그 자리를 읽는다).
+    /// 바다 재앙 판정이 이 값으로 표 <c>0x0054A0A0</c> 을 타고 하나를 막아 준다 —
+    /// 자세한 것은 <see cref="Models.Figurehead"/>.
+    /// </remarks>
+    public int Figurehead { get; private set; }
+
+    /// <summary>선두상 가짓수(게임 표 <c>0x0054A0A0</c> 의 줄 수).</summary>
+    public const int FigureheadCount = 36;
+
+    /// <summary>선두상을 갈아 단다. 표 밖이면 떼어 낸 셈이 된다.</summary>
+    public void Carve(int index) =>
+        Figurehead = index >= 0 && index < FigureheadCount ? index : -1;
 
     /// <summary>최대 추진력. 개조가 깎는다.</summary>
     public int Speed { get; private set; }
@@ -421,7 +442,7 @@ public sealed class Ship
     /// <param name="Sails">마스트 셋에 달린 돛. 안 주면 메인마스트에 삼각돛 하나다.</param>
     public sealed record Stats(int MaxHp, int Speed, int Capacity, int Tonnage, int Crew,
                                int Turrets = 0, int Gun = -1, int Guns = 0,
-                               IReadOnlyList<int>? Sails = null)
+                               IReadOnlyList<int>? Sails = null, int? Figurehead = null)
     {
         /// <summary>
         /// 선체 기본값 그대로. 포탑은 다 달린 채로 나오고 대포는 안 실려 있으며,
@@ -434,7 +455,7 @@ public sealed class Ship
 
     /// <summary>지금 값을 통째로.</summary>
     public Stats Snapshot() =>
-        new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns, [.. _sails]);
+        new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns, [.. _sails], Figurehead);
 
     /// <summary>개조로 값이 갈렸는지.</summary>
     public bool IsRefitted => Snapshot() != Stats.Of(Hull);

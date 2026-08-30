@@ -156,22 +156,51 @@ public static class SeaEvents
         if (safe >= rng.Next(SafeRoll)) return null;
 
         int sail = player.LevelOf(SkillName);
+        int carved = FigureheadOf(player);
+
         return rng.Next(KindCount) switch
         {
-            RatsKind or RatsAgainKind => SeaEventKind.Rats,
+            RatsKind or RatsAgainKind =>
+                Figureheads.Blocks(carved, Figureheads.GuardsRats, rng)
+                    ? null : SeaEventKind.Rats,
 
             // 병 둘은 먼저 귀띔 주사위를 굴린다. 걸리면 그것으로 끝이다.
             ScurvyKind when rng.Next(ScurvyNotice) < sail + 1 => SeaEventKind.Weakening,
             ScurvyKind when player.LevelOf(MedicineSkill) >= MedicineNeeded => null,
-            ScurvyKind => SeaEventKind.Scurvy,
+            ScurvyKind =>
+                Figureheads.Blocks(carved, Figureheads.GuardsSickness, rng)
+                    ? null : SeaEventKind.Scurvy,
 
             PlagueKind when rng.Next(PlagueNotice) < sail + 1 => SeaEventKind.StrangeIllness,
-            PlagueKind => SeaEventKind.Plague,
+            PlagueKind =>
+                Figureheads.Blocks(carved, Figureheads.GuardsSickness, rng)
+                    ? null : SeaEventKind.Plague,
 
-            MutinyKind => Mutinous(player) ? SeaEventKind.Mutiny : null,
+            MutinyKind when !Mutinous(player) => null,
+            MutinyKind =>
+                Figureheads.Blocks(carved, Figureheads.GuardsMutiny, rng)
+                    ? null : SeaEventKind.Mutiny,
+
+            StormKind or BlizzardKind when
+                Figureheads.Blocks(carved, Figureheads.GuardsStorm, rng) => null,
             StormKind or BlizzardKind => BandOf(lat),
+
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// 기함에 단 선두상 번호. 안 달았으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 <b>기함</b> 것만 본다 — 다섯 갈래가 하나같이 <c>0x00473CD0</c>(기함 번호)로
+    /// 배를 집어 <c>[배+0x5C]</c> 를 읽는다. 함대에 몇 척이 있든 뱃머리는 하나다.
+    /// </remarks>
+    public static int FigureheadOf(Player player)
+    {
+        var ships = player.Ships;
+        if (ships.Count == 0) return -1;
+        return ships[Math.Clamp(player.Flagship, 0, ships.Count - 1)].Figurehead;
     }
 
     /// <summary>

@@ -1,6 +1,8 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using CdsHelper.Game.Engine.Sea;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -23,7 +25,7 @@ internal sealed class ShipInfoDialog : InfoDialog
     /// <inheritdoc/>
     protected override Brush BoardEdge => SteelEdge;
 
-    private ShipInfoDialog(Player player, int at)
+    private ShipInfoDialog(Player player, int at, ItemTable? items)
     {
         var ship = player.Ships[at];
         var rows = new StackPanel();
@@ -37,8 +39,33 @@ internal sealed class ShipInfoDialog : InfoDialog
                                 $"{Cannon.Of(ship.Gun)?.Name ?? "—"}"));
         rows.Children.Add(Gap(6));
         rows.Children.Add(Label($"  돛    {Sails(ship)}"));
+        rows.Children.Add(Label($"  선두상 {Carved(ship, items)}"));
 
         Build("선박정보", rows, BoardWidth, BoardHeight, new GameButton("취소", Close));
+    }
+
+    /// <summary>
+    /// 뱃머리에 단 선두상. 안 달았으면 "—" 다.
+    /// </summary>
+    /// <remarks>
+    /// 무엇을 막아 주는지도 함께 낸다 — 조각마다 막는 재앙이 다르고
+    /// (<see cref="Figureheads.GuardOf"/>) 그것이 곧 이 조각을 다는 뜻이다.
+    /// </remarks>
+    private static string Carved(Ship ship, ItemTable? items)
+    {
+        int carved = ship.Figurehead;
+        if (!Figureheads.Known(carved)) return "—";
+
+        string name = items?.Find(Figureheads.ToItem(carved))?.Name ?? $"선두상 {carved}";
+        string guards = Figureheads.GuardOf(carved) switch
+        {
+            Figureheads.GuardsRats => "쥐",
+            Figureheads.GuardsSickness => "병",
+            Figureheads.GuardsMutiny => "반란",
+            _ => "폭풍",
+        };
+        int block = Figureheads.BlockPercent(carved);
+        return block > 0 ? $"{name}  ({guards} {block}%)" : $"{name}  (저주)";
     }
 
     /// <summary>마스트에 달린 돛을 한 줄로. 안 선 자리는 안 적는다.</summary>
@@ -52,9 +79,10 @@ internal sealed class ShipInfoDialog : InfoDialog
     }
 
     /// <summary>그 배의 판을 연다.</summary>
-    public static void Show(Window owner, Player player, int at)
+    /// <param name="items">아이템 표. 선두상 이름을 여기서 낸다 — 없으면 번호로 물러선다.</param>
+    public static void Show(Window owner, Player player, int at, ItemTable? items = null)
     {
         if (at < 0 || at >= player.Ships.Count) return;
-        new ShipInfoDialog(player, at) { Owner = owner }.ShowDialog();
+        new ShipInfoDialog(player, at, items) { Owner = owner }.ShowDialog();
     }
 }

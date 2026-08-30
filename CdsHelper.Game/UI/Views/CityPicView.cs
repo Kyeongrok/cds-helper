@@ -744,7 +744,7 @@ public sealed class CityPicView : Window
     private void ShowFleet()
     {
         CloseCityMenu();
-        FleetInfoDialog.Show(this, _player);
+        FleetInfoDialog.Show(this, _player, items: _game.Items);
     }
 
     /// <summary>
