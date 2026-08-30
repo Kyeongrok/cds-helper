@@ -363,7 +363,7 @@ public sealed class SupplyDialog : Window
             if (_add[i] > 0) _player.AddSupply(Supply.All[i].Kind, _add[i]);
         _player.SetGold(_player.Gold - total);
 
-        GameDialog.Show(this, "고맙네!");
+        // 알림 없이 그냥 닫는다 — 실은 것은 창이 닫히며 상단 띠에 그대로 비친다.
         Close();
     }
 
