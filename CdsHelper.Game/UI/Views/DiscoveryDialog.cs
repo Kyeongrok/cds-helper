@@ -69,7 +69,8 @@ public sealed class DiscoveryDialog : Window
 
     private readonly GameUi.FocusGroup _focus = new();
 
-    private DiscoveryDialog(BitmapSource? picture, double width, string text, string? movie)
+    private DiscoveryDialog(BitmapSource? picture, double width, string text, string? movie,
+                            string? title)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -118,13 +119,18 @@ public sealed class DiscoveryDialog : Window
             stack.Children.Add(Framed(image));
         }
 
-        var words = new GameUi.GameLabel(GameFont.WhiteColor, GameUi.ItemTextHeight)
-        {
-            Text = text,
-            Bold = true,
-            FallbackBrush = GameUi.Text,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
+        // 해설은 여러 줄이라 왼쪽에 붙이고, 발견 알림은 한 줄이라 가운데다.
+        var lines = Wrap(text, stack.Width - SidePad * 2);
+        var words = new StackPanel();
+        foreach (string line in lines)
+            words.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, GameUi.ItemTextHeight)
+            {
+                Text = line,
+                Bold = true,
+                FallbackBrush = GameUi.Text,
+                HorizontalAlignment = lines.Count == 1 ? HorizontalAlignment.Center
+                                                       : HorizontalAlignment.Left,
+            });
 
         var ok = _focus.Add("확인", () => { DialogResult = true; }, ButtonWidth);
         ok.Height = ButtonHeight;
@@ -137,7 +143,16 @@ public sealed class DiscoveryDialog : Window
             Children = { ok },
         };
 
-        var below = new StackPanel { Children = { words, buttons } };
+        var below = new StackPanel();
+        // 해설에는 제목 띠가 붙는다 — 발견물 이름이다.
+        if (!string.IsNullOrEmpty(title)
+            && GameUi.TitleFrame(GameUi.Sprites, title!) is { } bar)
+        {
+            bar.Margin = new Thickness(0, 0, 0, 6);
+            below.Children.Add(bar);
+        }
+        below.Children.Add(words);
+        below.Children.Add(buttons);
         stack.Children.Add(new Border
         {
             Background = GameUi.Back,
@@ -165,8 +180,9 @@ public sealed class DiscoveryDialog : Window
     /// <param name="picture">그림 번호. -1 이면 그림이 없는 발견물이다.</param>
     /// <param name="text">적을 글("히랄다탑을 발견했다!").</param>
     /// <param name="movie">틀 동영상 파일. 없으면 null 이고 그때 그림을 본다.</param>
+    /// <param name="title">제목 띠에 적을 이름. 없으면 띠가 안 붙는다.</param>
     public static void Show(Window owner, DiscoveryStills? stills, int picture, string text,
-                            string? movie = null)
+                            string? movie = null, string? title = null)
     {
         BitmapSource? art = null;
         double width = MinWidth_;
@@ -182,7 +198,7 @@ public sealed class DiscoveryDialog : Window
             width = w;
         }
 
-        new DiscoveryDialog(art, width, text, movie) { Owner = owner }.ShowDialog();
+        new DiscoveryDialog(art, width, text, movie, title) { Owner = owner }.ShowDialog();
     }
 
     /// <summary>그 발견물의 동영상 파일 자리. 없으면 null.</summary>
@@ -194,4 +210,25 @@ public sealed class DiscoveryDialog : Window
 
     /// <summary>그림이 없을 때의 글 칸 너비. 게임 알림창의 가장 좁은 폭이다.</summary>
     private const double MinWidth_ = 272;
+
+    /// <summary>글자 한 칸 — 한글 한 자가 두 칸이다.</summary>
+    private const double CellWidth = 8;
+
+    /// <summary>칸 너비에 맞춰 끊는다.</summary>
+    private static List<string> Wrap(string text, double width)
+    {
+        var lines = new List<string>();
+        var line = new System.Text.StringBuilder();
+        double used = 0;
+
+        foreach (char c in text)
+        {
+            double w = c < 0x80 ? CellWidth : CellWidth * 2;
+            if (used + w > width) { lines.Add(line.ToString()); line.Clear(); used = 0; }
+            line.Append(c);
+            used += w;
+        }
+        if (line.Length > 0) lines.Add(line.ToString());
+        return lines.Count > 0 ? lines : [text];
+    }
 }

@@ -35,6 +35,21 @@ public sealed class CityBuildingTable
     private const int TableVa = 0x00500918;
     private const int RowCount = 1504;
     private const int RowSize = 0x38;
+    /// <summary>
+    /// 건물 <b>해설</b>의 글 표. 건물 줄의 <c>+0x18</c> 이 이 표의 몇 번째인지를 든다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   004733B1  [건물표 + 번호*0x38 + 0x18] 이 -1 이면 해설이 없다
+    ///   004733D7  eax = [0x00567B38 + 그 값 * 4]
+    /// </code>
+    /// 히랄다탑은 2 번이다. 발견한 뒤에야 명령 창에 "해설" 줄이 붙는다.
+    /// </remarks>
+    private const int CommentTableVa = 0x00567B38;
+
+    /// <summary>해설 글 한 줄이 길어 넉넉히 잡는다.</summary>
+    private const int CommentLimit = 512;
+
     private const int SkillNamesVa = 0x00560A10;
     private const int LanguageNamesVa = 0x00560A48;
 
@@ -62,6 +77,9 @@ public sealed class CityBuildingTable
     /// 발견했을 때 낼 그림 번호(<c>+0x14</c>, <c>DSTILL.CDS</c>). 발견물이라도 그림이
     /// 없으면 -1 이다. 발견물 표에도 같은 번호가 적혀 있다(<c>0x0051C54C</c>).
     /// </param>
+    /// <param name="Comment">
+    /// 발견하고 나면 뜨는 <b>해설</b>. 건물 줄의 <c>+0x18</c> 이 글 번호고 -1 이면 없다.
+    /// </param>
     /// <remarks>
     /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
     /// 일러 주지 않으면 값이 전부 0 으로 들어온다. 그래서 <c>[method: JsonConstructor]</c> 로
@@ -70,7 +88,7 @@ public sealed class CityBuildingTable
     [method: JsonConstructor]
     public readonly record struct Building(
         int City, int Code, string Kind, string Name, int X, int Y, uint TeachMask,
-        int Discovery = -1, int Picture = -1)
+        int Discovery = -1, int Picture = -1, string Comment = "")
     {
         /// <summary>이 건물 자체가 발견물인지.</summary>
         [JsonIgnore] public bool IsDiscovery => Discovery >= 0;
@@ -87,7 +105,7 @@ public sealed class CityBuildingTable
     private const string CacheName = "건물표";
 
     /// <summary>알맹이 모양 판. 발견물 번호와 그림 번호를 더하며 2 로 올렸다.</summary>
-    private const int Version = 2;
+    private const int Version = 3;
 
     /// <summary>
     /// JSON 으로 적어 두는 알맹이. EXE 를 읽어야만 알 수 있는 것이 여기 다 들어 있다 —
@@ -158,6 +176,10 @@ public sealed class CityBuildingTable
     }
 
     /// <summary>EXE 에서 건물 줄과 기능·언어 이름표를 통째로 읽어 낸다.</summary>
+    /// <summary>그 번호의 해설 글. 번호가 -1 이거나 못 읽으면 빈 글이다.</summary>
+    private static string CommentOf(PeImage exe, int index) =>
+        index < 0 ? "" : exe.Text(exe.Word(CommentTableVa + index * 4), CommentLimit) ?? "";
+
     private static Snapshot? ReadFromExe(PeImage exe, out string error)
     {
         error = "";
@@ -173,7 +195,8 @@ public sealed class CityBuildingTable
             buildings.Add(new Building(
                 exe.Int(row + 0x08), exe.Int(row + 0x0C), kind, name,
                 exe.Int(row + 0x20), exe.Int(row + 0x24), exe.Word(row + 0x30),
-                exe.Int(row + 0x1C), exe.Int(row + 0x14)));
+                exe.Int(row + 0x1C), exe.Int(row + 0x14),
+                CommentOf(exe, exe.Int(row + 0x18))));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
