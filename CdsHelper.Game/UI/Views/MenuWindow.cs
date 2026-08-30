@@ -20,6 +20,30 @@ public sealed class MenuWindow : Window
     /// </summary>
     public void SetContent(UIElement content) => _root.Child = content;
 
+    /// <summary>
+    /// 줄이 바뀌어 창 크기가 달라졌을 때 다시 한가운데로 민다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 창을 낼 때마다 <c>원점 + 크기/2</c> 를 다시 잰다(<c>0x00469E80</c>).
+    /// 우리는 창을 그대로 두고 알맹이만 갈아 끼우므로, 열한 줄짜리 자택 차림표에서
+    /// 네 줄짜리 <b>기능</b> 으로 들어가면 <b>왼쪽 위에 그대로 걸려</b> 있었다.
+    /// </remarks>
+    /// <summary>정해 준 자리로 옮긴다. 화면 밖으로는 안 나간다.</summary>
+    public void MoveTo(Point at)
+    {
+        UpdateLayout();
+        Left = Math.Max(0, Math.Min(at.X, SystemParameters.VirtualScreenWidth - ActualWidth));
+        Top = Math.Max(0, Math.Min(at.Y, SystemParameters.VirtualScreenHeight - ActualHeight));
+    }
+
+    public void Recenter()
+    {
+        if (Owner is not { } owner) return;
+        UpdateLayout();
+        Left = Math.Max(0, owner.Left + (owner.Width - ActualWidth) / 2);
+        Top = Math.Max(0, owner.Top + (owner.Height - ActualHeight) / 2);
+    }
+
     private MenuWindow(UIElement content)
     {
         WindowStyle = WindowStyle.None;

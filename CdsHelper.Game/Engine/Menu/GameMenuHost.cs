@@ -104,6 +104,8 @@ internal sealed class GameMenuHost(Window owner)
         }
 
         _window.SetContent(content);
+        // 줄 수가 달라지면 크기도 달라진다 — 게임처럼 다시 한가운데로 민다.
+        if (at is { } spot) _window.MoveTo(spot); else _window.Recenter();
         _window.Activate();
     }
 }

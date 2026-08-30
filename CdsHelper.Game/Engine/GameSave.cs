@@ -29,8 +29,30 @@ public static class GameSave
     /// <summary>이 판부터 <c>ShipStats</c> 에 포탑수·대포가 함께 적힌다.</summary>
     public const int GunsInStatsFrom = 18;
 
+    /// <summary>이 판부터 <b>주인공 이름</b>도 적는다 — 모험 중단 창이 이름을 부른다.</summary>
+    public const int NameFrom = 24;
+
     /// <summary>이 판부터 <c>ShipStats</c> 에 마스트의 돛도 함께 적힌다.</summary>
     public const int SailsInStatsFrom = 19;
+
+    /// <summary>
+    /// 적어 둔 것을 지운다 — 새 놀이에서 <b>삭제한다</b> 를 고를 때다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x0045F8F2</c> 에서 <c>C:SAVEDATA.CDS</c> · <c>C:SAVEDATA.TMP</c> ·
+    /// <c>C:ACCDATA.CDS</c> 셋을 지운다. 우리 것은 한 파일뿐이고, <b>게임 폴더의
+    /// SAVEDATA.CDS 는 건드리지 않는다</b> — 그쪽은 우리 것이 아니라 읽기만 한다.
+    /// </remarks>
+    public static bool Delete()
+    {
+        try
+        {
+            if (File.Exists(Path)) File.Delete(Path);
+            return true;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
 
     /// <summary>세이브 파일 자리.</summary>
     public static string Path => System.IO.Path.Combine(
@@ -107,7 +129,8 @@ public static class GameSave
         List<string>? ShipNames = null, Dictionary<int, List<string>>? DockedNames = null,
         List<Support.Local.Models.Player.MateInfo>? MateBook = null,
         string? Explored = null, string? Spouse = null, List<string>? Heirs = null,
-        int? SpouseId = null, Dictionary<int, int>? Liking = null);
+        int? SpouseId = null, Dictionary<int, int>? Liking = null,
+        string? Name = null, string? Family = null, string? Given = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -121,7 +144,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(23, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(NameFrom, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -146,7 +169,8 @@ public static class GameSave
                             player.Explored.ToText(),
                             player.Spouse, [.. player.Heirs],
                             player.SpouseId,
-                            player.Liking.ToDictionary(p => p.Key, p => p.Value));
+                            player.Liking.ToDictionary(p => p.Key, p => p.Value),
+                            player.Name, player.Family, player.Given);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

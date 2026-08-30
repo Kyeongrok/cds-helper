@@ -262,8 +262,10 @@ public sealed class LibraryDialog : Window
 
         image.Source = spines[SpineColor(book)];   // 읽고 나면 색이 바뀐다
         NoticeDialog.Show(this, got.Count == 0
-            ? $"「{book.Title}」을 읽었다. 새로 알게 된 것은 없다."
-            : $"「{book.Title}」을 읽었다!\n{string.Join(" · ", got)} 에 대해 알게 되었다!");
+            ? $"「{book.Title}」{GameUi.Josa(book.Title, "을", "를")} 읽었다. 새로 알게 된 것은 없다."
+            : $"「{book.Title}」{GameUi.Josa(book.Title, "을", "를")} 읽었다!"
+              + Environment.NewLine
+              + $"{string.Join(" · ", got)}에 대해 알게 되었다!");
     }
 
     private static BitmapSource ToBitmap(uint[] bgra, int width, int height)
