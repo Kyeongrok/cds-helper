@@ -955,7 +955,7 @@ public sealed class CityPicView : Window
 
     /// <summary>이 마을 술집·여관에 앉은 사람들 — 말을 거는 일은 사람 쪽이 든다.</summary>
     private TavernMenu Guests => _guests ??=
-        new TavernMenu(this, _game, _cityId, _culture, _cultureNo, HideMenu);
+        new TavernMenu(this, _game, _cityId, _culture, _cultureNo, HideMenu, CloseMenu);
 
     /// <summary>
     /// 손님과 이야기하는 동안 시설 명령 창을 감춘다.
