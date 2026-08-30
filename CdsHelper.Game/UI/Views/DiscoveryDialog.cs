@@ -15,14 +15,36 @@ namespace CdsHelper.Game.UI.Views;
 /// 오고(<see cref="DiscoveryStills"/>), 어느 그림인지는 건물 표가 들고 있다
 /// (<see cref="CityBuildingTable.Building.Picture"/>).
 ///
-/// 액자는 그리지 않는다 — 그림 안에 이미 크림빛 테가 그려져 있다. 아래 칸만 게임
-/// 알림창과 같은 꼴로 두른다(<see cref="ConfirmDialog"/> 와 같은 자리값이다).
+/// 그림에는 <b>액자</b>가 둘린다 — 밤색 판에 까만 줄 두 겹이다. 그림 안쪽의 크림빛
+/// 테는 그림에 그려진 것이고, 액자는 그 바깥에 따로 있다.
+///
+/// 아래 칸은 게임 알림창과 같은 꼴이다(<see cref="ConfirmDialog"/> 와 같은 자리값).
 /// </remarks>
 public sealed class DiscoveryDialog : Window
 {
     /// <summary>글 칸의 여백과 단추 자리. 게임 알림창에서 그대로 가져왔다.</summary>
     private const double SidePad = 7, TopPad = 7, BottomPad = 15;
     private const double EdgeThickness = 1, TextGap = 10;
+
+    /// <summary>
+    /// 그림에 두르는 액자 — 까만 줄 · 밤색 판 · 까만 줄이다.
+    /// </summary>
+    /// <remarks>게임 갈무리에서 잰 값이다. 판이 여덟 점쯤이고 줄은 한 점씩이다.</remarks>
+    private const double FrameLine = 1, FrameWide = 8;
+
+    /// <summary>액자가 그림 좌우로 더 먹는 폭.</summary>
+    private const double FrameGrow = (FrameLine + FrameWide + FrameLine) * 2;
+
+    /// <summary>액자의 까만 줄과 밤색 판. 알림 칸 바탕보다 조금 밝다.</summary>
+    private static readonly Brush FrameEdge = Frozen(Color.FromRgb(0x11, 0x09, 0x09));
+    private static readonly Brush FrameFill = Frozen(Color.FromRgb(0x4A, 0x2E, 0x24));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
     private const double ButtonWidth = 64, ButtonHeight = UiSprites.BandHeight;
 
     private readonly GameUi.FocusGroup _focus = new();
@@ -36,7 +58,8 @@ public sealed class DiscoveryDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        var stack = new StackPanel { Width = width };
+        // 액자가 좌우로 더 먹으므로 창도 그만큼 넓어야 한다.
+        var stack = new StackPanel { Width = picture == null ? width : width + FrameGrow };
 
         if (picture != null)
         {
@@ -48,7 +71,22 @@ public sealed class DiscoveryDialog : Window
             };
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
             RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
-            stack.Children.Add(image);
+
+            // 그림에 바짝 붙는 까만 줄, 그 바깥에 밤색 판, 다시 까만 줄.
+            stack.Children.Add(new Border
+            {
+                Background = FrameFill,
+                BorderBrush = FrameEdge,
+                BorderThickness = new Thickness(FrameLine),
+                Padding = new Thickness(FrameWide),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Child = new Border
+                {
+                    BorderBrush = FrameEdge,
+                    BorderThickness = new Thickness(FrameLine),
+                    Child = image,
+                },
+            });
         }
 
         var words = new GameUi.GameLabel(GameFont.WhiteColor, GameUi.ItemTextHeight)

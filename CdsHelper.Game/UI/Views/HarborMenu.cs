@@ -19,12 +19,15 @@ namespace CdsHelper.Game.UI.Views;
 /// <param name="game">이 판 — 주인공과 주사위가 여기서 온다.</param>
 /// <param name="menu">항구 명령 창. 함대편성·선원편성 창을 그 위에 쌓는다.</param>
 /// <param name="cityId">이 마을 번호. 배를 맡기고 찾을 때 쓴다.</param>
-internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost menu, int cityId)
+/// <param name="culture">이 마을 문화권. 부관이 없을 때 나서는 얼굴이 여기 따라 갈린다.</param>
+internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost menu, int cityId,
+                                 int culture)
 {
     private readonly Window _view = view;
     private readonly Engine.Game _game = game;
     private readonly GameMenuHost _menu = menu;
     private readonly int _cityId = cityId;
+    private readonly int _culture = culture;
 
     private Player _player => _game.Player;
 
@@ -48,12 +51,15 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         ConfirmDialog.Tell(_view, "제독, 바다에 나가시겠습니까?", face: MateFace());
     }
 
+    /// <summary>항구의 건물 코드. 부관이 없을 때 화자표에서 사람을 찾는다.</summary>
+    private const int BuildingCode = 0;
+
     /// <summary>
-    /// 부관 얼굴. 자리가 비었거나 신상을 못 찾으면 null 이라 <b>얼굴 없는 창</b>이 된다.
+    /// 부관 얼굴. 자리가 비었거나 신상을 못 찾으면 null.
     /// </summary>
     /// <remarks>
-    /// 항구에서 말을 거는 것은 화자표의 사람이 아니라 <b>부하 첫 자리</b>다. 부하는 이름만
-    /// 들고 있어 신상은 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>).
+    /// 항구에서 말을 거는 것은 <b>부하 첫 자리</b>다. 부하는 이름만 들고 있어 신상은
+    /// 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>).
     /// </remarks>
     private uint[]? MateFace()
     {
@@ -64,6 +70,12 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             ? _game.Faces?.TryGetBgra(who.Face, female: false)
             : null;
     }
+
+    /// <summary>
+    /// 출항 알림에 서는 얼굴 — <b>부관이 있으면 부관, 없으면 항구 사람</b>이다.
+    /// </summary>
+    /// <remarks>부관 자리가 비어도 창이 얼굴 없이 뜨지는 않는다. 화면에서 본 대로다.</remarks>
+    private uint[]? SailFace() => MateFace() ?? _game.SpeakerFace(BuildingCode, _culture);
 
     /// <summary>이만큼 버틸 수 있으면 "준비 만반" 이다(<c>0x004772A0</c> 의 <c>cmp eax,0x14</c>).</summary>
     private const int ReadyDays = 20;
@@ -85,7 +97,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     ///
     /// <b>얼굴은 보급 쪽에만 선다.</b> 선원 둘은 <c>0x004695C0</c>·<c>0x00469680</c> 으로
     /// 나가고 보급 셋은 <c>0x00469660</c> 으로 나가는데, 화면을 보면 앞의 둘은 얼굴이
-    /// 없고 뒤의 셋만 <b>부관 얼굴</b>이 선다. 부관 자리가 비면 얼굴 없는 창이 된다.
+    /// 없고 뒤의 셋만 얼굴이 선다. 그 얼굴은 <b>부관</b>이고, 부관 자리가 비면
+    /// <b>항구 화자</b>가 대신 나선다(<see cref="SailFace"/>).
     ///
     /// 게임이 맨 앞에서 보는 "편성돼 있지 않은 선박"(<c>0x004688A0</c>) 은 우리 쪽에
     /// 그런 자리가 없어 뺐다.
@@ -105,8 +118,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
                    "선원이 모자랍니다. 이대로라면 함대의 속도가 늦어지지만, 괜찮으십니까?"))
             return false;
 
-        // 보급 쪽은 부관이 말한다 — 부관이 없으면 얼굴 없는 창이다.
-        uint[]? face = MateFace();
+        // 보급 쪽은 부관이 말한다. 부관이 없으면 항구 사람이 대신 나선다.
+        uint[]? face = SailFace();
 
         int days = _player.SupplyDaysLeft;
         if (days <= 0)
