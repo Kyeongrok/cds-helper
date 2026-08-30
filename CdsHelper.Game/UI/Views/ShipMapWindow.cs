@@ -164,6 +164,22 @@ public sealed class ShipMapWindow : Window
     private readonly Dictionary<string, FrameworkElement> _infoCells = [];
 
     /// <summary>도시정보 창의 줄 이름을 달아 띠에 놓는 칸.</summary>
+    /// <summary>
+    /// 상단 띠 칸마다의 서식 — 게임 것을 <b>자리 수까지</b> 그대로 옮겼다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x0056BE98  "%4d년%2d월%2d일"
+    ///   0x0056BEA8  "%s%4d명"              %s 는 "선원"(0x56BEB8) 또는 "대원"(0x56BEB0)
+    ///   0x0056BEC0  "물%4d통 식량%4d통"
+    ///   0x0056BED8  "%s위 %3d  %s경 %3d  " 북·남 / 동·서 (0x56BEF0~)
+    ///   0x0056BF18  "소지금%6d닢"
+    ///   0x0056BF28  "피로도%4d"
+    ///   0x0056BF38  "명성%6d"
+    /// </code>
+    /// 칸 너비는 글자 수를 따라가므로 <b>서식이 맞으면 너비도 맞는다</b> — 예전에는
+    /// "1499년 5월8일" · "1770닢" 처럼 자리를 안 맞춰 칸마다 폭이 어긋났다.
+    /// </remarks>
     private FrameworkElement InfoCell(string name, GameButton cell, bool on)
     {
         // 지난번에 켜고 끈 것이 있으면 그것이 먼저다. 한 번도 안 건드렸으면(null)
@@ -406,21 +422,21 @@ public sealed class ShipMapWindow : Window
             PassTime();
             MarkSeen();
             var (lat, lon) = _host.ShipLatLon;
-            // 게임과 같은 말투로 적는다 — 북위/남위, 동경/서경에 정수 도.
-            _coord.Text = $"{(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat),3:F0}    " +
-                          $"{(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon),3:F0}";
-            _purse.Text = $"{_game.Player.Gold}닢";
-            _fame.Text = $"명성 {_game.Player.Fame}";
-            _tired.Text = $"피로 {_game.Player.Fatigue}";
+            // 칸마다의 서식은 게임 것을 자리 수까지 그대로 옮겼다(BarFormats 참고).
+            _coord.Text = $"{(lat >= 0 ? "북" : "남")}위 {Math.Abs(lat),3:F0}  " +
+                          $"{(lon >= 0 ? "동" : "서")}경 {Math.Abs(lon),3:F0}  ";
+            _purse.Text = $"소지금{_game.Player.Gold,6}닢";
+            _fame.Text = $"명성{_game.Player.Fame,6}";
+            _tired.Text = $"피로도{_game.Player.Fatigue,4}";
             _windText.Text = WindLine();
-            _crew.Text = $"선원 {_game.Player.Crew}";
-            _stores.Text = $"물 {_game.Player.SupplyOf(SupplyKind.Water)} 식량 {_game.Player.SupplyOf(SupplyKind.Food)}";
+            _crew.Text = $"선원{_game.Player.Crew,4}명";
+            _stores.Text = $"물{_game.Player.SupplyOf(SupplyKind.Water),4}통" +
+                           $" 식량{_game.Player.SupplyOf(SupplyKind.Food),4}통";
             _left.Text = $"남은 {_game.Player.SupplyDaysLeft}일";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
             ShipSprites.Use(_game.Player.FlagshipHull?.Hull);
-            // 게임 상단 띠와 같은 말투로 적는다.
-            _date.Text = $"{_game.Player.Date.Year}년 {_game.Player.Date.Month}월{_game.Player.Date.Day}일";
+            _date.Text = $"{_game.Player.Date.Year,4}년{_game.Player.Date.Month,2}월{_game.Player.Date.Day,2}일";
             _cityLabel.Text = _game.Player.CityName.Length > 0 ? _game.Player.CityName : "—";
             if (_overlay.IsOpen) FillOverlay(lat, lon);
             SyncSeaMusic();

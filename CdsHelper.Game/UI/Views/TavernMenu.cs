@@ -23,8 +23,12 @@ namespace CdsHelper.Game.UI.Views;
 /// <param name="cityId">이 마을 번호. 그 마을 그 건물에 앉은 사람을 찾는다.</param>
 /// <param name="culture">이 마을 문화권 이름. 손님 그림을 고르는 데 쓴다.</param>
 /// <param name="cultureNo">이 마을 문화권 번호. 주인 얼굴이 여기 따라 갈린다.</param>
+/// <param name="hideMenu">
+/// 손님과 이야기하는 동안 시설 명령 창을 접어 두라는 부탁. 게임은 손님을 누르면
+/// <b>명령 창을 지우고 그 자리에</b> 고르는 줄을 낸다.
+/// </param>
 internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, string culture,
-                                 int cultureNo)
+                                 int cultureNo, Action<bool>? hideMenu = null)
 {
     /// <summary>술집의 건물 코드. 화자표에서 주인을 찾을 때 쓴다.</summary>
     private const int BuildingCode = 4;
@@ -48,6 +52,16 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     private readonly string _culture = culture;
     private readonly int _cultureNo = cultureNo;
 
+    private readonly Action<bool>? _hideMenu = hideMenu;
+
+    /// <summary>명령 창을 접어 두고 한 가지를 치른 뒤 도로 편다.</summary>
+    private void Alone(Action run)
+    {
+        _hideMenu?.Invoke(true);
+        try { run(); }
+        finally { _hideMenu?.Invoke(false); }
+    }
+
     private Player _player => _game.Player;
 
     /// <summary>
@@ -69,12 +83,53 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)],
                            face: DrinkerFace());
 
-    /// <summary>말을 거는 취객의 얼굴 — 이 술집에 앉은 첫 사람이다. 아무도 없으면 null.</summary>
+    /// <summary>
+    /// 말을 거는 취객의 얼굴 — <b>이름 없는 손님</b> 가운데 맨 앞자리 사람이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 자리 배열을 앞에서부터 훑어 <b>인물이 안 앉은 첫 자리</b>를 집는다
+    /// (<c>0x004A1D10</c>).
+    /// <code>
+    ///   자리 한 칸 24바이트, 배열은 화면 객체 +8
+    ///   +0x00  얼굴 번호          +0x04  쓰는 말(언어)
+    ///   +0x0C  인물 객체          0 이면 지나가는 손님
+    ///   +0x10  서 있는 그림 번호  -1 이면 빈 자리
+    ///
+    ///   0x4A1D20  [자리+0x10] == -1 이면 건너뛴다
+    ///   0x4A1D25  [자리+0x0C] == 0 인 첫 자리를 집는다
+    /// </code>
+    /// 그 자리를 <c>0x004690A0</c> 에 그대로 넘기면 <c>+0x00</c> 을 얼굴로 쓴다.
+    ///
+    /// <b>이름난 사람도 여급도 아니다.</b> 여급은 인물표에 있는 사람이라 <c>+0x0C</c> 가
+    /// 차 있고, 앉아 있는 항해자들도 마찬가지다 — 그래서 말을 거는 것은 늘 지나가는
+    /// 술꾼이다. 예전에는 여기서 <b>앉아 있는 첫 인물</b>의 얼굴을 써서 엉뚱한 사람이
+    /// 말을 걸었다.
+    ///
+    /// <b>얼굴 번호는 우리가 정한다.</b> 게임은 자리를 지을 때 <c>+0x00</c> 에 얼굴을
+    /// 박아 두는데 그 자리를 아직 못 짚었다. 대신 서 있는 그림 번호에서 뽑아 쓴다 —
+    /// 같은 마을이면 늘 같은 얼굴이 나온다.
+    /// </remarks>
     private uint[]? DrinkerFace()
     {
+        if (_game.Guests is not { } book || _game.Faces is not { } faces) return null;
+
         var people = _game.Roster?.At(_cityId, TavernRoster.Tavern) ?? [];
-        foreach (var who in people)
-            if (FaceOf(who) is { } face) return face;
+        var keys = new List<int>(people.Count);
+        foreach (var p in people) keys.Add(p.Index);
+
+        bool first = true;
+        foreach (var seat in book.Seat(_culture, _cityId, keys))
+        {
+            if (seat.Person >= 0) { first = false; continue; }
+
+            // 맨 앞 여자 자리는 이 마을 여급이다 — 게임에서는 그쪽도 인물이라 건너뛴다.
+            if (first && seat.Art.Female && Standing() != null) { first = false; continue; }
+            first = false;
+
+            int count = faces.MaleCount;
+            if (count <= 0) return null;
+            return faces.TryGetBgra(seat.Art.Index % count, female: false);
+        }
         return null;
     }
 
@@ -112,7 +167,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 maidSeated = true;
                 art.Add(new(bgra, seat.Art.Width, seat.Art.Height,
                             _player.LikingOf(her.Id) > 0 ? her.Name : "여",
-                            () => MeetBarmaid(her)));
+                            () => Alone(() => MeetBarmaid(her))));
                 continue;
             }
 
@@ -120,7 +175,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             {
                 string label = seat.Art.Female ? "여" : "남";
                 art.Add(new(bgra, seat.Art.Width, seat.Art.Height, label,
-                            () => MeetStranger(seat.Art.Female)));
+                            () => Alone(() => MeetStranger(seat.Art.Female))));
             }
             else
             {
@@ -129,7 +184,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 bool known = Known(who);
                 art.Add(new(bgra, seat.Art.Width, seat.Art.Height,
                             known ? who.Name : seat.Art.Female ? "여" : "남",
-                            () => MeetPerson(who, seat.Art.Female)));
+                            () => Alone(() => MeetPerson(who, seat.Art.Female))));
             }
         }
         return art;

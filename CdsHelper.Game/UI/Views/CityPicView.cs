@@ -955,7 +955,20 @@ public sealed class CityPicView : Window
 
     /// <summary>이 마을 술집·여관에 앉은 사람들 — 말을 거는 일은 사람 쪽이 든다.</summary>
     private TavernMenu Guests => _guests ??=
-        new TavernMenu(this, _game, _cityId, _culture, _cultureNo);
+        new TavernMenu(this, _game, _cityId, _culture, _cultureNo, HideMenu);
+
+    /// <summary>
+    /// 손님과 이야기하는 동안 시설 명령 창을 감춘다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 손님을 누르면 <b>명령 창을 지우고 그 자리에</b> "말을 건다 · 무시한다" 를
+    /// 낸다. 우리는 창이 따로라 겹쳐 보였다 — 이야기하는 동안만 접어 둔다.
+    /// </remarks>
+    private void HideMenu(bool hide)
+    {
+        if (_menu?.Window is { } window)
+            window.Visibility = hide ? Visibility.Hidden : Visibility.Visible;
+    }
 
     private TavernMenu? _guests;
 
