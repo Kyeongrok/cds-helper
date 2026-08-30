@@ -199,11 +199,23 @@ public sealed class TalkDialog : Window
     /// <summary>
     /// 얼굴을 띄우고 물어본다. 고른 자리를 내고, 그냥 닫으면 -1 이다.
     /// </summary>
+    /// <remarks>
+    /// <b>대사와 고를 줄은 딴 창이다.</b> 게임은 먼저 대사 창을 내고(확인 하나), 확인을
+    /// 누르면 그제야 세로로 선 메뉴를 낸다 — 술집에서 여성을 누르면 "아름다운 여성이 있다"
+    /// 가 뜨고, 확인하면 "한잔 산다 · 무시한다" 가 뜨는 그 차례다.
+    ///
+    /// 예전에는 둘을 한 상자에 담아 글 밑에 단추를 가로로 늘어놓았다.
+    ///
+    /// 메뉴에서 물러나면(ESC · 오른쪽 단추) <b>마지막 줄</b>을 고른 것으로 친다 — 마지막
+    /// 줄이 늘 "무시한다"·"떠난다" 같은 나가기 줄이기 때문이다.
+    /// </remarks>
     public static int Ask(Window owner, uint[]? face, string speaker, string text,
                           params string[] choices)
     {
-        var dlg = new TalkDialog(face, speaker, text, choices) { Owner = owner };
-        dlg.ShowDialog();
-        return dlg._picked;
+        if (text.Length > 0) Say(owner, face, speaker, text);
+        if (choices.Length == 0) return -1;
+
+        int picked = ChoiceDialog.Ask(owner, "", choices[..^1], choices[^1]);
+        return picked >= 0 ? picked : choices.Length - 1;
     }
 }

@@ -352,6 +352,9 @@ public sealed class ShipMapWindow : Window
             // 섞여 있으면 원본과 달라 보인다(개발 창을 옮긴 것과 같은 까닭이다).
             ("설정", () => SettingsDialog.Show(this, _game.Bgm)),
             ("게임데이터", () => GameDataDialog.Show(this)),
+            // 낯을 튼 여급과 그 궁합. 궁합은 초상화 번호 하나로 갈리는데 화면에서는
+            // 볼 길이 없어 여기에 둔다.
+            ("여급 수첩", () => BarmaidBookDialog.Show(this, _game)),
             ("다이얼로그", () => GameDialog.Show(this, "출항합니다.")),
             // 물음창(YES/NO)도 눈으로 재 보게 하나 둔다 — 고른 값은 여기서 쓸 데가 없다.
             ("다이얼로그2", () => { ConfirmDialog.Ask(this, "구입 하시겠습니까?"); }),
