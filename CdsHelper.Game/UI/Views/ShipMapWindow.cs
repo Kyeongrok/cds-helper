@@ -1041,6 +1041,11 @@ public sealed class ShipMapWindow : Window
     {
         // 게임도 여기부터는 메인메뉴를 걷는다 — 고르는 창이 그 자리에 뜬다.
         HideTitleMenu(true);
+
+        // 앞 판이 묻어 오지 않게 주인공을 새로 앉힌다 — 새 놀이는 1480년 1월 1일부터다.
+        // 짓다 말고 물러나면 하던 판을 도로 앉혀야 한다.
+        var before = _game.NewPlayer();
+        bool made = false;
         try
         {
             int at = ChoiceDialog.Ask(this, "NEW GAME",
@@ -1061,9 +1066,11 @@ public sealed class ShipMapWindow : Window
             {
                 return;
             }
+            made = true;
         }
         finally
         {
+            if (!made) _game.UsePlayer(before);
             // 물러났으면 메뉴가 도로 나와야 한다. 놀이로 들어갔으면 타이틀째로 사라진다.
             HideTitleMenu(false);
         }

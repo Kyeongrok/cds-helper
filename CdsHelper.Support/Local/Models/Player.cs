@@ -53,8 +53,17 @@ public sealed class Player
     /// <summary>시작 명성. 이만큼이면 만나 주는 후원자가 제법 있다.</summary>
     public const int StartingFame = 1700;
 
-    /// <summary>놀이가 시작하는 날. 게임 화면에서 본 날짜를 그대로 쓴다.</summary>
-    public static readonly DateTime StartDate = new(1499, 4, 15);
+    /// <summary>
+    /// 놀이가 시작하는 날 — <b>1480년 1월 1일</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 새 놀이는 늘 이 날이다. 여급 표의 등장년도도 이 해를 바닥으로 삼고
+    /// (<c>max(1480, 1495 - 표값)</c>), 도서관 책도 이 해부터 하나씩 나온다.
+    ///
+    /// 예전에는 <c>1499년 4월 15일</c> 로 두었는데, 그것은 <b>이어서 하던 판</b>의 갈무리에서
+    /// 본 날짜였다.
+    /// </remarks>
+    public static readonly DateTime StartDate = new(1480, 1, 1);
 
     private readonly List<Ship> _ships = [];
     private readonly Dictionary<string, int> _skills = [];
