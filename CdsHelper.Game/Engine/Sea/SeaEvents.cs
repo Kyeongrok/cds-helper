@@ -190,7 +190,7 @@ public static class SeaEvents
     }
 
     /// <summary>
-    /// 기함에 단 선두상 번호. 안 달았으면 -1.
+    /// 기함에 단 선수상 번호. 안 달았으면 -1.
     /// </summary>
     /// <remarks>
     /// 게임도 <b>기함</b> 것만 본다 — 다섯 갈래가 하나같이 <c>0x00473CD0</c>(기함 번호)로

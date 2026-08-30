@@ -146,7 +146,7 @@ internal sealed class FleetInfoDialog : InfoDialog
 
     /// <summary>함대정보 판을 연다.</summary>
     /// <param name="coord">함대좌표에 적을 글. 도시 안이면 비워 둔다 — 게임처럼 <c>---</c> 다.</param>
-    /// <param name="items">아이템 표. 배 정보의 선두상 이름을 여기서 낸다.</param>
+    /// <param name="items">아이템 표. 배 정보의 선수상 이름을 여기서 낸다.</param>
     public static void Show(Window owner, Player player, string coord = "",
                             ItemTable? items = null) =>
         new FleetInfoDialog(player, coord, items) { Owner = owner }.ShowDialog();

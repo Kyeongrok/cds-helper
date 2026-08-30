@@ -202,68 +202,85 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         Facility.RefitSail when ship.CanAddSail => () => AddSail(ship),
         Facility.RefitTurrets => () => ChangeTurrets(ship),
         Facility.RefitCannon => () => BuyCannon(ship),
-        "선두상" when Carried().Count > 0 => () => Carve(ship),
+        Facility.RefitFigurehead => () => Carve(ship),
         Facility.RefitRename => () => RenameShip(ship),
         Facility.RefitExit => _menu.Pop,
         _ => null,
     };
 
-    /// <summary>지금 지니고 있는 선두상들 — 소지품에서 갈래 6 을 골라낸 것이다.</summary>
-    /// <remarks>
-    /// 조선소는 선두상을 <b>팔지 않는다</b>. 어디선가 얻어 지닌 것을 달아 줄 뿐이라
-    /// (<c>0x00495CF0</c> 이 소지품을 뒤진다) 지닌 것이 없으면 줄이 흐리다.
-    /// </remarks>
+    /// <summary>
+    /// 조선소가 갖춰 둔 선수상 — 어디나 둘, 문화권마다 한둘이 더 있다.
+    /// </summary>
+    private IReadOnlyList<int> Stock() => Figureheads.StockFor(_culture);
+
+    /// <summary>지금 지니고 있는 선수상들 — 소지품에서 갈래 6 을 골라낸 것이다.</summary>
+    /// <remarks>게임의 <c>0x00495BA0</c> 이 소지품을 훑어 같은 목록을 짓는다.</remarks>
     private List<int> Carried() =>
         [.. _player.Items.Select(Figureheads.FromItem).Where(Figureheads.Known).Distinct()];
 
     /// <summary>
-    /// 선두상 — 지닌 조각 하나를 뱃머리에 단다.
+    /// 선수상 — 조선소에서 사거나, 지니고 있는 것을 뱃머리에 단다.
     /// </summary>
     /// <remarks>
-    /// 게임의 <c>0x00495C10</c> 언저리다.
+    /// 게임의 <c>0x00495D10</c> 이 목록을 짓는다 — <b>조선소 재고</b>(<c>0x00429DF0</c>)와
+    /// <b>내 소지품</b>(<c>0x00495BA0</c>)을 이어 붙인 것이다. 값은 어디서 온 것이냐에 따라
+    /// 다르다.
     /// <code>
-    ///   531bc0  "지금 붙어있는 선두상은 놓아 가고 가는가?"      이미 달았을 때
-    ///   531cc0  "…자네가 지금 달고 있는 선두상은 저주받아 풀 수가 없네."   저주는 못 뗀다
-    ///   531d40  "이! 이 선두상은... 이보게, 정말 이것을 달아도 좋단 말이지?"  저주받은 것을 달 때
-    ///   531dd0  "선두상을 단 값으로 금화 %1d닢 받겠네."
-    ///   531e08  "돈이 모자라는 것 같군."
+    ///   재고     아이템 구입값 x 시세 / 100        "금화 %1d닢이네."            0x00531DC0
+    ///   소지품   0x0056E280[등급]                  "선두상을 단 값으로 …"       0x00531DD0
+    ///   531bc0   "지금 붙어있는 선수상은 놓아 가고 가는가?"   이미 달았을 때
+    ///   531cc0   "…저주받아 풀 수가 없네."                   저주는 못 뗀다
+    ///   531d40   "이! 이 선수상은... 정말 이것을 달아도 좋단 말이지?"  저주받은 것을 달 때
+    ///   531e08   "돈이 모자라는 것 같군."
     /// </code>
-    /// 삯은 <b>등급</b>이 정한다(<see cref="Figureheads.PriceOf"/>) — 값이 아니라 등급이라
-    /// 저주받은 것이 서른 배로 비싸다.
+    /// 달고 있던 것은 <b>놓고 간다</b> — 게임은 그 매각값을 도로 얹어 준다
+    /// (<c>0x00495CB6</c> 이 더하고 <c>0x00495CD3</c> 이 새 값을 뺀다).
     /// </remarks>
     private void Carve(Ship ship)
     {
         var owner = Owner;
-        var carried = Carried();
-        if (carried.Count == 0) return;
 
         // 저주받은 것을 달고 있으면 갈아 낼 수가 없다.
         if (Figureheads.Cursed(ship.Figurehead))
         {
             GameDialog.Show(owner,
-                $"안됐지만, 자네가 지금 달고 있는 선두상은 저주받아 풀 수가 없네. {NameOf(ship.Figurehead)}");
+                $"안됐지만, 자네가 지금 달고 있는 선수상은 저주받아 풀 수가 없네. {NameOf(ship.Figurehead)}");
             return;
         }
 
+        // 재고가 앞, 지닌 것이 뒤다 — 게임도 그 차례로 잇는다.
+        var stock = Stock();
+        var carried = Carried().Where(i => !stock.Contains(i)).ToList();
+        var offer = new List<int>(stock);
+        offer.AddRange(carried);
+        if (offer.Count == 0) return;
+
         int at = HintListDialog.Pick(owner,
-            [.. carried.Select(i => $"{NameOf(i),-12}{Figureheads.PriceOf(i),7}닢")],
-            "선두상 선택", "지니고 있는 선두상이 없습니다");
+            [.. offer.Select((i, k) => $"{NameOf(i),-12}{CostOf(i, k < stock.Count),7}닢")],
+            "선수상 선택", "달 수 있는 선수상이 없습니다");
         if (at < 0) return;
 
-        int pick = carried[at];
+        int pick = offer[at];
+        bool buying = at < stock.Count;
+        int cost = CostOf(pick, buying);
+
         if (ship.Figurehead >= 0
-            && !ConfirmDialog.Ask(owner, "지금 붙어있는 선두상은 놓아 가고 가는가?")) return;
+            && !ConfirmDialog.Ask(owner, "지금 붙어있는 선수상은 놓아 가고 가는가?")) return;
 
         if (Figureheads.Cursed(pick)
-            && !ConfirmDialog.Ask(owner, "이! 이 선두상은... 이보게, 정말 이것을 달아도 좋단 말이지?"))
+            && !ConfirmDialog.Ask(owner, "이! 이 선수상은... 이보게, 정말 이것을 달아도 좋단 말이지?"))
             return;
 
-        int cost = Figureheads.PriceOf(pick);
-        GameDialog.Show(owner, $"선두상을 단 값으로 금화 {cost}닢 받겠네.");
+        GameDialog.Show(owner, buying
+            ? $"금화 {cost}닢이네."
+            : $"선수상을 단 값으로 금화 {cost}닢 받겠네.");
         if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
 
+        // 놓고 가는 것은 팔아 준다. 지닌 것을 달았으면 소지품에서 던다.
+        int back = ship.Figurehead >= 0 ? SellBack(ship.Figurehead) : 0;
         _player.Pay(cost);
-        _player.Drop(Figureheads.ToItem(pick));
+        if (back > 0) _player.Earn(back);
+        if (!buying) _player.Drop(Figureheads.ToItem(pick));
         ship.Carve(pick);
 
         GameDialog.Show(owner, $"{NameOf(pick)}을 달았네. 좋은 항해가 되기를!");
@@ -271,9 +288,20 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         _menu.Push(() => RefitMenu(ship));
     }
 
-    /// <summary>선두상 이름 — 아이템 표에서 낸다(213 송골매상 …). 못 읽으면 번호로 물러선다.</summary>
+    /// <summary>
+    /// 다는 값. 조선소에서 사면 구입값에 시세를 먹이고, 지닌 것을 달면 등급이 삯을 정한다.
+    /// </summary>
+    private int CostOf(int index, bool buying) => buying
+        ? Math.Max(1, (_game.Items?.Find(Figureheads.ToItem(index))?.BuyList ?? 0) * _rate / 100)
+        : Figureheads.PriceOf(index);
+
+    /// <summary>놓고 가는 선수상을 팔아 주는 값 — 매각값에 시세를 먹인다.</summary>
+    private int SellBack(int index) =>
+        Math.Max(0, (_game.Items?.Find(Figureheads.ToItem(index))?.SellList ?? 0) * _rate / 100);
+
+    /// <summary>선수상 이름 — 아이템 표에서 낸다(213 송골매상 …).</summary>
     private string NameOf(int index) =>
-        _game.Items?.Find(Figureheads.ToItem(index))?.Name ?? $"선두상 {index}";
+        _game.Items?.Find(Figureheads.ToItem(index))?.Name ?? $"선수상 {index}";
 
     /// <summary>
     /// 마스트 추가 — 돛대를 하나 더 세운다.

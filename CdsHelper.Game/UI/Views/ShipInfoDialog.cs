@@ -39,13 +39,13 @@ internal sealed class ShipInfoDialog : InfoDialog
                                 $"{Cannon.Of(ship.Gun)?.Name ?? "—"}"));
         rows.Children.Add(Gap(6));
         rows.Children.Add(Label($"  돛    {Sails(ship)}"));
-        rows.Children.Add(Label($"  선두상 {Carved(ship, items)}"));
+        rows.Children.Add(Label($"  선수상 {Carved(ship, items)}"));
 
         Build("선박정보", rows, BoardWidth, BoardHeight, new GameButton("취소", Close));
     }
 
     /// <summary>
-    /// 뱃머리에 단 선두상. 안 달았으면 "—" 다.
+    /// 뱃머리에 단 선수상. 안 달았으면 "—" 다.
     /// </summary>
     /// <remarks>
     /// 무엇을 막아 주는지도 함께 낸다 — 조각마다 막는 재앙이 다르고
@@ -56,7 +56,7 @@ internal sealed class ShipInfoDialog : InfoDialog
         int carved = ship.Figurehead;
         if (!Figureheads.Known(carved)) return "—";
 
-        string name = items?.Find(Figureheads.ToItem(carved))?.Name ?? $"선두상 {carved}";
+        string name = items?.Find(Figureheads.ToItem(carved))?.Name ?? $"선수상 {carved}";
         string guards = Figureheads.GuardOf(carved) switch
         {
             Figureheads.GuardsRats => "쥐",
@@ -79,7 +79,7 @@ internal sealed class ShipInfoDialog : InfoDialog
     }
 
     /// <summary>그 배의 판을 연다.</summary>
-    /// <param name="items">아이템 표. 선두상 이름을 여기서 낸다 — 없으면 번호로 물러선다.</param>
+    /// <param name="items">아이템 표. 선수상 이름을 여기서 낸다 — 없으면 번호로 물러선다.</param>
     public static void Show(Window owner, Player player, int at, ItemTable? items = null)
     {
         if (at < 0 || at >= player.Ships.Count) return;

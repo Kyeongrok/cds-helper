@@ -1,7 +1,7 @@
 ﻿namespace CdsHelper.Game.Engine.Sea;
 
 /// <summary>
-/// 선두상 규칙 — 뱃머리 조각 하나가 바다 재앙 하나를 막아 준다.
+/// 선수상 규칙 — 뱃머리 조각 하나가 바다 재앙 하나를 막아 준다.
 /// </summary>
 /// <remarks>
 /// 게임 표는 <c>0x0054A0A0</c> 이고 (이름 ptr, 등급) 여덟 바이트씩 <b>서른여섯</b>이다.
@@ -24,7 +24,7 @@
 /// </remarks>
 public static class Figureheads
 {
-    /// <summary>선두상 아이템이 시작하는 번호(송골매상)와 가짓수.</summary>
+    /// <summary>선수상 아이템이 시작하는 번호(송골매상)와 가짓수.</summary>
     public const int FirstItemId = 213, Count = 36;
 
     /// <summary>막는 재앙 — <c>번호 % 4</c>.</summary>
@@ -45,11 +45,11 @@ public static class Figureheads
     /// <summary>표 안의 번호인지.</summary>
     public static bool Known(int index) => index >= 0 && index < Count;
 
-    /// <summary>아이템 번호를 선두상 번호로. 선두상이 아니면 -1.</summary>
+    /// <summary>아이템 번호를 선수상 번호로. 선수상이 아니면 -1.</summary>
     public static int FromItem(int itemId) =>
         Known(itemId - FirstItemId) ? itemId - FirstItemId : -1;
 
-    /// <summary>선두상 번호를 아이템 번호로.</summary>
+    /// <summary>선수상 번호를 아이템 번호로.</summary>
     public static int ToItem(int index) => FirstItemId + index;
 
     /// <summary>등급. 표 밖이면 -1.</summary>
@@ -70,9 +70,32 @@ public static class Figureheads
     public static bool Cursed(int index) => GradeOf(index) == 0;
 
     /// <summary>
-    /// 이 선두상이 그 재앙을 막았는지.
+    /// 그 문화권의 조선소가 <b>늘 갖춰 두는</b> 선수상들.
     /// </summary>
-    /// <param name="index">단 선두상 번호. 안 달았으면 -1 을 주면 된다.</param>
+    /// <remarks>
+    /// <c>0x00429DF0</c> 이 짓는 목록이다. 어디서나 <b>0 송골매상 · 1 요정상</b> 둘이 있고,
+    /// 도시의 문화권(<c>[도시+0x58]</c>)에 따라 한둘이 더 붙는다.
+    /// <code>
+    ///   429e46  문화권 0 (이베리아)  + 2 제독상
+    ///   429e4d  문화권 1 (북유럽)    + 3 백조상 · 4 말상
+    ///   429e59  문화권 2 (지중해)    + 5 표범상
+    ///   그 밖                        없다 — 늘 있는 둘뿐이다
+    /// </code>
+    /// 앱 DB 의 설명과 그대로 맞는다 — "이베리아 조선소에만 존재하는 선두상"(제독상),
+    /// "이 선두상은 북유럽에만 존재한다"(말상), "지중해의 조선소에만 있는 선두상"(표범상).
+    /// </remarks>
+    public static IReadOnlyList<int> StockFor(int culture) => culture switch
+    {
+        0 => [0, 1, 2],
+        1 => [0, 1, 3, 4],
+        2 => [0, 1, 5],
+        _ => [0, 1],
+    };
+
+    /// <summary>
+    /// 이 선수상이 그 재앙을 막았는지.
+    /// </summary>
+    /// <param name="index">단 선수상 번호. 안 달았으면 -1 을 주면 된다.</param>
     /// <param name="guards">막아야 할 재앙(<see cref="GuardsRats"/> 벌).</param>
     /// <param name="rng">주사위. <c>rand(100)</c> 과 견준다.</param>
     public static bool Blocks(int index, int guards, Random rng) =>
