@@ -1,4 +1,4 @@
-using CdsHelper.Game.Engine.Models;
+﻿using CdsHelper.Game.Engine.Models;
 
 namespace CdsHelper.Game.Engine.Town;
 
@@ -46,6 +46,9 @@ public enum TownWork
 
     // ── 그 밖 ─────────────────────────────────────────────────────────────
     Read, Explore,
+
+    /// <summary>발견한 건물의 <b>해설</b>. 발견하고 나서야 줄이 붙는다.</summary>
+    Comment,
 }
 
 /// <summary>일 하나가 <b>어느 자리에 무슨 이름으로</b> 나오는지.</summary>
@@ -110,6 +113,7 @@ public static class TownWorks
         // ── 그 밖 ─────────────────────────────────────────────────────────
         new(TownWork.Read, "열람", FacilityKind.Library),
         new(TownWork.Explore, "탐험을 떠난다", FacilityKind.Gate),
+        new(TownWork.Comment, "해설"),
         new(TownWork.System, "기능", FacilityKind.Home, FacilityKind.Inn),
 
         // 수련은 조합·교회에 줄이 박혀 있고, 학자 저택처럼 줄에 없는 건물에도 건물 표의
@@ -139,8 +143,11 @@ public static class TownWorks
     /// <param name="PatronRow">
     /// 후원자가 앉았으면 그 줄(설득 · 보고 · 계약중단). 없으면 null.
     /// </param>
+    /// <param name="Commented">
+    /// 이 건물이 발견물이고 <b>이미 발견했는지</b> — 그때만 "해설" 줄이 붙는다.
+    /// </param>
     public readonly record struct TownState(bool Teaches, bool Poor, bool CanAnnounce,
-                                            string? PatronRow);
+                                            string? PatronRow, bool Commented = false);
 
     /// <summary>
     /// 그 시설의 명령 창에 늘어놓을 줄들. 차례와 문구는 <see cref="Facility.Menu"/> 것이고,
@@ -162,6 +169,9 @@ public static class TownWorks
         // (게임도 0x00477974 가 0x00476DE0 의 값을 그 줄의 보임 칸에 넣는다).
         if (facility.Kind == FacilityKind.Harbor && !state.CanAnnounce)
             items.Remove(NameOf(TownWork.Announce));
+
+        // 발견한 건물이면 "해설" 이 나가기 줄 바로 앞에 붙는다.
+        if (state.Commented) items.Insert(Math.Max(0, items.Count - 1), NameOf(TownWork.Comment));
 
         // 후원자가 앉은 건물이면 그 줄이 맨 앞에 붙는다 — 왕궁만이 아니라 총독부·상관·
         // 학자 저택 어디든 그렇다. 계약을 맺은 자리이고 맡은 것을 찾아 왔으면 "보고" 다

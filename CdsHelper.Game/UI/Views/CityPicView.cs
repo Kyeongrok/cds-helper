@@ -941,11 +941,34 @@ public sealed class CityPicView : Window
             Teaches: TownWorks.Teaches(teachMask),
             Poor: _player.Gold < Lodging.OddJobMaxGold,
             CanAnnounce: Port.Announceable().Count > 0,
-            PatronRow: patron == null ? null : Patrons.PatronRow(patron)));
+            PatronRow: patron == null ? null : Patrons.PatronRow(patron),
+            Commented: Commented(code)));
 
         return new GameMenu(title, null,
             [.. items.Select(item =>
                 (item, ActionFor(facility, item, code, teachMask, patron, title, kind)))]);
+    }
+
+    /// <summary>
+    /// 그 건물에 <b>해설</b> 줄이 붙는지 — 발견물인 건물을 이미 발견했고 해설 글이 있을 때다.
+    /// </summary>
+    private bool Commented(int code) =>
+        BuildingAt(code) is { } b && b.IsDiscovery && b.Comment.Length > 0
+        && _player.HasFound(b.Discovery);
+
+    /// <summary>그 자리의 건물 줄. 못 찾으면 null.</summary>
+    private CityBuildingTable.Building? BuildingAt(int code)
+    {
+        foreach (var b in _table.InCity(_cityId))
+            if (b.Code == code) return b;
+        return null;
+    }
+
+    /// <summary>발견한 건물의 해설 — 그림과 글을 함께 낸다.</summary>
+    private void ShowComment(int code)
+    {
+        if (BuildingAt(code) is not { } b) return;
+        DiscoveryDialog.Show(this, _game.Stills, b.Picture, b.Comment, title: b.Name);
     }
 
     /// <summary>
@@ -1119,6 +1142,9 @@ public sealed class CityPicView : Window
 
             // 성문 — 마을을 나서 뭍을 걷는다. 배는 항구에 그대로 둔다.
             TownWork.Explore => () => { Explored = true; Close(); },
+
+            // 발견한 건물의 해설 — 그림 한 장과 그 이야기다.
+            TownWork.Comment => () => ShowComment(code),
             // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
             TownWork.FleetForm => () => Menu.Push(Port.FleetMenu),
             TownWork.CrewForm => Port.CrewForm,
