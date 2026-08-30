@@ -240,6 +240,10 @@
                                             x:Name="PART_CityCultureMenu"
                                             Header="도시 · 문화권 · 왕국"
                                             ToolTip="도시마다의 문화권·왕국을 갈아 씌운다 — 시설 화자 얼굴도 따라 바뀐다" />
+                                        <MenuItem
+                                            x:Name="PART_NationEditMenu"
+                                            Header="나라 표"
+                                            ToolTip="나라 이름·쓰는 말·수도를 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>

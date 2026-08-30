@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -49,11 +49,18 @@ public sealed class NationTable
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>나라 전부. 색인이 곧 나라 번호다.</summary>
-    public IReadOnlyList<Nation> Nations => _nations;
+    /// <summary>
+    /// 나라 전부. 색인이 곧 나라 번호다.
+    /// </summary>
+    /// <remarks>사람이 고쳐 둔 것이 있으면 그것이 이긴다(<see cref="NationEdits"/>).</remarks>
+    public IReadOnlyList<Nation> Nations => [.. _nations.Select(NationEdits.Apply)];
 
     /// <summary>그 나라. 범위 밖이면 null.</summary>
-    public Nation? Find(int id) => id >= 0 && id < _nations.Length ? _nations[id] : null;
+    public Nation? Find(int id) =>
+        id >= 0 && id < _nations.Length ? NationEdits.Apply(_nations[id]) : null;
+
+    /// <summary>고치기 전, EXE 에 적힌 그대로의 나라. 범위 밖이면 null.</summary>
+    public Nation? Original(int id) => id >= 0 && id < _nations.Length ? _nations[id] : null;
 
     /// <summary>표를 연다. 적어 둔 JSON 이 있으면 그것을 읽는다.</summary>
     public static NationTable? Open(string gameDirectory)

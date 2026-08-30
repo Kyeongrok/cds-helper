@@ -51,8 +51,11 @@ public sealed class MenuWindow : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
         ShowInTaskbar = false;
-        Background = Brushes.Transparent;
-        AllowsTransparency = true;
+        // <b>레이어드 창으로 두지 않는다.</b> AllowsTransparency 를 켜면 창이 소프트웨어로
+        // 합성되어, 겹쳐 있는 창들 사이에서 활성 창이 오갈 때마다 통째로 다시 그려진다 —
+        // 대화 창을 여닫을 때 화면이 깜빡이던 것이 그것이다. 이 창은 네모지고 속이 꽉
+        // 차 있어 비침이 필요 없다.
+        Background = GameUi.Back;
 
         _root = new Border { Background = GameUi.Back, Child = content };
         Content = _root;

@@ -159,7 +159,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var maid = kind == FacilityKind.Tavern ? Standing() : null;
         bool maidSeated = false;
 
-        foreach (var seat in book.Seat(_culture, _cityId, keys))
+        foreach (var seat in book.Seat(_culture, _cityId, keys, withMaid: maid != null))
         {
             var bgra = book.TryGetBgra(seat.Art);
             if (bgra == null) continue;

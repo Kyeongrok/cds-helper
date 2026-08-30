@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -33,8 +33,8 @@ internal sealed class ChoiceDialog : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
-        Background = Brushes.Transparent;
-        AllowsTransparency = true;
+        // 네모진 창이라 비침이 필요 없다 — 레이어드 창은 겹칠 때마다 깜빡인다.
+        Background = GameUi.Back;
 
         var items = new List<(string Text, Action? Run)>();
         for (int i = 0; i < rows.Count; i++)
