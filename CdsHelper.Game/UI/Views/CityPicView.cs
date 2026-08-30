@@ -519,7 +519,7 @@ public sealed class CityPicView : Window
     /// 계약을 이미 맺은 뒤에는 게임도 관문을 건너뛰므로 여기서도 안 돈다 — 그 자리는
     /// <see cref="Patron"/> 쪽에 아직 없어 후원자가 앉아 있기만 하면 돈다.
     /// </remarks>
-    private void PlayFameCheck(bool passed) =>
+    public void PlayFameCheck(bool passed) =>
         PlayEffect(EffectAnim.Persuade, [.. Plead, passed ? Granted : Refused]);
 
     /// <summary>
@@ -531,6 +531,16 @@ public sealed class CityPicView : Window
     /// </remarks>
     public void PlayHeir(bool born) =>
         PlayEffect(EffectAnim.Cannon, [.. Plead, born ? Granted : Refused]);
+
+    /// <summary>
+    /// 후원자의 마음이 동하는지 — <b>MPEFFECT 3번(하트)</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 이야기를 고르고 나서 돈다(<c>0x004AE7B7</c> · <c>0x004AE815</c>). 굴림에 이기면
+    /// 하트가 커지고, 지면 깨진다 — 넷째 장이 곧 깨진 하트다.
+    /// </remarks>
+    public void PlayHeart(bool won) =>
+        PlayEffect(EffectAnim.Heart, [.. Plead, won ? Granted : Refused]);
 
     /// <summary>동그란 애니메이션 한 벌을 도시 그림 한가운데에서 돌린다.</summary>
     private void PlayEffect(int anim, int[] order)
