@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Models;
 
@@ -13,7 +13,6 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 게임도 이 넷이 한 덩이다 — 저장 <c>0x004A2800</c> · 로드 <c>0x004A2830</c> ·
 /// 게임 종료 <c>0x004A2860</c> 이 나란히 놓여 있고 고르는 자리가 <c>0x004A292B</c> 다.
-/// 로드는 아직 흉내내지 않아 흐린 채로 둔다.
 /// </remarks>
 internal static class GameSystemMenu
 {
@@ -28,6 +27,7 @@ internal static class GameSystemMenu
                                    GameMenuHost menu) => item switch
     {
         "저장" => () => Save(view, game, menu),
+        "로드" => () => Load(view, menu),
         "게임 종료" => () => Quit(view, menu),
         "게임 재개" => menu.Close,
         _ => null,
@@ -50,6 +50,24 @@ internal static class GameSystemMenu
         string error = game.Save();
         ConfirmDialog.Tell(owner, error.Length == 0 ? "데이터를 겹쳐 썼습니다"
                                                     : $"기록하지 못했다 — {error}");
+    }
+
+    /// <summary>
+    /// 적어 둔 판을 도로 불러온다. 게임처럼 <b>한 번 묻고</b> 곧바로 불러온다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004A2830</c> 이다 — 물음이 <c>0x00568CF8</c>("데이터를 불러 오겠습니다.
+    /// 좋습니까?")다. YES 가 아니면 아무것도 안 한다.
+    ///
+    /// <b>지금 판은 사라진다</b> — 적어 두지 않은 것은 되돌릴 길이 없다. 게임도 그렇다.
+    /// </remarks>
+    public static void Load(Window view, GameMenuHost menu)
+    {
+        if (view.Owner is not ShipMapWindow map) { menu.Close(); return; }
+        if (!ConfirmDialog.Ask(menu.Window ?? view, "데이터를 불러 오겠습니다. 좋습니까?")) return;
+
+        menu.Close();
+        map.LoadGame();
     }
 
     /// <summary>

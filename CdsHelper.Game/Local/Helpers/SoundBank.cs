@@ -84,7 +84,7 @@ public sealed class SoundBank : IDisposable
             if (wav == null) return;
 
             // SoundPlayer 는 스트림을 물고 있으므로 틀 때마다 새로 잡아 넘긴다.
-            _player.Stream = new MemoryStream(wav);
+            _player.Stream = new MemoryStream(Scaled(wav, GameSettings.SfxVolume));
             _player.Play();
         }
         catch (Exception ex)
@@ -92,6 +92,27 @@ public sealed class SoundBank : IDisposable
             System.Diagnostics.Debug.WriteLine($"[SoundBank] 파트 {part} 를 틀지 못했습니다 — {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// 소리를 그 크기로 줄인 벌을 낸다 — <see cref="SoundPlayer"/> 에는 크기 손잡이가 없다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 효과음은 22kHz <b>8비트 부호 없는</b> 소리라 128 이 무음이다. 그 자리를 밑삼아
+    /// 폭만 줄이면 된다. WAV 머리(44바이트)는 그대로 두고 소리 알맹이만 손댄다.
+    /// </remarks>
+    private static byte[] Scaled(byte[] wav, int volume)
+    {
+        if (volume >= GameSettings.MaxVolume) return wav;
+        if (wav.Length <= WavHeader) return wav;
+
+        var made = (byte[])wav.Clone();
+        for (int i = WavHeader; i < made.Length; i++)
+            made[i] = (byte)(Silence + (made[i] - Silence) * volume / GameSettings.MaxVolume);
+        return made;
+    }
+
+    /// <summary>WAV 머리 길이와 8비트 소리의 무음 자리.</summary>
+    private const int WavHeader = 44, Silence = 128;
 
     public void Dispose() => _player.Dispose();
 }
