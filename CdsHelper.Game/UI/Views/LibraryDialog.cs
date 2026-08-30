@@ -47,8 +47,14 @@ public sealed class LibraryDialog : Window
     private readonly TextBlock _tagText;
     private readonly int _scale;
 
-    /// <summary>못 읽는 책이 어느 말로 적혔는지 이르는 아래 띠(게임의 하단 바 자리다).</summary>
-    private readonly TextBlock _reason = new();
+    /// <summary>
+    /// 못 읽는 책이 어느 말로 적혔는지 이르는 곳 — <b>게임 화면 맨 아래 띠</b>다.
+    /// </summary>
+    /// <remarks>
+    /// 왕궁에서 "명성치가 모자랍니다." 가 뜨는 그 자리다(<see cref="ShipMapWindow.Say"/>).
+    /// 책장 밑에 따로 띠를 두는 것이 아니다.
+    /// </remarks>
+    private readonly Action<string>? _say;
 
     /// <summary>닫기 조각의 크기와 양피지 모서리에서 떨어진 거리. 게임 갈무리에서 잰 값이다.</summary>
     private const double CloseSize = 16, CloseInset = 10;
@@ -58,7 +64,7 @@ public sealed class LibraryDialog : Window
     private LibraryDialog(string cityName, BookShelf art, IReadOnlyList<Library.Slot> shelved,
                           Player player, BookTable table, CityBuildingTable names,
                           Func<int, string> hintName, int scale,
-                          OpenBookArt? bookArt, Func<int, string>? hintText)
+                          OpenBookArt? bookArt, Func<int, string>? hintText, Action<string>? say)
     {
         _player = player;
         _books = table;
@@ -66,6 +72,7 @@ public sealed class LibraryDialog : Window
         _hintName = hintName;
         _scale = scale;
         _book = bookArt;
+        _say = say;
         _hintText = hintText;
 
         WindowStyle = WindowStyle.None;
@@ -148,29 +155,15 @@ public sealed class LibraryDialog : Window
         Panel.SetZIndex(close, 30);
         _layer.Children.Add(close);
 
-        // 책에 손을 얹으면 그 책이 어느 말로 적혔는지 아래 띠가 이른다.
-        _reason.Foreground = Brushes.Black;
-        _reason.FontWeight = FontWeights.Bold;
-        _reason.Margin = new Thickness(8, 2, 8, 2);
-
-        var stack = new StackPanel();
-        stack.Children.Add(box);
-        stack.Children.Add(new Border
-        {
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            MinHeight = 22,
-            Child = _reason,
-        });
         Content = new Border
         {
             Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
             BorderThickness = new Thickness(2),
-            Child = stack,
+            Child = box,
         };
-        GameUi.EnableDrag(this, stack);
+        GameUi.EnableDrag(this, box);
+        Closed += (_, _) => _say?.Invoke("");
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();
@@ -218,7 +211,7 @@ public sealed class LibraryDialog : Window
         Canvas.SetTop(image, y * _scale);
 
         image.MouseEnter += (_, _) => ShowTag(book, x, y);
-        image.MouseLeave += (_, _) => { _tag.Visibility = Visibility.Collapsed; _reason.Text = ""; };
+        image.MouseLeave += (_, _) => { _tag.Visibility = Visibility.Collapsed; _say?.Invoke(""); };
         image.MouseLeftButtonDown += (_, e) => e.Handled = true;
         image.MouseLeftButtonUp += (_, e) => { e.Handled = true; Read(book, image, spines); };
         _layer.Children.Add(image);
@@ -232,9 +225,9 @@ public sealed class LibraryDialog : Window
         string title = readable ? book.Title : Masked(book.Title);
         string author = readable ? book.Author : Masked(book.Author);
         _tagText.Text = $"「{title}」{author}";
-        _reason.Text = readable
+        _say?.Invoke(readable
             ? ""
-            : $"{LanguageOf(book)}{GameUi.Josa(LanguageOf(book), "으로", "로")} 표기되어 있습니다";
+            : $"{LanguageOf(book)}{GameUi.Josa(LanguageOf(book), "으로", "로")} 표기되어 있습니다");
         _tag.Visibility = Visibility.Visible;
         _tag.UpdateLayout();
         double w = _tag.ActualWidth > 0 ? _tag.ActualWidth : 160;
@@ -353,7 +346,8 @@ public sealed class LibraryDialog : Window
     public static void Show(Window owner, string gameDirectory, string cityName, int cityId,
                             Player player, BookTable table, CityBuildingTable names,
                             Func<int, string> hintName,
-                            OpenBookArt? book = null, Func<int, string>? hintText = null)
+                            OpenBookArt? book = null, Func<int, string>? hintText = null,
+                            Action<string>? say = null)
     {
         var art = BookShelf.Open(gameDirectory);
         if (art == null)
@@ -375,7 +369,7 @@ public sealed class LibraryDialog : Window
         // 창 크기에 맞춰 정수배로 키운다(책장이 384x320 이라 두 배면 넉넉하다).
         int scale = owner.ActualHeight > 800 ? 2 : 1;
         new LibraryDialog(cityName, art, shelved, player, table, names, hintName, scale,
-                          book, hintText)
+                          book, hintText, say)
         {
             Owner = owner,
         }.ShowDialog();

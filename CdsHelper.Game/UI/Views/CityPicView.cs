@@ -1105,7 +1105,9 @@ public sealed class CityPicView : Window
             TownWork.Store => () =>
                 StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
 
-            TownWork.Read when Books.CanRead => Books.Read,
+            TownWork.Read when Books.CanRead => () =>
+                Books.Read(Menu.Window ?? this,
+                           text => (Owner as ShipMapWindow)?.Say(text)),
             _ => null,
         };
 
