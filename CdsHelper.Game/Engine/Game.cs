@@ -59,6 +59,7 @@ public sealed class Game
         _itemArt = null;
         _discoveries = null; _discoveriesTried = false;
         _stills = null; _stillsTried = false;
+        _barmaids = null; _barmaidsTried = false;
 
         Bgm.SetGameDirectory(directory);
     }
@@ -142,6 +143,11 @@ public sealed class Game
             return _discoveries = new DiscoveryLog(table, Hints);
         }
     }
+
+    /// <summary>여급 표 — 술집에 서는 127명. 궁합이 여기서 나온다.</summary>
+    public BarmaidTable? Barmaids =>
+        Once(ref _barmaids, ref _barmaidsTried, BarmaidTable.Open,
+             () => BarmaidTable.LastError, "여급 표");
 
     /// <summary>발견했을 때 뜨는 그림(DSTILL.CDS). 못 읽으면 글만 낸다.</summary>
     public DiscoveryStills? Stills =>
@@ -329,6 +335,8 @@ public sealed class Game
     private DiscoveryLog? _discoveries;
     private DiscoveryStills? _stills;
     private bool _stillsTried;
+    private BarmaidTable? _barmaids;
+    private bool _barmaidsTried;
     private TavernRoster? _roster;
     private Portraits? _faces;
     private EffectAnim? _effects;
