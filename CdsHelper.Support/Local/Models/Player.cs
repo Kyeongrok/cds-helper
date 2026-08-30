@@ -205,6 +205,19 @@ public sealed class Player
         Abilities = next;
     }
 
+    /// <summary>
+    /// 몸이 상한다 — 일기토를 치르고 나면 그만큼 체력이 준다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x004AA5BB</c> 에서 <b>남은 부위 셋의 평균</b>만큼 깎는다. 1 아래로는
+    /// 안 내려간다 — 0 이 되면 셈이 무너지는 자리가 여럿이다.
+    /// </remarks>
+    public void Hurt(int amount)
+    {
+        if (amount <= 0) return;
+        Abilities[Ability.Body] = Math.Max(1, Abilities[Ability.Body] - amount);
+    }
+
     /// <summary>언어마다의 자리(0~<see cref="Skill.MaxLevel"/>).</summary>
     private readonly Dictionary<string, int> _tongues = [];
 
@@ -327,8 +340,11 @@ public sealed class Player
     /// 우리 것이 아니라 이름이 바뀌거나 없어질 수 있다 — 그러면 제 부하를 두고도
     /// "자료를 찾지 못했다" 가 뜬다.
     /// </remarks>
+    /// <param name="Sword">검술(0~3). 일기토에서 부관을 내보낼 때 이것을 본다.
+    /// 예전 갈무리에는 없던 칸이라 없으면 0 이다.</param>
     public readonly record struct MateInfo(string Name, int Face, int Fame, int Age,
-                                           int Body, int Mind, int Might, int Charm, int Luck);
+                                           int Body, int Mind, int Might, int Charm, int Luck,
+                                           int Sword = 0);
 
     private readonly Dictionary<string, MateInfo> _mateBook = [];
 
@@ -351,6 +367,16 @@ public sealed class Player
         _mateBook.Clear();
         if (book == null) return;
         foreach (var who in book) RememberMate(who);
+    }
+
+    /// <summary>
+    /// 부관이 다친다 — 일기토를 대신 치른 뒤에 부른다.
+    /// </summary>
+    /// <remarks>게임도 부관을 내보내면 그 사람의 체력에서 깎는다(<c>0x004AA5F8</c>).</remarks>
+    public void HurtMate(string name, int amount)
+    {
+        if (amount <= 0 || !_mateBook.TryGetValue(name ?? "", out var who)) return;
+        _mateBook[who.Name] = who with { Body = Math.Max(1, who.Body - amount) };
     }
 
     /// <summary>두 자리를 맞바꾼다. 빈 자리와도 바꿀 수 있다.</summary>
