@@ -38,6 +38,21 @@ public sealed class HintTable
     private const int RowSize = 80;
     private const int CategoryNamesVa = 0x00560C60;
 
+    /// <summary>
+    /// 힌트 <b>설명</b>의 글 표. 힌트 줄의 <c>+0x1C</c> 가 이 표의 몇 번째인지를 든다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0042CC70  eax = 힌트 번호
+    ///             eax *= 80                        ; 힌트 줄 크기
+    ///             ecx = [0x004D8E9C + eax]         ; 곧 힌트 줄의 +0x1C
+    ///             eax = [0x00543FA0 + ecx*4]       ; 설명 글
+    /// </code>
+    /// 도서관에서 책을 읽으면 이 글이 <b>펼친 책</b>의 오른쪽 면에 적힌다.
+    /// 번호가 힌트 번호와 <b>따로 논다</b> — 알 함브라 궁전은 힌트 75 인데 설명은 181 이다.
+    /// </remarks>
+    private const int TextTableVa = 0x00543FA0;
+
     /// <summary>판이 다른 EXE 를 잘못 읽지 않으려고 대 보는 첫 줄.</summary>
     private const string ProbeName = "아프리카남단";
 
@@ -50,7 +65,7 @@ public sealed class HintTable
     /// 알맹이 모양 판. 이름 자리를 바로잡으면서 올렸다 — 옛 모양으로 적어 둔 JSON 은 버리고
     /// 다시 굽게 한다.
     /// </summary>
-    private const int SnapshotVersion = 2;
+    private const int SnapshotVersion = 3;
 
     /// <summary>갈래 수 — 지리·역사·보물·종교·교역품·미신·생물·민족.</summary>
     public const int CategoryCount = 8;
@@ -62,6 +77,7 @@ public sealed class HintTable
     /// <param name="Category">갈래 0~7. 후원자마다 좋아하는 갈래가 다르다.</param>
     /// <param name="Funds">이 힌트를 좇는 데 드는 자금(닢). 후원율을 곱하기 전 값이다.</param>
     /// <param name="Deadline">계약 기한(년).</param>
+    /// <param name="Text">펼친 책에 적히는 설명. 힌트 줄의 <c>+0x1C</c> 가 가리키는 글이다.</param>
     /// <param name="Discovery">
     /// 발견물 일련번호. 발견물 표의 <see cref="DiscoveryTable.Record.Hint"/> 와 <b>같은 값</b>이면
     /// 그 발견물을 가리킨다 — 게임도 그렇게 짝을 짓는다(<c>0x004AACFD</c>).
@@ -72,7 +88,8 @@ public sealed class HintTable
     /// </remarks>
     [method: JsonConstructor]
     public readonly record struct Hint(
-        int Id, string Name, int Grade, int Category, int Funds, int Deadline, int Discovery);
+        int Id, string Name, int Grade, int Category, int Funds, int Deadline, int Discovery,
+        string Text = "");
 
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\힌트표.json</c>).</summary>
     private const string CacheName = "힌트표";
@@ -163,7 +180,8 @@ public sealed class HintTable
                 Category: exe.Int(row + 0x0C),
                 Funds: exe.Int(row + 0x14),
                 Deadline: exe.Int(row + 0x18) + 1,
-                Discovery: exe.Int(row + 0x08)));
+                Discovery: exe.Int(row + 0x08),
+                Text: exe.Text(exe.Word(TextTableVa + exe.Int(row + 0x1C) * 4)) ?? ""));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
