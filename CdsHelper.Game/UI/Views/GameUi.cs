@@ -620,6 +620,182 @@ internal static class GameUi
     }
 
 
+    // ── 게임풍 굴림대와 액자 ────────────────────────────────────────────────
+
+    /// <summary>굴림대 한 벌의 폭. 화살표 조각이 열여섯 점이라 그 폭에 맞춘다.</summary>
+    public const double ScrollWidth = UiSprites.ArrowWidth;
+
+    /// <summary>손잡이가 이보다 짧아지지는 않는다.</summary>
+    private const double ThumbMin = 16;
+
+    /// <summary>화살표 한 번에 굴러가는 만큼.</summary>
+    private const double ScrollStep = 30;
+
+    /// <summary>
+    /// 게임풍 굴림대를 단 두루마리 칸. 윈도 굴림대는 숨기고 우리가 그린 것을 옆에 세운다.
+    /// </summary>
+    /// <remarks>
+    /// 윈도 굴림대는 모양이 게임과 너무 다르다. 그렇다고 <c>ControlTemplate</c> 을 통째로
+    /// 갈아 끼우기보다, 굴림대를 감추고 <b>화살표 조각(MISC.CDS 파트 3)</b>과 손잡이를
+    /// 손으로 세우는 편이 짧고 손댈 데도 적다.
+    ///
+    /// 조각을 못 읽으면 화살표 자리는 빈 채로 두고 손잡이만 나온다 — 굴리는 데는 지장이 없다.
+    /// </remarks>
+    /// <param name="content">굴릴 것.</param>
+    /// <param name="maxHeight">이 높이를 넘으면 굴린다.</param>
+    public static FrameworkElement Scroller(FrameworkElement content, double maxHeight)
+    {
+        var view = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            MaxHeight = maxHeight,
+            Content = content,
+        };
+
+        var thumb = new Border
+        {
+            Background = ItemFill,
+            BorderBrush = ItemEdge,
+            BorderThickness = new Thickness(1),
+            Width = ScrollWidth,
+            Cursor = Cursors.Hand,
+        };
+        var trough = new Canvas { Background = MenuBack, Width = ScrollWidth };
+        trough.Children.Add(thumb);
+
+        var bar = new Grid { Width = ScrollWidth, Margin = new Thickness(2, 0, 0, 0) };
+        bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        bar.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var up = ScrollArrow(UiSprites.ArrowUp, () => view.ScrollToVerticalOffset(view.VerticalOffset - ScrollStep));
+        var down = ScrollArrow(UiSprites.ArrowDown, () => view.ScrollToVerticalOffset(view.VerticalOffset + ScrollStep));
+        Grid.SetRow(up, 0);
+        Grid.SetRow(trough, 1);
+        Grid.SetRow(down, 2);
+        bar.Children.Add(up);
+        bar.Children.Add(trough);
+        bar.Children.Add(down);
+
+        void Place()
+        {
+            double room = trough.ActualHeight;
+            if (room <= 0 || view.ExtentHeight <= view.ViewportHeight)
+            {
+                bar.Visibility = Visibility.Collapsed;
+                return;
+            }
+            bar.Visibility = Visibility.Visible;
+
+            double height = Math.Max(ThumbMin, room * view.ViewportHeight / view.ExtentHeight);
+            double at = view.ScrollableHeight <= 0
+                ? 0
+                : (room - height) * view.VerticalOffset / view.ScrollableHeight;
+            thumb.Height = height;
+            Canvas.SetTop(thumb, at);
+        }
+
+        view.ScrollChanged += (_, _) => Place();
+        trough.SizeChanged += (_, _) => Place();
+
+        // 손잡이 끌기 — 잡은 자리를 굴림 자리로 되돌려 놓는다.
+        double grab = 0;
+        thumb.MouseLeftButtonDown += (_, e) =>
+        {
+            grab = e.GetPosition(thumb).Y;
+            thumb.CaptureMouse();
+            e.Handled = true;
+        };
+        thumb.MouseMove += (_, e) =>
+        {
+            if (!thumb.IsMouseCaptured) return;
+            double room = trough.ActualHeight - thumb.ActualHeight;
+            if (room <= 0) return;
+            double at = Math.Clamp(e.GetPosition(trough).Y - grab, 0, room);
+            view.ScrollToVerticalOffset(at / room * view.ScrollableHeight);
+        };
+        thumb.MouseLeftButtonUp += (_, e) => { thumb.ReleaseMouseCapture(); e.Handled = true; };
+
+        var host = new Grid();
+        host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        host.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(view, 0);
+        Grid.SetColumn(bar, 1);
+        host.Children.Add(view);
+        host.Children.Add(bar);
+        return host;
+    }
+
+    /// <summary>굴림대 끝의 화살표 한 칸. 조각이 없으면 빈 칸이다.</summary>
+    private static FrameworkElement ScrollArrow(int row, Action run)
+    {
+        var box = new Border
+        {
+            Width = ScrollWidth,
+            Height = UiSprites.ArrowHeight,
+            Background = MenuBack,
+            Cursor = Cursors.Hand,
+        };
+
+        var art = Sprites?.Arrow(row, pressed: false);
+        if (art != null)
+        {
+            var bmp = BitmapSource.Create(UiSprites.ArrowWidth, UiSprites.ArrowHeight, 96, 96,
+                                          PixelFormats.Bgra32, null, art, UiSprites.ArrowWidth * 4);
+            bmp.Freeze();
+            var image = new Image { Source = bmp, Stretch = Stretch.None };
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+            box.Child = image;
+        }
+
+        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        return box;
+    }
+
+    /// <summary>
+    /// 게임 액자를 두른 창 속. 바깥은 구슬 무늬 테(<see cref="FrameArt"/>)고 속은 밤색이다.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 밝은 선 하나로만 둘렀는데, 게임 창은 그 선이 아니라 구슬 무늬가 든 두꺼운
+    /// 액자다 — 상단 띠에 쓰던 그 그림이다. 액자 속살(베이지)은 밤색 판이 덮는다.
+    /// </remarks>
+    public static FrameworkElement WindowFrame(UIElement content, Brush? inside = null)
+    {
+        var host = new Grid { MinWidth = FrameArt.Border * 2, MinHeight = FrameArt.Border * 2 };
+        var back = new Border();
+        host.Children.Add(back);
+        host.Children.Add(new Border
+        {
+            Background = inside ?? MenuBack,
+            Margin = new Thickness(FrameArt.Border),
+            Child = content,
+        });
+
+        void Redraw()
+        {
+            var art = FrameArt.Draw((int)Math.Round(host.ActualWidth),
+                                    (int)Math.Round(host.ActualHeight));
+            if (art == null) return;
+
+            var brush = new ImageBrush(art)
+            {
+                Stretch = Stretch.None,
+                AlignmentX = AlignmentX.Left,
+                AlignmentY = AlignmentY.Top,
+            };
+            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
+            brush.Freeze();
+            back.Background = brush;
+        }
+
+        host.SizeChanged += (_, _) => Redraw();
+        return host;
+    }
+
     /// <summary>초점 표시가 오가는 두 색. 게임도 이 둘을 번갈아 보인다.</summary>
     public static readonly Color FocusLight = Color.FromRgb(0xEC, 0xE4, 0xD2);
     public static readonly Color FocusDark = Color.FromRgb(0x14, 0x0C, 0x0A);

@@ -1,7 +1,8 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -23,9 +24,21 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 판 조각은 MISC.CDS 에서 온다(<see cref="GameUi"/> 의 띠 단추와 같은 벌) — 게임도
 /// 같은 조각으로 찍는다. 조각을 못 읽으면 민색 네모로 물러선다.
+///
+/// 위 칸의 값은 <b>게임 숫자 글꼴</b>로 찍는다(MISC.CDS 파트 7, 24x24 기울임체 열 장 ·
+/// <see cref="UiSprites.Digit"/>). 조각이 없을 때만 윈도 기울임꼴로 물러선다.
 /// </remarks>
 internal sealed class NumberPadDialog : Window
 {
+    /// <summary>값이 찍히는 칸. 게임 숫자 조각을 이어 붙인 그림이다.</summary>
+    private readonly Image _digits = new()
+    {
+        Stretch = Stretch.None,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(8, 2, 10, 2),
+    };
+
     private readonly TextBlock _screen;
     private readonly int _min, _max;
     private string _typed;
@@ -65,6 +78,14 @@ internal sealed class NumberPadDialog : Window
         last.Children.Add(Pad("CANCEL", _ => Close(), KeyWidth));
         grid.Children.Add(last);
 
+        RenderOptions.SetBitmapScalingMode(_digits, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(_digits, EdgeMode.Aliased);
+
+        // 숫자 조각이 있으면 그림으로, 없으면 윈도 글꼴로 찍는다.
+        bool art = GameUi.Sprites?.HasDigits == true;
+        _screen.Visibility = art ? Visibility.Collapsed : Visibility.Visible;
+        _digits.Visibility = art ? Visibility.Visible : Visibility.Collapsed;
+
         var stack = new StackPanel();
         stack.Children.Add(new Border
         {
@@ -72,7 +93,8 @@ internal sealed class NumberPadDialog : Window
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(2),
             Margin = new Thickness(6, 6, 6, 2),
-            Child = _screen,
+            MinHeight = UiSprites.DigitHeight + 8,
+            Child = new Grid { Children = { _screen, _digits } },
         });
         stack.Children.Add(grid);
 
@@ -135,7 +157,32 @@ internal sealed class NumberPadDialog : Window
 
     private void Least(string _) { _typed = $"{_min}"; Sync(); }
 
-    private void Sync() => _screen.Text = _typed;
+    private void Sync()
+    {
+        _screen.Text = _typed;
+        _digits.Source = Print(_typed);
+    }
+
+    /// <summary>
+    /// 값을 게임 숫자 조각으로 찍는다. 조각이 없으면 null 이라 글자 칸이 대신 나온다.
+    /// </summary>
+    private static BitmapSource? Print(string text)
+    {
+        var sprites = GameUi.Sprites;
+        if (sprites?.HasDigits != true || text.Length == 0) return null;
+
+        int w = UiSprites.DigitWidth, h = UiSprites.DigitHeight;
+        var all = new uint[w * text.Length * h];
+        int stride = w * text.Length;
+        for (int k = 0; k < text.Length; k++)
+        {
+            var one = sprites.Digit(text[k] - '0');
+            if (one == null) continue;
+            for (int r = 0; r < h; r++)
+                Array.Copy(one, r * w, all, r * stride + k * w, w);
+        }
+        return BitmapSource.Create(stride, h, 96, 96, PixelFormats.Bgra32, null, all, stride * 4);
+    }
 
     private void Enter()
     {

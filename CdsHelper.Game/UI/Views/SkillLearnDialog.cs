@@ -1,7 +1,8 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -13,12 +14,15 @@ namespace CdsHelper.Game.UI.Views;
 /// <remarks>
 /// 한 자리 올리는 데 <see cref="Skill.Price"/> 닢이 들고, 걸리는 달은 자리마다 다르다
 /// (0→1 석 달 · →2 여섯 달 · →3 열두 달). 배우고 나면 그만큼 날이 간다.
+///
+/// 줄은 게임 <b>비트맵 글꼴</b>로 찍고 아래 두 단추는 <b>베이지 띠</b>다
+/// (<see cref="BandStyle.Button"/>) — 힌트 일람과 같은 벌이다.
 /// </remarks>
 public sealed class SkillLearnDialog : Window
 {
     private readonly Player _player;
     private readonly IReadOnlyList<string> _skills;
-    private readonly Border _decide;
+    private readonly GameButton _decide;
     private readonly Dictionary<string, Border> _rows = [];
     private string? _picked;
 
@@ -37,7 +41,12 @@ public sealed class SkillLearnDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _decide = GameUi.PushButton("결정", Decide);
+        _decide = new GameButton("결정", Decide, BandStyle.Button, ButtonWidth)
+        {
+            Height = UiSprites.BandHeight,
+            Margin = new Thickness(0, 0, ButtonGap / 2, 0),
+            On = false,
+        };
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -45,7 +54,11 @@ public sealed class SkillLearnDialog : Window
             Margin = new Thickness(0, 8, 0, 8),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(GameUi.PushButton("종료", Close));
+        buttons.Children.Add(new GameButton("종료", Close, BandStyle.Button, ButtonWidth)
+        {
+            Height = UiSprites.BandHeight,
+            Margin = new Thickness(ButtonGap / 2, 0, 0, 0),
+        });
 
         var list = new StackPanel();
         foreach (var name in _skills) list.Children.Add(MakeRow(name));
@@ -86,41 +99,60 @@ public sealed class SkillLearnDialog : Window
         MouseRightButtonUp += (_, _) => Close();
     }
 
+    /// <summary>단추 하나의 폭과 둘 사이 틈. 힌트 일람과 같은 치수다.</summary>
+    private const double ButtonWidth = 128, ButtonGap = 10;
+
+    /// <summary>고른 줄의 바탕. 힌트 일람과 같은 파랑이다.</summary>
+    private static readonly Brush PickFill = Frozen(Color.FromRgb(0x4A, 0x64, 0x9E));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
     /// <summary>기술 한 줄. "이름 ( LVn )" 을 왼쪽에 붙여 낸다(게임은 오른쪽이다).</summary>
     private Border MakeRow(string name)
     {
-        var text = new TextBlock
+        var text = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
         {
-            Text = $"{name} ( LV{_player.LevelOf(name)} )",
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
+            Text = RowText(name),
+            Bold = true,
+            FallbackBrush = Brushes.Black,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(10, 1, 6, 1),
         };
-        var row = new Border { Background = Brushes.Transparent, Cursor = Cursors.Hand, Child = text };
+        var row = new Border
+        {
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(6, 0, 6, 0),
+            Cursor = Cursors.Hand,
+            Child = text,
+        };
         row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Pick(name); };
         _rows[name] = row;
         return row;
     }
 
+    /// <summary>줄에 찍는 글.</summary>
+    private string RowText(string name) => $"{name} ( LV{_player.LevelOf(name)} )";
+
     private void Pick(string name)
     {
         _picked = name;
+        // 고른 줄은 파란 바탕에 까만 테다 — 힌트 일람과 같다.
         foreach (var (key, row) in _rows)
         {
             bool on = key == name;
-            row.Background = on ? GameUi.MenuBack : Brushes.Transparent;
-            ((TextBlock)row.Child).Foreground = on ? GameUi.Text : Brushes.Black;
+            row.Background = on ? PickFill : Brushes.Transparent;
+            row.BorderBrush = on ? Brushes.Black : Brushes.Transparent;
         }
         SetDecide(enabled: true);
     }
 
-    private void SetDecide(bool enabled)
-    {
-        ((TextBlock)_decide.Child).Foreground = enabled ? Brushes.Black : Brushes.Gray;
-        _decide.Cursor = enabled ? Cursors.Hand : Cursors.Arrow;
-    }
+    private void SetDecide(bool enabled) => _decide.On = enabled;
 
     private void Decide()
     {
@@ -143,7 +175,7 @@ public sealed class SkillLearnDialog : Window
         {
             case LearnResult.Ok:
                 _learned = true;
-                ((TextBlock)_rows[skill].Child).Text = $"{skill} ( LV{_player.LevelOf(skill)} )";
+                ((GameUi.GameLabel)_rows[skill].Child).Text = RowText(skill);
                 NoticeDialog.Show(this, $"{skill}을 습득했다!");
                 break;
             case LearnResult.NotEnoughGold:

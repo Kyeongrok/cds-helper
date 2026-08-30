@@ -51,12 +51,10 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
         new(FacilityKind.Shipyard, "조선소",
             ["구입", "매각", "수리", "개조", "조선소를 나온다"]),
 
-        // 앞의 세 줄은 그 도시가 파는 술이다. 게임은 술 표(0x4FF978, 55행 x 20바이트 —
-        // 이름·도수·도시·값·별칭)에서 도시 번호가 맞는 것만 골라 메뉴 앞에 붙인다
-        // (0x0042E710 이 센다). 도시마다 파는 술이 다르므로 이 세 줄도 도시마다 달라야 하는데,
-        // 우리는 아직 표를 안 읽고 세비야 것을 박아 두었다.
+        // 파는 술은 여기 안 적는다 — 고장마다 다르므로 술 표(<see cref="DrinkTable"/>)에서
+        // 그 고장 것을 골라 <see cref="TownWorks.LinesOf"/> 가 맨 앞에 붙인다.
         new(FacilityKind.Tavern, "술집",
-            ["와인", "브랜디", "럼주", "포카를 권한다", "부하편성", "술집을 나온다"],
+            ["포카를 권한다", "부하편성", "술집을 나온다"],
             BgmPlayer.TavernTrack),
 
         new(FacilityKind.Inn, "여관",

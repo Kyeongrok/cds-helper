@@ -12,9 +12,8 @@ namespace CdsHelper.Game.UI.Views;
 /// 붙이고, 누르면 그 칸이 띠에서 뜨거나 사라진다. 마지막 "취소" 는 회녹색 띠다
 /// (<see cref="BandStyle.Alt"/>) — 게임이 나가기 줄을 그렇게 갈라 놓는다.
 ///
-/// <b>아직 값이 없는 줄</b> — 선원·대원, 물·식량, 피로도, 언어, 시세, 남은일수는 우리
-/// <see cref="Support.Local.Models.Player"/> 에 그 값이 없다. 게임 줄은 그대로 두되
-/// 흐리게 낸다(누르는 손이 안 달린다) — 켜 봐야 띄울 것이 없기 때문이다.
+/// <b>아직 값이 없는 줄</b>은 게임 줄을 그대로 두되 흐리게 낸다(누르는 손이 안 달린다) —
+/// 켜 봐야 띄울 것이 없기 때문이다.
 /// </remarks>
 internal static class CityInfoMenu
 {
@@ -25,13 +24,13 @@ internal static class CityInfoMenu
     public const string Date = "날짜", Coord = "위도·경도", Gold = "소지금",
                         Fame = "명성", City = "도시명", Fatigue = "피로도",
                         Crew = "선원·대원", Stores = "물·식량", DaysLeft = "남은일수",
-                        Wind = "바람·속도";
+                        Wind = "바람·속도", Language = "언어", Rate = "시세";
 
     /// <summary>게임 도시정보 창의 줄 차례. 화면에서 그대로 옮겼다.</summary>
     public static readonly string[] Rows =
     [
         Date, Crew, Stores, Coord, Gold, Fatigue,
-        Fame, City, "언어", "시세", DaysLeft, Wind,
+        Fame, City, Language, Rate, DaysLeft, Wind,
     ];
 
     private const string OnMark = ":ON", OffMark = ":OFF";

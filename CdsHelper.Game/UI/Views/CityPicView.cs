@@ -556,13 +556,23 @@ public sealed class CityPicView : Window
     public void PlayHeart(bool won) =>
         PlayEffect(EffectAnim.Heart, [.. Plead, won ? Granted : Refused]);
 
-    /// <summary>동그란 애니메이션 한 벌을 도시 그림 한가운데에서 돌린다.</summary>
+    /// <summary>
+    /// 동그란 애니메이션 한 벌을 도시 그림 한가운데에서 돌린다.
+    /// </summary>
+    /// <remarks>
+    /// <b>도는 동안 시설 명령 창을 접는다.</b> 명령 창은 제 창(HWND)이라 도시 그림 <b>위에</b>
+    /// 뜨는데, 애니메이션은 그림 위에 얹히므로 창에 통째로 가려 안 보였다 — 후원자에게
+    /// 이야기를 내밀 때 도는 하트가 그래서 한 번도 안 나왔다. 게임도 이때는 명령 창을 지운다.
+    /// </remarks>
     private void PlayEffect(int anim, int[] order)
     {
         if (_playing) return;                       // 도는 동안 또 누르면 겹친다
 
         var effects = _game.Effects;
         if (effects == null) return;
+
+        bool wasShown = _menu?.Window is { Visibility: Visibility.Visible };
+        if (wasShown) HideMenu(true);
 
         double side = EffectAnim.Size * _scale;
         var image = new Image { Width = side, Height = side, Stretch = Stretch.Fill };
@@ -601,6 +611,7 @@ public sealed class CityPicView : Window
         {
             _layer.Children.Remove(image);
             _playing = false;
+            if (wasShown) HideMenu(false);
         }
     }
 
@@ -844,7 +855,7 @@ public sealed class CityPicView : Window
         CloseCityMenu();
         CityInfoDialog.Show(this, _cityName, _cityId, _game.CityRows,
                             _game.Nations, _game.Goods, _game.ItemPictures,
-                            Market?.Rates ?? MarketRates.Open());
+                            Market?.Rates ?? _game.Rates);
     }
 
     /// <summary>
@@ -855,7 +866,7 @@ public sealed class CityPicView : Window
     /// </remarks>
     private void Stay()
     {
-        var inn = _lodging ??= new Lodging(_game.CityRows, MarketRates.Open());
+        var inn = _lodging ??= new Lodging(_game.CityRows, _game.Rates);
         int price = inn.PriceAt(_cityId);
 
         if (!ConfirmDialog.Ask(this, $"선불이네. 우리 집은 한 달에 금화 {price}닢인데, 머물고 갈텐가?"))
@@ -942,7 +953,8 @@ public sealed class CityPicView : Window
             Poor: _player.Gold < Lodging.OddJobMaxGold,
             CanAnnounce: Port.Announceable().Count > 0,
             PatronRow: patron == null ? null : Patrons.PatronRow(patron),
-            Commented: Commented(code)));
+            Commented: Commented(code),
+            Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null));
 
         return new GameMenu(title, null,
             [.. items.Select(item =>
@@ -1103,7 +1115,7 @@ public sealed class CityPicView : Window
                 return null;
             }
             // 시세는 아직 다 100 이다. 나중에 채우면 값이 저절로 따라 움직인다.
-            _market = new Market(items, MarketRates.Open(), _game.CityRows);
+            _market = new Market(items, _game.Rates, _game.CityRows);
             return _market;
         }
     }
@@ -1126,7 +1138,55 @@ public sealed class CityPicView : Window
     /// 손이 안 달린 일은 null 이라 줄이 흐리게 나온다(보급·회화 따위).
     /// </summary>
     private Action? ActionFor(Facility facility, string item, int code, uint teachMask,
-                              Patron? patron, string title, string kind) =>
+                              Patron? patron, string title, string kind)
+    {
+        // 술집의 술 줄은 일 표에 없다 — 고장마다 이름이 달라서 그때그때 붙이기 때문이다.
+        if (facility.Kind == FacilityKind.Tavern && DrinkAt(item) is { } drink)
+            return () => Guests.Drink(drink, DrinkNameOf(drink));
+
+        return WorkFor(facility, item, code, teachMask, patron, title, kind);
+    }
+
+    /// <summary>이 고장 술집이 파는 술. 도시 표의 지역 무리로 고른다.</summary>
+    private List<DrinkTable.Drink> Drinks =>
+        _drinks ??= _game.Drinks is { } table && _game.CityRows is { } rows
+            ? table.InRegion(rows.RegionOf(_cityId))
+            : [];
+
+    private List<DrinkTable.Drink>? _drinks;
+
+    /// <summary>술집 명령 창에 적을 술 이름들.</summary>
+    private List<string> DrinkNames => [.. Drinks.Select(DrinkNameOf)];
+
+    /// <summary>
+    /// 술 줄에 적을 이름. 그 고장 말을 둘 이상 알아야 진짜 이름이 나온다 —
+    /// 모르면 "붉은 술" 처럼 겉모습으로 부른다(<c>0x0042FB20</c>).
+    /// </summary>
+    private string DrinkNameOf(DrinkTable.Drink drink) => DrinkTable.NameFor(drink, CityTongue);
+
+    /// <summary>이 도시 말을 얼마나 아는지. 나라를 모르면 0 이다.</summary>
+    private int CityTongue
+    {
+        get
+        {
+            if (_game.CityRows is not { } rows || _game.Nations is not { } nations) return 0;
+            if (nations.Find(rows.NationOf(_cityId)) is not { } nation) return 0;
+            return nation.Language >= 0 && nation.Language < Skill.Languages.Length
+                ? _player.TongueOf(Skill.Languages[nation.Language])
+                : 0;
+        }
+    }
+
+    /// <summary>그 줄이 술이면 어느 술인지. 아니면 null.</summary>
+    private DrinkTable.Drink? DrinkAt(string item)
+    {
+        foreach (var drink in Drinks)
+            if (DrinkNameOf(drink) == item) return drink;
+        return null;
+    }
+
+    private Action? WorkFor(Facility facility, string item, int code, uint teachMask,
+                            Patron? patron, string title, string kind) =>
         TownWorks.WorkOf(facility, item, TownWorks.Teaches(teachMask), patron != null) switch
         {
             TownWork.Exit => CloseMenu,
@@ -1148,6 +1208,7 @@ public sealed class CityPicView : Window
             // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
             TownWork.FleetForm => () => Menu.Push(Port.FleetMenu),
             TownWork.CrewForm => Port.CrewForm,
+            TownWork.CityInfo => Port.CityInfo,
             // 다 알리고 나면 그 줄이 아예 사라져야 한다 — 줄 목록을 다시 지어
             // 그리게 한다(TownWorks.LinesOf 가 알릴 것이 없으면 떼 낸다).
             TownWork.Announce => () => { Port.Announce(); Menu.Refresh(); },

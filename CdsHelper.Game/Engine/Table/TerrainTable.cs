@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -10,8 +10,7 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 부류 판정 <c>0x00426710</c>).
 /// <code>
 ///   타일  = 낱말 &amp; 0x3FFF        아래 14비트
-///   색인  = 타일 &amp; 0xFF          그 아래 한 바이트 — <b>비트 7 도 쓴다</b>
-///   부류  = 표[색인]                표 VA 0x004CD048, 256바이트
+///   부류  = 표[타일]                표 VA 0x004CD048, 0x4000바이트
 /// </code>
 /// 부르는 쪽이 부류를 어떻게 쓰는지는 아홉 군데를 다 봤다.
 /// <code>
@@ -34,14 +33,36 @@ public sealed class TerrainTable
 
     private const int TableVa = 0x004CD048;
 
-    /// <summary>표 칸 수. 타일의 아래 한 바이트로 찾는다.</summary>
-    public const int Count = 256;
+    /// <summary>
+    /// 표 칸 수. <b>칸 값 열네 비트</b>로 찾는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이렇게 짚는다(<c>0x00426710</c>).
+    /// <code>
+    ///   ax = 칸 값(word)
+    ///   ax &amp;= 0x3FFF                       ; 위 두 비트를 버린다
+    ///   al = [0x004CD048 + ax]
+    /// </code>
+    /// <b>아래 한 바이트로만 찾던 것이 틀렸다.</b> 칸은 두 바이트(지형·속성)고 속성까지가
+    /// 색인이라, 같은 지형이라도 속성이 다르면 딴 줄이다 — 그래서 말이 뭍인데도 못 가는
+    /// 칸이 절반쯤 섞여 있었다.
+    /// </remarks>
+    public const int Count = 0x4000;
+
+    /// <summary>칸 값에서 색인으로 쓰는 비트.</summary>
+    public const int CellMask = 0x3FFF;
 
     /// <summary>이 부류까지가 물이다. 배는 여기만 지난다.</summary>
     public const int WaterMax = 1;
 
     /// <summary>이 부류부터가 뭍이다. 말은 여기만 지난다.</summary>
     public const int LandMin = 2;
+
+    /// <summary>
+    /// 알맹이 모양 판. 아래 한 바이트가 아니라 칸 값 열네 비트로 찾도록 고치며 2 로 올렸다 —
+    /// 예전에 적어 둔 256칸짜리 JSON 을 버리게 한다.
+    /// </summary>
+    private const int Version = 2;
 
     /// <summary>판이 다른 EXE 를 잘못 읽지 않으려고 대 보는 값.</summary>
     private const int ProbeSea = 0, ProbeLand = 1;
@@ -56,17 +77,14 @@ public sealed class TerrainTable
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>
-    /// 그 칸의 부류. <paramref name="low"/> 는 WORLD.CDS 칸의 <b>첫 바이트 그대로</b>다
-    /// (비트 7 을 지우면 안 된다).
-    /// </summary>
-    public int ClassOf(byte low) => _classes[low];
+    /// <summary>그 칸 값(두 바이트)의 부류.</summary>
+    public int ClassOfCell(int cell) => _classes[cell & CellMask];
 
     /// <summary>배가 지날 수 있는 칸인지.</summary>
-    public bool CanSail(byte low) => _classes[low] <= WaterMax;
+    public bool CanSail(int cell) => ClassOfCell(cell) <= WaterMax;
 
     /// <summary>말이 지날 수 있는 칸인지.</summary>
-    public bool CanWalk(byte low) => _classes[low] >= LandMin;
+    public bool CanWalk(int cell) => ClassOfCell(cell) >= LandMin;
 
     /// <summary>
     /// 표를 연다. 적어 둔 JSON 이 있으면 그것을 읽고, 없거나 판이 갈렸으면 EXE 에서 읽어
@@ -74,7 +92,8 @@ public sealed class TerrainTable
     /// </summary>
     public static TerrainTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               Version);
         LastError = error;
         return snapshot == null ? null : new TerrainTable(snapshot);
     }

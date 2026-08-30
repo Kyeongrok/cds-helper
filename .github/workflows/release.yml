@@ -69,7 +69,32 @@ jobs:
           $setup = Get-ChildItem -Path releases -Filter "*Setup.exe" -Recurse
           if ($setup) { Write-Host "✓ Setup.exe 발견: $($setup.FullName)" } else { Write-Host "✗ Setup.exe 없음" }
 
+      # 포터블 판 — 설치 없이 풀어 쓰는 벌이다. publish 폴더 "속"을 통째로 담으므로
+      # 압축을 풀면 놀이 exe(CdsHelperPlay.exe)와 뷰어(CdsHelper.exe)가 맨 위에 바로 보인다.
+      # 폴더째 담으면 한 겹이 더 들어가 exe 가 안 보인다.
+      #
+      # releases 밖(portable)에 짓는다 — vpk upload 가 releases 를 통째로 올리므로,
+      # 그 안에 두면 Velopack 이 모르는 파일이 섞여 든다.
+      - name: Make portable zip
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          if (-not (Test-Path publish/CdsHelperPlay.exe)) {
+            throw "publish 에 CdsHelperPlay.exe 가 없습니다 - 놀이 exe 가 안 실렸습니다"
+          }
+          New-Item -ItemType Directory -Force portable | Out-Null
+          Compress-Archive -Path publish/* -DestinationPath "portable/CdsHelper-$version-portable.zip" -CompressionLevel Optimal
+
       - name: Upload to GitHub Releases
         # --publish: draft가 아니라 정식 릴리즈로 업로드 (없으면 Setup.exe 포함 에셋이 전부 draft에 묻힘)
         # --merge: tag push로 자동 생성된 빈 릴리즈가 있으면 그쪽에 에셋을 병합
         run: vpk upload github --repoUrl https://github.com/Kyeongrok/cds-helper --token ${{ secrets.GITHUB_TOKEN }} --tag ${{ github.ref_name }} --releaseName "${{ github.ref_name }}" --outputDir releases --publish --merge
+
+      # 포터블 zip 은 Velopack 이 모르는 덤이라 따로 붙인다. 릴리즈가 선 뒤라야 붙는다.
+      - name: Upload portable zip
+        shell: pwsh
+        run: |
+          $zip = (Get-ChildItem portable/*.zip)[0].FullName
+          gh release upload "${{ github.ref_name }}" "$zip" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

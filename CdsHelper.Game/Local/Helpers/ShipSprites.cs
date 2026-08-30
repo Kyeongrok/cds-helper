@@ -16,6 +16,10 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 파일은 <c>asset/ship/ship_0.png</c> ~ <c>ship_7.png</c>(배)와
 /// <c>asset/horse/horse_0.png</c> ~ <c>horse_7.png</c>(말), 한 장 48x48 이고 비침은 알파 0 이다.
 /// 말은 게임이 16방향을 넷으로 접어 쓰므로 두 장씩 같은 그림이다.
+///
+/// 말은 <b>걷는 그림</b>이 따로 있다 — <c>asset/horse/horse_walk.png</c> 한 장에
+/// 8칸(걸음) x 4줄(방향)이 들어 있다(<c>tools/extract_horse_walk.py</c>). 이것이 있으면
+/// 낱장 대신 이쪽을 잘라 쓰고, 없으면 예전처럼 낱장으로 물러선다.
 /// 색인이 아니라 색이 그대로 들어 있으므로 그림판으로 열어 고쳐도 그대로 나온다.
 ///
 /// 번호는 게임 방향(반시계)을 둘로 접은 것이다 — 0 북, 2 서, 4 남, 6 동.
@@ -91,6 +95,18 @@ public static class ShipSprites
     private static readonly uint[]?[][] Frames = [new uint[Directions][], new uint[Directions][]];
     private static readonly object Gate = new();
 
+    /// <summary>말이 한 걸음 도는 데 드는 그림 수. 게임 아틀라스가 방향마다 여덟 장이다.</summary>
+    public const int WalkPhases = 8;
+
+    /// <summary>말 그림의 방향 수. 게임은 16방향을 넷으로 접어 쓴다.</summary>
+    private const int WalkRows = 4;
+
+    /// <summary>걷는 그림 한 장(<c>horse_walk.png</c>)에서 잘라 둔 것. [줄][걸음].</summary>
+    private static uint[]?[]? _walk;
+
+    /// <summary>걷는 그림을 못 읽었으면 참 — 다시 읽어 보지 않는다.</summary>
+    private static bool _walkMissing;
+
     /// <summary>못 읽은 까닭 한 줄. 다 읽었으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
@@ -98,8 +114,14 @@ public static class ShipSprites
     /// 16방향 값으로 48x48 그림 한 장(BGRA, 비침은 알파 0). 파일이 없으면 빈 span.
     /// 한 번 읽은 것은 들고 있는다.
     /// </summary>
-    public static ReadOnlySpan<uint> Frame(int heading16, bool onLand = false)
+    public static ReadOnlySpan<uint> Frame(int heading16, bool onLand = false, int phase = -1)
     {
+        if (onLand && phase >= 0)
+        {
+            var step = Walk(heading16, phase);
+            if (step != null) return step;
+        }
+
         int set = onLand ? 1 : 0;
         int i = (heading16 & 0xF) >> 1;
         var cached = Frames[set][i];
@@ -109,6 +131,79 @@ public static class ShipSprites
         {
             Frames[set][i] ??= Load(set, i) ?? [];
             return Frames[set][i];
+        }
+    }
+
+    /// <summary>
+    /// 걷는 그림 한 장. 방향과 걸음으로 고른다. 그림이 없으면 null 이라 낱장으로 물러선다.
+    /// </summary>
+    /// <remarks>
+    /// 게임이 고르는 그대로다(렌더러 <c>0x48A82E</c>).
+    /// <code>
+    ///   dd    = (16방향 + 1) &amp; 0xF
+    ///   프레임 = (dd &gt;&gt; 2) * 8 + 걸음번호
+    /// </code>
+    /// 걸음 번호는 게임에서 <c>0x00569550</c> 에 있고 지도 한 틱마다 는다.
+    /// </remarks>
+    private static uint[]? Walk(int heading16, int phase)
+    {
+        if (_walkMissing) return null;
+        if (_walk == null)
+        {
+            lock (Gate)
+            {
+                if (_walk == null && !_walkMissing)
+                {
+                    _walk = LoadWalkSheet();
+                    _walkMissing = _walk == null;
+                }
+            }
+            if (_walk == null) return null;
+        }
+
+        int row = ((heading16 + 1) & 0xF) >> 2;
+        return _walk[row * WalkPhases + (phase % WalkPhases + WalkPhases) % WalkPhases];
+    }
+
+    /// <summary>8칸 x 4줄짜리 한 장을 서른두 장으로 자른다.</summary>
+    private static uint[]?[]? LoadWalkSheet()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, HorseDirectory, "horse_walk.png");
+        if (!File.Exists(path)) return null;
+
+        try
+        {
+            using var fs = File.OpenRead(path);
+            var decoder = new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            var src = new FormatConvertedBitmap(decoder.Frames[0], PixelFormats.Bgra32, null, 0);
+            if (src.PixelWidth != Width * WalkPhases || src.PixelHeight != Width * WalkRows)
+            {
+                LastError = $"{path} 크기가 {src.PixelWidth}x{src.PixelHeight} — " +
+                            $"{Width * WalkPhases}x{Width * WalkRows} 이어야 합니다";
+                return null;
+            }
+
+            int stride = src.PixelWidth * 4;
+            var all = new uint[src.PixelWidth * src.PixelHeight];
+            src.CopyPixels(all, stride, 0);
+
+            var cut = new uint[]?[WalkRows * WalkPhases];
+            for (int row = 0; row < WalkRows; row++)
+                for (int phase = 0; phase < WalkPhases; phase++)
+                {
+                    var one = new uint[Size];
+                    for (int y = 0; y < Width; y++)
+                        Array.Copy(all, (row * Width + y) * src.PixelWidth + phase * Width,
+                                   one, y * Width, Width);
+                    cut[row * WalkPhases + phase] = one;
+                }
+            LastError = "";
+            return cut;
+        }
+        catch (Exception ex)
+        {
+            LastError = $"{path} 를 읽지 못했습니다 — {ex.Message}";
+            return null;
         }
     }
 

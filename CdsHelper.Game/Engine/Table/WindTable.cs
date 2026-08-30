@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Local.Helpers;
+﻿namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
 /// 바람과 해류의 표. CDS_95.EXE 에 박혀 있다.
@@ -194,7 +194,7 @@ public sealed class WindTable
             if (group >= RingCount) continue;
 
             bool ripples = terrain != null
-                ? terrain.ClassOf((byte)t) == RippleClass
+                ? terrain.ClassOfCell(t) == RippleClass
                 : (t & 0xFF) == RippleClassLowByte;
             if (ripples) next[t] = _data.Ring[group];
         }

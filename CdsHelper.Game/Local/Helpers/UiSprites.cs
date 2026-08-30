@@ -25,7 +25,7 @@ public enum BandStyle
 ///   파트 0   16 x  96   테두리 상자 조각
 ///   파트 3   32 x  48   스크롤 화살표
 ///   파트 4   2,880바이트  메뉴 띠 껍데기          ← 이것을 쓴다
-///   파트 7   24 x 240   숫자 글꼴 0~9
+///   파트 7   24 x 240   숫자 글꼴 0~9  ← 계산기 판이 이것으로 값을 찍는다
 ///   파트 8  592 x 448   양피지 바탕
 ///   파트 11  48 x  48   닻
 /// </code>
@@ -55,6 +55,21 @@ public sealed class UiSprites
     /// <summary>화살표 조각이 든 파트. 16x8 짜리 칸이 두 줄 x 세 칸이다.</summary>
     private const int ArrowPart = 3;
 
+    /// <summary>
+    /// 숫자 글꼴이 든 파트. 24x24 짜리 기울임체 숫자 열 장이 <b>세로로</b> 쌓여 있다.
+    /// </summary>
+    /// <remarks>
+    /// 비침은 색인 <b>74</b> 다(0 이 아니다) — 조각의 절반이 그 값이고, 팔레트에서
+    /// 참값이 든 자리는 0~73 뿐이라 74 부터가 쓰이지 않는 자리다.
+    /// </remarks>
+    private const int DigitPart = 7;
+
+    /// <summary>숫자 한 장의 크기와 장 수.</summary>
+    public const int DigitWidth = 24, DigitHeight = 24, DigitCount = 10;
+
+    /// <summary>숫자 조각의 비침 색인.</summary>
+    private const byte DigitClear = 74;
+
     /// <summary>화살표 한 칸의 크기.</summary>
     public const int ArrowWidth = 16, ArrowHeight = 8;
 
@@ -79,11 +94,36 @@ public sealed class UiSprites
 
     private readonly byte[] _band;
     private readonly byte[]? _arrow;
+    private readonly byte[]? _digits;
 
-    private UiSprites(byte[] band, byte[]? arrow)
+    private UiSprites(byte[] band, byte[]? arrow, byte[]? digits)
     {
         _band = band;
         _arrow = arrow;
+        _digits = digits;
+    }
+
+    /// <summary>숫자 조각을 읽었는지.</summary>
+    public bool HasDigits => _digits != null;
+
+    /// <summary>
+    /// 숫자 한 장을 BGRA 로 꺼낸다(비침은 알파 0). 조각이 없거나 0~9 밖이면 null.
+    /// </summary>
+    public uint[]? Digit(int digit)
+    {
+        if (_digits == null || digit < 0 || digit >= DigitCount) return null;
+
+        var bgra = new uint[DigitWidth * DigitHeight];
+        int at = digit * DigitWidth * DigitHeight;
+        for (int k = 0; k < bgra.Length; k++)
+        {
+            byte ix = _digits[at + k];
+            if (ix == DigitClear) continue;                       // 비침
+            int i = ix * 3;
+            bgra[k] = (uint)(0xFF << 24 | GamePalette.Rgb[i] << 16
+                            | GamePalette.Rgb[i + 1] << 8 | GamePalette.Rgb[i + 2]);
+        }
+        return bgra;
     }
 
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
@@ -110,7 +150,11 @@ public sealed class UiSprites
         var arrows = archive.PartCount > ArrowPart ? archive.Decode(ArrowPart) : null;
         if (arrows != null && arrows.Length < ArrowWidth * ArrowHeight * 6) arrows = null;
 
-        return new UiSprites(part, arrows);
+        // 숫자 조각도 덤이다 — 없으면 계산기가 윈도 글꼴로 물러선다.
+        var digits = archive.PartCount > DigitPart ? archive.Decode(DigitPart) : null;
+        if (digits != null && digits.Length < DigitWidth * DigitHeight * DigitCount) digits = null;
+
+        return new UiSprites(part, arrows, digits);
     }
 
     /// <summary>가운데를 <paramref name="cells"/> 번 되풀이했을 때의 띠 폭.</summary>
