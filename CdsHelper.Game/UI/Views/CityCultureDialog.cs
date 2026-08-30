@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -16,7 +16,9 @@ namespace CdsHelper.Game.UI.Views;
 /// <c>[건물코드][문화권]</c> 으로 읽기 때문이다. 도시를 고르면 그 마을 문화권의 얼굴이
 /// 서고, 문화권을 손으로 갈아 보면 <b>같은 건물이 어떻게 바뀌는지</b>가 한눈에 보인다.
 ///
-/// 보기만 한다 — 여기서 문화권을 갈아도 게임 판에는 손대지 않는다.
+/// 고른 문화권을 <b>씌워 둘</b> 수도 있다. 씌우면 그 도시는 앱 어디서나 그 문화권으로
+/// 굴러간다(<see cref="CityCultureEdits"/>) — 세빌리아를 이슬람으로 갈아 두고 그 마을에
+/// 들어가면 조선소에 이슬람 쪽 사람이 앉는다. 게임 EXE 는 손대지 않는다.
 /// </remarks>
 public sealed class CityCultureDialog : Window
 {
@@ -37,6 +39,28 @@ public sealed class CityCultureDialog : Window
     };
 
     private readonly ComboBox _culture = new() { Width = 150, Margin = new Thickness(8, 0, 0, 0) };
+
+    private readonly Button _apply = new()
+    {
+        Content = "이 도시에 씌우기",
+        Padding = new Thickness(10, 2, 10, 2),
+        Margin = new Thickness(8, 0, 0, 0),
+    };
+
+    private readonly Button _reset = new()
+    {
+        Content = "되돌리기",
+        Padding = new Thickness(10, 2, 10, 2),
+        Margin = new Thickness(6, 0, 0, 0),
+    };
+
+    private readonly Button _resetAll = new()
+    {
+        Content = "모두 되돌리기",
+        Padding = new Thickness(10, 2, 10, 2),
+        Margin = new Thickness(6, 0, 0, 0),
+    };
+
     private readonly WrapPanel _faces = new() { Margin = new Thickness(8) };
     private readonly TextBlock _status = new() { Margin = new Thickness(10, 6, 10, 8) };
 
@@ -56,9 +80,14 @@ public sealed class CityCultureDialog : Window
         Col("도시", nameof(Row.Name), 130);
         Col("문화권", nameof(Row.CultureNo), 60);
         Col("이름", nameof(Row.Culture), 90);
+        Col("씌움", nameof(Row.Mark), 44);
         _cities.SelectionChanged += (_, _) => PickCity();
 
         _culture.SelectionChanged += (_, _) => ShowFaces();
+
+        _apply.Click += (_, _) => Apply();
+        _reset.Click += (_, _) => Undo();
+        _resetAll.Click += (_, _) => UndoAll();
 
         var bar = new StackPanel
         {
@@ -68,6 +97,9 @@ public sealed class CityCultureDialog : Window
             {
                 new TextBlock { Text = "문화권을 갈아 보기:", VerticalAlignment = VerticalAlignment.Center },
                 _culture,
+                _apply,
+                _reset,
+                _resetAll,
             },
         };
 
@@ -95,7 +127,8 @@ public sealed class CityCultureDialog : Window
     }
 
     /// <summary>목록 한 줄 — 도시와 그 문화권.</summary>
-    private sealed record Row(int Id, string Name, int CultureNo, string Culture);
+    /// <param name="Mark">손으로 씌운 줄에만 <c>●</c> 가 선다.</param>
+    private sealed record Row(int Id, string Name, int CultureNo, string Culture, string Mark);
 
     private void Col(string header, string path, double width) => _cities.Columns.Add(
         new DataGridTextColumn
@@ -120,26 +153,69 @@ public sealed class CityCultureDialog : Window
             return;
         }
 
-        for (int i = 0; i < SpeakerFaceTable.Cultures; i++) _culture.Items.Add(i);
+        for (int i = 0; i < SpeakerFaceTable.Cultures; i++)
+            _culture.Items.Add($"{i}  {CityCultureEdits.NameOf(i)}");
+
+        Rebuild();
+        if (_cities.Items.Count > 0) _cities.SelectedIndex = 0;
+    }
+
+    /// <summary>도시 목록을 다시 짓는다. 보고 있던 도시는 그대로 붙들어 둔다.</summary>
+    private void Rebuild()
+    {
+        if (_names is not { } names || _rows is not { } table) return;
+
+        int keep = _cities.SelectedItem is Row picked ? picked.Id : -1;
 
         var rows = new List<Row>();
-        foreach (var city in _names.Cities)
+        foreach (var city in names.Cities)
         {
-            int no = _rows.CultureOf(city.Id);
-            rows.Add(new Row(city.Id, city.Name, no, city.Culture));
+            int changed = CityCultureEdits.Of(city.Id);
+            int no = table.CultureOf(city.Id);
+            rows.Add(new Row(city.Id, city.Name, no,
+                             changed == CityCultureEdits.None
+                                 ? city.Culture : CityCultureEdits.NameOf(changed),
+                             changed == CityCultureEdits.None ? "" : "●"));
         }
         _cities.ItemsSource = rows;
+        if (keep >= 0) _cities.SelectedItem = rows.FirstOrDefault(r => r.Id == keep);
 
+        int edits = CityCultureEdits.All.Count;
         _status.Text = $"도시 {rows.Count}곳 · 문화권 {SpeakerFaceTable.Cultures}가지 — "
-                     + "화자표 0x0056823C 를 [건물코드][문화권] 으로 읽는다";
-        if (rows.Count > 0) _cities.SelectedIndex = 0;
+                     + "화자표 0x0056823C 를 [건물코드][문화권] 으로 읽는다"
+                     + (edits == 0 ? "" : $" · 손으로 씌운 곳 {edits}곳");
+    }
+
+    /// <summary>고른 문화권을 이 도시에 씌운다 — 앱이 그 도시를 그 문화권으로 굴린다.</summary>
+    private void Apply()
+    {
+        if (_cities.SelectedItem is not Row row || _culture.SelectedIndex < 0) return;
+        CityCultureEdits.Set(row.Id, _culture.SelectedIndex);
+        Rebuild();
+    }
+
+    /// <summary>이 도시에 씌운 것을 걷는다 — 게임 표의 값으로 돌아간다.</summary>
+    private void Undo()
+    {
+        if (_cities.SelectedItem is not Row row) return;
+        CityCultureEdits.Reset(row.Id);
+        Rebuild();
+        PickCity();
+    }
+
+    /// <summary>씌운 것을 몽땅 걷는다.</summary>
+    private void UndoAll()
+    {
+        CityCultureEdits.ResetAll();
+        Rebuild();
+        PickCity();
     }
 
     /// <summary>고른 도시의 문화권으로 콤보를 맞춰 준다.</summary>
     private void PickCity()
     {
         if (_cities.SelectedItem is not Row row) return;
-        _culture.SelectedItem = row.CultureNo;   // 고르면 ShowFaces 가 따라 돈다
+        _culture.SelectedIndex = row.CultureNo;   // 고르면 ShowFaces 가 따라 돈다
         ShowFaces();
     }
 
@@ -147,7 +223,9 @@ public sealed class CityCultureDialog : Window
     private void ShowFaces()
     {
         _faces.Children.Clear();
-        if (_speakers is not { } speakers || _culture.SelectedItem is not int culture) return;
+        if (_speakers is not { } speakers) return;
+        int culture = _culture.SelectedIndex;
+        if (culture < 0) return;
 
         foreach (var (code, name) in Kinds)
         {
