@@ -86,7 +86,9 @@ public sealed class OpenBookDialog : Window
                 VerticalAlignment = VerticalAlignment.Center,
             },
         };
-        close.MouseLeftButtonUp += (_, _) => Close();
+        // 누른 자리에서 바로 닫는다. 창 끌기(EnableDrag)가 DragMove 로 마우스를 붙들어
+        // 버려서 ButtonUp 이 이 단추까지 오지 않는다 — 그래서 눌러도 안 닫혔다.
+        close.MouseLeftButtonDown += (_, e) => { e.Handled = true; Close(); };
         Canvas.SetLeft(close, (OpenBookArt.FrameWidth - 32) * scale);
         Canvas.SetTop(close, 16 * scale);
         canvas.Children.Add(close);
