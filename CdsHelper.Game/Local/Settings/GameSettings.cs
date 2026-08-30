@@ -31,6 +31,9 @@ public sealed class GameSettingsData
     /// <summary>지도 위의 까만 조작 줄을 보일지.</summary>
     public bool ShowToolBar { get; set; } = true;
 
+    /// <summary>지도 위에 만난 사람 상자를 겹쳐 보일지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
+    public bool ShowPeopleOverlay { get; set; }
+
     /// <summary>
     /// 게임 상단 띠에 켜 둔 칸 이름들("날짜"·"소지금" …). 한 번도 안 건드렸으면 null 이라
     /// 부르는 쪽 기본값이 선다.
@@ -135,6 +138,7 @@ public static class GameSettings
             any |= Bool("BgmEnabled", v => moved.BgmEnabled = v);
             any |= Bool("SfxEnabled", v => moved.SfxEnabled = v);
             any |= Bool("ShowCoordOverlay", v => moved.ShowCoordOverlay = v);
+            any |= Bool("ShowPeopleOverlay", v => moved.ShowPeopleOverlay = v);
             any |= Bool("ShowToolBar", v => moved.ShowToolBar = v);
             any |= Bool("ShowFlowArrows", v => moved.ShowFlowArrows = v);
 
@@ -275,6 +279,15 @@ public static class GameSettings
     {
         get => Get(d => d.ShowCoordOverlay);
         set => Set(d => d.ShowCoordOverlay = value);
+    }
+
+    /// <summary>
+    /// 지도 위에 <b>만난 사람</b> 상자를 겹쳐 보일지. 개발 창의 "정보" 가 켜고 끈다.
+    /// </summary>
+    public static bool ShowPeopleOverlay
+    {
+        get => Get(d => d.ShowPeopleOverlay);
+        set => Set(d => d.ShowPeopleOverlay = value);
     }
 
     /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>

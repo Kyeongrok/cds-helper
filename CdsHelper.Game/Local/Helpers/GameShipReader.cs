@@ -43,6 +43,9 @@ public sealed class GameShipReader : IDisposable
     private const int SeaFrames = 32;
     private const int LandFrames = 32;
 
+    /// <summary>말 아틀라스는 한 방향에 여덟 걸음이다(4방향 x 8걸음 = 32장).</summary>
+    private const int LandPhases = 8;
+
     public const int LonRawMax = 40000;
     public const int LatRawMax = 20000;
 
@@ -126,7 +129,12 @@ public sealed class GameShipReader : IDisposable
     /// </summary>
     /// <param name="heading16">16방향(0~15).</param>
     /// <param name="onLand">참이면 말(육상·정박) 그림.</param>
-    public byte[]? TryReadSprite(int heading16, bool onLand)
+    /// <param name="phase">
+    /// 말의 걸음 번호(0~7). -1 이면 게임이 들고 있는 번호(<c>0x00569550</c>)를 쓴다.
+    /// 우리가 말을 몰 때는 우리 걸음을 넣어야 다리가 움직인다 — 게임 쪽 번호는 게임이
+    /// 걸을 때만 는다.
+    /// </param>
+    public byte[]? TryReadSprite(int heading16, bool onLand, int phase = -1)
     {
         if (!IsAttached && !TryAttach()) return null;
         int heading = heading16 & 0xF;
@@ -148,7 +156,9 @@ public sealed class GameShipReader : IDisposable
             int d = heading + 1;
             if (d < 0) d = -d;
             d &= 0xF;
-            ReadInt(LandBase, out int landBase);
+            int landBase;
+            if (phase >= 0) landBase = phase % LandPhases;
+            else ReadInt(LandBase, out landBase);
             frame = (d >> 2) * 8 + landBase;
             atlas = AtlasLand;
             frames = LandFrames;

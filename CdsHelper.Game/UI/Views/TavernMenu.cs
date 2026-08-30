@@ -97,6 +97,240 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)], face: face);
     }
 
+    // ── 술 ──────────────────────────────────────────────────────────────────
+
+    /// <summary>마신 술의 도수를 쌓아 둔다. 이 값이 주량을 넘으면 취한다.</summary>
+    private int _tipsy;
+
+    /// <summary>주량 한 칸의 크기(<c>0x0042F027</c> 의 <c>(주량 + 1) x 50</c>).</summary>
+    private const int TipsyStep = 50;
+
+    /// <summary>
+    /// 술 한 잔. 값을 이르고 좋다면 받아 마신다(<c>0x0042F580</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0042F5CC  값 = 시세 x 표값 / 100, 적어도 1
+    ///   0042F5FC  "%s%s 금화 %1d닢이네."  (조사 1 = 은/는) · YES/NO
+    ///   0042F611  소지금이 모자라면 "돈 먼저 지불하게."
+    ///   0042EFF8  값을 물고
+    ///   0042F015  취기 += 도수
+    ///   0042F030  취기가 (주량 + 1) x 50 을 넘으면 취한다
+    ///   0042F0ED  안 취했으면 다섯 마디 가운데 하나
+    /// </code>
+    /// <b>피로도는 안 건드린다.</b> "피로가 풀렸다!" 는 그 다섯 마디 중 하나일 뿐이고,
+    /// 게임에서도 마신다고 피로가 풀리지는 않는다 — 피로는 자택 휴양이 푼다.
+    /// </remarks>
+    /// <param name="drink">표에서 고른 술.</param>
+    /// <param name="shown">줄에 적힌 이름. 그 고장 말을 모르면 별칭이다.</param>
+    public void Drink(DrinkTable.Drink drink, string shown) => Alone(() =>
+    {
+        int price = Math.Max(_game.Rates.Of(_cityId) * drink.Price / 100, 1);
+        var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
+
+        if (!ConfirmDialog.Ask(_view, $"{shown}{GameUi.Josa(shown, "은", "는")} 금화 {price}닢이네.",
+                               face: face))
+            return;
+
+        if (_player.Gold < price)
+        {
+            ConfirmDialog.Tell(_view, "돈 먼저 지불하게.", face: face);
+            return;
+        }
+
+        _player.Pay(price);
+        if (drink.Proof <= 0) return;
+
+        // 마신 뒤에 뜨는 말은 <b>얼굴이 없다</b> — 값을 이르는 창은 얼굴을 걸고 부르지만
+        // (0x4692E0), 이쪽은 얼굴 없는 알림이다(0x469060, 인자가 둘뿐이다).
+        _tipsy += drink.Proof;
+        if (_tipsy > TipsyStep)
+        {
+            ConfirmDialog.Tell(_view, "기분이 좋아졌다.........");
+            Drunk();
+            return;
+        }
+
+        ConfirmDialog.Tell(_view, Sips[_game.Random.Next(Sips.Length)]);
+    });
+
+    /// <summary>
+    /// 취하고 나서 벌어지는 일(<c>0x0042F046</c>).
+    /// </summary>
+    /// <remarks>
+    /// 차례가 이렇다.
+    /// <list type="number">
+    ///   <item><b>부관이 깨운다</b>(<c>0x0042EA40</c>) — 부관이 있고 굴림에 걸릴 때.</item>
+    ///   <item><b>부인이 깨운다</b>(<c>0x0042EAA0</c>) — 여기가 자택이 있는 도시일 때.
+    ///         우리는 아직 혼인을 안 다루므로 이 갈래는 건너뛴다.</item>
+    ///   <item>아니면 <b>다섯 가지 가운데 하나</b>(<c>0x0042F07F</c>). 소지금이 100닢
+    ///         이하면 넷 중에서 뽑는다 — 한턱은 낼 돈이 있어야 낸다.</item>
+    /// </list>
+    /// 게임은 취한 뒤 화면을 어둡게 했다 밝히는데(<c>0x004A59F0</c>), 우리는 말 창만 낸다.
+    /// </remarks>
+    private void Drunk()
+    {
+        _tipsy = 0;                                   // 한 번 뻗으면 취기가 가신다
+
+        string first = _player.MateAt(0);
+        bool hasMate = first.Length > 0;
+        var mate = hasMate && _player.MateInfoOf(first) is { } who ? MateFace(who) : null;
+
+        // 부관이 깨운다 — 게임은 능력치로 굴리는데(0x0042F1A7) 우리는 부관 유무만 본다.
+        if (hasMate && _game.Random.Next(2) == 0)
+        {
+            ConfirmDialog.Tell(_view, "제독! 이봐요, 제독! 괜찮습니까?", face: mate);
+            ConfirmDialog.Tell(_view, "부관의 목소리에 정신이 들었다");
+            _player.Tire(_game.Random.Next(5) + 5);
+            _player.Infamy += _game.Random.Next(5);
+            return;
+        }
+
+        int pick = _game.Random.Next(_player.Gold > TreatFloor ? DrunkKinds : DrunkKinds - 1);
+        switch (pick)
+        {
+            case 0: PassOut(hasMate, mate); break;
+            case 1: PickFight(mate); break;
+            case 2: ThrowUp(hasMate, mate); break;
+            case 3: FoundMoney(hasMate, mate); break;
+            default: BuyRound(mate); break;
+        }
+    }
+
+    /// <summary>취해서 벌어지는 가짓수와, 한턱이 나오려면 있어야 할 소지금.</summary>
+    private const int DrunkKinds = 5, TreatFloor = 100;
+
+    /// <summary>뻗는다 — 깨어 보니 돈이 없다(<c>0x0042EB50</c>).</summary>
+    /// <remarks>부관이 지켜 주면 소지금의 <b>1/5</b>, 혼자면 <b>절반</b>을 잃는다.</remarks>
+    private void PassOut(bool hasMate, uint[]? mate)
+    {
+        int lost = hasMate ? _player.Gold / 5 : _player.Gold / 2;
+        _player.Pay(lost);
+
+        if (hasMate)
+        {
+            ConfirmDialog.Tell(_view, "제독! 이봐요. 제독! 괜찮습니까?", face: mate);
+            ConfirmDialog.Tell(_view, "부관 목소리에 정신이 들었다...");
+        }
+        else
+        {
+            ConfirmDialog.Tell(_view, "손님, 손님! 일어나세요. 벌써 아침이에요.", face: HostFace());
+            ConfirmDialog.Tell(_view, "가게 주인이 깨웠다...");
+        }
+        if (lost > 0) ConfirmDialog.Tell(_view, "돈을 도둑 맞았다!!");
+    }
+
+    /// <summary>시비가 붙어 일기토가 벌어진다(<c>0x0042EC10</c>).</summary>
+    /// <remarks>
+    /// 게임은 걸 사람을 그 자리에서 고르고 <b>싸움 창</b>을 띄운다. 우리는 아직 취중
+    /// 일기토를 붙이지 않고 말만 낸다 — 거는 말은 게임 것 그대로 둘 중 하나다.
+    /// </remarks>
+    private void PickFight(uint[]? mate)
+    {
+        int k = _game.Random.Next(Taunts.Length);
+        ConfirmDialog.Tell(_view, Taunts[k]);
+        if (_player.MateAt(0).Length > 0) ConfirmDialog.Tell(_view, MateStops[k], face: mate);
+    }
+
+    /// <summary>토하고 뻗는다 — 여관에서 깨고 돈과 이름을 잃는다(<c>0x0042ED30</c>).</summary>
+    private void ThrowUp(bool hasMate, uint[]? mate)
+    {
+        ConfirmDialog.Tell(_view, "기분이 나쁘다......눈이 도는군~ ~우웩~");
+
+        int tire, lost;
+        if (hasMate)
+        {
+            ConfirmDialog.Tell(_view, "제독, 괜찮습니까! 얼굴이 새파랗습니다. 제독, 제독!", face: mate);
+            tire = _game.Random.Next(10) + 10;
+            lost = 0;                                  // 부관이 있으면 돈은 안 털린다
+        }
+        else
+        {
+            ConfirmDialog.Tell(_view, "손님, 괜찮습니까! 얼굴이 새파랍니다, 손님, 손님!", face: HostFace());
+            tire = _game.Random.Next(10) + 20;
+            lost = Math.Min(_player.Gold, _game.Random.Next(10) + 20);
+        }
+
+        _player.Tire(tire);
+        _player.Pay(lost);
+        _player.Infamy += _game.Random.Next(30) + 10;
+
+        ConfirmDialog.Tell(_view, hasMate
+            ? "부관 목소리에 정신이 들었다......어쩐지 여관같군."
+            : "정신이 드는군.....아무래도 여관같군. 어떻게 여기까지 왔는지 전혀 생각이 나지 않는다.");
+    }
+
+    /// <summary>깨어 보니 모르는 돈을 쥐고 있다(<c>0x0042EF00</c>). 악명이 오른다.</summary>
+    private void FoundMoney(bool hasMate, uint[]? mate)
+    {
+        int got = _game.Random.Next(100) + 100;
+
+        if (hasMate)
+        {
+            ConfirmDialog.Tell(_view, "제독! 이봐요, 제독! 괜찮습니까?", face: mate);
+            ConfirmDialog.Tell(_view, "부관 목소리에 정신이 들었다.....");
+            ConfirmDialog.Tell(_view, "기억에 없는 돈을 쥐고 있었군!");
+            ConfirmDialog.Tell(_view, "제독! 어떻게 된 것입니까? 그 돈...", face: mate);
+        }
+        else
+        {
+            ConfirmDialog.Tell(_view, "손님, 손님! 일어나세요. 벌써 아침이에요!", face: HostFace());
+            ConfirmDialog.Tell(_view, "가게 주인이 깨웠다.");
+            ConfirmDialog.Tell(_view, "기억에 없는 돈을 쥐고 있었군!");
+        }
+
+        ConfirmDialog.Tell(_view, $"금화 {got}닢을 손에 넣었다!");
+        _player.Earn(got);
+        _player.Infamy += hasMate ? FoundInfamyMate : FoundInfamyAlone;
+    }
+
+    /// <summary>모르는 돈을 쥐었을 때 오르는 악명 — 부관이 있으면 더 크다.</summary>
+    private const int FoundInfamyMate = 100, FoundInfamyAlone = 50;
+
+    /// <summary>한턱 낸다(<c>0x0042EE60</c>) — 돈을 쓰고 이름이 크게 오른다.</summary>
+    private void BuyRound(uint[]? mate)
+    {
+        ConfirmDialog.Tell(_view, "여~어, 주인! 여기에 있는 자들에게 한잔씩 돌리게.", face: HostFace());
+
+        if (_player.MateAt(0).Length > 0)
+            ConfirmDialog.Tell(_view, "역시 제독! 그럼 사양하지 않겠습니다.", face: mate);
+        else
+            ConfirmDialog.Tell(_view, "여어, 자네 마음에 들었어! 주인! 술 더 가지고 오게!",
+                               face: DrinkerFace());
+
+        _player.Pay(Math.Min(_player.Gold, _game.Random.Next(50) + 50));
+        _player.Fame += _game.Random.Next(100) + 100;
+        _player.Infamy += _game.Random.Next(6);
+    }
+
+    /// <summary>술집 주인 얼굴. 화자표에서 온다.</summary>
+    private uint[]? HostFace() => _game.SpeakerFace(BuildingCode, _cultureNo);
+
+    /// <summary>시비 거는 말과, 부관이 말리는 말(<c>0x0042EC39</c>). 짝이 맞는 둘 중 하나다.</summary>
+    private static readonly string[] Taunts =
+    [
+        "어이, 거기 너! 마음에 안드는군. 나와 결투하자.",
+        "거기 겁장이! 남자라면 검을 뽑아라.",
+    ];
+
+    private static readonly string[] MateStops =
+    [
+        "제, 제독, 갑자기 무슨 말씀을 하시는 겁니까?",
+        "잠깐, 잠깐만 제독! 농담이 지나치십니다.",
+    ];
+
+    /// <summary>
+    /// 안 취했을 때 나오는 다섯 마디(<c>0x0042F0ED</c>). 하나를 집어 낸다.
+    /// </summary>
+    private static readonly string[] Sips =
+    [
+        "기분 좋군!",
+        "꽤 맛있는 술이다!",
+        "피로가 풀렸다!",
+        "맛있다! 살 것 같다.",
+        "몸이 따뜻해졌다!",
+    ];
+
     /// <summary>말을 걸 낯을 가리는 주사위 — 셋에 하나다.</summary>
     private const int GreetDice = 3;
 

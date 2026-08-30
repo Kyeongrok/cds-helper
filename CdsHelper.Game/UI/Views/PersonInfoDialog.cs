@@ -142,18 +142,8 @@ internal sealed class PersonInfoDialog : InfoDialog
         };
     }
 
-    /// <summary>「특기」 — 기술 열셋과 어학 열넷을 늘어놓는다.</summary>
-    private void ShowSkills(Player player)
-    {
-        var lines = new List<string>();
-        foreach (string name in Skill.Names)
-            lines.Add($"{GameUi.Pad(name, 20)}{player.LevelOf(name),3}");
-        lines.Add("");
-        foreach (string name in Skill.Languages)
-            lines.Add($"{GameUi.Pad(name, 20)}{player.TongueOf(name),3}");
-
-        HintListDialog.Show(this, lines, "특기", "아직 익힌 것이 없다.");
-    }
+    /// <summary>「특기」 — 기술 열셋과 어학 열넷을 두 칸으로 늘어놓는다.</summary>
+    private void ShowSkills(Player player) => SkillSheetDialog.Show(this, player);
 
     /// <summary>인물정보 판을 연다.</summary>
     /// <param name="gameDirectory">초상화를 읽을 게임 폴더. 없으면 얼굴 없이 뜬다.</param>

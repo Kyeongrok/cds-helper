@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using CdsHelper.Game.Engine.Discovery;
+using CdsHelper.Game.Engine.Market;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -128,6 +129,24 @@ public sealed class Game
     /// <summary>교역품 표(CDS_95.EXE). 도시 특산품을 낼 때 쓴다.</summary>
     public GoodsTable? Goods =>
         Once(ref _goods, ref _goodsTried, GoodsTable.Open, () => GoodsTable.LastError, "교역품 표");
+
+    /// <summary>
+    /// 도시 시세. 시장·여관·상단 띠가 <b>한 벌</b>을 나눠 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 지금은 어느 도시나 100 이라 어디서 만들든 값이 같지만, 시세가 돌아다니게 되면
+    /// 벌이 갈린 만큼 값도 갈린다 — 그래서 여기 하나로 모아 둔다.
+    /// </remarks>
+    public MarketRates Rates => _rates ??= MarketRates.Open();
+
+    private MarketRates? _rates;
+
+    /// <summary>술 표(CDS_95.EXE). 술집이 그 고장에서 파는 술과 값이다.</summary>
+    public DrinkTable? Drinks =>
+        Once(ref _drinks, ref _drinksTried, DrinkTable.Open, () => DrinkTable.LastError, "술 표");
+
+    private DrinkTable? _drinks;
+    private bool _drinksTried;
 
     /// <summary>EXE 도시 표(문화권·시장 물건). 시장과 여관이 같이 쓴다.</summary>
     public CityExeTable? CityRows =>

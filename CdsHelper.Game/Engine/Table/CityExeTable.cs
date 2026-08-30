@@ -9,6 +9,8 @@ namespace CdsHelper.Game.Local.Helpers;
 /// <code>
 ///   도시 표 VA 0x004D14B0 (파일오프셋 0x0CFAB0), 226행 x 136바이트, .rdata
 ///   +0x00  이름 ptr("리스본")     +0x04,+0x08  칸 좌표
+///   +0x0C  도시가 차지하는 칸 수(2 또는 3) — 다가섰는지 가릴 때 쓴다
+///   +0x1C  지역 무리(0~26) — 항구 "마을정보" 가 이 무리 안의 도시를 늘어놓는다
 ///   +0x10,+0x14  딸린 내륙 도시 번호(-1 = 없음)
 ///   +0x20  문화권 (0~10)         +0x24  나라 번호
 ///   +0x28  규모(처음 값, 0~7)     +0x2C  시세 첫값(어디나 100)
@@ -38,8 +40,8 @@ public sealed class CityExeTable
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\도시표-게임.json</c>).</summary>
     private const string CacheName = "도시표-게임";
 
-    /// <summary>알맹이 모양 판. 규모 자리를 고치고 특산품을 딸린 도시까지 넓히며 3 으로 올렸다.</summary>
-    private const int Version = 3;
+    /// <summary>알맹이 모양 판. 지역 무리를 더하며 5 로 올렸다.</summary>
+    private const int Version = 5;
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -71,6 +73,12 @@ public sealed class CityExeTable
     private const int ScaleOffset = 0x28, NationOffset = 0x24;
     private const int SpecialOffset = 0x30;
 
+    /// <summary>칸 좌표와 차지하는 칸 수가 놓인 자리.</summary>
+    private const int CellXOffset = 0x04, CellYOffset = 0x08, ReachOffset = 0x0C;
+
+    /// <summary>지역 무리가 놓인 자리.</summary>
+    private const int RegionOffset = 0x1C;
+
     /// <summary>딸린 내륙 도시 번호가 놓인 두 자리.</summary>
     private static readonly int[] InlandOffsets = [0x10, 0x14];
 
@@ -79,13 +87,15 @@ public sealed class CityExeTable
 
     /// <summary>JSON 으로 적어 두는 알맹이. 바깥 색인이 도시 번호다.</summary>
     internal sealed record Snapshot(int[][] Stock, int[] Cultures, int[] Scales,
-                                    int[] Nations, int[][] Specials);
+                                    int[] Nations, int[][] Specials,
+                                    int[] CellX, int[] CellY, int[] Reach, int[] Regions);
 
     private readonly int[][] _stock;
     private readonly int[] _cultures;
     private readonly int[] _scales;
     private readonly int[] _nations;
     private readonly int[][] _specials;
+    private readonly int[] _cellX, _cellY, _reach, _regions;
 
     private CityExeTable(Snapshot snapshot)
     {
@@ -94,6 +104,49 @@ public sealed class CityExeTable
         _scales = snapshot.Scales;
         _nations = snapshot.Nations;
         _specials = snapshot.Specials;
+        _cellX = snapshot.CellX;
+        _cellY = snapshot.CellY;
+        _reach = snapshot.Reach;
+        _regions = snapshot.Regions;
+    }
+
+    /// <summary>
+    /// 그 도시가 든 <b>지역 무리</b>(<c>+0x1C</c>, 0~26). 표 밖이면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 이베리아 열넷 · 프랑스 여덟 · 이탈리아 열둘 … 하는 식으로 스물일곱 무리다.
+    /// 항구의 "마을정보" 가 <b>같은 무리</b>의 도시만 늘어놓는다(<c>0x004775F0</c>).
+    /// 문화권(<c>+0x20</c>)과는 다른 값이다 — 문화권은 열하나뿐이다.
+    /// </remarks>
+    public int RegionOf(int cityId) =>
+        cityId >= 0 && cityId < _regions.Length ? _regions[cityId] : -1;
+
+    /// <summary>같은 무리에 든 도시 번호들. 도시 번호 차례 그대로다.</summary>
+    public List<int> InRegion(int region)
+    {
+        var got = new List<int>();
+        if (region < 0) return got;
+        for (int city = 0; city < _regions.Length; city++)
+            if (_regions[city] == region) got.Add(city);
+        return got;
+    }
+
+    /// <summary>
+    /// 도시가 앉은 칸과 그 도시가 <b>차지하는 칸 수</b>. 표에 없는 번호면 false.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Reach"/> 는 <c>+0x0C</c> 다 — 2 아니면 3 뿐이라 오래도록 무엇인지 몰랐는데,
+    /// 도시에 다가섰는지 가리는 자리(<c>0x0048DA29</c>)가 이 값으로 훑을 범위를 정한다.
+    /// 지도에 그려진 도시 그림이 그만큼 넓다.
+    /// </remarks>
+    public bool TryCell(int cityId, out int x, out int y, out int reach)
+    {
+        x = y = reach = 0;
+        if (cityId < 0 || cityId >= _cellX.Length) return false;
+        x = _cellX[cityId];
+        y = _cellY[cityId];
+        reach = _reach[cityId];
+        return true;
     }
 
     /// <summary>
@@ -177,9 +230,17 @@ public sealed class CityExeTable
         var scales = new int[Count];
         var nations = new int[Count];
         var specials = new int[Count][];
+        var cellX = new int[Count];
+        var cellY = new int[Count];
+        var reach = new int[Count];
+        var regions = new int[Count];
         for (int city = 0; city < Count; city++)
         {
             int row = TableVa + city * RowSize;
+            cellX[city] = exe.Int(row + CellXOffset);
+            cellY[city] = exe.Int(row + CellYOffset);
+            reach[city] = exe.Int(row + ReachOffset);
+            regions[city] = exe.Int(row + RegionOffset);
             int culture = exe.Int(row + CultureOffset);
             cultures[city] = culture >= 0 && culture < CultureCount ? culture : -1;
             scales[city] = exe.Int(row + ScaleOffset);
@@ -217,6 +278,7 @@ public sealed class CityExeTable
             return null;
         }
 
-        return new Snapshot(stock, cultures, scales, nations, specials);
+        return new Snapshot(stock, cultures, scales, nations, specials, cellX, cellY, reach,
+                            regions);
     }
 }

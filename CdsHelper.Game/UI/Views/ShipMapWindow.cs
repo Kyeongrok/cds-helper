@@ -131,6 +131,12 @@ public sealed class ShipMapWindow : Window
     /// <summary>게임 상단 바의 도시명 칸. 바다에서는 빈 채로 둔다.</summary>
     private readonly GameButton _cityLabel = new("") { Lit = true, Margin = default };
 
+    /// <summary>들어와 있는 도시의 말. 바다에서는 줄표만 나온다.</summary>
+    private readonly GameButton _language = new("") { Lit = true, Margin = default };
+
+    /// <summary>들어와 있는 도시의 시세(백분율). 바다에서는 줄표만 나온다.</summary>
+    private readonly GameButton _rate = new("") { Lit = true, Margin = default };
+
     /// <summary>지도 위에 겹쳐 띄우는 좌표 상자의 글.</summary>
     private readonly TextBlock _overlayText = new()
     {
@@ -146,6 +152,28 @@ public sealed class ShipMapWindow : Window
     /// 커맨드 메뉴와 같은 수를 쓴 것이다. 보통 WPF 요소로는 airspace 에 막혀 얹을 수 없다.
     /// </summary>
     private Popup _overlay = null!;
+
+    /// <summary>
+    /// 만난 사람 상자 — 말을 걸어 본 여급(친밀도·궁합)과 만난 인물을 지도 위에 겹쳐 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 놀이에는 없는 것이라 개발 창의 "정보" 로만 켠다(<see cref="GameSettings.ShowPeopleOverlay"/>).
+    /// 좌표 상자와 같은 꼴이고, 자리만 지도 오른쪽 위다.
+    /// </remarks>
+    private Popup _people = null!;
+
+    /// <summary>만난 사람 상자의 글.</summary>
+    private readonly TextBlock _peopleText = new()
+    {
+        Foreground = Brushes.White,
+        FontFamily = new FontFamily("Consolas"),
+        FontSize = 12,
+        LineHeight = 16,
+        LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+    };
+
+    /// <summary>만난 사람 상자를 켜 두었는지.</summary>
+    private bool _peopleWanted = GameSettings.ShowPeopleOverlay;
 
     /// <summary>좌표 상자를 켜 두었는지. 실제로 뜨는지는 <see cref="SyncOverlay"/> 가 정한다.</summary>
     private bool _overlayWanted = GameSettings.ShowCoordOverlay;
@@ -305,6 +333,26 @@ public sealed class ShipMapWindow : Window
         };
         surface.Children.Add(_overlay);   // 자리만 잡아 둔다 — 실제로는 제 창에 뜬다
 
+        // 만난 사람 상자는 지도 오른쪽 위에 겹쳐 둔다. 좌표 상자와 같은 꼴이되 자리만 반대다.
+        _people = new Popup
+        {
+            PlacementTarget = input,
+            Placement = PlacementMode.Right,
+            AllowsTransparency = true,
+            StaysOpen = true,
+            IsHitTestVisible = false,
+            Child = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0xB4, 0x10, 0x10, 0x10)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, 0xC8, 0xB4, 0x90)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(10, 6, 10, 6),
+                IsHitTestVisible = false,
+                Child = _peopleText,
+            },
+        };
+        surface.Children.Add(_people);
+
         // 게임 상단 띠. 어느 칸을 띄울지는 도시정보 창에서 켜고 끈다(띠를 오른쪽 단추로 누른다).
         // 이동 모드(정박·해상 이동) 칸은 뺐다 — 게임 띠에 없는 칸이다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
@@ -318,6 +366,8 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fame, _fame, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fatigue, _tired, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.City, _cityLabel, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Language, _language, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Rate, _rate, on: false));
 
         // 게임처럼 액자를 깔고 그 위에 칸들을 얹는다(asset/ui/misc-00.png).
         // 그림이 없으면 예전처럼 민색 띠로 물러선다.
@@ -335,6 +385,15 @@ public sealed class ShipMapWindow : Window
         {
             e.Handled = true;
             ShowCityInfoMenu(gameBar, e.GetPosition(gameBar));
+        };
+
+        // 왼쪽 단추로 누르면 커맨드 창이 뜬다 — 게임도 상단 띠를 누르면 이것이 나온다.
+        // 지도에서는 오른쪽 단추가 같은 창을 내는데, 띠에서는 오른쪽이 도시정보 몫이라
+        // 왼쪽을 준다. 창은 띠 <b>바로 밑</b>에 붙는다.
+        gameBar.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            ShowCommandMenu(gameBar, new Point(e.GetPosition(gameBar).X, gameBar.ActualHeight));
         };
 
         var root = new DockPanel();
@@ -401,6 +460,7 @@ public sealed class ShipMapWindow : Window
                 return;
             }
             // 그냥 찍으면 닻을 내리고 그 자리에 선다. 한 번 더 찍으면 올리고 다시 간다.
+            // 뭍에서도 같은 스위치로 말이 서고 다시 간다.
             _host.ToggleAnchor();
             // 내릴 때도 올릴 때도 같은 소리가 난다.
             _game.Sfx?.Play(SoundBank.AnchorPart);
@@ -437,6 +497,8 @@ public sealed class ShipMapWindow : Window
             ShipSprites.Use(_game.Player.FlagshipHull?.Hull);
             _date.Text = $"{_game.Player.Date.Year,4}년{_game.Player.Date.Month,2}월{_game.Player.Date.Day,2}일";
             _cityLabel.Text = _game.Player.CityName.Length > 0 ? _game.Player.CityName : "—";
+            _language.Text = CityLanguage();
+            _rate.Text = CityRate();
             if (_overlay.IsOpen) FillOverlay(lat, lon);
             SyncSeaMusic();
         });
@@ -518,6 +580,39 @@ public sealed class ShipMapWindow : Window
         foreach (var c in _seaControls) c.IsEnabled = !on;
     }
 
+    /// <summary>
+    /// 상단 띠의 <b>언어</b> 칸 — 들어와 있는 도시가 쓰는 말이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 자리는 <c>0x0047DE39</c> 다. 도시 번호가 0~225 밖이면(바다에 있으면) 이름 대신
+    /// 줄표(<c>0x0056BF58</c>)를 낸다. 말 번호는 도시가 딸린 나라의 것이고
+    /// (<see cref="CityExeTable.NationOf"/>), 이름표는 <c>0x00560A48</c> 이다.
+    /// </remarks>
+    private string CityLanguage()
+    {
+        int city = _game.Player.CityId;
+        if (city < 0 || _game.CityRows == null || _game.Nations == null) return NoValue;
+
+        int nation = _game.CityRows.NationOf(city);
+        var names = _game.Buildings?.LanguageNames;
+        if (names == null || _game.Nations.Find(nation) is not { } row) return NoValue;
+
+        return row.Language >= 0 && row.Language < names.Count ? names[row.Language] : NoValue;
+    }
+
+    /// <summary>
+    /// 상단 띠의 <b>시세</b> 칸. 게임 서식은 <c>"시세%4d%"</c> 고, 도시 밖에서는
+    /// <c>"시세 ---%"</c> 다(<c>0x0047DE94</c>).
+    /// </summary>
+    private string CityRate()
+    {
+        int city = _game.Player.CityId;
+        return city < 0 ? "시세 ---%" : $"시세{_game.Rates.Of(city),4}%";
+    }
+
+    /// <summary>도시 밖일 때 언어 칸에 나오는 줄표(<c>0x0056BF58</c>, 열여덟 개).</summary>
+    private const string NoValue = "------------------";
+
     /// <summary>도시정보 창. 상단 띠 밑에 붙여 띄운다.</summary>
     private GameMenuHost? _infoMenuHost;
 
@@ -589,10 +684,66 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>좌표 상자를 띄울 때인지 다시 따진다 — 켜 두었고, 지도가 떠 있고, 이 창이 앞일 때만.</summary>
-    private void SyncOverlay() =>
-        _overlay.IsOpen = _overlayWanted && _started && IsActive
-                          && WindowState != WindowState.Minimized
-                          && ReferenceEquals(_screen.Content, _mapRoot);
+    private void SyncOverlay()
+    {
+        bool room = _started && IsActive
+                    && WindowState != WindowState.Minimized
+                    && ReferenceEquals(_screen.Content, _mapRoot);
+        _overlay.IsOpen = _overlayWanted && room;
+
+        bool people = _peopleWanted && room;
+        if (people) FillPeople();
+        _people.IsOpen = people;
+    }
+
+    /// <summary>
+    /// 만난 사람 상자를 채운다 — 왼쪽에 여급(친밀도·궁합), 오른쪽에 만난 인물이다.
+    /// </summary>
+    /// <remarks>
+    /// 궁합은 여급의 운명 얼굴 코드와 내 것을 견주어 가른다(<see cref="BarmaidTable.Destined"/>) —
+    /// 같거나 하나 차이면 맞는 것이다. 친밀도는 말을 걸어야 생기므로, 여기 뜨는 여급은
+    /// <b>한 번이라도 말을 걸어 본</b> 이들이다.
+    /// </remarks>
+    private void FillPeople()
+    {
+        var player = _game.Player;
+        var left = new List<string> { "여급 (친밀도 · 궁합)" };
+
+        int mine = BarmaidTable.FortuneOf(player.Face, player.Age);
+        var table = _game.Barmaids;
+        foreach (var (id, liking) in player.Liking.OrderByDescending(p => p.Value))
+        {
+            string name = table?.Find(id)?.Name ?? $"{id}번";
+            string fit = table?.Find(id) is { } her
+                ? BarmaidTable.Destined(mine, her.Fortune) ? "궁합 ○" : "궁합 ×"
+                : "";
+            left.Add($"  {PadCells(name, 16)}{liking,4}  {fit}");
+        }
+        if (left.Count == 1) left.Add("  아직 말을 걸어 본 여급이 없다");
+
+        var right = new List<string> { "만난 인물" };
+        foreach (string name in player.Met.OrderBy(n => n, StringComparer.Ordinal))
+            right.Add($"  {name}");
+        if (right.Count == 1) right.Add("  아직 만난 인물이 없다");
+
+        var lines = new List<string>();
+        for (int i = 0; i < Math.Max(left.Count, right.Count); i++)
+            lines.Add(PadCells(i < left.Count ? left[i] : "", PeopleColumn)
+                      + (i < right.Count ? right[i] : ""));
+
+        _peopleText.Text = string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>여급 칸의 너비(글자 칸). 한글 한 자를 두 칸으로 센다.</summary>
+    private const int PeopleColumn = 34;
+
+    /// <summary>한글을 두 칸으로 세어 그 칸 수만큼 빈칸을 채운다.</summary>
+    private static string PadCells(string text, int cells)
+    {
+        int used = 0;
+        foreach (char c in text) used += c < 0x80 ? 1 : 2;
+        return used >= cells ? text : text + new string(' ', cells - used);
+    }
 
     /// <summary>
     /// 좌표 상자를 채운다. 배가 선 칸을 WORLD.CDS 파일 안의 자리까지 풀어서 보여 주고,
@@ -1417,6 +1568,13 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void ShowDevDialog() => DevDialog.Show(this, _game.Player, new DevDialog.Options
     {
+        PeopleOn = () => _peopleWanted,
+        SetPeople = on =>
+        {
+            _peopleWanted = on;
+            GameSettings.ShowPeopleOverlay = on;   // 다음에 켤 때도 그대로
+            SyncOverlay();
+        },
         CoordsOn = () => _overlayWanted,
         SetCoords = on =>
         {
@@ -1460,6 +1618,12 @@ public sealed class ShipMapWindow : Window
         var items = new List<(string Text, Action? Run)>();
         if (_host.IsOnLand)
         {
+            // 도시에 닿아 있으면 <b>맨 위</b>가 그 도시로 들어가는 줄이다. 다가갈 때 한 번
+            // 물어보는 창(<see cref="CheckPort"/>)에서 아니오를 눌렀어도 이 줄로 다시 들어간다.
+            int town = _host.NearestTown();
+            if (town >= 0)
+                items.Add(($"{_game.CityName(town)}에 들어간다", () => { Close(); EnterCity(town); }));
+
             if (_host.IsNearWater())
                 items.Add(("출항", () => { if (_host.Embark()) _game.Bgm.Play(BgmPlayer.SeaTrack); Close(); }));
         }
@@ -1681,6 +1845,38 @@ public sealed class ShipMapWindow : Window
         finally
         {
             // 도시 창이 열렸으면 그 창이 닫힐 때 푼다(그동안 배는 서 있는다).
+            if (!inCity)
+            {
+                _host.Paused = false;
+                _asking = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 묻지 않고 그 도시로 들어간다 — 커맨드의 "…에 들어간다" 가 부른다.
+    /// </summary>
+    /// <remarks>
+    /// 다가갈 때 한 번 묻는 <see cref="CheckPort"/> 와 들어가는 대목은 같다. 다만 이쪽은
+    /// 이미 고른 뒤라 다시 묻지 않고, 그 도시를 물어본 것으로 적어 둔다 — 안 그러면 도시
+    /// 창을 닫자마자 물음창이 또 뜬다.
+    /// </remarks>
+    private void EnterCity(int city)
+    {
+        if (_asking) return;
+
+        _askedCity = city;
+        var name = _game.CityName(city);
+        _asking = true;
+        _host.Paused = true;
+        bool inCity = false;
+        try
+        {
+            _host.EnterPort(name);
+            inCity = ShowCityPicture(city, name);
+        }
+        finally
+        {
             if (!inCity)
             {
                 _host.Paused = false;

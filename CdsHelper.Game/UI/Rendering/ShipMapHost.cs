@@ -235,7 +235,7 @@ public sealed class ShipMapHost : HwndHost
     private byte[]? _lastIndices;
 
     /// <summary>텍스처에 올라가 있는 그림이 무엇인지. 같으면 게임 메모리를 읽지도 않는다.</summary>
-    private (int Heading, bool OnLand, bool FromGame)? _spriteKey;
+    private (int Heading, bool OnLand, bool FromGame, int WalkPhase)? _spriteKey;
 
     // 지난번에 실제로 그려 낸 값. 그대로면 이번 프레임은 건너뛴다.
     private (double X, double Y) _drawnOrigin;
@@ -335,6 +335,9 @@ public sealed class ShipMapHost : HwndHost
         var world = WorldMapRenderer.LoadWorldData(System.IO.Path.Combine(gameDir, "WORLD.CDS"));
         if (world == null) { Status = "WORLD.CDS 를 읽지 못했습니다"; return false; }
         _world = world;
+
+        // 도시 어귀를 가리려면 도시가 앉은 칸과 차지하는 칸 수가 있어야 한다.
+        _cities = CityExeTable.Open(gameDir);
 
         // 칸을 지날 수 있는지는 게임 표가 가른다. 못 읽으면 옛 어림으로 물러선다.
         _terrain = TerrainTable.Open(gameDir);
@@ -480,7 +483,7 @@ public sealed class ShipMapHost : HwndHost
         //           배와 같은 자리에 겹치면 게임처럼 배 왼쪽 아래에 걸린다.
         //   뭍에 있을 때  대 둔 배. 어디로 상륙했는지 그 자리에 남는다.
         var overlay = (0f, 0f, 0f, 0f);
-        if (_anchored && _shipKnown && _spriteReady) overlay = rect;
+        if (_anchored && !_onLand && _shipKnown && _spriteReady) overlay = rect;
         else if (_onLand && _moored) overlay = SpriteRectAt(_mooredX, _mooredY, origin);
         SyncOverlaySprite();
 
@@ -530,7 +533,8 @@ public sealed class ShipMapHost : HwndHost
     /// </summary>
     private void SyncOverlaySprite()
     {
-        var want = _anchored ? OverlayArt.Anchor
+        // 뭍에서 선 것은 닻이 아니다 — 그 자리에는 대 둔 배가 그대로 남아 있어야 한다.
+        var want = _anchored && !_onLand ? OverlayArt.Anchor
                  : _onLand && _moored ? OverlayArt.MooredShip
                  : OverlayArt.None;
         if (want == _overlayArt || want == OverlayArt.None) { _overlayArt = want; return; }
@@ -638,7 +642,7 @@ public sealed class ShipMapHost : HwndHost
             for (int x = 0; x < cellsPerSide; x += ArrowProbeStep)
             {
                 total++;
-                if (_terrain.CanSail(_world[RawAt(x0 + x, y0 + y).Offset])) water++;
+                if (_terrain.CanSail(CellValue(x0 + x, y0 + y))) water++;
             }
         return water >= total * ArrowMinWaterRatio;
     }
@@ -796,7 +800,7 @@ public sealed class ShipMapHost : HwndHost
             }
             Sail(dt);
             Status = $"{(_onLand ? "말" : "배")} {_shipX:F1}, {_shipY:F1} 칸 · 방향 {HeadingName} · " +
-                     (_anchored ? "닻을 내리고 정박 중"
+                     (_anchored ? (_onLand ? "멈춰 서 있다" : "닻을 내리고 정박 중")
                                : _blocked ? (_onLand ? "바다에 막혔습니다" : "육지에 막혔습니다")
                                : !_mouseInside ? "가던 쪽으로"
                                : _onLand ? "커서 쪽으로 이동 중" : "커서 쪽으로 항해 중") +
@@ -829,14 +833,16 @@ public sealed class ShipMapHost : HwndHost
         // 게임이 떠 있으면 그 그림을(함선 종류에 맞는 4벌 중 하나), 아니면 asset/ship 의 것을 쓴다.
         // 같은 그림이면 게임 메모리를 읽지도, 텍스처를 올리지도 않는다 — 뱃머리가 그대로면
         // 프레임마다 할 일이 없다.
-        var key = (_heading, _onLand, _ship.IsAttached);
+        var key = (_heading, _onLand, _ship.IsAttached, _onLand ? _walkPhase : 0);
         if (_spriteKey == key) return;
 
-        var indices = _ship.IsAttached ? _ship.TryReadSprite(_heading, _onLand) : null;
+        var indices = _ship.IsAttached
+            ? _ship.TryReadSprite(_heading, _onLand, _onLand ? _walkPhase : -1)
+            : null;
         if (indices != null) UploadGameSprite(indices);
         else
         {
-            var frame = ShipSprites.Frame(_heading, _onLand);
+            var frame = ShipSprites.Frame(_heading, _onLand, _onLand ? _walkPhase : -1);
             if (!frame.IsEmpty)
             {
                 _renderer.SetSprite(frame);
@@ -994,7 +1000,7 @@ public sealed class ShipMapHost : HwndHost
                         for (int x = 0; x < step; x++)
                         {
                             int off = RawAt(bx * step + x, by * step + y).Offset;
-                            if (_terrain.CanSail(_world[off])) water++;
+                            if (_terrain.CanSail(CellAt(off))) water++;
                             else land++;
                         }
                     color = land > water ? ChartLand : ChartSea;
@@ -1152,8 +1158,21 @@ public sealed class ShipMapHost : HwndHost
         _blocked = true;
     }
 
+    /// <summary>
+    /// 말의 걸음 번호(0~7). 한 걸음 뗄 때마다 늘어 다리가 움직인다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 이렇게 한다 — 지도 한 틱마다 <c>0x00569550</c> 이 늘고, 그림 번호가
+    /// <c>(방향 &gt;&gt; 2) * 8 + 걸음</c> 이다. 우리 틱은 0.1초라 여덟 걸음이 0.8초에 돈다.
+    /// 멈춰 있으면 늘지 않으므로 선 말은 다리도 선다.
+    /// </remarks>
+    private int _walkPhase;
+
     private void Move(double dx, double dy)
     {
+        if (_onLand && (dx != 0 || dy != 0))
+            _walkPhase = (_walkPhase + 1) % ShipSprites.WalkPhases;
+
         _shipX += dx;
         _shipY += dy;
         // 지도 밖으로는 못 나간다. 가로는 이어져 있으므로 나머지로 접는다.
@@ -1179,8 +1198,8 @@ public sealed class ShipMapHost : HwndHost
     {
         if (_terrain != null && _world != null)
         {
-            byte low = _world[RawAt(cellX, cellY).Offset];
-            return _onLand ? _terrain.CanWalk(low) : _terrain.CanSail(low);
+            int cell = CellValue(cellX, cellY);
+            return _onLand ? _terrain.CanWalk(cell) : _terrain.CanSail(cell);
         }
 
         double land = LandRatioAt(cellX, cellY);
@@ -1216,7 +1235,7 @@ public sealed class ShipMapHost : HwndHost
     private bool IsLand(double cellX, double cellY)
     {
         if (_terrain != null && _world != null)
-            return !_terrain.CanSail(_world[RawAt(cellX, cellY).Offset]);
+            return !_terrain.CanSail(CellValue(cellX, cellY));
         return LandRatioAt(cellX, cellY) >= SailMaxLandRatio;
     }
 
@@ -1237,6 +1256,21 @@ public sealed class ShipMapHost : HwndHost
     /// 칸 좌표가 WORLD.CDS 파일 안에서 놓인 자리. 파일은 2500바이트 행이 2500줄이고,
     /// 짝수 행이 지도의 왼쪽 절반, 홀수 행이 오른쪽 절반이다(한 칸 2바이트).
     /// </summary>
+    /// <summary>
+    /// 그 칸의 값 — <b>두 바이트</b>다(아래가 지형, 위가 속성).
+    /// </summary>
+    /// <remarks>
+    /// 지형 표는 이 값 열네 비트로 찾는다(<see cref="Engine.Table.TerrainTable"/>). 아래
+    /// 한 바이트만으로 찾으면 같은 지형이라도 속성이 다른 칸을 못 지나는 것으로 본다.
+    /// </remarks>
+    private int CellValue(double cellX, double cellY) => CellAt(RawAt(cellX, cellY).Offset);
+
+    /// <summary>WORLD.CDS 의 그 자리에 적힌 칸 값.</summary>
+    private int CellAt(int offset) =>
+        _world == null || offset + 1 >= _world.Length
+            ? 0
+            : _world[offset] | (_world[offset + 1] << 8);
+
     private static (int CellX, int CellY, int Row, int Col, int Offset) RawAt(double cellX, double cellY)
     {
         int cx = (int)Math.Floor(cellX);
@@ -1278,13 +1312,17 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>
     /// 닻을 내리거나 올린다. 내리면 배가 그 자리에서 즉시 서고, 다시 올리면 가던 쪽으로 간다.
-    /// 뭍에서는(말) 내릴 닻이 없고, 도시에 들어가 있는 동안도 받지 않는다
-    /// (<see cref="SeaBlocked"/>).
+    /// 도시에 들어가 있는 동안은 받지 않는다(<see cref="SeaBlocked"/>).
     /// </summary>
-    /// <returns>이제 정박 중이면 true.</returns>
+    /// <remarks>
+    /// <b>뭍에서도 받는다.</b> 말에게 내릴 닻은 없지만 서고 가는 것은 같아야 해서,
+    /// 같은 스위치를 쓰고 그림과 문구만 갈라 낸다 — 뭍에서는 닻 그림을 얹지 않고
+    /// (그 자리에는 대 둔 배가 있다) 상태 줄도 "멈춰 서 있다" 로 나온다.
+    /// </remarks>
+    /// <returns>이제 서 있으면 true.</returns>
     public bool ToggleAnchor()
     {
-        if (SeaBlocked || _onLand) return false;
+        if (SeaBlocked) return false;
         _anchored = !_anchored;
         _tickAccum = 0;
         return _anchored;
@@ -1519,25 +1557,67 @@ public sealed class ShipMapHost : HwndHost
     /// </summary>
     public int NearestCity(double radiusCells = DockRadiusCells) => NearestDock(radiusCells).Id;
 
-    /// <summary>뭍에서 도시 어귀로 치는 거리(칸). 도시 칸 자체를 재므로 짧다.</summary>
-    private const double TownRadiusCells = 2.0;
+    /// <summary>도시 표. 도시가 앉은 칸과 차지하는 칸 수를 여기서 얻는다.</summary>
+    private CityExeTable? _cities;
 
     /// <summary>
-    /// 말이 닿은 도시 ID. 없으면 -1. 배와 달리 <b>도시 칸</b>까지의 거리를 잰다 —
-    /// 뭍에서는 항구 칸이 아니라 마을 자체로 들어가기 때문이다.
+    /// 도시 칸에서 <b>왼쪽·위로</b> 이만큼 더 나가도 닿은 것으로 친다(<c>0x0048DA29</c> 의
+    /// <c>dx &lt;= 1</c>).
     /// </summary>
-    public int NearestTown(double radiusCells = TownRadiusCells)
+    private const int TownSlack = 1;
+
+    /// <summary>
+    /// 말 그림이 제 칸에서 사방으로 뻗는 칸 수. 그림이 세 칸 폭이고 <b>칸 가운데에</b>
+    /// 놓이므로 한 칸이다(<see cref="SpriteRectAt"/> 의 <c>size / 2</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 함대 자리를 그림 왼쪽 위께로 잡아 훑는 칸이 <c>-3 .. +1</c> 로 한쪽에
+    /// 쏠려 있다. 우리는 가운데에 놓으므로 그만큼을 양쪽으로 갈라 얹는다 — 그래야
+    /// <b>그림끼리 닿는 순간</b> 물어본다. 안 얹으면 도시 그림 한복판까지 밀고
+    /// 들어가야 물었다.
+    /// </remarks>
+    private const int HorseHalfCells = 1;
+
+    /// <summary>
+    /// 말이 닿은 도시 ID. 없으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 게임 그대로다(<c>0x0048DA19</c>). 거리를 재는 것이 아니라 <b>둘레 칸을 훑는다</b>.
+    /// <code>
+    ///   0048DA21  dy = -3 .. +1
+    ///   0048DA34  칸y = [0x5B63B4] &gt;&gt; 4          ; 원본값 열여섯이 한 칸
+    ///   0048DA5A  dx = -3 .. +1
+    ///   0048DA7E  그 칸(칸x+dx, 칸y+dy)에 도시가 있나
+    ///   0048DA9C  dx &lt; 0 이면 도시가 차지하는 칸 수 &gt;= -dx 여야 한다
+    ///   0048DAAF  dy 도 같다
+    /// </code>
+    /// 곧 <b>도시 칸에서 오른쪽·아래로 차지하는 칸 수만큼, 왼쪽·위로 한 칸</b>이 그 도시의
+    /// 어귀다. 차지하는 칸 수는 표의 <c>+0x0C</c> 로 2 아니면 3 이다(<see cref="CityExeTable.TryCell"/>).
+    ///
+    /// 예전에는 도시 <b>가운데</b>에서 두 칸 안으로 들어야 물었다. 도시 그림이 서너 칸을
+    /// 차지하는데 가운데만 재니, 그림 어귀에 닿아도 안 물어보고 그림 한복판까지 밀고
+    /// 들어가야 했다.
+    /// </remarks>
+    public int NearestTown()
     {
-        if (!_shipKnown) return -1;
-        int best = -1;
-        double bestD = radiusCells * radiusCells;
-        for (int id = 0; id < GameMapCoords.CityCount; id++)
+        if (!_shipKnown || _cities == null) return -1;
+
+        int fx = (int)Math.Floor(_shipX);
+        int fy = (int)Math.Floor(_shipY);
+        for (int id = 0; id < CityExeTable.Count; id++)
         {
-            if (!GameMapCoords.TryCityCell(id, out double cx, out double cy)) continue;
-            double d = DistanceSq(cx, cy);
-            if (d < bestD) { bestD = d; best = id; }
+            if (!_cities.TryCell(id, out int cx, out int cy, out int reach)) continue;
+            if (fy < cy - TownSlack - HorseHalfCells || fy > cy + reach + HorseHalfCells) continue;
+
+            // 가로는 이어져 있다 — 날짜변경선을 넘어도 같은 도시다.
+            int dx = fx - cx;
+            if (dx > WorldMapRenderer.UnfoldedW / 2) dx -= WorldMapRenderer.UnfoldedW;
+            if (dx < -WorldMapRenderer.UnfoldedW / 2) dx += WorldMapRenderer.UnfoldedW;
+            if (dx < -TownSlack - HorseHalfCells || dx > reach + HorseHalfCells) continue;
+
+            return id;
         }
-        return best;
+        return -1;
     }
 
     /// <summary>

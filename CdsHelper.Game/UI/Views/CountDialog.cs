@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -86,6 +86,9 @@ public sealed class CountDialog : Window
         pick.Children.Add(Cell(_count));
         pick.Children.Add(Arrow("↑", () => Bump(+1)));
         pick.Children.Add(Arrow("↓", () => Bump(-1)));
+        // 계산기 단추. 자릿수가 큰 수를 ↑↓ 로 올리기는 힘들다 — 게임도 이 칸 옆에
+        // 계산기를 달아 두고, 누르면 숫자판이 뜬다.
+        pick.Children.Add(Pad());
         pick.Children.Add(Label(" " + unit));
 
         var rows = new StackPanel { Margin = new Thickness(16, 12, 16, 4) };
@@ -181,6 +184,53 @@ public sealed class CountDialog : Window
             Children = { inner },
         },
     };
+
+    /// <summary>
+    /// 칸 옆의 작은 계산기 단추(田). 누르면 숫자판이 떠서 값을 곧장 찍어 넣는다.
+    /// </summary>
+    /// <remarks>
+    /// 판은 <see cref="NumberPadDialog"/> 다 — 신규 캐릭터 창의 연령·생일 칸이 여는 것과
+    /// 같은 판이라 AC·DEL·MAX·MIN 이 그대로 있다. MAX 는 여기서 고를 수 있는 가장 큰 수,
+    /// MIN 은 0 이다.
+    /// </remarks>
+    private UIElement Pad()
+    {
+        var box = new Border
+        {
+            Width = PadSize,
+            Height = PadSize,
+            Background = GameUi.ItemFill,
+            BorderBrush = GameUi.ItemEdge,
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(4, 0, 0, 0),
+            Cursor = Cursors.Hand,
+            Child = new TextBlock
+            {
+                // 게임 비트맵 글꼴에 없는 글자라 윈도 글꼴로 찍는다.
+                Text = "田",
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold,
+                FontSize = 11,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        // 누름은 삼킨다 — 판 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
+        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        box.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (NumberPadDialog.Ask(this, _at, 0, _max) is { } typed)
+            {
+                _at = Math.Clamp(typed, 0, _max);
+                Paint();
+            }
+        };
+        return box;
+    }
+
+    /// <summary>계산기 단추 한 칸의 크기.</summary>
+    private const double PadSize = 15;
 
     /// <summary>↑·↓ 한 칸. 보급 화면 것과 같다.</summary>
     private static UIElement Arrow(string mark, Action run)

@@ -8,15 +8,20 @@ using CdsHelper.Game.Local.Helpers;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 힌트 하나를 펴 본 판 — 이름과 갈래, 그 이야기, 그리고 <b>부관의 평</b>.
+/// 힌트 하나를 펴 본 <b>파란 판</b> — 이름과 갈래, 그리고 그 이야기.
 /// </summary>
 /// <remarks>
 /// 「취득 힌트 일람」에서 한 줄을 고르고 결정을 누르면 뜬다. 글은 힌트 표의
 /// <see cref="HintTable.Hint.Text"/> 다(힌트 줄 <c>+0x1C</c> 가 가리키는 글, 표
 /// <c>0x00543FA0</c>) — 도서관에서 책을 읽을 때 펼친 책에 적히는 그 글이다.
 ///
-/// 아래 한마디는 게임 표 <c>0x00560F38</c> 에서 온다. 한 줄이 <b>여덟 바이트</b>라
-/// 앞이 부관이 있을 때, 뒤가 없을 때다(<c>0x0046EE92</c> 와 <c>0x0046EEBA</c>).
+/// <b>부관의 평은 이 판에 안 붙는다.</b> 게임은 판 하나와 <b>말 창 하나</b>를 따로 띄운다 —
+/// 파란 판은 화면 위쪽에 뜨고, "발견할 수 있을 것 같군요." 는 여느 대사처럼 아래쪽 말 창에
+/// 뜬다. 그 말 창의 확인을 누르면 둘 다 닫힌다. 예전에는 한 창에 붙여 두었는데 그러면
+/// 판이 세로로 길어지고 글도 잘렸다.
+///
+/// 평 글은 게임 표 <c>0x00560F38</c> 에서 온다. 한 줄이 <b>여덟 바이트</b>라 앞이 부관이
+/// 있을 때, 뒤가 없을 때다(<c>0x0046EE92</c> 와 <c>0x0046EEBA</c>).
 /// </remarks>
 public sealed class HintDetailDialog : Window
 {
@@ -24,11 +29,16 @@ public sealed class HintDetailDialog : Window
     private static readonly Brush PanelFill = Frozen(Color.FromRgb(0x6E, 0x82, 0xA6));
     private static readonly Brush PanelEdge = Frozen(Color.FromRgb(0x2C, 0x38, 0x50));
 
-    /// <summary>판의 폭과 안쪽 여백, 글 한 줄의 높이.</summary>
-    private const double PanelWidth = 296, PanelPad = 12, LineHeight = 20;
+    /// <summary>
+    /// 판 속에 글이 놓이는 폭. 게임 판은 한 줄에 한글 열아홉 자쯤 든다.
+    /// </summary>
+    private const double TextWidth = 19 * 16;
 
-    /// <summary>글자 한 칸 — 한글 한 자가 두 칸이다.</summary>
-    private const double CellWidth = 8;
+    /// <summary>판 안쪽 여백과 한 줄 높이.</summary>
+    private const double PanelPad = 14, LineHeight = 20;
+
+    /// <summary>글꼴을 못 읽었을 때 눈대중으로 쓸 글자 폭(한글은 두 배).</summary>
+    private const double GuessCell = 8;
 
     private static Brush Frozen(Color c)
     {
@@ -37,74 +47,39 @@ public sealed class HintDetailDialog : Window
         return b;
     }
 
-    private HintDetailDialog(string head, string body, string comment)
+    private HintDetailDialog(string head, string body)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        WindowStartupLocation = WindowStartupLocation.Manual;
         ShowInTaskbar = false;
-        Background = GameUi.Back;
+        Background = Brushes.Transparent;
 
         var words = new StackPanel();
         words.Children.Add(Ink(head));
         words.Children.Add(new Border { Height = LineHeight });        // 한 줄 띄운다
-        foreach (string line in Wrap(body, PanelWidth - PanelPad * 2))
+        foreach (string line in Wrap(body, TextWidth))
             words.Children.Add(Ink(line));
 
-        var panel = new Border
-        {
-            Width = PanelWidth,
-            Background = PanelFill,
-            BorderBrush = PanelEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(PanelPad),
-            Child = words,
-        };
-
-        var ok = new GameUi.FocusGroup();
-        var button = ok.Add("확인", Close, ButtonWidth);
-        button.Height = UiSprites.BandHeight;
-
-        var below = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
-        below.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, GameUi.ItemTextHeight)
-        {
-            Text = comment,
-            Bold = true,
-            FallbackBrush = GameUi.Text,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        });
-        below.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 0),
-            Children = { button },
-        });
-
-        var stack = new StackPanel();
-        stack.Children.Add(panel);
-        stack.Children.Add(below);
-
+        // 게임 판은 테가 두 겹이다 — 짙은 선 안에 한 칸 띄우고 다시 짙은 선.
         Content = new Border
         {
-            Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
+            BorderBrush = PanelEdge,
             BorderThickness = new Thickness(2),
-            Padding = new Thickness(8, 8, 8, 12),
-            Child = stack,
+            Background = PanelFill,
+            Padding = new Thickness(2),
+            Child = new Border
+            {
+                BorderBrush = PanelEdge,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(PanelPad),
+                Child = new StackPanel { Width = TextWidth, Children = { words } },
+            },
         };
 
-        KeyDown += (_, e) =>
-        {
-            if (e.Key is Key.Escape) { Close(); return; }
-            if (ok.HandleKey(e.Key)) e.Handled = true;
-        };
-        MouseRightButtonUp += (_, _) => Close();
-        GameUi.EnableDrag(this, stack);
+        KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
     }
-
-    private const double ButtonWidth = 64;
 
     /// <summary>판 위에 글 한 줄 — 검은 벌이다.</summary>
     private static UIElement Ink(string line) =>
@@ -116,17 +91,26 @@ public sealed class HintDetailDialog : Window
             HorizontalAlignment = HorizontalAlignment.Left,
         };
 
-    /// <summary>판 너비에 맞춰 끊는다. 한글 한 자가 두 칸이다.</summary>
+    /// <summary>
+    /// 판 너비에 맞춰 끊는다. 자 너비는 <b>게임 글꼴에 직접 물어본다</b> —
+    /// 한글 16점 · ASCII 8점으로 어림하던 것이 실제와 어긋나 글이 오른쪽으로 삐져나갔다.
+    /// </summary>
     private static List<string> Wrap(string text, double width)
     {
+        var font = GameUi.Font;
         var lines = new List<string>();
         var line = new StringBuilder();
         double used = 0;
 
         foreach (char c in text)
         {
-            double w = c < 0x80 ? CellWidth : CellWidth * 2;
-            if (used + w > width) { lines.Add(line.ToString()); line.Clear(); used = 0; }
+            double w = font?.TextWidth(c.ToString()) ?? (c < 0x80 ? GuessCell : GuessCell * 2);
+            if (used + w > width && line.Length > 0)
+            {
+                lines.Add(line.ToString());
+                line.Clear();
+                used = 0;
+            }
             line.Append(c);
             used += w;
         }
@@ -165,14 +149,33 @@ public sealed class HintDetailDialog : Window
         ["터무니 없는 이야기인 것 같군요. 찾기 힘들 것 같군요.", "찾을 수 있을 것 같지 않습니다."],
     ];
 
-    /// <summary>힌트 하나를 펴 본다.</summary>
+    /// <summary>판이 주인 창 위쪽에서 얼마나 내려앉는지.</summary>
+    private const double PanelTop = 40;
+
+    /// <summary>
+    /// 힌트 하나를 펴 본다 — 파란 판을 띄우고, 부관의 평은 <b>따로</b> 말 창으로 낸다.
+    /// </summary>
     public static void Show(Window owner, HintTable.Hint hint, string category,
                             int fame, bool hasMate)
     {
         string head = category.Length > 0 ? $"{hint.Name}({category})" : hint.Name;
-        new HintDetailDialog(head, hint.Text, CommentOn(hint.Grade, fame, hasMate))
+        var panel = new HintDetailDialog(head, hint.Text) { Owner = owner };
+
+        // 판은 화면 위쪽에 세운다. 말 창은 여느 대사처럼 가운데에 뜨므로 겹치지 않는다.
+        panel.SourceInitialized += (_, _) =>
         {
-            Owner = owner,
-        }.ShowDialog();
+            panel.Left = owner.Left + (owner.ActualWidth - panel.ActualWidth) / 2;
+            panel.Top = owner.Top + PanelTop;
+        };
+        panel.Show();
+
+        try
+        {
+            ConfirmDialog.Tell(owner, CommentOn(hint.Grade, fame, hasMate));
+        }
+        finally
+        {
+            panel.Close();
+        }
     }
 }

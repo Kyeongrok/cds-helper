@@ -41,7 +41,28 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     private Random _random => _game.Random;
 
     /// <summary>물음창을 얹을 창 — 명령 창이 떠 있으면 그 위다.</summary>
-    private Window Owner => _menu.Window ?? _view;
+    private Window Owner => _menu.Window is { Visibility: Visibility.Visible } window
+        ? window : _view;
+
+    /// <summary>
+    /// 후원자와 이야기하는 동안 <b>그 건물의 명령 창을 접는다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 알현이 시작되면 명령 창을 지우고 화면 가득 대사만 낸다. 우리 명령 창은
+    /// 제 창(HWND)이라 도시 그림 위에 그대로 남아, 대사 창 옆에 얹힌 채로 보였다 —
+    /// 애니메이션(하트·설득)까지 그 창에 가렸다.
+    ///
+    /// 대사 창들은 이미 도시 그림(<c>_view</c>)을 주인으로 삼으므로 접어도 탈이 없다.
+    /// 어떻게 끝나든 도로 펴 준다.
+    /// </remarks>
+    private void Alone(Action run)
+    {
+        var window = _menu.Window;
+        bool shown = window is { Visibility: Visibility.Visible };
+        if (shown) window!.Visibility = Visibility.Hidden;
+        try { run(); }
+        finally { if (shown && window!.IsLoaded) window.Visibility = Visibility.Visible; }
+    }
 
     /// <summary>후원자 자료. 한 번만 읽어 둔다.</summary>
     private static List<Patron>? _patrons;
@@ -69,7 +90,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// <b>아직 안 되는 것</b> — 계약을 맺어 두지 않는다. 승낙해도 돈이 들어오거나 기한이
     /// 걸리지 않는다. 계약 상태를 어디에 적어 둘지(세이브 자리)를 아직 못 풀었다.
     /// </remarks>
-    public void Persuade(Patron patron)
+    public void Persuade(Patron patron) => Alone(() => PersuadeNow(patron));
+
+    private void PersuadeNow(Patron patron)
     {
         var sponsor = _game.Sponsors?.FindByName(patron.Name);
         string shown = sponsor?.Name ?? patron.Name;             // 게임 이름은 가운뎃점이 들어간다
@@ -324,7 +347,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///
     /// 아직 안 옮긴 것 — 모조품 갈래, 남이 먼저 발표해 버렸을 때 깎이는 갈래, 선대의 계약.
     /// </remarks>
-    public void Report(Patron patron)
+    public void Report(Patron patron) => Alone(() => ReportNow(patron));
+
+    private void ReportNow(Patron patron)
     {
         var contract = _player.Contract;
         var rows = ReportTargets(patron);
@@ -378,7 +403,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// <c>[0x5B60D0]</c> 은 설득(<c>0x0044EF62</c>)도 쓰는 주인공 값인데 무엇인지 못 짚었다 —
     /// 여기서는 <b>내 명성 / 100</b> 을 넣었다.
     /// </remarks>
-    public void BreakContract(Patron patron)
+    public void BreakContract(Patron patron) => Alone(() => BreakContractNow(patron));
+
+    private void BreakContractNow(Patron patron)
     {
         if (_player.Contract is not { } contract) return;
 

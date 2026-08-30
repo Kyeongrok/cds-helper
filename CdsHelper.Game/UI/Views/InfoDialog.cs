@@ -73,23 +73,29 @@ internal abstract class InfoDialog : Window
     protected void Build(string title, UIElement body, double width, double height,
                          params UIElement[] buttons)
     {
-        var head = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 6) };
-        var close = CloseBox();
-        DockPanel.SetDock(close, Dock.Right);
-        head.Children.Add(close);
-        head.Children.Add(Label(title));
+        // 닫기(X)는 판 <b>위에 겹쳐</b> 놓는다. 줄로 쌓으면 그만큼 속이 줄어 마지막 줄이
+        // 잘린다 — 인물정보의 "빚" 줄이 그래서 안 보였다. 게임도 판 오른쪽 위 여백에
+        // 얹혀 있지 제 줄을 차지하지 않는다.
+        var inner = new StackPanel();
+        if (title.Length > 0)
+        {
+            inner.Children.Add(Label(title));
+            inner.Children.Add(Gap(6));
+        }
+        inner.Children.Add(body);
 
-        var board = new DockPanel
+        var board = new Grid
         {
             Width = width,
             Height = height,
             Margin = new Thickness(14, 10, 14, 2),
-            LastChildFill = false,
         };
-        DockPanel.SetDock(head, Dock.Top);
-        board.Children.Add(head);
-        DockPanel.SetDock(body, Dock.Top);
-        board.Children.Add(body);
+        board.Children.Add(inner);
+
+        var close = CloseBox();
+        close.HorizontalAlignment = HorizontalAlignment.Right;
+        close.VerticalAlignment = VerticalAlignment.Top;
+        board.Children.Add(close);
 
         var row = new StackPanel
         {

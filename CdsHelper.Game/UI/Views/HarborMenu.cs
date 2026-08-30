@@ -72,10 +72,20 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     }
 
     /// <summary>
-    /// 출항 알림에 서는 얼굴 — <b>부관이 있으면 부관, 없으면 항구 사람</b>이다.
+    /// 부관이 없을 때 출항 알림에 서는 얼굴 번호. 화면에서 대 보아 <b>299번</b>이었다.
+    /// </summary>
+    /// <remarks>
+    /// 화자표(<c>0x0056823C</c>)에서 끌어오던 것을 못 박았다 — 화자표는 문화권마다 다른
+    /// 얼굴을 내는데, 출항 알림은 어느 마을에서나 같은 뱃사람 얼굴이다.
+    /// </remarks>
+    private const int SailorFace = 299;
+
+    /// <summary>
+    /// 출항 알림에 서는 얼굴 — <b>부관이 있으면 부관, 없으면 뱃사람</b>이다.
     /// </summary>
     /// <remarks>부관 자리가 비어도 창이 얼굴 없이 뜨지는 않는다. 화면에서 본 대로다.</remarks>
-    private uint[]? SailFace() => MateFace() ?? _game.SpeakerFace(BuildingCode, _culture);
+    private uint[]? SailFace() =>
+        MateFace() ?? _game.Faces?.TryGetBgra(SailorFace, female: false);
 
     /// <summary>이만큼 버틸 수 있으면 "준비 만반" 이다(<c>0x004772A0</c> 의 <c>cmp eax,0x14</c>).</summary>
     private const int ReadyDays = 20;
@@ -326,6 +336,91 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         _player.AddCrew(-want);
     }
+
+    // ── 마을정보 ────────────────────────────────────────────────────────────
+
+    /// <summary>한 건 값의 밑값. 시세를 먹여 실제 값이 나온다(<c>0x00477735</c> 의 <c>0x64</c>).</summary>
+    private const int CityInfoBase = 100;
+
+    /// <summary>
+    /// 항구의 <b>마을정보</b> — 값을 받고 같은 지역 도시의 위경도를 일러 준다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 자리는 <c>0x00477650</c> 이다.
+    /// <code>
+    ///   00477735  값 = 0x429DC0(도시, 100) = 시세 * 100 / 100  (적어도 1)
+    ///   0047775D  "다른 마을에 대해 듣고 싶나? 그렇다면 한건 당 금화 %ld닢이네."
+    ///   00477773  소지금 &lt; 값 이면 "공짜로 가르쳐 줄 것은 없네."
+    ///   0047777B  마을정보 목록 — 고를 때마다 값을 물고 한 곳씩 일러 준다
+    ///   004775F0  목록은 <b>같은 지역 무리</b>(표 +0x1C)의 도시다. 지금 있는 마을은 뺀다
+    /// </code>
+    /// 값을 못 치를 때까지 목록으로 되돌아온다 — 게임도 그 자리에서 돈다.
+    /// </remarks>
+    public void CityInfo()
+    {
+        var owner = Owner;
+        var rows = _game.CityRows;
+        if (rows == null) return;
+
+        int fee = Math.Max(_game.Rates.Of(_cityId) * CityInfoBase / 100, 1);
+
+        // 같은 지역의 도시들. 지금 있는 마을은 뺀다 — 여기 있는데 물을 까닭이 없다.
+        var towns = rows.InRegion(rows.RegionOf(_cityId));
+        towns.Remove(_cityId);
+        if (towns.Count == 0) return;
+
+        ConfirmDialog.Tell(owner,
+            $"다른 마을에 대해 듣고 싶나? 그렇다면 한건 당 금화 {fee}닢이네.", face: SailFace());
+
+        var names = towns.Select(_game.CityName).ToList();
+        while (_player.Gold >= fee)
+        {
+            int pick = MapPointDialog.Ask(owner, names, "마을정보", MapPointDialog.NarrowWidth);
+            if (pick < 0) return;
+
+            _player.Pay(fee);
+            ConfirmDialog.Tell(owner, WhereIs(towns[pick]), face: SailFace());
+        }
+
+        ConfirmDialog.Tell(owner, "공짜로 가르쳐 줄 것은 없네.", face: SailFace());
+    }
+
+    /// <summary>
+    /// 「톨레도라면 북위  40도, 서경   4도네.」 — 게임 서식 <c>0x00545280</c> 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 도를 셈하는 자리는 <c>0x00477830</c> 이다. 표의 칸 좌표를 열여섯 곱해 원본값으로
+    /// 되돌린 뒤, 가운데(경도 20000 · 위도 10000)에서 떨어진 만큼에 <c>9/1000</c> 을 먹인다.
+    /// <code>
+    ///   도 = |원본값 - 가운데| * 9 / 1000
+    ///   경도 20000 이상이면 동, 아니면 서 · 위도 10000 이상이면 남, 아니면 북
+    /// </code>
+    /// 톨레도는 칸 (1219, 346) 이라 서경 4도 · 북위 40도가 된다.
+    /// </remarks>
+    private string WhereIs(int city)
+    {
+        var rows = _game.CityRows;
+        string name = _game.CityName(city);
+        if (rows == null || !rows.TryCell(city, out int cx, out int cy, out _))
+            return $"{name}{GameUi.Josa(name, "이라면", "라면")} 나도 모르네.";
+
+        int lonRaw = cx * RawPerCell, latRaw = cy * RawPerCell;
+        int lon = Math.Abs(lonRaw - LonMiddle) * DegreeNum / DegreeDen;
+        int lat = Math.Abs(latRaw - LatMiddle) * DegreeNum / DegreeDen;
+
+        return $"{name}{GameUi.Josa(name, "이라면", "라면")} " +
+               $"{(latRaw >= LatMiddle ? "남" : "북")}위 {lat,3}도, " +
+               $"{(lonRaw >= LonMiddle ? "동" : "서")}경 {lon,3}도네.";
+    }
+
+    /// <summary>칸 하나가 원본값 열여섯이다(<c>0x0047785E</c> 의 <c>shl 4</c>).</summary>
+    private const int RawPerCell = 16;
+
+    /// <summary>가운데 — 경도는 그리니치, 위도는 적도다.</summary>
+    private const int LonMiddle = 20000, LatMiddle = 10000;
+
+    /// <summary>원본값을 도로 바꾸는 비(<c>9/1000</c>).</summary>
+    private const int DegreeNum = 9, DegreeDen = 1000;
 
     /// <summary>지금 항구에서 알릴 수 있는 발견물(<see cref="Harbor.Announceable"/>).</summary>
     public List<DiscoveryTable.Record> Announceable() =>
