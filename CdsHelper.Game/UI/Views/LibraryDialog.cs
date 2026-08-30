@@ -46,6 +46,12 @@ public sealed class LibraryDialog : Window
     private readonly Border _tag;
     private readonly TextBlock _tagText;
     private readonly int _scale;
+
+    /// <summary>못 읽는 책이 어느 말로 적혔는지 이르는 아래 띠(게임의 하단 바 자리다).</summary>
+    private readonly TextBlock _reason = new();
+
+    /// <summary>닫기 조각의 크기와 양피지 모서리에서 떨어진 거리. 게임 갈무리에서 잰 값이다.</summary>
+    private const double CloseSize = 16, CloseInset = 10;
     private readonly OpenBookArt? _book;
     private readonly Func<int, string>? _hintText;
 
@@ -116,26 +122,55 @@ public sealed class LibraryDialog : Window
             else if (shelved[i].Filler) AddFiller(i, spines);
         }
 
-        var title = GameUi.TitleBar($"{cityName} 도서관", Close);
-        GameUi.EnableDrag(this, title);
+        // 게임에는 제목 띠가 없다 — 양피지 오른쪽 위에 닫기 조각만 얹혀 있다.
+        var close = new Border
+        {
+            Width = CloseSize * _scale,
+            Height = CloseSize * _scale,
+            Background = GameUi.ItemFill,
+            BorderBrush = GameUi.ItemEdge,
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Child = new TextBlock
+            {
+                Text = "×",
+                FontSize = 11 * _scale,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.Black,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        // 누른 자리에서 바로 닫는다 — 창 끌기가 ButtonUp 을 삼킨다.
+        close.MouseLeftButtonDown += (_, e) => { e.Handled = true; Close(); };
+        Canvas.SetLeft(close, (BookShelf.ShelfWidth - CloseSize - CloseInset) * _scale);
+        Canvas.SetTop(close, CloseInset * _scale);
+        Panel.SetZIndex(close, 30);
+        _layer.Children.Add(close);
+
+        // 책에 손을 얹으면 그 책이 어느 말로 적혔는지 아래 띠가 이른다.
+        _reason.Foreground = Brushes.Black;
+        _reason.FontWeight = FontWeights.Bold;
+        _reason.Margin = new Thickness(8, 2, 8, 2);
 
         var stack = new StackPanel();
-        stack.Children.Add(title);
+        stack.Children.Add(box);
         stack.Children.Add(new Border
         {
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4, 4, 4, 4),
-            Child = box,
+            Background = GameUi.ItemFill,
+            BorderBrush = GameUi.ItemEdge,
+            BorderThickness = new Thickness(1),
+            MinHeight = 22,
+            Child = _reason,
         });
         Content = new Border
         {
             Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
             BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
             Child = stack,
         };
+        GameUi.EnableDrag(this, stack);
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();
@@ -183,7 +218,7 @@ public sealed class LibraryDialog : Window
         Canvas.SetTop(image, y * _scale);
 
         image.MouseEnter += (_, _) => ShowTag(book, x, y);
-        image.MouseLeave += (_, _) => _tag.Visibility = Visibility.Collapsed;
+        image.MouseLeave += (_, _) => { _tag.Visibility = Visibility.Collapsed; _reason.Text = ""; };
         image.MouseLeftButtonDown += (_, e) => e.Handled = true;
         image.MouseLeftButtonUp += (_, e) => { e.Handled = true; Read(book, image, spines); };
         _layer.Children.Add(image);
@@ -192,7 +227,14 @@ public sealed class LibraryDialog : Window
     /// <summary>책등 밑에 제목·저자를 띄운다.</summary>
     private void ShowTag(BookTable.Book book, double x, double y)
     {
-        _tagText.Text = $"{book.Title} — {book.Author} ({LanguageOf(book)})";
+        // 읽을 수 없는 책은 이름이 안 보인다 — 글자마다 x 로 가린다.
+        bool readable = CanRead(book);
+        string title = readable ? book.Title : Masked(book.Title);
+        string author = readable ? book.Author : Masked(book.Author);
+        _tagText.Text = $"「{title}」{author}";
+        _reason.Text = readable
+            ? ""
+            : $"{LanguageOf(book)}{GameUi.Josa(LanguageOf(book), "으로", "로")} 표기되어 있습니다";
         _tag.Visibility = Visibility.Visible;
         _tag.UpdateLayout();
         double w = _tag.ActualWidth > 0 ? _tag.ActualWidth : 160;
@@ -290,6 +332,10 @@ public sealed class LibraryDialog : Window
     /// 못 짚었다 — 힌트마다 늘 같은 쪽이 나오게 홀수로 짓는다.
     /// </summary>
     private static int Pages(int hint) => hint % 60 * 2 + 3;
+
+    /// <summary>글자마다 <c>x</c> 로 가린다. 띄어쓰기는 그대로 둔다.</summary>
+    private static string Masked(string text) =>
+        new([.. text.Select(c => c == ' ' ? ' ' : 'x')]);
 
     private static BitmapSource ToBitmap(uint[] bgra, int width, int height)
     {

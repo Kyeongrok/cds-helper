@@ -643,11 +643,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     {
         if (_player.Gold < Tavern.DrinkPrice)
         {
-            NoticeDialog.Show(_view, "돈 먼저 지불하게.");
+            ConfirmDialog.Tell(_view, "돈 먼저 지불하게.");
             return false;
         }
         _player.SetGold(_player.Gold - Tavern.DrinkPrice);
-        NoticeDialog.Show(_view, $"금화 {Tavern.DrinkPrice}닢으로 한잔 샀다.");
+        ConfirmDialog.Tell(_view, $"금화 {Tavern.DrinkPrice}닢으로 한잔 샀다.");
         return true;
     }
 
