@@ -24,7 +24,28 @@ public sealed class Game
     public string Directory { get; private set; } = "";
 
     /// <summary>주인공 — 소지금과 가진 배. 조선소에서 배를 사면 여기서 돈이 빠진다.</summary>
-    public Player Player { get; } = new();
+    public Player Player { get; private set; } = new();
+
+    /// <summary>
+    /// 주인공을 새로 앉힌다 — <b>NEW GAME</b> 이 부른다.
+    /// </summary>
+    /// <remarks>
+    /// 한 판을 하고 첫 화면으로 돌아온 뒤 다시 시작하면 <b>앞 판이 그대로 묻어 온다</b> —
+    /// 소지금·날짜·배·소지품·발견물이 다 남는다. 판 하나를 통째로 갈아 끼우는 것이
+    /// 칸을 하나씩 되돌리는 것보다 확실하다.
+    ///
+    /// 창들은 <c>_game.Player</c> 를 그때그때 물어보므로 갈아 끼워도 따라온다.
+    /// </remarks>
+    /// <returns>앉아 있던 주인공. 물러나면 <see cref="UsePlayer"/> 로 도로 앉힌다.</returns>
+    public Player NewPlayer()
+    {
+        var before = Player;
+        Player = new Player();
+        return before;
+    }
+
+    /// <summary>주인공을 도로 앉힌다 — 새 놀이를 짓다 말고 물러났을 때다.</summary>
+    public void UsePlayer(Player player) => Player = player;
 
     /// <summary>바다 사건 주사위.</summary>
     public Random Random { get; } = new();
