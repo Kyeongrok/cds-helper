@@ -360,8 +360,20 @@ public sealed class CityPicView : Window
         // 끌려갈 때에도 같은 길로 이어진다.
         GameUi.CarryOwnedWindows(this);
 
-        // 오른쪽 단추는 게임처럼 도시 커맨드 창을 연다. 창을 닫는 것은 ESC 다.
-        KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
+        // 오른쪽 단추는 게임처럼 도시 커맨드 창을 연다.
+        //
+        // ESC 는 <b>열려 있는 창만</b> 닫는다. 예전에는 그림 창까지 닫아 버려서 아무것도
+        // 안 열린 채로 ESC 를 누르면 그대로 바다로 나갔다 — 게임에는 그런 길이 없다.
+        // 도시를 나가는 길은 항구의 "출항" 하나뿐이다(HarborMenu.ConfirmSail).
+        KeyDown += (_, e) =>
+        {
+            if (e.Key is not Key.Escape) return;
+            e.Handled = true;
+            // 창이 초점을 쥐고 있으면 그쪽이 제 ESC 로 닫힌다(MenuWindow). 여기까지 온 것은
+            // 그림이 초점을 쥔 자리라, 열려 있는 것이 있으면 대신 닫아 준다.
+            if (_menu is { IsOpen: true }) { _menu.Close(); return; }
+            if (_cityMenuHost is { IsOpen: true }) _cityMenuHost.Close();
+        };
         MouseRightButtonUp += (_, e) =>
         {
             e.Handled = true;
