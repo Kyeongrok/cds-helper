@@ -240,6 +240,11 @@ public sealed class CityPicView : Window
         ShowInTaskbar = false;
         Background = Brushes.Black;       // 그림에 가려 안 보인다
 
+        // 부수기 전에 주인 창(함대 창)을 띄워 둔다 — 안 그러면 초점이 다른 앱으로
+        // 샜다가 돌아온다. 도시 창은 테도 없고 작업표시줄에도 없어서 윈도가 다음에
+        // 띄울 창을 못 고르기 때문이다.
+        Closing += (_, _) => Owner?.Activate();
+
         // 창 크기는 그림 크기 그대로다. 제목 줄이 없어(WindowStyle.None) 테가 붙지 않는다.
         double fullW = CityPictures.Width * scale, fullH = CityPictures.Height * scale;
 

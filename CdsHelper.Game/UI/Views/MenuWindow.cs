@@ -65,7 +65,14 @@ public sealed class MenuWindow : Window
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();
 
-        // 닫을 때 초점이 앱 밖으로 새지 않게 붙든다.
+        // <b>닫기 전에 주인 창을 먼저 띄운다.</b> 창을 부수고 나서 초점을 정하게 두면
+        // 윈도가 다음 창을 z 차례에서 고르는데, 우리 창들은 테 없는 데다 작업표시줄에도
+        // 안 나와서 <b>다른 앱으로 새어 나간다</b> — 도서관에서 나올 때 편집기나 터미널이
+        // 잠깐 앞으로 나왔다 들어오던 것이 그것이다. 부수기 전에 주인을 띄워 두면
+        // 고를 것이 이미 정해져 있어 샐 일이 없다.
+        Closing += (_, _) => Owner?.Activate();
+
+        // 그래도 새면 붙들어 온다(위 한 줄로 안 잡히는 자리가 남아 있을 수 있다).
         FocusWatch.KeepInApp(this);
 
         // 초점이 어디로 가는지 보려고 둔 진단(FocusWatch). 다 잡고 나면 지운다.
