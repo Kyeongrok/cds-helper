@@ -516,7 +516,21 @@ public sealed class CityPicView : Window
     /// 계약을 이미 맺은 뒤에는 게임도 관문을 건너뛰므로 여기서도 안 돈다 — 그 자리는
     /// <see cref="Patron"/> 쪽에 아직 없어 후원자가 앉아 있기만 하면 돈다.
     /// </remarks>
-    private void PlayFameCheck(bool passed)
+    private void PlayFameCheck(bool passed) =>
+        PlayEffect(EffectAnim.Persuade, [.. Plead, passed ? Granted : Refused]);
+
+    /// <summary>
+    /// 자택 "후손을 남긴다" 의 애니메이션 — <b>MPEFFECT 2번(대포)</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 그렇다(<c>0x004613E3</c> 이 <c>0x004A6340</c> 을 부른다). 그 껍데기는 인자가
+    /// 1 이면 소리 <c>0x2A</c>, 아니면 <c>0x2B</c> 를 함께 낸다 — 되고 안 되고가 곧 소리다.
+    /// </remarks>
+    public void PlayHeir(bool born) =>
+        PlayEffect(EffectAnim.Cannon, [.. Plead, born ? Granted : Refused]);
+
+    /// <summary>동그란 애니메이션 한 벌을 도시 그림 한가운데에서 돌린다.</summary>
+    private void PlayEffect(int anim, int[] order)
     {
         if (_playing) return;                       // 도는 동안 또 누르면 겹친다
 
@@ -534,10 +548,6 @@ public sealed class CityPicView : Window
         Panel.SetZIndex(image, 30);
         _layer.Children.Add(image);
 
-        // 청하는 두 장을 두 번 흔들고 결말 장을 낸다 — 넉 장을 한 번씩만 넘기면 눈에
-        // 들어오기 전에 지나간다. 결말은 명성이 되면 받아 드는 장, 모자라면 엎어지는 장이다.
-        int[] order = [.. Plead, passed ? Granted : Refused];
-
         // 같은 장이 두 번 나오므로 한 번만 풀어 둔다.
         var art = new BitmapSource?[EffectAnim.FrameCount];
 
@@ -548,7 +558,7 @@ public sealed class CityPicView : Window
             {
                 if (art[f] == null)
                 {
-                    var bgra = effects.TryGetBgra(EffectAnim.Persuade, f);
+                    var bgra = effects.TryGetBgra(anim, f);
                     if (bgra == null) continue;
 
                     var bmp = BitmapSource.Create(EffectAnim.Size, EffectAnim.Size, 96, 96,
@@ -1073,6 +1083,7 @@ public sealed class CityPicView : Window
             TownWork.Stay => Stay,
             TownWork.MateForm => () => MateRosterDialog.Show(this, _player),
 
+            TownWork.Heir when Home.CanLeaveHeir(_player) => HomeRooms.LeaveHeir,
             TownWork.Rest => () => Menu.Push(HomeRooms.RestMenu),
             TownWork.Savings => () => Menu.Push(HomeRooms.SavingsMenu),
             TownWork.Store => () =>

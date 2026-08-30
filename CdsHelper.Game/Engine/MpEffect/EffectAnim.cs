@@ -34,6 +34,13 @@ public sealed class EffectAnim
     public const int FrameCount = 4;
 
     /// <summary>설득 애니메이션 번호. 후원자 건물의 명성 관문에서 돈다.</summary>
+    /// <summary>대포 발사(파트 8~11). 자택 "후손을 남긴다" 가 이 벌을 돌린다.</summary>
+    /// <remarks>
+    /// 게임의 껍데기가 <c>0x004A6340</c> 이고, 인자가 1 이면 소리 <c>0x2A</c>, 아니면
+    /// <c>0x2B</c> 를 함께 낸다 — 여섯 벌 가운데 소리를 넘기는 것은 이것뿐이다.
+    /// </remarks>
+    public const int Cannon = 2;
+
     public const int Persuade = 5;
 
     /// <summary>원 바깥(비침) 색인.</summary>
