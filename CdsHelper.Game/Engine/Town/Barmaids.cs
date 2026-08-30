@@ -19,7 +19,7 @@ public static class Barmaids
 {
     /// <summary>주인공의 표시 얼굴 코드. 서른여섯부터 열여섯이 더 붙는다.</summary>
     public static int FortuneOf(Player player) =>
-        BarmaidTable.FortuneOf(player.Face, player.Age);
+        BarmaidTable.FortuneOf(player.Fortune, player.Age);
 
     /// <summary>이 여급과 궁합이 맞는지.</summary>
     public static bool Destined(Player player, in BarmaidTable.Barmaid her) =>

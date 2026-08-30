@@ -10,6 +10,7 @@
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/ItemContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/PlayerContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/SphinxCalculatorContent.xaml"></ResourceDictionary>
+        <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/DiscoveryStillContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/DiscoveryContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/ExePatchContent.xaml"></ResourceDictionary>
         <ResourceDictionary Source="/CdsHelper.Main;component/Themes/Views/AutoPlayContent.xaml"></ResourceDictionary>

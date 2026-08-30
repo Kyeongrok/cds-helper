@@ -42,6 +42,17 @@ public static class ShipSprites
     private static string? _folder;
 
     /// <summary>
+    /// 그림 벌이 갈릴 때마다 느는 번호. <b>그리는 쪽이 이 값을 봐야 한다.</b>
+    /// </summary>
+    /// <remarks>
+    /// 배 그림은 뱃머리가 바뀔 때만 다시 올린다(<c>ShipMapHost</c> 의 그림 열쇠). 그런데
+    /// 배를 사거나 기함을 바꾸면 뱃머리는 그대로인 채 <b>그림만</b> 갈린다 — 그때 다시
+    /// 올릴 낌새가 없어서, 새로 등록한 배를 사고도 지도에는 옛 배가 그대로 떠 있었다.
+    /// 그림 열쇠에 이 번호를 끼워 두면 벌이 갈리는 순간 저절로 다시 올라간다.
+    /// </remarks>
+    public static int Generation { get; private set; }
+
+    /// <summary>
     /// 어느 벌의 배 그림을 쓸지(0~3). <c>asset/ship-g0</c> ~ <c>ship-g3</c> 에서 읽는다 —
     /// 게임의 <c>CDS95Util/shipskin</c> 에 있는 넉 벌을 풀어 둔 것이다.
     /// -1 이면 예전처럼 <see cref="ShipDirectory"/> 를 쓴다.
@@ -57,6 +68,7 @@ public static class ShipSprites
             lock (Gate)
             {
                 _skin = next;
+                Generation++;
                 for (int i = 0; i < Directions; i++) Frames[0][i] = null;   // 배만 다시 읽는다
             }
         }
@@ -79,6 +91,7 @@ public static class ShipSprites
             lock (Gate)
             {
                 _folder = next;
+                Generation++;
                 for (int i = 0; i < Directions; i++) Frames[0][i] = null;   // 배만 다시 읽는다
             }
         }

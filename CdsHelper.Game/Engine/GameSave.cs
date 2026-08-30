@@ -32,6 +32,15 @@ public static class GameSave
     /// <summary>이 판부터 <b>주인공 이름</b>도 적는다 — 모험 중단 창이 이름을 부른다.</summary>
     public const int NameFrom = 24;
 
+    /// <summary>
+    /// 이 판부터 <b>얼굴과 운명 코드</b>도 적는다 — 초상화와 여급 궁합이 여기서 온다.
+    /// </summary>
+    /// <remarks>
+    /// 그 앞 세이브에는 둘 다 없다. 얼굴은 0 으로 두고, 운명 코드는 얼굴 번호로 물러선다 —
+    /// 새 놀이가 앞의 열여섯만 고르게 해서 그때까지는 둘이 같은 값이었다.
+    /// </remarks>
+    public const int FaceFrom = 25;
+
     /// <summary>이 판부터 <c>ShipStats</c> 에 마스트의 돛도 함께 적힌다.</summary>
     public const int SailsInStatsFrom = 19;
 
@@ -131,7 +140,8 @@ public static class GameSave
         string? Explored = null, string? Spouse = null, List<string>? Heirs = null,
         int? SpouseId = null, Dictionary<int, int>? Liking = null,
         string? Name = null, string? Family = null, string? Given = null,
-        Dictionary<string, int>? Tongues = null);
+        Dictionary<string, int>? Tongues = null,
+        int? Face = null, int? Fortune = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -145,7 +155,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(NameFrom, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(FaceFrom, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -172,7 +182,8 @@ public static class GameSave
                             player.SpouseId,
                             player.Liking.ToDictionary(p => p.Key, p => p.Value),
                             player.Name, player.Family, player.Given,
-                            new Dictionary<string, int>(player.Tongues));
+                            new Dictionary<string, int>(player.Tongues),
+                            player.Face, player.Fortune);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
