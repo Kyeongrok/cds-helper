@@ -81,31 +81,6 @@ public sealed record Job(string Name, int[] Bias, (int Skill, int Level)[] Skill
 /// 새 놀이 화면에는 앞의 다섯만 뜬다. <b>신앙심</b>은 안 보이는 자리에서 따로 굴린다
 /// (<c>0x0045D590</c> 의 <c>rand(80) + 21</c>).
 /// </remarks>
-/// <summary>
-/// 직업이 지력에 주는 보정 — 기술 화면의 보너스 포인트가 이것을 탄다.
-/// </summary>
-/// <remarks>
-/// <b>보정표에서 바로 못 꺼낸다.</b> 게임 표(<c>0x0051ACA0</c>, 24바이트 x 8)의 칸 차례가
-/// 화면 차례(체력·지력·무력·매력·운·신앙심)와 <b>다르다</b> — 굴리는 코드가 그 줄을
-/// <c>+8</c> 부터 읽는다(<c>0x0045D539</c>). 어느 칸이 지력인지 아직 못 짚었다.
-///
-/// 그래서 <b>화면에서 재어</b> 넣는다. 서른 살로 만들어 지력과 보너스를 보면
-/// <c>보너스 = max(6, 지력 + 보정 - 54) / 2</c> 라 보정이 바로 나온다.
-/// <code>
-///   탐험가  지력 59·70·83·85 → 3·8·14·15      보정 0   (표도 여섯 칸이 다 0 이다)
-///   정복자  지력 73 → 8                        보정 -2  (-3 일 수도 있다)
-/// </code>
-/// 발굴자·사냥꾼은 아직 안 쟀다 — 0 으로 둔다.
-/// </remarks>
-public static class JobMind
-{
-    /// <summary>직업마다의 지력 보정. 아직 안 잰 것은 0 이다.</summary>
-    private static readonly int[] Bias = [0, 0, 0, -2, 0, 0, 0, 0];
-
-    /// <summary>그 직업의 지력 보정. 표 밖이면 0.</summary>
-    public static int Of(int job) => job >= 0 && job < Bias.Length ? Bias[job] : 0;
-}
-
 public static class Ability
 {
     /// <summary>이름 여섯.</summary>

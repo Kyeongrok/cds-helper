@@ -66,23 +66,33 @@ public static class Skill
     /// <code>
     ///   0045ddd9  eax = 나이
     ///   0045dddf  eax = eax * 2 - 114
-    ///   0045dde6  eax += 직업 보정의 지력 칸       ; 능력치 둘째 벌 [this+0x128]
+    ///   0045dde6  eax += [this+0x128]              ; 능력치 둘째 벌의 지력 칸 — 늘 0 으로 보인다
     ///   0045ddec  eax += 지력                      ; [this+0x110]
     ///   0045ddf2  if (eax &lt;= 6) eax = 6           ; 바닥
     ///   0045ddfc  eax /= 2                         ; 0 쪽으로 자름
     /// </code>
-    /// <b>지력 두 점에 보너스 한 점</b>이고, 바닥이 6 이라 <b>3 밑으로는 안 내려간다</b>.
-    /// 서른 살 탐험가(지력 보정 0)로 재 보면 <c>(지력 - 54) / 2</c> 가 되는데,
-    /// 지력 59·70·83·85 가 3·8·14·15 로 그대로 맞는다.
+    /// <b>지력 두 점에 보너스 한 점</b>이고 <b>나이 한 살에 한 점</b>이다. 바닥이 6 이라
+    /// <b>3 밑으로는 안 내려간다</b>.
+    /// <code>
+    ///   서른 살    (지력 - 54) / 2    지력 59·70·83·85 → 3·8·14·15
+    ///   스물아홉   (지력 - 56) / 2    지력 73 → 8
+    /// </code>
     ///
-    /// 능력치가 두 벌인 것은 만들기 화면이 <c>+0x10C</c>(지금 값)와 <c>+0x124</c>(직업 보정)를
+    /// 능력치가 두 벌인 것은 만들기 화면이 <c>+0x10C</c>(지금 값)와 <c>+0x124</c>(딴 벌)를
     /// 나란히 두기 때문이다 — 둘 다 24바이트, 곧 여섯 칸씩이다.
+    ///
+    /// <b><c>[+0x128]</c> 은 0 으로 본다.</b> 서른 살 탐험가로 잰 넷이 그 자리를 0 으로 두어야
+    /// 맞고, 스물아홉 살 정복자의 지력 73 → 보너스 8 도 0 으로 두면 그대로 맞는다. 직업마다
+    /// 지력 보정이 붙는다면 다들 한 직업만 고를 테니 안 붙는 쪽이 자연스럽기도 하다.
+    /// 그 칸이 언제 서는지는 아직 못 봤다.
     /// </remarks>
     /// <param name="age">나이.</param>
     /// <param name="mind">지력.</param>
-    /// <param name="mindBias">직업이 지력에 주는 보정(<see cref="Job.Bias"/> 의 지력 칸).</param>
-    public static int BonusFor(int age, int mind, int mindBias) =>
-        Math.Max(BonusFloor, age * 2 + mindBias + mind - BonusBase) / 2;
+    /// <param name="extra">
+    /// 능력치 둘째 벌의 지력 칸(<c>[this+0x128]</c>). 아직 서는 자리를 못 봐서 늘 0 이다.
+    /// </param>
+    public static int BonusFor(int age, int mind, int extra = 0) =>
+        Math.Max(BonusFloor, age * 2 + extra + mind - BonusBase) / 2;
 
     /// <summary>보너스 셈의 밑값과 바닥(<c>0x0045DDDF</c> · <c>0x0045DDF2</c>).</summary>
     public const int BonusBase = 114, BonusFloor = 6;
