@@ -1362,7 +1362,7 @@ public sealed class ShipMapWindow : Window
             GameSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
             Close();
         }));
-        items.Add(("기능", () => { Close(); SaveGame(); }));
+        items.Add(("기능", () => CommandMenu.Push(SeaSystemMenuBox)));
         items.Add(("취소", Close));
 
         // 넓히는 것은 GameUi 가 창을 지으며 한다 — 커맨드 창만이 아니라 도시 창·시설 창도
@@ -1386,6 +1386,62 @@ public sealed class ShipMapWindow : Window
     /// 소지품·힌트·계약은 도시 커맨드에서 쓰던 창을 그대로 쓴다 — 게임도 한 창이다.
     /// "지도를 본다"(항해지도 · 주변지도)는 아직 안 옮겼다.
     /// </remarks>
+    /// <summary>
+    /// 바다 커맨드의 "기능" 에서 뻗는 창 — 게임 중단 · 게임 종료 · 취소.
+    /// </summary>
+    /// <remarks>
+    /// <b>도시 안의 기능 창과 다르다.</b> 도시에서는 저장·로드·게임 종료·게임 재개가
+    /// 나오는데(<see cref="GameSystemMenu"/>), 바다에서는 이 셋뿐이다 — 바다에서는
+    /// 그냥 저장할 수 없고 <b>중단</b>으로만 적는다.
+    /// <code>
+    ///   0048b703  "게임 중단"                       0x0056FA38
+    ///   0048b715  "게임 종료"                       0x0056FA48
+    ///   0048b724  "취소"                            0x0056FA58
+    ///   0048b731  창 제목 "기능"                     0x0056FA60
+    ///   0048b75c  "지금 플레이하고 있는 게임을 중단하겠습니까?"   0x0056FA68
+    ///   0048b779  "게임을 종료합니까?"                0x0056FA98
+    /// </code>
+    /// 예전에는 "기능" 이 곧바로 적고 마는 줄이었다.
+    /// </remarks>
+    private GameMenu SeaSystemMenuBox() => new("기능", null,
+    [
+        ("게임 중단", Suspend),
+        ("게임 종료", () =>
+        {
+            if (!ConfirmDialog.Ask(CommandMenu.Window ?? this, "게임을 종료합니까?")) return;
+            CommandMenu.Close();
+            ReturnToTitle();
+        }),
+        ("취소", CommandMenu.Close),
+    ]);
+
+    /// <summary>
+    /// "게임 중단" — 이 자리를 적고 첫 화면으로 돌아간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 중단은 <b>적고 나가는</b> 한 몸이다("이 시점에서 데이터를 저장하고 게임을
+    /// 중단하겠습니다." <c>0x00568C80</c>). 적지 못했으면 나가지 않는다 — 나가 버리면
+    /// 그 판이 그대로 사라진다.
+    ///
+    /// 적는 자리는 도시에서 적는 것과 같다. 도시에 들어가 있지 않으므로
+    /// <see cref="Player.CityId"/> 가 -1 로 남는데, 그 값이 곧 "바다에서 적었다" 는 표시다.
+    /// </remarks>
+    private void Suspend()
+    {
+        var owner = CommandMenu.Window ?? this;
+        if (!ConfirmDialog.Ask(owner, "지금 플레이하고 있는 게임을 중단하겠습니까?")) return;
+
+        string error = GameSave.Save(_game.Player);
+        if (error.Length > 0)
+        {
+            NoticeDialog.Show(owner, $"기록하지 못했다 — {error}");
+            return;
+        }
+
+        CommandMenu.Close();
+        ReturnToTitle();
+    }
+
     private GameMenu InfoMenuBox() => new("정보", null,
     [
         // 바다에서는 함대좌표 칸에 지금 자리를 적는다. 도시 안이라면 게임처럼 "---" 다.
@@ -1451,17 +1507,6 @@ public sealed class ShipMapWindow : Window
             _commandMenuHost.Closed += () => _host.Paused = false;
             return _commandMenuHost;
         }
-    }
-
-    /// <summary>
-    /// 바다에서 적는다. 도시 안에서 적는 것(<c>CityPicDialog</c> 의 기능 창)과 같은 자리에
-    /// 쓰는데, 도시에 들어가 있지 않으므로 <see cref="Player.CityId"/> 가 -1 로 남는다 —
-    /// 그 값이 곧 "바다에서 적었다" 는 표시다.
-    /// </summary>
-    private void SaveGame()
-    {
-        var error = GameSave.Save(_game.Player);
-        NoticeDialog.Show(this, error.Length == 0 ? "기록했다!" : $"기록하지 못했다 — {error}");
     }
 
     /// <summary>도시에 다가가면 한 번 물어본다. 떠났다 다시 와야 또 묻는다.</summary>

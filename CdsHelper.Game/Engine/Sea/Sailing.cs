@@ -1,4 +1,4 @@
-using CdsHelper.Game.Local.Helpers;
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Sea;
@@ -47,7 +47,10 @@ public static class Sailing
     /// <summary>뭍(말)일 때의 붙박이 속도.</summary>
     public const int LandSpeed = 2;
 
-    /// <summary>무풍일 때의 붙박이 속도.</summary>
+    /// <summary>
+    /// 바닥 속도. 무풍에 셈이 0 으로 떨어졌을 때 이 값으로 받쳐 준다
+    /// (<c>0x0048BE22</c>) — 표도 함대도 없어 셀 것이 없을 때도 이 값이다.
+    /// </summary>
     public const int CalmSpeed = 1;
 
     /// <summary>
@@ -56,15 +59,15 @@ public static class Sailing
     /// <param name="player">함대.</param>
     /// <param name="sails">돛 효율표. 못 읽었으면 null — 그때는 돛이 없는 셈 친다.</param>
     /// <param name="windDir">풍향(16방위).</param>
-    /// <param name="windSpeed">풍속.</param>
+    /// <param name="windSpeed">풍속. 0(무풍)이어도 셈은 그대로 돈다 — 게임은 여기서
+    /// 물러서지 않고 <c>추진력 x 1 x 돛효율 / 100</c> 을 그대로 낸다.</param>
     /// <param name="heading">뱃머리(16방위).</param>
     /// <param name="onLand">뭍에 있는지.</param>
     public static int SpeedOf(Player player, SailTable? sails,
                               int windDir, int windSpeed, int heading, bool onLand)
     {
         if (onLand) return LandSpeed;
-        if (windSpeed <= 0 || sails == null) return CalmSpeed;
-        if (player.Ships.Count == 0) return CalmSpeed;
+        if (sails == null || player.Ships.Count == 0) return CalmSpeed;
 
         int relative = (windDir - heading) & 0xF;
         int sum = 0, count = 0, flagship = 0;
@@ -78,6 +81,10 @@ public static class Sailing
             int need = ship.Crew;
             int aboard = CrewOn(player, i);
             if (need > aboard) v = Math.Min(aboard * v / Math.Max(1, need), (v + 1) / 2);
+
+            // 무풍에 0 으로 떨어진 배만 한 칸 받쳐 준다(0x0048BE22). 바람이 있으면
+            // 받쳐 주지 않는다 — 돛 효율이 0 인 각도(정면 역풍)에서는 정말 안 나간다.
+            if (windSpeed == 0 && v == 0) v = CalmSpeed;
 
             sum += v;
             count++;
