@@ -55,7 +55,9 @@ internal sealed class App : Application
         ShipMapWindow.MazeGame = Maze.MazeGame.Play;
         ShipMapWindow.DuelGame = Duel.DuelGame.Play;
 
-        var window = new ShipMapWindow();
+        // 놀이 창은 주인이 없다. 창이 <c>CenterOwner</c> 로 서 있어 주인이 없으면
+        // 자리가 어정쩡하게 잡힌다 — 여기서는 화면 한가운데로 못 박는다.
+        var window = new ShipMapWindow { WindowStartupLocation = WindowStartupLocation.CenterScreen };
         MainWindow = window;
         window.Show();
     }
