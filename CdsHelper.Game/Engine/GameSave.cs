@@ -130,7 +130,8 @@ public static class GameSave
         List<Support.Local.Models.Player.MateInfo>? MateBook = null,
         string? Explored = null, string? Spouse = null, List<string>? Heirs = null,
         int? SpouseId = null, Dictionary<int, int>? Liking = null,
-        string? Name = null, string? Family = null, string? Given = null);
+        string? Name = null, string? Family = null, string? Given = null,
+        Dictionary<string, int>? Tongues = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -170,7 +171,8 @@ public static class GameSave
                             player.Spouse, [.. player.Heirs],
                             player.SpouseId,
                             player.Liking.ToDictionary(p => p.Key, p => p.Value),
-                            player.Name, player.Family, player.Given);
+                            player.Name, player.Family, player.Given,
+                            new Dictionary<string, int>(player.Tongues));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

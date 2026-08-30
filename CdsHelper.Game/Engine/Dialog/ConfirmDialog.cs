@@ -99,9 +99,9 @@ public sealed class ConfirmDialog : Window
 
         // 본문은 게임 비트맵 글꼴로 찍는다 — 윈도 글꼴로 두면 이 크기에서 획이 뭉갠다.
         //
-        // <b>글은 늘 왼쪽맞춤이다.</b> 얼굴이 없어도 그렇다 — "모험 중단" 창처럼 두 줄로
-        // 넘어가는 말도 게임은 둘째 줄을 왼쪽에 붙인다. 예전에는 얼굴이 없으면 가운데로
-        // 밀었는데 게임에는 없는 모습이었다.
+        // <b>가운데로 미는 것은 한 줄짜리뿐이다.</b> 얼굴이 서면 글은 그 오른쪽에
+        // 왼쪽맞춤으로 붙고, 두 줄 넘게 넘어가는 말도 왼쪽에 붙는다("모험 중단" 창이
+        // 그렇다). 한 줄이면 남는 칸의 반만큼 밀어 가운데로 맞춘다.
         var words = new StackPanel();
         foreach (string line in lines)
             words.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, TextHeight)
@@ -109,7 +109,8 @@ public sealed class ConfirmDialog : Window
                 Text = line,
                 Bold = true,
                 FallbackBrush = GameUi.Text,
-                HorizontalAlignment = HorizontalAlignment.Left,
+                HorizontalAlignment = face == null && lines.Count == 1
+                    ? HorizontalAlignment.Center : HorizontalAlignment.Left,
             });
 
         var body = new StackPanel { Margin = new Thickness(0, BodyGap, 0, 0) };

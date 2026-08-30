@@ -231,6 +231,22 @@ public sealed class Player
     public void SetTongue(string language, int level) =>
         _tongues[language] = Math.Clamp(level, 0, Skill.MaxLevel);
 
+    /// <summary>
+    /// 세이브에서 언어 자리를 되돌린다.
+    /// </summary>
+    /// <remarks>
+    /// 언어는 기술과 <b>딴 칸</b>에 있어서 <see cref="Restore"/> 의 기술 사전에 안 실린다.
+    /// 판 24 앞 세이브에는 언어가 아예 안 적혀 있어 그때는 아무 일도 안 한다 —
+    /// 그 판까지는 갈무리를 불러오면 <b>배운 언어가 다 0 이 되었다</b>.
+    /// </remarks>
+    public void RestoreTongues(IEnumerable<KeyValuePair<string, int>>? tongues)
+    {
+        if (tongues == null) return;
+        _tongues.Clear();
+        foreach (var (name, level) in tongues)
+            _tongues[name] = Math.Clamp(level, 0, Skill.MaxLevel);
+    }
+
     /// <summary>기술 자리를 박는다(새 놀이에서 찍어 줄 때).</summary>
     public void SetSkill(string skill, int level) =>
         _skills[skill] = Math.Clamp(level, 0, Skill.MaxLevel);
