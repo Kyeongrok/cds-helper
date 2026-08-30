@@ -25,7 +25,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 누르면 그 건물의 명령 창이 열린다.
 /// </summary>
 /// <remarks>
-/// <see cref="PortDialog"/> 와 같은 수를 쓴다 — 창(HWND)을 따로 쓰므로 D3D 자식 창 위에
+/// 물음창들과 같은 수를 쓴다 — 창(HWND)을 따로 쓰므로 D3D 자식 창 위에
 /// 제대로 뜬다(airspace 를 안 탄다). 그림은 400x320 도트 그림이라 정수배로만 늘린다.
 ///
 /// 건물 자리·이름·가르치는 기능은 게임 EXE 의 건물 표(<see cref="CityBuildingTable"/>)에서
@@ -482,11 +482,15 @@ public sealed class CityPicView : Window
         var patron = PatronAt(building.Kind);
         if (patron == null) return true;
 
+        // 왕궁·교회는 <b>들어설 때 아예 안 본다</b>. 그 둘은 후원자를 못 만나도 건물에는
+        // 들어가고(알현·수련 같은 제 줄이 있다), 명성 관문은 "설득" 을 누를 때 집사가
+        // 대신 본다(<see cref="PatronMenu.Persuade"/> · 게임 0x004AE1F0).
+        // 예전에는 여기서 설득 애니메이션까지 돌려 교회에 들어설 때마다 떴다.
+        if (facility.Kind is FacilityKind.Palace or FacilityKind.Church) return true;
+
         bool passed = _player.Fame >= patron.Fame;
         PlayFameCheck(passed);
         if (passed) return true;
-
-        if (facility.Kind is FacilityKind.Palace or FacilityKind.Church) return true;
 
         _game.Sfx?.Play(SoundBank.TurnedAwayPart);
 
@@ -949,7 +953,7 @@ public sealed class CityPicView : Window
     private MarketMenu? _shop;
 
     /// <summary>이 마을 항구 — 함대·선원·발표는 도시가 아니라 항구가 한다.</summary>
-    private HarborMenu Port => _port ??= new HarborMenu(this, _game, Menu, _cityId, _cultureNo);
+    private HarborMenu Port => _port ??= new HarborMenu(this, _game, Menu, _cityId);
 
     private HarborMenu? _port;
 

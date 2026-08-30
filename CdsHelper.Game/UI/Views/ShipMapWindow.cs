@@ -1553,7 +1553,10 @@ public sealed class ShipMapWindow : Window
         bool inCity = false;
         try
         {
-            if (PortDialog.Ask(this, name, byLand))
+            // 게임도 그냥 물음창이다 — 짙은 밤색 판에 흰 글씨, 아래에 YES/NO 둘.
+            // 배면 "항구로", 말이면 "도시로" 로 갈아 낸다(문구는 하나다).
+            if (ConfirmDialog.Ask(this,
+                    $"[{name}]의 {(byLand ? "도시" : "항구")}로 들어가겠습니까?"))
             {
                 _host.EnterPort(name);
                 inCity = ShowCityPicture(city, name);
