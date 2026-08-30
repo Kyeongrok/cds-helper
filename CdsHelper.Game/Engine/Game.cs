@@ -80,6 +80,7 @@ public sealed class Game
         _itemArt = null;
         _discoveries = null; _discoveriesTried = false;
         _stills = null; _stillsTried = false;
+        _fighters = null; _fightersTried = false;
         _barmaids = null; _barmaidsTried = false;
 
         Bgm.SetGameDirectory(directory);
@@ -171,6 +172,11 @@ public sealed class Game
              () => BarmaidTable.LastError, "여급 표");
 
     /// <summary>발견했을 때 뜨는 그림(DSTILL.CDS). 못 읽으면 글만 낸다.</summary>
+    /// <summary>일기토 그림(FIGHTER.CDS) — 제독 한 벌과 상대 여덟 벌.</summary>
+    public FighterSprites? Fighters =>
+        Once(ref _fighters, ref _fightersTried, FighterSprites.Open,
+             () => FighterSprites.LastError, "일기토 그림");
+
     public DiscoveryStills? Stills =>
         Once(ref _stills, ref _stillsTried, DiscoveryStills.Open,
              () => DiscoveryStills.LastError, "발견물 그림");
@@ -354,6 +360,8 @@ public sealed class Game
     private GoodsTable? _goods;
     private CityExeTable? _cityRows;
     private DiscoveryLog? _discoveries;
+    private FighterSprites? _fighters;
+    private bool _fightersTried;
     private DiscoveryStills? _stills;
     private bool _stillsTried;
     private BarmaidTable? _barmaids;
