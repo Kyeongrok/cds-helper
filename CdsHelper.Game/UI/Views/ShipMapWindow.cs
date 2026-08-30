@@ -1069,6 +1069,9 @@ public sealed class ShipMapWindow : Window
         // 게임도 여기부터는 메인메뉴를 걷는다 — 고르는 창이 그 자리에 뜬다.
         HideTitleMenu(true);
 
+        // 적어 둔 판이 있으면 그것부터 어떻게 할지 묻는다.
+        if (!BreakOff()) { HideTitleMenu(false); return; }
+
         // 앞 판이 묻어 오지 않게 주인공을 새로 앉힌다 — 새 놀이는 1480년 1월 1일부터다.
         // 짓다 말고 물러나면 하던 판을 도로 앉혀야 한다.
         var before = _game.NewPlayer();
@@ -1160,6 +1163,63 @@ public sealed class ShipMapWindow : Window
         _askedCity = found.Id;                    // 곧바로 다시 묻지 않게
         _host.EnterPort(found.Name);
         if (ShowCityPicture(found.Id, found.Name)) _host.Paused = true;
+    }
+
+    /// <summary>
+    /// <b>모험 중단</b> — 적어 둔 판이 있을 때 NEW GAME 이 먼저 묻는 것.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x0045F60E</c> 에서 지금 놀고 있는 캐릭터가 있는지 보고, 있으면
+    /// 이 창을 낸다(<c>0x0045F65B</c>).
+    /// <code>
+    ///   0045F65B  "현재 게임중의 캐릭터인 %s%s 있습니다만 어떻게 하겠습니까?"  제목 "모험 중단"
+    ///   0045F66C  은퇴시킨다 · 삭제한다 · 신규작성을 중지한다
+    ///   0045F700  은퇴 줄은 [0x005A4D1A] &amp; 0x40 — <b>누적 캐릭터 자리가 비어야</b> 켜진다
+    ///   0045F8CE  삭제한다 → "[%s]%s 삭제합니다. 좋습니까?"
+    ///   0045F8F2  YES 면 C:SAVEDATA.CDS · C:SAVEDATA.TMP · C:ACCDATA.CDS 를 지우고 만들기로
+    /// </code>
+    ///
+    /// <b>지우는 것은 우리 세이브뿐이다</b>(<c>%APPDATA%\CdsHelper\SAVEDATA.CDS</c>).
+    /// 게임 폴더의 SAVEDATA.CDS 는 사람이 진짜로 놀던 것이라 우리는 읽기만 한다 —
+    /// 그것을 지우면 되돌릴 길이 없다.
+    ///
+    /// <b>은퇴는 아직 없다.</b> 누적 캐릭터 다섯 자리를 우리 쪽에 안 지어서(볼트
+    /// <c>39.분석-NEW GAME</c>) 고르면 그 까닭만 이르고 물러난다.
+    /// </remarks>
+    /// <returns>새로 만들어도 되면 true, 물러났으면 false.</returns>
+    private bool BreakOff()
+    {
+        var saved = GameSave.Load();
+        if (saved == null) return true;
+
+        string name = !string.IsNullOrEmpty(saved.Name) ? saved.Name : "이름 없는 제독";
+
+        while (true)
+        {
+            ConfirmDialog.Tell(this,
+                $"현재 게임중의 캐릭터인 {name}{GameUi.Josa(name, "이", "가")} 있습니다만 " +
+                "어떻게 하겠습니까?", "모험 중단");
+
+            int at = ChoiceDialog.Ask(this, "", ["은퇴시킨다", "삭제한다"], "신규작성을 중지한다");
+
+            if (at == 0)
+            {
+                ConfirmDialog.Tell(this,
+                    $"[{name}]{GameUi.Josa(name, "은", "는")} 은퇴시킬 수 없습니다. " +
+                    "누적 캐릭터 자리가 아직 없습니다.", "모험 중단");
+                continue;
+            }
+
+            if (at != 1) return false;      // 신규작성을 중지한다 · ESC
+
+            if (!ConfirmDialog.Ask(this, $"[{name}]{GameUi.Josa(name, "을", "를")} 삭제합니다. 좋습니까?"))
+                return false;
+
+            if (GameSave.Delete()) return true;
+
+            NoticeDialog.Show(this, "적어 둔 것을 지우지 못했습니다.");
+            return false;
+        }
     }
 
     /// <summary>
@@ -1299,6 +1359,11 @@ public sealed class ShipMapWindow : Window
             // 아내와 후손. 판 22 앞의 세이브에는 없어 홀로 시작한다.
             _game.Player.RestoreFamily(saved.Spouse, saved.Heirs,
                                        saved.SpouseId ?? -1, saved.Liking);
+
+            // 이름은 판 24 부터 적힌다 — 그 앞 세이브에서는 빈 채로 둔다.
+            if (!string.IsNullOrEmpty(saved.Name)) _game.Player.Name = saved.Name;
+            if (saved.Family != null) _game.Player.Family = saved.Family;
+            if (saved.Given != null) _game.Player.Given = saved.Given;
             if (saved.Morale is { } morale) _game.Player.SetMorale(morale);
             _game.Player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
