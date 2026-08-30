@@ -63,37 +63,47 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// (<c>0x0044B863</c> 의 <c>cmp esi,1 / jle</c>), <b>기함은 못 판다</b>
     /// (<c>0x00531188</c> "기함을 처분하는 일은 불가능합니다!").
     ///
-    /// 게임 화면은 여러 척을 한꺼번에 골라 값을 합쳐 파는 꼴인데(고른 것을 비트로 든다),
-    /// 여기서는 한 척씩 판다 — 목록을 다시 열면 이어서 팔 수 있다.
+    /// 차례는 이렇다.
+    /// <code>
+    ///   0044B863  배가 한 척뿐이면 "기함을 처분하는 일은 불가능합니다!"
+    ///             (없으면 "이 이상 배를 처분하는 일은 불가능합니다.")
+    ///   0044B889  [배+0x64] 가 선 배는 값이 0 이다 — 기함이라 못 판다
+    ///   0044B8B9  "어느 배를 팔 건가? 봐 주겠네."
+    ///   0044B8DA  0x00423750 — 「매각선박의 선택」. 고른 것을 비트마스크로 낸다
+    ///   0044B91C  "%ld닢입니다. 좋습니까?"  · YES 면 고른 배를 다 처분하고 값을 받는다
+    /// </code>
+    /// <b>여러 척을 한꺼번에 판다.</b> 그래서 목록 아래에 "견적합계" 가 붙는다.
     /// </remarks>
     public void SellShip()
     {
         var owner = Owner;
-        int PriceOf(Ship s) => Shipyard.SellPrice(s, _rate);
 
-        GameDialog.Show(owner, "어느 배를 팔 건가? 봐 주겠네.");
-
-        int at = HintListDialog.Pick(owner,
-            [.. _player.Ships.Select((s, i) =>
-                $"{(i == _player.Flagship ? "★" : "  ")}{s.Name}  {PriceOf(s),7}닢")],
-            "매각", "팔 배가 없습니다");
-        if (at < 0) return;
-
-        if (at == _player.Flagship)
+        // 배가 기함뿐이면 그 자리에서 물린다 — 목록도 안 뜬다.
+        if (_player.Ships.Count <= 1)
         {
-            GameDialog.Show(owner, "기함을 처분하는 일은 불가능합니다!");
+            ConfirmDialog.Tell(owner, _player.Ships.Count == 1
+                ? "기함을 처분하는 일은 불가능합니다!"
+                : "이 이상 배를 처분하는 일은 불가능합니다.");
             return;
         }
 
-        int paid = PriceOf(_player.Ships[at]);
+        ConfirmDialog.Tell(owner, "어느 배를 팔 건가? 봐 주겠네.",
+                           face: _game.SpeakerFace(BuildingCode, _culture));
+
+        // 기함은 값이 0 이라 줄이 흐리고 안 골라진다 — 게임도 그렇게 낸다.
+        var rows = _player.Ships.Select((s, i) => new ShipSellDialog.Row(
+            i, s.Name, s.Hull.Name,
+            s.Figurehead >= 0 ? NameOf(s.Figurehead) : "---",
+            i == _player.Flagship ? 0 : Shipyard.SellPrice(s, _rate))).ToList();
+
+        var picked = ShipSellDialog.Ask(owner, rows);
+        if (picked.Count == 0) return;
+
+        int paid = picked.Sum(at => Shipyard.SellPrice(_player.Ships[at], _rate));
         if (!ConfirmDialog.Ask(owner, $"{paid}닢입니다. 좋습니까?")) return;
 
-        // 파기와 같은 자리에서 뺀다 — 게임도 배를 빼는 길은 하나다. 다른 것은 돈뿐이다.
-        if (!_player.Scrap(at))
-        {
-            GameDialog.Show(owner, "이 이상 배를 처분하는 일은 불가능합니다.");
-            return;
-        }
+        // 뒤에서부터 뺀다 — 앞을 먼저 빼면 뒤 자리가 하나씩 밀린다.
+        foreach (int at in picked.OrderByDescending(i => i)) _player.Scrap(at);
         _player.Earn(paid);
 
         // 한 척만 남았으면 "매각" 줄이 그 자리에서 꺼져야 한다.

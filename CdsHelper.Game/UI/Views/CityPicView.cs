@@ -1217,7 +1217,9 @@ public sealed class CityPicView : Window
                                   Market?.Rates.Of(_cityId) ?? 100),
 
             TownWork.BuyShip => () => HullSelectDialog.Show(this, _player),
-            TownWork.SellShip when _player.Ships.Count > 1 => Yard.SellShip,
+            // 배가 기함뿐이어도 눌린다 — 게임은 그때 "기함을 처분하는 일은 불가능합니다!"
+            // 를 낸다(0x0044B96F). 줄을 흐리게 두면 그 말을 볼 길이 없다.
+            TownWork.SellShip => Yard.SellShip,
             // 게임도 고칠 배가 없으면 이 줄을 흐리게 둔다(0x0044BD40).
             TownWork.RepairShip when Yard.CanRepair => Yard.RepairShip,
             TownWork.RefitShip => Yard.RefitShip,
