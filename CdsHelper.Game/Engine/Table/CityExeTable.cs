@@ -109,8 +109,13 @@ public sealed class CityExeTable
     /// 도시의 <b>언어</b>가 여기서 나온다 — <see cref="NationTable"/> 의 그 나라가 쓰는 말이다.
     /// 도시에 언어를 박아 두지 않은 것은 정복하면 말이 바뀌기 때문이다.
     /// </remarks>
-    public int NationOf(int cityId) =>
-        cityId >= 0 && cityId < _nations.Length ? _nations[cityId] : -1;
+    /// <remarks>사람이 갈아 둔 것이 있으면 그것이 이긴다(<see cref="CityNationEdits"/>).</remarks>
+    public int NationOf(int cityId)
+    {
+        int changed = CityNationEdits.Of(cityId);
+        if (changed != CityNationEdits.None) return changed;
+        return cityId >= 0 && cityId < _nations.Length ? _nations[cityId] : -1;
+    }
 
     /// <summary>그 도시의 특산품(교역품 종류). 제 것에 딸린 내륙 도시 것을 더해 최대 셋이다.</summary>
     /// <remarks>
