@@ -578,6 +578,12 @@ public sealed class Player
     /// </remarks>
     public int DaysAtSea { get; private set; }
 
+    /// <summary>
+    /// 밝힌 바다. 항해지도가 이것으로 그려진다 — 안 밝힌 곳은 양피지로 남는다.
+    /// </summary>
+    /// <remarks>배가 지나며 저절로 칠해진다(<see cref="ExploredMap.Mark"/>).</remarks>
+    public ExploredMap Explored { get; } = new();
+
     /// <summary>바다에서 하루를 넘긴다.</summary>
     public void PassDayAtSea()
     {

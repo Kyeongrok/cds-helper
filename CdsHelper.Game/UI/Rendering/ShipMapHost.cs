@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Support.Local.Models;
 using Vortice.DXGI;
 using Vortice.Direct3D11;
 
@@ -954,6 +955,58 @@ public sealed class ShipMapHost : HwndHost
         var (driftX, driftY) = Engine.Sea.Sailing.Drift(
             (dx, dy), flow.Speed, Engine.Sea.Sailing.LonScale(ShipLatLon.Lat));
         return (step, driftX, driftY);
+    }
+
+    /// <summary>항해지도의 색 — 안 밝힌 곳 · 바다 · 뭍(게임 색표 색인).</summary>
+    /// <remarks>
+    /// <c>0x00416AED</c> 가 <c>0x2E</c>(바다) · <c>0x18</c>(뭍) 을, <c>0x00416AFB</c> 가
+    /// 안 밝힌 곳에 <c>0x1A</c> 를 넣는다. <c>0x1A</c> 는 크림빛(196,180,148)이라
+    /// 펼쳐 놓은 양피지처럼 보인다.
+    /// </remarks>
+    private const byte ChartSea = 0x2E, ChartLand = 0x18, ChartUnknown = 0x1A;
+
+    /// <summary>
+    /// 항해지도 한 장을 BGRA 로 짓는다. 지도를 못 읽었으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00416A00</c> 그대로다. 점 하나가 칸 <b>4x4</b> 고, 그 열여섯 칸 가운데
+    /// 뭍이 바다보다 많으면 뭍색이다. <b>안 밝힌 점은 아예 안 본다</b> — 그 자리는
+    /// 양피지로 남는다.
+    /// </remarks>
+    public uint[]? Chart(ExploredMap seen, out int width, out int height)
+    {
+        width = ExploredMap.Width;
+        height = ExploredMap.Height;
+        if (_world == null || _terrain == null) return null;
+
+        int step = ExploredMap.CellsPerBlock;
+        var argb = new uint[width * height];
+
+        for (int by = 0; by < height; by++)
+            for (int bx = 0; bx < width; bx++)
+            {
+                byte color = ChartUnknown;
+                if (seen.Seen(bx, by))
+                {
+                    int water = 0, land = 0;
+                    for (int y = 0; y < step; y++)
+                        for (int x = 0; x < step; x++)
+                        {
+                            int off = RawAt(bx * step + x, by * step + y).Offset;
+                            if (_terrain.CanSail(_world[off])) water++;
+                            else land++;
+                        }
+                    color = land > water ? ChartLand : ChartSea;
+                }
+
+                int k = color * 3;
+                argb[by * width + bx] = 0xFF000000u
+                                      | ((uint)GamePalette.Rgb[k] << 16)
+                                      | ((uint)GamePalette.Rgb[k + 1] << 8)
+                                      | GamePalette.Rgb[k + 2];
+            }
+
+        return argb;
     }
 
     /// <summary>발밑이 빠른 부류(그림 번호 <c>0x80</c>)인지.</summary>
