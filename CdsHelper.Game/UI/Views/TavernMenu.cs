@@ -49,10 +49,33 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
     private Player _player => _game.Player;
 
-    /// <summary>들어설 때 건네는 한마디. 다섯 줄 가운데 하나라 올 때마다 다르다.</summary>
+    /// <summary>
+    /// 들어설 때 건네는 한마디. 다섯 줄 가운데 하나라 올 때마다 다르다.
+    /// </summary>
+    /// <remarks>
+    /// <b>말하는 이는 술집 주인이 아니라 앉아 있는 손님</b>이다. 말이 "여어, 함께
+    /// 마시자구" 인 것부터가 취객의 말이고, 게임도 그렇게 짓는다 — <c>0x0042E976</c> 이
+    /// <c>0x004A1D10</c> 으로 <b>손님 자리를 하나 집어</b> 그 자리의 화자로 창을 낸다
+    /// (자리 배열은 화면 객체 <c>+0x18</c>, 한 칸 <c>0x18</c> 바이트다).
+    ///
+    /// 그래서 얼굴도 그 손님 것이다. 우리는 이 술집에 앉은 사람 가운데 첫 사람의 얼굴을
+    /// 쓰고, 아무도 안 앉았으면 얼굴 없이 낸다 — 지나가는 손님은 서 있는 그림만 있고
+    /// 초상화가 따로 없다.
+    ///
+    /// 예전에는 화자표의 <b>술집 주인</b> 얼굴을 썼는데, 주인이 할 말이 아니다.
+    /// </remarks>
     public void Greet() =>
         ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)],
-                           face: _game.SpeakerFace(BuildingCode, _cultureNo));
+                           face: DrinkerFace());
+
+    /// <summary>말을 거는 취객의 얼굴 — 이 술집에 앉은 첫 사람이다. 아무도 없으면 null.</summary>
+    private uint[]? DrinkerFace()
+    {
+        var people = _game.Roster?.At(_cityId, TavernRoster.Tavern) ?? [];
+        foreach (var who in people)
+            if (FaceOf(who) is { } face) return face;
+        return null;
+    }
 
     /// <summary>
     /// 사진 앞에 세울 손님들. 술집·여관이 아니거나 그림을 못 읽었으면 빈 목록이다.
@@ -122,45 +145,55 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         _game.Faces?.TryGetBgra(her.Face, female: true);
 
     /// <summary>
-    /// 여급을 눌렀을 때. <b>처음이면 이름을 밝히고</b>, 그 뒤로는 용건을 묻는다.
+    /// 여급을 눌렀을 때.
     /// </summary>
     /// <remarks>
-    /// 첫 대화의 폭이 궁합으로 갈린다(<c>0x00466730</c>) — 맞으면 친밀도 50, 아니면 3 이고
-    /// 말투부터 다르다. 자세한 것은 <see cref="Barmaids"/> 와 볼트 <c>58.분석-술집 여급과 궁합</c>.
+    /// 게임 차례 그대로다.
+    /// <code>
+    ///   낯 트기 전   "아름다운 여성이 있다" → 한잔 산다 · 무시한다
+    ///   한잔 사면    그제야 얼굴을 내고 이름을 밝힌다 — 궁합대로 말투가 갈린다
+    ///   그 뒤로      이야기한다 · 설득한다 · 떠난다
+    /// </code>
+    /// 낯 트기 전은 지나가는 여성과 <b>똑같이</b> 나온다 — 얼굴도 이름도 안 보인다.
+    /// 게임의 선물 창(<c>0x00466AC9</c> "무엇을 보내시겠습니까?")은 이 세 줄에 없어
+    /// 아직 안 붙였다. 어디서 뻗는지 못 찾았다.
     /// </remarks>
     private void MeetBarmaid(BarmaidTable.Barmaid her)
     {
-        var face = FaceOfMaid(her);
         bool destined = Barmaids.Destined(_player, her);
 
+        // 낯 트기 전에는 얼굴도 이름도 없다.
         if (_player.LikingOf(her.Id) == 0)
         {
+            if (TalkDialog.Ask(_view, null, "", "아름다운 여성이 있다",
+                               "한잔 산다", "무시한다") != 0) return;
+            if (!BuyDrink()) return;
+
             _player.AddLiking(her.Id, Barmaids.FirstMeet(_player, her));
-            TalkDialog.Say(_view, face, "", destined
-                ? $"고마워요! 저는 {her.Name}. 물어보고 싶은 것이 있으면 뭐든지 물어보세요."
-                : $"아, 고마워요. 저는 {her.Name}. 무슨 일이시죠?");
-            return;
         }
+
+        var face = FaceOfMaid(her);
+        string words = destined
+            ? $"고마워요! 저는 {her.Name}. 물어보고 싶은 것이 있으면 뭐든지 물어보세요."
+            : $"아, 고마워요. 저는 {her.Name}. 무슨 일이시죠?";
 
         while (true)
         {
-            int liking = _player.LikingOf(her.Id);
-            switch (TalkDialog.Ask(_view, face, "", "무슨 일이시죠?",
-                                   "이야기한다", "선물을 준다", "유혹한다", "떠난다"))
+            switch (TalkDialog.Ask(_view, face, "", words,
+                                   "이야기한다", "설득한다", "떠난다"))
             {
-                case 0: Chat(her, face, destined); break;
-                case 1: Gift(her, face); break;
-                case 2: if (Woo(her, face, liking)) return; break;
+                case 0: Chat(her, destined); break;
+                case 1: if (Woo(her, face)) return; break;
                 default: return;
             }
+            words = "무슨 일이시죠?";
         }
     }
 
     /// <summary>잡담. 게임 표(<c>0x0055B0C0</c> 벌)에서 한 줄을 집는다.</summary>
-    private void Chat(in BarmaidTable.Barmaid her, uint[]? face, bool destined)
+    private void Chat(in BarmaidTable.Barmaid her, bool destined)
     {
-        string words = Chats[_game.Random.Next(Chats.Length)];
-        TalkDialog.Say(_view, face, "", words);
+        TalkDialog.Say(_view, FaceOfMaid(her), "", Chats[_game.Random.Next(Chats.Length)]);
         _player.AddLiking(her.Id, Barmaids.ChatLike(destined));
     }
 
@@ -184,51 +217,21 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>
-    /// 선물을 준다. 소지품에서 하나 골라 주면 값만큼 친밀도가 오른다.
-    /// </summary>
-    /// <remarks>
-    /// 받고 하는 말이 친밀도로 갈린다(<c>0x00466B70</c> — 30 · 50 · 70 · 90).
-    /// </remarks>
-    private void Gift(in BarmaidTable.Barmaid her, uint[]? face)
-    {
-        var items = _game.Items;
-        var bag = _player.Items;
-        if (items == null || bag.Count == 0)
-        {
-            TalkDialog.Say(_view, face, "", "어머, 빈 손이시네요.");
-            return;
-        }
-
-        GameDialog.Show(_view, "무엇을 보내시겠습니까?");
-        int at = HintListDialog.Pick(_view,
-            [.. bag.Select(id => items.Find(id)?.Name ?? $"아이템 {id}")],
-            "선물 선택", "줄 것이 없습니다");
-        if (at < 0) return;
-
-        int itemId = bag[at];
-        var thing = items.Find(itemId);
-        _player.Drop(itemId);
-
-        int now = _player.AddLiking(her.Id, Barmaids.GiftLike(thing?.SellList ?? 0));
-        TalkDialog.Say(_view, face, "", Barmaids.GiftWord(now));
-    }
-
-    /// <summary>
-    /// 유혹한다. 친밀도가 차 있으면 맺어지고, 아니면 물린다.
+    /// 설득한다. 친밀도가 차 있으면 맺어지고, 아니면 물린다.
     /// </summary>
     /// <returns>맺어졌으면 true — 그러면 창을 접는다.</returns>
     /// <remarks>
-    /// 유혹의 말은 문화권마다 딴 벌이다(<c>0x0055B9B8</c> 벌 — 게임 문자열에 "지중해의
+    /// 설득의 말은 문화권마다 딴 벌이다(<c>0x0055B9B8</c> 벌 — 게임 문자열에 "지중해의
     /// 유혹어" 라는 이름이 그대로 박혀 있다). 물릴 때 하는 말 셋도 게임 것이다
     /// (<c>0x0055BFB0</c>).
     ///
     /// <b>문턱은 우리가 정했다</b> — 게임에서 그 자리를 아직 못 짚었다.
     /// </remarks>
-    private bool Woo(in BarmaidTable.Barmaid her, uint[]? face, int liking)
+    private bool Woo(in BarmaidTable.Barmaid her, uint[]? face)
     {
         TalkDialog.Say(_view, face, "", Barmaids.WooWord(_cultureNo));
 
-        if (liking < Barmaids.WooNeeded)
+        if (_player.LikingOf(her.Id) < Barmaids.WooNeeded)
         {
             TalkDialog.Say(_view, face, "",
                            Barmaids.Refusals[_game.Random.Next(Barmaids.Refusals.Length)]);
