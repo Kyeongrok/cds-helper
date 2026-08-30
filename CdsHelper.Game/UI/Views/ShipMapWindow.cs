@@ -594,6 +594,8 @@ public sealed class ShipMapWindow : Window
             $"위경도    {(lat >= 0 ? "북위" : "남위")} {Math.Abs(lat):F2} · {(lon >= 0 ? "동경" : "서경")} {Math.Abs(lon):F2}",
         };
 
+        lines.AddRange(SpeedLines());
+
         // 40칸까지만 본다. 더 넓히면 도시마다 항구 칸을 찾느라 100ms 틱이 무거워진다.
         var (city, cells) = _host.NearestDock(40);
         if (city >= 0) lines.Add($"가까운 항구 [{_game.CityName(city)}] {cells:F1}칸");
@@ -603,6 +605,45 @@ public sealed class ShipMapWindow : Window
             lines.Add($"커서      {m.Value.X,7:F1}, {m.Value.Y,6:F1}   0x{m.Value.Offset:X5}");
 
         _overlayText.Inlines.Add(new Run(string.Join("\n", lines)));
+    }
+
+    /// <summary>
+    /// 좌표 상자의 속도 줄 — 바람 · 돛 · 함대 속도 · 해류를 한 줄씩 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 게임과 속도가 어긋날 때 <b>어디서 어긋나는지</b>를 보려고 둔 것이다. 셈은
+    /// <see cref="Sailing.SpeedOf"/> 가 하고(게임 <c>0x0048BCF0</c>), 여기서는 그 셈에
+    /// 들어간 값들을 그대로 늘어놓는다.
+    /// <code>
+    ///   속도   = 추진력 x (풍속 + 1) x 돛효율 / 100      (배마다)
+    ///   함대   = (기함 + 배들 평균) / 2
+    ///   한 틱  = 빠른 칸이면 9 x 속도 / 10, 아니면 (3 x 속도 + 54) / 10, 둘 다 / 64
+    /// </code>
+    /// 상대각은 <b>0 이 정순풍, 8 이 정면 역풍</b>이다. 돛효율은 기함 것이다 — 배마다
+    /// 다르지만 한 줄에 다 적을 수는 없다.
+    /// </remarks>
+    private IEnumerable<string> SpeedLines()
+    {
+        var (dir, speed, relative) = _host.LastWind;
+        string where = ShipMapHost.Compass[(dir & 0xF) >> 1];
+
+        var ships = _game.Player.Ships;
+        var flag = ships.Count > 0
+            ? ships[Math.Clamp(_game.Player.Flagship, 0, ships.Count - 1)] : null;
+        int sail = flag != null && _game.Sails is { } table
+            ? table.Efficiency(flag.Sails, relative) : 0;
+
+        yield return $"바람      {where} {speed}  · 상대각 {relative,2} (0 순풍 · 8 역풍)"
+                   + $" · 돛효율 {sail,3}%";
+
+        string ground = _host.LastFast ? "빠른 칸" : "느린 칸";
+        yield return $"속도      함대 {_host.LastSpeed,3} · 한 틱 {_host.LastStep:F3}칸 · {ground}"
+                   + (flag != null ? $" · 기함 추진력 {flag.Speed}" : "");
+
+        var flow = _host.LastFlow;
+        yield return flow.Speed > 0
+            ? $"해류      {ShipMapHost.Compass[(flow.Dir & 0xF) >> 1]} {flow.Speed}"
+            : "해류      없음(느린 칸에서는 안 받는다)";
     }
 
     /// <summary>좌표 상자에 끼우는 타일 그림의 배율. 글줄 높이에 맞춰 두 배로 키운다.</summary>
