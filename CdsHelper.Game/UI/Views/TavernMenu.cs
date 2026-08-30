@@ -82,9 +82,20 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///
     /// 예전에는 화자표의 <b>술집 주인</b> 얼굴을 썼는데, 주인이 할 말이 아니다.
     /// </remarks>
-    public void Greet() =>
+    /// <remarks>
+    /// <b>들어설 때마다 말을 걸지는 않는다.</b> 게임은 <c>0x0042E985</c> 에서
+    /// <c>rand(3) != 0</c> 이면 그냥 나간다 — <b>세 번에 한 번</b>만 누가 말을 건다.
+    /// 그래서 들락거려도 말이 잇달아 나오지 않는다.
+    /// </remarks>
+    public void Greet()
+    {
+        if (_game.Random.Next(GreetDice) != 0) return;
         ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)],
                            face: DrinkerFace());
+    }
+
+    /// <summary>말을 걸 낯을 가리는 주사위 — 셋에 하나다.</summary>
+    private const int GreetDice = 3;
 
     /// <summary>
     /// 말을 거는 취객의 얼굴 — <b>이름 없는 손님</b> 가운데 맨 앞자리 사람이다.

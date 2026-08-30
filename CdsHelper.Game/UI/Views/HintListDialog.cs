@@ -53,11 +53,13 @@ public sealed class HintListDialog : Window
                 Padding = new Thickness(RowPad, 0, RowPad, 0),
                 Cursor = choosing ? Cursors.Hand : Cursors.Arrow,
                 // 줄은 게임 비트맵 글꼴로 찍는다 — 종이 위라 검은 벌이다.
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 Child = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
                 {
                     Text = hints[i],
                     Bold = true,
                     FallbackBrush = Brushes.Black,
+                    HorizontalAlignment = HorizontalAlignment.Left,
                 },
             };
             if (choosing) row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(index); };
