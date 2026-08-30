@@ -574,6 +574,7 @@ public sealed class CityPicView : Window
             case FacilityKind.Shipyard: Yard.Greet(); break;
             case FacilityKind.Library: Books.Greet(); break;
             case FacilityKind.Tavern: Guests.Greet(); break;
+            case FacilityKind.Market: Shop.Greet(); break;
         }
     }
 
@@ -865,6 +866,7 @@ public sealed class CityPicView : Window
         _yard = null;      // 조선소 — 화자 얼굴
         _books = null;     // 도서관 — 사서 얼굴
         _guests = null;    // 술집·여관 — 주인 얼굴과 손님 그림
+        _shop = null;      // 시장 — 장사꾼 얼굴
     }
 
     /// <summary>항구의 건물 코드. 배에서 곧바로 항구 창을 열 때 쓴다.</summary>
@@ -894,6 +896,12 @@ public sealed class CityPicView : Window
         new TavernMenu(this, _game, _cityId, _culture, _cultureNo);
 
     private TavernMenu? _guests;
+
+    /// <summary>이 마을 시장 — 인사도 사고파는 창도 시장이 든다.</summary>
+    private MarketMenu Shop => _shop ??=
+        new MarketMenu(this, _game, _cityId, _cultureNo, Market);
+
+    private MarketMenu? _shop;
 
     /// <summary>이 마을 항구 — 함대·선원·발표는 도시가 아니라 항구가 한다.</summary>
     private HarborMenu Port => _port ??= new HarborMenu(this, _game, Menu, _cityId);
@@ -1009,10 +1017,8 @@ public sealed class CityPicView : Window
             TownWork.RepairShip when Yard.CanRepair => Yard.RepairShip,
             TownWork.RefitShip => Yard.RefitShip,
 
-            TownWork.BuyGoods when Market != null => () =>
-                MarketBuyDialog.Show(this, _player, Market, _cityId, _game.ItemText, _game.ItemPictures),
-            TownWork.SellGoods when Market != null && _game.Items != null => () =>
-                MarketSellDialog.Show(this, _player, Market, _game.Items, _cityId),
+            TownWork.BuyGoods when Market != null => Shop.Buy,
+            TownWork.SellGoods when Market != null && _game.Items != null => Shop.Sell,
 
             TownWork.Stay => Stay,
             TownWork.MateForm => () => MateRosterDialog.Show(this, _player),
