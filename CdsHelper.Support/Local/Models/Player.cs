@@ -599,8 +599,41 @@ public sealed class Player
 
     private readonly List<string> _heirs = [];
 
+    /// <summary>
+    /// 맺어진 여급의 번호. 없으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 게임 세이브는 배우자 자리(오프셋 173, 2바이트)에 <c>0x2000 | 여급번호</c> 를 적고
+    /// 빈 자리는 <c>0xFFFF</c> 다. 우리는 번호만 든다.
+    /// </remarks>
+    public int SpouseId { get; private set; } = -1;
+
+    /// <summary>여급마다의 친밀도(0~100). 말을 걸어야 생긴다.</summary>
+    public IReadOnlyDictionary<int, int> Liking => _liking;
+
+    private readonly Dictionary<int, int> _liking = [];
+
+    /// <summary>그 여급과의 친밀도. 아직 말을 안 걸었으면 0.</summary>
+    public int LikingOf(int barmaid) => _liking.GetValueOrDefault(barmaid);
+
+    /// <summary>친밀도를 올리고 내린다. 0~100 을 벗어나지 않는다.</summary>
+    /// <returns>더한 뒤의 값.</returns>
+    public int AddLiking(int barmaid, int amount)
+    {
+        int now = Math.Clamp(LikingOf(barmaid) + amount, 0, MaxLiking);
+        _liking[barmaid] = now;
+        return now;
+    }
+
+    /// <summary>친밀도의 위. 게임도 0~100 으로 자른다.</summary>
+    public const int MaxLiking = 100;
+
     /// <summary>아내를 맞는다. 빈 이름을 주면 홀로 돌아간다.</summary>
-    public void Marry(string? name) => Spouse = (name ?? "").Trim();
+    public void Marry(string? name, int barmaid = -1)
+    {
+        Spouse = (name ?? "").Trim();
+        SpouseId = Spouse.Length == 0 ? -1 : barmaid;
+    }
 
     /// <summary>후손을 하나 얻는다.</summary>
     public void AddHeir(string name)
@@ -610,11 +643,17 @@ public sealed class Player
     }
 
     /// <summary>적어 둔 것을 되돌린다.</summary>
-    public void RestoreFamily(string? spouse, IEnumerable<string>? heirs)
+    public void RestoreFamily(string? spouse, IEnumerable<string>? heirs, int spouseId = -1,
+                              IReadOnlyDictionary<int, int>? liking = null)
     {
         Spouse = (spouse ?? "").Trim();
+        SpouseId = Spouse.Length == 0 ? -1 : spouseId;
         _heirs.Clear();
         foreach (string h in heirs ?? []) AddHeir(h);
+
+        _liking.Clear();
+        foreach (var (id, value) in liking ?? new Dictionary<int, int>())
+            _liking[id] = Math.Clamp(value, 0, MaxLiking);
     }
 
     /// <summary>바다에서 하루를 넘긴다.</summary>

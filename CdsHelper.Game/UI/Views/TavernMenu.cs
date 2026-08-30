@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Engine.Models;
 using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
@@ -74,10 +74,23 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         foreach (var p in people) keys.Add(p.Index);
 
         var art = new List<BuildingPhotoWindow.GuestArt>(TavernGuests.MaxOnScreen);
+        var maid = kind == FacilityKind.Tavern ? Standing() : null;
+        bool maidSeated = false;
+
         foreach (var seat in book.Seat(_culture, _cityId, keys))
         {
             var bgra = book.TryGetBgra(seat.Art);
             if (bgra == null) continue;
+
+            // 자리 짓는 쪽이 맨 앞에 여자를 세운다 — 술집이면 그 자리가 이 마을 여급이다.
+            if (seat.Person < 0 && seat.Art.Female && !maidSeated && maid is { } her)
+            {
+                maidSeated = true;
+                art.Add(new(bgra, seat.Art.Width, seat.Art.Height,
+                            _player.LikingOf(her.Id) > 0 ? her.Name : "여",
+                            () => MeetBarmaid(her)));
+                continue;
+            }
 
             if (seat.Person < 0)
             {
@@ -96,6 +109,143 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             }
         }
         return art;
+    }
+
+    // ── 여급 ────────────────────────────────────────────────────────────────
+
+    /// <summary>이 마을 술집에 지금 서 있는 여급. 표를 못 읽었거나 없으면 null.</summary>
+    private BarmaidTable.Barmaid? Standing() =>
+        _game.Barmaids?.Standing(_cityId, _player.Date.Year);
+
+    /// <summary>여급 얼굴. FEMALE.CDS 에서 낸다.</summary>
+    private uint[]? FaceOfMaid(in BarmaidTable.Barmaid her) =>
+        _game.Faces?.TryGetBgra(her.Face, female: true);
+
+    /// <summary>
+    /// 여급을 눌렀을 때. <b>처음이면 이름을 밝히고</b>, 그 뒤로는 용건을 묻는다.
+    /// </summary>
+    /// <remarks>
+    /// 첫 대화의 폭이 궁합으로 갈린다(<c>0x00466730</c>) — 맞으면 친밀도 50, 아니면 3 이고
+    /// 말투부터 다르다. 자세한 것은 <see cref="Barmaids"/> 와 볼트 <c>58.분석-술집 여급과 궁합</c>.
+    /// </remarks>
+    private void MeetBarmaid(BarmaidTable.Barmaid her)
+    {
+        var face = FaceOfMaid(her);
+        bool destined = Barmaids.Destined(_player, her);
+
+        if (_player.LikingOf(her.Id) == 0)
+        {
+            _player.AddLiking(her.Id, Barmaids.FirstMeet(_player, her));
+            TalkDialog.Say(_view, face, "", destined
+                ? $"고마워요! 저는 {her.Name}. 물어보고 싶은 것이 있으면 뭐든지 물어보세요."
+                : $"아, 고마워요. 저는 {her.Name}. 무슨 일이시죠?");
+            return;
+        }
+
+        while (true)
+        {
+            int liking = _player.LikingOf(her.Id);
+            switch (TalkDialog.Ask(_view, face, "", "무슨 일이시죠?",
+                                   "이야기한다", "선물을 준다", "유혹한다", "떠난다"))
+            {
+                case 0: Chat(her, face, destined); break;
+                case 1: Gift(her, face); break;
+                case 2: if (Woo(her, face, liking)) return; break;
+                default: return;
+            }
+        }
+    }
+
+    /// <summary>잡담. 게임 표(<c>0x0055B0C0</c> 벌)에서 한 줄을 집는다.</summary>
+    private void Chat(in BarmaidTable.Barmaid her, uint[]? face, bool destined)
+    {
+        string words = Chats[_game.Random.Next(Chats.Length)];
+        TalkDialog.Say(_view, face, "", words);
+        _player.AddLiking(her.Id, Barmaids.ChatLike(destined));
+    }
+
+    /// <summary>여급이 건네는 잡담. 게임 것을 그대로 옮겼다.</summary>
+    private static readonly string[] Chats =
+    [
+        "취해서 괴롭히는 손님들이 있어요, 정말 싫어!",
+        "옛, 애인? 비-밀.",
+        "어디 멋있는 사람 없나~.",
+        "모험이 그렇게 재미있어요? 그럼 이야기 들려줘요.",
+        "배는 가지고 있어요? 배가 없다면 멋이 없죠.",
+        "당신 좋아하는 사람있죠? 얼굴에 씌어 있어요.",
+        "이 가게 술은 맛있어요. 많이 드세요.",
+        "바다의 사나이란, 전부 「여자보다 바다다!」 라고 말해요. 실례되는 말이야.",
+        "이 마을의 하늘은 별이 총총한게 매우 아름다워요!",
+        "나도 배 타보고 싶어.",
+        "역시 좋아하는 사람의 배에 타고 싶어.",
+        "매일 같은 일 반복이야···나도 다른 마을에 가고 싶어~.",
+        "결혼? 그런 것 생각해 본 일도 없어요.",
+        "어떤 여자를 좋아해요? 가르쳐 줘요.",
+    ];
+
+    /// <summary>
+    /// 선물을 준다. 소지품에서 하나 골라 주면 값만큼 친밀도가 오른다.
+    /// </summary>
+    /// <remarks>
+    /// 받고 하는 말이 친밀도로 갈린다(<c>0x00466B70</c> — 30 · 50 · 70 · 90).
+    /// </remarks>
+    private void Gift(in BarmaidTable.Barmaid her, uint[]? face)
+    {
+        var items = _game.Items;
+        var bag = _player.Items;
+        if (items == null || bag.Count == 0)
+        {
+            TalkDialog.Say(_view, face, "", "어머, 빈 손이시네요.");
+            return;
+        }
+
+        GameDialog.Show(_view, "무엇을 보내시겠습니까?");
+        int at = HintListDialog.Pick(_view,
+            [.. bag.Select(id => items.Find(id)?.Name ?? $"아이템 {id}")],
+            "선물 선택", "줄 것이 없습니다");
+        if (at < 0) return;
+
+        int itemId = bag[at];
+        var thing = items.Find(itemId);
+        _player.Drop(itemId);
+
+        int now = _player.AddLiking(her.Id, Barmaids.GiftLike(thing?.SellList ?? 0));
+        TalkDialog.Say(_view, face, "", Barmaids.GiftWord(now));
+    }
+
+    /// <summary>
+    /// 유혹한다. 친밀도가 차 있으면 맺어지고, 아니면 물린다.
+    /// </summary>
+    /// <returns>맺어졌으면 true — 그러면 창을 접는다.</returns>
+    /// <remarks>
+    /// 유혹의 말은 문화권마다 딴 벌이다(<c>0x0055B9B8</c> 벌 — 게임 문자열에 "지중해의
+    /// 유혹어" 라는 이름이 그대로 박혀 있다). 물릴 때 하는 말 셋도 게임 것이다
+    /// (<c>0x0055BFB0</c>).
+    ///
+    /// <b>문턱은 우리가 정했다</b> — 게임에서 그 자리를 아직 못 짚었다.
+    /// </remarks>
+    private bool Woo(in BarmaidTable.Barmaid her, uint[]? face, int liking)
+    {
+        TalkDialog.Say(_view, face, "", Barmaids.WooWord(_cultureNo));
+
+        if (liking < Barmaids.WooNeeded)
+        {
+            TalkDialog.Say(_view, face, "",
+                           Barmaids.Refusals[_game.Random.Next(Barmaids.Refusals.Length)]);
+            return false;
+        }
+
+        if (_player.Spouse.Length > 0)
+        {
+            TalkDialog.Say(_view, face, "", "당신, 이미 사람이 있잖아요.");
+            return false;
+        }
+
+        _player.Marry(her.Name, her.Id);
+        TalkDialog.Say(_view, face, "", "네··· 당신을 따라가겠어요.");
+        NoticeDialog.Show(_view, $"{_player.Name}{GameUi.Josa(_player.Name, "은", "는")} "
+                               + $"{her.Name}{GameUi.Josa(her.Name, "과", "와")} 결혼했습니다");
+        return true;
     }
 
     /// <summary>

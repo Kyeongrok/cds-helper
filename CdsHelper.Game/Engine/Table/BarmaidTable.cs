@@ -9,7 +9,7 @@ namespace CdsHelper.Game.Local.Helpers;
 /// <code>
 ///   표 VA 0x00517AF8, 127행 x 40바이트 (.rdata)
 ///   +0x00  이름 ptr("카를로타")      +0x04  얼굴 번호(FEMALE.CDS)
-///   +0x08  ?                        +0x0C  별자리(0~11)
+///   +0x08  등장년도 = 1495 - 값      +0x0C  별자리(0~11)
 ///   +0x10  혈액형(0 A · 1 B · 2 O · 3 AB)
 ///   +0x14  운명 얼굴 코드(0~30)      ← 궁합이 이 값 하나로 갈린다
 ///   +0x18  성격(0~7)                +0x1C  늘 4
@@ -49,6 +49,13 @@ public sealed class BarmaidTable
     /// <summary>궁합으로 쳐 주는 코드 차이.</summary>
     public const int DestinedGap = 1;
 
+    /// <summary>등장년도를 내는 밑값 — <c>1495 - 표값</c> 이다.</summary>
+    /// <remarks>
+    /// 놀이가 시작하는 1480 년 아래로는 안 내려간다. 127명 가운데 <b>한 명</b>만
+    /// 편집기 도감과 한 해 어긋나는데(94번), 나머지 126명이 맞으니 그쪽 오기로 본다.
+    /// </remarks>
+    public const int YearBase = 1495, FirstYear = 1480;
+
     /// <summary>궁합이 맞을 때와 아닐 때 첫 대화가 올리는 친밀도(<c>0x00466768</c> · <c>0x0046679A</c>).</summary>
     public const int DestinedLike = 50, PlainLike = 3;
 
@@ -70,9 +77,10 @@ public sealed class BarmaidTable
     /// <param name="Fortune">운명 얼굴 코드 — 궁합이 이 값으로 갈린다.</param>
     /// <param name="Tongues">가르쳐 주는 언어 비트.</param>
     [method: JsonConstructor]
+    /// <param name="Year">이 해부터 그 술집에 선다.</param>
     public readonly record struct Barmaid(
         int Id, string Name, int City, int Face, int Zodiac, int Blood,
-        int Fortune, int Personality, int Tongues)
+        int Fortune, int Personality, int Tongues, int Year)
     {
         /// <summary>성격 이름. 표 밖이면 빈 문자열.</summary>
         [JsonIgnore]
@@ -102,6 +110,25 @@ public sealed class BarmaidTable
 
     /// <summary>그 마을 술집에 서는 사람들.</summary>
     public List<Barmaid> InCity(int cityId) => [.. _rows.Where(b => b.City == cityId)];
+
+    /// <summary>
+    /// 그 마을 술집에 <b>지금</b> 서 있는 여급. 없으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 한 마을에 여럿이 적혀 있는데 등장년도가 다르다 — 리스본은 알다(1480) · 카를로타
+    /// (1498) · 루치아(1522) 셋이다. 해가 갈수록 뒷사람으로 갈리므로 <b>나온 사람 가운데
+    /// 가장 늦게 나온 이</b>를 세운다.
+    /// </remarks>
+    public Barmaid? Standing(int cityId, int year)
+    {
+        Barmaid? found = null;
+        foreach (var b in _rows)
+        {
+            if (b.City != cityId || b.Year > year) continue;
+            if (found is not { } had || b.Year >= had.Year) found = b;
+        }
+        return found;
+    }
 
     /// <summary>
     /// 그 나이의 주인공이 내는 <b>표시 얼굴 코드</b>. 서른여섯부터 열여섯이 더 붙는다.
@@ -147,7 +174,8 @@ public sealed class BarmaidTable
                                  Blood: exe.Int(at + 0x10),
                                  Fortune: exe.Int(at + 0x14),
                                  Personality: exe.Int(at + 0x18),
-                                 Tongues: exe.Int(at + 0x20)));
+                                 Tongues: exe.Int(at + 0x20),
+                                 Year: Math.Max(FirstYear, YearBase - exe.Int(at + 0x08))));
         }
 
         if (rows[0].Name != Probe)

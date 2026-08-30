@@ -1264,7 +1264,8 @@ public sealed class ShipMapWindow : Window
             // 밝힌 바다. 판 21 앞의 세이브에는 없어 빈 채로 시작한다.
             _game.Player.Explored.Restore(saved.Explored);
             // 아내와 후손. 판 22 앞의 세이브에는 없어 홀로 시작한다.
-            _game.Player.RestoreFamily(saved.Spouse, saved.Heirs);
+            _game.Player.RestoreFamily(saved.Spouse, saved.Heirs,
+                                       saved.SpouseId ?? -1, saved.Liking);
             if (saved.Morale is { } morale) _game.Player.SetMorale(morale);
             _game.Player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;

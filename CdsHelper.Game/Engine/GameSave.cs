@@ -106,7 +106,8 @@ public static class GameSave
         Dictionary<int, List<Ship.Stats>>? DockedStats = null, int? Morale = null,
         List<string>? ShipNames = null, Dictionary<int, List<string>>? DockedNames = null,
         List<Support.Local.Models.Player.MateInfo>? MateBook = null,
-        string? Explored = null, string? Spouse = null, List<string>? Heirs = null);
+        string? Explored = null, string? Spouse = null, List<string>? Heirs = null,
+        int? SpouseId = null, Dictionary<int, int>? Liking = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -120,7 +121,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(22, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(23, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -143,7 +144,9 @@ public static class GameSave
                                 e => e.Key, e => e.Value.Select(s => s.Name).ToList()),
                             [.. player.MateBook],
                             player.Explored.ToText(),
-                            player.Spouse, [.. player.Heirs]);
+                            player.Spouse, [.. player.Heirs],
+                            player.SpouseId,
+                            player.Liking.ToDictionary(p => p.Key, p => p.Value));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
