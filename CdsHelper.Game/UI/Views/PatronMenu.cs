@@ -203,9 +203,13 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                                       uint[]? face, Action<string> Say, bool more)
     {
         var dice = new GameRandom(Environment.TickCount);
+        var stage = _view as CityPicView;
 
-        // 1. 이야기가 감당할 만한가.
+        // 1. 이야기가 감당할 만한가. 게임은 여기서 <b>설득 애니메이션(5번)</b>을 돌린다
+        //    (0x004AE68D) — 감당할 만하면 청을 들어주고 아니면 엎어진다.
         int weight = Persuasion.Weight(hint.Grade, _player.Fame);
+        stage?.PlayFameCheck(weight == 0);
+
         if (weight == 2)
         {
             Say("그런 이야기는 들어본 적도 없다. 자네에게는 짐이 너무 무거울 걸세.");
@@ -231,15 +235,21 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         int rhetoric = _player.LevelOf(Skill.Names[Skill.Rhetoric]);
         int charm = _player.AbilityOf(Ability.Charm);
 
-        // 3. 말솜씨로 넘긴다.
-        if (Persuasion.Talks(eye, rhetoric, charm, dice))
+        // 3. 말솜씨로 넘긴다. 굴림 결과가 곧 <b>하트(3번)</b>다 — 이기면 커지고 지면 깨진다.
+        bool talked = Persuasion.Talks(eye, rhetoric, charm, dice);
+        stage?.PlayHeart(talked);
+
+        if (talked)
         {
             Say("흐음, 그다지 흥미가 없지만 자네의 부탁이라면 안 들어 줄 것도 없지.");
             return Persuasion.Verdict.Reluctant;
         }
 
-        // 4. 못 넘겼다 — 다른 이야기라도 물어볼지, 아주 물릴지.
-        if (more && Persuasion.Softens(eye, rhetoric, charm, dice))
+        // 4. 못 넘겼다 — 다른 이야기라도 물어볼지, 아주 물릴지. 여기서도 하트가 돈다.
+        bool softened = more && Persuasion.Softens(eye, rhetoric, charm, dice);
+        if (more) stage?.PlayHeart(softened);
+
+        if (softened)
         {
             Say("흐음, 썩 내키지 않는군. 좀더 흥미있는 이야기는 없는가?");
             return Persuasion.Verdict.AskAnother;

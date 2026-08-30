@@ -41,6 +41,15 @@ public sealed class EffectAnim
     /// </remarks>
     public const int Cannon = 2;
 
+    /// <summary>
+    /// 하트(파트 12~15) — 커졌다가 깨진다. 껍데기는 <c>0x004A6360</c> 이고 소리는 없다.
+    /// </summary>
+    /// <remarks>
+    /// 후원자를 설득할 때 <b>마음이 동하는지</b>를 이 벌로 낸다 — <c>0x004AE7B7</c> 과
+    /// <c>0x004AE815</c> 가 굴림 결과를 그대로 넘긴다.
+    /// </remarks>
+    public const int Heart = 3;
+
     public const int Persuade = 5;
 
     /// <summary>원 바깥(비침) 색인.</summary>
