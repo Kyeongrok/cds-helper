@@ -1097,10 +1097,9 @@ public sealed class CityPicView : Window
             // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
             TownWork.FleetForm => () => Menu.Push(Port.FleetMenu),
             TownWork.CrewForm => Port.CrewForm,
-            // 알릴 것이 없으면 흐리다 — 다 알리고 나면 그 자리에서 흐려지도록
-            // 알린 뒤에 차림표를 다시 짓는다.
-            TownWork.Announce when Port.Announceable().Count > 0 => () =>
-                { Port.Announce(); Menu.Refresh(); },
+            // 다 알리고 나면 그 줄이 아예 사라져야 한다 — 줄 목록을 다시 지어
+            // 그리게 한다(TownWorks.LinesOf 가 알릴 것이 없으면 떼 낸다).
+            TownWork.Announce => () => { Port.Announce(); Menu.Refresh(); },
             TownWork.Supply => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),

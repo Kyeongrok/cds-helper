@@ -345,13 +345,20 @@ public sealed class ShipRegistryDialog : Window
         _slots.Children.Clear();
         if (_current is not { } design) return;
 
+        // 붙박이는 제 그림벌(asset/ship-g*)을 그대로 쓴다 — 갈아 끼울 것이 없어 보여만 준다.
+        int skin = design.IsBuiltin
+            ? Hull.Builtin.FirstOrDefault(h => h.Name == design.Builtin)?.Skin ?? 0
+            : -1;
+
         for (int i = 0; i < ShipRegistry.Directions; i++)
-            _slots.Children.Add(MakeSlot(design.Id, i));
+            _slots.Children.Add(MakeSlot(design.Id, i, skin));
     }
 
-    private UIElement MakeSlot(string id, int direction)
+    private UIElement MakeSlot(string id, int direction, int builtinSkin)
     {
-        var image = ShipRegistry.ReadSprite(id, direction);
+        var image = builtinSkin >= 0
+            ? ShipRegistry.ReadBuiltinSprite(builtinSkin, direction)
+            : ShipRegistry.ReadSprite(id, direction);
 
         var frame = new Border
         {
@@ -396,7 +403,10 @@ public sealed class ShipRegistryDialog : Window
         var button = new Button
         {
             Content = stack,
-            ToolTip = $"{ShipRegistry.DirectionNames[direction]} 쪽 그림 고르기",
+            IsEnabled = builtinSkin < 0,
+            ToolTip = builtinSkin >= 0
+                ? "붙박이 선체는 게임 그림벌을 그대로 씁니다"
+                : $"{ShipRegistry.DirectionNames[direction]} 쪽 그림 고르기",
             Padding = new Thickness(0),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
