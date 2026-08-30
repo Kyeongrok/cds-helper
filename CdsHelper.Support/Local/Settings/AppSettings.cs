@@ -17,6 +17,13 @@ public class AppSettingsData
     public string? TrailDirectory { get; set; }
     public HashSet<int> CheckedDiscoveryIds { get; set; } = new();
     public WorldMapOptions WorldMap { get; set; } = new();
+    /// <summary>
+    /// 자동 항해 중에 뜨는 대화창의 확인을 대신 눌러 줄지.
+    /// </summary>
+    /// <remarks>
+    /// <b>설정 창에는 안 낸다.</b> 자동 항해를 쓰는 자리에서 끌 일이 없어 칸만 차지했다 —
+    /// <see cref="Local.Helpers.AutoPlayService"/> 가 이 값을 그대로 쓴다.
+    /// </remarks>
     public bool AutoConfirmDialog { get; set; } = true;
 
     public RerollOptions Reroll { get; set; } = new();
