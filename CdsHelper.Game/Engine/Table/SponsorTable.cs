@@ -24,6 +24,9 @@ namespace CdsHelper.Game.Local.Helpers;
 /// </remarks>
 public sealed class SponsorTable
 {
+    /// <summary>알맹이 모양 판. 안목·친밀도·취향 칸을 더하면서 올렸다.</summary>
+    private const int SnapshotVersion = 2;
+
     private const int TableVa = 0x005228B8;
     private const int RowCount = 81;
     private const int RowSize = 60;
@@ -54,7 +57,15 @@ public sealed class SponsorTable
     /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
     /// </remarks>
     [method: JsonConstructor]
-    public readonly record struct Sponsor(int Index, string Name, int Face, bool IsFemale, int JobCode)
+    /// <param name="Eye">안목(<c>+0x20</c>). 이야기를 가늠하는 눈이다.</param>
+    /// <param name="Closeness">친밀도 밑값(<c>+0x30</c>). 낼 자금이 여기서 갈린다.</param>
+    /// <param name="Tastes">
+    /// 좋아하는 갈래(<c>+0x38</c> 의 낮은 여덟 비트). 맞으면 두말없이 원조한다
+    /// (<see cref="Engine.Town.Persuasion.Likes"/>).
+    /// </param>
+    public readonly record struct Sponsor(int Index, string Name, int Face, bool IsFemale,
+                                          int JobCode, int Eye = 0, int Closeness = 0,
+                                          int Tastes = 0)
     {
         /// <summary>직업 이름. 모르는 코드면 빈 문자열.</summary>
         public string Job => JobCode switch
@@ -120,7 +131,8 @@ public sealed class SponsorTable
     /// </summary>
     public static SponsorTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe,
+                                              out string error, SnapshotVersion);
         LastError = error;
         return snapshot == null ? null : new SponsorTable(snapshot);
     }
@@ -142,7 +154,10 @@ public sealed class SponsorTable
                 Name: name,
                 Face: exe.Int(row + 0x04),
                 IsFemale: exe.Int(row + 0x08) == 1,
-                JobCode: exe.Int(row + 0x10)));
+                JobCode: exe.Int(row + 0x10),
+                Eye: exe.Int(row + 0x20),
+                Closeness: exe.Int(row + 0x30),
+                Tastes: exe.Int(row + 0x38) & 0xFF));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.

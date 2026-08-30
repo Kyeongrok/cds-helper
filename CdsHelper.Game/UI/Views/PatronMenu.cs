@@ -1,7 +1,8 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Models;
+using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
@@ -148,14 +149,17 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         var it = hint.Value;
 
-        // 안목 판정 — 후원자가 이야기의 크기를 가늠하지 못하면 물린다.
-        if (patron.Discernment / 20 + (it.Grade == 5 ? 1 : 2) < it.Grade)
-        {
-            Say("가능한 한 원조해 주고 싶지만, 너무나 이야기가 막연하네.");
-            return;
-        }
+        // 받아 줄지는 게임 셈 그대로 가린다(Persuasion 참고) — 이야기 크기, 좋아하는
+        // 갈래, 안목·웅변·매력 굴림 차례다.
+        var verdict = Decide(it, patron, _game.Sponsors?.FindByName(patron.Name),
+                             face, Say, mine.Count > 1);
+        if (verdict is Persuasion.Verdict.Refused or Persuasion.Verdict.TooBig
+                    or Persuasion.Verdict.AskAnother) return;
 
-        int funds = HintTable.FundsFor(it, patron.SupportRatePercent);
+        int funds = Persuasion.Funds(
+            it.Funds,
+            _game.Sponsors?.FindByName(patron.Name)?.Closeness ?? DefaultCloseness,
+            verdict);
 
         // 재력 판정 — 낼 돈이 없으면 물린다.
         if (patron.Wealth < funds)
@@ -184,7 +188,68 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         Say("그러면, 기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게.");
     }
 
+    /// <summary>친밀도를 모를 때 쓰는 밑값. 표를 못 읽었을 때다.</summary>
+    private const int DefaultCloseness = 60;
+
     /// <summary>
+    /// 이야기를 받아 줄지 가린다 — 게임 <c>0x004AE5F0</c> 의 차례 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 말은 세 벌(문화권별)이 있는데 우리는 한 벌만 쓴다. 아주 물리면 게임은 후원자의
+    /// 기분을 상하게 해 한동안 안 만나 주는데, 그 자리는 아직 안 들고 있다.
+    /// </remarks>
+    private Persuasion.Verdict Decide(HintTable.Hint hint, Patron patron,
+                                      SponsorTable.Sponsor? sponsor,
+                                      uint[]? face, Action<string> Say, bool more)
+    {
+        var dice = new GameRandom(Environment.TickCount);
+
+        // 1. 이야기가 감당할 만한가.
+        int weight = Persuasion.Weight(hint.Grade, _player.Fame);
+        if (weight == 2)
+        {
+            Say("그런 이야기는 들어본 적도 없다. 자네에게는 짐이 너무 무거울 걸세.");
+            return Persuasion.Verdict.TooBig;
+        }
+        if (weight == 1)
+        {
+            // 무겁지만 우겨 볼 만하다 — 한 번 더 묻고 그래도 하겠다면 받아 준다.
+            if (!ConfirmDialog.Ask(_view, "자네에게는 짐이 너무 무거우리라 생각되는데... "
+                                        + "꼭 하고 싶은가?", face: face))
+                return Persuasion.Verdict.TooBig;
+            return Persuasion.Verdict.Reluctant;
+        }
+
+        // 2. 좋아하는 갈래면 두말이 없다.
+        if (Persuasion.Likes(sponsor?.Tastes ?? 0, hint.Category))
+        {
+            Say("흐음, 흥미있군.");
+            return Persuasion.Verdict.Interested;
+        }
+
+        int eye = sponsor?.Eye ?? patron.Discernment;
+        int rhetoric = _player.LevelOf(Skill.Names[Skill.Rhetoric]);
+        int charm = _player.AbilityOf(Ability.Charm);
+
+        // 3. 말솜씨로 넘긴다.
+        if (Persuasion.Talks(eye, rhetoric, charm, dice))
+        {
+            Say("흐음, 그다지 흥미가 없지만 자네의 부탁이라면 안 들어 줄 것도 없지.");
+            return Persuasion.Verdict.Reluctant;
+        }
+
+        // 4. 못 넘겼다 — 다른 이야기라도 물어볼지, 아주 물릴지.
+        if (more && Persuasion.Softens(eye, rhetoric, charm, dice))
+        {
+            Say("흐음, 썩 내키지 않는군. 좀더 흥미있는 이야기는 없는가?");
+            return Persuasion.Verdict.AskAnother;
+        }
+
+        Say("그런 쓸데없는 이야기에 버릴 돈은 없네.");
+        return Persuasion.Verdict.Refused;
+    }
+
+    /// <summary>
     /// 그 후원자에게 <b>보고</b>할 수 있는지 — 계약을 맺은 그 자리이고 맡은 것을 찾아 왔는가.
     /// </summary>
     /// <remarks>
