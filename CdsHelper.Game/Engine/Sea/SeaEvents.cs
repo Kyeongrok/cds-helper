@@ -1,18 +1,20 @@
-using CdsHelper.Support.Local.Models;
+﻿using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Sea;
 
 /// <summary>바다에서 하루를 넘길 때 일어날 수 있는 일.</summary>
 /// <remarks>
 /// 게임은 일곱 갈래를 굴리고(<c>0x004746CD</c> 의 <c>rand(7)</c>) 갈래마다 딴 처리로
-/// 뛴다(점프표 <c>0x00474D7C</c>). 여기서 흉내내는 것은 넷째·다섯째 — 폭풍과 눈보라뿐이다.
-/// 나머지는 부하·역병 같은 아직 없는 것을 건드린다.
+/// 뛴다(점프표 <c>0x00474D7C</c>).
 /// <code>
-///   0  0x004746F9   암초        3  0x00474B4A  반란     ← 옮겼다
-///   1  0x00474812   무풍        4  0x00474BD5  폭풍     ← 옮겼다
-///   2  0x004749FA   병          5  0x00474BD5  눈보라   ← 옮겼다
-///                               6  0x004746F9  암초(0 과 같은 자리)
+///   0  0x004746F9   쥐          3  0x00474B4A  반란
+///   1  0x00474812   괴혈병      4  0x00474BD5  폭풍
+///   2  0x004749FA   전염병      5  0x00474BD5  눈보라
+///                               6  0x004746F9  쥐(0 과 같은 자리)
 /// </code>
+/// 예전에는 0·1·2 를 암초·무풍·병으로 적어 두었는데 <b>틀렸다</b>. 갈래마다 부르는
+/// 문구를 보면 갈린다 — <c>0x00534D38</c> "쥐가 발생하기…" · <c>0x00534F30</c>
+/// "…괴혈병에 걸려…" · <c>0x00535090</c> "…전염병으로 인해…" 다.
 /// </remarks>
 public enum SeaEventKind
 {
@@ -21,6 +23,21 @@ public enum SeaEventKind
 
     /// <summary>눈보라. 갈래 다섯.</summary>
     Blizzard,
+
+    /// <summary>쥐. 갈래 0 과 6.</summary>
+    Rats,
+
+    /// <summary>괴혈병. 갈래 하나.</summary>
+    Scurvy,
+
+    /// <summary>전염병. 갈래 둘.</summary>
+    Plague,
+
+    /// <summary>괴혈병이 돌기 전의 귀띔 — 터지지는 않는다.</summary>
+    Weakening,
+
+    /// <summary>전염병이 돌기 전의 귀띔 — 터지지는 않는다.</summary>
+    StrangeIllness,
 
     /// <summary>반란. 갈래 셋.</summary>
     Mutiny,
@@ -72,6 +89,35 @@ public static class SeaEvents
     /// <summary>반란의 갈래 번호(<c>0x00474B4A</c>).</summary>
     public const int MutinyKind = 3;
 
+    /// <summary>쥐의 갈래 번호 둘. 점프표가 0 과 6 을 같은 자리로 보낸다.</summary>
+    public const int RatsKind = 0, RatsAgainKind = 6;
+
+    /// <summary>괴혈병(<c>0x00474812</c>)과 전염병(<c>0x004749FA</c>)의 갈래 번호.</summary>
+    public const int ScurvyKind = 1, PlagueKind = 2;
+
+    /// <summary>
+    /// 병이 터지기 전에 <b>귀띔만 하고 끝나는</b> 주사위 폭.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   474812  괴혈병  if (rand(120) &lt; 항해술 + 1)  "제독! 모두 약해져 있습니다…"  로 끝
+    ///   4749fa  전염병  if (rand( 60) &lt; 항해술 + 1)  "제독! 이상한 병이 돌고 있습니다…"
+    /// </code>
+    /// 폭이 좁을수록 귀띔이 잦다 — 그러니 <b>전염병 쪽이 더 자주 미리 잡힌다</b>.
+    /// 항해술이 높을수록 미리 알아채는 것이라, 여기서도 항해술이 배를 지킨다.
+    /// </remarks>
+    public const int ScurvyNotice = 120, PlagueNotice = 60;
+
+    /// <summary>괴혈병을 막는 의술의 자리(<c>0x0047484C</c> · <c>0x0047486A</c> 의 <c>cmp 3</c>).</summary>
+    /// <remarks>
+    /// 게임은 부하 둘의 자리를 3 과 견준다. 우리는 부하마다 기능을 들고 있지 않아
+    /// <b>주인공의 의학</b>으로 갈음한다 — 전염병 쪽에는 이 관문이 아예 없다.
+    /// </remarks>
+    public const int MedicineNeeded = 3;
+
+    /// <summary>그 의술의 이름.</summary>
+    public const string MedicineSkill = "의학";
+
     /// <summary>반란을 그냥 보는 주기(<c>mov $0x7,%ecx ; idiv</c>).</summary>
     public const int MutinyPeriod = 7;
 
@@ -109,12 +155,41 @@ public static class SeaEvents
         int safe = player.LevelOf(SkillName) * SafePerLevel + SafeBase;
         if (safe >= rng.Next(SafeRoll)) return null;
 
-        int kind = rng.Next(KindCount);
-        if (kind == MutinyKind) return Mutinous(player) ? SeaEventKind.Mutiny : null;
-        if (kind != StormKind && kind != BlizzardKind) return null;
+        int sail = player.LevelOf(SkillName);
+        return rng.Next(KindCount) switch
+        {
+            RatsKind or RatsAgainKind => SeaEventKind.Rats,
 
-        return BandOf(lat);
+            // 병 둘은 먼저 귀띔 주사위를 굴린다. 걸리면 그것으로 끝이다.
+            ScurvyKind when rng.Next(ScurvyNotice) < sail + 1 => SeaEventKind.Weakening,
+            ScurvyKind when player.LevelOf(MedicineSkill) >= MedicineNeeded => null,
+            ScurvyKind => SeaEventKind.Scurvy,
+
+            PlagueKind when rng.Next(PlagueNotice) < sail + 1 => SeaEventKind.StrangeIllness,
+            PlagueKind => SeaEventKind.Plague,
+
+            MutinyKind => Mutinous(player) ? SeaEventKind.Mutiny : null,
+            StormKind or BlizzardKind => BandOf(lat),
+            _ => null,
+        };
     }
+
+    /// <summary>
+    /// 병이나 쥐가 앗아 가는 선원 수. 없으면 0.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배마다 선원을 담고 하나씩 골라 죽이는데(<c>0x00474941</c> 벌이 이름을 뽑아
+    /// "…돌아올 수 없는 사람이 되었다" 를 낸다) 우리는 함대가 통째로 태우므로 <b>머릿수만</b>
+    /// 던다. 쥐는 사람을 안 잡고 <b>식량</b>을 축낸다.
+    /// </remarks>
+    public static int TollOf(SeaEventKind kind, Random rng) => kind switch
+    {
+        SeaEventKind.Scurvy or SeaEventKind.Plague => rng.Next(3) + 1,
+        _ => 0,
+    };
+
+    /// <summary>쥐가 축내는 식량 통 수(<c>0x0047476E</c> 벌).</summary>
+    public static int RatsEat(Random rng) => rng.Next(3) + 1;
 
     /// <summary>
     /// 반란이 일 만한지 — <b>이레마다</b>, 또는 피로도가 80 을 넘었으면 언제든.
