@@ -51,9 +51,11 @@ internal sealed class SkillMakeDialog : InfoDialog
     private int _left;
     private bool _ok;
 
-    private SkillMakeDialog(Player player, int bonus)
+    private SkillMakeDialog(Player player)
     {
-        _left = bonus;
+        // 보너스는 앞 걸음에서 남겨 온 것이 아니라 여기서 새로 센다(0x0045DDD9).
+        _left = Skill.BonusFor(player.Age, player.AbilityOf(Ability.Mind),
+                               player.Work.Bias[Ability.Mind]);
         _cap = Skill.CapFor(player.AbilityOf(Ability.Mind));
 
         foreach (var (skill, level) in player.Work.Skills)
@@ -240,10 +242,13 @@ internal sealed class SkillMakeDialog : InfoDialog
     /// <summary>
     /// 기술 화면을 띄운다. "다음" 을 누르면 <paramref name="player"/> 에 적고 true.
     /// </summary>
-    /// <param name="bonus">앞 걸음에서 남겨 온 보너스 포인트.</param>
-    public static bool Show(Window owner, Player player, int bonus)
+    /// <remarks>
+    /// 보너스 포인트는 여기서 <b>새로 센다</b> — 나이와 지력과 직업 보정으로 나온다
+    /// (<see cref="Skill.BonusFor"/>).
+    /// </remarks>
+    public static bool Show(Window owner, Player player)
     {
-        var dialog = new SkillMakeDialog(player, bonus) { Owner = owner };
+        var dialog = new SkillMakeDialog(player) { Owner = owner };
         dialog.ShowDialog();
         if (!dialog._ok) return false;
 

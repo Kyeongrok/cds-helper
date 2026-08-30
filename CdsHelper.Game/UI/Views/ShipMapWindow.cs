@@ -1098,12 +1098,12 @@ public sealed class ShipMapWindow : Window
                     break;
 
                 case 1:
-                    _bonus = AbilityMakeDialog.Show(this, _game.Player, rng);
-                    step = _bonus < 0 ? 0 : 2;
+                    step = AbilityMakeDialog.Show(this, _game.Player, rng) < 0 ? 0 : 2;
                     break;
 
                 case 2:
-                    step = SkillMakeDialog.Show(this, _game.Player, _bonus) ? 3 : 1;
+                    // 보너스는 기술 화면이 제 손으로 센다 — 앞 걸음의 잔량이 아니다.
+                    step = SkillMakeDialog.Show(this, _game.Player) ? 3 : 1;
                     break;
 
                 default:
@@ -1112,10 +1112,6 @@ public sealed class ShipMapWindow : Window
                     break;
             }
     }
-
-    /// <summary>능력치 걸음에서 남겨 온 보너스 포인트. 기술 걸음이 이어 쓴다.</summary>
-    private int _bonus;
-
     /// <summary>
     /// 새 놀이는 <b>고른 국적의 자택</b>에서 시작한다 — 포르투갈이면 리스본,
     /// 에스파니아면 세빌리아다.
