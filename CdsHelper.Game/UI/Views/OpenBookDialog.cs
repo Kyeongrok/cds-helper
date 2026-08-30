@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -41,8 +41,8 @@ public sealed class OpenBookDialog : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
-        Background = Brushes.Transparent;
-        AllowsTransparency = true;
+        // 책 틀이 네모라 비침이 필요 없다 — 레이어드 창은 겹칠 때마다 깜빡인다.
+        Background = GameUi.Back;
 
         var canvas = new Canvas
         {

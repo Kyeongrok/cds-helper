@@ -191,7 +191,12 @@ public sealed class TavernGuests
     /// 여급과 지나가는 손님은 <paramref name="seed"/> 로 도시마다 고정한다 — 창을 여닫을
     /// 때마다 얼굴이 바뀌면 그 도시 술집처럼 보이지 않는다.
     /// </remarks>
-    public IReadOnlyList<Slot> Seat(string? culture, int seed, IReadOnlyList<int> personKeys)
+    /// <param name="withMaid">
+    /// 맨 앞에 여자를 세울지. <b>술집에만</b> 여급이 선다 — 여관에는 여급이 없어서
+    /// 세워 봐야 한잔 사도 아무 일이 없다.
+    /// </param>
+    public IReadOnlyList<Slot> Seat(string? culture, int seed, IReadOnlyList<int> personKeys,
+                                    bool withMaid = true)
     {
         if (!Ranges.TryGetValue(culture ?? "", out var range)) range = Ranges["이베리아"];
 
@@ -205,7 +210,8 @@ public sealed class TavernGuests
 
         // 여급 — 그 문화권에 여자가 없으면 그냥 건너뛴다(구간이 열한 명뿐인 문화권도 있다).
         var rng = new Random(seed);
-        if (women.Count > 0) seats.Add(new Slot(_guests[women[rng.Next(women.Count)]], -1));
+        if (withMaid && women.Count > 0)
+            seats.Add(new Slot(_guests[women[rng.Next(women.Count)]], -1));
 
         // 인물 — 각자 제 그림으로 앉는다.
         for (int i = 0; i < personKeys.Count && seats.Count < MaxOnScreen; i++)

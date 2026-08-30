@@ -25,6 +25,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PortraitBookMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_CityCultureMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_NationEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
@@ -44,6 +45,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
     private const string PART_PortraitBookMenu = "PART_PortraitBookMenu";
     private const string PART_CityCultureMenu = "PART_CityCultureMenu";
+    private const string PART_NationEditMenu = "PART_NationEditMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
@@ -136,6 +138,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_CityCultureMenu) is MenuItem cityCultureMenu)
         {
             cityCultureMenu.Click += OnCityCultureMenuClick;
+        }
+
+        if (GetTemplateChild(PART_NationEditMenu) is MenuItem nationEditMenu)
+        {
+            nationEditMenu.Click += OnNationEditMenuClick;
         }
 
         if (GetTemplateChild(PART_ImageShrinkMenu) is MenuItem imageShrinkMenu)
@@ -302,6 +309,10 @@ public class CdsHelperWindow : CdsWindow
         };
         dialog.ShowDialog();
     }
+
+    // 나라 이름·쓰는 말·수도를 고치는 창. 고친 것은 놀이에도 그대로 쓰인다.
+    private void OnNationEditMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.NationEditDialog.Show(this);
 
     // 그림 파일을 골라 크기·용량을 줄이는 창. 게임과는 상관없는 손도구다.
     private void OnImageShrinkMenuClick(object sender, RoutedEventArgs e)
