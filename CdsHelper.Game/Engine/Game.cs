@@ -81,6 +81,7 @@ public sealed class Game
         _discoveries = null; _discoveriesTried = false;
         _stills = null; _stillsTried = false;
         _fighters = null; _fightersTried = false;
+        _book = null; _bookTried = false;
         _barmaids = null; _barmaidsTried = false;
 
         Bgm.SetGameDirectory(directory);
@@ -172,6 +173,11 @@ public sealed class Game
              () => BarmaidTable.LastError, "여급 표");
 
     /// <summary>발견했을 때 뜨는 그림(DSTILL.CDS). 못 읽으면 글만 낸다.</summary>
+    /// <summary>펼친 책 그림(OPENBOOK.CDS) — 도서관에서 힌트를 읽을 때 뜬다.</summary>
+    public OpenBookArt? Book =>
+        Once(ref _book, ref _bookTried, OpenBookArt.Open,
+             () => OpenBookArt.LastError, "펼친 책 그림");
+
     /// <summary>일기토 그림(FIGHTER.CDS) — 제독 한 벌과 상대 여덟 벌.</summary>
     public FighterSprites? Fighters =>
         Once(ref _fighters, ref _fightersTried, FighterSprites.Open,
@@ -360,6 +366,8 @@ public sealed class Game
     private GoodsTable? _goods;
     private CityExeTable? _cityRows;
     private DiscoveryLog? _discoveries;
+    private OpenBookArt? _book;
+    private bool _bookTried;
     private FighterSprites? _fighters;
     private bool _fightersTried;
     private DiscoveryStills? _stills;

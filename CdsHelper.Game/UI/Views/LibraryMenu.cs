@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -43,6 +43,7 @@ internal sealed class LibraryMenu(Window view, Engine.Game game, int cityId, str
         if (_game.Books is not { } books) return;
 
         LibraryDialog.Show(_view, _game.Directory, _cityName, _cityId,
-                           _game.Player, books, _buildings, _game.HintName);
+                           _game.Player, books, _buildings, _game.HintName,
+                           _game.Book, id => _game.Hints?.Find(id)?.Text ?? "");
     }
 }

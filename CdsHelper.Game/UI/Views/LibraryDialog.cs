@@ -46,16 +46,21 @@ public sealed class LibraryDialog : Window
     private readonly Border _tag;
     private readonly TextBlock _tagText;
     private readonly int _scale;
+    private readonly OpenBookArt? _book;
+    private readonly Func<int, string>? _hintText;
 
     private LibraryDialog(string cityName, BookShelf art, IReadOnlyList<Library.Slot> shelved,
                           Player player, BookTable table, CityBuildingTable names,
-                          Func<int, string> hintName, int scale)
+                          Func<int, string> hintName, int scale,
+                          OpenBookArt? bookArt, Func<int, string>? hintText)
     {
         _player = player;
         _books = table;
         _names = names;
         _hintName = hintName;
         _scale = scale;
+        _book = bookArt;
+        _hintText = hintText;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -254,19 +259,37 @@ public sealed class LibraryDialog : Window
         }
 
         var got = new List<string>();
+        var gotIds = new List<int>();
         foreach (int hint in book.Hints)
         {
             if (_player.HasHint(hint) || !Understands(hint)) continue;
-            if (_player.GainHint(hint)) got.Add(_hintName(hint));
+            if (!_player.GainHint(hint)) continue;
+            got.Add(_hintName(hint));
+            gotIds.Add(hint);
         }
 
         image.Source = spines[SpineColor(book)];   // 읽고 나면 색이 바뀐다
+
+        // 게임은 알림 창이 아니라 <b>펼친 책</b>으로 이른다 — 얻은 힌트마다 한 번씩 편다.
+        bool opened = false;
+        foreach (int hint in gotIds)
+            if (OpenBookDialog.Show(this, _book, _hintName(hint), _hintText?.Invoke(hint) ?? "",
+                                    Pages(hint)))
+                opened = true;
+        if (opened) return;
+
         NoticeDialog.Show(this, got.Count == 0
             ? $"「{book.Title}」{GameUi.Josa(book.Title, "을", "를")} 읽었다. 새로 알게 된 것은 없다."
             : $"「{book.Title}」{GameUi.Josa(book.Title, "을", "를")} 읽었다!"
               + Environment.NewLine
               + $"{string.Join(" · ", got)}에 대해 알게 되었다!");
     }
+
+    /// <summary>
+    /// 펼친 쪽 번호. 게임 갈무리는 <c>-3-</c>·<c>-4-</c> 였는데 무엇으로 정하는지는
+    /// 못 짚었다 — 힌트마다 늘 같은 쪽이 나오게 홀수로 짓는다.
+    /// </summary>
+    private static int Pages(int hint) => hint % 60 * 2 + 3;
 
     private static BitmapSource ToBitmap(uint[] bgra, int width, int height)
     {
@@ -279,9 +302,12 @@ public sealed class LibraryDialog : Window
     /// <summary>
     /// 책장을 띄운다. 그림이나 표를 못 읽으면 그 까닭을 알리고 만다.
     /// </summary>
+    /// <param name="book">펼친 책 그림. 없으면 알림 창으로만 이른다.</param>
+    /// <param name="hintText">그 힌트의 설명 — 펼친 책 오른쪽 면에 적힌다.</param>
     public static void Show(Window owner, string gameDirectory, string cityName, int cityId,
                             Player player, BookTable table, CityBuildingTable names,
-                            Func<int, string> hintName)
+                            Func<int, string> hintName,
+                            OpenBookArt? book = null, Func<int, string>? hintText = null)
     {
         var art = BookShelf.Open(gameDirectory);
         if (art == null)
@@ -302,7 +328,8 @@ public sealed class LibraryDialog : Window
 
         // 창 크기에 맞춰 정수배로 키운다(책장이 384x320 이라 두 배면 넉넉하다).
         int scale = owner.ActualHeight > 800 ? 2 : 1;
-        new LibraryDialog(cityName, art, shelved, player, table, names, hintName, scale)
+        new LibraryDialog(cityName, art, shelved, player, table, names, hintName, scale,
+                          book, hintText)
         {
             Owner = owner,
         }.ShowDialog();
