@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.IO;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -39,6 +40,25 @@ public sealed class DiscoveryDialog : Window
     private static readonly Brush FrameEdge = Frozen(Color.FromRgb(0x11, 0x09, 0x09));
     private static readonly Brush FrameFill = Frozen(Color.FromRgb(0x4A, 0x2E, 0x24));
 
+    /// <summary>동영상 칸의 크기. 게임 것이 320x240 이다.</summary>
+    private const double MovieWidth = 320, MovieHeight = 240;
+
+    /// <summary>그림에 바짝 붙는 까만 줄, 그 바깥에 밤색 판, 다시 까만 줄.</summary>
+    private static UIElement Framed(UIElement inner) => new Border
+    {
+        Background = FrameFill,
+        BorderBrush = FrameEdge,
+        BorderThickness = new Thickness(FrameLine),
+        Padding = new Thickness(FrameWide),
+        HorizontalAlignment = HorizontalAlignment.Center,
+        Child = new Border
+        {
+            BorderBrush = FrameEdge,
+            BorderThickness = new Thickness(FrameLine),
+            Child = inner,
+        },
+    };
+
     private static Brush Frozen(Color c)
     {
         var b = new SolidColorBrush(c);
@@ -49,7 +69,7 @@ public sealed class DiscoveryDialog : Window
 
     private readonly GameUi.FocusGroup _focus = new();
 
-    private DiscoveryDialog(BitmapSource? picture, double width, string text)
+    private DiscoveryDialog(BitmapSource? picture, double width, string text, string? movie)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -59,9 +79,32 @@ public sealed class DiscoveryDialog : Window
         Background = GameUi.Back;
 
         // 액자가 좌우로 더 먹으므로 창도 그만큼 넓어야 한다.
-        var stack = new StackPanel { Width = picture == null ? width : width + FrameGrow };
+        var stack = new StackPanel
+        {
+            Width = movie != null ? MovieWidth + FrameGrow
+                  : picture == null ? width : width + FrameGrow,
+        };
 
-        if (picture != null)
+        if (movie != null)
+        {
+            // 동영상은 그림 자리에 그대로 얹는다. 코덱이 없어 못 틀면 그 칸만 비고
+            // 글은 그대로 나온다 — 발견은 이미 적혔고 그림은 덤이다.
+            var player = new MediaElement
+            {
+                Source = new Uri(movie),
+                LoadedBehavior = MediaState.Manual,
+                UnloadedBehavior = MediaState.Close,
+                Stretch = Stretch.Uniform,
+                Width = MovieWidth,
+                Height = MovieHeight,
+            };
+            player.MediaFailed += (_, _) => player.Visibility = Visibility.Collapsed;
+            player.MediaEnded += (_, _) => player.Stop();
+            Loaded += (_, _) => player.Play();
+            Closed += (_, _) => player.Close();
+            stack.Children.Add(Framed(player));
+        }
+        else if (picture != null)
         {
             var image = new Image
             {
@@ -72,21 +115,7 @@ public sealed class DiscoveryDialog : Window
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
             RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
-            // 그림에 바짝 붙는 까만 줄, 그 바깥에 밤색 판, 다시 까만 줄.
-            stack.Children.Add(new Border
-            {
-                Background = FrameFill,
-                BorderBrush = FrameEdge,
-                BorderThickness = new Thickness(FrameLine),
-                Padding = new Thickness(FrameWide),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Child = new Border
-                {
-                    BorderBrush = FrameEdge,
-                    BorderThickness = new Thickness(FrameLine),
-                    Child = image,
-                },
-            });
+            stack.Children.Add(Framed(image));
         }
 
         var words = new GameUi.GameLabel(GameFont.WhiteColor, GameUi.ItemTextHeight)
@@ -135,12 +164,16 @@ public sealed class DiscoveryDialog : Window
     /// <param name="stills">발견물 그림. 없으면 글만 낸다.</param>
     /// <param name="picture">그림 번호. -1 이면 그림이 없는 발견물이다.</param>
     /// <param name="text">적을 글("히랄다탑을 발견했다!").</param>
-    public static void Show(Window owner, DiscoveryStills? stills, int picture, string text)
+    /// <param name="movie">틀 동영상 파일. 없으면 null 이고 그때 그림을 본다.</param>
+    public static void Show(Window owner, DiscoveryStills? stills, int picture, string text,
+                            string? movie = null)
     {
         BitmapSource? art = null;
         double width = MinWidth_;
 
-        if (stills != null && picture >= 0
+        if (movie != null && !File.Exists(movie)) movie = null;
+
+        if (movie == null && stills != null && picture >= 0
             && stills.TryGetBgra(picture, out int w, out int h) is { } bgra)
         {
             var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
@@ -149,8 +182,15 @@ public sealed class DiscoveryDialog : Window
             width = w;
         }
 
-        new DiscoveryDialog(art, width, text) { Owner = owner }.ShowDialog();
+        new DiscoveryDialog(art, width, text, movie) { Owner = owner }.ShowDialog();
     }
+
+    /// <summary>그 발견물의 동영상 파일 자리. 없으면 null.</summary>
+    public static string? MovieOf(string gameDirectory, int movie) =>
+        movie < 0 || gameDirectory.Length == 0
+            ? null
+            : System.IO.Path.Combine(gameDirectory, DiscoveryTable.MovieFolder,
+                                     $"I{movie:00}_0000.AVI");
 
     /// <summary>그림이 없을 때의 글 칸 너비. 게임 알림창의 가장 좁은 폭이다.</summary>
     private const double MinWidth_ = 272;

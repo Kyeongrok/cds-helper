@@ -1985,8 +1985,11 @@ public sealed class ShipMapWindow : Window
         try
         {
             string me = _game.Player.Name;
-            NoticeDialog.Show(this,
-                $"{me}{GameUi.Josa(me, "은", "는")} [{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다");
+
+            // 게임은 글만 내지 않는다 — 발견물마다 그림(DSTILL) 아니면 동영상(AVI)이 있다.
+            DiscoveryDialog.Show(this, _game.Stills, row.Picture,
+                $"{me}{GameUi.Josa(me, "은", "는")} [{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다",
+                DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
 
             if (item >= 0)
             {
