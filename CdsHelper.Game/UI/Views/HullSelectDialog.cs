@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -16,17 +16,37 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class HullSelectDialog : Window
 {
+    /// <summary>
+    /// 표 머리글. <b>값 칸은 없다</b> — 게임 표도 대포수에서 끝난다.
+    /// </summary>
+    /// <remarks>값은 "결정" 을 누른 뒤 "…은(는) %d닢일세. 사겠나?" 로 묻는다.</remarks>
     private static readonly string[] Headers =
-        ["선체명", "내구력", "추진력", "적재용량", "적재중량", "필요승인", "대포수", "값(닢)"];
+        ["선체명", "내구력", "추진력", "적재용량", "적재중량", "필요승인", "대포수"];
 
-    private static readonly double[] Widths = [110, 84, 84, 84, 84, 84, 84, 90];
+    /// <summary>칸 폭. 이름만 넓고 숫자는 글자에 맞춰 좁다.</summary>
+    private static readonly double[] Widths = [108, 58, 58, 64, 68, 64, 58];
+
+    /// <summary>
+    /// 머리글 띠와 줄 띠의 색. 게임 갈무리에서 그대로 뽑았다 — 머리글이 한 톤 짙다.
+    /// </summary>
+    private static readonly Brush HeadFill = Frozen(Color.FromRgb(0xDE, 0xC6, 0xAD));
+    private static readonly Brush RowFill = Frozen(Color.FromRgb(0xFF, 0xEF, 0xD6));
+
+    /// <summary>고른 줄의 띠. 머리글보다 한 톤 더 짙어 눈에 든다.</summary>
+    private static readonly Brush PickFill = Frozen(Color.FromRgb(0xC4, 0xA8, 0x8C));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
 
     /// <summary>표가 이보다 길어지면 굴린다.</summary>
     private const double TableMaxHeight = 420;
 
     private readonly Player _player;
-    private readonly Border _decide;
-    private readonly TextBlock _purse;
+    private readonly GameButton _decide;
     private readonly Dictionary<Hull, Border> _rows = [];
 
     private Hull? _picked;
@@ -45,15 +65,7 @@ public sealed class HullSelectDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _decide = GameUi.PushButton("결정", Decide);
-        _purse = new TextBlock
-        {
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 13,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 6, 0, 0),
-        };
+        _decide = new GameButton("결정", Decide);
 
         var buttons = new StackPanel
         {
@@ -62,20 +74,18 @@ public sealed class HullSelectDialog : Window
             Margin = new Thickness(0, 8, 0, 8),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(GameUi.PushButton("중단", Close));
+        buttons.Children.Add(new GameButton("중단", Close));
 
         var title = GameUi.TitleBar("선체종류 선택", Close);
         GameUi.EnableDrag(this, title);   // 제목 줄을 잡아 옮긴다
 
         var stack = new StackPanel();
         stack.Children.Add(title);
+        // 표는 밑판 없이 띠만 늘어놓는다 — 게임도 머리글과 줄이 곧 띠고, 그 둘레는
+        // 창 바탕(짙은 밤색)이 그대로 보인다.
         stack.Children.Add(new Border
         {
-            Background = GameUi.PageFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4, 4, 4, 0),
-            Padding = new Thickness(10, 6, 10, 6),
+            Margin = new Thickness(8, 4, 8, 0),
             // 배를 등록해 넣으면 줄이 얼마든 늘 수 있다 — 화면 밖으로 자라지 않게 굴린다.
             Child = new ScrollViewer
             {
@@ -85,7 +95,6 @@ public sealed class HullSelectDialog : Window
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             },
         });
-        stack.Children.Add(_purse);
         stack.Children.Add(buttons);
 
         Content = new Border
@@ -97,7 +106,6 @@ public sealed class HullSelectDialog : Window
         };
 
         SetDecide(enabled: false);   // 줄을 고르기 전에는 흐리다
-        UpdatePurse();
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();
     }
@@ -112,7 +120,7 @@ public sealed class HullSelectDialog : Window
             string[] cells =
             [
                 hull.Name, $"{hull.Hp}", $"{hull.Speed}", $"{hull.Capacity}",
-                $"{hull.Tonnage}", $"{hull.Crew}", $"{hull.Guns}", $"{hull.Price}",
+                $"{hull.Tonnage}", $"{hull.Crew}", $"{hull.Guns}",
             ];
             bool canBuy = _player.CanBuy(hull) == PurchaseResult.Ok;
             var row = Row(cells, header: false, dim: !canBuy);
@@ -141,8 +149,8 @@ public sealed class HullSelectDialog : Window
                 Text = cells[c],
                 Foreground = dim ? Brushes.Gray : Brushes.Black,
                 FontWeight = FontWeights.Bold,
-                FontSize = 14,
-                Margin = new Thickness(4, 2, 4, 2),
+                FontSize = 13,
+                Margin = new Thickness(3, 1, 3, 1),
                 HorizontalAlignment = header || c == 0
                     ? HorizontalAlignment.Center
                     : HorizontalAlignment.Right,
@@ -151,7 +159,7 @@ public sealed class HullSelectDialog : Window
             grid.Children.Add(tb);
         }
 
-        return new Border { Background = Brushes.Transparent, Child = grid };
+        return new Border { Background = header ? HeadFill : RowFill, Child = grid };
     }
 
     /// <summary>줄을 고른다. 고른 줄만 짙게 뒤집어 두고 결정을 살린다.</summary>
@@ -161,20 +169,13 @@ public sealed class HullSelectDialog : Window
         foreach (var (h, row) in _rows)
         {
             bool on = h == hull;
-            row.Background = on ? GameUi.MenuBack : Brushes.Transparent;
-            foreach (var tb in ((Grid)row.Child).Children.OfType<TextBlock>())
-                tb.Foreground = on ? GameUi.Text : Brushes.Black;
+            row.Background = on ? PickFill : RowFill;
         }
         SetDecide(enabled: true);
-        UpdatePurse();
     }
 
     /// <summary>결정 단추를 살리거나 흐린다. 줄을 고르기 전에는 눌러도 아무 일이 없다.</summary>
-    private void SetDecide(bool enabled)
-    {
-        ((TextBlock)_decide.Child).Foreground = enabled ? Brushes.Black : Brushes.Gray;
-        _decide.Cursor = enabled ? Cursors.Hand : Cursors.Arrow;
-    }
+    private void SetDecide(bool enabled) => _decide.On = enabled;
 
     /// <summary>
     /// 결정 — 살 건지 묻고, 사겠다면 이름을 짓게 한 뒤에 산다.
@@ -212,14 +213,6 @@ public sealed class HullSelectDialog : Window
         Bought = hull;
         NoticeDialog.Show(this, $"「{name}」을(를) 샀습니다 · {hull.Name} · {hull.Price}닢");
         Close();
-    }
-
-    private void UpdatePurse()
-    {
-        string tail = _player.IsFleetFull
-            ? $" · 배가 {Player.MaxShips}척이라 더 살 수 없습니다"
-            : _picked == null ? " · 살 배를 고르십시오" : "";
-        _purse.Text = $"소지금 {_player.Gold}닢 · 함선 {_player.Ships.Count}/{Player.MaxShips}척{tail}";
     }
 
     /// <summary>선체 표를 띄운다. 배를 샀으면 그 선체를 낸다.</summary>
