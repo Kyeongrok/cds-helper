@@ -239,9 +239,23 @@ public static class ShipRegistry
     }
 
     /// <summary>넣어 둔 그림 한 장을 읽는다. 없으면 null.</summary>
-    public static BitmapSource? ReadSprite(string id, int direction)
+    /// <summary>
+    /// 붙박이 선체가 쓰는 그림 자리 — <c>asset/ship-g{벌}/ship_{쪽}.png</c> 다.
+    /// </summary>
+    /// <remarks>등록해 넣은 배와 달리 제 폴더가 없다. 그림벌은 <see cref="Hull.Skin"/> 이다.</remarks>
+    public static string BuiltinSpritePath(int skin, int direction) => Path.Combine(
+        AppDomain.CurrentDomain.BaseDirectory, "asset", $"ship-g{Math.Max(0, skin)}",
+        $"ship_{direction}.png");
+
+    /// <summary>붙박이 선체의 그 쪽 그림. 없으면 null.</summary>
+    public static BitmapSource? ReadBuiltinSprite(int skin, int direction) =>
+        ReadFrom(BuiltinSpritePath(skin, direction));
+
+    public static BitmapSource? ReadSprite(string id, int direction) =>
+        ReadFrom(SpritePath(id, direction));
+
+    private static BitmapSource? ReadFrom(string path)
     {
-        string path = SpritePath(id, direction);
         if (!File.Exists(path)) return null;
 
         try
