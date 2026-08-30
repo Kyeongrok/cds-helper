@@ -482,11 +482,14 @@ public sealed class CityPicView : Window
         var patron = PatronAt(building.Kind);
         if (patron == null) return true;
 
-        // 왕궁·교회는 <b>들어설 때 아예 안 본다</b>. 그 둘은 후원자를 못 만나도 건물에는
-        // 들어가고(알현·수련 같은 제 줄이 있다), 명성 관문은 "설득" 을 누를 때 집사가
-        // 대신 본다(<see cref="PatronMenu.Persuade"/> · 게임 0x004AE1F0).
-        // 예전에는 여기서 설득 애니메이션까지 돌려 교회에 들어설 때마다 떴다.
-        if (facility.Kind is FacilityKind.Palace or FacilityKind.Church) return true;
+        // <b>교회만</b> 문에서 안 본다. 교회는 수련하는 데라 후원자를 못 만나도 들어가고,
+        // 명성 관문은 "설득" 을 누를 때 집사가 대신 본다(<see cref="PatronMenu.Persuade"/> ·
+        // 게임 0x004AE1F0).
+        //
+        // <b>왕궁은 막는다.</b> 후원자가 앉은 건물들과 한 벌이다 — 게임도 그 다섯 벌의
+        // 가상함수표 첫 칸이 다 0x0040D370(문간 관문)이다(볼트 22 참고). 한때 왕궁까지
+        // 빼 두었는데 그것이 틀렸다.
+        if (facility.Kind is FacilityKind.Church) return true;
 
         bool passed = _player.Fame >= patron.Fame;
         PlayFameCheck(passed);
