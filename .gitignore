@@ -73,3 +73,6 @@ Thumbs.db
 
 # Claude Code 의 사람마다 다른 설정 (허용한 명령 목록 따위)
 .claude/settings.local.json
+
+# WPF 임시 프로젝트 — 빌드 중에 생겼다 사라진다
+*_wpftmp.csproj
