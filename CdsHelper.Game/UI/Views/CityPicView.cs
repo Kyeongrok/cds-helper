@@ -963,7 +963,7 @@ public sealed class CityPicView : Window
     private MarketMenu? _shop;
 
     /// <summary>이 마을 항구 — 함대·선원·발표는 도시가 아니라 항구가 한다.</summary>
-    private HarborMenu Port => _port ??= new HarborMenu(this, _game, Menu, _cityId);
+    private HarborMenu Port => _port ??= new HarborMenu(this, _game, Menu, _cityId, _cultureNo);
 
     private HarborMenu? _port;
 
