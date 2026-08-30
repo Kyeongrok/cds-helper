@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Models;
 using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
@@ -300,10 +301,14 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         bool hireable = who.Hire == TavernRoster.Hireable;
         string[] choices = hireable
-            ? ["정보를 듣는다", "부하로 고용한다", "떠난다"]
-            : ["정보를 듣는다", "떠난다"];
+            ? ["정보를 듣는다", "부하로 고용한다", "일기토를 신청한다", "떠난다"]
+            : ["정보를 듣는다", "일기토를 신청한다", "떠난다"];
+        int duelAt = hireable ? 2 : 1;
 
-        switch (TalkDialog.Ask(_view, face, "", "무슨 용건인가?", choices))
+        int at = TalkDialog.Ask(_view, face, "", "무슨 용건인가?", choices);
+        if (at == duelAt) { Duel(who, face); return; }
+
+        switch (at)
         {
             case 0:
                 // 게임은 여기서 발견물 실마리를 주는데 우리는 아직 그 자리를 못 흉내낸다.
@@ -317,6 +322,184 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 Hire(who, face);
                 break;
         }
+    }
+
+    /// <summary>
+    /// 일기토를 신청한다(<c>0x004A4AA0</c> 의 둘째 줄).
+    /// </summary>
+    /// <remarks>
+    /// 게임 차례 그대로다.
+    /// <list type="number">
+    ///   <item>부관이 있으면 "제독! 진심이십니까?", 없으면 "일기토를 신청합니다.
+    ///         좋습니까?" 로 한 번 되묻는다(<c>0x004A4B6A</c>).</item>
+    ///   <item>상대가 달아나려 든다 — <b>체력에 주사위 오십씩</b>을 얹어 견주고 못
+    ///         미치면 놓친다(<c>0x004A494B</c>).</item>
+    ///   <item>판이 열린다(<see cref="DuelDialog"/>).</item>
+    ///   <item>이기면 그것으로 끝이다. <b>술집 일기토는 처형·놓아 준다·모두 뺏는다가
+    ///         안 뜬다</b> — 그 줄은 판 종류가 7 아래일 때만 나오는데 술집에서 신청한
+    ///         판은 8 이다(<c>0x004AA2B1</c>).</item>
+    ///   <item>지면 도망·용서·죽음으로 갈린다(<see cref="Engine.Town.Duel.FateOf"/>).</item>
+    ///   <item>이기든 지든 <b>남은 부위의 평균만큼 체력이 준다</b>.</item>
+    /// </list>
+    /// </remarks>
+    private void Duel(TavernRoster.Person who, uint[]? face)
+    {
+        string ask = _player.MateCount > 0
+            ? "제독! 진심이십니까?"
+            : "일기토를 신청합니다. 좋습니까?";
+        if (!ConfirmDialog.Ask(_view, ask, "일기토", face)) return;
+
+        var dice = new GameRandom(Environment.TickCount);
+        if (!Engine.Town.Duel.Caught(_player.AbilityOf(Ability.Body), who.Body, dice))
+        {
+            TalkDialog.Say(_view, face, "",
+                           $"{who.Name}{Subject(who.Name)} 도망쳤다!");
+            return;
+        }
+
+        var mate = SendMate(dice);
+        var duel = new Engine.Town.Duel(mate is { } m ? MateSide(m) : Mine(),
+                                        Theirs(who), Shielded(), Environment.TickCount);
+        DuelDialog.Show(_view, duel, dice, face);
+
+        int lost = duel.BodyLost;
+
+        if (duel.Won == true)
+        {
+            TalkDialog.Say(_view, face, "", Beaten[dice.Next(Beaten.Length)]);
+        }
+        else
+        {
+            switch (duel.FateOf(_player.Fame))
+            {
+                case Engine.Town.Duel.Fate.Fled:
+                    TalkDialog.Say(_view, face, "",
+                                   "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!");
+                    break;
+                case Engine.Town.Duel.Fate.Spared:
+                    TalkDialog.Say(_view, face, "", Spared[dice.Next(Spared.Length)]);
+                    break;
+                default:
+                    // 게임은 여기서 놀이가 끝난다(0x004AA17B 의 [+0x1C0]=3). 우리는
+                    // 아직 그 끝을 안 지어서, 몸만 겨우 건진 것으로 둔다.
+                    TalkDialog.Say(_view, face, "", "자네, 제독감이 아니로군. 물고기의 먹이가 더 어울리는군.");
+                    lost = Math.Max(lost, _player.AbilityOf(Ability.Body) - 1);
+                    break;
+            }
+        }
+
+        // 대신 나간 사람이 다친다.
+        if (mate is { } hurt) _player.HurtMate(hurt.Name, lost);
+        else _player.Hurt(lost);
+    }
+
+    /// <summary>
+    /// 부관을 대신 내보낼지 묻는다(<c>0x004A8611</c>).
+    /// </summary>
+    /// <remarks>
+    /// 제독이 부관보다 세면 <b>부관이 꺼린다</b> — 그 말을 하고 한 번 더 묻는다. 세기는
+    /// <c>(무력+1)/20 + 검술*10</c> 으로 잰다(<c>0x004A86CD</c>). 부관이 더 세면 흔쾌히
+    /// 나서고 다시 묻지 않는다.
+    /// </remarks>
+    private Player.MateInfo? SendMate(GameRandom dice)
+    {
+        string first = _player.Mates.FirstOrDefault(m => m.Length > 0) ?? "";
+        if (first.Length == 0 || _player.MateInfoOf(first) is not { } mate) return null;
+        if (!ConfirmDialog.Ask(_view, "　부관을 싸우게 하겠습니까?", "일기토")) return null;
+
+        int mine = (_player.AbilityOf(Ability.Might) + 1) / MateEdge
+                 + _player.LevelOf(Skill.Names[Skill.Sword]) * MateSwordWeight;
+        int theirs = (mate.Might + 1) / MateEdge + mate.Sword * MateSwordWeight;
+
+        var face = _player.MateInfoOf(first) is { } who ? MateFace(who) : null;
+        if (mine <= theirs)
+        {
+            TalkDialog.Say(_view, face, "", MateEager[dice.Next(MateEager.Length)]);
+            return mate;
+        }
+
+        TalkDialog.Say(_view, face, "", MateShy[dice.Next(MateShy.Length)]);
+        return ConfirmDialog.Ask(_view, "　부관을 싸우게 하겠습니까?", "일기토") ? mate : null;
+    }
+
+    /// <summary>부관 세기를 재는 잣대 — 무력을 스물로 나누고 검술에 열을 곱한다.</summary>
+    private const int MateEdge = 20, MateSwordWeight = 10;
+
+    /// <summary>부관이 꺼릴 때 하는 말(<c>0x005341F8</c> 다섯).</summary>
+    private static readonly string[] MateShy =
+    [
+        "옛, 저 말입니까? 제독이 더 강하지 않습니까?",
+        "그다지 자신은 없지만, 해 보겠습니다.",
+        "제가 일기토를? 제독보다 약한 제가 말입니까?",
+        "저보고 싸우라고요? 제독이 나가는 편이 이길 확률이 높을 텐데요.",
+        "일기토 말입니까... 제독이 나가는 편이 나을 거라 생각합니다만...",
+    ];
+
+    /// <summary>부관이 나설 때 하는 말(<c>0x00534330</c> 다섯).</summary>
+    private static readonly string[] MateEager =
+    [
+        "저에게 맡겨 주십시오! 기필코 이기겠습니다.",
+        "저를 지명하리라고는, 역시 제독이십니다.",
+        "봐 주십시오. 저런 녀석은 한번에 쓰러뜨리겠습니다.",
+        "제가 활약할 때가 온 것 같군요, 맡겨 주십시오.",
+        "저런 녀석, 혼 줄을 내버리겠습니다.",
+    ];
+
+    /// <summary>부관 몫. 무기·방어구는 제독의 것을 그대로 쓴다(게임도 그렇다).</summary>
+    private Engine.Town.Duel.Fighter MateSide(in Player.MateInfo mate) =>
+        new(mate.Name, mate.Body, mate.Might, mate.Sword, mate.Luck,
+            Best(Engine.Town.Duel.WeaponCategory), Best(Engine.Town.Duel.ArmorCategory));
+
+    /// <summary>부관 얼굴. 못 구하면 null.</summary>
+    private uint[]? MateFace(in Player.MateInfo who) =>
+        _game.Faces?.TryGetBgra(who.Face, female: false);
+
+    /// <summary>이겼을 때 상대가 남기는 말(<c>0x005348A8</c> 다섯).</summary>
+    private static readonly string[] Beaten =
+    [
+        "제길, 기억해 두어라.",
+        "오늘은 여기까지 해 두지. 그럼.",
+        "다음 번엔 어림도 없다, 각오해라.",
+        "이 굴욕은 잊지 않겠다.",
+        "나를 죽이지 않은 것을 언젠가 후회하게 해 주마.",
+    ];
+
+    /// <summary>졌는데 봐 줄 때 하는 말(<c>0x005346E8</c> 다섯).</summary>
+    private static readonly string[] Spared =
+    [
+        "칫, 병아린가. 용서해 주지.",
+        "너 같은 녀석 죽여도 자랑할게 못된다.",
+        "여자와 아이, 약한 자들은 죽이지 않는 주의라서...",
+        "너 같은 녀석 죽일 가치도 없다. 빨리 사라져라.",
+        "이번만은 용서해 주지. 좀더 힘을 길러라.",
+    ];
+
+    /// <summary>내 몫 — 능력치와 검술, 그리고 지닌 무기·방어구 가운데 가장 센 것.</summary>
+    private Engine.Town.Duel.Fighter Mine() =>
+        new(_player.Name.Length > 0 ? _player.Name : "제독",
+            _player.AbilityOf(Ability.Body),
+            _player.AbilityOf(Ability.Might),
+            _player.LevelOf(Skill.Names[Skill.Sword]),
+            _player.AbilityOf(Ability.Luck),
+            Best(Engine.Town.Duel.WeaponCategory),
+            Best(Engine.Town.Duel.ArmorCategory));
+
+    /// <summary>상대 몫. 세이브에 적힌 능력치와 검술을 그대로 쓴다.</summary>
+    private static Engine.Town.Duel.Fighter Theirs(in TavernRoster.Person who) =>
+        new(who.Name, who.Body, who.Might, who.Sword, who.Luck, 0, 0);
+
+    /// <summary>이디스의 방패를 지녔는가 — 스친 것이 막은 것이 된다.</summary>
+    private bool Shielded() => _player.Items.Contains(Engine.Town.Duel.EdithShieldId);
+
+    /// <summary>지닌 것 가운데 그 갈래에서 가장 센 효과. 표를 못 읽었으면 0.</summary>
+    private int Best(int category)
+    {
+        if (_game.Items is not { } table) return 0;
+        int best = 0;
+        foreach (int id in _player.Items)
+            if (table.Find(id) is { } item && item.Category == category && item.Effect > best)
+                best = item.Effect;
+        return best;
     }
 
     /// <summary>

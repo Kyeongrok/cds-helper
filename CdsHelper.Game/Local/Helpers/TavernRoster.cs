@@ -16,6 +16,8 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   표 시작 0x924A, 레코드 0x90 바이트, 최대 461개
 ///   +0x0A  등장 여부      +0x26  명성(u16)
 ///   +0x2E  소재 도시      +0x30  건물(4 주점 · 5 여관)
+///   +0x0B  기술 열셋(0~3) — 항해술·운용술·<b>검술</b>·포술…
+///   +0x18  언어 열넷(0~3)
 ///   +0x32  이름(20)       +0x45  성(19, cp949)
 ///   +0x58  얼굴코드(u16)  +0x5C  연령(부호 있음)   +0x62  고용상태(1~3)
 /// </code>
@@ -31,6 +33,15 @@ public sealed class TavernRoster
 {
     private const int TableStart = 0x924A, RecordSize = 0x90, MaxRecords = 461;
 
+    /// <summary>
+    /// 기술 열셋이 시작하는 자리. 검술은 그 세 번째다.
+    /// </summary>
+    /// <remarks>
+    /// 일기토가 검술을 본다(<see cref="Engine.Town.Duel"/>). 세이브에 있는 255명을 훑어
+    /// 값이 0~3 에 드는 것으로 자리를 잡았다 — 피사로가 검술 3, 코론이 0 이다.
+    /// </remarks>
+    private const int SkillsAt = 0x0B;
+
     /// <summary>건물 번호. 세이브 <c>+0x30</c> 에 이 값이 들어 있다.</summary>
     public const byte Tavern = 4, Inn = 5;
 
@@ -43,7 +54,8 @@ public sealed class TavernRoster
     /// · <paramref name="Charm"/> 매력. 레코드 맨 앞 다섯 바이트가 능력치다(운까지).</param>
     public readonly record struct Person(int Index, string Name, int Fame, int Age,
                                          byte Hire, int FaceCode, byte City, byte Building,
-                                         byte Body, byte Mind, byte Might, byte Charm, byte Luck);
+                                         byte Body, byte Mind, byte Might, byte Charm, byte Luck,
+                                         byte Sword);
 
     private readonly List<Person> _people;
 
@@ -89,7 +101,9 @@ public sealed class TavernRoster
                 BitConverter.ToUInt16(data, at + 0x58),
                 data[at + 0x2E], building,
                 data[at + 0x00], data[at + 0x01], data[at + 0x02],
-                data[at + 0x03], data[at + 0x04]));
+                data[at + 0x03], data[at + 0x04],
+                Math.Min(data[at + SkillsAt + Support.Local.Models.Skill.Sword],
+                         (byte)Support.Local.Models.Skill.MaxLevel)));
         }
         return new TavernRoster(people);
     }
