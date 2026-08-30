@@ -37,13 +37,21 @@ internal sealed class LibraryMenu(Window view, Engine.Game game, int cityId, str
     /// <summary>책 표를 못 읽었으면 열람 줄이 흐리다.</summary>
     public bool CanRead => _game.Books != null;
 
-    /// <summary>서가를 펼친다.</summary>
-    public void Read()
+    /// <summary>
+    /// 서가를 펼친다.
+    /// </summary>
+    /// <param name="owner">
+    /// 서가 창의 주인. <b>명령 창을 넘겨야 한다</b> — 도시 그림 창을 주인으로 삼으면
+    /// 서가를 닫을 때 활성 창이 도시 그림으로 갔다가, 명령 창을 누를 때 도로 넘어와서
+    /// 창이 한 번 깜빡인다. 보급·소지품 창도 같은 까닭으로 명령 창을 주인으로 쓴다.
+    /// </param>
+    /// <param name="say">못 읽는 책의 까닭을 낼 곳 — 게임 화면 맨 아래 띠다.</param>
+    public void Read(Window owner, Action<string>? say = null)
     {
         if (_game.Books is not { } books) return;
 
-        LibraryDialog.Show(_view, _game.Directory, _cityName, _cityId,
+        LibraryDialog.Show(owner, _game.Directory, _cityName, _cityId,
                            _game.Player, books, _buildings, _game.HintName,
-                           _game.Book, id => _game.Hints?.Find(id)?.Text ?? "");
+                           _game.Book, id => _game.Hints?.Find(id)?.Text ?? "", say);
     }
 }

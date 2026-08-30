@@ -48,8 +48,10 @@ public sealed class ShipMapWindow : Window
     /// 글은 <b>띠 위에 바로</b> 찍는다 — 베이지 단추를 깔고 그 위에 얹지 않는다.
     /// 게임 갈무리를 보면 위쪽 정보 띠와 달리 이 자리에는 칸이 없고 액자 바탕에 글자만
     /// 놓여 있다. 단추로 두면 짧은 한마디마다 띠 위에 밝은 조각이 서서 어색하다.
+    ///
+    /// 글자는 <b>검정</b>이다 — 밝은 베이지 띠 위라 흰 글씨는 읽히지 않는다.
     /// </remarks>
-    private readonly GameUi.GameLabel _note = new(GameFont.TitleColor)
+    private readonly GameUi.GameLabel _note = new(GameFont.BlackColor)
     {
         Margin = new Thickness(12, 0, 0, 0),
         HorizontalAlignment = HorizontalAlignment.Left,
