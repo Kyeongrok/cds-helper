@@ -123,15 +123,20 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     /// <remarks>
     /// 게임도 할 수 없는 줄은 <b>흐리게</b> 둔다(줄마다 켜짐 칸이 둘씩 딸린다). 그래서
     /// 여기서도 줄을 빼지 않고 그대로 늘어놓고 손이 안 달린 줄로 낸다 —
-    /// 돛·마스트·선두상·대포·배 이름은 우리 쪽에 아직 그 값이 없다.
+    /// 돛·마스트·대포·배 이름은 우리 쪽에 아직 그 값이 없다.
     /// </remarks>
     public static readonly string[] RefitMenu =
     [
         RefitMast, RefitSailKind, RefitSail, RefitCapacity, RefitTonnage, RefitReinforce,
-        "선두상", RefitTurrets, RefitCannon, RefitRename, RefitExit,
+        RefitFigurehead, RefitTurrets, RefitCannon, RefitRename, RefitExit,
     ];
 
     /// <summary>개조 창에서 우리가 흉내낸 줄.</summary>
+    /// <remarks>
+    /// 선수상 줄은 이 판 EXE 에 <c>0x00532278</c> "선두상" 으로 적혀 있는데, 같은 EXE 가
+    /// 안 쓰이는 <c>0x0053C068</c> "선수상 선택" 벌도 함께 들고 있다. 화면에서 본 대로
+    /// <b>선수상</b> 으로 적는다.
+    /// </remarks>
     public const string RefitMast = "마스트 추가",
                         RefitSailKind = "돛종류 변경",
                         RefitSail = "돛 추가",
@@ -140,7 +145,8 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
                         RefitReinforce = "보강",
                         RefitTurrets = "포탑수변경",
                         RefitCannon = "대포구입",
-                        RefitRename = "선명변경";
+                        RefitRename = "선명변경",
+                        RefitFigurehead = "선수상";
 
     /// <summary>개조 창을 접고 배 고르기로 돌아가는 줄.</summary>
     public const string RefitExit = "개조를 그만둔다";

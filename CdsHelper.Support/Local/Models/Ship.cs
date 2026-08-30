@@ -71,7 +71,7 @@ public sealed class Ship
     public int MaxHp { get; private set; }
 
     /// <summary>
-    /// 뱃머리에 단 선두상의 번호. 안 달았으면 -1.
+    /// 뱃머리에 단 선수상의 번호. 안 달았으면 -1.
     /// </summary>
     /// <remarks>
     /// 게임은 배 레코드의 <c>+0x5C</c> 에 든다(<c>0x0044CA30</c> 이 그 자리를 읽는다).
@@ -80,10 +80,10 @@ public sealed class Ship
     /// </remarks>
     public int Figurehead { get; private set; }
 
-    /// <summary>선두상 가짓수(게임 표 <c>0x0054A0A0</c> 의 줄 수).</summary>
+    /// <summary>선수상 가짓수(게임 표 <c>0x0054A0A0</c> 의 줄 수).</summary>
     public const int FigureheadCount = 36;
 
-    /// <summary>선두상을 갈아 단다. 표 밖이면 떼어 낸 셈이 된다.</summary>
+    /// <summary>선수상을 갈아 단다. 표 밖이면 떼어 낸 셈이 된다.</summary>
     public void Carve(int index) =>
         Figurehead = index >= 0 && index < FigureheadCount ? index : -1;
 
