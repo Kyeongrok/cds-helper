@@ -11,6 +11,7 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   표     VA 0x00500918, 1504행 x 0x38 (.rdata)
 ///   +0x00  이름 ptr("베렌의 탑")     +0x04  종류이름 ptr("항구")
 ///   +0x08  도시 번호                 +0x0C  건물 코드
+///   +0x14  발견물 그림 번호(DSTILL)  +0x1C  발견물 번호 (-1 = 발견물이 아님)
 ///   +0x20,+0x24  도시 그림 좌표      +0x28,+0x2C  96 x 80 (고정)
 ///   +0x30  기능·언어 비트마스크      +0x34  0
 ///   기능 이름표 0x00560A10[13] · 언어 이름표 0x00560A48[14]
@@ -53,6 +54,14 @@ public sealed class CityBuildingTable
     /// <param name="Name">건물 이름("베렌의 탑"). 명령 창 제목에 이것이 뜬다.</param>
     /// <param name="X">도시 그림에서 상자의 왼쪽 위(400x320 기준).</param>
     /// <param name="TeachMask">가르치는 기능·언어 비트. 0 이면 안 가르친다.</param>
+    /// <param name="Discovery">
+    /// 이 건물이 곧 발견물이면 그 번호(<c>+0x1C</c>), 아니면 -1. 세빌리아 교회는 51번
+    /// 히랄다탑이다 — 건물에 들어서면 그 자리에서 발견한 것으로 적힌다.
+    /// </param>
+    /// <param name="Picture">
+    /// 발견했을 때 낼 그림 번호(<c>+0x14</c>, <c>DSTILL.CDS</c>). 발견물이라도 그림이
+    /// 없으면 -1 이다. 발견물 표에도 같은 번호가 적혀 있다(<c>0x0051C54C</c>).
+    /// </param>
     /// <remarks>
     /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
     /// 일러 주지 않으면 값이 전부 0 으로 들어온다. 그래서 <c>[method: JsonConstructor]</c> 로
@@ -60,8 +69,12 @@ public sealed class CityBuildingTable
     /// </remarks>
     [method: JsonConstructor]
     public readonly record struct Building(
-        int City, int Code, string Kind, string Name, int X, int Y, uint TeachMask)
+        int City, int Code, string Kind, string Name, int X, int Y, uint TeachMask,
+        int Discovery = -1, int Picture = -1)
     {
+        /// <summary>이 건물 자체가 발견물인지.</summary>
+        [JsonIgnore] public bool IsDiscovery => Discovery >= 0;
+
         /// <summary>건물이 그려진 자리(상자 가운데).</summary>
         [JsonIgnore] public int CenterX => X + BoxWidth / 2;
         [JsonIgnore] public int CenterY => Y + BoxHeight / 2;
@@ -72,6 +85,9 @@ public sealed class CityBuildingTable
 
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\건물표.json</c>).</summary>
     private const string CacheName = "건물표";
+
+    /// <summary>알맹이 모양 판. 발견물 번호와 그림 번호를 더하며 2 로 올렸다.</summary>
+    private const int Version = 2;
 
     /// <summary>
     /// JSON 으로 적어 두는 알맹이. EXE 를 읽어야만 알 수 있는 것이 여기 다 들어 있다 —
@@ -135,7 +151,8 @@ public sealed class CityBuildingTable
     /// </summary>
     public static CityBuildingTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               Version);
         LastError = error;
         return snapshot == null ? null : new CityBuildingTable(snapshot);
     }
@@ -155,7 +172,8 @@ public sealed class CityBuildingTable
 
             buildings.Add(new Building(
                 exe.Int(row + 0x08), exe.Int(row + 0x0C), kind, name,
-                exe.Int(row + 0x20), exe.Int(row + 0x24), exe.Word(row + 0x30)));
+                exe.Int(row + 0x20), exe.Int(row + 0x24), exe.Word(row + 0x30),
+                exe.Int(row + 0x1C), exe.Int(row + 0x14)));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
