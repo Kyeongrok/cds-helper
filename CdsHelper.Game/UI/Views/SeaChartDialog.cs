@@ -7,7 +7,7 @@ using CdsHelper.Game.Local.Helpers;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 항해지도 — 지금까지 <b>밝힌 바다</b>만 드러나는 세계 지도.
+/// 지도 창 — <b>항해지도</b>(밝힌 바다)와 <b>주변지도</b>(배 둘레)가 같은 창을 쓴다.
 /// </summary>
 /// <remarks>
 /// 게임의 <c>0x00416A00</c> 이다. 점 하나가 칸 4x4 라 <b>625 x 313</b> 이고, 안 밝힌
@@ -21,9 +21,9 @@ public sealed class SeaChartDialog : Window
     /// <summary>몇 배로 키워 낼지. 625x313 을 그대로 내면 너무 작다.</summary>
     private const int Scale = 2;
 
-    private SeaChartDialog(BitmapSource chart)
+    private SeaChartDialog(BitmapSource chart, string title)
     {
-        Title = "항해지도";
+        Title = title;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -40,7 +40,7 @@ public sealed class SeaChartDialog : Window
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
-        var bar = GameUi.TitleBar("항해지도", Close);
+        var bar = GameUi.TitleBar(title, Close);
         var stack = new StackPanel();
         stack.Children.Add(bar);
         stack.Children.Add(new Border
@@ -59,12 +59,23 @@ public sealed class SeaChartDialog : Window
     }
 
     /// <summary>
-    /// 항해지도를 편다. 지도를 못 읽었거나 아직 한 번도 안 나갔으면 그 까닭을 알린다.
+    /// 항해지도를 편다 — 밝힌 자리만 드러난다.
     /// </summary>
-    public static void Show(Window owner, ShipMapHost host,
-                            Support.Local.Models.ExploredMap seen)
+    public static void ShowWorld(Window owner, ShipMapHost host,
+                                 Support.Local.Models.ExploredMap seen) =>
+        Open(owner, "항해지도", host.Chart(seen, out int w, out int h), w, h);
+
+    /// <summary>
+    /// 주변지도를 편다 — 배 둘레를 크게 본다. 도시와 아직 못 찾은 발견물도 점으로 선다.
+    /// </summary>
+    public static void ShowAround(Window owner, ShipMapHost host,
+                                  Engine.Discovery.DiscoveryLog? log,
+                                  Support.Local.Models.Player player, int sight = 0) =>
+        Open(owner, "주변지도", host.LocalChart(log, player, sight, out int w, out int h), w, h);
+
+    /// <summary>그림을 창에 담아 띄운다. 못 지었으면 그 까닭을 알린다.</summary>
+    private static void Open(Window owner, string title, uint[]? bgra, int w, int h)
     {
-        var bgra = host.Chart(seen, out int w, out int h);
         if (bgra == null)
         {
             ConfirmDialog.Tell(owner, "지도를 읽지 못했습니다");
@@ -73,6 +84,6 @@ public sealed class SeaChartDialog : Window
 
         var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
         bmp.Freeze();
-        new SeaChartDialog(bmp) { Owner = owner }.ShowDialog();
+        new SeaChartDialog(bmp, title) { Owner = owner }.ShowDialog();
     }
 }
