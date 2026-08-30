@@ -58,6 +58,36 @@ public static class Skill
     public static int CapFor(int mind) => mind * 3 / 5;
 
     /// <summary>
+    /// 기술 화면이 들고 여는 보너스 포인트.
+    /// </summary>
+    /// <remarks>
+    /// 능력치 걸음에서 <b>남겨 온 것이 아니다</b> — 기술 화면을 열 때 새로 셈해서 넣는다
+    /// (<c>0x0045DDD9</c>).
+    /// <code>
+    ///   0045ddd9  eax = 나이
+    ///   0045dddf  eax = eax * 2 - 114
+    ///   0045dde6  eax += 직업 보정의 지력 칸       ; 능력치 둘째 벌 [this+0x128]
+    ///   0045ddec  eax += 지력                      ; [this+0x110]
+    ///   0045ddf2  if (eax &lt;= 6) eax = 6           ; 바닥
+    ///   0045ddfc  eax /= 2                         ; 0 쪽으로 자름
+    /// </code>
+    /// <b>지력 두 점에 보너스 한 점</b>이고, 바닥이 6 이라 <b>3 밑으로는 안 내려간다</b>.
+    /// 서른 살 탐험가(지력 보정 0)로 재 보면 <c>(지력 - 54) / 2</c> 가 되는데,
+    /// 지력 59·70·83·85 가 3·8·14·15 로 그대로 맞는다.
+    ///
+    /// 능력치가 두 벌인 것은 만들기 화면이 <c>+0x10C</c>(지금 값)와 <c>+0x124</c>(직업 보정)를
+    /// 나란히 두기 때문이다 — 둘 다 24바이트, 곧 여섯 칸씩이다.
+    /// </remarks>
+    /// <param name="age">나이.</param>
+    /// <param name="mind">지력.</param>
+    /// <param name="mindBias">직업이 지력에 주는 보정(<see cref="Job.Bias"/> 의 지력 칸).</param>
+    public static int BonusFor(int age, int mind, int mindBias) =>
+        Math.Max(BonusFloor, age * 2 + mindBias + mind - BonusBase) / 2;
+
+    /// <summary>보너스 셈의 밑값과 바닥(<c>0x0045DDDF</c> · <c>0x0045DDF2</c>).</summary>
+    public const int BonusBase = 114, BonusFloor = 6;
+
+    /// <summary>
     /// 국적이 처음부터 주는 언어 — (언어 번호, 자리).
     /// </summary>
     /// <remarks>
