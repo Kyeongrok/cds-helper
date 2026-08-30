@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Game.UI.Views;
@@ -47,6 +47,7 @@ internal sealed class GameMenu : Border
     public GameMenu(string title, IReadOnlyList<GameMenuRow> rows, Action? onClose = null)
     {
         var stack = new StackPanel();
+        bool focused = false;
 
         if (title.Length > 0) stack.Children.Add(TitleRow(title, onClose));
 
@@ -58,7 +59,12 @@ internal sealed class GameMenu : Border
             var style = row.Style
                         ?? (i == rows.Count - 1 ? BandStyle.Alt : BandStyle.Button);
             // 메뉴는 줄을 붙여 쌓으므로 단추끼리 벌리는 여백을 덮는다.
-            stack.Children.Add(new GameButton(row.Text, row.Run, style) { Margin = default });
+            var button = new GameButton(row.Text, row.Run, style) { Margin = default };
+
+            // 창이 뜨면 <b>첫 줄에 초점</b>이 가 있다 — 게임도 그 줄의 안쪽 테가 깜빡인다.
+            if (row.Run != null && !focused) { button.Focused = focused = true; }
+
+            stack.Children.Add(button);
         }
 
         Background = GameUi.MenuBack;

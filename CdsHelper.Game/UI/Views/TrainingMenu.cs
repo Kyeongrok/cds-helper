@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -30,6 +30,7 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
 {
     /// <summary>교회의 건물 코드. 말투가 이것만 다르다.</summary>
     private const int Church = 3;
+    private const int Scholar = 15;
 
     private readonly Window _view = view;
     private readonly Engine.Game _game = game;
@@ -41,13 +42,20 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
     private uint[]? Face => _game.SpeakerFace(_buildingCode, _culture);
 
     /// <summary>
-    /// 들어설 때 가르치는 사람이 건네는 물음. 문 앞에서 이미 묻는다 —
-    /// 수련을 고르면 그때는 기술 목록만 뜬다.
+    /// 들어설 때 가르치는 사람이 건네는 물음.
     /// </summary>
-    public void Greet() =>
+    /// <remarks>
+    /// <b>학자 저택은 말이 없다.</b> 문 앞에서 명성을 보고 들여보내고 그것으로 끝이다 —
+    /// 조합과 교회만 한마디 건넨다.
+    /// </remarks>
+    public void Greet()
+    {
+        if (_buildingCode == Scholar) return;
+
         ConfirmDialog.Tell(_view, Church == _buildingCode
             ? "주의 배움의 터전에 잘 오셨습니다. 어떤 학문, 기능을 배우고 싶습니까?"
             : "기술을 습득하고 싶나?", face: Face);
+    }
 
     /// <summary>
     /// "수련" — 배울 것을 늘어놓고, 아무것도 안 배웠으면 한마디 한다.
