@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Models;
 using CdsHelper.Game.Engine.Town;
@@ -19,12 +19,15 @@ namespace CdsHelper.Game.UI.Views;
 /// <param name="game">이 판 — 주인공과 주사위가 여기서 온다.</param>
 /// <param name="menu">항구 명령 창. 함대편성·선원편성 창을 그 위에 쌓는다.</param>
 /// <param name="cityId">이 마을 번호. 배를 맡기고 찾을 때 쓴다.</param>
-internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost menu, int cityId)
+/// <param name="culture">이 마을 문화권. 출항을 막는 사람 얼굴이 여기 따라 갈린다.</param>
+internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost menu, int cityId,
+                                 int culture)
 {
     private readonly Window _view = view;
     private readonly Engine.Game _game = game;
     private readonly GameMenuHost _menu = menu;
     private readonly int _cityId = cityId;
+    private readonly int _culture = culture;
 
     private Player _player => _game.Player;
 
@@ -52,6 +55,58 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             : null;
 
         ConfirmDialog.Tell(_view, "제독, 바다에 나가시겠습니까?", face: face);
+    }
+
+    /// <summary>항구의 건물 코드. 화자표에서 사람 얼굴을 찾을 때 쓴다.</summary>
+    private const int BuildingCode = 0;
+
+    /// <summary>이만큼 버틸 수 있으면 "준비 만반" 이다(<c>0x004772A0</c> 의 <c>cmp eax,0x14</c>).</summary>
+    private const int ReadyDays = 20;
+
+    /// <summary>
+    /// "출항" 을 눌렀을 때의 관문. 나가도 좋으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00477220</c> 차례 그대로다.
+    /// <code>
+    ///   477253  선원 0 이하        "선원이 모자랍니다. 이래서는 출항할 수 없습니다!"   막는다
+    ///   47726D  선원 &lt; 필요       "…함대의 속도가 늦어지지만, 괜찮으십니까?"          YES/NO
+    ///   47728F  버틸 날 0 이하     "이것만으로는 보급 물자가 모자랍니다!"              막는다
+    ///   4772A5  버틸 날 &lt; 20      "%d일 정도 항해할 수 있다고 생각합니다. 출항하겠습니까?"  YES/NO
+    ///   4772B7  그 밖              "준비 만반입니다. 언제라도 출항할 수 있습니다!…"    YES/NO
+    /// </code>
+    /// 선원이 모자랄 때 게임은 문구 <b>둘</b>을 함께 넘긴다(<c>0x00544ED8</c> "제독, …" 과
+    /// <c>0x00544F20</c>). 화면에서 본 것은 뒤엣것이라 그것을 쓴다.
+    ///
+    /// 게임이 맨 앞에서 보는 "편성돼 있지 않은 선박"(<c>0x004688A0</c>) 은 우리 쪽에
+    /// 그런 자리가 없어 뺐다.
+    /// </remarks>
+    public bool ConfirmSail()
+    {
+        var owner = Owner;
+        uint[]? face = _game.SpeakerFace(BuildingCode, _culture);
+
+        if (_player.Crew <= 0)
+        {
+            ConfirmDialog.Tell(owner, "선원이 모자랍니다. 이래서는 출항할 수 없습니다!", face: face);
+            return false;
+        }
+
+        if (_player.Crew < _player.MinCrew
+            && !ConfirmDialog.Ask(owner,
+                   "선원이 모자랍니다. 이대로라면 함대의 속도가 늦어지지만, 괜찮으십니까?"))
+            return false;
+
+        int days = _player.SupplyDaysLeft;
+        if (days <= 0)
+        {
+            ConfirmDialog.Tell(owner, "이것만으로는 보급 물자가 모자랍니다!", face: face);
+            return false;
+        }
+
+        return ConfirmDialog.Ask(owner, days < ReadyDays
+            ? $"{days}일 정도 항해할 수 있다고 생각합니다. 출항하겠습니까?"
+            : "준비 만반입니다. 언제라도 출항할 수 있습니다! 출항하겠습니까?");
     }
 
     /// <summary>
@@ -156,6 +211,16 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// </remarks>
     public GameMenu CrewMenu() => new(
         [.. Facility.CrewMenu.Select(item => (item, CrewAction(item)))]);
+
+    /// <summary>
+    /// "선원편성" 을 눌렀을 때. <b>선원이 하나도 없으면 창을 안 내고 곧장 모집으로</b> 간다 —
+    /// 해고할 것이 없으니 고를 것도 없다.
+    /// </summary>
+    public void CrewForm()
+    {
+        if (_player.Crew <= 0) { HireCrew(); return; }
+        _menu.Push(CrewMenu);
+    }
 
     private Action? CrewAction(string item) => item switch
     {

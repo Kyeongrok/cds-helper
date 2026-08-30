@@ -937,7 +937,7 @@ public sealed class CityPicView : Window
     private MarketMenu? _shop;
 
     /// <summary>이 마을 항구 — 함대·선원·발표는 도시가 아니라 항구가 한다.</summary>
-    private HarborMenu Port => _port ??= new HarborMenu(this, _game, Menu, _cityId);
+    private HarborMenu Port => _port ??= new HarborMenu(this, _game, Menu, _cityId, _cultureNo);
 
     private HarborMenu? _port;
 
@@ -1035,10 +1035,11 @@ public sealed class CityPicView : Window
             TownWork.Report => () => Patrons.Report(patron!),
             TownWork.BreakContract => () => Patrons.BreakContract(patron!),
 
-            TownWork.Sail => () => { Sailed = true; Close(); },
+            // 나가도 좋은지는 항구가 따진다 — 선원과 보급을 보고 막거나 묻는다.
+            TownWork.Sail => () => { if (Port.ConfirmSail()) { Sailed = true; Close(); } },
             // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
             TownWork.FleetForm => () => Menu.Push(Port.FleetMenu),
-            TownWork.CrewForm => () => Menu.Push(Port.CrewMenu),
+            TownWork.CrewForm => Port.CrewForm,
             TownWork.Announce => Port.Announce,
             TownWork.Supply => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,

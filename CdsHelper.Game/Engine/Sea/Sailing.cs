@@ -124,16 +124,26 @@ public static class Sailing
     /// 해류가 미는 만큼(칸). 빠른 부류의 칸에서만 받는다.
     /// </summary>
     /// <remarks>
+    /// 게임은 배와 해류를 <b>같은 누산기</b>에 더한다(<c>0x0048D24C</c> · <c>0x0048D29C</c>).
     /// <code>
-    ///   dx += 벡터[해류방위].dx * 세기 / 8 * 경도보정 / 100
-    ///   dy += 벡터[해류방위].dy * 세기 / 8
+    ///   배    누산기 += 벡터[뱃머리] * 이동값            (x 는 * 경도보정 / 100)
+    ///   해류  누산기 += 벡터[해류방위] * 세기 / 8        (x 는 * 경도보정 / 100)
+    ///   누산기가 ±0x20 을 넘으면 0x40 씩 덜어내며 한 걸음씩 옮긴다  (0x0048D2BA)
     /// </code>
-    /// <b>세기 7이면 칸당 7/8칸씩 옆으로 밀린다</b> — 무시할 크기가 아니다.
+    /// 벡터의 크기가 곧 <c>0x40</c> 이므로 <b>배는 틱마다 이동값 걸음, 해류는 세기/8 걸음</b>
+    /// 이다 — 해류는 배의 <c>세기 / (8 x 이동값)</c> 밖에 안 된다. 이동값이 9(무풍 언저리)
+    /// 이고 세기가 8 이라도 배가 아홉 걸음 갈 때 해류는 한 걸음이다.
+    ///
+    /// <b>여기를 잘못 옮겨 배가 밀렸다.</b> 예전에는 걸음을 <see cref="CellUnits"/> 로 한 번만
+    /// 나눠 해류가 <c>세기/8</c> <b>칸</b>이 되었는데, 배 쪽은 <c>이동값/64</c> 칸이라 해류가
+    /// 64배로 세졌다. 역풍에 배가 뒤로 밀려나던 것이 이것이다 — 게임에서는 삼각돛이 정면
+    /// 역풍에서도 1 을 내며 앞으로 나아간다.
+    ///
     /// 경도 보정은 위도가 높을수록 경도 한 칸이 짧아지는 것을 메우는 값이다.
     /// </remarks>
     public static (double X, double Y) Drift((int X, int Y) vector, int strength, double lonScale) =>
-        (vector.X * strength / 8.0 / CellUnits * lonScale,
-         vector.Y * strength / 8.0 / CellUnits);
+        (vector.X * strength / 8.0 / CellUnits / CellUnits * lonScale,
+         vector.Y * strength / 8.0 / CellUnits / CellUnits);
 
     /// <summary>
     /// 경도 보정 — 위도가 높을수록 경도 한 칸이 짧다.
