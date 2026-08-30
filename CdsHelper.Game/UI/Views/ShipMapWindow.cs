@@ -1684,6 +1684,7 @@ public sealed class ShipMapWindow : Window
         if (SeaEvents.Roll(_game.Player, lat, _game.Random) is not { } kind) return;
 
         if (kind == SeaEventKind.Mutiny) { Mutiny(); return; }
+        if (Plagued(kind)) return;
 
         var storm = SeaEvents.Resolve(_game.Player, kind, _game.Random);
 
@@ -1729,6 +1730,68 @@ public sealed class ShipMapWindow : Window
     /// 배를 탔으면 "선원"(<c>0x00535320</c>)과 "항해"(<c>0x005353F0</c>)와
     /// "물고기"(<c>0x00535478</c>), 뭍이면 "대원"·"탐험"·"새" 로 갈린다.
     /// </remarks>
+    /// <summary>
+    /// 쥐 · 괴혈병 · 전염병과 그 귀띔. 맡았으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 문구는 게임 것 그대로다. 말하는 이는 부관이라 <b>부관 얼굴</b>이 함께 선다 —
+    /// 게임도 <c>0x0047CC60(0, 0)</c> 으로 부하 첫 자리를 집어 넘긴다.
+    /// <code>
+    ///   0x00534D88  쥐        제독 큰일입니다! 쥐가 대량으로 발생했습니다…
+    ///   0x00534F68  괴혈병    제독 큰일입니다! 선원들이 픽픽 쓰러지기 시작했습니다…
+    ///   0x005350C8  전염병    제독, 큰일입니다! 유행병이 퍼지고 있습니다…
+    ///   0x00534DE0  귀띔      제독! 모두 약해져 있습니다. 슬슬 상륙하는 것이 좋겠습니다.
+    ///   0x00534FC8  귀띔      제독! 이상한 병이 돌고 있습니다. 상륙하는 것이 좋겠습니다.
+    /// </code>
+    /// 게임은 병이 돌면 선원을 하나씩 골라 이름을 부르며 죽이는데(<c>0x00534F30</c>
+    /// "%s%s 괴혈병에 걸려…") 우리는 함대가 선원을 통째로 태우므로 머릿수만 던다.
+    /// </remarks>
+    private bool Plagued(SeaEventKind kind)
+    {
+        string word = kind switch
+        {
+            SeaEventKind.Rats =>
+                "제독 큰일입니다! 쥐가 대량으로 발생했습니다. 어디 상륙해서 퇴치하는 것이 좋겠습니다!",
+            SeaEventKind.Scurvy =>
+                "제독 큰일입니다! 선원들이 픽픽 쓰러지기 시작했습니다. 어디 상륙해서 휴양하는 것이 좋겠습니다!",
+            SeaEventKind.Plague =>
+                "제독, 큰일입니다! 유행병이 퍼지고 있습니다. 어딘가 상륙하지 않으면 전멸입니다!",
+            SeaEventKind.Weakening =>
+                "제독! 모두 약해져 있습니다. 슬슬 상륙하는 것이 좋겠습니다.",
+            SeaEventKind.StrangeIllness =>
+                "제독! 이상한 병이 돌고 있습니다. 상륙하는 것이 좋겠습니다.",
+            _ => "",
+        };
+        if (word.Length == 0) return false;
+
+        int toll = SeaEvents.TollOf(kind, _game.Random);
+        if (toll > 0) _game.Player.SetCrew(_game.Player.Crew - toll);
+        if (kind == SeaEventKind.Rats)
+            _game.Player.AddSupply(SupplyKind.Food, -SeaEvents.RatsEat(_game.Random));
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            ConfirmDialog.Tell(this, word, face: MateFace());
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+        return true;
+    }
+
+    /// <summary>부관 얼굴. 부관 자리가 비었거나 신상을 못 찾으면 null.</summary>
+    private uint[]? MateFace()
+    {
+        string mate = _game.Player.MateAt(0);
+        if (mate.Length == 0) return null;
+        return _game.MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
+            ? _game.Faces?.TryGetBgra(who.Face, female: false) : null;
+    }
+
     private void Mutiny()
     {
         bool land = _host.IsOnLand;
