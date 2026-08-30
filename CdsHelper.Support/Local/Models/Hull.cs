@@ -1,4 +1,4 @@
-using CdsHelper.Support.Local.Helpers;
+﻿using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Support.Local.Models;
 
@@ -44,6 +44,17 @@ public sealed record Hull(
     /// 값은 아래에서부터 100닢씩 올라간다.
     /// </summary>
     /// <remarks>
+    /// <see cref="Skin"/> 은 게임의 선체→그림 표(<c>0x005695D8</c>)를 그대로 옮긴 것이다.
+    /// 배 아틀라스(<c>0x005D68C8</c>, 48x48 x 8방향 x 넉 벌)에서 어느 벌을 뜨는지가 이 값이다
+    /// (<c>0x0048A9A2</c> 가 <c>표[선체] * 9 &lt;&lt; 11</c> 로 자리를 짚는다).
+    /// <code>
+    ///   선체   0 코구  1 카라벨  2 대형카라벨  3 카락  4 대형카락  5 중카락  6 갤리온  7 다우
+    ///   그림   0       1         1            2       2           2         3        0
+    /// </code>
+    /// 카라벨을 0 으로 두었던 것은 <b>틀렸다</b> — 0 은 코구·다우 벌이라 바다에 다우선이
+    /// 떴다. 카라벨은 대형카라벨과 같은 1 이다.
+    /// </remarks>
+    /// <remarks>
     /// 게임에서는 해가 가고 기술이 오르면 살 수 있는 선체가 늘지만, 여기서는 이 다섯을
     /// 고정으로 낸다.
     /// </remarks>
@@ -53,7 +64,7 @@ public sealed record Hull(
         new("중카락",     60, 35, 400, 4000, 45, 24, 400, 2),
         new("카락",       30, 60, 200, 1750, 20,  6, 300, 2),
         new("대형카라벨", 35, 50, 250, 2000, 30,  8, 200, 1, CanChangeSail: false),
-        new("카라벨",     20, 80, 125, 1250, 15,  2, 100, 0, MaxMasts: 2, CanChangeSail: false),
+        new("카라벨",     20, 80, 125, 1250, 15,  2, 100, 1, MaxMasts: 2, CanChangeSail: false),
     ];
 
     private static Hull[]? _all;
