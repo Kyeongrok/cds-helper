@@ -54,8 +54,7 @@ internal sealed class SkillMakeDialog : InfoDialog
     private SkillMakeDialog(Player player)
     {
         // 보너스는 앞 걸음에서 남겨 온 것이 아니라 여기서 새로 센다(0x0045DDD9).
-        _left = Skill.BonusFor(player.Age, player.AbilityOf(Ability.Mind),
-                               JobMind.Of(player.JobIndex));
+        _left = Skill.BonusFor(player.Age, player.AbilityOf(Ability.Mind));
         _cap = Skill.CapFor(player.AbilityOf(Ability.Mind));
 
         foreach (var (skill, level) in player.Work.Skills)
