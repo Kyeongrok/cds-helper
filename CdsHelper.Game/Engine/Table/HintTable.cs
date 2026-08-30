@@ -53,6 +53,10 @@ public sealed class HintTable
     /// </remarks>
     private const int TextTableVa = 0x00543FA0;
 
+    /// <summary>설명 한 줄의 가장 긴 길이(바이트). 예순넷으로는 어림도 없다 —
+    /// 두어 줄짜리 설명이 흔해서 그 길이를 넘으면 <b>통째로 null 이 되어</b> 빈 글이 됐다.</summary>
+    private const int TextLimit = 512;
+
     /// <summary>판이 다른 EXE 를 잘못 읽지 않으려고 대 보는 첫 줄.</summary>
     private const string ProbeName = "아프리카남단";
 
@@ -65,7 +69,7 @@ public sealed class HintTable
     /// 알맹이 모양 판. 이름 자리를 바로잡으면서 올렸다 — 옛 모양으로 적어 둔 JSON 은 버리고
     /// 다시 굽게 한다.
     /// </summary>
-    private const int SnapshotVersion = 3;
+    private const int SnapshotVersion = 4;
 
     /// <summary>갈래 수 — 지리·역사·보물·종교·교역품·미신·생물·민족.</summary>
     public const int CategoryCount = 8;
@@ -181,7 +185,8 @@ public sealed class HintTable
                 Funds: exe.Int(row + 0x14),
                 Deadline: exe.Int(row + 0x18) + 1,
                 Discovery: exe.Int(row + 0x08),
-                Text: exe.Text(exe.Word(TextTableVa + exe.Int(row + 0x1C) * 4)) ?? ""));
+                Text: exe.Text(exe.Word(TextTableVa + exe.Int(row + 0x1C) * 4),
+                              TextLimit) ?? ""));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.
