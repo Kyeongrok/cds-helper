@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
+using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Support.Local.Models;
 using Vortice.DXGI;
 using Vortice.Direct3D11;
@@ -1007,6 +1008,128 @@ public sealed class ShipMapHost : HwndHost
             }
 
         return argb;
+    }
+
+    /// <summary>주변지도의 색 — 배 · 도시 · 발견물 · 뭍 · 바다(게임 색표 색인).</summary>
+    /// <remarks>
+    /// <c>0x00416CB4</c> 배 · <c>0x00416DE2</c> 도시 · <c>0x00416DE7</c> 발견물 ·
+    /// <c>0x00416DDD</c> 뭍 · <c>0x00416DEC</c> 바다.
+    /// </remarks>
+    private const byte NearShip = 0x0A, NearCity = 0x24, NearFind = 0x38,
+                       NearLand = 0x18, NearSea = 0x2E;
+
+    /// <summary>주변지도가 한 점에 나아가는 거리 밑값(1/16 칸). 게임은 <c>시야 + 2</c> 다.</summary>
+    public const int LocalStepBase = 2;
+
+    /// <summary>
+    /// 주변지도 한 장을 BGRA 로 짓는다. 지도를 못 읽었거나 배가 없으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00416B60(칸x, 칸y, 시야 + 2)</c> 다. 항해지도와 크기는 같은데
+    /// (<b>625 x 313</b>) <b>배 둘레를 크게 본 것</b>이고, 밝힘과 상관없이 다 보인다.
+    /// <code>
+    ///   416ba6  왼쪽 끝 = 배칸x * 16 - 625 * r / 2       (자리는 1/16 칸)
+    ///   416bcf  위  끝 = 배칸y * 16 - 313 * r / 2
+    ///   416df4  한 점에 r 만큼 나아간다
+    /// </code>
+    /// <c>r</c> 이 <c>시야 + 2</c> 라 밑값이면 한 점이 <b>1/8 칸</b>이다 — 칸 하나가 8x8
+    /// 점으로 커지고, 화면에는 78 x 39 칸쯤이 담긴다. 망원경 같은 것으로 시야가 오르면
+    /// 한 점이 넓어져 <b>더 멀리</b> 보인다(아이템 설명이 그렇게 말한다).
+    ///
+    /// 점마다 도시와 발견물을 뒤지면 열아홉만 번이라 <b>칸 격자를 먼저 칠하고</b> 점으로
+    /// 편다. 게임은 점마다 뒤지지만 셈이 칸에만 걸려 있어 결과는 같다.
+    /// </remarks>
+    /// <param name="log">발견물. 없으면 발견물 점이 안 선다.</param>
+    /// <param name="player">주인공. 이미 찾은 것과 가진 힌트를 본다.</param>
+    /// <param name="sight">시야. 아직 올릴 길이 없어 늘 0 이다.</param>
+    public uint[]? LocalChart(DiscoveryLog? log, Player player, int sight,
+                              out int width, out int height)
+    {
+        width = ExploredMap.Width;
+        height = ExploredMap.Height;
+        if (_world == null || _terrain == null || !_shipKnown) return null;
+
+        int step = Math.Max(1, sight + LocalStepBase);
+        int shipX = (int)Math.Floor(_shipX), shipY = (int)Math.Floor(_shipY);
+        int left = shipX * 16 - width * step / 2;
+        int top = shipY * 16 - height * step / 2;
+
+        // 담기는 칸 범위. 넉넉히 한 칸씩 더 잡아 둔다.
+        int cell0X = (left + 8) >> 4, cell0Y = (top + 8) >> 4;
+        int cellsW = (width * step >> 4) + 2, cellsH = (height * step >> 4) + 2;
+
+        var paint = new byte[cellsW * cellsH];
+        for (int j = 0; j < cellsH; j++)
+        {
+            int cy = cell0Y + j;
+            for (int i = 0; i < cellsW; i++)
+            {
+                int cx = Wrap(cell0X + i);
+                paint[j * cellsW + i] = cy is < 0 or >= WorldMapRenderer.CellH
+                    ? NearSea
+                    : PaintOf(cx, cy, shipX, shipY, log, player);
+            }
+        }
+
+        var argb = new uint[width * height];
+        for (int py = 0; py < height; py++)
+        {
+            int j = (((top + py * step) + 8) >> 4) - cell0Y;
+            j = Math.Clamp(j, 0, cellsH - 1);
+            for (int px = 0; px < width; px++)
+            {
+                int i = (((left + px * step) + 8) >> 4) - cell0X;
+                i = Math.Clamp(i, 0, cellsW - 1);
+                int k = paint[j * cellsW + i] * 3;
+                argb[py * width + px] = 0xFF000000u
+                                      | ((uint)GamePalette.Rgb[k] << 16)
+                                      | ((uint)GamePalette.Rgb[k + 1] << 8)
+                                      | GamePalette.Rgb[k + 2];
+            }
+        }
+        return argb;
+    }
+
+    /// <summary>주변지도에서 그 칸이 무슨 색인지.</summary>
+    private byte PaintOf(int cx, int cy, int shipX, int shipY,
+                         DiscoveryLog? log, Player player)
+    {
+        if (cx == shipX && cy == shipY) return NearShip;
+        if (CityNear(cx, cy)) return NearCity;
+        if (FindNear(cx, cy, log, player)) return NearFind;
+        return _terrain!.CanSail(_world![RawAt(cx, cy).Offset]) ? NearSea : NearLand;
+    }
+
+    /// <summary>이 칸 언저리에 도시가 있는지. 게임도 3x3 을 본다(<c>0x00416CDB</c>).</summary>
+    private static bool CityNear(int cx, int cy)
+    {
+        for (int id = 0; id < GameMapCoords.CityCount; id++)
+        {
+            if (!GameMapCoords.TryCityCell(id, out double x, out double y)) continue;
+            if (Math.Abs((int)x - cx) <= 1 && Math.Abs((int)y - cy) <= 1) return true;
+        }
+        return false;
+    }
+
+    /// <summary>이 칸에 아직 못 찾은 발견물이 있는지.</summary>
+    private static bool FindNear(int cx, int cy, DiscoveryLog? log, Player player)
+    {
+        if (log == null) return false;
+        foreach (var row in log.Table.Discoveries)
+        {
+            if (row.Indirect || !row.Covers(cx, cy)) continue;
+            if (player.HasFound(row.Id) || !log.IsOpen(player, row)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>가로로 이어진 지도를 접는다.</summary>
+    private static int Wrap(int cellX)
+    {
+        int w = WorldMapRenderer.UnfoldedW;
+        cellX %= w;
+        return cellX < 0 ? cellX + w : cellX;
     }
 
     /// <summary>발밑이 빠른 부류(그림 번호 <c>0x80</c>)인지.</summary>

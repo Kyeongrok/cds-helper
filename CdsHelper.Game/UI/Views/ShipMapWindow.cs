@@ -1466,15 +1466,17 @@ public sealed class ShipMapWindow : Window
     /// 게임의 <c>0x0042602E</c> 자리다(<c>0x00533240</c> · <c>0x00533250</c> ·
     /// <c>0x00533260</c>, 창 제목 <c>0x00533270</c>).
     ///
-    /// 둘은 아주 다른 그림이다. <b>항해지도</b>는 밝힌 자리만 드러나는 양피지 지도고
-    /// (<see cref="SeaChartDialog"/>), <b>주변지도</b>는 배 둘레를 크게 본 것이라 우리
-    /// 지도의 배율만 갈면 된다.
+    /// 둘은 아주 다른 그림이다. <b>항해지도</b>(<c>0x00416A00</c>)는 밝힌 자리만
+    /// 드러나는 양피지 지도고, <b>주변지도</b>(<c>0x00416B60</c>)는 배 둘레를 여덟 배로
+    /// 키워 도시와 아직 못 찾은 발견물까지 점으로 세운다. 둘 다 <see cref="SeaChartDialog"/>
+    /// 가 낸다.
     /// </remarks>
     private GameMenu MapMenuBox() => new("지도를 본다", null,
     [
         ("항해지도", () => Info(() =>
-            SeaChartDialog.Show(this, _host, _game.Player.Explored))),
-        ("주변지도", () => { CommandMenu.Close(); LookAtMap(wide: false); }),
+            SeaChartDialog.ShowWorld(this, _host, _game.Player.Explored))),
+        ("주변지도", () => Info(() =>
+            SeaChartDialog.ShowAround(this, _host, _game.Discoveries, _game.Player))),
         ("돌아간다", CommandMenu.Pop),
     ]);
 
