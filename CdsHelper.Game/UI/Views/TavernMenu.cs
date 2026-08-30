@@ -639,6 +639,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             : null;
 
     /// <summary>한잔 산다. 정말 샀으면 true — 낯을 트는 것은 부르는 쪽이 판단한다.</summary>
+    /// <remarks>
+    /// <b>샀다고 알리지 않는다.</b> 게임에는 그런 문구가 없다 — 값만 빠지고 곧바로
+    /// 상대가 말을 잇는다. 돈이 모자랄 때 물리는 "돈 먼저 지불하게."(<c>0x0054AC98</c>)만
+    /// 게임 것이다.
+    /// </remarks>
     public bool BuyDrink()
     {
         if (_player.Gold < Tavern.DrinkPrice)
@@ -647,7 +652,6 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return false;
         }
         _player.SetGold(_player.Gold - Tavern.DrinkPrice);
-        ConfirmDialog.Tell(_view, $"금화 {Tavern.DrinkPrice}닢으로 한잔 샀다.");
         return true;
     }
 
