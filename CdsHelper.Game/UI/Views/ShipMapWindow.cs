@@ -44,7 +44,16 @@ public sealed class ShipMapWindow : Window
     /// 지도 아래 띠에 적는 글. 게임은 이 자리에 짧은 알림을 낸다 —
     /// "명성치가 모자랍니다." 처럼 창을 띄울 것도 없는 한마디다.
     /// </summary>
-    private readonly GameButton _note = new("") { Lit = true, Margin = default };
+    /// <remarks>
+    /// 글은 <b>띠 위에 바로</b> 찍는다 — 베이지 단추를 깔고 그 위에 얹지 않는다.
+    /// 게임 갈무리를 보면 위쪽 정보 띠와 달리 이 자리에는 칸이 없고 액자 바탕에 글자만
+    /// 놓여 있다. 단추로 두면 짧은 한마디마다 띠 위에 밝은 조각이 서서 어색하다.
+    /// </remarks>
+    private readonly GameUi.GameLabel _note = new(GameFont.TitleColor)
+    {
+        Margin = new Thickness(12, 0, 0, 0),
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
 
     /// <summary>한 판 — 게임 폴더 · 주인공 · 표들 · 소리. 화면들이 이것을 받아 쓴다.</summary>
     private readonly Engine.Game _game = new();
@@ -782,7 +791,7 @@ public sealed class ShipMapWindow : Window
     /// <summary>
     /// 타이틀 화면 위아래에 두는 액자 띠. <paramref name="text"/> 를 주면 왼쪽에 칸 하나를 둔다.
     /// </summary>
-    private static FrameworkElement TitleBarStrip(string? text, GameButton? slot = null)
+    private static FrameworkElement TitleBarStrip(string? text, FrameworkElement? slot = null)
     {
         var inside = new StackPanel { Orientation = Orientation.Horizontal };
         if (slot != null)
