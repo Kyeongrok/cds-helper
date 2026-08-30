@@ -124,6 +124,15 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>지난 걸음의 바람(방위·세기)과 상대각.</summary>
     public (int Dir, int Speed, int Relative) LastWind { get; private set; }
 
+    /// <summary>지난 걸음의 해류(방위·세기). 느린 부류의 칸에서는 안 받으므로 세기가 0 이다.</summary>
+    public (int Dir, int Speed) LastFlow { get; private set; }
+
+    /// <summary>지난 걸음에 발밑이 빠른 부류(그림 번호 <c>0x80</c>)였는지.</summary>
+    public bool LastFast { get; private set; }
+
+    /// <summary>지난 걸음에 실제로 나아간 칸 수(해류로 밀린 것은 뺀 것).</summary>
+    public double LastStep { get; private set; }
+
     /// <summary>커서가 이 칸 수 안에 있으면 뱃머리를 그대로 둔다 — 배 위에서 빙빙 돌지 않게.</summary>
     private const double TurnDeadZoneCells = 1.0;
 
@@ -932,9 +941,13 @@ public sealed class ShipMapHost : HwndHost
 
         bool fast = FastTile();
         double step = Engine.Sea.Sailing.CellsPerTick(speed, fast);
+        LastFast = fast;
+        LastStep = step;
+        LastFlow = (0, 0);
         if (!fast || _onLand) return (step, 0, 0);
 
         var flow = _wind.CurrentAt(cell);
+        LastFlow = (flow.Dir, flow.Speed);
         if (flow.Speed <= 0) return (step, 0, 0);
 
         var (dx, dy) = _wind.Vector(flow.Dir);
