@@ -66,10 +66,22 @@ public sealed class SupplyDialog : Window
     }
 
     /// <summary>글이 놓이는 판의 크기. 품목과 총계 사이가 게임처럼 비도록 키를 못 박는다.</summary>
-    private const double BoardWidth = 620, BoardHeight = 300;
+    /// <remarks>
+    /// 게임 갈무리를 재어 맞췄다. 머리글이 <b>한 줄짜리 문자열</b>이라
+    /// (<c>0x0055F2F8</c> — 전각 빈칸으로 칸을 벌려 놓은 것이다) 폭을 셀 수 있다.
+    /// <code>
+    ///   머리글 62칸 x 8점 = 496점        ← 이것으로 갈무리 배율 1.74 를 얻었다
+    ///   창 바깥                563 x 412 점
+    ///   테 8 + 여백 10 + 글 527 + 여백 10 + 테 8 = 563
+    /// </code>
+    /// 예전에는 <c>620</c> 이라 창이 <c>674</c> 로 나왔다 — 게임보다 <b>111점 넓었다</b>.
+    /// 키는 그때도 맞았다(412).
+    /// </remarks>
+    private const double BoardWidth = 519, BoardHeight = 300;
 
     /// <summary>칸 폭 — 단중량/단가 · 현재량 · 보충량 · 가격.</summary>
-    private const double UnitWidth = 160, HaveWidth = 100, AddWidth = 120, CostWidth = 110;
+    /// <remarks>판을 줄인 만큼(0.837배) 같이 줄였다. 칸 차례와 결은 그대로다.</remarks>
+    private const double UnitWidth = 134, HaveWidth = 84, AddWidth = 100, CostWidth = 92;
 
     /// <summary>↑↓ 한 번에 움직이는 통 수. Shift 를 누르면 열 배로 뛴다.</summary>
     private const int Step = 1, FastStep = 10;

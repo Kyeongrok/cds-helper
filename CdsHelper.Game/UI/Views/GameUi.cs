@@ -148,15 +148,15 @@ internal static class GameUi
     public static Border InfoFrame(UIElement content, Brush back, Brush line)
     {
         // 안쪽 선 — 글이 놓이는 자리를 두른다.
-        var inner = Line(content, 4);
+        var inner = Line(content, InnerGap);
         // 가운데 선.
-        var middle = Line(inner, 3);
+        var middle = Line(inner, MiddleGap);
         // 바깥 선. 바탕은 여기서 한 번만 칠한다.
         var outer = Line(middle, 0);
         outer.Background = back;
         return outer;
 
-        Border Line(UIElement child, int gap) => new()
+        Border Line(UIElement child, double gap) => new()
         {
             BorderBrush = line,
             BorderThickness = new Thickness(LineWidth),
@@ -166,7 +166,18 @@ internal static class GameUi
     }
 
     /// <summary>테 한 줄의 굵기.</summary>
-    private const double LineWidth = 2;
+    /// <remarks>
+    /// 게임 갈무리에서 잰 값이다. 보급 화면의 왼쪽 테를 화면 점으로 세면
+    /// <c>검정 2 · 바탕 3 · 검정 2 · 바탕 5 · 검정 2</c> 인데, 그 갈무리 배율이 1.74 라
+    /// 게임 점으로는 <b>1 · 2 · 1 · 3 · 1</b> 이고 모두 <b>8점</b>이다.
+    ///
+    /// 예전에는 <c>2 · 3 · 2 · 4 · 2</c>(13점)로 두어 테가 굵고 줄 사이가 벌어졌다 —
+    /// 게임 것은 훨씬 촘촘해서 세 줄이 거의 붙어 보인다.
+    /// </remarks>
+    private const double LineWidth = 1;
+
+    /// <summary>테 줄 사이의 빈칸 — 바깥쪽이 좁고 안쪽이 넓다.</summary>
+    private const double MiddleGap = 2, InnerGap = 3;
 
     /// <summary>정보 창 테의 짙은 선. 게임 화면에서 뽑았다.</summary>
     public static readonly Brush InfoLine = Frozen(Color.FromRgb(0x14, 0x18, 0x20));
