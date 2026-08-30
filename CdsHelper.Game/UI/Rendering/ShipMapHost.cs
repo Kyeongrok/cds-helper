@@ -235,7 +235,14 @@ public sealed class ShipMapHost : HwndHost
     private byte[]? _lastIndices;
 
     /// <summary>텍스처에 올라가 있는 그림이 무엇인지. 같으면 게임 메모리를 읽지도 않는다.</summary>
-    private (int Heading, bool OnLand, bool FromGame, int WalkPhase)? _spriteKey;
+    /// <summary>
+    /// 지금 올려 둔 그림이 무엇인지. 같은 열쇠면 다시 올리지 않는다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ShipSprites.Generation"/> 이 열쇠에 든다 — 배를 사거나 기함을 바꾸면
+    /// 뱃머리는 그대로인 채 그림 벌만 갈리는데, 그 낌새가 없으면 옛 배가 그대로 떠 있는다.
+    /// </remarks>
+    private (int Heading, bool OnLand, bool FromGame, int WalkPhase, int Skin)? _spriteKey;
 
     // 지난번에 실제로 그려 낸 값. 그대로면 이번 프레임은 건너뛴다.
     private (double X, double Y) _drawnOrigin;
@@ -833,7 +840,8 @@ public sealed class ShipMapHost : HwndHost
         // 게임이 떠 있으면 그 그림을(함선 종류에 맞는 4벌 중 하나), 아니면 asset/ship 의 것을 쓴다.
         // 같은 그림이면 게임 메모리를 읽지도, 텍스처를 올리지도 않는다 — 뱃머리가 그대로면
         // 프레임마다 할 일이 없다.
-        var key = (_heading, _onLand, _ship.IsAttached, _onLand ? _walkPhase : 0);
+        var key = (_heading, _onLand, _ship.IsAttached, _onLand ? _walkPhase : 0,
+                   ShipSprites.Generation);
         if (_spriteKey == key) return;
 
         var indices = _ship.IsAttached

@@ -133,7 +133,13 @@ public sealed class BarmaidTable
     /// <summary>
     /// 그 나이의 주인공이 내는 <b>표시 얼굴 코드</b>. 서른여섯부터 열여섯이 더 붙는다.
     /// </summary>
-    public static int FortuneOf(int face, int age) => face + (age >= AgedFrom ? AgedFaceStep : 0);
+    /// <param name="fortune">
+    /// 주인공의 운명 코드(0~15). <b>초상화 번호가 아니다</b> — 게임은 이것을 주인공 객체의
+    /// <c>+0x08</c> 에 따로 들고 있고, 우리도 <c>Player.Fortune</c> 에 따로 적어 둔다.
+    /// </param>
+    /// <param name="age">지금 나이.</param>
+    public static int FortuneOf(int fortune, int age) =>
+        fortune + (age >= AgedFrom ? AgedFaceStep : 0);
 
     /// <summary>
     /// 궁합이 맞는지 — 두 코드가 같거나 하나 차이일 때다(<c>0x00465E90</c>).

@@ -709,7 +709,7 @@ public sealed class ShipMapWindow : Window
         var player = _game.Player;
         var left = new List<string> { "여급 (친밀도 · 궁합)" };
 
-        int mine = BarmaidTable.FortuneOf(player.Face, player.Age);
+        int mine = Engine.Town.Barmaids.FortuneOf(player);
         var table = _game.Barmaids;
         foreach (var (id, liking) in player.Liking.OrderByDescending(p => p.Value))
         {
@@ -1530,6 +1530,11 @@ public sealed class ShipMapWindow : Window
             if (saved.Family != null) _game.Player.Family = saved.Family;
             if (saved.Given != null) _game.Player.Given = saved.Given;
             _game.Player.RestoreTongues(saved.Tongues);
+
+            // 얼굴과 운명 코드는 판 25 부터 적힌다. 운명 코드가 없으면 얼굴 번호로
+            // 물러선다 — 그때까지는 새 놀이가 앞의 열여섯만 고르게 해 둘이 같았다.
+            if (saved.Face is { } face) _game.Player.Face = face;
+            _game.Player.SetFortune(saved.Fortune ?? _game.Player.Face);
             if (saved.Morale is { } morale) _game.Player.SetMorale(morale);
             _game.Player.RestoreContract(GameSave.ContractOf(saved));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;

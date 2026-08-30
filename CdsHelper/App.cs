@@ -79,6 +79,7 @@ internal class App : PrismApplication
         containerRegistry.RegisterForNavigation<PlayerContent>();
         containerRegistry.RegisterForNavigation<SphinxCalculatorContent>();
         containerRegistry.RegisterForNavigation<DiscoveryContent>();
+        containerRegistry.RegisterForNavigation<DiscoveryStillContent>();
         containerRegistry.RegisterForNavigation<ExePatchContent>();
         containerRegistry.RegisterForNavigation<AutoPlayContent>();
         containerRegistry.RegisterForNavigation<WorldMapContent>();

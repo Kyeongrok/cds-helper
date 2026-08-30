@@ -121,6 +121,27 @@ public sealed class Player
     /// <summary>얼굴 번호(MALE.CDS 의 파트). 화면 왼쪽 초상화다.</summary>
     public int Face { get; set; }
 
+    /// <summary>
+    /// <b>운명 코드</b> — 여급과의 궁합이 이 값 하나로 갈린다(0~15).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이것을 주인공 객체의 <c>+0x08</c> 에 따로 들고 있다(<c>0x0047CB10</c>). 새 놀이가
+    /// 앞의 열여섯 초상화만 고르게 해서 값이 <see cref="Face"/> 와 늘 같았을 뿐,
+    /// <b>초상화 번호와 같은 것이 아니다</b>.
+    ///
+    /// 그래서 칸을 갈라 두었다. 붙여 두면 초상화를 더 넣거나 차례를 바꾸는 순간, 또는
+    /// 열여섯 밖의 얼굴을 가진 세이브를 읽는 순간 궁합이 조용히 어긋난다.
+    /// 새로 지을 때는 고른 초상화 자리를 그대로 넣고(<see cref="SetFortune"/>),
+    /// 그 값을 안 적어 둔 옛 세이브만 얼굴 번호로 물러선다.
+    /// </remarks>
+    public int Fortune { get; private set; }
+
+    /// <summary>운명 코드를 넣는다. 0~15 를 벗어나면 잘라 넣는다.</summary>
+    public void SetFortune(int fortune) => Fortune = Math.Clamp(fortune, 0, MaxFortune);
+
+    /// <summary>운명 코드의 위. 게임도 젊은 얼굴 열여섯 벌만 쓴다.</summary>
+    public const int MaxFortune = 15;
+
     /// <summary>국적 이름. 번호가 표 밖이면 첫째다.</summary>
     public string NationName => Nations[Math.Clamp(Nation, 0, Nations.Length - 1)];
 
@@ -163,6 +184,8 @@ public sealed class Player
         Blood = Math.Clamp(blood, 0, BloodTypes.Length - 1);
         Nation = Math.Clamp(nation, 0, Nations.Length - 1);
         Face = Math.Max(0, face);
+        // 새로 지을 때는 고른 초상화 자리가 곧 운명 코드다 — 게임도 그렇게 넣는다.
+        SetFortune(Face);
     }
 
     /// <summary>고를 수 있는 나이.</summary>
