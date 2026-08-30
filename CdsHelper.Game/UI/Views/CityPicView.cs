@@ -408,12 +408,45 @@ public sealed class CityPicView : Window
     {
         var facility = Facility.For(building.Kind);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
+        Discover(building);                              // 이 건물이 곧 발견물일 수 있다
         Greet(facility, building);
         ShowPhoto(facility.Kind, building.Code);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.Code, building.TeachMask,
                                  building.Kind),
                  facility.BgmTrack);
+    }
+
+    /// <summary>
+    /// 건물 자체가 발견물이면 들어서는 그 자리에서 발견한다 — 세빌리아 교회가 51번
+    /// 히랄다탑이다.
+    /// </summary>
+    /// <remarks>
+    /// 발견물 번호도 그림 번호도 <b>건물 표</b>가 들고 있다(<c>+0x1C</c>, <c>+0x14</c>).
+    /// 바다에서 하는 판정(<see cref="DiscoveryLog.At"/>)과는 길이 아주 다르다 — 이런 것들은
+    /// 지도에 사각형이 없어(<c>-1</c>) 자리로는 영영 안 잡힌다.
+    ///
+    /// 힌트로 열리는 것도 있으므로 <see cref="DiscoveryLog.IsOpen"/> 을 거친다.
+    /// </remarks>
+    private void Discover(CityBuildingTable.Building building)
+    {
+        if (!building.IsDiscovery) return;
+        if (_game.Discoveries is not { } log) return;
+        if (log.Table.Find(building.Discovery) is not { } row) return;
+        if (_player.HasFound(row.Id)) return;
+        if (!log.IsOpen(_player, row)) return;
+
+        int item = log.Discover(_player, row.Id);
+
+        // 게임 문구는 "%s%s 발견했다!"(0x00544720) 다 — 이름 뒤에 을/를 이 붙는다.
+        DiscoveryDialog.Show(this, _game.Stills, building.Picture,
+                             $"{row.Name}{GameUi.Josa(row.Name, "을", "를")} 발견했다!");
+
+        if (item >= 0)
+        {
+            string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
+            ConfirmDialog.Tell(this, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다");
+        }
     }
 
     /// <summary>한 장이 머무는 참. 다섯 장을 이으면 1.1초쯤 된다.</summary>

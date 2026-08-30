@@ -58,6 +58,7 @@ public sealed class Game
         _itemText = null; _itemTextTried = false;
         _itemArt = null;
         _discoveries = null; _discoveriesTried = false;
+        _stills = null; _stillsTried = false;
 
         Bgm.SetGameDirectory(directory);
     }
@@ -141,6 +142,11 @@ public sealed class Game
             return _discoveries = new DiscoveryLog(table, Hints);
         }
     }
+
+    /// <summary>발견했을 때 뜨는 그림(DSTILL.CDS). 못 읽으면 글만 낸다.</summary>
+    public DiscoveryStills? Stills =>
+        Once(ref _stills, ref _stillsTried, DiscoveryStills.Open,
+             () => DiscoveryStills.LastError, "발견물 그림");
 
     /// <summary>화면에 겹쳐 도는 동그란 애니메이션(MPEFFECT.CDS).</summary>
     public EffectAnim? Effects =>
@@ -321,6 +327,8 @@ public sealed class Game
     private GoodsTable? _goods;
     private CityExeTable? _cityRows;
     private DiscoveryLog? _discoveries;
+    private DiscoveryStills? _stills;
+    private bool _stillsTried;
     private TavernRoster? _roster;
     private Portraits? _faces;
     private EffectAnim? _effects;
