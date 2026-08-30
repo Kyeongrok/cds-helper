@@ -218,8 +218,23 @@ public sealed class LibraryDialog : Window
         return left ? 2 : 0;                                    // 빨강 / 초록
     }
 
-    /// <summary>책을 읽을 수 있는지 — 그 언어를 3 자리까지 배워야 한다.</summary>
-    private bool CanRead(BookTable.Book book) => _player.LevelOf(LanguageOf(book)) >= 3;
+    /// <summary>책을 읽으려면 그 언어가 있어야 하는 자리 — 게임도 <c>3</c> 이다.</summary>
+    /// <remarks><c>0x00463E41</c> 의 <c>cmp eax,3 / jl</c> 이다.</remarks>
+    private const int ReadLevel = 3;
+
+    /// <summary>
+    /// 책을 읽을 수 있는지 — <b>그 언어를 3 자리까지</b> 배워야 한다(<c>0x00463DB0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 언어는 기술과 <b>딴 칸</b>에 적힌다(<see cref="Player.TongueOf"/>). 예전에는 여기서
+    /// <c>LevelOf</c>(기술 칸)를 봐서 <b>언어 자리가 늘 0 으로 읽혔고</b>, 그래서 파란 책이
+    /// 한 권도 안 나오고 아무 책도 못 읽었다.
+    ///
+    /// 게임은 <b>함대에 탄 사람 전부</b>를 훑어 그 언어를 가장 잘 아는 이를 찾는다
+    /// (<c>0x0047CD20</c>) — 부하가 대신 읽어 준다. 우리는 부하의 언어를 아직 안 적어 두어
+    /// 주인공만 본다.
+    /// </remarks>
+    private bool CanRead(BookTable.Book book) => _player.TongueOf(LanguageOf(book)) >= ReadLevel;
 
     /// <summary>힌트를 알아들을 수 있는지 — 힌트마다 필요한 기능과 그 자리가 있다.</summary>
     private bool Understands(int hint)
