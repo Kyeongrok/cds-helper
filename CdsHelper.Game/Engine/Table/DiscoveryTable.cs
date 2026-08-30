@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -31,7 +31,23 @@ public sealed class DiscoveryTable
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\발견물표.json</c>).</summary>
     private const string CacheName = "발견물표";
 
+    /// <summary>알맹이 모양 판. 그림·동영상 칸을 더하면서 올렸다.</summary>
+    private const int SnapshotVersion = 2;
+
     private const int TableVa = 0x0051C540;
+
+    /// <summary>
+    /// 발견했을 때 무엇을 보여 주는가 — <b>그림 아니면 동영상</b>이고 둘 다 없는 것도 있다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   +0x0C  DSTILL.CDS 그림 번호(0~83)   -1 이면 없다
+    ///   +0x10  AVI 동영상 번호(0~69)        -1 이면 없다  →  AVI\I{번호:00}_0000.AVI
+    /// </code>
+    /// 히랄다탑은 그림 69, 카르낙 거석군은 동영상 44 다. 동영상 파일이 <c>I00_0000.AVI</c>
+    /// 부터 <c>I69_0000.AVI</c> 까지 일흔 개라 이 칸의 폭과 딱 맞는다.
+    /// </remarks>
+    public const string MovieFolder = "AVI";
     private const int RowSize = 92;
 
     /// <summary>발견물 수.</summary>
@@ -79,7 +95,7 @@ public sealed class DiscoveryTable
     public readonly record struct Record(
         int Id, string Name, int Category, int Hint, int Reward, int ItemId,
         bool Indirect, bool OpenAtStart, bool OnLand, bool Once,
-        int X1, int Y1, int X2, int Y2)
+        int X1, int Y1, int X2, int Y2, int Picture = -1, int Movie = -1)
     {
         /// <summary>세계지도에 자리가 있는지. 없으면 다른 길로만 얻는다.</summary>
         [JsonIgnore] public bool HasPlace => X1 != NoPlace;
@@ -128,7 +144,8 @@ public sealed class DiscoveryTable
     /// </summary>
     public static DiscoveryTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe,
+                                              out string error, SnapshotVersion);
         LastError = error;
         return snapshot == null ? null : new DiscoveryTable(snapshot);
     }
@@ -156,7 +173,9 @@ public sealed class DiscoveryTable
                 X1: exe.Int(row + 0x44),
                 Y1: exe.Int(row + 0x48),
                 X2: exe.Int(row + 0x4C),
-                Y2: exe.Int(row + 0x50));
+                Y2: exe.Int(row + 0x50),
+                Picture: exe.Int(row + 0x0C),
+                Movie: exe.Int(row + 0x10));
         }
 
         if (rows[ProbeId].Name != ProbeName)

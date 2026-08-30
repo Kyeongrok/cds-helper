@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -16,6 +16,12 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class HintListDialog : Window
 {
+    /// <summary>목록 칸의 폭과 가장 높은 자리. 게임 갈무리에서 잰 값이다.</summary>
+    private const double ListWidth = 420, ListMaxHeight = 300;
+
+    /// <summary>아래 단추 둘의 폭과 사이.</summary>
+    private const double ButtonWidth = 150, ButtonGap = 16;
+
     /// <summary>고른 줄. 아무것도 안 골랐으면 -1.</summary>
     private int _picked = -1;
 
@@ -64,8 +70,12 @@ public sealed class HintListDialog : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 8, 0, 8),
         };
+        _decide.Width = ButtonWidth;
+        _decide.Margin = new Thickness(0, 0, ButtonGap / 2, 0);
+        var stop = GameUi.PushButton("중단", Cancel, ButtonWidth);
+        stop.Margin = new Thickness(ButtonGap / 2, 0, 0, 0);
         buttons.Children.Add(_decide);
-        buttons.Children.Add(GameUi.PushButton("중단", Cancel));
+        buttons.Children.Add(stop);
 
         var title = GameUi.TitleBar(caption, Cancel);
         GameUi.EnableDrag(this, title);
@@ -79,10 +89,13 @@ public sealed class HintListDialog : Window
             BorderThickness = new Thickness(2),
             Margin = new Thickness(4, 4, 4, 0),
             Padding = new Thickness(6, 4, 6, 4),
+            // <b>가로로 넓고 세로는 줄 수를 따라간다.</b> 게임 창이 그렇다 — 두 줄이면
+            // 두 줄만큼만 높고, 길어지면 그때 늘어나다 스무 줄쯤에서 멎고 굴러간다.
+            // 예전에는 280x300 으로 박아 두어 줄이 몇 없어도 아래가 텅 비었다.
             Child = new ScrollViewer
             {
-                Height = 300,
-                Width = 280,
+                Width = ListWidth,
+                MaxHeight = ListMaxHeight,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Content = list,
             },
