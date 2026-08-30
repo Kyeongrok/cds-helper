@@ -56,6 +56,9 @@ internal sealed class CharacterMakeDialog : Window
     /// <summary>테 — 밝은 줄 한 겹이다. 안쪽 줄과 빈칸은 걷어냈다.</summary>
     private const double Bevel = 2;
 
+    /// <summary>물리는 창의 제목 줄(<c>0x00571538</c>).</summary>
+    private const string InputError = "입력 에러";
+
     /// <summary>가로 자리(속 왼쪽에서).</summary>
     private const double PortraitX = 8, LabelX = 104, ControlX = 128, RightEdge = 378;
 
@@ -403,24 +406,31 @@ internal sealed class CharacterMakeDialog : Window
     private static int Number(GameUi.GameLabel box, int fallback) =>
         int.TryParse(box.Text, out int n) ? n : fallback;
 
-    /// <summary>"다음" — 게임처럼 빈 칸을 먼저 따진다.</summary>
+    /// <summary>
+    /// "다음" — 게임처럼 빈 칸을 먼저 따진다.
+    /// </summary>
+    /// <remarks>
+    /// 물리는 창에는 <b>제목 줄이 붙는다</b> — "입력 에러" 다(<c>0x00571538</c> 벌).
+    /// 성과 명을 따로 따지는 것도 게임 그대로다 — 같은 문구가 두 벌 있다
+    /// (<c>0x0045D1D6</c> · <c>0x0045D1EF</c>).
+    /// </remarks>
     private void Next()
     {
-        if (_given.Text.Trim().Length == 0)
+        if (_family.Text.Trim().Length == 0 || _given.Text.Trim().Length == 0)
         {
-            NoticeDialog.Show(this, "이름을 정확히 입력해 주십시오");
+            NoticeDialog.Show(this, "이름을 정확히 입력해 주십시오", InputError);
             return;
         }
         int age = Number(_age, 0);
         if (age < Player.MinAge || age > Player.MaxAge)
         {
-            NoticeDialog.Show(this, "연령을 정확히 입력해 주십시오");
+            NoticeDialog.Show(this, "연령을 정확히 입력해 주십시오", InputError);
             return;
         }
         int month = Number(_month, 0), day = Number(_day, 0);
         if (month is < 1 or > 12 || day is < 1 or > 31)
         {
-            NoticeDialog.Show(this, "생일을 정확히 입력해 주십시오");
+            NoticeDialog.Show(this, "생일을 정확히 입력해 주십시오", InputError);
             return;
         }
 
