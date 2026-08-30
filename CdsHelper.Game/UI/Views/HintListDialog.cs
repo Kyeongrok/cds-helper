@@ -20,6 +20,16 @@ public sealed class HintListDialog : Window
     /// <summary>목록 칸의 폭과 가장 높은 자리. 게임 갈무리에서 잰 값이다.</summary>
     private const double ListWidth = 300, ListMaxHeight = 280;
 
+    /// <summary>고른 줄의 바탕. 게임 갈무리에서 집은 파랑이다.</summary>
+    private static readonly Brush PickFill = Frozen(Color.FromRgb(0x4A, 0x64, 0x9E));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
     /// <summary>줄 좌우 여백. 게임은 종이 테에 바짝 붙여 찍는다.</summary>
     private const double RowPad = 3;
 
@@ -50,6 +60,8 @@ public sealed class HintListDialog : Window
             var row = new Border
             {
                 Background = Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(1),
                 Padding = new Thickness(RowPad, 0, RowPad, 0),
                 Cursor = choosing ? Cursors.Hand : Cursors.Arrow,
                 // 줄은 게임 비트맵 글꼴로 찍는다 — 종이 위라 검은 벌이다.
@@ -131,8 +143,12 @@ public sealed class HintListDialog : Window
     private void Select(int index)
     {
         _picked = index;
+        // 고른 줄은 파란 바탕에 까만 테다 — 게임도 그렇게 도드라지게 낸다.
         for (int i = 0; i < _rows.Count; i++)
-            _rows[i].Background = i == index ? GameUi.ItemFill : Brushes.Transparent;
+        {
+            _rows[i].Background = i == index ? PickFill : Brushes.Transparent;
+            _rows[i].BorderBrush = i == index ? Brushes.Black : Brushes.Transparent;
+        }
 
         _decide.On = true;
         _decideReady = true;

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -43,6 +43,20 @@ public static class ShipRegistry
         public int Price { get; set; } = 300;
         public int MaxMasts { get; set; } = Hull.MastLimit;
         public bool CanChangeSail { get; set; } = true;
+
+        /// <summary>
+        /// 붙박이 선체를 덧씌우는 줄이면 그 <b>본디 이름</b>. 새로 등록한 배면 null 이다.
+        /// </summary>
+        /// <remarks>
+        /// 붙박이 다섯(갤리온·중카락·카락·대형카라벨·카라벨)의 값도 고칠 수 있어야 해서
+        /// 둔다. 그림은 그대로 <see cref="Hull.Skin"/> 을 쓰므로 이 줄에는 그림이 없다.
+        /// EXE 도 <c>Hull.Builtin</c> 도 손대지 않고 <see cref="BuildHulls"/> 가 얹는다.
+        /// </remarks>
+        public string? Builtin { get; set; }
+
+        /// <summary>붙박이를 덧씌우는 줄인지.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsBuiltin => !string.IsNullOrEmpty(Builtin);
 
         public Design Copy() => (Design)MemberwiseClone();
     }
@@ -122,13 +136,26 @@ public static class ShipRegistry
     /// (<c>Player.RestoreFleet</c>) 같은 이름이 둘이면 어느 쪽인지 가릴 수 없다.
     /// 그림이 여덟 장 다 차지 않은 배도 뺀다 — 반쪽짜리로 바다에 내보낼 수는 없다.
     /// </remarks>
+    /// <remarks>
+    /// 붙박이 다섯을 밑에 깔고, <b>덧씌우는 줄</b>이 있으면 그 값으로 갈아 낸 뒤 새로
+    /// 등록한 배를 얹는다. 덧씌운 줄은 그림을 안 갖는다 — 붙박이의 그림벌을 그대로 쓴다.
+    /// </remarks>
     public static Hull[] BuildHulls()
     {
-        var hulls = new List<Hull>(Hull.Builtin);
+        var saved = Load();
+        var over = saved.Where(d => d.IsBuiltin)
+                        .GroupBy(d => d.Builtin!)
+                        .ToDictionary(g => g.Key, g => g.Last());
+
+        var hulls = new List<Hull>();
+        foreach (var built in Hull.Builtin)
+            hulls.Add(over.TryGetValue(built.Name, out var edit) ? Overlay(built, edit) : built);
+
         var taken = hulls.Select(h => h.Name).ToHashSet();
 
-        foreach (var design in Load())
+        foreach (var design in saved)
         {
+            if (design.IsBuiltin) continue;
             if (string.IsNullOrWhiteSpace(design.Name) || !taken.Add(design.Name)) continue;
             if (!HasAllSprites(design.Id)) continue;
 
@@ -138,6 +165,38 @@ public static class ShipRegistry
         // 값이 비싼 쪽이 위 — 붙박이 표가 그 차례라 얹은 배도 같은 줄에 세운다.
         return [.. hulls.OrderByDescending(h => h.Price)];
     }
+
+    /// <summary>붙박이 선체에 고친 값을 얹는다. 그림벌(<see cref="Hull.Skin"/>)은 그대로다.</summary>
+    public static Hull Overlay(Hull built, Design edit) => built with
+    {
+        Name = string.IsNullOrWhiteSpace(edit.Name) ? built.Name : edit.Name,
+        Hp = edit.Hp,
+        Speed = edit.Speed,
+        Capacity = edit.Capacity,
+        Tonnage = edit.Tonnage,
+        Crew = edit.Crew,
+        Guns = edit.Guns,
+        Price = edit.Price,
+        MaxMasts = Math.Clamp(edit.MaxMasts, 1, Hull.MastLimit),
+        CanChangeSail = edit.CanChangeSail,
+    };
+
+    /// <summary>붙박이 선체를 고칠 줄을 짓는다 — 지금 값을 그대로 담는다.</summary>
+    public static Design FromBuiltin(Hull built) => new()
+    {
+        Id = $"builtin-{built.Name}",
+        Builtin = built.Name,
+        Name = built.Name,
+        Hp = built.Hp,
+        Speed = built.Speed,
+        Capacity = built.Capacity,
+        Tonnage = built.Tonnage,
+        Crew = built.Crew,
+        Guns = built.Guns,
+        Price = built.Price,
+        MaxMasts = built.MaxMasts,
+        CanChangeSail = built.CanChangeSail,
+    };
 
     public static Hull ToHull(Design design) => new(
         design.Name,

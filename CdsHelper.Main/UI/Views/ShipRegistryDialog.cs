@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -237,11 +237,31 @@ public sealed class ShipRegistryDialog : Window
     /// <summary>적어 둔 배를 다시 읽어 목록을 채운다.</summary>
     private void Reload(string? selectId)
     {
-        _designs = ShipRegistry.Load();
+        var saved = ShipRegistry.Load();
+
+        // 붙박이 다섯을 먼저 세운다 — 고쳐 둔 줄이 있으면 그 값으로 뜬다.
+        _designs = [];
+        foreach (var built in Hull.Builtin)
+            _designs.Add(saved.FirstOrDefault(d => d.Builtin == built.Name)
+                         ?? ShipRegistry.FromBuiltin(built));
+
+        _designs.AddRange(saved.Where(d => !d.IsBuiltin));
         _list.Items.Clear();
 
         foreach (var design in _designs)
         {
+            if (design.IsBuiltin)
+            {
+                bool edited = saved.Any(d => d.Builtin == design.Builtin);
+                _list.Items.Add(new ListBoxItem
+                {
+                    Content = edited ? $"{design.Name}  (붙박이 · 고침)" : $"{design.Name}  (붙박이)",
+                    Tag = design.Id,
+                    Foreground = Brushes.DimGray,
+                });
+                continue;
+            }
+
             int have = Enumerable.Range(0, ShipRegistry.Directions)
                 .Count(i => File.Exists(ShipRegistry.SpritePath(design.Id, i)));
 
@@ -253,13 +273,6 @@ public sealed class ShipRegistryDialog : Window
                 Tag = design.Id,
                 Foreground = have == ShipRegistry.Directions ? Brushes.Black : Brushes.Firebrick,
             });
-        }
-
-        if (_designs.Count == 0)
-        {
-            Fill(null);
-            _status.Text = "등록해 둔 배가 없습니다 — 새 배로 하나 만들어 보세요.";
-            return;
         }
 
         int at = selectId == null ? 0 : Math.Max(0, _designs.FindIndex(d => d.Id == selectId));
@@ -283,6 +296,11 @@ public sealed class ShipRegistryDialog : Window
             _form.IsEnabled = design != null;
             _deleteButton.IsEnabled = design != null;
             _saveButton.IsEnabled = design != null;
+
+            // 붙박이는 그림을 안 갖는다 — 제 그림벌을 그대로 쓴다. 지우기는
+            // 고친 것을 걷는 것이라 이름을 바꿔 단다.
+            bool builtin = design?.IsBuiltin == true;
+            _deleteButton.Content = builtin ? "되돌리기" : "지우기";
 
             if (design == null)
             {
@@ -502,7 +520,7 @@ public sealed class ShipRegistryDialog : Window
             return;
         }
 
-        if (Hull.Builtin.Any(h => h.Name == name))
+        if (!design.IsBuiltin && Hull.Builtin.Any(h => h.Name == name))
         {
             _status.Text = $"'{name}' 은 붙박이 선체 이름입니다 — 다른 이름을 적어 주세요.";
             return;
@@ -525,17 +543,34 @@ public sealed class ShipRegistryDialog : Window
         design.MaxMasts = (int)_maxMasts.Value;
         design.CanChangeSail = _canChangeSail.IsChecked == true;
 
-        ShipRegistry.Save(_designs);
+        // 적어 두는 것은 <b>고친 줄만</b>이다 — 안 건드린 붙박이는 적지 않는다.
+        var keep = ShipRegistry.Load().Where(d => d.Id != design.Id).ToList();
+        keep.Add(design);
+        ShipRegistry.Save(keep);
+        Hull.Reload();
         Reload(design.Id);
 
-        _status.Text = ShipRegistry.HasAllSprites(design.Id)
-            ? $"저장했습니다 — '{design.Name}' 이 조선소 구입 표에 나옵니다."
-            : "저장했습니다. 그림이 여덟 장 다 차야 조선소에 나옵니다.";
+        _status.Text = design.IsBuiltin
+            ? $"저장했습니다 — 붙박이 '{design.Name}' 의 값이 놀이에 그대로 쓰입니다."
+            : ShipRegistry.HasAllSprites(design.Id)
+                ? $"저장했습니다 — '{design.Name}' 이 조선소 구입 표에 나옵니다."
+                : "저장했습니다. 그림이 여덟 장 다 차야 조선소에 나옵니다.";
     }
 
     private void Delete()
     {
         if (_current is not { } design) return;
+
+        // 붙박이는 지우는 것이 아니라 <b>고친 것을 걷는 것</b>이다.
+        if (design.IsBuiltin)
+        {
+            var kept = ShipRegistry.Load().Where(d => d.Builtin != design.Builtin).ToList();
+            ShipRegistry.Save(kept);
+            Hull.Reload();
+            Reload(design.Id);
+            _status.Text = $"'{design.Builtin}' 을 게임 값으로 되돌렸습니다.";
+            return;
+        }
 
         if (MessageBox.Show(
                 this,
@@ -549,6 +584,7 @@ public sealed class ShipRegistryDialog : Window
         }
 
         ShipRegistry.Delete(design.Id);
+        Hull.Reload();
         Reload(null);
         _status.Text = $"'{design.Name}' 을 지웠습니다.";
     }

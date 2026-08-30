@@ -888,8 +888,23 @@ public sealed class CityPicView : Window
     private string HintNameOf(int id) => _game.HintName(id);
 
     /// <summary>얻은 힌트를 늘어놓는다. 이름은 판이 찾아 준다.</summary>
-    private void ShowHints() =>
-        HintListDialog.Show(_cityMenu.Window ?? this, GameInfo.HintNames(_game));
+    private void ShowHints()
+    {
+        // 게임은 그냥 늘어놓기만 하지 않는다 — 한 줄을 고르고 결정하면 그 이야기를 편다.
+        var owner = _cityMenu.Window ?? this;
+        var ids = _player.Hints.Order().ToList();
+
+        while (true)
+        {
+            int at = HintListDialog.Pick(owner, [.. ids.Select(_game.HintName)],
+                                         whenEmpty: "아직 얻은 힌트가 없다.");
+            if (at < 0 || at >= ids.Count) return;
+            if (_game.Hints?.Find(ids[at]) is not { } hint) return;
+
+            HintDetailDialog.Show(owner, hint, _game.Hints.CategoryOf(hint.Category),
+                                  _player.Fame, _player.MateCount > 0);
+        }
+    }
 
     /// <summary>
     /// 시설의 명령 창을 짓는다. 줄은 <see cref="Facility"/> 표에서 오고, 어느 줄이 무슨
@@ -1082,7 +1097,10 @@ public sealed class CityPicView : Window
             // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
             TownWork.FleetForm => () => Menu.Push(Port.FleetMenu),
             TownWork.CrewForm => Port.CrewForm,
-            TownWork.Announce => Port.Announce,
+            // 알릴 것이 없으면 흐리다 — 다 알리고 나면 그 자리에서 흐려지도록
+            // 알린 뒤에 차림표를 다시 짓는다.
+            TownWork.Announce when Port.Announceable().Count > 0 => () =>
+                { Port.Announce(); Menu.Refresh(); },
             TownWork.Supply => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),
