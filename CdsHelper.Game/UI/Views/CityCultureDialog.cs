@@ -38,7 +38,7 @@ public sealed class CityCultureDialog : Window
         Width = 320,
     };
 
-    private readonly ComboBox _culture = new() { Width = 150, Margin = new Thickness(8, 0, 0, 0) };
+    private readonly ComboBox _culture = new() { Width = 220 };
 
     private readonly Button _apply = new()
     {
@@ -66,17 +66,19 @@ public sealed class CityCultureDialog : Window
 
     private readonly ComboBox _nation = new()
     {
-        Width = 200,
-        Margin = new Thickness(16, 0, 0, 0),
+        Width = 220,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
     private readonly Button _applyNation = new()
     {
-        Content = "왕국 씌우기",
+        Content = "이 도시에 씌우기",
         Padding = new Thickness(10, 2, 10, 2),
-        Margin = new Thickness(6, 0, 0, 0),
+        Margin = new Thickness(8, 0, 0, 0),
     };
+
+    /// <summary>두 줄의 이름표 폭. 콤보가 같은 자리에서 시작해야 줄이 가지런하다.</summary>
+    private const double LabelWidth = 56;
 
     private NationTable? _kingdoms;
     private CityTable? _names;
@@ -106,26 +108,46 @@ public sealed class CityCultureDialog : Window
         _resetAll.Click += (_, _) => UndoAll();
         _applyNation.Click += (_, _) => ApplyNation();
 
-        var bar = new StackPanel
+        // 두 줄로 나눈다 — 한 줄에 다 늘어놓으면 창을 가로로 한참 키워야 왕국 칸이 보인다.
+        var cultureRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(10, 8, 10, 4),
             Children =
             {
-                new TextBlock { Text = "문화권을 갈아 보기:", VerticalAlignment = VerticalAlignment.Center },
+                new TextBlock
+                {
+                    Text = "문화권:",
+                    Width = LabelWidth,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
                 _culture,
                 _apply,
                 _reset,
                 _resetAll,
+            },
+        };
+
+        var nationRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 6, 0, 0),
+            Children =
+            {
                 new TextBlock
                 {
                     Text = "왕국:",
+                    Width = LabelWidth,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(20, 0, 0, 0),
                 },
                 _nation,
                 _applyNation,
             },
+        };
+
+        var bar = new StackPanel
+        {
+            Margin = new Thickness(10, 8, 10, 4),
+            Children = { cultureRow, nationRow },
         };
 
         var right = new DockPanel();
