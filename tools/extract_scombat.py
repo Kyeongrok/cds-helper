@@ -29,18 +29,27 @@ SCOMBAT.CDS — 해전 화면 그림을 떠서 asset/scombat/*.png 로 저장한
             +44544    32x32 x 10     방향 화살표·작은 배·문장
             +54784     8x 8 x  3     작은 표시
     파트 2        64x32 x 2
-    파트 3·4      640x32 · 800x32 띠  상단 정보 띠(화면 폭에 따라 갈린다)
+    파트 3·4      640x32 띠 여러 벌    상단 정보 띠 — 타원 삽화와 Set/Cancel 단추
     파트 5~12     48x48 x 12         배 여덟 벌 — 열두 방향
     파트 13~16    276,480 씩 넷      아직 안 짚었다
     파트 17       261바이트  87색 제 팔레트
     파트 18       768바이트  256색 (앞쪽만 값이 있다)
     파트 19·20    87,808 · 5,760
 
-★ 색인 규칙은 BOOKSHEL.CDS 와 같다 — 74 밑은 공용 색표, 그 위는 파트 17 의 제 팔레트
-  (한 색이 파랑·빨강·초록 순), **색인 160 이 비침**이다.
+★ 팔레트가 **두 벌**이다. 게임이 얹는 자리를 그대로 옮겼다.
 
-  다만 파트 0·3·4·19 는 색인이 160 을 넘는다 — 파트 17 로도 18 로도 안 풀린다.
-  그 넷은 딴 그림(바다 쪽)의 팔레트를 얹어 쓰는 것으로 보이고 아직 못 짚었다.
+    0x004432F0  0x0046B540(17, 버퍼A)     파트 17 → 261바이트
+    0x0044332F  0x004BA161(74, 86, A)     색인  74~159 자리에 얹는다
+    0x004432FE  0x0046B540(18, 버퍼B)     파트 18 → 768바이트
+    0x00443350  0x004BA161(160, 86, B)    색인 160~245 자리에 얹는다
+
+  색인 0~73 은 공용 색표다. 한 색이 (파랑, 빨강, 초록) 순인 것은 도시 그림과 같다.
+  스프라이트 쪽에서는 **색인 160 이 비침**이다(BOOKSHEL.CDS 와 같은 관례) —
+  통짜 배경(파트 0·3·4·19)에서는 둘째 벌의 첫 색으로 쓰인다.
+
+  한동안 파트 0·3·4·19 를 못 풀었다. 파트 18 을 256색 팔레트로 보고 색인을 그대로
+  넣었더니 200번대가 채움값(255,255,0)이라 몽땅 마젠타가 나왔다. 둘째 벌이라
+  **160 을 빼고** 찾아야 했다.
 """
 import argparse
 import os
@@ -55,8 +64,9 @@ try:
 except ImportError:
     sys.exit("pillow 가 필요하다:  pip install pillow")
 
-OWN_PALETTE_PART = 17
-OWN_PALETTE_BASE = 74
+BANK_A_PART, BANK_A_BASE = 17, 74      # 색인  74~159
+BANK_B_PART, BANK_B_BASE = 18, 160     # 색인 160~245
+BANK_SIZE = 86
 TRANSPARENT = 160
 
 # (파트, 시작, 폭, 높이, 이름) — 시작은 그 파트 안에서의 자리다.
@@ -72,6 +82,14 @@ PIECES = [
 SHIP_PARTS = range(5, 13)
 SHIP_W = SHIP_H = 48
 
+# 통짜 그림 — 비침이 없다(색인 160 도 색으로 친다).
+FLATS = [
+    (0, 800, 600, "sea"),      # 바다 바탕
+    (3, 640, 32, "bar-a"),     # 상단 띠 — 640x32 여러 벌
+    (4, 800, 32, "bar-b"),
+    (19, 640, 32, "bar-c"),
+]
+
 
 def game_palette(repo):
     """앱의 GamePalette.cs 에서 공용 색표를 읽는다 — 값을 두 군데 두지 않으려고."""
@@ -83,25 +101,28 @@ def game_palette(repo):
     return pal + [(255, 0, 255)] * (256 - len(pal))
 
 
-def color(value, own, shared):
-    """색인 하나를 색으로. 비침은 None."""
-    if value == TRANSPARENT:
+def color(value, banks, shared, clear=True):
+    """색인 하나를 색으로. 비침이면 None(통짜 그림은 clear=False)."""
+    if clear and value == TRANSPARENT:
         return None
-    k = (value - OWN_PALETTE_BASE) * 3
-    if value >= OWN_PALETTE_BASE and k + 2 < len(own):
-        return (own[k + 1], own[k + 2], own[k])       # 제 팔레트는 (파랑, 빨강, 초록)
+    for base, table in banks:
+        if base <= value < base + BANK_SIZE:
+            k = (value - base) * 3
+            if k + 2 < len(table):
+                return (table[k + 1], table[k + 2], table[k])   # (파랑, 빨강, 초록)
     return shared[value]
 
 
-def frames(data, w, h, own, shared):
-    """한 덩이를 틀 크기로 잘라 RGBA 로 낸다."""
+def frames(data, w, h, banks, shared, clear=True):
+    """한 덩이를 틀 크기로 잘라 낸다. clear 면 RGBA(비침 있음), 아니면 RGB."""
     out = []
     for f in range(len(data) // (w * h)):
-        im = Image.new("RGBA", (w, h))
         px = []
         for v in data[f * w * h:(f + 1) * w * h]:
-            c = color(v, own, shared)
-            px.append((0, 0, 0, 0) if c is None else (c[0], c[1], c[2], 255))
+            c = color(v, banks, shared, clear)
+            px.append((0, 0, 0, 0) if c is None else
+                      ((c[0], c[1], c[2], 255) if clear else c))
+        im = Image.new("RGBA" if clear else "RGB", (w, h))
         im.putdata(px)
         out.append(im)
     return out
@@ -122,7 +143,8 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     archive = Ls12.open(path)
-    own = archive.decode(OWN_PALETTE_PART)
+    banks = [(BANK_A_BASE, archive.decode(BANK_A_PART)),
+             (BANK_B_BASE, archive.decode(BANK_B_PART))]
     shared = game_palette(repo)
 
     made = 0
@@ -133,14 +155,21 @@ def main():
         for p2, s2, _, _, _ in PIECES:
             if p2 == part and s2 > start:
                 span = min(span, s2 - start)
-        for i, im in enumerate(frames(data[start:start + span], w, h, own, shared)):
+        for i, im in enumerate(frames(data[start:start + span], w, h, banks, shared)):
             im.save(os.path.join(out_dir, "%s-%02d.png" % (name, i)))
             made += 1
 
     for k, part in enumerate(SHIP_PARTS):
         data = archive.decode(part)
-        for i, im in enumerate(frames(data, SHIP_W, SHIP_H, own, shared)):
+        for i, im in enumerate(frames(data, SHIP_W, SHIP_H, banks, shared)):
             im.save(os.path.join(out_dir, "ship%d-%02d.png" % (k, i)))
+            made += 1
+
+    # 통짜 그림 — 비침 없이 그대로 뜬다.
+    for part, w, h, name in FLATS:
+        data = archive.decode(part)
+        for i, im in enumerate(frames(data, w, h, banks, shared, clear=False)):
+            im.save(os.path.join(out_dir, "%s-%02d.png" % (name, i)))
             made += 1
 
     with open(os.path.join(out_dir, "README.md"), "w", encoding="utf-8") as f:
