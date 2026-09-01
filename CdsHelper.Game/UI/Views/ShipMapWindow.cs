@@ -2019,6 +2019,8 @@ public sealed class ShipMapWindow : Window
 
     private void CheckEncounter()
     {
+        // 무엇이 떠 있거나 멈춰 있으면 안 붙인다 — 입항 물음과 겹치면 둘 다 어그러진다.
+        if (_asking || _host.Paused) return;
         if (_game.Player.Ships.Count == 0) return;          // 배가 없으면 붙을 일이 없다
         if (_game.Random.Next(EncounterRoll) != 0) return;
 
