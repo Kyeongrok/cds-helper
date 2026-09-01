@@ -60,12 +60,16 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
     /// <summary>
     /// "수련" — 배울 것을 늘어놓고, 아무것도 안 배웠으면 한마디 한다.
     /// </summary>
+    /// <remarks>
+    /// 교회에서 그냥 "종료" 를 누르면 배웅하는 말이 나온다 — <b>"죄송하지만, 여기서는
+    /// 수련이 불가능합니다." 가 아니다.</b> 그 말은 아예 가르칠 것이 없을 때의 것이다.
+    /// </remarks>
     public void Teach(uint teachMask)
     {
         if (SkillLearnDialog.Show(_view, _game.Player, _buildings.Teaches(teachMask))) return;
 
         ConfirmDialog.Tell(_view, Church == _buildingCode
-            ? "죄송하지만, 여기서는 수련이 불가능합니다."
+            ? "용건이 있을 경우에는 언제든지 와 주십시오."
             : "용건이 없다면 오지 말게!", face: Face);
     }
 }

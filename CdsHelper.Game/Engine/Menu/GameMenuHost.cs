@@ -81,7 +81,8 @@ internal sealed class GameMenuHost(Window owner)
     {
         if (_closing || _window == null) return;
         _closing = true;
-        _window.Close();
+        // 점으로 오므라든 뒤에 닫힌다 — 게임도 그렇게 걷는다.
+        _window.CloseZoomed();
     }
 
     private void Show(Point? at)
