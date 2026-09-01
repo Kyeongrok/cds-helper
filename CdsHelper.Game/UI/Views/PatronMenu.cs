@@ -282,7 +282,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         return Persuasion.Verdict.Refused;
     }
 
-    /// <summary>
+    /// <summary>
+
     /// 그 후원자에게 <b>보고</b>할 수 있는지 — 계약을 맺은 그 자리이고 맡은 것을 찾아 왔는가.
     /// </summary>
     /// <remarks>
@@ -309,10 +310,23 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 그래서 계약을 맺어 두고 아무것도 못 찾은 채 찾아가면 "계약중단" 만 뜬다 —
     /// 그 자리에서 다시 설득할 수는 없다.
     /// </remarks>
+    /// <returns>붙일 줄이 없으면 빈 문자열 — 그러면 후원자 줄이 아예 안 뜬다.</returns>
     public string PatronRow(Patron patron) =>
         CanReport(patron) ? Facility.Report
       : Contracted(patron) ? Facility.Break
-      : Facility.Persuade;
+      : CanPersuade ? Facility.Persuade
+      : "";
+
+    /// <summary>
+    /// 내밀 힌트가 있는지. <b>없으면 "설득" 줄이 안 뜬다</b> — 게임도 그렇다
+    /// (<c>0x0044E9A0</c> 이 후원자·힌트·계약을 함께 본다).
+    /// </summary>
+    /// <remarks>
+    /// 알현에 들어가도 낼 것이 없으면 "제안 선택" 창이 빈 채로 뜨고 "용건이 없는가?" 로
+    /// 물리므로, 줄부터 감추는 편이 게임과 같고 헛걸음도 없다. 학자 저택처럼 수련만 있는
+    /// 건물에서 이 줄이 홀로 떠 있던 것이 그 탓이다.
+    /// </remarks>
+    private bool CanPersuade => _player.Hints.Count > 0;
 
     /// <summary>이 후원자와 이 자리에서 계약 중인지(<c>0x0044E550</c>).</summary>
     private bool Contracted(Patron patron) =>

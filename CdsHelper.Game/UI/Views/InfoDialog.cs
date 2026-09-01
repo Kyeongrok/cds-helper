@@ -155,28 +155,13 @@ internal abstract class InfoDialog : Window
     protected static UIElement Divider(string text) => Label($"   ━━━━━━━━{text}━━━━━━━━");
 
     /// <summary>제목 줄 오른쪽 끝의 닫기(X).</summary>
+    /// <summary>
+    /// 오른쪽 위 닫기(X). 조선소·시장 창과 <b>같은 상자</b>다 — 게임도 한 가지만 쓴다.
+    /// </summary>
     private FrameworkElement CloseBox()
     {
-        var box = new Border
-        {
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(5, 0, 5, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Cursor = Cursors.Hand,
-            ToolTip = "닫기",
-            Child = new TextBlock
-            {
-                Text = "✕",
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 13,
-            },
-        };
-        // 누름은 삼킨다 — 판 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
-        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; Close(); };
+        var box = GameUi.CloseBox(Close);
+        box.Margin = new Thickness(0, 2, 2, 0);
         return box;
     }
 

@@ -1255,6 +1255,9 @@ public sealed class ShipMapWindow : Window
             HideTitleMenu(false);
         }
 
+        // 새 주인공은 배가 없다 — 조선소에서 첫 배를 사야 바다에 나간다.
+        _game.Player.ClearShips();
+
         StartMap(fresh: true);
         OpenHome();
     }
