@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -29,22 +30,40 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal sealed class SkillMakeDialog : InfoDialog
 {
-    private const double BoardWidth = 700, BoardHeight = 400;
+    /// <summary>게임 갈무리에 이 화면들에는 닫기(X)가 없다.</summary>
+    protected override bool ShowClose => false;
+
+    /// <summary>판과 단추 줄의 여백. 게임 것이 훨씬 촘촘하다.</summary>
+    protected override Thickness BoardPad => new(8, 6, 8, 2);
+
+    protected override Thickness ButtonPad => new(0, 2, 8, 6);
+
+    /// <summary>아래 단추의 폭과 사이. 게임 것은 마구리 둘에 가운데 두 칸(48)이다.</summary>
+    private const double FootWidth = 48;
+
+    private static readonly Thickness FootGap = new(3, 0, 0, 0);
+
+    /// <summary>
+    /// 판 크기(그림 점). 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 도로 나눴다 —
+    /// 띠 단추만 제 크기로 그려져 있어 혼자 작아 보였다.
+    /// </summary>
+    private const double BoardWidth = 400, BoardHeight = 232;
+
+    /// <summary>줄 속 칸 폭 — 이름 · 자리. 언어 이름이 여덟 자(128)까지 온다.</summary>
+    private const double SkillNameWidth = 76, TongueNameWidth = 136, ValueWidth = 40;
 
     private readonly int[] _skills = new int[Skill.Names.Length];
     private readonly int[] _tongues = new int[Skill.Languages.Length];
     private readonly int[] _skillFloor = new int[Skill.Names.Length];
     private readonly int[] _tongueFloor = new int[Skill.Languages.Length];
 
-    private readonly TextBlock[] _skillText = new TextBlock[Skill.Names.Length];
-    private readonly TextBlock[] _tongueText = new TextBlock[Skill.Languages.Length];
-    private readonly TextBlock _bonus = new()
+    private readonly GameUi.GameLabel[] _skillText = new GameUi.GameLabel[Skill.Names.Length];
+    private readonly GameUi.GameLabel[] _tongueText = new GameUi.GameLabel[Skill.Languages.Length];
+    private readonly GameUi.GameLabel _bonus = new(GameFont.WhiteColor)
     {
-        Foreground = Ink,
-        FontWeight = FontWeights.Bold,
-        FontSize = 15,
-        MinWidth = 40,
-        TextAlignment = TextAlignment.Right,
+        FallbackBrush = Ink,
+        MinWidth = ValueWidth,
+        HorizontalAlignment = HorizontalAlignment.Right,
     };
 
     private readonly int _cap;
@@ -69,14 +88,14 @@ internal sealed class SkillMakeDialog : InfoDialog
         for (int i = 0; i < Skill.Names.Length; i++)
             left.Children.Add(SkillLine(Skill.Names[i], i, _skillText, _skills, _skillFloor, true, true));
 
-        var right = new StackPanel { Margin = new Thickness(24, 0, 0, 0) };
+        var right = new StackPanel { Margin = new Thickness(6, 0, 0, 0) };
         for (int i = 0; i < Skill.Languages.Length; i++)
             right.Children.Add(SkillLine(Skill.Languages[i], i, _tongueText, _tongues, _tongueFloor,
                                     i < Skill.LanguagesAtStart, false));
 
         var lists = new StackPanel { Orientation = Orientation.Horizontal };
-        lists.Children.Add(Framed(left, 210));
-        lists.Children.Add(Framed(right, 250));
+        lists.Children.Add(Framed(left, SkillNameWidth + ValueWidth + 44));
+        lists.Children.Add(Framed(right, TongueNameWidth + ValueWidth + 44));
 
         var box = new StackPanel();
         box.Children.Add(lists);
@@ -91,7 +110,7 @@ internal sealed class SkillMakeDialog : InfoDialog
         });
 
         Build("", box, BoardWidth, BoardHeight,
-              new GameButton("취소", Close), new GameButton("다음", Next));
+              new GameButton("취소", Close, width: FootWidth) { Margin = FootGap }, new GameButton("다음", Next, width: FootWidth) { Margin = FootGap });
 
         Sync();
     }
@@ -109,21 +128,17 @@ internal sealed class SkillMakeDialog : InfoDialog
     private UIElement BonusBox()
     {
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
+        stack.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
         {
             Text = "보너스",
-            Foreground = Ink,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
+            FallbackBrush = Ink,
+            HorizontalAlignment = HorizontalAlignment.Left,
         });
         var line = new StackPanel { Orientation = Orientation.Horizontal };
-        line.Children.Add(new TextBlock
+        line.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
         {
             Text = "  포인트:",
-            Foreground = Ink,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
-            VerticalAlignment = VerticalAlignment.Center,
+            FallbackBrush = Ink,
         });
         line.Children.Add(_bonus);
         stack.Children.Add(line);
@@ -131,60 +146,60 @@ internal sealed class SkillMakeDialog : InfoDialog
     }
 
     /// <summary>줄 하나 — 이름 · <c>자리(밑자리)</c> · 올리고 내리는 화살표.</summary>
-    private UIElement SkillLine(string name, int at, TextBlock[] texts, int[] values, int[] floors,
-                           bool on, bool skill)
+    private UIElement SkillLine(string name, int at, GameUi.GameLabel[] texts, int[] values,
+                                int[] floors, bool on, bool skill)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 1) };
-        var faint = new SolidColorBrush(Color.FromRgb(0xA0, 0x98, 0x88));
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
 
-        row.Children.Add(new TextBlock
+        row.Children.Add(new GameUi.GameLabel(on ? GameFont.BlackColor : GameFont.ButtonColor)
         {
             Text = name,
-            Foreground = on ? Brushes.Black : faint,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
-            Width = skill ? 92 : 130,
-            VerticalAlignment = VerticalAlignment.Center,
+            FallbackBrush = on ? Brushes.Black : Faint,
+            Width = skill ? SkillNameWidth : TongueNameWidth,
+            HorizontalAlignment = HorizontalAlignment.Left,
         });
 
-        texts[at] = new TextBlock
+        texts[at] = new GameUi.GameLabel(on ? GameFont.BlackColor : GameFont.ButtonColor)
         {
-            Foreground = on ? Brushes.Black : faint,
-            FontWeight = FontWeights.Bold,
-            FontSize = 14,
-            Width = 46,
-            TextAlignment = TextAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
+            FallbackBrush = on ? Brushes.Black : Faint,
+            Width = ValueWidth,
+            HorizontalAlignment = HorizontalAlignment.Right,
         };
         row.Children.Add(texts[at]);
 
         if (on)
         {
-            row.Children.Add(Arrow("↑", () => Move(values, floors, at, +1)));
-            row.Children.Add(Arrow("↓", () => Move(values, floors, at, -1)));
+            row.Children.Add(Arrow(UiSprites.IconUp, () => Move(values, floors, at, +1)));
+            row.Children.Add(Arrow(UiSprites.IconDown, () => Move(values, floors, at, -1)));
         }
         return row;
     }
 
-    private Border Arrow(string glyph, Action run)
+    /// <summary>못 올리는 줄의 글씨색(글꼴을 못 읽었을 때).</summary>
+    private static readonly Brush Faint = Frozen(Color.FromRgb(0xA0, 0x98, 0x88));
+
+    /// <summary>올리고 내리는 화살표. 게임 조각(<c>MISC.CDS</c> 파트 3)을 그대로 건다.</summary>
+    private FrameworkElement Arrow(int icon, Action run)
     {
-        var box = new Border
+        FrameworkElement box = GameUi.GameIcon(icon) ?? (FrameworkElement)new Border
         {
             Background = GameUi.ItemFill,
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(1),
-            Width = 18,
-            Margin = new Thickness(1, 0, 0, 0),
-            Cursor = Cursors.Hand,
+            Width = UiSprites.IconWidth,
+            Height = UiSprites.IconHeight,
             Child = new TextBlock
             {
-                Text = glyph,
+                Text = icon == UiSprites.IconUp ? "↑" : "↓",
                 Foreground = Brushes.Black,
                 FontWeight = FontWeights.Bold,
                 FontSize = 11,
                 HorizontalAlignment = HorizontalAlignment.Center,
             },
         };
+        box.Margin = new Thickness(1, 0, 0, 0);
+        box.Cursor = Cursors.Hand;
+        box.VerticalAlignment = VerticalAlignment.Center;
         box.MouseLeftButtonDown += (_, e) => e.Handled = true;
         box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
         return box;

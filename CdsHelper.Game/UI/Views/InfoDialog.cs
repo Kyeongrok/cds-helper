@@ -44,6 +44,16 @@ internal abstract class InfoDialog : Window
     /// <summary>판 테. 화면마다 다르면 물려받아 갈아 끼운다.</summary>
     protected virtual Brush BoardEdge => Line;
 
+    /// <summary>
+    /// 오른쪽 위에 닫기(X)를 둘지. <b>새 놀이 화면 셋에는 없다</b> — 게임 갈무리에 없다.
+    /// </summary>
+    protected virtual bool ShowClose => true;
+
+    /// <summary>판 둘레 여백과 단추 줄 여백. 좁게 짓고 싶은 화면이 물려받아 갈아 끼운다.</summary>
+    protected virtual Thickness BoardPad => new(14, 10, 14, 2);
+
+    protected virtual Thickness ButtonPad => new(10, 0, 10, 10);
+
     /// <summary>얼려서 돌려준다. 물려받은 쪽이 제 색을 만들 때 쓴다.</summary>
     protected static Brush Frozen(Color c)
     {
@@ -88,20 +98,23 @@ internal abstract class InfoDialog : Window
         {
             Width = width,
             Height = height,
-            Margin = new Thickness(14, 10, 14, 2),
+            Margin = BoardPad,
         };
         board.Children.Add(inner);
 
-        var close = CloseBox();
-        close.HorizontalAlignment = HorizontalAlignment.Right;
-        close.VerticalAlignment = VerticalAlignment.Top;
-        board.Children.Add(close);
+        if (ShowClose)
+        {
+            var close = CloseBox();
+            close.HorizontalAlignment = HorizontalAlignment.Right;
+            close.VerticalAlignment = VerticalAlignment.Top;
+            board.Children.Add(close);
+        }
 
         var row = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(10, 0, 10, 10),
+            Margin = ButtonPad,
         };
         foreach (var button in buttons) row.Children.Add(button);
 
@@ -168,20 +181,37 @@ internal abstract class InfoDialog : Window
     }
 
     /// <summary>줄을 죽 늘어놓는 칸. 비어 있으면 자리만 비워 둔다(게임도 그렇다).</summary>
-    protected static UIElement List(IEnumerable<string> lines, double height)
+    protected static UIElement List(IEnumerable<string> lines, double height) =>
+        List(lines, height, null);
+
+    /// <summary>
+    /// 굴러가는 줄 목록. <paramref name="page"/> 를 주면 그 색 양피지 판에 얹고 게임 굴림대를
+    /// 단다 — 새 놀이 확인 화면이 그렇다(게임 것은 <c>#FFEFD6</c> 판이다).
+    /// </summary>
+    protected static UIElement List(IEnumerable<string> lines, double height, Brush? page)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
-        foreach (string line in lines) stack.Children.Add(Label($"      {line}"));
+        bool onPage = page != null;
+        foreach (string line in lines)
+            stack.Children.Add(onPage ? Page($"  {line}") : Label($"      {line}"));
 
         return new Border
         {
             Height = height,
-            Child = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                Content = stack,
-            },
+            Background = page,
+            BorderBrush = onPage ? GameUi.ItemEdge : null,
+            BorderThickness = new Thickness(onPage ? 1 : 0),
+            // 게임 굴림대는 화살표 조각으로 짓는다 — 윈도 굴림대는 모양이 너무 다르다.
+            Child = GameUi.Scroller(stack, height),
         };
     }
+
+    /// <summary>양피지 판에 얹는 줄 — 바탕이 밝으니 글씨는 검다.</summary>
+    private static FrameworkElement Page(string text) =>
+        new GameUi.GameLabel(GameFont.BlackColor)
+        {
+            Text = text,
+            FallbackBrush = Brushes.Black,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
 }

@@ -36,6 +36,19 @@ internal sealed class AbilityMakeDialog : InfoDialog
     /// 판 크기(그림 점). 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 도로 나눴다 —
     /// 띠 단추만 제 크기(24)로 그려져 있어 혼자 작아 보였다.
     /// </summary>
+    /// <summary>게임 갈무리에 이 화면들에는 닫기(X)가 없다.</summary>
+    protected override bool ShowClose => false;
+
+    /// <summary>판과 단추 줄의 여백. 게임 것이 훨씬 촘촘하다.</summary>
+    protected override Thickness BoardPad => new(8, 6, 8, 2);
+
+    protected override Thickness ButtonPad => new(0, 2, 8, 6);
+
+    /// <summary>아래 단추의 폭과 사이. 게임 것은 마구리 둘에 가운데 두 칸(48)이다.</summary>
+    private const double FootWidth = 48;
+
+    private static readonly Thickness FootGap = new(3, 0, 0, 0);
+
     private const double BoardWidth = 296, BoardHeight = 178;
 
     /// <summary>능력치 줄의 이름 칸과 값 칸.</summary>
@@ -49,7 +62,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
     private readonly GameUi.GameLabel[] _values = new GameUi.GameLabel[Ability.Shown];
     private readonly GameUi.GameLabel _bonus = new(GameFont.WhiteColor)
     {
-        Bold = true,
+        Bold = false,
         FallbackBrush = Ink,
         HorizontalAlignment = HorizontalAlignment.Right,
     };
@@ -74,7 +87,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
             row.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
             {
                 Text = Ability.Names[i],
-                Bold = true,
+                Bold = false,
                 FallbackBrush = Ink,
                 Width = NameWidth,
                 HorizontalAlignment = HorizontalAlignment.Left,
@@ -82,7 +95,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
             // 값은 오른쪽에 맞춘다 — 한 자리와 두 자리가 섞여도 화살표 자리가 안 흔들린다.
             _values[i] = new GameUi.GameLabel(GameFont.WhiteColor)
             {
-                Bold = true,
+                Bold = false,
                 FallbackBrush = Ink,
                 HorizontalAlignment = HorizontalAlignment.Right,
             };
@@ -119,7 +132,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
         body.Children.Add(right);
 
         Build("", body, BoardWidth, BoardHeight,
-              new GameButton("취소", Close), new GameButton("다음", Next));
+              new GameButton("취소", Close, width: FootWidth) { Margin = FootGap }, new GameButton("다음", Next, width: FootWidth) { Margin = FootGap });
 
         Sync();
     }
@@ -131,7 +144,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
         stack.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
         {
             Text = "보너스",
-            Bold = true,
+            Bold = false,
             FallbackBrush = Ink,
             HorizontalAlignment = HorizontalAlignment.Left,
         });
@@ -139,7 +152,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
         line.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
         {
             Text = "  포인트:",
-            Bold = true,
+            Bold = false,
             FallbackBrush = Ink,
         });
         _bonus.MinWidth = ValueWidth;
