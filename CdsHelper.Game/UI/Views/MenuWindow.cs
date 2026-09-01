@@ -64,21 +64,32 @@ public sealed class MenuWindow : Window
     /// <summary>오므라드는 중인지. 닫으라는 말이 두 번 들어오는 것을 막는다.</summary>
     private bool _shrinking;
 
+    /// <summary>
+    /// 이미 닫힌 창인지. <b>애니메이션이 끝난 뒤에 손대면 터진다</b> — WPF 는 닫힌 창에
+    /// <c>Close()</c> 나 크기 손질을 하면 예외를 던진다.
+    /// </summary>
+    /// <remarks>
+    /// 주인 창이 먼저 닫히면 거느린 이 창도 함께 부서지는데, 그때 굴러가던 짓시늉의
+    /// 끝맺음이 뒤늦게 와서 부서진 창을 건드렸다. 그 예외가 타이머를 타고 올라가
+    /// <b>입항 물음이 아예 안 뜨는</b> 것으로 나타났다.
+    /// </remarks>
+    private bool _closed;
+
     /// <summary>점에서 펼친다. 자리를 다 잡은 뒤에 부른다.</summary>
     private void Grow() => Zoom(grow: true, done: null);
 
     /// <summary>점으로 오므린 뒤 닫는다.</summary>
     public void CloseZoomed()
     {
-        if (_shrinking) { return; }
+        if (_shrinking || _closed) return;
         _shrinking = true;
-        Zoom(grow: false, done: Close);
+        Zoom(grow: false, done: () => { if (!_closed) Close(); });
     }
 
     private void Zoom(bool grow, Action? done)
     {
         double w = ActualWidth, h = ActualHeight, l = Left, t = Top;
-        if (w <= 0 || h <= 0) { done?.Invoke(); return; }
+        if (_closed || w <= 0 || h <= 0) { done?.Invoke(); return; }
 
         // 애니메이션 동안에는 크기를 못 박아 둔다 — 알맹이에 맞춰 크기를 다시 잡는
         // 규칙이 살아 있으면 애니메이션이 먹지 않는다.
@@ -112,6 +123,8 @@ public sealed class MenuWindow : Window
     /// </summary>
     private void Settle(double left, double top)
     {
+        if (_closed) return;
+
         foreach (var what in new[] { LeftProperty, TopProperty, WidthProperty, HeightProperty })
             BeginAnimation(what, null);
         _zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -163,7 +176,7 @@ public sealed class MenuWindow : Window
         FocusWatch.KeepInApp(this);
 
         // 초점이 어디로 가는지 보려고 둔 진단(FocusWatch). 다 잡고 나면 지운다.
-        Closed += (_, _) => FocusWatch.After("명령창 닫힘");
+        Closed += (_, _) => { _closed = true; FocusWatch.After("명령창 닫힘"); };
         Deactivated += (_, _) => FocusWatch.After("명령창 초점 잃음");
     }
 

@@ -913,6 +913,9 @@ public sealed class ShipMapWindow : Window
                 StartMap(fresh: false);
         }));
         items.Children.Add(TitleMenuItem("MINI GAME", MiniGames));
+        // 해전은 원본 메인메뉴에 없다 — 판을 손보는 동안 곧바로 열어 보려고 붙여 둔다.
+        items.Children.Add(TitleMenuItem("SEA BATTLE",
+            () => SeaCombatDialog.Play(this, _game.Player, _game.Random)));
         items.Children.Add(TitleMenuItem("END GAME", Close));
 
         var box = new Border
