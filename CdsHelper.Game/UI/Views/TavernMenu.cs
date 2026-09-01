@@ -560,8 +560,17 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </summary>
     private void MeetStranger(bool female)
     {
-        string seen = female ? "아름다운 여성이 있다" : "술을 마시고 있는 남자가 있다";
-        if (TalkDialog.Ask(_view, null, "", seen, "한잔 산다", "무시한다") == 0) BuyDrink();
+        // 여자 손님은 예전 그대로 — 한잔 사서 낯을 트는 자리다.
+        if (female)
+        {
+            if (TalkDialog.Ask(_view, null, "", "아름다운 여성이 있다",
+                               "한잔 산다", "무시한다") == 0) BuyDrink();
+            return;
+        }
+
+        // 무명 손님은 <b>소문만</b> 건넨다 — 고용도 결투도 없다.
+        var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
+        ConfirmDialog.Tell(_view, TavernRumors.Of(_cultureNo, _game.Random), face: face);
     }
 
     /// <summary>

@@ -150,7 +150,7 @@ internal sealed class GameButton : Border
                    : (byte)21;
 
         var band = GameUi.BandFrame(GameUi.Sprites, _style, _text, color,
-                                    shadow: _style == BandStyle.Title, 1, null);
+                                    shadow: _style == BandStyle.Title, 1, null, _width);
 
         var ring = new Border
         {
