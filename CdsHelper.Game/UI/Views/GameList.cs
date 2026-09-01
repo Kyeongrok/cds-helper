@@ -35,6 +35,15 @@ internal enum GameListPick
 
     /// <summary>두 줄을 눌러 맞바꾼다. 부하편성처럼 자리를 옮기는 창.</summary>
     Swap,
+
+    /// <summary>
+    /// 여러 줄을 골라 둔다. 시장 구입·매각이 그렇다 — 게임도 한 번에 여럿을 사고판다.
+    /// </summary>
+    /// <remarks>
+    /// 고른 줄은 남색으로 뒤집히고, 지금 <b>손이 가 있는 줄</b>은 검은 테로 따로 알린다.
+    /// 둘은 다른 것이다 — 게임 갈무리에도 남색 줄 둘 가운데 하나에만 테가 둘려 있다.
+    /// </remarks>
+    Many,
 }
 
 /// <summary>
@@ -69,6 +78,9 @@ internal sealed class GameList : Border
     /// <summary>고른 줄에 씌우는 남색. 게임 화면에서 뽑았다.</summary>
     private static readonly Brush Picked = Frozen(Color.FromRgb(0x3A, 0x5A, 0x9A));
 
+    /// <summary>손이 가 있는 줄을 두르는 검은 테. 골라 둔 것과는 따로 논다.</summary>
+    private static readonly Brush Caret = Frozen(Color.FromRgb(0x0C, 0x0A, 0x08));
+
     private static SolidColorBrush Frozen(Color c)
     {
         var b = new SolidColorBrush(c);
@@ -84,6 +96,9 @@ internal sealed class GameList : Border
 
     /// <summary>맞바꾸기에서 먼저 잡은 줄. 안 잡았으면 -1.</summary>
     private int _held = -1;
+
+    /// <summary>여럿 고르기에서 골라 둔 줄들.</summary>
+    private readonly HashSet<int> _chosen = [];
 
     /// <param name="columns">칸 배치. 모든 줄이 같이 쓴다.</param>
     /// <param name="cells">줄 번호를 주면 그 줄의 칸 글자들을 내는 이. 칸 수는 <paramref name="columns"/> 와 같아야 한다.</param>
@@ -125,6 +140,7 @@ internal sealed class GameList : Border
     {
         Selected = -1;
         _held = -1;
+        _chosen.Clear();
         _rows.Clear();
         _stack.Children.Clear();
         Fill(count);
@@ -158,8 +174,17 @@ internal sealed class GameList : Border
     /// <summary>줄 수.</summary>
     public int Count => _rows.Count;
 
-    /// <summary>고른 줄. 아무것도 안 골랐으면 -1.</summary>
+    /// <summary>고른 줄. 아무것도 안 골랐으면 -1. 여럿 고르기에서는 손이 가 있는 줄이다.</summary>
     public int Selected { get; private set; } = -1;
+
+    /// <summary>
+    /// 골라 둔 줄들 — 줄 번호가 오름차순이다. 여럿 고르기가 아니면 <see cref="Selected"/>
+    /// 하나뿐이다.
+    /// </summary>
+    public IReadOnlyList<int> Chosen =>
+        Pick == GameListPick.Many
+            ? [.. _chosen.Order()]
+            : Selected >= 0 ? [Selected] : [];
 
     /// <summary>고른 줄이 바뀔 때. "결정" 단추를 살리고 죽이는 데 쓴다.</summary>
     public event Action? SelectionChanged;
@@ -197,6 +222,10 @@ internal sealed class GameList : Border
         {
             case Key.Up: Move(-1); return true;
             case Key.Down: Move(+1); return true;
+            // 여럿 고르기는 스페이스로 켜고 끈다 — 엔터는 창의 "결정" 몫이라 건드리지 않는다.
+            case Key.Space when Pick == GameListPick.Many && Selected >= 0:
+                Toggle(Selected);
+                return true;
             default: return false;
         }
     }
@@ -209,7 +238,10 @@ internal sealed class GameList : Border
         var row = new Border
         {
             Background = Brushes.Transparent,
-            Padding = new Thickness(2, 3, 2, 3),
+            // 테는 늘 한 점 둔다(빛깔만 바뀐다) — 고를 때마다 두께가 바뀌면 줄이 들썩인다.
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(1, 2, 1, 2),
             Cursor = Cursors.Hand,
             Child = Line(index, on: false),
         };
@@ -226,6 +258,7 @@ internal sealed class GameList : Border
     private void Touch(int index)
     {
         if (Pick == GameListPick.One) { Select(index); return; }
+        if (Pick == GameListPick.Many) { Toggle(index); return; }
 
         if (_held < 0)
         {
@@ -244,12 +277,25 @@ internal sealed class GameList : Border
         SelectionChanged?.Invoke();
     }
 
+    /// <summary>그 줄을 골라 두거나 놓는다. 손도 그 줄로 옮긴다.</summary>
+    private void Toggle(int index)
+    {
+        if (index < 0 || index >= _rows.Count) return;
+        if (!_chosen.Remove(index)) _chosen.Add(index);
+        Selected = index;
+        Paint();
+        SelectionChanged?.Invoke();
+    }
+
     private void Paint()
     {
+        bool many = Pick == GameListPick.Many;
         for (int i = 0; i < _rows.Count; i++)
         {
-            bool on = i == Selected;
+            bool on = many ? _chosen.Contains(i) : i == Selected;
             _rows[i].Background = on ? Picked : Brushes.Transparent;
+            // 손이 가 있는 줄은 검은 테로 따로 알린다 — 여럿 고르기에서만 쓴다.
+            _rows[i].BorderBrush = many && i == Selected ? Caret : Brushes.Transparent;
             _rows[i].Child = Line(i, on);
         }
     }
@@ -264,15 +310,18 @@ internal sealed class GameList : Border
         {
             var column = _columns[c];
             var label = Label(cells[c], column.Margin, on);
-            if (column.Width > 0)
-            {
-                label.Width = column.Width;
-                label.HorizontalAlignment = column.Align;
-            }
+            label.HorizontalAlignment = column.Align;
+
+            // 폭을 못 박은 칸은 <b>겉칸에 싸서</b> 그 안에서 글자를 민다. 글자 칸 자체에
+            // 폭을 주면 그림이 칸을 꽉 채우는 셈이라 정렬이 먹지 않는다.
+            FrameworkElement cell = column.Width > 0
+                ? new Border { Width = column.Width, Child = label }
+                : label;
+
             if (column.Dock != GameListDock.Fill)
-                DockPanel.SetDock(label,
+                DockPanel.SetDock(cell,
                     column.Dock == GameListDock.Right ? Dock.Right : Dock.Left);
-            line.Children.Add(label);
+            line.Children.Add(cell);
         }
         return line;
     }

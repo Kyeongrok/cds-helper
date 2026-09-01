@@ -1544,16 +1544,6 @@ public sealed class ShipMapHost : HwndHost
         return null;
     }
 
-    /// <summary>
-    /// 접안으로 치는 거리. 배가 항구 칸에서 이만큼 안에 들어와야 입항을 묻는다.
-    /// </summary>
-    /// <remarks>
-    /// 예전에는 도시 <b>중심</b>에서 6칸이었다. 도시 중심은 뭍이라 배가 닿을 수 없는 자리인데다
-    /// 6칸이면 화면으로 200점 가까이 떨어진 먼바다여서, 접안하기 한참 전에 물음창이 떴다.
-    /// 그래서 기준을 도시 앞 항구 칸으로 옮기고 거리도 배 한 척 길이만큼으로 줄였다.
-    /// </remarks>
-    private const double DockRadiusCells = 2.0;
-
     /// <summary>도시 중심이 이보다 멀면 항구 칸을 구해 볼 것도 없다. 거르는 데만 쓴다.</summary>
     private const double HarborSearchCells = 8;
 
@@ -1561,9 +1551,19 @@ public sealed class ShipMapHost : HwndHost
     private readonly Dictionary<int, (double X, double Y)> _harbors = [];
 
     /// <summary>
-    /// 배가 접안한 도시 ID. 없으면 -1. 자리는 게임 원본 도시 표에서 구한 항구 칸이다.
+    /// 배가 닿은 도시 ID. 없으면 -1.
     /// </summary>
-    public int NearestCity(double radiusCells = DockRadiusCells) => NearestDock(radiusCells).Id;
+    /// <remarks>
+    /// <b>뭍과 같은 규칙이다.</b> 게임도 바다와 뭍을 <see cref="CityAt"/> 한 자리에서 가리고
+    /// (<c>0x0048DA19</c>), <c>[0x005B61B4]</c> 로는 어느 표시를 볼지만 가른다 — 바다면
+    /// 항구가 있는가(<c>+0x1C &amp; 1</c>), 뭍이면 성문이 있는가(<c>+0x1D &amp; 4</c>).
+    /// 그 두 표시는 아직 안 든다.
+    ///
+    /// 예전에는 도시 앞 물칸을 따로 구해 거기서 두 칸 안에 들어야 물었다. 그 물칸은
+    /// 도시 <b>중심</b>에서 가장 가까운 물을 찾은 것이라 도시 그림과 어긋나기 일쑤였고,
+    /// 그래서 그림에 배를 바짝 붙여도 안 묻는 자리가 있었다.
+    /// </remarks>
+    public int NearestCity() => CityAt();
 
     /// <summary>도시 표. 도시가 앉은 칸과 차지하는 칸 수를 여기서 얻는다.</summary>
     private CityExeTable? _cities;
@@ -1575,7 +1575,7 @@ public sealed class ShipMapHost : HwndHost
     private const int TownSlack = 1;
 
     /// <summary>
-    /// 말 그림이 제 칸에서 사방으로 뻗는 칸 수. 그림이 세 칸 폭이고 <b>칸 가운데에</b>
+    /// 배·말 그림이 제 칸에서 사방으로 뻗는 칸 수. 그림이 세 칸 폭이고 <b>칸 가운데에</b>
     /// 놓이므로 한 칸이다(<see cref="SpriteRectAt"/> 의 <c>size / 2</c>).
     /// </summary>
     /// <remarks>
@@ -1584,7 +1584,7 @@ public sealed class ShipMapHost : HwndHost
     /// <b>그림끼리 닿는 순간</b> 물어본다. 안 얹으면 도시 그림 한복판까지 밀고
     /// 들어가야 물었다.
     /// </remarks>
-    private const int HorseHalfCells = 1;
+    private const int SpriteHalfCells = 1;
 
     /// <summary>
     /// 말이 닿은 도시 ID. 없으면 -1.
@@ -1606,7 +1606,12 @@ public sealed class ShipMapHost : HwndHost
     /// 차지하는데 가운데만 재니, 그림 어귀에 닿아도 안 물어보고 그림 한복판까지 밀고
     /// 들어가야 했다.
     /// </remarks>
-    public int NearestTown()
+    public int NearestTown() => CityAt();
+
+    /// <summary>
+    /// 지금 선 자리가 어느 도시의 어귀인지. 없으면 -1. 바다와 뭍이 같이 쓴다.
+    /// </summary>
+    private int CityAt()
     {
         if (!_shipKnown || _cities == null) return -1;
 
@@ -1615,13 +1620,13 @@ public sealed class ShipMapHost : HwndHost
         for (int id = 0; id < CityExeTable.Count; id++)
         {
             if (!_cities.TryCell(id, out int cx, out int cy, out int reach)) continue;
-            if (fy < cy - TownSlack - HorseHalfCells || fy > cy + reach + HorseHalfCells) continue;
+            if (fy < cy - TownSlack - SpriteHalfCells || fy > cy + reach + SpriteHalfCells) continue;
 
             // 가로는 이어져 있다 — 날짜변경선을 넘어도 같은 도시다.
             int dx = fx - cx;
             if (dx > WorldMapRenderer.UnfoldedW / 2) dx -= WorldMapRenderer.UnfoldedW;
             if (dx < -WorldMapRenderer.UnfoldedW / 2) dx += WorldMapRenderer.UnfoldedW;
-            if (dx < -TownSlack - HorseHalfCells || dx > reach + HorseHalfCells) continue;
+            if (dx < -TownSlack - SpriteHalfCells || dx > reach + SpriteHalfCells) continue;
 
             return id;
         }

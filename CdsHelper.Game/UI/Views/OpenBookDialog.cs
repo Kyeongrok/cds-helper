@@ -68,24 +68,9 @@ public sealed class OpenBookDialog : Window
         Ink(canvas, $"-{leftPage + 1}-", OpenBookArt.RightPageX + OpenBookArt.PageWidth / 2 - 12,
             PageNumberTop, scale);
 
-        // 닫기 단추는 오른쪽 위 모서리다.
-        var close = new Border
-        {
-            Width = 16 * scale,
-            Height = 16 * scale,
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = "×",
-                FontSize = 12 * scale,
-                Foreground = Brushes.Black,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
-        };
+        // 닫기 단추는 오른쪽 위 모서리다 — 게임 창들과 같은 X 상자다.
+        var close = GameUi.CloseBox(Close, scale);
+        close.Margin = new Thickness(0);
         // 누른 자리에서 바로 닫는다. 창 끌기(EnableDrag)가 DragMove 로 마우스를 붙들어
         // 버려서 ButtonUp 이 이 단추까지 오지 않는다 — 그래서 눌러도 안 닫혔다.
         close.MouseLeftButtonDown += (_, e) => { e.Handled = true; Close(); };

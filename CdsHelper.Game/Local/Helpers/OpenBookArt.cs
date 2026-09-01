@@ -39,9 +39,16 @@ public sealed class OpenBookArt
     /// <summary>펼친 책 틀.</summary>
     public const int Frame = 0, FrameWidth = 544, FrameHeight = 304;
 
-    /// <summary>낱장이 놓이는 자리와 크기.</summary>
+    /// <summary>
+    /// 낱장이 놓이는 자리와 크기. <b>두 면은 맞붙는다</b> — 사이에 틈이 없다.
+    /// </summary>
+    /// <remarks>
+    /// 512 = 256 x 2 를 544 안에 넣으면 32가 남는데, 그 32는 <b>양 옆에 16씩</b>이다.
+    /// 예전에는 8·16·8 로 나눠 가운데를 벌려 놓았는데, 게임 갈무리를 재어 보니 두 면
+    /// 사이에 보이는 어두운 선은 <b>낱장 그림 제 가장자리</b>(열 점쯤)일 뿐이었다.
+    /// </remarks>
     public const int PageWidth = 256, PageHeight = 288;
-    public const int LeftPageX = 8, RightPageX = 280, PageY = 8;
+    public const int LeftPageX = 16, RightPageX = LeftPageX + PageWidth, PageY = 8;
 
     /// <summary>삽화가 없을 때 쓰는 낱장 — 누런 종이 벌이다.</summary>
     public const int LeftPage = 6, RightPage = 10;

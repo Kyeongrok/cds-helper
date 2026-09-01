@@ -111,6 +111,33 @@ public sealed class Market
     }
 
     /// <summary>
+    /// 여러 개를 한꺼번에 산다. 게임도 목록에서 여럿을 골라 <b>값을 합쳐</b> 묻는다.
+    /// </summary>
+    /// <remarks>
+    /// <b>되면 다 되고 안 되면 하나도 안 된다.</b> 값을 합친 것이 소지금을 넘거나 소지품
+    /// 칸이 모자라면 아무것도 사지 않는다 — 반쯤 사고 마는 것보다 게임 말("가난한
+    /// 사람에게는 볼일 없네!")과 맞는다.
+    /// </remarks>
+    public BuyResult Buy(Player player, IReadOnlyList<ItemTable.Record> items, int cityId)
+    {
+        if (items.Count == 0) return BuyResult.NotSold;
+        foreach (var item in items)
+            if (!Sells(cityId, item.Id)) return BuyResult.NotSold;
+
+        if (player.Items.Count + items.Count > Player.MaxItems) return BuyResult.BagFull;
+
+        long total = 0;
+        foreach (var item in items) total += PriceOf(item, cityId);
+        if (!player.CanAfford((int)Math.Min(int.MaxValue, total))) return BuyResult.NotEnoughGold;
+
+        foreach (var item in items)
+            if (player.BuyItem(item.Id, PriceOf(item, cityId)) != PurchaseResult.Ok)
+                return BuyResult.NotEnoughGold;
+
+        return BuyResult.Ok;
+    }
+
+    /// <summary>
     /// 산다. 값을 치르고 소지품에 넣는다. 돈이 모자라면 아무것도 하지 않는다.
     /// </summary>
     public BuyResult Buy(Player player, ItemTable.Record item, int cityId)
