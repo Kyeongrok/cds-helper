@@ -1248,6 +1248,11 @@ public sealed class CityPicView : Window
             TownWork.Store when _player.Items.Count > 0 => () =>
                 StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
 
+            // 백과사전 — 갈래마다 한 권씩, 발견한 것이 한 쪽씩 쌓인다.
+            TownWork.Encyclopedia => () =>
+                EncyclopediaDialog.Show(Menu.Window ?? this, _game.Directory, _player,
+                                        _game.Discoveries?.Table, _game.Hints, _game.Book),
+
             TownWork.Read when Books.CanRead => () =>
                 Books.Read(Menu.Window ?? this,
                            text => (Owner as ShipMapWindow)?.Say(text)),
