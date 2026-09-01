@@ -49,7 +49,12 @@ internal sealed class AbilityMakeDialog : InfoDialog
 
     private static readonly Thickness FootGap = new(3, 0, 0, 0);
 
-    private const double BoardWidth = 296, BoardHeight = 178;
+    /// <remarks>
+    /// <b>폭은 속에 든 것에 딱 맞춘다.</b> 왼쪽 줄(이름 48 · 값 28 · 화살표 둘)과 오른쪽
+    /// 직업 단추를 더한 만큼이다 — 남겨 두면 직업 단추 오른쪽에 빈자리가 생겨, 아래
+    /// "취소·다음" 과 오른쪽 끝이 안 맞는다(둘 다 판 오른쪽 끝에 붙기 때문이다).
+    /// </remarks>
+    private const double BoardWidth = 210, BoardHeight = 178;
 
     /// <summary>능력치 줄의 이름 칸과 값 칸.</summary>
     private const double NameWidth = 48, ValueWidth = 28;

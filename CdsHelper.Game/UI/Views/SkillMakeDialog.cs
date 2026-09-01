@@ -47,10 +47,17 @@ internal sealed class SkillMakeDialog : InfoDialog
     /// 판 크기(그림 점). 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 도로 나눴다 —
     /// 띠 단추만 제 크기로 그려져 있어 혼자 작아 보였다.
     /// </summary>
-    private const double BoardWidth = 400, BoardHeight = 232;
+    private const double BoardWidth = 420, BoardHeight = 232;
 
     /// <summary>줄 속 칸 폭 — 이름 · 자리. 언어 이름이 여덟 자(128)까지 온다.</summary>
     private const double SkillNameWidth = 76, TongueNameWidth = 136, ValueWidth = 40;
+
+    /// <summary>
+    /// 양피지 칸 하나의 폭 — 이름 · 자리 · 화살표 둘에 테와 여백을 더한 것이다.
+    /// <b>넉넉히 잡는다</b>: 모자라면 오른쪽 화살표가 칸 테에 잘린다.
+    /// </summary>
+    private static double FrameWidth(double name) =>
+        name + ValueWidth + (UiSprites.IconWidth + 1) * 2 + 20;
 
     private readonly int[] _skills = new int[Skill.Names.Length];
     private readonly int[] _tongues = new int[Skill.Languages.Length];
@@ -94,8 +101,8 @@ internal sealed class SkillMakeDialog : InfoDialog
                                     i < Skill.LanguagesAtStart, false));
 
         var lists = new StackPanel { Orientation = Orientation.Horizontal };
-        lists.Children.Add(Framed(left, SkillNameWidth + ValueWidth + 44));
-        lists.Children.Add(Framed(right, TongueNameWidth + ValueWidth + 44));
+        lists.Children.Add(Framed(left, FrameWidth(SkillNameWidth)));
+        lists.Children.Add(Framed(right, FrameWidth(TongueNameWidth)));
 
         var box = new StackPanel();
         box.Children.Add(lists);
@@ -151,21 +158,21 @@ internal sealed class SkillMakeDialog : InfoDialog
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
 
-        row.Children.Add(new GameUi.GameLabel(on ? GameFont.BlackColor : GameFont.ButtonColor)
+        // <b>칸 폭은 겉칸이 쥔다.</b> 글자 칸 자체에 폭을 주면 그림이 칸을 꽉 채우는
+        // 셈이라 정렬이 안 먹어 이름이 오른쪽으로 붙는다(GameList 도 같은 길을 쓴다).
+        row.Children.Add(Cell(new GameUi.GameLabel(on ? GameFont.BlackColor : GameFont.ButtonColor)
         {
             Text = name,
             FallbackBrush = on ? Brushes.Black : Faint,
-            Width = skill ? SkillNameWidth : TongueNameWidth,
             HorizontalAlignment = HorizontalAlignment.Left,
-        });
+        }, skill ? SkillNameWidth : TongueNameWidth));
 
         texts[at] = new GameUi.GameLabel(on ? GameFont.BlackColor : GameFont.ButtonColor)
         {
             FallbackBrush = on ? Brushes.Black : Faint,
-            Width = ValueWidth,
             HorizontalAlignment = HorizontalAlignment.Right,
         };
-        row.Children.Add(texts[at]);
+        row.Children.Add(Cell(texts[at], ValueWidth));
 
         if (on)
         {
@@ -174,6 +181,9 @@ internal sealed class SkillMakeDialog : InfoDialog
         }
         return row;
     }
+
+    /// <summary>폭을 못 박은 겉칸. 그 안에서 글자가 왼쪽·오른쪽으로 붙는다.</summary>
+    private static Border Cell(UIElement child, double width) => new() { Width = width, Child = child };
 
     /// <summary>못 올리는 줄의 글씨색(글꼴을 못 읽었을 때).</summary>
     private static readonly Brush Faint = Frozen(Color.FromRgb(0xA0, 0x98, 0x88));
