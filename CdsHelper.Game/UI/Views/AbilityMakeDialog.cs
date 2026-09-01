@@ -150,28 +150,15 @@ internal sealed class AbilityMakeDialog : InfoDialog
 
     /// <summary>
     /// 위·아래 화살표. 게임 조각(<c>MISC.CDS</c> 파트 3)을 그대로 건다 —
-    /// 원본은 16x8 짜리 작은 칸이고, 못 누를 때 쓰는 X 칸도 같은 줄에 있다.
+    /// 원본은 16x16 짜리 칸이고, 못 누를 때 쓰는 X 칸도 같은 줄에 있다.
     /// </summary>
     private UIElement Arrow(bool up, Action run)
     {
-        if (GameUi.Sprites?.Arrow(up ? UiSprites.ArrowUp : UiSprites.ArrowDown, pressed: false)
-            is { } px)
+        if (GameUi.GameIcon(up ? UiSprites.IconUp : UiSprites.IconDown) is { } art)
         {
-            var bmp = BitmapSource.Create(UiSprites.ArrowWidth, UiSprites.ArrowHeight, 96, 96,
-                                          PixelFormats.Bgra32, null, px, UiSprites.ArrowWidth * 4);
-            bmp.Freeze();
-
-            var art = new Image
-            {
-                Source = bmp,
-                Width = UiSprites.ArrowWidth,
-                Height = UiSprites.ArrowHeight,
-                Margin = new Thickness(1, 0, 0, 0),
-                Cursor = Cursors.Hand,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.NearestNeighbor);
-            RenderOptions.SetEdgeMode(art, EdgeMode.Aliased);
+            art.Margin = new Thickness(1, 0, 0, 0);
+            art.Cursor = Cursors.Hand;
+            art.VerticalAlignment = VerticalAlignment.Center;
             Hold(art, run);
             return art;
         }
