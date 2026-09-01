@@ -47,7 +47,11 @@ internal sealed class SkillMakeDialog : InfoDialog
     /// 판 크기(그림 점). 잰 값이 <b>1.75배로 늘어난 화면</b>에서 나온 것이라 도로 나눴다 —
     /// 띠 단추만 제 크기로 그려져 있어 혼자 작아 보였다.
     /// </summary>
-    private const double BoardWidth = 420, BoardHeight = 232;
+    /// <remarks>
+    /// 언어가 열넷이라 줄만 224점이다 — 판이 그보다 낮으면 아래 보너스 상자가 잘리고,
+    /// 좁으면 단추 줄의 "다음" 이 오른쪽에서 잘린다.
+    /// </remarks>
+    private const double BoardWidth = 440, BoardHeight = 292;
 
     /// <summary>줄 속 칸 폭 — 이름 · 자리. 언어 이름이 여덟 자(128)까지 온다.</summary>
     private const double SkillNameWidth = 76, TongueNameWidth = 136, ValueWidth = 40;

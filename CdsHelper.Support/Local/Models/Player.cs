@@ -954,6 +954,20 @@ public sealed class Player
     public Ship? FlagshipHull =>
         Flagship >= 0 && Flagship < _ships.Count ? _ships[Flagship] : _ships.FirstOrDefault();
 
+    /// <summary>
+    /// 배를 다 걷는다 — <b>새 주인공은 배 없이 시작한다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 새 놀이를 열면 함대가 비어 있고, 조선소에서 첫 배를 사야 바다에 나간다.
+    /// 생성자가 카라벨 한 척을 얹어 두는 것은 세이브를 안 읽고 함대 창만 여는 길
+    /// (도구 쪽) 때문이라 그대로 두고, 새 놀이만 여기서 걷는다.
+    /// </remarks>
+    public void ClearShips()
+    {
+        _ships.Clear();
+        Flagship = 0;
+    }
+
     /// <summary>기함을 그 자리의 배로 바꾼다. 자리가 이상하면 false.</summary>
     public bool SetFlagship(int index)
     {
