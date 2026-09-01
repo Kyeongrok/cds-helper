@@ -97,13 +97,7 @@ public sealed class HullSelectDialog : Window
         });
         stack.Children.Add(buttons);
 
-        Content = new Border
-        {
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
-            Child = stack,
-        };
+        Content = GameUi.DialogEdge(stack);
 
         SetDecide(enabled: false);   // 줄을 고르기 전에는 흐리다
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };

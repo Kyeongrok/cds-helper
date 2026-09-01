@@ -192,6 +192,33 @@ internal static class GameUi
         return b;
     }
 
+    /// <summary>창 겹테의 검은 줄. 게임 갈무리에서 뽑았다(#110505).</summary>
+    public static readonly Brush EdgeDark = Frozen(Color.FromRgb(0x11, 0x05, 0x05));
+
+    /// <summary>
+    /// 게임 창을 두르는 <b>겹테</b>. 갈무리를 점 단위로 재어 그대로 옮겼다 —
+    /// 밖에서 안으로 <c>검은 줄 1 · 밤색 2 · 검은 줄 1 · 밤색 4</c> 다.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 창마다 <c>Margin 4 + 밝은 테 2</c> 로 둘렀는데, 그러면 겉테가 두껍고
+    /// <b>밝은 선이 바깥</b>에 서서 게임 것과 딴판이 된다. 게임의 밝은 선은 겉이 아니라
+    /// 양피지 판 바로 둘레에 있다(그 선은 <see cref="GameList"/> 가 두른다).
+    /// </remarks>
+    public static Border DialogEdge(UIElement content) => new()
+    {
+        Background = Back,
+        BorderBrush = EdgeDark,
+        BorderThickness = new Thickness(1),
+        Child = new Border
+        {
+            Margin = new Thickness(2),
+            BorderBrush = EdgeDark,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4),
+            Child = content,
+        },
+    };
+
     /// <summary>
     /// 제목 줄을 잡아 창을 옮길 수 있게 한다. 제목 줄이 없는 창(<c>WindowStyle.None</c>)이라
     /// 이렇게 붙여 줘야 옮길 데가 생긴다.
@@ -536,33 +563,82 @@ internal static class GameUi
 
         if (onClose != null)
         {
-            var close = new Border
-            {
-                Background = ItemFill,
-                BorderBrush = ItemEdge,
-                BorderThickness = new Thickness(2),
-                Padding = new Thickness(5, 0, 5, 0),
-                Margin = new Thickness(0, 3, 5, 3),
-                Cursor = Cursors.Hand,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = "닫기",
-                Child = new TextBlock
-                {
-                    Text = "✕",
-                    Foreground = Brushes.Black,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 12,
-                },
-            };
-            close.MouseLeftButtonDown += (_, e) => e.Handled = true;   // 제목 줄 끌기에 안 먹히게
-            close.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClose(); };
+            var close = CloseBox(onClose, scale);
             Grid.SetColumn(close, 2);
             Grid.SetRowSpan(close, 3);
             grid.Children.Add(close);
         }
 
         return new Border { Child = grid };
+    }
+
+    // ── 닫기(X) 단추 ────────────────────────────────────────────────────────
+
+    /// <summary>닫기 단추 한 변. 게임 것도 띠(24) 안에 위아래 4씩을 남기고 이만큼이다.</summary>
+    public const int CloseBoxSize = 16;
+
+    /// <summary>
+    /// 게임 창 오른쪽 위의 닫기(X) 단추. <b>MISC.CDS 에 그런 조각은 없다</b> —
+    /// 게임이 그때그때 그리는 상자다. 그래서 여기서도 점을 찍어 짓는다.
+    /// </summary>
+    /// <remarks>
+    /// 갈무리를 점 단위로 재어 옮겼다(구입 창의 X 단추, 16x16).
+    /// <code>
+    ///   테     한 줄  #A79787
+    ///   위·왼  한 줄  #F7F6F5   ← 도드라져 보이게 하는 빛
+    ///   속            #DECEBD
+    ///   X      두 점 굵기의 빗금 둘   #311818
+    /// </code>
+    /// 예전에는 윈도 글꼴로 "✕" 를 찍은 상자였는데, 띠(24점)보다 키가 커서 아래가
+    /// 잘렸다(조선소 창에서 그게 보였다).
+    /// </remarks>
+    public static FrameworkElement CloseBox(Action onClose, int scale = 1)
+    {
+        var image = new Image
+        {
+            Source = CloseArt,
+            Width = CloseBoxSize * scale,
+            Height = CloseBoxSize * scale,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 4 * scale, 0),
+            Cursor = Cursors.Hand,
+            ToolTip = "닫기",
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+
+        // 누름도 삼킨다 — 제목 줄 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
+        image.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        image.MouseLeftButtonUp += (_, e) => { e.Handled = true; onClose(); };
+        return image;
+    }
+
+    private static readonly BitmapSource CloseArt = DrawCloseBox();
+
+    private static BitmapSource DrawCloseBox()
+    {
+        const uint edge = 0xFFA79787, light = 0xFFF7F6F5, fill = 0xFFDECEBD, ink = 0xFF311818;
+        const int n = CloseBoxSize, last = n - 1;
+
+        var bgra = new uint[n * n];
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+                bgra[y * n + x] = x == 0 || y == 0 || x == last || y == last ? edge
+                                : x == 1 || y == 1 ? light
+                                : fill;
+
+        // 빗금 둘. 두 점 굵기라 한 줄마다 이웃 칸까지 함께 찍는다.
+        for (int k = 3; k <= 12; k++)
+            for (int t = 0; t < 2; t++)
+            {
+                bgra[k * n + Math.Min(k + t, last - 1)] = ink;          // ↘
+                bgra[k * n + Math.Max(last - k + t - 1, 1)] = ink;      // ↙
+            }
+
+        var bmp = BitmapSource.Create(n, n, 96, 96, PixelFormats.Bgra32, null, bgra, n * 4);
+        bmp.Freeze();
+        return bmp;
     }
 
     /// <summary>

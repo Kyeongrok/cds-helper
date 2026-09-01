@@ -28,12 +28,19 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class MarketBuyDialog : Window
 {
-    /// <summary>줄 속 칸 — 이름 · (갈래) · 값. 오른쪽 것을 먼저 줘야 바깥에 선다.</summary>
+    /// <summary>
+    /// 줄 속 칸 — 값 · (갈래) · 이름. 오른쪽 것을 먼저 줘야 바깥에 선다.
+    /// </summary>
+    /// <remarks>
+    /// <b>셋 다 오른쪽맞춤이고 앞의 둘은 폭이 못 박혀 있다.</b> 게임 갈무리를 재어 보면
+    /// 이름 끝·갈래 끝·값 끝이 줄마다 <b>같은 자리</b>에 선다 — "(병기)" 처럼 짧은 갈래가
+    /// 와도 이름 끝이 밀리지 않는다. 폭을 안 박으면 갈래 길이에 따라 이름이 흔들린다.
+    /// </remarks>
     private static readonly GameListColumn[] Columns =
     [
-        new(GameListDock.Right, new Thickness(12, 0, 10, 0)),   // 값
-        new(GameListDock.Right, new Thickness(12, 0, 0, 0)),    // (갈래)
-        new(GameListDock.Fill, new Thickness(10, 0, 0, 0)),     // 이름
+        new(GameListDock.Right, new Thickness(0, 0, 10, 0), 66, HorizontalAlignment.Right),
+        new(GameListDock.Right, new Thickness(0), 114, HorizontalAlignment.Right),
+        new(GameListDock.Fill, new Thickness(10, 0, 0, 0), Align: HorizontalAlignment.Right),
     ];
 
     private readonly Player _player;
@@ -64,11 +71,17 @@ public sealed class MarketBuyDialog : Window
         Background = GameUi.Back;
 
         _stock = [.. market.StockOf(cityId)];
-        _list = new GameList(Columns, Cells, _stock.Length, "  지금 내놓은 물건이 없다.  ");
+        _list = new GameList(Columns, Cells, _stock.Length, "  지금 내놓은 물건이 없다.  ")
+        {
+            // 게임은 한 번에 여럿을 산다 — 고른 줄이 여럿이면 값도 한꺼번에 부른다.
+            Pick = GameListPick.Many,
+            Margin = new Thickness(0),
+            BorderBrush = GameUi.Edge,
+        };
 
         _decide = new GameButton("결정", Decide, width: 110) { On = false };
         // 게임도 아무것도 안 고른 동안은 이 단추가 흐리다.
-        _list.SelectionChanged += () => _decide.On = _list.Selected >= 0;
+        _list.SelectionChanged += () => _decide.On = _list.Chosen.Count > 0;
 
         var buttons = new StackPanel
         {
@@ -87,14 +100,7 @@ public sealed class MarketBuyDialog : Window
         stack.Children.Add(_list);
         stack.Children.Add(buttons);
 
-        Content = new Border
-        {
-            Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
-            Child = stack,
-        };
+        Content = GameUi.DialogEdge(stack);
 
         KeyDown += OnKey;
     }
@@ -115,7 +121,7 @@ public sealed class MarketBuyDialog : Window
             case Key.Escape:
                 Close();
                 break;
-            case Key.Enter or Key.Space when _list.Selected >= 0:
+            case Key.Enter when _list.Chosen.Count > 0:
                 Decide();
                 e.Handled = true;
                 break;
@@ -123,24 +129,31 @@ public sealed class MarketBuyDialog : Window
     }
 
     /// <summary>고른 것을 사는 데까지 끌고 간다 — 아이템 창 → 값 → 물음 → 결과.</summary>
+    /// <remarks>
+    /// 고른 것이 여럿이면 아이템 창이 <b>한 장씩 차례로</b> 뜨고, 값은 그 뒤에 한 번
+    /// 합쳐서 부른다("그렇다면 금화 2800닢 필요하네."). 물음도 "이것들의" 로 갈린다.
+    /// </remarks>
     private void Decide()
     {
-        int at = _list.Selected;
-        if (at < 0 || at >= _stock.Length) return;
-        var item = _stock[at];
+        var picked = new List<ItemTable.Record>();
+        foreach (int at in _list.Chosen)
+            if (at >= 0 && at < _stock.Length) picked.Add(_stock[at]);
+        if (picked.Count == 0) return;
 
-        // 2. 무엇인지 보여 준다.
-        ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art);
+        // 2. 무엇인지 한 장씩 보여 준다.
+        foreach (var item in picked)
+            ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art);
 
-        // 3. 값을 알린다.
-        int price = _market.PriceOf(item, _cityId);
-        GameDialog.Show(this, $"그렇다면 금화 {price}닢 필요하네.");
+        // 3. 값을 합쳐 알린다.
+        int total = picked.Sum(item => _market.PriceOf(item, _cityId));
+        GameDialog.Show(this, $"그렇다면 금화 {total}닢 필요하네.");
 
-        // 4. 물어본다. 게임은 여러 개일 때만 "이것들의" 로 갈린다 — 여기서는 늘 하나다.
-        if (!ConfirmDialog.Ask(this, "이 아이템을 구입하겠습니까?")) return;
+        // 4. 물어본다. 게임은 여럿일 때 "이것들의" 로 갈린다.
+        string what = picked.Count > 1 ? "이것들의 아이템" : "이 아이템";
+        if (!ConfirmDialog.Ask(this, $"{what}을 구입하겠습니까?")) return;
 
         // 5. 이제서야 돈을 본다.
-        var result = _market.Buy(_player, item, _cityId);
+        var result = _market.Buy(_player, picked, _cityId);
         GameDialog.Show(this, result switch
         {
             BuyResult.Ok => "고맙네!",

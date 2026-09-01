@@ -26,12 +26,17 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class MarketSellDialog : Window
 {
-    /// <summary>줄 속 칸 — 이름 · (갈래) · 쳐 주는 값. 구입 창과 같은 배치다.</summary>
+    /// <summary>
+    /// 줄 속 칸 — (갈래) · 이름. 둘 다 오른쪽맞춤이다.
+    /// </summary>
+    /// <remarks>
+    /// <b>값 칸은 없다.</b> 게임의 "소지품 일람" 은 이름과 갈래만 낸다 — 얼마를 쳐 주는지는
+    /// 결정을 누른 뒤 "으~음. 금화 %ld닢이란 말이군." 으로 부른다.
+    /// </remarks>
     private static readonly GameListColumn[] Columns =
     [
-        new(GameListDock.Right, new Thickness(12, 0, 10, 0)),   // 값
-        new(GameListDock.Right, new Thickness(12, 0, 0, 0)),    // (갈래)
-        new(GameListDock.Fill, new Thickness(10, 0, 0, 0)),     // 이름
+        new(GameListDock.Right, new Thickness(0, 0, 10, 0), 114, HorizontalAlignment.Right),
+        new(GameListDock.Fill, new Thickness(10, 0, 0, 0), Align: HorizontalAlignment.Right),
     ];
 
     /// <summary>소지품이 늘면 창이 화면을 넘지 않게 여기서 자른다.</summary>
@@ -62,10 +67,16 @@ public sealed class MarketSellDialog : Window
         foreach (int id in player.Items)
             if (items.Find(id) is { } item) _held.Add(item);
 
-        _list = new GameList(Columns, Cells, _held.Count, maxHeight: ListMaxHeight);
+        _list = new GameList(Columns, Cells, _held.Count, maxHeight: ListMaxHeight)
+        {
+            // 게임은 한 번에 여럿을 판다 — 고른 줄이 여럿이면 값도 합쳐서 부른다.
+            Pick = GameListPick.Many,
+            Margin = new Thickness(0),
+            BorderBrush = GameUi.Edge,
+        };
 
         _decide = new GameButton("결정", Decide, width: 110) { On = false };
-        _list.SelectionChanged += () => _decide.On = _list.Selected >= 0;
+        _list.SelectionChanged += () => _decide.On = _list.Chosen.Count > 0;
 
         var buttons = new StackPanel
         {
@@ -84,24 +95,14 @@ public sealed class MarketSellDialog : Window
         stack.Children.Add(_list);
         stack.Children.Add(buttons);
 
-        Content = new Border
-        {
-            Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
-            Child = stack,
-        };
+        Content = GameUi.DialogEdge(stack);
 
         KeyDown += OnKey;
     }
 
-    /// <summary>줄 하나의 칸 글자 — 값 · (갈래) · 이름. <see cref="Columns"/> 와 차례가 같다.</summary>
-    private IReadOnlyList<string> Cells(int index)
-    {
-        var item = _held[index];
-        return [$"{_market.PaidFor(item, _cityId)}", $"({item.CategoryName})", item.Name];
-    }
+    /// <summary>줄 하나의 칸 글자 — (갈래) · 이름. <see cref="Columns"/> 와 차례가 같다.</summary>
+    private IReadOnlyList<string> Cells(int index) =>
+        [$"({_held[index].CategoryName})", _held[index].Name];
 
     private void OnKey(object sender, KeyEventArgs e)
     {
@@ -112,27 +113,27 @@ public sealed class MarketSellDialog : Window
             case Key.Escape:
                 Close();
                 break;
-            case Key.Enter or Key.Space when _list.Selected >= 0:
+            case Key.Enter when _list.Chosen.Count > 0:
                 Decide();
                 e.Handled = true;
                 break;
         }
     }
 
-    /// <summary>값을 부르고, YES 면 판다.</summary>
+    /// <summary>값을 부르고, YES 면 판다. 고른 것이 여럿이면 값을 합쳐 부른다.</summary>
     private void Decide()
     {
-        int at = _list.Selected;
-        if (at < 0 || at >= _held.Count) return;
-        var item = _held[at];
+        // 뒤에서부터 걷어야 앞 줄을 뺄 때 뒷 줄 번호가 밀리지 않는다.
+        var at = _list.Chosen.Where(i => i >= 0 && i < _held.Count).OrderByDescending(i => i).ToList();
+        if (at.Count == 0) return;
 
-        int paid = _market.PaidFor(item, _cityId);
+        int paid = at.Sum(i => _market.PaidFor(_held[i], _cityId));
         if (!ConfirmDialog.Ask(this, $"으~음. 금화 {paid}닢이란 말이군.")) return;
 
-        if (_market.Sell(_player, item, _cityId) != SellResult.Ok) return;
+        foreach (int i in at)
+            if (_market.Sell(_player, _held[i], _cityId) == SellResult.Ok)
+                _held.RemoveAt(i);   // 판 줄을 목록에서 걷는다
 
-        // 판 줄을 목록에서 걷는다. 같은 것을 여럿 지녔으면 한 개만 빠진다.
-        _held.RemoveAt(at);
         _list.Rebuild(_held.Count);
 
         // 다 팔았으면 더 볼 것이 없다.

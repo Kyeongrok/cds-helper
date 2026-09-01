@@ -324,7 +324,14 @@ public sealed class LibraryDialog : Window
     /// 펼친 쪽 번호. 게임 갈무리는 <c>-3-</c>·<c>-4-</c> 였는데 무엇으로 정하는지는
     /// 못 짚었다 — 힌트마다 늘 같은 쪽이 나오게 홀수로 짓는다.
     /// </summary>
-    private static int Pages(int hint) => hint % 60 * 2 + 3;
+    /// <remarks>
+    /// <b>발견물 번호가 아니라 이 책의 쪽수다.</b> 예전에는 힌트 번호를 그대로 불려
+    /// <c>-33-</c> 처럼 큰 수가 나왔는데, 게임 것은 늘 한 자리였다 — 책 한 권이 그만큼
+    /// 얇다. 그래서 <b>1~10</b> 안으로 접는다.
+    /// </remarks>
+    private const int PagesPerBook = 5;
+
+    private static int Pages(int hint) => hint % PagesPerBook * 2 + 1;
 
     /// <summary>글자마다 <c>x</c> 로 가린다. 띄어쓰기는 그대로 둔다.</summary>
     private static string Masked(string text) =>

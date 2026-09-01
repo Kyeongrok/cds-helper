@@ -1233,7 +1233,8 @@ public sealed class CityPicView : Window
             TownWork.Heir when Home.CanLeaveHeir(_player) => HomeRooms.LeaveHeir,
             TownWork.Rest => () => Menu.Push(HomeRooms.RestMenu),
             TownWork.Savings => () => Menu.Push(HomeRooms.SavingsMenu),
-            TownWork.Store => () =>
+            // 게임도 지닌 것이 없으면 이 줄을 흐리게 둔다 — 맡길 것이 없으면 열 일도 없다.
+            TownWork.Store when _player.Items.Count > 0 => () =>
                 StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
 
             TownWork.Read when Books.CanRead => () =>
