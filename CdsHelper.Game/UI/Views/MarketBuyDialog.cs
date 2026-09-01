@@ -43,6 +43,9 @@ public sealed class MarketBuyDialog : Window
         new(GameListDock.Fill, new Thickness(10, 0, 0, 0), Align: HorizontalAlignment.Right),
     ];
 
+    /// <summary>목록 바닥 폭. 게임 갈무리를 재어 맞췄다 — 이보다 넓으면 이름 칸이 휑하다.</summary>
+    private const double ListWidth = 356;
+
     private readonly Player _player;
     private readonly Market _market;
     private readonly ItemDescriptions? _descriptions;
@@ -87,7 +90,7 @@ public sealed class MarketBuyDialog : Window
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 12),
+            Margin = new Thickness(0, 4, 0, 0),
         };
         buttons.Children.Add(_decide);
         buttons.Children.Add(new GameButton("중단", Close, width: 110));
@@ -95,7 +98,7 @@ public sealed class MarketBuyDialog : Window
         var title = GameUi.TitleBar("구입 아이템 선택", Close);
         GameUi.EnableDrag(this, title);
 
-        var stack = new StackPanel { MinWidth = 420 };
+        var stack = new StackPanel { MinWidth = ListWidth };
         stack.Children.Add(title);
         stack.Children.Add(_list);
         stack.Children.Add(buttons);

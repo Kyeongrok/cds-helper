@@ -42,6 +42,9 @@ public sealed class MarketSellDialog : Window
     /// <summary>소지품이 늘면 창이 화면을 넘지 않게 여기서 자른다.</summary>
     private const double ListMaxHeight = 420;
 
+    /// <summary>목록 바닥 폭. 게임 갈무리를 재어 맞췄다 — 이보다 넓으면 이름 칸이 휑하다.</summary>
+    private const double ListWidth = 356;
+
     private readonly Player _player;
     private readonly Market _market;
     private readonly int _cityId;
@@ -82,7 +85,7 @@ public sealed class MarketSellDialog : Window
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 12),
+            Margin = new Thickness(0, 4, 0, 0),
         };
         buttons.Children.Add(_decide);
         buttons.Children.Add(new GameButton("중단", Close, width: 110));
@@ -90,7 +93,7 @@ public sealed class MarketSellDialog : Window
         var title = GameUi.TitleBar("소지품 일람", Close);
         GameUi.EnableDrag(this, title);
 
-        var stack = new StackPanel { MinWidth = 420 };
+        var stack = new StackPanel { MinWidth = ListWidth };
         stack.Children.Add(title);
         stack.Children.Add(_list);
         stack.Children.Add(buttons);

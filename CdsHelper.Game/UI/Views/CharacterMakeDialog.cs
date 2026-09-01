@@ -227,32 +227,9 @@ internal sealed class CharacterMakeDialog : Window
             Child = child,
         }, x, y);
 
-    /// <summary>칸 옆의 작은 계산기 단추.</summary>
-    private void Spinner(double x, double y, Action run)
-    {
-        var box = new Border
-        {
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Width = SpinSize,
-            Height = SpinSize,
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = "田",
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                // 게임 비트맵 글꼴에 없는 글자라 윈도 글꼴로 찍는다. 칸이 18점이니 그 안에 들게.
-                FontSize = 11,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
-        };
-        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
-        Put(box, x, y);
-    }
+    /// <summary>칸 옆의 작은 계산기 단추. 원본 아이콘(MISC.CDS 파트 3)이다.</summary>
+    private void Spinner(double x, double y, Action run) =>
+        Put(GameUi.CalcButton(run, SpinSize), x, y);
 
     /// <summary>띠 단추 하나.</summary>
     private GameButton Band(string text, double x, double y, double width, Action run)

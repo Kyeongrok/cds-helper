@@ -614,6 +614,49 @@ internal static class GameUi
         return image;
     }
 
+    /// <summary>
+    /// 값을 두들겨 넣는 칸 옆의 <b>계산기 단추</b>. 원본 아이콘을 그대로 건다.
+    /// </summary>
+    /// <remarks>
+    /// 조각을 못 읽었으면 "田" 글자 상자로 물러선다 — 예전에는 늘 그 글자였다.
+    /// </remarks>
+    public static FrameworkElement CalcButton(Action run, double size = UiSprites.IconWidth)
+    {
+        FrameworkElement box;
+        if (GameIcon(UiSprites.IconCalc) is { } art)
+        {
+            art.Width = art.Height = size;
+            box = art;
+        }
+        else
+        {
+            box = new Border
+            {
+                Width = size,
+                Height = size,
+                Background = ItemFill,
+                BorderBrush = ItemEdge,
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    Text = "田",
+                    Foreground = Brushes.Black,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = size * 0.7,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            };
+        }
+
+        box.Cursor = Cursors.Hand;
+        box.VerticalAlignment = VerticalAlignment.Center;
+        // 누름은 삼킨다 — 창 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
+        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        return box;
+    }
+
     private static readonly BitmapSource CloseArt = DrawCloseBox();
 
     private static BitmapSource DrawCloseBox()
@@ -699,7 +742,7 @@ internal static class GameUi
     // ── 게임풍 굴림대와 액자 ────────────────────────────────────────────────
 
     /// <summary>굴림대 한 벌의 폭. 화살표 조각이 열여섯 점이라 그 폭에 맞춘다.</summary>
-    public const double ScrollWidth = UiSprites.ArrowWidth;
+    public const double ScrollWidth = UiSprites.IconWidth;
 
     /// <summary>손잡이가 이보다 짧아지지는 않는다.</summary>
     private const double ThumbMin = 16;
@@ -745,8 +788,8 @@ internal static class GameUi
         bar.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var up = ScrollArrow(UiSprites.ArrowUp, () => view.ScrollToVerticalOffset(view.VerticalOffset - ScrollStep));
-        var down = ScrollArrow(UiSprites.ArrowDown, () => view.ScrollToVerticalOffset(view.VerticalOffset + ScrollStep));
+        var up = ScrollArrow(UiSprites.IconUp, () => view.ScrollToVerticalOffset(view.VerticalOffset - ScrollStep));
+        var down = ScrollArrow(UiSprites.IconDown, () => view.ScrollToVerticalOffset(view.VerticalOffset + ScrollStep));
         Grid.SetRow(up, 0);
         Grid.SetRow(trough, 1);
         Grid.SetRow(down, 2);
@@ -804,31 +847,46 @@ internal static class GameUi
     }
 
     /// <summary>굴림대 끝의 화살표 한 칸. 조각이 없으면 빈 칸이다.</summary>
-    private static FrameworkElement ScrollArrow(int row, Action run)
+    private static FrameworkElement ScrollArrow(int icon, Action run)
     {
         var box = new Border
         {
             Width = ScrollWidth,
-            Height = UiSprites.ArrowHeight,
+            Height = UiSprites.IconHeight,
             Background = MenuBack,
             Cursor = Cursors.Hand,
+            Child = GameIcon(icon),
         };
-
-        var art = Sprites?.Arrow(row, pressed: false);
-        if (art != null)
-        {
-            var bmp = BitmapSource.Create(UiSprites.ArrowWidth, UiSprites.ArrowHeight, 96, 96,
-                                          PixelFormats.Bgra32, null, art, UiSprites.ArrowWidth * 4);
-            bmp.Freeze();
-            var image = new Image { Source = bmp, Stretch = Stretch.None };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
-            RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
-            box.Child = image;
-        }
 
         box.MouseLeftButtonDown += (_, e) => e.Handled = true;
         box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
         return box;
+    }
+
+    /// <summary>
+    /// 게임 아이콘 한 장(16x16) — 화살표·계산기 따위. 조각을 못 읽었으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 계산기는 게임이 값을 두들겨 넣는 칸 옆에 붙이는 표시다. 예전에는 "田" 글자로
+    /// 흉내내고 있었는데, 원본에 제 그림이 있다(<see cref="UiSprites.IconCalc"/>).
+    /// </remarks>
+    public static Image? GameIcon(int icon, int scale = 1)
+    {
+        if (Sprites?.Icon(icon) is not { } art) return null;
+
+        var bmp = BitmapSource.Create(UiSprites.IconWidth, UiSprites.IconHeight, 96, 96,
+                                      PixelFormats.Bgra32, null, art, UiSprites.IconWidth * 4);
+        bmp.Freeze();
+
+        var image = new Image
+        {
+            Source = bmp,
+            Width = UiSprites.IconWidth * scale,
+            Height = UiSprites.IconHeight * scale,
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+        return image;
     }
 
     /// <summary>

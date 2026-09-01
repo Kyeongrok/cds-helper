@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -53,23 +53,9 @@ public sealed class ShipNameDialog : Window
             Margin = new Thickness(8, 3, 8, 3),
         };
 
-        // 오른쪽 끝의 작은 단추. 게임 것은 계산기 그림인데 우리는 글자로 갈음한다.
-        var pad = new Border
-        {
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(5, 1, 5, 1),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = "田",
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 15,
-            },
-        };
-        pad.MouseLeftButtonUp += (_, e) => { e.Handled = true; TypeIt(); };
+        // 오른쪽 끝의 작은 단추 — 원본 계산기 아이콘이다.
+        var pad = GameUi.CalcButton(TypeIt, 18);
+        pad.Margin = new Thickness(4, 0, 4, 0);
 
         var top = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(pad, Dock.Right);

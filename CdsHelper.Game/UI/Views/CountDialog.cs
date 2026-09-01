@@ -186,7 +186,7 @@ public sealed class CountDialog : Window
     };
 
     /// <summary>
-    /// 칸 옆의 작은 계산기 단추(田). 누르면 숫자판이 떠서 값을 곧장 찍어 넣는다.
+    /// 칸 옆의 작은 계산기 단추. 누르면 숫자판이 떠서 값을 곧장 찍어 넣는다.
     /// </summary>
     /// <remarks>
     /// 판은 <see cref="NumberPadDialog"/> 다 — 신규 캐릭터 창의 연령·생일 칸이 여는 것과
@@ -195,38 +195,16 @@ public sealed class CountDialog : Window
     /// </remarks>
     private UIElement Pad()
     {
-        var box = new Border
-        {
-            Width = PadSize,
-            Height = PadSize,
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(4, 0, 0, 0),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                // 게임 비트맵 글꼴에 없는 글자라 윈도 글꼴로 찍는다.
-                Text = "田",
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 11,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
-        };
-        // 누름은 삼킨다 — 판 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
-        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        box.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            if (NumberPadDialog.Ask(this, _at, 0, _max) is { } typed)
-            {
-                _at = Math.Clamp(typed, 0, _max);
-                Paint();
-            }
-        };
+        var box = GameUi.CalcButton(Type, PadSize);
+        box.Margin = new Thickness(4, 0, 0, 0);
         return box;
+
+        void Type()
+        {
+            if (NumberPadDialog.Ask(this, _at, 0, _max) is not { } typed) return;
+            _at = Math.Clamp(typed, 0, _max);
+            Paint();
+        }
     }
 
     /// <summary>계산기 단추 한 칸의 크기.</summary>

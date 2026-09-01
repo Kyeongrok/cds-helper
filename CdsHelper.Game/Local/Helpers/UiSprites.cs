@@ -23,7 +23,7 @@ public enum BandStyle
 /// 도시 그림·초상화와 같은 LS12 아카이브다.
 /// <code>
 ///   파트 0   16 x  96   테두리 상자 조각
-///   파트 3   32 x  48   스크롤 화살표
+///   파트 3   16 x  96   16x16 아이콘 여섯 — X · ↑ · ↓ · 빈칸 둘 · 계산기
 ///   파트 4   2,880바이트  메뉴 띠 껍데기          ← 이것을 쓴다
 ///   파트 7   24 x 240   숫자 글꼴 0~9  ← 계산기 판이 이것으로 값을 찍는다
 ///   파트 8  592 x 448   양피지 바탕
@@ -52,8 +52,21 @@ public sealed class UiSprites
 {
     private const int BandPart = 4;
 
-    /// <summary>화살표 조각이 든 파트. 16x8 짜리 칸이 두 줄 x 세 칸이다.</summary>
-    private const int ArrowPart = 3;
+    /// <summary>
+    /// 작은 아이콘이 든 파트. <b>16폭 x 96행</b>, 곧 16x16 짜리 여섯 칸이 세로로 쌓여 있다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0  X(못 누름)   1  ↑   2  ↓
+    ///   3  어두운 빈 칸  4  밝은 빈 상자   5  계산기
+    /// </code>
+    /// 예전에는 이 파트를 <b>32폭 x 48행</b>으로 보고 "16x8 화살표가 뗌·눌림 두 줄" 이라고
+    /// 읽었다. 그러면 (x,y) 가 실제로는 <c>2y + x/16</c> 번째 줄을 가리켜서, 왼쪽 칸에는
+    /// 짝수 줄만·오른쪽 칸에는 홀수 줄만 담긴다 — 화살표가 <b>세로로 반쯤 눌린 채</b>
+    /// 그려지고, 눌린 꼴처럼 보이던 오른쪽 칸은 사실 같은 그림의 나머지 절반이었다.
+    /// 그래서 계산기 아이콘도 안 보였다(다섯째 칸이 두 쪽으로 갈려 있었다).
+    /// </remarks>
+    private const int IconPart = 3;
 
     /// <summary>
     /// 숫자 글꼴이 든 파트. 24x24 짜리 기울임체 숫자 열 장이 <b>세로로</b> 쌓여 있다.
@@ -70,11 +83,12 @@ public sealed class UiSprites
     /// <summary>숫자 조각의 비침 색인.</summary>
     private const byte DigitClear = 74;
 
-    /// <summary>화살표 한 칸의 크기.</summary>
-    public const int ArrowWidth = 16, ArrowHeight = 8;
+    /// <summary>아이콘 한 칸의 크기. 여섯 칸이 세로로 쌓여 있다.</summary>
+    public const int IconWidth = 16, IconHeight = 16, IconCount = 6;
 
-    /// <summary>화살표 칸 차례 — 0 못 누름(X) · 1 위 · 2 아래.</summary>
-    public const int ArrowNone = 0, ArrowUp = 1, ArrowDown = 2;
+    /// <summary>아이콘 칸 차례.</summary>
+    public const int IconNone = 0, IconUp = 1, IconDown = 2,
+                     IconDark = 3, IconBlank = 4, IconCalc = 5;
 
     /// <summary>띠 한 벌의 크기와 조각 배치.</summary>
     private const int StyleBytes = 960, StyleCount = 3;
@@ -93,13 +107,13 @@ public sealed class UiSprites
     private static readonly int[] PieceWidth = [CapWidth, MidWidth, CapWidth];
 
     private readonly byte[] _band;
-    private readonly byte[]? _arrow;
+    private readonly byte[]? _icons;
     private readonly byte[]? _digits;
 
-    private UiSprites(byte[] band, byte[]? arrow, byte[]? digits)
+    private UiSprites(byte[] band, byte[]? icons, byte[]? digits)
     {
         _band = band;
-        _arrow = arrow;
+        _icons = icons;
         _digits = digits;
     }
 
@@ -146,15 +160,15 @@ public sealed class UiSprites
             LastError = "띠 조각이 기대한 크기가 아닙니다";
             return null;
         }
-        // 화살표는 없어도 창은 열린다 — 그때는 글자 화살표로 물러선다.
-        var arrows = archive.PartCount > ArrowPart ? archive.Decode(ArrowPart) : null;
-        if (arrows != null && arrows.Length < ArrowWidth * ArrowHeight * 6) arrows = null;
+        // 아이콘은 없어도 창은 열린다 — 그때는 글자 화살표로 물러선다.
+        var icons = archive.PartCount > IconPart ? archive.Decode(IconPart) : null;
+        if (icons != null && icons.Length < IconWidth * IconHeight * IconCount) icons = null;
 
         // 숫자 조각도 덤이다 — 없으면 계산기가 윈도 글꼴로 물러선다.
         var digits = archive.PartCount > DigitPart ? archive.Decode(DigitPart) : null;
         if (digits != null && digits.Length < DigitWidth * DigitHeight * DigitCount) digits = null;
 
-        return new UiSprites(part, arrows, digits);
+        return new UiSprites(part, icons, digits);
     }
 
     /// <summary>가운데를 <paramref name="cells"/> 번 되풀이했을 때의 띠 폭.</summary>
@@ -219,30 +233,21 @@ public sealed class UiSprites
     }
 
     /// <summary>
-    /// 화살표 한 칸을 BGRA 로 꺼낸다. 조각이 없으면 null.
+    /// 아이콘 한 칸(16x16)을 BGRA 로 꺼낸다. 조각이 없거나 칸 밖이면 null.
     /// </summary>
-    /// <param name="row">0 못 누름(X) · 1 위 · 2 아래(<see cref="ArrowUp"/>).</param>
-    /// <param name="pressed">눌린 꼴(오른쪽 칸)이면 true.</param>
-    /// <remarks>
-    /// 파트 3 은 16x8 칸이 <b>두 줄(왼쪽 뗌 · 오른쪽 눌림) x 세 칸</b>으로 놓여 있다.
-    /// 한 줄이 통째로 이어져 있으므로 줄 폭은 32 다.
-    /// </remarks>
-    public uint[]? Arrow(int row, bool pressed)
+    /// <param name="index"><see cref="IconUp"/> · <see cref="IconCalc"/> 따위.</param>
+    public uint[]? Icon(int index)
     {
-        if (_arrow == null) return null;
+        if (_icons == null || index < 0 || index >= IconCount) return null;
 
-        int stride = ArrowWidth * 2;
-        int x0 = pressed ? ArrowWidth : 0;
-        int y0 = Math.Clamp(row, 0, 2) * ArrowHeight;
-
-        var bgra = new uint[ArrowWidth * ArrowHeight];
-        for (int r = 0; r < ArrowHeight; r++)
-            for (int c = 0; c < ArrowWidth; c++)
-            {
-                int i = _arrow[(y0 + r) * stride + x0 + c] * 3;
-                bgra[r * ArrowWidth + c] = (uint)(0xFF << 24 | GamePalette.Rgb[i] << 16
-                                                | GamePalette.Rgb[i + 1] << 8 | GamePalette.Rgb[i + 2]);
-            }
+        var bgra = new uint[IconWidth * IconHeight];
+        int at = index * IconWidth * IconHeight;
+        for (int k = 0; k < bgra.Length; k++)
+        {
+            int i = _icons[at + k] * 3;
+            bgra[k] = (uint)(0xFF << 24 | GamePalette.Rgb[i] << 16
+                            | GamePalette.Rgb[i + 1] << 8 | GamePalette.Rgb[i + 2]);
+        }
         return bgra;
     }
 
