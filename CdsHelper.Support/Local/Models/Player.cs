@@ -955,7 +955,7 @@ public sealed class Player
         Flagship >= 0 && Flagship < _ships.Count ? _ships[Flagship] : _ships.FirstOrDefault();
 
     /// <summary>
-    /// 배를 다 걷는다 — <b>새 주인공은 배 없이 시작한다</b>.
+    /// 배와 선원을 다 걷는다 — <b>새 주인공은 배도 선원도 없이 시작한다</b>.
     /// </summary>
     /// <remarks>
     /// 게임도 새 놀이를 열면 함대가 비어 있고, 조선소에서 첫 배를 사야 바다에 나간다.
@@ -966,6 +966,9 @@ public sealed class Player
     {
         _ships.Clear();
         Flagship = 0;
+        // 배가 없으면 정원이 0 이라 선원도 0 이다. 배를 사도 선원은 안 붙는다 —
+        // 게임도 항구에서 고용해야 는다(<see cref="Buy"/> 가 선원을 안 건드린다).
+        Crew = 0;
     }
 
     /// <summary>기함을 그 자리의 배로 바꾼다. 자리가 이상하면 false.</summary>
