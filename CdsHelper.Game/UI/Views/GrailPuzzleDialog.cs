@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -77,7 +77,6 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     private readonly Dictionary<int, Image> _art = [];
     private readonly Dictionary<int, GameUi.GameLabel> _now = [];
     private readonly GameUi.GameLabel _count = new(GameFont.WhiteColor) { Bold = true };
-    private readonly GameButton _undo;
 
     /// <summary>끌고 다니는 그림.</summary>
     private readonly Image _ghost = new() { Visibility = Visibility.Collapsed, IsHitTestVisible = false };
@@ -87,7 +86,6 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     private GrailPuzzleDialog(int problem)
     {
         _game = new GrailPuzzle(problem);
-        _undo = new GameButton("한 수 되돌림", AskUndo);
 
         if (Backdrop() is { } picture) _scene.Children.Add(picture);
 
@@ -122,12 +120,23 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         double zoom = GameUi.PixelZoom(this, Zoom);
         _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        Build("성배 퍼즐", _scene, SceneWidth * zoom + 30, SceneHeight * zoom + 100,
-              _undo,
-              new GameButton("게임 설명", Explain),
-              new GameButton("항복", AskGiveUp));
+        // 게임은 미니 게임에 밤색 판도 제목도 아래 단추도 안 두른다 — 그림에 금빛 액자만
+        // 두르고, 할 일은 오른쪽 단추 차림표가 맡는다.
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = GameUi.Back;
+        Content = GameUi.GoldFrame(_scene);
+        GameUi.EnableDrag(this, _scene);
 
-        MouseRightButtonUp += (_, _) => { _pick = -1; Sync(); };
+        MouseRightButtonUp += (_, e) =>
+        {
+            _pick = -1;
+            Sync();
+            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+        };
         KeyDown += (_, e) => { if (e.Key is Key.Escape) { _pick = -1; Sync(); } };
 
         Sync();
@@ -314,6 +323,15 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         if (_game.Over != null) Close();
     }
 
+    /// <summary>오른쪽 단추 차림표의 줄. 게임 갈무리 차례 그대로다.</summary>
+    private IReadOnlyList<(string, Action?)> Commands() =>
+    [
+        ("한 수 되돌림", _game.CanUndo ? AskUndo : null),
+        ("포기한다", AskGiveUp),
+        ("게임 설명", Explain),
+        ("게임 복귀", () => { }),   // 차림표만 닫는다
+    ];
+
     private void AskUndo()
     {
         if (!_game.CanUndo)
@@ -366,7 +384,6 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         // 집은 바가지는 제자리에서 감춘다 — 손에 들려 있으니.
         if (_art.TryGetValue(_grab, out var held)) held.Visibility = Visibility.Hidden;
 
-        _undo.On = _game.CanUndo;
     }
 
     /// <summary>

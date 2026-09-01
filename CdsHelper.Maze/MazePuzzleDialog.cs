@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,7 +20,7 @@ namespace CdsHelper.Maze;
 /// 그려져 있고, 밟은 칸에 바닥 조각을 얹는 식이다 — 1인칭이 아니다.
 /// <code>
 ///   0x0042BCEA  배경 352x432 를 (8, 8) 에 찍는다
-///   0x0042BE87  y0 = 0x1F(31), 층마다 0x6A(106) 씩
+///   0x0042BE87  y0 = 0x1F(31), 층마다 0x6A(106) · 줄마다 +0x16(22)
 ///   0x0042BE99  x  = 0x64(100), 줄마다 -0x16(22), 칸마다 +0x34(52)
 ///   0x0042BECE  밟은 칸에 80x24 조각
 ///   0x0042BF93  상자는 (x + 0x7B, y + 0x13) — 곧 칸에서 (+23, -12)
@@ -58,7 +58,18 @@ internal sealed class MazePuzzleDialog : InfoDialog
 
     /// <summary>바닥 칸 조각과 그 자리 셈(<c>0x0042BE87</c> 벌).</summary>
     private const int FloorW = 80, FloorH = 24;
-    private const int OriginX = 100, OriginY = 31;
+    /// <summary>
+    /// 배경이 화면에 놓이는 자리(<c>0x0042BCEA</c>). <b>칸 좌표는 화면 좌표라</b>
+    /// 배경 왼쪽 위를 원점으로 삼는 우리 판에서는 이만큼 빼야 맞는다.
+    /// </summary>
+    /// <remarks>
+    /// 이걸 안 뺐더니 밟은 칸이 격자에서 여덟 점 어긋나 떠 보였다 — 게임 화면과 대 보면
+    /// 바닥 조각이 칸에 딱 앉는데 우리 것만 비껴 있었다.
+    /// </remarks>
+    private const int BackX = 8, BackY = 8;
+
+    /// <summary>첫 칸의 자리(<c>0x0042BE87</c> · <c>0x0042BE99</c>) — 화면 좌표다.</summary>
+    private const int OriginX = 100 - BackX, OriginY = 31 - BackY;
     private const int ColStep = 52, RowStep = 22, LayerStep = 106;
 
     /// <summary>상자·문은 칸에서 이만큼 옮겨 얹는다(<c>0x0042BF93</c>).</summary>
@@ -84,8 +95,6 @@ internal sealed class MazePuzzleDialog : InfoDialog
         IsHitTestVisible = false,
     };
     private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
-    private readonly GameButton _undo;
-    private readonly GameButton _open;
 
     /// <summary>지금 짚은 방향. 게임의 <c>[0x2FC]</c> 다.</summary>
     private int _point = -1;
@@ -93,8 +102,6 @@ internal sealed class MazePuzzleDialog : InfoDialog
     private MazePuzzleDialog(Random rng)
     {
         _game = new MazePuzzle(rng);
-        _undo = new GameButton("ＵＮＤＯ", AskUndo);
-        _open = new GameButton("보물 상자를 연다", OpenChest);
 
         if (Picture("maze-bg.png") is { } back)
         {
@@ -119,17 +126,20 @@ internal sealed class MazePuzzleDialog : InfoDialog
         double zoom = GameUi.PixelZoom(this, Zoom);
         _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        // 셈은 판 밖에 적는다 — 판 안은 게임 그림이 다 쓴다.
-        _line.FallbackBrush = Ring;
-        var rows = new StackPanel();
-        rows.Children.Add(_line);
-        rows.Children.Add(Gap(4));
-        rows.Children.Add(_scene);
+        // 게임은 미니 게임에 밤색 판도 제목도 아래 단추도 안 두른다 — 그림에 금빛 액자만
+        // 두르고, 할 일은 오른쪽 단추 차림표가 맡는다. 셈(밟은 방·상자·취소·다시)은
+        // 게임에서도 판 안 왼쪽 위의 UNDO 쪽지에 적히므로 따로 띠를 두지 않는다.
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = GameUi.Back;
+        Content = GameUi.GoldFrame(_scene);
+        GameUi.EnableDrag(this, _scene);
 
-        Build("미궁 64 퍼즐", rows, SceneWidth * zoom + 30, SceneHeight * zoom + 130,
-              _open, _undo,
-              new GameButton("게임 설명", Explain),
-              new GameButton("포기한다", AskGiveUp));
+        MouseRightButtonUp += (_, e) =>
+            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
 
         KeyDown += OnKey;
         Sync();
@@ -297,6 +307,17 @@ internal sealed class MazePuzzleDialog : InfoDialog
         if (result != MazePuzzle.Result.Playing) Close();
     }
 
+    /// <summary>오른쪽 단추 차림표의 줄. 게임 갈무리 차례 그대로다.</summary>
+    private IReadOnlyList<(string, Action?)> Commands() =>
+    [
+        ("보물 상자를 연다", _game.ChestAt(_game.Here) != 0
+                            && !_game.ChestOpen(_game.ChestAt(_game.Here)) ? OpenChest : null),
+        ("ＵＮＤＯ", _game.CanUndo ? AskUndo : null),
+        ("게임 설명", Explain),
+        ("포기한다", AskGiveUp),
+        ("게임 복귀", () => { }),   // 차림표만 닫는다
+    ];
+
     private void OpenChest()
     {
         int number = _game.OpenChest();
@@ -397,9 +418,6 @@ internal sealed class MazePuzzleDialog : InfoDialog
         Canvas.SetLeft(_hero, at.X + HeroDx);
         Canvas.SetTop(_hero, at.Y + HeroDy);
 
-        _undo.On = _game.CanUndo;
-        _open.On = _game.ChestAt(_game.Here) != 0
-                   && !_game.ChestOpen(_game.ChestAt(_game.Here));
     }
 
     /// <summary>놀이를 한 판 하고 <c>0x0042C8A0</c> 이 하듯 결과를 알린다.</summary>

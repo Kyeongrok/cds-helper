@@ -195,6 +195,66 @@ internal static class GameUi
     /// <summary>창 겹테의 검은 줄. 게임 갈무리에서 뽑았다(#110505).</summary>
     public static readonly Brush EdgeDark = Frozen(Color.FromRgb(0x11, 0x05, 0x05));
 
+    // ── 미니 게임의 금빛 액자 ───────────────────────────────────────────────
+
+    /// <summary>금빛 액자의 세 빛깔. 성배 퍼즐 갈무리를 점 단위로 재어 뽑았다.</summary>
+    private static readonly Brush GoldLight = Frozen(Color.FromRgb(0xC8, 0xB1, 0x92));
+    private static readonly Brush GoldBody = Frozen(Color.FromRgb(0xB5, 0x98, 0x35));
+    private static readonly Brush GoldDark = Frozen(Color.FromRgb(0x80, 0x60, 0x07));
+
+    /// <summary>
+    /// 오른쪽 단추로 부르는 <b>차림표</b>. 누른 자리에 명령 창을 띄운다.
+    /// </summary>
+    /// <remarks>
+    /// 미니 게임은 아래 단추 줄이 없다 — 할 일을 이 차림표로 고른다. 창은 시설 명령 창과
+    /// 같은 물건이라(<see cref="Engine.Menu.GameMenu"/>) 모양도 여닫는 짓시늉도 같다.
+    /// 줄 하나를 고르면 차림표가 닫히고 그 일이 벌어진다.
+    /// </remarks>
+    /// <param name="at">띄울 화면 자리(WPF 단위). 보통 누른 자리다.</param>
+    public static void ContextMenu(Window owner, Point at,
+                                   IReadOnlyList<(string Text, Action? Run)> rows)
+    {
+        var host = new Engine.Menu.GameMenuHost(owner);
+        var lines = new List<Engine.Menu.GameMenuRow>(rows.Count);
+        foreach (var (text, run) in rows)
+            lines.Add(new Engine.Menu.GameMenuRow(
+                text, run == null ? null : () => { host.Close(); run(); }));
+        host.Open(() => new Engine.Menu.GameMenu("", lines, null), at);
+    }
+
+    /// <summary>
+    /// 미니 게임 판을 두르는 <b>금빛 액자</b>. 밤색 판도 제목도 아래 단추도 없다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 미니 게임(성배 퍼즐·미궁 64)은 창을 안 두른다 — 그림만 놓고 <b>금빛 테</b>를
+    /// 두를 뿐이고, 할 일은 오른쪽 단추로 부르는 차림표가 맡는다
+    /// (<see cref="ContextMenu(Window, Point, System.Collections.Generic.IReadOnlyList{ValueTuple{string, Action}})"/>).
+    /// 밖에서 안으로 <c>검은 줄 1 · 밝은 금 1 · 금 3 · 짙은 금 1 · 검은 줄 1</c> 이다.
+    /// </remarks>
+    public static Border GoldFrame(UIElement content) => new()
+    {
+        BorderBrush = EdgeDark,
+        BorderThickness = new Thickness(1),
+        Child = new Border
+        {
+            BorderBrush = GoldLight,
+            BorderThickness = new Thickness(1),
+            Background = GoldBody,
+            Padding = new Thickness(3),
+            Child = new Border
+            {
+                BorderBrush = GoldDark,
+                BorderThickness = new Thickness(1),
+                Child = new Border
+                {
+                    BorderBrush = EdgeDark,
+                    BorderThickness = new Thickness(1),
+                    Child = content,
+                },
+            },
+        },
+    };
+
     /// <summary>
     /// 게임 창을 두르는 <b>겹테</b>. 갈무리를 점 단위로 재어 그대로 옮겼다 —
     /// 밖에서 안으로 <c>검은 줄 1 · 밤색 2 · 검은 줄 1 · 밤색 4</c> 다.
