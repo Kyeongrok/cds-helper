@@ -128,6 +128,12 @@ internal sealed class CharacterMakeDialog : Window
     }
 
     private readonly Portraits? _faces;
+    /// <summary>
+    /// 이름표. <b>명은 고른 국적에 따라 표기가 갈리므로</b> 목록을 미리 굳히지 않고
+    /// 표를 들고 있다가 "일람" 을 누를 때 그 국적 것으로 낸다(조안/후안 · 디오고/디에고).
+    /// </summary>
+    private readonly PlayerNameTable? _names;
+
     private readonly IReadOnlyList<string> _givenNames, _familyNames;
     private readonly Canvas _board = new() { Width = ContentWidth, Height = ContentHeight };
 
@@ -141,10 +147,11 @@ internal sealed class CharacterMakeDialog : Window
     private int _face, _blood, _nation;
     private bool _ok;
 
-    private CharacterMakeDialog(Player player, Portraits? faces, IReadOnlyList<string> given,
-                                IReadOnlyList<string> family)
+    private CharacterMakeDialog(Player player, Portraits? faces, PlayerNameTable? names,
+                                IReadOnlyList<string> given, IReadOnlyList<string> family)
     {
         _faces = faces;
+        _names = names;
         _givenNames = given;
         _familyNames = family;
 
@@ -166,7 +173,7 @@ internal sealed class CharacterMakeDialog : Window
 
         Portrait();
         NameRow(RowFamily, "성", _family, () => _familyNames);
-        NameRow(RowGiven, "명", _given, () => _givenNames);
+        NameRow(RowGiven, "명", _given, () => _names?.GivenFor(_nation) ?? _givenNames);
         AgeRow();
         BirthRow();
         BloodRow();
@@ -287,9 +294,7 @@ internal sealed class CharacterMakeDialog : Window
         });
         Band("일람", RightEdge - SmallWidth, y - 1, SmallWidth, () =>
         {
-            var names = list();
-            int at = MapPointDialog.Ask(this, names);
-            if (at >= 0 && at < names.Count) box.Text = names[at];
+            if (NameListDialog.Ask(this, list(), box.Text) is { } got) box.Text = got;
         });
     }
 
@@ -440,9 +445,10 @@ internal sealed class CharacterMakeDialog : Window
     public static bool Show(Window owner, Player player, string gameDirectory)
     {
         var faces = Portraits.Open(gameDirectory);
-        var (given, family) = NamePool(gameDirectory);
+        var names = gameDirectory.Length > 0 ? PlayerNameTable.Open(gameDirectory) : null;
+        var (given, family) = NamePool(names);
 
-        var dialog = new CharacterMakeDialog(player, faces, given, family) { Owner = owner };
+        var dialog = new CharacterMakeDialog(player, faces, names, given, family) { Owner = owner };
         dialog.ShowDialog();
         if (!dialog._ok) return false;
 
@@ -455,28 +461,16 @@ internal sealed class CharacterMakeDialog : Window
     /// <summary>
     /// 고를 수 있는 명·성. 후원자 여든하나의 이름을 가운뎃점에서 가른 것이다.
     /// </summary>
-    private static (List<string> Given, List<string> Family) NamePool(string gameDirectory)
-    {
-        var given = new List<string> { "라몬", "에밀리오", "에르네스토" };
-        var family = new List<string> { "데·마르시아스", "알발레스" };
-
-        if (gameDirectory.Length > 0 && SponsorTable.Open(gameDirectory) is { } table)
-            foreach (var row in table.Sponsors)
-            {
-                int at = row.Name.IndexOf('·');
-                if (at <= 0) { Add(given, row.Name); continue; }
-                Add(given, row.Name[..at]);
-                Add(family, row.Name[(at + 1)..]);
-            }
-
-        given.Sort(StringComparer.Ordinal);
-        family.Sort(StringComparer.Ordinal);
-        return (given, family);
-
-        static void Add(List<string> to, string name)
-        {
-            name = name.Trim();
-            if (name.Length > 0 && !to.Contains(name)) to.Add(name);
-        }
-    }
+    /// <summary>
+    /// 고를 수 있는 이름들. <b>EXE 에 박힌 표</b>다(<see cref="PlayerNameTable"/>) —
+    /// 성 마흔여덟, 명 서른일곱이고 명은 국적에 따라 표기가 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 이 표를 못 짚어 후원자 여든한 명을 가운뎃점에서 갈라 썼는데, 그러면 목록이
+    /// 원본보다 훨씬 길고 사람도 다르다. 표를 못 읽으면 미리 만든 주인공 이름만 낸다.
+    /// </remarks>
+    private static (List<string> Given, List<string> Family) NamePool(PlayerNameTable? table) =>
+        table != null
+            ? ([.. table.GivenFor(0)], [.. table.Family])
+            : (["라몬", "에밀리오", "에르네스토"], ["데·마르시아스", "알발레스"]);
 }
