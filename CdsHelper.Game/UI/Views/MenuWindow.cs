@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -44,6 +45,86 @@ public sealed class MenuWindow : Window
         Top = Math.Max(0, owner.Top + (owner.Height - ActualHeight) / 2);
     }
 
+    // ── 여닫는 짓시늉 ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 창이 점에서 자라고 점으로 오므라드는 데 걸리는 시간과, 시작할 때의 크기.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 시설 명령 창을 낼 때 네모가 가운데 한 점에서 펼쳐지고, 나갈 때 도로 오므라든다.
+    /// 창(HWND) 크기만 줄이면 <b>알맹이가 잘리는</b> 것으로 보이므로, 창 크기와 함께
+    /// 알맹이도 같은 배로 줄인다(<see cref="ScaleTransform"/>) — 그래야 통째로 작아진다.
+    /// 배는 <see cref="UIElement.RenderTransform"/> 이라 자리 계산에 안 끼어든다.
+    /// </remarks>
+    private static readonly Duration ZoomTime = new(TimeSpan.FromMilliseconds(110));
+    private const double ZoomLeast = 0.06;
+
+    private readonly ScaleTransform _zoom = new(1, 1);
+
+    /// <summary>오므라드는 중인지. 닫으라는 말이 두 번 들어오는 것을 막는다.</summary>
+    private bool _shrinking;
+
+    /// <summary>점에서 펼친다. 자리를 다 잡은 뒤에 부른다.</summary>
+    private void Grow() => Zoom(grow: true, done: null);
+
+    /// <summary>점으로 오므린 뒤 닫는다.</summary>
+    public void CloseZoomed()
+    {
+        if (_shrinking) { return; }
+        _shrinking = true;
+        Zoom(grow: false, done: Close);
+    }
+
+    private void Zoom(bool grow, Action? done)
+    {
+        double w = ActualWidth, h = ActualHeight, l = Left, t = Top;
+        if (w <= 0 || h <= 0) { done?.Invoke(); return; }
+
+        // 애니메이션 동안에는 크기를 못 박아 둔다 — 알맹이에 맞춰 크기를 다시 잡는
+        // 규칙이 살아 있으면 애니메이션이 먹지 않는다.
+        SizeToContent = SizeToContent.Manual;
+
+        double sw = w * ZoomLeast, sh = h * ZoomLeast;
+        double sl = l + (w - sw) / 2, st = t + (h - sh) / 2;
+        var ease = new SineEase { EasingMode = EasingMode.EaseOut };
+
+        Move(LeftProperty, grow ? sl : l, grow ? l : sl);
+        Move(TopProperty, grow ? st : t, grow ? t : st);
+        Move(WidthProperty, grow ? sw : w, grow ? w : sw);
+        Move(HeightProperty, grow ? sh : h, grow ? h : sh);
+
+        var scale = new DoubleAnimation(grow ? ZoomLeast : 1, grow ? 1 : ZoomLeast, ZoomTime)
+        {
+            EasingFunction = ease,
+        };
+        if (grow) scale.Completed += (_, _) => Settle(l, t);
+        else if (done != null) scale.Completed += (_, _) => done();
+        _zoom.BeginAnimation(ScaleTransform.ScaleXProperty, scale);
+        _zoom.BeginAnimation(ScaleTransform.ScaleYProperty, scale);
+
+        void Move(DependencyProperty what, double from, double to) =>
+            BeginAnimation(what, new DoubleAnimation(from, to, ZoomTime) { EasingFunction = ease });
+    }
+
+    /// <summary>
+    /// 다 펼쳐지고 나면 애니메이션을 걷고 <b>알맹이에 맞춰 크기를 잡는 규칙</b>을 되돌린다.
+    /// 안 걷으면 그 뒤로 크기를 못 바꾼다 — 애니메이션 값이 계속 이긴다.
+    /// </summary>
+    private void Settle(double left, double top)
+    {
+        foreach (var what in new[] { LeftProperty, TopProperty, WidthProperty, HeightProperty })
+            BeginAnimation(what, null);
+        _zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        _zoom.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        _zoom.ScaleX = _zoom.ScaleY = 1;
+
+        Width = double.NaN;
+        Height = double.NaN;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        Left = left;
+        Top = top;
+    }
+
     private MenuWindow(UIElement content)
     {
         WindowStyle = WindowStyle.None;
@@ -57,13 +138,19 @@ public sealed class MenuWindow : Window
         // 차 있어 비침이 필요 없다.
         Background = GameUi.Back;
 
-        _root = new Border { Background = GameUi.Back, Child = content };
+        _root = new Border
+        {
+            Background = GameUi.Back,
+            Child = content,
+            RenderTransform = _zoom,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+        };
         Content = _root;
         GameUi.EnableDrag(this, _root);
         GameUi.CarryOwnedWindows(this);   // 이 창에서 연 창(힌트 일람 따위)도 같이 옮긴다
 
-        KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
-        MouseRightButtonUp += (_, _) => Close();
+        KeyDown += (_, e) => { if (e.Key is Key.Escape) CloseZoomed(); };
+        MouseRightButtonUp += (_, _) => CloseZoomed();
 
         // <b>닫기 전에 주인 창을 먼저 띄운다.</b> 창을 부수고 나서 초점을 정하게 두면
         // 윈도가 다음 창을 z 차례에서 고르는데, 우리 창들은 테 없는 데다 작업표시줄에도
@@ -97,6 +184,7 @@ public sealed class MenuWindow : Window
 
         window.Left = Math.Max(0, owner.Left + (owner.Width - window.ActualWidth) / 2);
         window.Top = Math.Max(0, owner.Top + (owner.Height - window.ActualHeight) / 2);
+        window.Grow();
         return window;
     }
 
@@ -111,6 +199,7 @@ public sealed class MenuWindow : Window
 
         window.Left = Math.Max(0, Math.Min(at.X, SystemParameters.VirtualScreenWidth - window.ActualWidth));
         window.Top = Math.Max(0, Math.Min(at.Y, SystemParameters.VirtualScreenHeight - window.ActualHeight));
+        window.Grow();
         return window;
     }
 }

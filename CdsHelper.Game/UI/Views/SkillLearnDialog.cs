@@ -1,7 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
@@ -20,11 +19,19 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class SkillLearnDialog : Window
 {
+    /// <summary>줄 속 칸 — "이름 ( LVn )" 하나다. 게임은 오른쪽맞춤으로 낸다.</summary>
+    private static readonly GameListColumn[] Columns =
+    [
+        new(GameListDock.Fill, new Thickness(10, 0, 10, 0), Align: HorizontalAlignment.Right),
+    ];
+
+    /// <summary>목록 바닥 폭과, 넘치면 굴리기 시작하는 키. 게임 갈무리를 재어 맞췄다.</summary>
+    private const double ListWidth = 300, ListMaxHeight = 220;
+
     private readonly Player _player;
     private readonly IReadOnlyList<string> _skills;
+    private readonly GameList _list;
     private readonly GameButton _decide;
-    private readonly Dictionary<string, Border> _rows = [];
-    private string? _picked;
 
     /// <summary>이 창에서 하나라도 배웠는지. 조합장이 나가는 말을 고르는 데 쓴다.</summary>
     private bool _learned;
@@ -41,122 +48,66 @@ public sealed class SkillLearnDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _decide = new GameButton("결정", Decide, BandStyle.Button, ButtonWidth)
+        _list = new GameList(Columns, i => [RowText(_skills[i])], _skills.Count,
+                             maxHeight: ListMaxHeight)
         {
-            Height = UiSprites.BandHeight,
-            Margin = new Thickness(0, 0, ButtonGap / 2, 0),
-            On = false,
+            Margin = new Thickness(0),
+            BorderBrush = GameUi.Edge,
         };
+
+        _decide = new GameButton("결정", Decide, width: ButtonWidth) { On = false };
+        _list.SelectionChanged += () => _decide.On = _list.Selected >= 0;
+
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 8),
+            Margin = new Thickness(0, 4, 0, 0),
         };
         buttons.Children.Add(_decide);
-        buttons.Children.Add(new GameButton("종료", Close, BandStyle.Button, ButtonWidth)
-        {
-            Height = UiSprites.BandHeight,
-            Margin = new Thickness(ButtonGap / 2, 0, 0, 0),
-        });
-
-        var list = new StackPanel();
-        foreach (var name in _skills) list.Children.Add(MakeRow(name));
+        buttons.Children.Add(new GameButton("종료", Close, width: ButtonWidth));
 
         var title = GameUi.TitleBar("습득가능 기술", Close);
         GameUi.EnableDrag(this, title);
 
-        var stack = new StackPanel();
+        var stack = new StackPanel { MinWidth = ListWidth };
         stack.Children.Add(title);
-        stack.Children.Add(new Border
-        {
-            Background = GameUi.PageFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4, 4, 4, 0),
-            Padding = new Thickness(6, 4, 6, 4),
-            // 게임처럼 열 줄쯤 보이고 나머지는 굴려서 본다.
-            Child = new ScrollViewer
-            {
-                Height = 260,
-                Width = 300,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Content = list,
-            },
-        });
+        stack.Children.Add(_list);
         stack.Children.Add(buttons);
 
-        Content = new Border
-        {
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
-            Child = stack,
-        };
+        Content = GameUi.DialogEdge(stack);
 
-        SetDecide(enabled: false);
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        KeyDown += OnKey;
         MouseRightButtonUp += (_, _) => Close();
     }
 
-    /// <summary>단추 하나의 폭과 둘 사이 틈. 힌트 일람과 같은 치수다.</summary>
-    private const double ButtonWidth = 128, ButtonGap = 10;
+    /// <summary>단추 하나의 폭.</summary>
+    private const double ButtonWidth = 110;
 
-    /// <summary>고른 줄의 바탕. 힌트 일람과 같은 파랑이다.</summary>
-    private static readonly Brush PickFill = Frozen(Color.FromRgb(0x4A, 0x64, 0x9E));
-
-    private static Brush Frozen(Color c)
+    private void OnKey(object sender, KeyEventArgs e)
     {
-        var b = new SolidColorBrush(c);
-        b.Freeze();
-        return b;
-    }
+        if (_list.HandleKey(e.Key)) { e.Handled = true; return; }
 
-    /// <summary>기술 한 줄. "이름 ( LVn )" 을 왼쪽에 붙여 낸다(게임은 오른쪽이다).</summary>
-    private Border MakeRow(string name)
-    {
-        var text = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
+        switch (e.Key)
         {
-            Text = RowText(name),
-            Bold = true,
-            FallbackBrush = Brushes.Black,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        var row = new Border
-        {
-            Background = Brushes.Transparent,
-            BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(6, 0, 6, 0),
-            Cursor = Cursors.Hand,
-            Child = text,
-        };
-        row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Pick(name); };
-        _rows[name] = row;
-        return row;
+            case Key.Escape:
+                Close();
+                break;
+            case Key.Enter when _list.Selected >= 0:
+                Decide();
+                e.Handled = true;
+                break;
+        }
     }
 
     /// <summary>줄에 찍는 글.</summary>
     private string RowText(string name) => $"{name} ( LV{_player.LevelOf(name)} )";
 
-    private void Pick(string name)
-    {
-        _picked = name;
-        // 고른 줄은 파란 바탕에 까만 테다 — 힌트 일람과 같다.
-        foreach (var (key, row) in _rows)
-        {
-            bool on = key == name;
-            row.Background = on ? PickFill : Brushes.Transparent;
-            row.BorderBrush = on ? Brushes.Black : Brushes.Transparent;
-        }
-        SetDecide(enabled: true);
-    }
-
-    private void SetDecide(bool enabled) => _decide.On = enabled;
-
     private void Decide()
     {
-        if (_picked is not { } skill) return;
+        int at = _list.Selected;
+        if (at < 0 || at >= _skills.Count) return;
+        string skill = _skills[at];
 
         int level = _player.LevelOf(skill);
         if (level >= Skill.MaxLevel)
@@ -175,7 +126,7 @@ public sealed class SkillLearnDialog : Window
         {
             case LearnResult.Ok:
                 _learned = true;
-                ((GameUi.GameLabel)_rows[skill].Child).Text = RowText(skill);
+                _list.Refresh();          // 그 줄의 LV 가 올랐다
                 NoticeDialog.Show(this, $"{skill}을 습득했다!");
                 break;
             case LearnResult.NotEnoughGold:
