@@ -494,6 +494,26 @@ public sealed class Player
         return true;
     }
 
+    /// <summary>
+    /// 소지품과 보관 칸을 통째로 갈아 끼운다. 자택 <b>아이템 교환</b> 창이 다 마치고
+    /// 한 번 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 두 칸을 열여섯·아흔아홉 자리 배열로 들고 빈 자리를 -1 로 남긴다. 교환 창도
+    /// 그 배열을 그대로 주무르다가 끝날 때 되쓴다(<c>0x0047CDB0</c> · <c>0x0047CE50</c>).
+    /// 우리 쪽은 빈 자리를 안 들고 다니므로 <b>여기서 추려</b> 넣는다.
+    /// </remarks>
+    public void ReplaceBelongings(IEnumerable<int> items, IEnumerable<int> stored)
+    {
+        _items.Clear();
+        foreach (int id in items)
+            if (id >= 0 && _items.Count < MaxItems) _items.Add(id);
+
+        _stored.Clear();
+        foreach (int id in stored)
+            if (id >= 0 && _stored.Count < MaxStored) _stored.Add(id);
+    }
+
     /// <summary>그 값을 치를 수 있는지.</summary>
     public bool CanAfford(int price) => Gold >= price;
 

@@ -81,6 +81,9 @@ internal sealed class GameList : Border
     /// <summary>손이 가 있는 줄을 두르는 검은 테. 골라 둔 것과는 따로 논다.</summary>
     private static readonly Brush Caret = Frozen(Color.FromRgb(0x0C, 0x0A, 0x08));
 
+    /// <summary>줄 하나의 바닥 키 — 글자 키에 여백과 테를 더한 것이다.</summary>
+    private const double RowHeight = GameUi.ItemTextHeight + 6;
+
     private static SolidColorBrush Frozen(Color c)
     {
         var b = new SolidColorBrush(c);
@@ -120,15 +123,8 @@ internal sealed class GameList : Border
         BorderBrush = GameUi.ItemEdge;
         BorderThickness = new Thickness(1);
         Margin = new Thickness(6, 4, 6, 4);
-        Child = maxHeight > 0
-            ? new ScrollViewer
-            {
-                MaxHeight = maxHeight,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                Content = _stack,
-            }
-            : _stack;
+        // 굴림대는 게임 것을 쓴다 — 윈도 굴림대는 모양이 게임과 너무 다르다.
+        Child = maxHeight > 0 ? GameUi.Scroller(_stack, maxHeight) : _stack;
 
         Fill(count);
     }
@@ -170,6 +166,19 @@ internal sealed class GameList : Border
 
     /// <summary>줄 고르는 방식. 기본은 하나 고르기.</summary>
     public GameListPick Pick { get; init; } = GameListPick.One;
+
+    /// <summary>
+    /// 이 목록에 손이 가 있는지. 목록이 <b>둘 나란히</b> 놓이는 창(자택 교환)에서 쓴다 —
+    /// 손이 간 쪽은 고른 줄을 남색으로 뒤집고, 안 간 쪽은 검은 테로만 알린다.
+    /// 게임 갈무리가 그렇다.
+    /// </summary>
+    public bool Focused
+    {
+        get => _focused;
+        set { if (_focused != value) { _focused = value; Paint(); } }
+    }
+
+    private bool _focused = true;
 
     /// <summary>줄 수.</summary>
     public int Count => _rows.Count;
@@ -242,6 +251,8 @@ internal sealed class GameList : Border
             BorderBrush = Brushes.Transparent,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(1, 2, 1, 2),
+            // 빈 줄도 키는 그대로다 — 자택 교환 창의 빈 칸이 납작해지면 안 된다.
+            MinHeight = RowHeight,
             Cursor = Cursors.Hand,
             Child = Line(index, on: false),
         };
@@ -292,10 +303,11 @@ internal sealed class GameList : Border
         bool many = Pick == GameListPick.Many;
         for (int i = 0; i < _rows.Count; i++)
         {
-            bool on = many ? _chosen.Contains(i) : i == Selected;
+            bool here = i == Selected;
+            bool on = many ? _chosen.Contains(i) : here && _focused;
             _rows[i].Background = on ? Picked : Brushes.Transparent;
-            // 손이 가 있는 줄은 검은 테로 따로 알린다 — 여럿 고르기에서만 쓴다.
-            _rows[i].BorderBrush = many && i == Selected ? Caret : Brushes.Transparent;
+            // 손이 가 있는 줄은 검은 테로 따로 알린다.
+            _rows[i].BorderBrush = here && (many || !_focused) ? Caret : Brushes.Transparent;
             _rows[i].Child = Line(i, on);
         }
     }

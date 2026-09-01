@@ -1312,7 +1312,7 @@ public sealed class ShipMapWindow : Window
         if (!_host.PlaceAtCity(found.Id)) return;
         _askedCity = found.Id;                    // 곧바로 다시 묻지 않게
         _host.EnterPort(found.Name);
-        if (ShowCityPicture(found.Id, found.Name)) _host.Paused = true;
+        if (ShowCityPicture(found.Id, found.Name, enterHome: true)) _host.Paused = true;
     }
 
     /// <summary>
@@ -2243,7 +2243,7 @@ public sealed class ShipMapWindow : Window
     /// 모달이면 함대 창 제목 줄이 죽는다. 그래서 창이 닫힐 때 곡·막·멈춤을 함께 푼다.
     /// </remarks>
     /// <returns>도시 창을 띄웠으면 true.</returns>
-    private bool ShowCityPicture(int city, string name)
+    private bool ShowCityPicture(int city, string name, bool enterHome = false)
     {
         // 그림도 건물 표도 Game 이 처음 쓸 때 연다. 둘 중 하나라도 없으면 도시 화면을 안 연다.
         if (_game.CityPics == null || _game.Buildings == null) return false;
@@ -2259,6 +2259,8 @@ public sealed class ShipMapWindow : Window
         _game.Bgm.Play(track);
         SetInCity(true);          // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
         _game.Player.EnterCity(city, name);
+        // 새 판은 자택 안에서 시작한다 — 게임도 판을 열면 자택 명령 창이 이미 떠 있다.
+        if (enterHome) dialog.EnterHome();
         dialog.Closed += (_, _) =>
         {
             SetInCity(false);
