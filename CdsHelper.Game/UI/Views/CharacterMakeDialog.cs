@@ -82,7 +82,7 @@ internal sealed class CharacterMakeDialog : Window
                          RowBlood = 115, RowNation = 153, RowFooter = 195;
 
     /// <summary>칸 크기. 글 한 줄(16)에 위아래 한 점씩이다.</summary>
-    private const double FieldWidth = 158, FieldHeight = 18, NumWidth = 22, SpinSize = 16;
+    private const double FieldWidth = 158, FieldHeight = 18, NumWidth = 26, SpinSize = 16;
 
     /// <summary>
     /// 단추 크기. 높이는 게임 띠 높이 그대로고, 폭은 띠가 늘어나는 8점 칸에 맞춘다

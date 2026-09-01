@@ -495,8 +495,14 @@ internal static class GameUi
     /// 띠 하나를 짓고 그 위에 글자를 얹는다. 제목 띠와 버튼이 같은 길을 쓴다 —
     /// 무늬 벌만 다르다(<see cref="BandStyle"/>).
     /// </summary>
+    /// <param name="width">
+    /// 0 이 아니면 <b>그 폭으로 못 박는다</b>. 글자가 마구리를 물고 앉아도 그대로 둔다 —
+    /// 게임 단추가 그렇다("에스파니아 왕국" 여덟 자가 128점 띠에 든다). 폭을 안 박고
+    /// 글자에 맞춰 늘리면 창 오른쪽으로 비어져 나가 잘려 보인다.
+    /// </param>
     public static Border? BandFrame(UiSprites? sprites, BandStyle style, string title,
-                                    byte textColor, bool shadow, int scale, Action? onClose)
+                                    byte textColor, bool shadow, int scale, Action? onClose,
+                                    double width = 0)
     {
         if (sprites == null) return null;
 
@@ -540,10 +546,18 @@ internal static class GameUi
         // 계산에 안 끼어들어서, 최소 폭을 안 주면 칸이 글자 폭으로 좁아지고 띠가 그 안으로
         // 눌린다. 짧은 줄이 창 폭에 맞춰 늘어나며 다시 그려지는 것과 달리, 가장 긴 줄은
         // 제 폭이 곧 창 폭이라 늘어날 일이 없어 눌린 채로 남는다.
-        double least = Math.Max(UiSprites.WidthFor(1),
-                                GameSettings.BandPad * 2 + (Font?.TextWidth(title) ?? 0));
-        grid.MinWidth = least * scale;
-        Redraw(least * scale);
+        if (width > 0)
+        {
+            grid.Width = width * scale;
+            Redraw(width * scale);
+        }
+        else
+        {
+            double least = Math.Max(UiSprites.WidthFor(1),
+                                    GameSettings.BandPad * 2 + (Font?.TextWidth(title) ?? 0));
+            grid.MinWidth = least * scale;
+            Redraw(least * scale);
+        }
 
         // 글씨는 띠 전체 위에 얹는다 — 마구리를 넘어가도 가운데에 오게.
         // 게임 비트맵 글꼴을 읽었으면 그것으로 찍는다. 획 굵기까지 게임과 같아진다.

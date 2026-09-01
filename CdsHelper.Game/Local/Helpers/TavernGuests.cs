@@ -173,7 +173,15 @@ public sealed class TavernGuests
     }
 
     /// <summary>자리 하나 — 그림과 그 자리에 앉은 인물(<paramref name="Person"/>, 없으면 -1).</summary>
-    public readonly record struct Slot(Guest Art, int Person);
+    /// <summary>
+    /// 자리 하나. <paramref name="Person"/> 은 인물 자리 번호이고, 없으면 -1 이다.
+    /// </summary>
+    /// <param name="Stranger">
+    /// <b>무명 손님</b>인지. 게임은 자리를 네 갈래로 채우는데(<c>0x004A1A90</c>) 마지막
+    /// 갈래가 이름 없는 손님이고, 세는 자리에 <c>inc</c> 가 붙어 있어 <b>적어도 하나</b>는
+    /// 늘 든다. 이 손님은 고용도 결투도 안 되고 그 고장 소문만 건넨다.
+    /// </param>
+    public readonly record struct Slot(Guest Art, int Person, bool Stranger = false);
 
     /// <summary>
     /// 술집에 세울 사람들을 자리 차례대로 고른다. <b>맨 앞(가장 왼쪽)은 여급</b>, 그 뒤는
@@ -216,12 +224,12 @@ public sealed class TavernGuests
         if (withMaid && women.Count > 0)
             seats.Add(new Slot(_guests[women[fixedRng.Next(women.Count)]], -1));
 
-        // 인물 — 각자 제 그림으로 앉는다.
-        for (int i = 0; i < personKeys.Count && seats.Count < MaxOnScreen; i++)
+        // 인물 — 각자 제 그림으로 앉는다. <b>한 자리는 비워 둔다</b> — 무명 손님 몫이다.
+        for (int i = 0; i < personKeys.Count && seats.Count < MaxOnScreen - 1; i++)
             seats.Add(new Slot(_guests[men[Mod(personKeys[i], men.Count)]], i));
 
-        // 남는 자리는 지나가는 손님. 앞서 선 사람과 겹치지 않게 고른다.
-        // 지나가는 손님은 들어갈 때마다 새로 굴린다.
+        // 남는 자리는 무명 손님. 앞서 선 사람과 겹치지 않게 고른다.
+        // 무명 손님은 들어갈 때마다 새로 굴린다.
         var rng = new Random();
         var taken = new HashSet<int>();
         foreach (var s in seats) taken.Add(s.Art.Index);
@@ -229,7 +237,7 @@ public sealed class TavernGuests
         foreach (int i in men)
         {
             if (seats.Count >= MaxOnScreen) break;
-            if (taken.Add(i)) seats.Add(new Slot(_guests[i], -1));
+            if (taken.Add(i)) seats.Add(new Slot(_guests[i], -1, Stranger: true));
         }
         return seats;
     }

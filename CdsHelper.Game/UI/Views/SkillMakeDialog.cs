@@ -54,7 +54,7 @@ internal sealed class SkillMakeDialog : InfoDialog
     private const double BoardWidth = 440, BoardHeight = 292;
 
     /// <summary>줄 속 칸 폭 — 이름 · 자리. 언어 이름이 여덟 자(128)까지 온다.</summary>
-    private const double SkillNameWidth = 76, TongueNameWidth = 136, ValueWidth = 40;
+    private const double SkillNameWidth = 96, TongueNameWidth = 136, ValueWidth = 40;
 
     /// <summary>
     /// 양피지 칸 하나의 폭 — 이름 · 자리 · 화살표 둘에 테와 여백을 더한 것이다.

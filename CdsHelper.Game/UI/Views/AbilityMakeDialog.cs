@@ -54,7 +54,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
     /// 직업 단추를 더한 만큼이다 — 남겨 두면 직업 단추 오른쪽에 빈자리가 생겨, 아래
     /// "취소·다음" 과 오른쪽 끝이 안 맞는다(둘 다 판 오른쪽 끝에 붙기 때문이다).
     /// </remarks>
-    private const double BoardWidth = 210, BoardHeight = 178;
+    private const double BoardWidth = 210, BoardHeight = 172;
 
     /// <summary>능력치 줄의 이름 칸과 값 칸.</summary>
     private const double NameWidth = 48, ValueWidth = 28;
@@ -115,7 +115,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
         {
             BorderBrush = Ink,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 7, 5, 0),
+            Margin = new Thickness(0, 14, 5, 0),
             Padding = new Thickness(3, 1, 3, 1),
             Child = Bonus(),
         });
