@@ -444,6 +444,17 @@ public sealed class CityPicView : Window
     }
 
     /// <summary>
+    /// 이 마을 자택으로 곧바로 들어선다. 새 판이 시작될 때 쓴다 —
+    /// <b>게임도 판을 열면 자택 명령 창이 이미 떠 있다.</b>
+    /// </summary>
+    /// <remarks>자택이 없는 마을이면 아무 일도 없다(고향이 아닌 데서 부를 일은 없다).</remarks>
+    public void EnterHome()
+    {
+        foreach (var building in _table.InCity(_cityId))
+            if (Facility.For(building.Kind).Kind == FacilityKind.Home) { Enter(building); return; }
+    }
+
+    /// <summary>
     /// 건물 자체가 발견물이면 들어서는 그 자리에서 발견한다 — 세빌리아 교회가 51번
     /// 히랄다탑이다.
     /// </summary>
