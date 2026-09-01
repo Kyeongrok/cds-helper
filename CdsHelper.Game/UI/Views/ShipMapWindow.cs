@@ -1926,6 +1926,7 @@ public sealed class ShipMapWindow : Window
         var (lat, _) = _host.ShipLatLon;
         Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
         CheckSeaEvent();
+        CheckEncounter();
     }
 
     /// <summary>
@@ -2003,6 +2004,87 @@ public sealed class ShipMapWindow : Window
     ///
     /// 게임은 여기서 폭풍 장면(<c>0x0048E820</c>)을 틀지만 우리는 알림 줄로 갈음한다.
     /// </remarks>
+    /// <summary>
+    /// 남의 함대와 붙는다 — 교섭 · 도망 · 응전.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 지도 위를 돌아다니는 함대와 <b>두 칸 안</b>으로 가까워지면 붙인다
+    /// (<c>0x0048BE80</c>, 볼트 <c>59.분석-해적 조우</c>). 우리 쪽에는 그 함대 객체가
+    /// 없어서 <b>주사위로 갈음한다</b> — 붙고 난 뒤의 차례와 셈은 게임 것 그대로다
+    /// (<see cref="Encounter"/>).
+    ///
+    /// <b>해전은 아직 못 옮겼다.</b> 싸우게 되면 그렇다고 이르고 넘어간다.
+    /// </remarks>
+    private const int EncounterRoll = 400;
+
+    private void CheckEncounter()
+    {
+        if (_game.Player.Ships.Count == 0) return;          // 배가 없으면 붙을 일이 없다
+        if (_game.Random.Next(EncounterRoll) != 0) return;
+
+        var foe = Encounter.Roll(_game.Random);
+        var rng = _game.Random;
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            ConfirmDialog.Tell(this, Encounter.GreetOf(foe, rng), Encounter.TitleOf(foe.Kind));
+
+            int pick = ChoiceDialog.Ask(this, Encounter.TitleOf(foe.Kind), Encounter.Choices);
+            switch (pick)
+            {
+                case 0 when Talked(foe, rng): return;       // 교섭이 되면 그대로 끝난다
+                case 1 when Encounter.Escapes(_game.Player, foe, rng):
+                    ConfirmDialog.Tell(this, Encounter.FledWord(rng), "도망성공");
+                    return;
+                case 1:
+                    ConfirmDialog.Tell(this, Encounter.CaughtWord(rng), "도망실패");
+                    break;
+                case 2:
+                    ConfirmDialog.Tell(this, Encounter.FightOnWord(rng), "응전");
+                    break;
+            }
+
+            // 여기까지 오면 해전이다.
+            ConfirmDialog.Tell(this, "…(해전은 아직 옮기지 못했다. 적은 물러갔다.)");
+        }
+        finally
+        {
+            _asking = false;
+            _host.Paused = false;
+        }
+    }
+
+    /// <summary>교섭 한 판. 돈을 물어 물러가면 true.</summary>
+    private bool Talked(in Enemy foe, Random rng)
+    {
+        // 추격대·토벌대는 말이 안 통한다(0x0045585C).
+        if (!Encounter.CanTalk(foe.Kind)
+            || !Encounter.Roll(Encounter.TalkOdds(_game.Player, rng), rng))
+        {
+            ConfirmDialog.Tell(this, Encounter.NoWordsWord(rng), "교섭");
+            return false;
+        }
+
+        int want = Encounter.Demand(foe);
+        if (!ConfirmDialog.Ask(this, Encounter.DemandWord(want, rng), "교섭"))
+        {
+            ConfirmDialog.Tell(this, Encounter.TalkFailedWord(rng), "교섭");
+            return false;
+        }
+
+        if (_game.Player.Gold < want)
+        {
+            ConfirmDialog.Tell(this, Encounter.TooPoorWord(rng), "교섭");
+            return false;
+        }
+
+        _game.Player.Pay(want);
+        ConfirmDialog.Tell(this, Encounter.PaidWord(rng), "교섭");
+        return true;
+    }
+
     private void CheckSeaEvent()
     {
         var (lat, _) = _host.ShipLatLon;
