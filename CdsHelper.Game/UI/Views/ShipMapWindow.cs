@@ -2311,7 +2311,15 @@ public sealed class ShipMapWindow : Window
             var duel = new Engine.Town.Duel(MyFighter(), MutinyLeader(dice),
                                             _game.Player.Items.Contains(Engine.Town.Duel.EdithShieldId),
                                             Environment.TickCount);
-            DuelDialog.Show(this, duel, dice, null, _game.Fighters);
+            // 마당은 뭍이면 초원, 바다면 배 갑판이다.
+            // 대표 얼굴은 49 로 본다 — 게임이 [ebx+0x34] 에 0x31 을 못박는데(0x004752E3)
+            // 그 자리가 능력 여섯의 끝(신앙심)인지 얼굴 번호인지 아직 못 갈랐다.
+            // 화면의 대표가 수염 난 사람이라 얼굴 쪽으로 보고 그 번호를 쓴다.
+            DuelDialog.Show(this, duel, dice,
+                            _game.Faces?.TryGetBgra(MutinyFace, female: false),
+                            _game.Fighters, foeSet: 1,
+                            myFace: _game.Faces?.TryGetBgra(_game.Player.Face, female: false),
+                            arena: land ? DuelArt.Field : DuelArt.Deck);
 
             if (duel.Won == true)
             {
@@ -2334,6 +2342,9 @@ public sealed class ShipMapWindow : Window
         // 창을 되돌리는 것은 try 밖에서 한다 — 안에서 하면 닫히는 창에 잠금을 풀게 된다.
         ReturnToTitle();
     }
+
+    /// <summary>반란 대표의 얼굴 번호(<c>0x004752E3</c> 의 <c>0x31</c>).</summary>
+    private const int MutinyFace = 0x31;
 
     /// <summary>일기토에 선 내 몫. 술집 것과 같다.</summary>
     private Engine.Town.Duel.Fighter MyFighter()
