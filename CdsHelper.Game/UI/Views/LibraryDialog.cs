@@ -276,10 +276,34 @@ public sealed class LibraryDialog : Window
     /// </remarks>
     private bool CanRead(BookTable.Book book) => _player.TongueOf(LanguageOf(book)) >= ReadLevel;
 
-    /// <summary>힌트를 알아들을 수 있는지 — 힌트마다 필요한 기능과 그 자리가 있다.</summary>
+    /// <summary>
+    /// 힌트를 알아들을 수 있는지 — 기능만으로는 안 되는 힌트가 있다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00463E50</c> 이다. 기능을 재기 <b>앞에</b> <c>0x0042CCC0</c> 으로
+    /// <b>선행 발견물 여덟 칸</b>을 훑어, 한 칸이라도 아직 못 찾았으면 물린다.
+    /// <code>
+    ///   0042CC93  [힌트+0x04] &amp; 0x08   개방 비트 — 놀이가 켜 준다
+    ///   0042CCA4  힌트 번호 != 184
+    ///   0042CCC0  선행 발견물 여덟 칸이 다 발견되었나
+    ///   00463E72  필요 기능(+0x20)과 그 자리(+0x28)
+    /// </code>
+    /// 톨레도 도서관의 <b>카파도키아</b>(힌트 52)가 그렇다 — 신학 3 만으로는 안 되고
+    /// <b>산티아고 대성당</b>(발견물 50)을 먼저 봐야 한다. 성지순례를 다녀와야 읽힌다는
+    /// 것이 이것이다. 「성스러운 유물상자」(힌트 101)도 성 마르틴 교회(62)가 앞선다.
+    ///
+    /// 개방 비트와 184번 자리는 아직 안 옮겼다 — 그 비트를 켜는 곳이 이벤트 스크립트
+    /// 실행기 안(<c>0x0040A0F8</c>)이라 스크립트 쪽을 더 뜯어야 한다.
+    /// </remarks>
     private bool Understands(int hint)
     {
         var need = _books.NeedFor(hint);
+
+        // 먼저 찾아 두어야 할 것이 남아 있으면 아무리 배워도 안 들어온다.
+        if (need.Parents is { } parents)
+            foreach (int id in parents)
+                if (!_player.HasFound(id)) return false;
+
         if (need.Skill < 0 || need.Skill >= _names.SkillNames.Count) return true;
         return _player.LevelOf(_names.SkillNames[need.Skill]) >= need.Level;
     }

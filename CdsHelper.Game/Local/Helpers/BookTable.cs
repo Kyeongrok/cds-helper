@@ -28,6 +28,12 @@ public sealed class BookTable
     private const int BookCount = 257;
     private const int BookSize = 0x58;
     private const int HintsVa = 0x004D8EA0;
+
+    /// <summary>선행 발견물 칸이 <see cref="HintsVa"/> 에서 얼마나 떨어져 있는지(줄 안 +0x30).</summary>
+    private const int ParentsOffset = 0x10;
+
+    /// <summary>선행 발견물 칸 수(<c>0x0042CCC0</c> 이 여덟을 훑는다).</summary>
+    private const int ParentSlots = 8;
     private const int HintCount = 186;
     private const int HintSize = 0x50;
 
@@ -45,12 +51,30 @@ public sealed class BookTable
         int Index, string Title, string Author, int Language, int Year,
         IReadOnlyList<int> Cities, IReadOnlyList<int> Hints);
 
-    /// <summary>힌트를 알아들으려면 있어야 하는 기능과 그 수준.</summary>
+    /// <summary>
+    /// 힌트를 알아들으려면 있어야 하는 것 — 기능 자리와 <b>먼저 발견해 두어야 할 것들</b>.
+    /// </summary>
+    /// <remarks>
+    /// 기능만으로는 안 되는 힌트가 있다. 게임은 <c>0x00463E50</c> 에서 기능을 보기 전에
+    /// <c>0x0042CCC0</c> 으로 <b>선행 발견물 여덟 칸</b>을 먼저 훑는다 — 한 칸이라도
+    /// 아직 못 찾았으면 그 힌트는 안 들어온다.
+    /// <code>
+    ///   힌트 52 카파도키아   신학 3  ·  선행 발견물 50(산티아고 대성당)
+    ///   힌트 101 성스러운 유물상자  신학 2  ·  선행 발견물 62(성 마르틴 교회)
+    /// </code>
+    /// 성지순례를 다녀와야 읽힌다는 것이 이 칸이다.
+    /// </remarks>
+    /// <param name="Skill">필요 기능 번호. -1 이면 기능 조건이 없다.</param>
+    /// <param name="Level">그 기능의 필요 자리.</param>
+    /// <param name="Parents">먼저 발견해 두어야 할 발견물 번호들. 빈 칸(-1)은 뺐다.</param>
     [method: JsonConstructor]
-    public readonly record struct HintNeed(int Skill, int Level);
+    public readonly record struct HintNeed(int Skill, int Level, IReadOnlyList<int>? Parents = null);
 
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\책표.json</c>).</summary>
     private const string CacheName = "책표";
+
+    /// <summary>알맹이 모양 판. 힌트의 선행 발견물 칸을 더하면서 올렸다.</summary>
+    private const int SnapshotVersion = 2;
 
     /// <summary>JSON 으로 적어 두는 알맹이. EXE 를 읽어야만 알 수 있는 것 전부다.</summary>
     internal sealed record Snapshot(List<Book> Books, HintNeed[] HintNeeds);
@@ -94,7 +118,9 @@ public sealed class BookTable
     /// </summary>
     public static BookTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        // 판 2 — 힌트의 선행 발견물 칸을 더하면서 올렸다. 예전 JSON 은 다시 굽힌다.
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               SnapshotVersion);
         LastError = error;
         return snapshot == null ? null : new BookTable(snapshot);
     }
@@ -134,8 +160,20 @@ public sealed class BookTable
 
         var needs = new HintNeed[HintCount];
         for (int h = 0; h < HintCount; h++)
-            needs[h] = new HintNeed(exe.Int(HintsVa + h * HintSize),
-                                    exe.Int(HintsVa + h * HintSize + 0x08));
+        {
+            int row = HintsVa + h * HintSize;
+
+            // 선행 발견물 여덟 칸(줄 안 +0x30 = HintsVa 기준 +0x10). -1 은 빈 칸이다.
+            var parents = new List<int>(ParentSlots);
+            for (int k = 0; k < ParentSlots; k++)
+            {
+                int id = exe.Int(row + ParentsOffset + k * 4);
+                if (id >= 0) parents.Add(id);
+            }
+
+            needs[h] = new HintNeed(exe.Int(row), exe.Int(row + 0x08),
+                                    parents.Count > 0 ? parents : null);
+        }
 
         return new Snapshot(books, needs);
     }
