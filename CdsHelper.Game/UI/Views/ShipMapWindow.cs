@@ -357,7 +357,8 @@ public sealed class ShipMapWindow : Window
         // 이동 모드(정박·해상 이동) 칸은 뺐다 — 게임 띠에 없는 칸이다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
         gameCells.Children.Add(InfoCell(CityInfoMenu.Date, _date, on: true));
-        gameCells.Children.Add(InfoCell(CityInfoMenu.Crew, _crew, on: false));
+        // 선원 칸은 처음부터 켜 둔다 — 게임 띠도 날짜·선원·소지금 셋으로 선다.
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Crew, _crew, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Stores, _stores, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.DaysLeft, _left, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Wind, _windText, on: false));

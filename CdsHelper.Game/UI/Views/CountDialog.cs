@@ -14,17 +14,23 @@ namespace CdsHelper.Game.UI.Views;
 /// <code>
 ///   0x00454AA0(제목, 1, 라벨, 0, 단위, 0, 최대, 라벨2, 값2, 라벨3, 값3, 0)
 ///
-///   ┌ 선원고용 ──────────────┐
-///   │  고용할 사람 수    12 ↑↓ 명 │
-///   │  현재의 선원 수    15    │
-///   │  최저 선원 수      15    │
-///   │        [결정]  [중단]   │
-///   └────────────────────────┘
+///   ┌──── 선원고용 ────┐
+///   │ 고용할 사람 수 [ 0][계산기]명 │
+///   │ 현재의 선원 수          0명 │
+///   │ 최저 선원 수           12명 │
+///   │   [  결정  ]  [  중단  ]   │
+///   └──────────────────────────┘
 /// </code>
 /// 선원 모집·해고가 이 창을 제목과 줄만 갈아 쓴다(<c>0x004773CF</c> · <c>0x004774A4</c>).
 ///
-/// ↑↓ 와 Shift 로 열씩 뛰는 것은 보급 화면(<see cref="SupplyDialog"/>)과 같은 결이다 —
-/// 게임 원본은 자릿수를 눌러 넣는 꼴이지만 그쪽은 아직 흉내내지 않는다.
+/// 화면에서 본 대로 맞춘 것 넷이다.
+/// <list type="bullet">
+///   <item><b>↑↓ 가 없다.</b> 값은 칸 옆 계산기로만 넣는다.</item>
+///   <item><b>눈금 줄에도 단위가 붙는다</b> — "0명" · "12명" 이지 "0" · "12" 가 아니다.</item>
+///   <item>제목 띠에 <b>닫기(X)가 없다</b>. 나가는 길은 "중단" 이다.</item>
+///   <item>결정·중단이 <b>같은 폭</b>으로 나란히 선다.</item>
+/// </list>
+/// 키보드 ↑↓ 는 안 보이는 채로 남겨 둔다 — 화면 모양을 건드리지 않는 덤이다.
 /// </remarks>
 public sealed class CountDialog : Window
 {
@@ -84,10 +90,7 @@ public sealed class CountDialog : Window
         var pick = new StackPanel { Orientation = Orientation.Horizontal };
         pick.Children.Add(Label(label));
         pick.Children.Add(Cell(_count));
-        pick.Children.Add(Arrow("↑", () => Bump(+1)));
-        pick.Children.Add(Arrow("↓", () => Bump(-1)));
-        // 계산기 단추. 자릿수가 큰 수를 ↑↓ 로 올리기는 힘들다 — 게임도 이 칸 옆에
-        // 계산기를 달아 두고, 누르면 숫자판이 뜬다.
+        // 값은 계산기로만 넣는다 — 게임도 칸 옆에 계산기 하나만 달아 두었다.
         pick.Children.Add(Pad());
         pick.Children.Add(Label(" " + unit));
 
@@ -100,28 +103,30 @@ public sealed class CountDialog : Window
                 Orientation = Orientation.Horizontal,
                 Margin = new Thickness(0, 2, 0, 0),
             };
-            // 눈금 줄에는 단위를 안 붙인다 — 게임도 단위는 고르는 줄에만 준다.
+            // 눈금 줄에도 단위가 붙는다 — 화면은 "0명" · "12명" 이다.
             row.Children.Add(Label(line.Name));
-            row.Children.Add(Cell(Label($"{line.Value}")));
+            row.Children.Add(Cell(Label($"{line.Value}{unit}")));
             rows.Children.Add(row);
         }
 
-        _decide = new GameButton("결정", Decide) { On = false };
+        _decide = new GameButton("결정", Decide) { On = false, MinWidth = ButtonWidth };
 
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 6, 0, 10),
+            Margin = new Thickness(0, 8, 0, 12),
         };
-        // 돈처럼 자릿수가 큰 것은 ↑↓ 로 끝까지 올리기 어렵다 — 게임은 자릿수를 눌러 넣지만
-        // 여기서는 보급 화면처럼 "최대" 한 단추로 갈음한다.
-        if (full) buttons.Children.Add(new GameButton("최대", () => { _at = _max; Paint(); }));
+        // "최대" 는 계산기 판 안에도 MAX 로 있다. 돈처럼 자릿수가 큰 창에서만 밖에 낸다.
+        if (full)
+            buttons.Children.Add(new GameButton("최대", () => { _at = _max; Paint(); })
+                                 { MinWidth = ButtonWidth });
         buttons.Children.Add(_decide);
-        buttons.Children.Add(new GameButton("중단", Close));
+        buttons.Children.Add(new GameButton("중단", Close) { MinWidth = ButtonWidth });
 
         var page = new StackPanel();
-        page.Children.Add(GameUi.TitleBar(caption, Close));
+        // 닫기(X)는 안 단다 — 화면의 이 창에는 없다. 나가는 길은 "중단" 이다.
+        page.Children.Add(GameUi.TitleBar(caption, null));
         page.Children.Add(rows);
         page.Children.Add(buttons);
 
@@ -210,30 +215,8 @@ public sealed class CountDialog : Window
     /// <summary>계산기 단추 한 칸의 크기.</summary>
     private const double PadSize = 15;
 
-    /// <summary>↑·↓ 한 칸. 보급 화면 것과 같다.</summary>
-    private static UIElement Arrow(string mark, Action run)
-    {
-        var box = new Border
-        {
-            Width = 15,
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(2, 0, 0, 0),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = mark,
-                Foreground = Brushes.Black,
-                FontSize = 11,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            },
-        };
-        // 누름은 삼킨다 — 판 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
-        box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
-        return box;
-    }
+    /// <summary>결정·중단 한 단추의 가장 좁은 폭. 화면에서 재어 맞췄다.</summary>
+    private const double ButtonWidth = 92;
 
     /// <summary>
     /// 수를 고르게 한다. 고른 수를 내고, 중단하거나 0 이면 0 이다.
