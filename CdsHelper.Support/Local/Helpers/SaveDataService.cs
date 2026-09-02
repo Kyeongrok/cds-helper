@@ -27,23 +27,79 @@ public class SaveDataService
     /// </summary>
     public string? CurrentFilePath { get; private set; }
 
-    private const int CHARACTER_START_OFFSET = 0x924A;
+    // ── 자리 잡기 ───────────────────────────────────────────────────────────
+    // SAVEDATA.CDS 는 [u32 파일길이][ASCIIZ 판 문자열][알맹이] 꼴이고,
+    // 알맹이 시작 = 4 + strlen(판 문자열) + 1 이다 (CDS_95.EXE 0x00478B6E).
+    // 한국어판은 "1, 0, 0, 10018" 이라 0x13 이지만 판이 다르면 통째로 밀린다.
+    // 그래서 파일 자리를 상수로 박지 않고 알맹이 기준(_REL)으로 두고 매번 더한다.
+    private const int DEFAULT_BODY_START = 0x13;
+    private int _bodyStart = DEFAULT_BODY_START;
+
+    /// <summary>알맹이가 시작하는 파일 자리. 판 문자열 길이에 딸려 움직인다.</summary>
+    public int BodyStart => _bodyStart;
+
+    private const int CHARACTER_START_REL = 0x9237;   // 한국어판 파일 0x924A
     private const int CHARACTER_SIZE = 0x90;
     private const int CHARACTER_COUNT = 461;
-    private const int YEAR_OFFSET = 0x15;
-    private const int MONTH_OFFSET = 0x19;
-    private const int DAY_OFFSET = 0x1A;
+    private const int YEAR_REL = 0x02;
+    private const int MONTH_REL = 0x06;
+    private const int DAY_REL = 0x07;
 
     // 힌트 관련 상수
-    private const int HINT_START_OFFSET = 0x1A625;
+    private const int HINT_START_REL = 0x1A612;       // 한국어판 파일 0x1A625
     private const int HINT_SIZE = 6;
     private const int HINT_STATUS_OFFSET = 4;  // 6바이트 블록 내 상태 바이트 위치
     private const int HINT_COUNT = 186;
 
-    // 발견물 슬롯 테이블 (행 0 = 발견물 ID 0, 첫 바이트 = state)
-    private const int DISCOVERY_START_OFFSET = 0x19E6A;
+    // 발견물 슬롯 테이블 (행 0 = 발견물 ID 0, 상태 바이트는 행 안 +0x15)
+    private const int DISCOVERY_START_REL = 0x1AA6E;  // 한국어판 파일 0x1AA81
     private const int DISCOVERY_SIZE = 164;
-    private const int DISCOVERY_COUNT = 250;
+    private const int DISCOVERY_STATE_REL = 0x15;
+    // 칸 수는 EXE 고리가 못박는다 — 0x61E4C8 에서 0x629898 까지 0xA8 씩 = 274.
+    // 즉치값이라 놀이 중에 늘어나지 않는다. DiscoveryTable.Count 와 같은 값이다
+    // (Support 는 Game 을 참조할 수 없어 상수로 둔다).
+    private const int DISCOVERY_COUNT = 274;
+
+    /// <summary>알맹이 시작 자리를 판 문자열 길이에서 되짚는다.</summary>
+    private static int ReadBodyStart(byte[] data)
+    {
+        int i = 4;
+        while (i < data.Length && data[i] != 0) i++;
+        int start = i + 1;
+        return start < data.Length ? start : DEFAULT_BODY_START;
+    }
+
+    private int CharacterOffset(int index) =>
+        _bodyStart + CHARACTER_START_REL + (index * CHARACTER_SIZE);
+
+    private int DiscoveryStateOffset(int slotIndex) =>
+        _bodyStart + DISCOVERY_START_REL + (slotIndex * DISCOVERY_SIZE) + DISCOVERY_STATE_REL;
+
+    /// <summary>
+    /// 발견물 표를 옳게 짚었는지. 아니면 쓰기를 막는다.
+    /// </summary>
+    public bool DiscoveryLayoutOk { get; private set; }
+
+    /// <summary>
+    /// 상태 바이트가 죄다 그럴듯한지 본다. 하위 6비트는 갈래별 밑값
+    /// (0x00·0x04·0x08·0x0C), bit6 = 발견, bit7 = 보고다.
+    /// </summary>
+    private static bool CheckDiscoveryLayout(byte[] data, int start)
+    {
+        if (start < 0 || start + (DISCOVERY_SIZE * DISCOVERY_COUNT) > data.Length)
+            return false;
+
+        bool any = false;
+        for (int i = 0; i < DISCOVERY_COUNT; i++)
+        {
+            byte state = data[start + (i * DISCOVERY_SIZE) + DISCOVERY_STATE_REL];
+            if ((state & 0x3F) > 0x0F) return false;                       // 밑값이 아니다
+            if ((state & 0x80) != 0 && (state & 0x40) == 0) return false;  // 미발견인데 보고했다
+            if (state != 0) any = true;
+        }
+
+        return any;   // 274칸이 죄다 0 이면 상태 자리가 아니다
+    }
 
     private static readonly Dictionary<int, string> SkillsMap = new()
     {
@@ -75,18 +131,21 @@ public class SaveDataService
         var saveInfo = new SaveGameInfo();
         var data = File.ReadAllBytes(filePath);
 
-        if (data.Length > DAY_OFFSET)
+        _bodyStart = ReadBodyStart(data);
+        DiscoveryLayoutOk = CheckDiscoveryLayout(data, _bodyStart + DISCOVERY_START_REL);
+
+        if (data.Length > _bodyStart + DAY_REL)
         {
-            saveInfo.Year = BitConverter.ToUInt16(data, YEAR_OFFSET);
-            saveInfo.Month = data[MONTH_OFFSET];
-            saveInfo.Day = data[DAY_OFFSET];
+            saveInfo.Year = BitConverter.ToUInt16(data, _bodyStart + YEAR_REL);
+            saveInfo.Month = data[_bodyStart + MONTH_REL];
+            saveInfo.Day = data[_bodyStart + DAY_REL];
         }
 
         var characters = new List<CharacterData>();
 
         for (int i = 0; i < CHARACTER_COUNT; i++)
         {
-            int offset = CHARACTER_START_OFFSET + (i * CHARACTER_SIZE);
+            int offset = CharacterOffset(i);
             if (offset + CHARACTER_SIZE > data.Length)
                 break;
 
@@ -110,6 +169,7 @@ public class SaveDataService
         // 현재 로드된 데이터 캐싱
         CurrentSaveGameInfo = saveInfo;
         CurrentFilePath = filePath;
+        _backedUpPath = null;
 
         // CharacterData에서 고용 상태/연령/소재/등장여부/건물 변경 시 저장할 수 있도록 콜백 설정
         CharacterData.OnHireStatusChanged = SaveCharacterHireStatus;
@@ -122,20 +182,49 @@ public class SaveDataService
         return saveInfo;
     }
 
+    private string? _backedUpPath;
+
     /// <summary>
-    /// 발견물 슬롯의 state 바이트를 세이브 파일에 저장 (bit 6=발견, bit 7=발표)
+    /// 이 파일에 처음 손대기 전에 한 번만 뒷갈망을 뜬다.
+    /// (DisevArchive.Save 와 같은 이름꼴 — 파일이름.yyyyMMdd_HHmmss.bak)
+    /// </summary>
+    private void BackupOnce()
+    {
+        if (string.IsNullOrEmpty(CurrentFilePath)) return;
+        if (_backedUpPath == CurrentFilePath) return;
+
+        try
+        {
+            string backup = $"{CurrentFilePath}.{DateTime.Now:yyyyMMdd_HHmmss}.bak";
+            if (!File.Exists(backup))
+                File.Copy(CurrentFilePath, backup);
+            _backedUpPath = CurrentFilePath;
+        }
+        catch
+        {
+            // 뒷갈망을 못 떠도 쓰기까지 막지는 않는다
+        }
+    }
+
+    /// <summary>
+    /// 발견물 슬롯의 state 바이트를 세이브 파일에 저장 (bit 6=발견, bit 7=보고)
     /// </summary>
     public void SaveDiscoveryState(int slotIndex, byte state)
     {
         if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
             return;
         if (slotIndex < 0 || slotIndex >= DISCOVERY_COUNT) return;
+        if (!DiscoveryLayoutOk) return;   // 자리가 미덥지 않으면 손대지 않는다
 
-        int offset = DISCOVERY_START_OFFSET + (slotIndex * DISCOVERY_SIZE);
+        BackupOnce();
 
-        using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
-        stream.Seek(offset, SeekOrigin.Begin);
-        stream.WriteByte(state);
+        int offset = DiscoveryStateOffset(slotIndex);
+
+        using (var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write))
+        {
+            stream.Seek(offset, SeekOrigin.Begin);
+            stream.WriteByte(state);
+        }
 
         // 캐시 동기화
         if (CurrentSaveGameInfo?.Discoveries != null)
@@ -153,7 +242,7 @@ public class SaveDataService
         if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
             return;
 
-        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x62;
+        int offset = CharacterOffset(characterIndex) + 0x62;
 
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
@@ -168,7 +257,7 @@ public class SaveDataService
         if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
             return;
 
-        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x5C;
+        int offset = CharacterOffset(characterIndex) + 0x5C;
 
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
@@ -183,7 +272,7 @@ public class SaveDataService
         if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
             return;
 
-        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x2E;
+        int offset = CharacterOffset(characterIndex) + 0x2E;
 
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
@@ -198,7 +287,7 @@ public class SaveDataService
         if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
             return;
 
-        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x0A;
+        int offset = CharacterOffset(characterIndex) + 0x0A;
 
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
@@ -213,7 +302,7 @@ public class SaveDataService
         if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
             return;
 
-        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x30;
+        int offset = CharacterOffset(characterIndex) + 0x30;
 
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
@@ -228,7 +317,7 @@ public class SaveDataService
         if (string.IsNullOrEmpty(CurrentFilePath) || !File.Exists(CurrentFilePath))
             return;
 
-        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE) + 0x26;
+        int offset = CharacterOffset(characterIndex) + 0x26;
 
         using var stream = new FileStream(CurrentFilePath, FileMode.Open, FileAccess.Write);
         stream.Seek(offset, SeekOrigin.Begin);
@@ -244,7 +333,7 @@ public class SaveDataService
 
         for (int i = 0; i < HINT_COUNT; i++)
         {
-            int offset = HINT_START_OFFSET + (i * HINT_SIZE) + HINT_STATUS_OFFSET;
+            int offset = _bodyStart + HINT_START_REL + (i * HINT_SIZE) + HINT_STATUS_OFFSET;
             if (offset >= data.Length)
                 break;
 
@@ -259,7 +348,7 @@ public class SaveDataService
     }
 
     /// <summary>
-    /// 발견물 슬롯 데이터 읽기 (ID 0~249, 각 슬롯 첫 바이트의 bit 6 = 발견, bit 7 = 발표)
+    /// 발견물 슬롯 데이터 읽기 (ID 0~273, 상태 바이트의 bit 6 = 발견, bit 7 = 보고)
     /// </summary>
     private List<DiscoveryData> ReadDiscoveryData(byte[] data)
     {
@@ -267,7 +356,7 @@ public class SaveDataService
 
         for (int i = 0; i < DISCOVERY_COUNT; i++)
         {
-            int offset = DISCOVERY_START_OFFSET + (i * DISCOVERY_SIZE);
+            int offset = DiscoveryStateOffset(i);
             if (offset >= data.Length)
                 break;
 
@@ -416,64 +505,70 @@ public class SaveDataService
         if (data.Length < 0xC0)
             return null;
 
+        // 아래 자리들은 한국어판 파일 자리다. 판이 다르면 알맹이 시작이 옮겨가므로
+        // 그만큼 밀어서 읽는다 (1절 참조 — 알맹이 = 4 + strlen(판 문자열) + 1).
+        _bodyStart = ReadBodyStart(data);
+        int shift = _bodyStart - DEFAULT_BODY_START;
+        byte At(int fileOffset) => data[fileOffset + shift];
+
         var player = new PlayerData();
 
         // 이름 (0x5F: 이름, 0x72: 성)
         try
         {
-            var firstName = ReadString(new ArraySegment<byte>(data, 0x5F, 14));
-            var lastName = ReadString(new ArraySegment<byte>(data, 0x72, 14));
+            var firstName = ReadString(new ArraySegment<byte>(data, 0x5F + shift, 14));
+            var lastName = ReadString(new ArraySegment<byte>(data, 0x72 + shift, 14));
             player.FirstName = firstName;
             player.LastName = lastName;
         }
         catch { }
 
         // 기능 스킬 (0x38~0x44)
-        player.Navigation = data[0x38];      // 항해술
-        player.Seamanship = data[0x39];      // 운용술
-        player.Swordsmanship = data[0x3A];   // 검술
-        player.Gunnery = data[0x3B];         // 포술
-        player.Shooting = data[0x3C];        // 사격술
-        player.Medicine = data[0x3D];        // 의학
-        player.Eloquence = data[0x3E];       // 웅변술
-        player.Surveying = data[0x3F];       // 측량술
-        player.History = data[0x40];         // 역사학
-        player.Accounting = data[0x41];      // 회계
-        player.Shipbuilding = data[0x42];    // 조선기술
-        player.Theology = data[0x43];        // 신학
-        player.Science = data[0x44];         // 과학
+        player.Navigation = At(0x38);      // 항해술
+        player.Seamanship = At(0x39);      // 운용술
+        player.Swordsmanship = At(0x3A);   // 검술
+        player.Gunnery = At(0x3B);         // 포술
+        player.Shooting = At(0x3C);        // 사격술
+        player.Medicine = At(0x3D);        // 의학
+        player.Eloquence = At(0x3E);       // 웅변술
+        player.Surveying = At(0x3F);       // 측량술
+        player.History = At(0x40);         // 역사학
+        player.Accounting = At(0x41);      // 회계
+        player.Shipbuilding = At(0x42);    // 조선기술
+        player.Theology = At(0x43);        // 신학
+        player.Science = At(0x44);         // 과학
 
         // 언어 스킬 (0x45~0x52)
-        player.Spanish = data[0x45];         // 스페인어
-        player.Portuguese = data[0x46];      // 포르투갈어
-        player.Romance = data[0x47];         // 로망스어
-        player.Germanic = data[0x48];        // 게르만어
-        player.Slavic = data[0x49];          // 슬라브어
-        player.Arabic = data[0x4A];          // 아랍어
-        player.Persian = data[0x4B];         // 페르시아어
-        player.Chinese = data[0x4C];         // 중국어
-        player.Hindi = data[0x4D];           // 힌두어
-        player.Uyghur = data[0x4E];          // 위그르어
-        player.African = data[0x4F];         // 아프리카어
-        player.American = data[0x50];        // 아메리카어
-        player.SoutheastAsian = data[0x51];  // 동남아시아어
-        player.EastAsian = data[0x52];       // 동아시아어
+        player.Spanish = At(0x45);         // 스페인어
+        player.Portuguese = At(0x46);      // 포르투갈어
+        player.Romance = At(0x47);         // 로망스어
+        player.Germanic = At(0x48);        // 게르만어
+        player.Slavic = At(0x49);          // 슬라브어
+        player.Arabic = At(0x4A);          // 아랍어
+        player.Persian = At(0x4B);         // 페르시아어
+        player.Chinese = At(0x4C);         // 중국어
+        player.Hindi = At(0x4D);           // 힌두어
+        player.Uyghur = At(0x4E);          // 위그르어
+        player.African = At(0x4F);         // 아프리카어
+        player.American = At(0x50);        // 아메리카어
+        player.SoutheastAsian = At(0x51);  // 동남아시아어
+        player.EastAsian = At(0x52);       // 동아시아어
 
         // 명성 (0x53-0x54)
-        player.Fame = BitConverter.ToUInt16(data, 0x53);
+        player.Fame = BitConverter.ToUInt16(data, 0x53 + shift);
 
         // 악명 (0x55-0x56)
-        player.Notoriety = BitConverter.ToUInt16(data, 0x55);
+        player.Notoriety = BitConverter.ToUInt16(data, 0x55 + shift);
 
         // 현재 도시 (0x57)
-        player.CurrentCity = data[0x57];
+        player.CurrentCity = At(0x57);
         player.CurrentCityName = _cityService.GetCityName(player.CurrentCity, _cities);
 
         // 동료 (0xA5-0xA8) - 캐릭터 인덱스
-        player.Adjutant = data[0xA5];      // 부관
-        player.Navigator = data[0xA7];     // 항해사
-        player.Surveyor = data[0xA9];      // 측량사
-        player.Interpreter = data[0xAB];   // 통역
+        player.Adjutant = At(0xA5);      // 부관
+        player.Navigator = At(0xA7);     // 항해사
+        player.Surveyor = At(0xA9);      // 측량사
+        player.Interpreter = At(0xAB);   // 통역
 
         // 동료 캐릭터 데이터 조회
         player.AdjutantData = ReadCharacterByIndex(data, player.Adjutant);
@@ -505,7 +600,7 @@ public class SaveDataService
         if (characterIndex == 0 || characterIndex == 0xFF)
             return null;
 
-        int offset = CHARACTER_START_OFFSET + (characterIndex * CHARACTER_SIZE);
+        int offset = CharacterOffset(characterIndex);
         if (offset + CHARACTER_SIZE > data.Length)
             return null;
 
