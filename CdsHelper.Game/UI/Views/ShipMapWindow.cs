@@ -13,6 +13,7 @@ using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
 using CdsHelper.Game.Engine.Discovery;
+using CdsHelper.Game.Engine.Disev;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Sea;
 using CdsHelper.Game.Local.Settings;
@@ -2321,20 +2322,18 @@ public sealed class ShipMapWindow : Window
         if (id < 0) return;
         if (log.Table.Find(id) is not { } row) return;
 
-        int item = log.Discover(_game.Player, id);
-
         // 알리는 동안 배가 계속 가면 다음 칸에서 또 뜬다.
         _asking = true;
         _host.Paused = true;
         try
         {
-            string me = _game.Player.Name;
+            // DISEV.CDS 에 대본이 있으면 <b>그것이 다 한다</b> — 부하 대사 · 동영상 · 음원 ·
+            // 아이템 · 발견까지. 카르낙 거석군(19번)은 열세 줄짜리다.
+            if (!DisevRunner.Run(this, _game, id)) PlainNotice(row);
 
-            // 게임은 글만 내지 않는다 — 발견물마다 그림(DSTILL) 아니면 동영상(AVI)이 있다.
-            DiscoveryDialog.Show(this, _game.Stills, row.Picture,
-                $"{me}{GameUi.Josa(me, "은", "는")} [{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다",
-                DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
-
+            // 대본이 발견을 안 적었으면(그 줄이 없거나 중간에 끊겼으면) 여기서 적는다.
+            // 이미 적혔으면 -1 이 돌아와 아무 일도 없다.
+            int item = log.Discover(_game.Player, id);
             if (item >= 0)
             {
                 string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
@@ -2346,6 +2345,25 @@ public sealed class ShipMapWindow : Window
             _host.Paused = false;
             _asking = false;
         }
+    }
+
+    /// <summary>
+    /// 대본이 없을 때의 발견 알림 — 동영상 한 편과 한 줄이다.
+    /// </summary>
+    /// <remarks>
+    /// 자리에서 발견했을 때 게임이 쓰는 것은 <b>짧은 꼴</b>이다 —
+    /// <c>0x00544720</c> "%s%s 발견했다!"(<c>0x004B3801</c> 이 쓴다). 긴 꼴
+    /// "%s%s [%s]%s 발견했습니다"(<c>0x00538490</c>) 는 항구에서 <b>보고</b>할 때다.
+    /// </remarks>
+    private void PlainNotice(in DiscoveryTable.Record row)
+    {
+        MoviePlayer.Play(this, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
+
+        string found = $"{row.Name}{GameUi.Josa(row.Name, "을", "를")} 발견했다!";
+
+        // 동영상을 튼 뒤에는 그림을 또 세우지 않는다. 그림만 있는 것이면 그림을 낸다.
+        if (row.Movie >= 0) NoticeDialog.Show(this, found);
+        else DiscoveryDialog.Show(this, _game.Stills, row.Picture, found);
     }
 
     /// <summary>
