@@ -1973,7 +1973,14 @@ public sealed class ShipMapWindow : Window
 
         int before = player.Morale;
         player.Cheer(handling - (player.Gold > 0 ? 4 : 10));
-        Say(MoraleLine(before, player.Morale));
+
+        // 빈 글로 덮어쓰면 어제 적힌 한 줄이 하루 만에 지워진다. 할 말이 있을 때만 적는다.
+        if (MoraleLine(before, player.Morale) is { Length: > 0 } line) Say(line);
+
+        // 규율이 바닥나면 반란이다 — 게임도 뭍(0x0047557D)과 바다(0x004758B4) 양쪽에서
+        // <b>이전 규율 &gt; 0 이고 새 값이 0</b> 일 때만 0x004751E0 을 부른다.
+        // 대표와의 일기토까지는 이미 옮겨 두었다(바다 사건 쪽 Mutiny).
+        if (before > 0 && player.Morale == 0) Mutiny();
     }
 
     /// <summary>
@@ -1986,7 +1993,11 @@ public sealed class ShipMapWindow : Window
     ///   50 넘던 것이 30~50 으로  "대원들이 불만을 품기 시작했습니다!"        0x005354B8
     ///   30 넘던 것이 10~30 으로  "대원들의 불만이 심해지고 있습니다!"         0x005354E0
     ///   10 넘던 것이  1~10 으로  "대원들의 불만이 한계에 달했습니다! …"       0x00535508
+    ///   0 이 되면                반란(0x004751E0)
     /// </code>
+    /// 바다 쪽은 같은 손의 <c>0x00475840</c> 갈래고 문구가 「선원」이다
+    /// (<c>0x005356B8</c> · <c>0x005356E0</c> · <c>0x00535708</c>).
+    /// 어느 갈래로 가는지는 <c>0x005B61B4</c>(뭍이냐 바다냐)가 가른다.
     /// </remarks>
     private static string MoraleLine(int before, int after) =>
         before > 50 && after is > 30 and <= 50 ? "대원들이 불만을 품기 시작했습니다!"
