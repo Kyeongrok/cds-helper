@@ -385,8 +385,7 @@ public sealed class CityPicView : Window
             e.Handled = true;
             // 창이 초점을 쥐고 있으면 그쪽이 제 ESC 로 닫힌다(MenuWindow). 여기까지 온 것은
             // 그림이 초점을 쥔 자리라, 열려 있는 것이 있으면 대신 닫아 준다.
-            if (_menu is { IsOpen: true }) { _menu.Close(); return; }
-            if (_cityMenuHost is { IsOpen: true }) _cityMenuHost.Close();
+            Menus.CloseOpen();
         };
         MouseRightButtonUp += (_, e) =>
         {
@@ -582,7 +581,7 @@ public sealed class CityPicView : Window
         var effects = _game.Effects;
         if (effects == null) return;
 
-        bool wasShown = _menu?.Window is { Visibility: Visibility.Visible };
+        bool wasShown = Menus.FacilityWindow is { Visibility: Visibility.Visible };
         if (wasShown) HideMenu(true);
 
         double side = EffectAnim.Size * _scale;
@@ -736,47 +735,42 @@ public sealed class CityPicView : Window
         Canvas.SetTop(tag, below + h <= bottom ? below : Math.Max(0, area.Y * scale - h - 2));
     }
 
-    /// <summary>시설 명령 창. 띄우고 겹치고 되돌아가는 것은 이쪽이 맡는다.</summary>
-    private GameMenuHost? _menu;
-
-    private GameMenuHost Menu
-    {
-        get
+    /// <summary>
+    /// 이 화면이 띄우는 창 둘 — 시설 명령 창과 도시 커맨드 창.
+    /// </summary>
+    /// <remarks>
+    /// 창을 언제 어디에 내고 닫을 때 무엇을 되돌리는지는 <see cref="CityMenus"/> 가 든다.
+    /// 여기서는 그때 되돌릴 것(사진 · 곡 · 이름표)만 일러 준다.
+    /// </remarks>
+    private CityMenus Menus => _menus ??= new CityMenus(this,
+        onFacilityOpening: () =>
         {
-            if (_menu != null) return _menu;
-            _menu = new GameMenuHost(this);
-            // 창을 그냥 닫아도(줄·ESC·오른쪽 단추) 도시 곡으로 돌아가고 사진도 걷힌다.
-            _menu.Closed += () =>
-            {
-                _photoWindow?.Close();
-                _photoWindow = null;
-                _bgm?.Play(_cityTrack);
-            };
-            return _menu;
-        }
-    }
+            foreach (var tag in _tags) tag.Visibility = Visibility.Collapsed;
+        },
+        onFacilityClosed: () =>
+        {
+            _photoWindow?.Close();
+            _photoWindow = null;
+            _bgm?.Play(_cityTrack);
+        });
+
+    private CityMenus? _menus;
+
+    /// <summary>시설 명령 창. 줄에 손을 달아 주는 곳들이 이것을 쓴다.</summary>
+    private GameMenuHost Menu => Menus.Facility;
 
     /// <summary>
     /// 명령 창을 연다. 건물마다 도는 곡이 다르면 <paramref name="track"/> 으로 준다 —
     /// 안 주면 도시 곡으로 돌아간다(다른 건물로 옮겨 갈 때 술집 곡이 따라오지 않게).
     /// </summary>
-    /// <remarks>
-    /// 그림 안에 그리지 않는다. 자택처럼 줄이 열한 개나 되는 시설은 그림을 통째로 덮어 버려
-    /// 도시가 안 보인다 — 도시 커맨드 창과 같은 까닭으로 제 창을 띄운다.
-    ///
-    /// <b>자리는 그림 한가운데다.</b> 게임이 그렇게 낸다 — 누른 건물과 상관없이 늘
-    /// <c>그리는 영역의 원점 + 크기/2</c> 다(<c>0x00469E80</c>, 볼트
-    /// <c>15.분석-시설 화면 엔진</c>). 예전에는 그림 오른쪽에 붙여 냈다.
-    /// </remarks>
     private void ShowMenu(Func<GameMenu> build, int? track = null)
     {
-        foreach (var tag in _tags) tag.Visibility = Visibility.Collapsed;
-        Menu.Open(build);
+        Menus.ShowFacility(build);
         _bgm?.Play(track ?? _cityTrack);
     }
 
-    /// <summary>명령 창을 닫고 도시로 돌아간다 — 곡도 도시 것으로 되돌린다(창의 Closed 가 맡는다).</summary>
-    private void CloseMenu() => _menu?.Close();
+    /// <summary>명령 창을 닫고 도시로 돌아간다 — 곡도 도시 것으로 되돌린다.</summary>
+    private void CloseMenu() => Menus.CloseFacility();
 
     /// <summary>
     /// 시설에서 "기능" 을 골랐을 때 뜨는 창. 제목이 없고 줄만 넷이다 —
@@ -789,21 +783,22 @@ public sealed class CityPicView : Window
     private GameMenu SystemMenu() => GameSystemMenu.Build(this, _game, Menu);
 
     /// <summary>
-    /// 도시 커맨드 창. 도시 화면에서 오른쪽 단추를 누르면 뜬다 — 제목은 도시 이름이고
-    /// 제목 줄에 닫기(X)가 있다. 지금은 취소만 살아 있다.
+    /// 도시 커맨드 창 — 줄 차례와 이름은 <see cref="CityCommandMenu"/> 가 든다.
+    /// 여기서는 줄마다 할 일만 채워 준다.
     /// </summary>
-    private GameMenu CityMenu(string cityName) => new(cityName, CloseCityMenu,
-        ("맵 포인트에 들어간다", EnterMapPoint),
-        ("인물 정보", ShowPerson),
-        ("함대 정보", ShowFleet),
-        ("소지품 정보", ShowBelongings),
-        ("도시 정보", ShowCityInfo),
-        ("힌트 정보", ShowHints),
-        ("계약 정보", ShowContract),
-        ("후원자 정보", () => { CloseCityMenu(); Patrons.ShowPatrons(); }),
-        ("지도를 본다", () => _cityMenu.Push(MapMenu)),
-        ("게임 종료", () => GameSystemMenu.Quit(this, Menu)),
-        ("취소", CloseCityMenu));
+    private GameMenu CityMenu(string cityName) =>
+        CityCommandMenu.Build(cityName, new CityCommandMenu.Actions(
+            EnterMapPoint: EnterMapPoint,
+            ShowPerson: ShowPerson,
+            ShowFleet: ShowFleet,
+            ShowBelongings: ShowBelongings,
+            ShowCityInfo: ShowCityInfo,
+            ShowHints: ShowHints,
+            ShowContract: ShowContract,
+            ShowPatrons: () => { CloseCityMenu(); Patrons.ShowPatrons(); },
+            ShowMap: () => _cityMenu.Push(MapMenu),
+            Quit: () => GameSystemMenu.Quit(this, Menu),
+            Cancel: CloseCityMenu));
 
     /// <summary>
     /// 인물 정보. <b>부하가 하나라도 있으면</b> 게임처럼 누구를 볼지 먼저 묻고,
@@ -846,11 +841,11 @@ public sealed class CityPicView : Window
         Enter(spots[at]);
     }
 
-    /// <summary>「지도를 본다」 — 항해지도 · 주변지도 · 돌아간다.</summary>
-    private GameMenu MapMenu() => new("지도를 본다", null,
-        ("항해지도", () => LookAtMap(wide: true)),
-        ("주변지도", () => LookAtMap(wide: false)),
-        ("돌아간다", _cityMenu.Pop));
+    /// <summary>「지도를 본다」 한 겹.</summary>
+    private GameMenu MapMenu() => CityCommandMenu.Map(
+        wide: () => LookAtMap(wide: true),
+        near: () => LookAtMap(wide: false),
+        back: _cityMenu.Pop);
 
     /// <summary>도시 그림을 잠깐 걷고 지도를 본다. 되돌리는 것은 함대 창이 맡는다.</summary>
     private void LookAtMap(bool wide)
@@ -1048,7 +1043,7 @@ public sealed class CityPicView : Window
     /// </remarks>
     private void HideMenu(bool hide)
     {
-        if (_menu?.Window is { } window)
+        if (Menus.FacilityWindow is { } window)
             window.Visibility = hide ? Visibility.Hidden : Visibility.Visible;
     }
 
@@ -1081,20 +1076,12 @@ public sealed class CityPicView : Window
     private ShipyardMenu? _yard;
 
     /// <summary>도시 커맨드 창. 그림 안이 아니라 제 창으로 띄운다.</summary>
-    private GameMenuHost? _cityMenuHost;
+    /// <summary>도시 커맨드 창. 줄 안에서 겹치고 되돌아갈 때 쓴다.</summary>
+    private GameMenuHost _cityMenu => Menus.City;
 
-    private GameMenuHost _cityMenu => _cityMenuHost ??= new GameMenuHost(this);
-
-    /// <summary>
-    /// 도시 커맨드 창을 <b>누른 자리</b>에 띄운다. 시설 창(<see cref="ShowMenu"/>)은 게임대로
-    /// 그림 한가운데지만, 이쪽은 게임에 없는 창이고 그림 아무 데나 눌러서 내는 것이라
-    /// 손이 간 자리에 뜨는 편이 맞다.
-    /// </summary>
-    private void ShowCityMenu(string cityName, Point at)
-    {
-        if (_cityMenu.IsOpen) { _cityMenu.Focus(); return; }
-        _cityMenu.Open(() => CityMenu(cityName), at);
-    }
+    /// <summary>도시 커맨드 창을 누른 자리에 띄운다.</summary>
+    private void ShowCityMenu(string cityName, Point at) =>
+        Menus.ShowCity(() => CityMenu(cityName), at);
 
     /// <summary>창 안의 자리를 화면 자리(WPF 단위)로. 창을 그 자리에 띄울 때 쓴다.</summary>
     private Point ToScreen(Point at)
@@ -1106,7 +1093,7 @@ public sealed class CityPicView : Window
             : source.CompositionTarget.TransformFromDevice.Transform(device);
     }
 
-    private void CloseCityMenu() => _cityMenu.Close();
+    private void CloseCityMenu() => Menus.CloseCity();
 
     /// <summary>
     /// 시장에서 사고파는 규칙. 처음 쓸 때 한 번만 짓는다 — 아이템 표를 못 읽으면 null 이고,
