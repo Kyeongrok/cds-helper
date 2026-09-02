@@ -357,9 +357,6 @@ public sealed class ShipMapWindow : Window
         };
         surface.Children.Add(_people);
 
-        // 사건이 도는 동안 지도를 파랗게 덮는다. 맨 위에 얹어야 배와 이름표까지 함께 물든다.
-        surface.Children.Add(_tint);
-
         // 게임 상단 띠. 어느 칸을 띄울지는 도시정보 창에서 켜고 끈다(띠를 오른쪽 단추로 누른다).
         // 이동 모드(정박·해상 이동) 칸은 뺐다 — 게임 띠에 없는 칸이다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
@@ -634,7 +631,8 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     private void ShowCityInfoMenu(FrameworkElement bar, Point at)
     {
-        if (!_host.InCity) return;
+        // 도시 안에서도 뭍을 걸을 때도 낸다 — 어느 쪽이든 띠는 그대로 서 있다.
+        if (!_host.InCity && !_host.IsOnLand) return;
         if (InfoMenu.IsOpen) { InfoMenu.Focus(); return; }
 
         InfoMenu.Open(BuildCityInfo, ToScreen(bar, new Point(at.X, bar.ActualHeight)));
@@ -2366,24 +2364,14 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 사건이 도는 동안 지도를 덮는 <b>파란 장막</b>. 평소에는 안 보인다.
+    /// 사건이 도는 동안 지도를 파랗게 덮거나 걷는다.
     /// </summary>
     /// <remarks>
-    /// 게임은 발견 사건이 도는 내내 화면을 파랗게 물들인다 — 뭍의 모래빛이 통째로
-    /// 남빛으로 갈린다. 원본은 팔레트를 갈아 끼우는 것이라 색이 아주 바뀌는데, 우리는
-    /// 반투명 남색 판 한 장을 덮어 갈음한다. 지도 · 배 · 이름표가 함께 물들도록
-    /// <b>맨 위</b>에 얹는다.
+    /// 덮는 일은 <b>그리는 쪽</b>이 한다(<see cref="Rendering.ShipMapHost.Shaded"/>).
+    /// 지도 칸은 <c>HwndHost</c> 라 그 위에 WPF 사각형을 얹어 봐야 밑에 깔린다 —
+    /// 처음에 그렇게 넣었다가 화면에서 아무 일도 안 일어나 옮겼다.
     /// </remarks>
-    private readonly System.Windows.Shapes.Rectangle _tint = new()
-    {
-        Fill = new SolidColorBrush(Color.FromArgb(0x66, 0x1C, 0x30, 0x66)),
-        IsHitTestVisible = false,
-        Visibility = Visibility.Collapsed,
-    };
-
-    /// <summary>장막을 걷거나 덮는다.</summary>
-    private void Tint(bool on) =>
-        _tint.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+    private void Tint(bool on) => _host.Shaded = on;
 
     private void CheckDiscovery()
     {
