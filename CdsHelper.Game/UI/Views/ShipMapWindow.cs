@@ -2299,26 +2299,85 @@ public sealed class ShipMapWindow : Window
                 "그러니, 모두가 보는 앞에서 나와 승부하자! 당신이 이기면 얌전히 따르겠다. " +
                 $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.");
 
-            var fight = SeaEvents.Duel(_game.Player, _game.Random);
-            if (fight.Won)
+            // 굴림 하나로 갈음하던 것을 <b>진짜 일기토 판</b>으로 바꿨다. 술집이 쓰는
+            // 그 판(DuelDialog)이고, 상대만 그 자리에서 지어 세운다.
+            var dice = new GameRandom(Environment.TickCount);
+            var duel = new Engine.Town.Duel(MyFighter(), MutinyLeader(dice),
+                                            _game.Player.Items.Contains(Engine.Town.Duel.EdithShieldId),
+                                            Environment.TickCount);
+            DuelDialog.Show(this, duel, dice, null, _game.Fighters);
+
+            if (duel.Won == true)
             {
+                _game.Player.Cheer(SeaEvents.MutinyCheer);
                 NoticeDialog.Show(this, "이것으로 불만 없겠지!");
                 NoticeDialog.Show(this, "반란을 진압했습니다");
+                return;
             }
-            else
-            {
-                // 게임은 여기서 놀이를 끝낸다(0x0044AF40 상태 4). 우리는 끝나는 길이 없어
-                // 선원을 잃는 것으로 갈음한다 — SeaEvents.Duel 에 적어 두었다.
-                NoticeDialog.Show(this,
-                    $"{who} {fight.Deserted}명이 배를 버리고 떠났습니다!");
-            }
+
+            // 지면 <b>놀이가 끝난다</b> — 게임도 여기서 끝낸다(0x0044AF40 상태 4).
+            NoticeDialog.Show(this,
+                $"제독은 {beast}의 먹이가 되었다. 항해는 여기서 끝났다.");
         }
         finally
         {
             _host.Paused = false;
             _asking = false;
         }
+
+        // 창을 되돌리는 것은 try 밖에서 한다 — 안에서 하면 닫히는 창에 잠금을 풀게 된다.
+        ReturnToTitle();
     }
+
+    /// <summary>일기토에 선 내 몫. 술집 것과 같다.</summary>
+    private Engine.Town.Duel.Fighter MyFighter()
+    {
+        var me = _game.Player;
+        return new(me.Name.Length > 0 ? me.Name : "제독",
+                   me.AbilityOf(Ability.Body), me.AbilityOf(Ability.Might),
+                   me.LevelOf(Skill.Names[Skill.Sword]), me.AbilityOf(Ability.Luck),
+                   BestItem(Engine.Town.Duel.WeaponCategory),
+                   BestItem(Engine.Town.Duel.ArmorCategory));
+    }
+
+    /// <summary>지닌 것 가운데 그 갈래에서 가장 센 효과. 표를 못 읽었으면 0.</summary>
+    private int BestItem(int category)
+    {
+        if (_game.Items is not { } table) return 0;
+
+        int best = 0;
+        foreach (int id in _game.Player.Items)
+            if (table.Find(id) is { } item && item.Category == category && item.Effect > best)
+                best = item.Effect;
+        return best;
+    }
+
+    /// <summary>
+    /// 반란 대표를 그 자리에서 지어 세운다.
+    /// </summary>
+    /// <remarks>
+    /// 인물 표에 없는 사람이라 게임도 <c>0x00475240</c> 어름에서 <c>0x004B7C0F</c>(난수)로
+    /// 능력을 굴려 채운다. 굴림을 그대로 옮겼다.
+    /// <code>
+    ///   4752B0  +0x28 무력  = rand(15) + 0x3B   ; 59 ~ 73
+    ///   475280  +0x20 체력  = rand(16) + 0x45   ; 69 ~ 84
+    ///   475290  +0x24 지력  = rand(16) + 0x27   ; 39 ~ 54
+    ///   4752C0  +0x2C 매력  = rand(16) + 0x27   ; 39 ~ 54
+    ///   4752D0  +0x30 운    = rand(16) + 0x27   ; 39 ~ 54
+    ///   4752E3  +0x34 신앙심 = 0x31              ; 49 못박음
+    ///   4752F5  +0x48 검술  = 1                 ; 기능은 +0x40 부터 넷씩이다
+    /// </code>
+    /// <b>무력이 세다.</b> 59~73 이라 여느 술집 손님보다 한참 위다 — 검술이 1 뿐인 것이
+    /// 그나마 숨통이다. 이름은 게임이 이름표에서 굴리는데 그 표를 안 짚어 「대원 대표」로
+    /// 갈음한다.
+    /// </remarks>
+    private static Engine.Town.Duel.Fighter MutinyLeader(GameRandom dice) =>
+        new("대원 대표",
+            Body: dice.Next(16) + 0x45,
+            Might: dice.Next(15) + 0x3B,
+            Sword: 1,
+            Luck: dice.Next(16) + 0x27,
+            Weapon: 0, Armor: 0);
 
     /// <summary>
     /// 바람 칸의 글 — 풍향·풍속과 상대각, 그리고 그 바람이 내는 함대 속도.
