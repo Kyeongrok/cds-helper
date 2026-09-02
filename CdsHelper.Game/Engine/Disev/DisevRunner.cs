@@ -231,7 +231,7 @@ public sealed class DisevRunner
                 return 0;
 
             case "아이템 획득":
-                _game.Player.Take((int)Field(2, 2));
+                Obtain((int)Field(2, 2));
                 return 0;
             case "아이템 상실":
                 _game.Player.Drop((int)Field(2, 2));
@@ -266,6 +266,22 @@ public sealed class DisevRunner
             default:
                 return 0;
         }
+    }
+
+    /// <summary>
+    /// 아이템을 하나 얻고 <b>그 물건의 정보 창</b>을 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 손에 넣은 자리에서 그림·갈래·설명이 든 창을 띄운다 — 소지품 창에서 물건을
+    /// 눌렀을 때 뜨는 것과 같은 창이다(<see cref="ItemInfoDialog"/>).
+    /// 소지품이 꽉 차서 못 들면 창도 안 낸다.
+    /// </remarks>
+    private void Obtain(int itemId)
+    {
+        if (!_game.Player.Take(itemId)) return;
+        if (_game.Items?.Find(itemId) is not { } item) return;
+
+        ItemInfoDialog.Show(_owner, item, _game.ItemText?.Of(itemId) ?? "", _game.ItemPictures);
     }
 
     /// <summary>
