@@ -1071,7 +1071,8 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private const double TilePack = 1.0 / 1.75;
 
-    private static Brush TitleBackground()
+    /// <remarks>놀이 끝 화면(<see cref="GameOverDialog"/>)도 같은 무늬를 깐다.</remarks>
+    internal static Brush TitleBackground()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "asset", "title", "title-tile.png");
         if (!File.Exists(path)) return BarFill;
@@ -2295,7 +2296,8 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
-            NoticeDialog.Show(this,
+            // 게임은 첫 마디에 사건 스틸 한 장을 함께 세운다(0x00475317 의 0x00472FA0(0)).
+            DiscoveryDialog.Show(this, _game.EventStills, MutinyStill,
                 $"제독, 큰일입니다. {who}{GameUi.Josa(who, "이", "가")} 반란을 일으켰습니다!  " +
                 $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!");
             NoticeDialog.Show(this,
@@ -2332,6 +2334,9 @@ public sealed class ShipMapWindow : Window
             // 지면 <b>놀이가 끝난다</b> — 게임도 여기서 끝낸다(0x0044AF40 상태 4).
             NoticeDialog.Show(this,
                 $"제독은 {beast}의 먹이가 되었다. 항해는 여기서 끝났다.");
+
+            // 그러고 나서 사건 스틸 한 장과 CONTINUE? 물음이다(0x00410CC2).
+            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
         }
         finally
         {
@@ -2345,6 +2350,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>반란 대표의 얼굴 번호(<c>0x004752E3</c> 의 <c>0x31</c>).</summary>
     private const int MutinyFace = 0x31;
+
+    /// <summary>반란을 알릴 때 세우는 사건 스틸(<c>0x00475317</c> 이 0 을 넘긴다).</summary>
+    private const int MutinyStill = 0;
 
     /// <summary>일기토에 선 내 몫. 술집 것과 같다.</summary>
     private Engine.Town.Duel.Fighter MyFighter()

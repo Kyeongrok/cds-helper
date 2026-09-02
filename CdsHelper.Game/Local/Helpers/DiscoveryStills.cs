@@ -46,15 +46,25 @@ public sealed class DiscoveryStills
     public static string LastError { get; private set; } = "";
 
     /// <summary>게임 폴더의 DSTILL.CDS 를 연다. 없거나 형식이 아니면 null.</summary>
-    public static DiscoveryStills? Open(string gameDirectory)
+    public static DiscoveryStills? Open(string gameDirectory) => Open(gameDirectory, "DSTILL.CDS");
+
+    /// <summary>
+    /// 같은 짜임의 다른 스틸 묶음을 연다 — <c>EVSTILL.CDS</c>(사건 스틸 열여섯)가 그것이다.
+    /// </summary>
+    /// <remarks>
+    /// 둘 다 <b>파트 셋이 한 묶음</b>이다 — <c>3g</c> 그림(320x240 8bpp) · <c>3g+1</c>
+    /// 팔레트(258) · <c>3g+2</c> 여덟 바이트. 그래서 읽는 손을 나눌 것 없이 파일 이름만
+    /// 갈아 준다(볼트 <c>22.분석-이벤트 그림</c>).
+    /// </remarks>
+    public static DiscoveryStills? Open(string gameDirectory, string fileName)
     {
         LastError = "";
-        string path = Path.Combine(gameDirectory, "DSTILL.CDS");
+        string path = Path.Combine(gameDirectory, fileName);
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);
         if (archive == null) { LastError = $"{path} 를 읽지 못했습니다"; return null; }
-        if (archive.PartCount < PartsPerPicture) { LastError = "DSTILL.CDS 에 그림이 없습니다"; return null; }
+        if (archive.PartCount < PartsPerPicture) { LastError = $"{fileName} 에 그림이 없습니다"; return null; }
         return new DiscoveryStills(archive);
     }
 
