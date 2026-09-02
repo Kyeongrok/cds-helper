@@ -98,6 +98,18 @@ public sealed class Contract
     /// <summary>기한이 다하는 날.</summary>
     public DateTime DueOn => SignedOn.AddYears(Years);
 
+    /// <summary>
+    /// 그 날짜 기준으로 기한이 며칠 남았는지. 이미 지났으면 0 이다.
+    /// </summary>
+    /// <remarks>
+    /// 상단 띠의 「남은일수」 칸이 이 값이다 — 게임도 계약이 있을 때만 수를 내고
+    /// 없으면 <c>남은일수----</c> 로 둔다(<c>0x0047DEF8</c>, 서식 <c>0x0056BF90</c>).
+    /// 셈은 계약 정보 화면과 같은 눈이다 — 한 해를 <see cref="DaysPerYear"/> 로 센다
+    /// (<c>0x0047F3DE</c>).
+    /// </remarks>
+    public int DaysLeftOn(DateTime today) =>
+        (int)Math.Max(0, (DueOn - today).TotalDays);
+
     private readonly List<int> _found = [];
 
     /// <summary>이 계약을 맺은 뒤에 발견한 것(발견물 번호). 찾은 차례대로다.</summary>
