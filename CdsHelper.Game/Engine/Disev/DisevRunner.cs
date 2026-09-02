@@ -65,6 +65,9 @@ public sealed class DisevRunner
     /// </remarks>
     private int _pendingStill = -1;
 
+    /// <summary>물고 있는 그림이 사건 스틸(EVSTILL)인지. 아니면 발견물 스틸(DSTILL)이다.</summary>
+    private bool _pendingIsEvent;
+
     private DisevRunner(Window owner, Game game)
     {
         _owner = owner;
@@ -218,9 +221,13 @@ public sealed class DisevRunner
             // 그림은 바로 안 낸다 — 다음 대사와 한 창에 함께 낸다.
             case "DSTILL 이미지 재생":
                 _pendingStill = (int)Field(1, 2);
+                _pendingIsEvent = false;
                 return 0;
             case "EVSTILL 이미지 표시":
+                // <b>딴 파일이다.</b> 예전에는 이 번호를 DSTILL 에 대고 찾아 엉뚱한 그림이
+                // 나왔다 — EVSTILL.CDS 는 사건 스틸 열여섯 장으로 따로 있다.
                 _pendingStill = (int)Field(2, 2);
+                _pendingIsEvent = true;
                 return 0;
 
             case "능력치 증가":
@@ -319,7 +326,8 @@ public sealed class DisevRunner
         {
             int still = _pendingStill;
             _pendingStill = -1;
-            DiscoveryDialog.Show(_owner, _game.Stills, still, body);
+            DiscoveryDialog.Show(_owner, _pendingIsEvent ? _game.EventStills : _game.Stills,
+                                 still, body);
             return;
         }
 

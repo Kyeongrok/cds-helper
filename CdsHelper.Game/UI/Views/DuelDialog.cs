@@ -419,7 +419,12 @@ public sealed class DuelDialog : Window
     {
         Refresh();
         Keep();          // 빨강은 이번 판 것만 — 다음 판 기준을 여기서 갈무리한다
-        _says.Text = Line(turn) + Environment.NewLine + Environment.NewLine + Taunt(turn);
+
+        // 게임은 상대의 말을 <b>제목 「일기토」가 붙은 창</b>으로 따로 낸다.
+        // 판 아래 글줄에도 그대로 남겨 둔다 — 창을 닫고 나서도 보이게.
+        string said = Line(turn) + Environment.NewLine + Environment.NewLine + Taunt(turn);
+        _says.Text = said;
+        ConfirmDialog.Tell(this, said, "일기토", _face);
 
         if (_duel.Over)
         {

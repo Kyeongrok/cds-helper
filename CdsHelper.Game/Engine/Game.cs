@@ -226,6 +226,19 @@ public sealed class Game
         Once(ref _itemText, ref _itemTextTried, ItemDescriptions.Open,
              () => ItemDescriptions.LastError, "아이템 설명문");
 
+    /// <summary>
+    /// 사건 스틸(<c>EVSTILL.CDS</c>) 열여섯 장 — 난파 · 폭풍 · 반란 · 놀이 끝 따위다.
+    /// </summary>
+    /// <remarks>
+    /// 발견물 스틸(<see cref="Stills"/>, <c>DSTILL.CDS</c>)과 <b>짜임이 같고 파일만 다르다</b>.
+    /// 이벤트 대본의 「EVSTILL 이미지 표시」와 반란 · 놀이 끝 화면이 이것을 쓴다.
+    /// </remarks>
+    public DiscoveryStills? EventStills =>
+        Directory.Length == 0 ? null
+        : _eventStills ??= DiscoveryStills.Open(Directory, "EVSTILL.CDS");
+
+    private DiscoveryStills? _eventStills;
+
     /// <summary>아이템 그림. asset/item 만 있으면 게임 폴더가 없어도 나온다.</summary>
     public ItemArt? ItemPictures => _itemArt ??= ItemArt.Open(Directory);
 
