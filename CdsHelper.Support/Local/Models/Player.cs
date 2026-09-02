@@ -1262,6 +1262,28 @@ public sealed class Player
         return PurchaseResult.Ok;
     }
 
+    /// <summary>
+    /// 값 없이 배를 한 척 받는다 — 스폰서가 계약을 맺으며 대 주는 배다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 세상 배 표(<c>0x005A4E18</c>)에 이미 있는 배를 골라 <c>+0x64</c> 에 1 을
+    /// 박아 「대출」로 표시할 뿐 새 배를 짓지 않는다(<c>0x0040FA00</c>). 우리 쪽에는 그런
+    /// 배 무리가 없어 새로 세운다.
+    ///
+    /// <b>함대에 곧장 들어가지 않는다.</b> 항구에 「대출 · 계류」로 대 놓일 뿐이라, 쓰려면
+    /// 함대편성 → 선박 편입을 해야 한다. 그래서 맡긴 배와 같은 자리에 넣는다.
+    /// <b>돌려주는 자리는 아직 없다.</b>
+    /// </remarks>
+    /// <returns>그 마을이 더 못 맡으면 false.</returns>
+    public bool Give(Hull hull, int cityId, string? name = null)
+    {
+        if (DockedAt(cityId).Count >= MaxDocked) return false;
+
+        if (!_docked.TryGetValue(cityId, out var list)) _docked[cityId] = list = [];
+        list.Add(new Ship(hull, name: string.IsNullOrWhiteSpace(name) ? SuggestShipName() : name.Trim()));
+        return true;
+    }
+
     /// <summary>그 기술의 지금 자리(0~<see cref="Skill.MaxLevel"/>).</summary>
     public int LevelOf(string skill) => _skills.GetValueOrDefault(skill);
 

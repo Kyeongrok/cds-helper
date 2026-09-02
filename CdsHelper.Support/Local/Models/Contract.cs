@@ -1,4 +1,4 @@
-namespace CdsHelper.Support.Local.Models;
+﻿namespace CdsHelper.Support.Local.Models;
 
 /// <summary>
 /// 후원자와 맺은 계약 하나. 힌트 하나를 좇기로 하고 자금을 받는다.
@@ -31,8 +31,9 @@ public sealed class Contract
     /// <param name="Amount">계약금(닢). 절반은 선금으로 받고 절반은 성공한 뒤에 받는다.</param>
     /// <param name="SignedOn">맺은 날.</param>
     /// <param name="Years">계약 기한(년).</param>
+    /// <param name="Inspector">딸려 온 감찰관 이름. 옛 세이브를 읽을 때만 빈 문자열이다.</param>
     public Contract(int hint, string sponsor, string city, int amount,
-                    DateTime signedOn, int years)
+                    DateTime signedOn, int years, string inspector = "")
     {
         Hint = hint;
         Sponsor = sponsor;
@@ -40,6 +41,7 @@ public sealed class Contract
         Amount = amount;
         SignedOn = signedOn;
         Years = years;
+        Inspector = inspector;
     }
 
     /// <summary>좇기로 한 힌트 번호.</summary>
@@ -59,6 +61,33 @@ public sealed class Contract
 
     /// <summary>계약 기한(년).</summary>
     public int Years { get; }
+
+    /// <summary>
+    /// 딸려 온 감찰관 이름. 계약을 맺으면 <b>반드시 하나 붙는다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 얼굴은 누구든 같고 이름만 갈린다 — 이름표와 얼굴 번호는 놀이 쪽
+    /// <c>CdsHelper.Game.Engine.Town.Inspector</c> 에 있다(게임 <c>0x004AF450</c>).
+    /// 옛 세이브에는 없어 빈 문자열일 수 있다.
+    /// </remarks>
+    public string Inspector { get; }
+
+    /// <summary>
+    /// 이 계약으로 스폰서가 배를 대 주었는지.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 전역 <c>0x0061D1E8</c> 한 칸에 <b>세 자리</b>를 담는다.
+    /// <code>
+    ///   0  아직 안 빌렸다      41069D  이 자리라야 "좋다. 배를 …" 첫 대출 말이 나온다
+    ///   1  빌렸고 아직 안 알렸다 41079D  배를 내주며 박는다
+    ///   2  항구에서 알렸다     476F40  인사를 낸 바로 뒤에 올린다
+    /// </code>
+    /// 그래서 항구 인사는 <b>딱 한 번</b> 나오고, 1 이 아닌 자리에서는 다시 안 나온다.
+    /// </remarks>
+    public bool ShipsLent { get; set; }
+
+    /// <summary>항구에서 대출 배 이야기를 이미 들었는지(게임 <c>0x0061D1E8 == 2</c>).</summary>
+    public bool LoanAnnounced { get; set; }
 
     /// <summary>선금 — 맺으면서 받은 돈.</summary>
     public int Advance => Amount / 2;

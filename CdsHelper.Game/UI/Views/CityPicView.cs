@@ -1031,7 +1031,7 @@ public sealed class CityPicView : Window
 
     /// <summary>이 마을 후원자 — 설득·보고·계약은 자리가 아니라 사람이 든다.</summary>
     private PatronMenu Patrons => _patronMenu ??=
-        new PatronMenu(this, _game, _cityName, Menu, _cityMenu, _cityTrack);
+        new PatronMenu(this, _game, _cityName, Menu, _cityMenu, _cityTrack, _cultureNo, _cityId);
 
     private PatronMenu? _patronMenu;
 
@@ -1196,6 +1196,43 @@ public sealed class CityPicView : Window
         return null;
     }
 
+    /// <summary>
+    /// 성문의 「탐험을 떠난다」 관문 — 나서도 좋으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00468900</c> 이다.
+    /// <code>
+    ///   468903  편성 안 된 배가 있나(0x004688A0)   — 있으면 못 나간다
+    ///   468910  함대 선원 수(0x0040E360) &gt; 0      — 있으면 그대로 나간다
+    ///   468919  부하 첫 자리가 찼나(0x00468EF0)
+    ///     찼으면  "제독, 저희들만으로 탐험을 하는 것은 무모한 짓입니다! …"  (0x00551AF0)
+    ///     비었으면 "성밖은 위험하다. 통행을 금지한다."                     (0x00551B50)
+    /// </code>
+    /// 선원 수는 함대 물건(<c>0x005B3928</c>)을 훑어 배마다 탄 사람을 더한 값이고,
+    /// 부하 자리는 제독 물건(<c>0x005B60A0</c>)의 0번 자리다
+    /// (<c>0x0047CC60</c> 이 그 자리의 인물을 찾아 준다 — 항구에서 인사하는 그 부관이다).
+    ///
+    /// 맨 앞의 「편성돼 있지 않은 선박」은 우리 쪽에 그런 자리가 없어 뺐다
+    /// (<see cref="HarborMenu.ConfirmSail"/> 도 같은 까닭으로 뺐다).
+    /// </remarks>
+    /// <param name="buildingCode">성문의 건물 코드 — 막아서는 병사 얼굴을 화자표에서 집는다.</param>
+    private bool CanExplore(int buildingCode)
+    {
+        if (_player.Crew > 0) return true;
+
+        // 부하가 있으면 부하가 말리고, 없으면 성문 병사가 막아선다.
+        if (Port.MateFace() is { } mate)
+        {
+            ConfirmDialog.Tell(this, "제독, 저희들만으로 탐험을 하는 것은 무모한 짓입니다! "
+                                   + "항구에서 사람을 모집한 후로 합시다.", face: mate);
+            return false;
+        }
+
+        ConfirmDialog.Tell(this, "성밖은 위험하다. 통행을 금지한다.",
+                           face: _game.SpeakerFace(buildingCode, _cultureNo));
+        return false;
+    }
+
     private Action? WorkFor(Facility facility, string item, int code, uint teachMask,
                             Patron? patron, string title, string kind) =>
         TownWorks.WorkOf(facility, item, TownWorks.Teaches(teachMask), patron != null) switch
@@ -1209,21 +1246,25 @@ public sealed class CityPicView : Window
             TownWork.BreakContract => () => Patrons.BreakContract(patron!),
 
             // 나가도 좋은지는 항구가 따진다 — 선원과 보급을 보고 막거나 묻는다.
-            TownWork.Sail => () => { if (Port.ConfirmSail()) { Sailed = true; Close(); } },
+            // 배가 한 척도 없으면 줄 자체가 흐리다(출항·보급·선원편성 셋이 그렇다).
+            TownWork.Sail when _player.Ships.Count > 0 =>
+                () => { if (Port.ConfirmSail()) { Sailed = true; Close(); } },
 
             // 성문 — 마을을 나서 뭍을 걷는다. 배는 항구에 그대로 둔다.
-            TownWork.Explore => () => { Explored = true; Close(); },
+            // 나가도 좋은지는 성문이 따진다 — 선원이 없으면 막는다.
+            TownWork.Explore => () => { if (CanExplore(code)) { Explored = true; Close(); } },
 
             // 발견한 건물의 해설 — 그림 한 장과 그 이야기다.
             TownWork.Comment => () => ShowComment(code),
             // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
-            TownWork.FleetForm => () => Menu.Push(Port.FleetMenu),
-            TownWork.CrewForm => Port.CrewForm,
+            // 함대편성은 그 안의 네 줄이 다 막히면 저도 흐려진다.
+            TownWork.FleetForm when Port.CanFormFleet => () => Menu.Push(Port.FleetMenu),
+            TownWork.CrewForm when _player.Ships.Count > 0 => Port.CrewForm,
             TownWork.CityInfo => Port.CityInfo,
             // 다 알리고 나면 그 줄이 아예 사라져야 한다 — 줄 목록을 다시 지어
             // 그리게 한다(TownWorks.LinesOf 가 알릴 것이 없으면 떼 낸다).
             TownWork.Announce => () => { Port.Announce(); Menu.Refresh(); },
-            TownWork.Supply => () =>
+            TownWork.Supply when _player.Ships.Count > 0 => () =>
                 SupplyDialog.Show(Menu.Window ?? this, _player,
                                   Market?.Rates.Of(_cityId) ?? 100),
 
