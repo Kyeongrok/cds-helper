@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using CdsHelper.Game.Engine.Menu;
+using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -26,7 +27,7 @@ internal sealed class ChoiceDialog : Window
 {
     private int _picked = -1;
 
-    private ChoiceDialog(string title, IReadOnlyList<string> rows, string cancel)
+    private ChoiceDialog(string title, IReadOnlyList<string> rows, string? cancel)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -36,15 +37,18 @@ internal sealed class ChoiceDialog : Window
         // 네모진 창이라 비침이 필요 없다 — 레이어드 창은 겹칠 때마다 깜빡인다.
         Background = GameUi.Back;
 
-        var items = new List<(string Text, Action? Run)>();
+        var items = new List<GameMenuRow>();
         for (int i = 0; i < rows.Count; i++)
         {
             int pick = i;
-            items.Add((rows[i], () => { _picked = pick; Close(); }));
+            // 나가기 줄이 없는 창은 <b>마지막 줄도 단추</b>다 — 안 그러면 GameMenu 가
+            // 끝 줄을 회녹색 나가기 띠로 낸다. 스폰서의 승낙/교섭이 그런 창이다.
+            items.Add(new GameMenuRow(rows[i], () => { _picked = pick; Close(); },
+                                      cancel == null ? BandStyle.Button : null));
         }
-        items.Add((cancel, Close));
+        if (cancel != null) items.Add(new GameMenuRow(cancel, Close));
 
-        var menu = new GameMenu(title, null, [.. items]);
+        var menu = new GameMenu(title, items);
         var root = new Border { Background = GameUi.Back, Child = menu };
         GameUi.EnableDrag(this, root);
         Content = root;
@@ -64,6 +68,21 @@ internal sealed class ChoiceDialog : Window
                           string cancel = "취소")
     {
         var dialog = new ChoiceDialog(title, rows, cancel) { Owner = owner };
+        dialog.ShowDialog();
+        return dialog._picked;
+    }
+
+    /// <summary>
+    /// 나가기 줄 없이 <b>줄이 모두 같은 단추</b>인 고르기 창. 물렀으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 스폰서의 계약 제안이 이 모양이다 — 제목 띠에 「기간N년 금화 N닢」이 서고 그 아래
+    /// 승낙한다·교섭한다 두 줄이 같은 무늬로 놓인다. 게임은 이 창을
+    /// <c>0x00469A70</c> 으로 낸다(<c>0x004AF22A</c> 가 줄 수 2 를 넘긴다).
+    /// </remarks>
+    public static int Pick(Window owner, string title, IReadOnlyList<string> rows)
+    {
+        var dialog = new ChoiceDialog(title, rows, null) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
     }

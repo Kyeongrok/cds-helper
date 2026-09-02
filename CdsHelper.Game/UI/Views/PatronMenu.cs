@@ -28,9 +28,12 @@ namespace CdsHelper.Game.UI.Views;
 /// <param name="cityMenu">도시 커맨드 창 — 스폰서 일람이 이 줄에서 뻗는다.</param>
 /// <param name="cityTrack">이 마을 곡. 알현이 끝나면 이 곡으로 되돌린다.</param>
 internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
-                                 GameMenuHost menu, GameMenuHost cityMenu, int cityTrack)
+                                 GameMenuHost menu, GameMenuHost cityMenu, int cityTrack,
+                                 int culture, int cityId)
 {
     private readonly int _cityTrack = cityTrack;
+    private readonly int _culture = culture;
+    private readonly int _cityId = cityId;
     private readonly Window _view = view;
     private readonly Engine.Game _game = game;
     private readonly string _cityName = cityName;
@@ -196,19 +199,113 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 서식은 0x00546B80 "먼저 금화 %ld닢을 주겠다 … %ld닢의 사례" 다).
         int half = funds / 2;
 
-        int pick = TalkDialog.Ask(_view, face, "",
+        TalkDialog.Say(_view, face, "",
             $"모험하는데 돈은 필요하겠지. 먼저 금화 {half}닢을 주겠다. " +
-            $"{it.Deadline}년 내에 성공하면 {half}닢의 사례를 약속하겠네. 이것으로 어떤가.\n\n" +
-            $" 기간{it.Deadline}년 금화 {half}닢 ",
-            "승낙한다", "교섭한다");
+            $"{it.Deadline}년 내에 성공하면 {half}닢의 사례를 약속하겠네. 이것으로 어떤가.");
+
+        // 말과 고르기는 <b>따로 뜨는 창 둘</b>이다. 말은 얼굴을 단 알림창(0x004694C0)이고,
+        // 고르기는 제목 띠에 기간·금화를 이고 승낙/교섭 두 줄만 놓인 창(0x00469A70,
+        // 0x004AF22A 가 줄 수 2 를 넘긴다)이다. 두 줄이 같은 무늬라 Pick 을 쓴다.
+        int pick = ChoiceDialog.Pick(_view, $" 기간{it.Deadline}년 금화 {half}닢 ",
+                                     ["승낙한다", "교섭한다"]);
         if (pick != 0) return;      // 교섭은 아직 흉내내지 않는다
 
         // 계약을 적어 두고 선금을 받는다. 게임도 이 자리에서 소지금에 계약금의 절반을
         // 더한다(0x004ADF3E).
-        _player.Sign(new Contract(it.Id, patron.Name, _cityName, funds,
-                                  _player.Date, it.Deadline));
+        // 감찰관은 계약마다 반드시 하나 붙는다 — 얼굴은 늘 같고 이름만 갈린다.
+        string inspector = Inspector.Pick(_culture, _random);
 
-        Say("그러면, 기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게.");
+        _player.Sign(new Contract(it.Id, patron.Name, _cityName, funds,
+                                  _player.Date, it.Deadline, inspector));
+
+        // 맺고 나면 배 → 감찰관 → 배웅 차례다(게임 0x004AF2A3 · 0x004AF2B7 · 0x004AF3A4).
+        LendShips(funds, Say);
+        SendInspector(inspector, me, Say);
+
+        // 배웅도 신분마다 세 벌이다(0x00546D28 "그러면, %s, 기대하고 있겠네." 따위).
+        // 화면에서 본 셋째 벌(0x00546DA8)을 쓴다.
+        Say("기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게.");
+    }
+
+    /// <summary>
+    /// 후원자가 감찰관을 딸려 보낸다 — 배를 대 준 바로 다음이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004AF2B7</c>(<c>0x004AF450</c> 이 사람을 짓는다) 다음에 오는 말 두 마디다.
+    /// <code>
+    ///   546CE0  "감찰관으로서 %s%s 따라가 주게. %s, 부탁하네."   후원자 얼굴
+    ///   546D10  "하앗, 알겠습니다."                              감찰관 얼굴(232)
+    /// </code>
+    /// 앞의 것은 신분마다 세 벌인데(<c>0x00546C80</c>·<c>0x00546CB0</c>·<c>0x00546CE0</c>)
+    /// 화면에서 본 셋째 벌만 쓴다 — 이 글의 다른 대사와 같은 다룸이다.
+    /// </remarks>
+    private void SendInspector(string inspector, string me, Action<string> Say)
+    {
+        Say($"감찰관으로서 {me}{Particle(me)} 따라가 주게. {inspector}, 부탁하네.");
+
+        var face = _game.Faces?.TryGetBgra(Inspector.Face, female: false);
+        TalkDialog.Say(_view, face, "", "하앗, 알겠습니다.");
+    }
+
+    /// <summary>계약금이 이만큼 오를 때마다 배가 한 척씩 는다(<c>0x004105F4</c> 의 <c>0xEA60</c>).</summary>
+    private const int GoldPerShip = 60000;
+
+    /// <summary>
+    /// 계약 직후 스폰서가 항구에 배를 대 준다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00410620</c> 이다. 설득이 끝나면 <c>0x004AF2A3</c> 이 <b>첫 인자에 1 을
+    /// 넣어</b> 부르는데, 그 갈래는 묻지 않고 그냥 준다(그냥 찾아가 빌릴 때는 0 이고,
+    /// 그때만 "배를 빌리겠습니까?" <c>0x0055C4D8</c> 를 묻는다).
+    /// <code>
+    ///   410677  척수 = 0x004105C0(빌려줄 수 있는 배, 계약금)
+    ///     4105F4    계약금 / 60000 + 1
+    ///     410605    min(그 값, 항구에 세워 둔 스폰서 배 수)
+    ///     41060B    min(그 값, 8 - 내 함대 척수)
+    ///   410718  0x00410800 — 배가 한 척이라도 있으면 1
+    ///   410724  그러면 "배를 빌리겠습니까?"(0x55C4D8) 를 묻는다. 예(2) 라야 준다
+    ///   41073A  아니라면 "그런가. 그렇다면, 좋을 대로 하게."(0x55C6C0 세 벌) 로 물린다
+    ///   4106ED  "…배 %d척을 항구에 준비시켜 놓겠네" (문화권 3벌: 0x55C3F8·0x55C438·0x55C480)
+    ///   410798  0x0040FA00 이 배 레코드(0x005A4E18) 의 <b>+0x64 에 1</b> 을 박는다 = 대출 표시
+    ///   410763  줄 배가 없으면 "…배가 전부 나가고 없네" (0x55C718 세 벌)
+    /// </code>
+    /// 화면에서 본 것은 셋째 벌이라 그것을 쓴다 — 계약금 13,500닢에 1척이 나왔고
+    /// <c>13500 / 60000 + 1 = 1</c> 로 셈이 맞는다.
+    ///
+    /// <b>못 옮긴 것 셋.</b> 스폰서마다 항구에 세워 둔 배 무리가 우리 쪽에 없어 가운데
+    /// 상한을 뺐고, 선체도 고를 데가 없어 제일 싼 것으로 세운다. 그리고 <b>돌려주는 자리가
+    /// 아직 없다</b> — 게임은 계약이 끝나면 거둬 가며 「스폰서에게 배를 반환했습니다」
+    /// (<c>0x0055C2B0</c>) 를 내는데, 우리 쪽에서는 그냥 내 배로 남는다.
+    /// </remarks>
+    private void LendShips(int funds, Action<string> Say)
+    {
+        int ships = Math.Min(funds / GoldPerShip + 1, Player.MaxShips - _player.Ships.Count);
+        if (ships <= 0)
+        {
+            Say("흐음, 빌려주고 싶은 마음은 굴뚝같지만 배가 전부 나가고 없네. 다시 오게.");
+            return;
+        }
+
+        // 배가 한 척이라도 있으면 빌릴지 묻는다. 한 척도 없으면 묻지 않고 그냥 준다
+        // (0x00410718 이 0x00410800 으로 가려, 0 이면 물음창을 건너뛴다).
+        if ((_player.Ships.Count > 0 || _player.DockedAt(_cityId).Count > 0)
+            && !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?"))
+        {
+            Say("그런가. 그렇다면, 좋을 대로 하게.");
+            return;
+        }
+
+        if (Hull.All.MinBy(h => h.Price) is not { } hull) return;
+
+        // 함대에 곧장 들어가지 않는다 — 항구에 「대출 · 계류」로 대 놓인다.
+        int given = 0;
+        for (int i = 0; i < ships; i++) if (_player.Give(hull, _cityId)) given++;
+        if (given == 0) return;
+
+        if (_player.Contract is { } deal) deal.ShipsLent = true;
+
+        Say($"모험의 도움을 위해서 배 {given}척을 항구에 준비시켜 놓겠네. "
+          + "마음대로 사용해도 상관없네.");
     }
 
     /// <summary>친밀도를 모를 때 쓰는 밑값. 표를 못 읽었을 때다.</summary>

@@ -148,9 +148,11 @@ public static class GameSave
     /// 있지만, 세이브 형식은 놀이 쪽 모델이 바뀌어도 그대로여야 하므로 따로 둔다.
     /// </summary>
     /// <param name="Found">이 계약을 맺은 뒤 발견한 것(발견물 번호).</param>
+    /// <param name="Inspector">딸려 온 감찰관 이름. 판 21 앞의 세이브에는 없다.</param>
     public sealed record Deal(
         int Hint, string Sponsor, string City, int Amount, DateTime SignedOn, int Years,
-        List<int>? Found = null);
+        List<int>? Found = null, string Inspector = "", bool ShipsLent = false,
+        bool LoanAnnounced = false);
 
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
@@ -200,15 +202,19 @@ public static class GameSave
     /// <summary>맺고 있는 계약을 적을 꼴로. 계약이 없으면 null.</summary>
     private static Deal? DealOf(Player player) =>
         player.Contract is not { } c ? null
-        : new Deal(c.Hint, c.Sponsor, c.City, c.Amount, c.SignedOn, c.Years, [.. c.Found]);
+        : new Deal(c.Hint, c.Sponsor, c.City, c.Amount, c.SignedOn, c.Years, [.. c.Found],
+                   c.Inspector, c.ShipsLent, c.LoanAnnounced);
 
     /// <summary>적어 둔 계약을 놀이 쪽 모델로. 없으면 null.</summary>
     public static Contract? ContractOf(Data saved)
     {
         if (saved.Contract is not { } d) return null;
 
-        var contract = new Contract(d.Hint, d.Sponsor, d.City, d.Amount, d.SignedOn, d.Years);
+        var contract = new Contract(d.Hint, d.Sponsor, d.City, d.Amount, d.SignedOn, d.Years,
+                                    d.Inspector);
         contract.Restore(d.Found);
+        contract.ShipsLent = d.ShipsLent;
+        contract.LoanAnnounced = d.LoanAnnounced;
         return contract;
     }
 

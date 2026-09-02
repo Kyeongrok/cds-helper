@@ -47,8 +47,55 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// </remarks>
     public void Greet()
     {
+        GreetLoan();
+
         if (_player.MateAt(MateSlot).Length == 0) return;
         ConfirmDialog.Tell(_view, "제독, 바다에 나가시겠습니까?", face: MateFace());
+    }
+
+    /// <summary>
+    /// 스폰서가 대 준 배가 있으면 항구 사람이 아는 체를 한다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00476EC0</c> 이다.
+    /// <code>
+    ///   476EC0  계약 물건(0x0061D1D0) 이 있다
+    ///   476ECD  배를 빌렸다(0x0061D1E8 == 1)   ; 0x0041079D 가 박아 둔 깃발
+    ///   476EEF  "%s님이시지요?"                 제독 이름
+    ///   476F2B  "%s %s%s 배를 준비하도록 전해 들었습니다. 편성 명령이 있을 경우는
+    ///            언제든지 준비하겠습니다."      후원자 이름 + 경칭 + 조사
+    /// </code>
+    /// 얼굴은 <b>항구 화자</b>다(<c>0x00476EF6</c> 이 시설 객체의 <c>+0x80</c> 을 넘긴다).
+    ///
+    /// <b>딱 한 번만 나온다</b> — 게임은 인사를 낸 바로 뒤 <c>0x00476F40</c> 에서 깃발을
+    /// 1 에서 2 로 올리고, 물음(<c>0x00476ECD</c>)은 1 일 때만 참이다.
+    /// </remarks>
+    private void GreetLoan()
+    {
+        if (_player.Contract is not { ShipsLent: true, LoanAnnounced: false } deal) return;
+        deal.LoanAnnounced = true;
+
+        var face = _game.SpeakerFace(BuildingCode, _culture);
+        ConfirmDialog.Tell(_view, $"{_player.Name}님이시지요?", face: face);
+
+        var sponsor = _game.Sponsors?.FindByName(deal.Sponsor);
+        string name = sponsor?.Name ?? deal.Sponsor;
+        string sir = sponsor?.Honorific ?? "각하";
+        ConfirmDialog.Tell(_view,
+            $"{name} {sir}{FromParticle(sir)} 배를 준비하도록 전해 들었습니다. "
+          + "편성 명령이 있을 경우는 언제든지 준비하겠습니다.", face: face);
+    }
+
+    /// <summary>「으로부터 / 로부터」 — 앞 글자에 받침이 있으면 「으」가 붙는다.</summary>
+    private static string FromParticle(string word)
+    {
+        if (word.Length == 0) return "으로부터";
+
+        char last = word[^1];
+        if (last is < '가' or > '힣') return "으로부터";
+
+        int coda = (last - '가') % 28;                  // 0 이면 받침이 없다
+        return coda is 0 or 8 ? "로부터" : "으로부터";  // 8 = ㄹ 받침도 「로」다
     }
 
     /// <summary>항구의 건물 코드. 부관이 없을 때 화자표에서 사람을 찾는다.</summary>
@@ -57,11 +104,12 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// <summary>
     /// 부관 얼굴. 자리가 비었거나 신상을 못 찾으면 null.
     /// </summary>
+    /// <remarks>성문도 이 얼굴을 쓴다 — <see cref="CityPicView"/> 의 탐험 관문이다.</remarks>
     /// <remarks>
     /// 항구에서 말을 거는 것은 <b>부하 첫 자리</b>다. 부하는 이름만 들고 있어 신상은
     /// 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>).
     /// </remarks>
-    private uint[]? MateFace()
+    internal uint[]? MateFace()
     {
         string mate = _player.MateAt(MateSlot);
         if (mate.Length == 0) return null;
@@ -162,6 +210,16 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// </code>
     /// 조건이 어긋난 줄은 흐리게 둔다.
     /// </remarks>
+    /// <summary>
+    /// 함대편성 줄 자체를 켤지 — 그 안의 네 줄 가운데 하나라도 살아 있어야 한다.
+    /// </summary>
+    /// <remarks>
+    /// 배가 없어도 계류된 배가 있으면 「선박 편입」이 살아 있어 창이 열린다. 빌린 배를
+    /// 이 창으로만 받을 수 있으니 여기서 막으면 길이 끊긴다.
+    /// </remarks>
+    public bool CanFormFleet =>
+        Facility.FleetMenu.Any(item => item != Facility.FleetExit && FleetAction(item) != null);
+
     private Action? FleetAction(string item) => item switch
     {
         "기함 변경" when _player.Ships.Count > 1 => ChangeFlagship,
@@ -189,6 +247,7 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         if (!ConfirmDialog.Ask(owner, $"기함을 {name}호로 변경하겠습니다. 좋습니까?")) return;
 
         _player.SetFlagship(at);
+        _menu.Refresh();   // 기함이 바뀌면 줄 켜짐도 다시 잰다
     }
 
     /// <summary>맡겨 둔 배를 함대에 넣는다. 게임의 <c>0x0046A350</c> 자리다.</summary>
@@ -203,6 +262,9 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         if (!_player.Undock(_cityId, at))
             GameDialog.Show(owner, "이 이상 편입할 수 없습니다.");
+
+        // 계류된 배를 다 데려가면 「선박 편입」이 흐려진다 — 줄을 다시 지어야 보인다.
+        _menu.Refresh();
     }
 
     /// <summary>함대의 배를 이 마을에 맡긴다. 게임의 <c>0x0046A400</c> 자리다.</summary>
@@ -217,6 +279,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         if (!_player.Dock(at, _cityId))
             GameDialog.Show(owner, "이 이상 삭제할 수 없습니다.");
+
+        _menu.Refresh();
     }
 
     /// <summary>배를 없앤다. 게임의 <c>0x0046A490</c> 자리다 — 되돌릴 수 없어 한 번 묻는다.</summary>
@@ -234,6 +298,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         if (!_player.Scrap(at))
             GameDialog.Show(owner, "이 이상 파기할 수 없습니다.");
+
+        _menu.Refresh();
     }
 
     /// <summary>
