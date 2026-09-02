@@ -32,7 +32,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그대로 온다. 표에 항구가 없는 도시라면 그림 아무 데나 눌러도 항구 명령 창이 열리게 해
 /// 두었다 — 출항할 길은 어디서나 있어야 한다.
 /// </remarks>
-public sealed class CityPicView : Window
+public sealed class CityPicView : Window, ITownScreen
 {
     /// <summary>건물 이름표와 명령 창을 얹는 자리. 그림과 같은 격자 칸에 둔다.</summary>
     private readonly Canvas _layer = new();
@@ -945,26 +945,23 @@ public sealed class CityPicView : Window
     }
 
     /// <summary>
-    /// 시설의 명령 창을 짓는다. 줄은 <see cref="Facility"/> 표에서 오고, 어느 줄이 무슨
-    /// 일인지는 <see cref="TownWorks"/> 가 안다. 흉내낼 수 있는 것만 손이 달리고 나머지는
-    /// 흐린 채로 둔다. 제목은 건물 이름이다(게임도 그렇다).
+    /// 시설의 명령 창을 짓는다 — 줄과 손은 <see cref="TownMenu"/> 가 짝지어 주고,
+    /// 여기서는 <b>이 도시의 형편</b>만 채워 준다.
     /// </summary>
     private GameMenu BuildMenu(Facility facility, string title, int code, uint teachMask,
                                string kind)
     {
-        // 어느 줄이 언제 붙고 떨어지는지는 일 표가 안다.
         var patron = PatronAt(kind);
-        var items = TownWorks.LinesOf(facility, new TownWorks.TownState(
-            Teaches: TownWorks.Teaches(teachMask),
-            Poor: _player.Gold < Lodging.OddJobMaxGold,
-            CanAnnounce: Port.Announceable().Count > 0,
-            PatronRow: patron == null ? null : Patrons.PatronRow(patron),
-            Commented: Commented(code),
-            Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null));
 
-        return new GameMenu(title, null,
-            [.. items.Select(item =>
-                (item, ActionFor(facility, item, code, teachMask, patron, title, kind)))]);
+        return TownMenu.Build(facility, title, code, teachMask, patron,
+            new TownWorks.TownState(
+                Teaches: TownWorks.Teaches(teachMask),
+                Poor: _player.Gold < Lodging.OddJobMaxGold,
+                CanAnnounce: Port.Announceable().Count > 0,
+                PatronRow: patron == null ? null : Patrons.PatronRow(patron),
+                Commented: Commented(code),
+                Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null),
+            this);
     }
 
     /// <summary>
@@ -1130,21 +1127,6 @@ public sealed class CityPicView : Window
 
     private HashSet<string>? _kindsHere;
 
-    /// <summary>
-    /// 그 줄이 하는 일에 손을 달아 준다. 어느 자리의 어느 줄이 무슨 일인지는
-    /// <see cref="TownWorks"/> 가 안다 — 여기서는 <b>일마다 무엇을 하는지</b>만 적는다.
-    /// 손이 안 달린 일은 null 이라 줄이 흐리게 나온다(보급·회화 따위).
-    /// </summary>
-    private Action? ActionFor(Facility facility, string item, int code, uint teachMask,
-                              Patron? patron, string title, string kind)
-    {
-        // 술집의 술 줄은 일 표에 없다 — 고장마다 이름이 달라서 그때그때 붙이기 때문이다.
-        if (facility.Kind == FacilityKind.Tavern && DrinkAt(item) is { } drink)
-            return () => Guests.Drink(drink, DrinkNameOf(drink));
-
-        return WorkFor(facility, item, code, teachMask, patron, title, kind);
-    }
-
     /// <summary>이 고장 술집이 파는 술. 도시 표의 지역 무리로 고른다.</summary>
     private List<DrinkTable.Drink> Drinks =>
         _drinks ??= _game.Drinks is { } table && _game.CityRows is { } rows
@@ -1220,72 +1202,94 @@ public sealed class CityPicView : Window
         return false;
     }
 
-    private Action? WorkFor(Facility facility, string item, int code, uint teachMask,
-                            Patron? patron, string title, string kind) =>
-        TownWorks.WorkOf(facility, item, TownWorks.Teaches(teachMask), patron != null) switch
-        {
-            TownWork.Exit => CloseMenu,
-            // 가르치는 사람은 <b>수련을 눌러야</b> 말을 건다 — 들어서자마자가 아니다.
-            TownWork.Train => () => { Training(code).Greet(); Training(code).Teach(teachMask); },
-            TownWork.System => () => Menu.Push(SystemMenu),
-            TownWork.Persuade => () => Patrons.Persuade(patron!),
-            TownWork.Report => () => Patrons.Report(patron!),
-            TownWork.BreakContract => () => Patrons.BreakContract(patron!),
+    // ── ITownScreen — 시설 명령 창이 이 화면에 시키는 일들 ──────────────────
+    //
+    // 어느 줄이 무슨 일인지는 TownWorks 가 알고, 그 일에 손을 달아 주는 것은 TownMenu 다.
+    // 여기 있는 것은 <b>실제로 창을 띄우고 값을 세는</b> 몫뿐이다.
 
-            // 나가도 좋은지는 항구가 따진다 — 선원과 보급을 보고 막거나 묻는다.
-            // 배가 한 척도 없으면 줄 자체가 흐리다(출항·보급·선원편성 셋이 그렇다).
-            TownWork.Sail when _player.Ships.Count > 0 =>
-                () => { if (Port.ConfirmSail()) { Sailed = true; Close(); } },
+    bool ITownScreen.HasShips => _player.Ships.Count > 0;
+    bool ITownScreen.HasItems => _player.Items.Count > 0;
+    bool ITownScreen.CanBuyGoods => Market != null;
+    bool ITownScreen.CanSellGoods => Market != null && _game.Items != null;
+    bool ITownScreen.CanFormFleet => Port.CanFormFleet;
+    bool ITownScreen.CanRepairShip => Yard.CanRepair;
+    bool ITownScreen.CanRead => Books.CanRead;
+    bool ITownScreen.CanLeaveHeir => Home.CanLeaveHeir(_player);
 
-            // 성문 — 마을을 나서 뭍을 걷는다. 배는 항구에 그대로 둔다.
-            // 나가도 좋은지는 성문이 따진다 — 선원이 없으면 막는다.
-            TownWork.Explore => () => { if (CanExplore(code)) { Explored = true; Close(); } },
+    void ITownScreen.CloseMenu() => CloseMenu();
 
-            // 발견한 건물의 해설 — 그림 한 장과 그 이야기다.
-            TownWork.Comment => () => ShowComment(code),
-            // 함대편성·선원편성은 제목 없는 창이 한 겹 더 뜬다.
-            // 함대편성은 그 안의 네 줄이 다 막히면 저도 흐려진다.
-            TownWork.FleetForm when Port.CanFormFleet => () => Menu.Push(Port.FleetMenu),
-            TownWork.CrewForm when _player.Ships.Count > 0 => Port.CrewForm,
-            TownWork.CityInfo => Port.CityInfo,
-            // 다 알리고 나면 그 줄이 아예 사라져야 한다 — 줄 목록을 다시 지어
-            // 그리게 한다(TownWorks.LinesOf 가 알릴 것이 없으면 떼 낸다).
-            TownWork.Announce => () => { Port.Announce(); Menu.Refresh(); },
-            TownWork.Supply when _player.Ships.Count > 0 => () =>
-                SupplyDialog.Show(Menu.Window ?? this, _player,
-                                  Market?.Rates.Of(_cityId) ?? 100),
+    void ITownScreen.Train(int buildingCode, uint teachMask)
+    {
+        Training(buildingCode).Greet();
+        Training(buildingCode).Teach(teachMask);
+    }
 
-            TownWork.BuyShip => () => HullSelectDialog.Show(this, _player),
-            // 배가 기함뿐이어도 눌린다 — 게임은 그때 "기함을 처분하는 일은 불가능합니다!"
-            // 를 낸다(0x0044B96F). 줄을 흐리게 두면 그 말을 볼 길이 없다.
-            TownWork.SellShip => Yard.SellShip,
-            // 게임도 고칠 배가 없으면 이 줄을 흐리게 둔다(0x0044BD40).
-            TownWork.RepairShip when Yard.CanRepair => Yard.RepairShip,
-            TownWork.RefitShip => Yard.RefitShip,
+    void ITownScreen.OpenSystemMenu() => Menu.Push(SystemMenu);
 
-            TownWork.BuyGoods when Market != null => Shop.Buy,
-            TownWork.SellGoods when Market != null && _game.Items != null => Shop.Sell,
+    void ITownScreen.Persuade(Patron patron) => Patrons.Persuade(patron);
+    void ITownScreen.Report(Patron patron) => Patrons.Report(patron);
+    void ITownScreen.BreakContract(Patron patron) => Patrons.BreakContract(patron);
 
-            TownWork.Stay => Stay,
-            TownWork.MateForm => () => MateRosterDialog.Show(this, _player),
+    void ITownScreen.Sail()
+    {
+        if (!Port.ConfirmSail()) return;
+        Sailed = true;
+        Close();
+    }
 
-            TownWork.Heir when Home.CanLeaveHeir(_player) => HomeRooms.LeaveHeir,
-            TownWork.Rest => () => Menu.Push(HomeRooms.RestMenu),
-            TownWork.Savings => () => Menu.Push(HomeRooms.SavingsMenu),
-            // 게임도 지닌 것이 없으면 이 줄을 흐리게 둔다 — 맡길 것이 없으면 열 일도 없다.
-            TownWork.Store when _player.Items.Count > 0 => () =>
-                StorageDialog.Show(Menu.Window ?? this, _player, _game.Items),
+    void ITownScreen.Explore(int buildingCode)
+    {
+        if (!CanExplore(buildingCode)) return;
+        Explored = true;
+        Close();
+    }
 
-            // 백과사전 — 갈래마다 한 권씩, 발견한 것이 한 쪽씩 쌓인다.
-            TownWork.Encyclopedia => () =>
-                EncyclopediaDialog.Show(Menu.Window ?? this, _game.Directory, _player,
-                                        _game.Discoveries?.Table, _game.Hints, _game.Book),
+    void ITownScreen.ShowComment(int buildingCode) => ShowComment(buildingCode);
 
-            TownWork.Read when Books.CanRead => () =>
-                Books.Read(Menu.Window ?? this,
-                           text => (Owner as ShipMapWindow)?.Say(text)),
-            _ => null,
-        };
+    void ITownScreen.OpenFleetForm() => Menu.Push(Port.FleetMenu);
+    void ITownScreen.OpenCrewForm() => Port.CrewForm();
+    void ITownScreen.ShowPortCityInfo() => Port.CityInfo();
+
+    void ITownScreen.Announce()
+    {
+        Port.Announce();
+        // 다 알리고 나면 그 줄이 아예 사라져야 한다 — 줄 목록을 다시 지어 그리게 한다.
+        Menu.Refresh();
+    }
+
+    void ITownScreen.Supply() =>
+        SupplyDialog.Show(Menu.Window ?? this, _player, Market?.Rates.Of(_cityId) ?? 100);
+
+    void ITownScreen.BuyShip() => HullSelectDialog.Show(this, _player);
+    void ITownScreen.SellShip() => Yard.SellShip();
+    void ITownScreen.RepairShip() => Yard.RepairShip();
+    void ITownScreen.RefitShip() => Yard.RefitShip();
+
+    void ITownScreen.BuyGoods() => Shop.Buy();
+    void ITownScreen.SellGoods() => Shop.Sell();
+
+    void ITownScreen.Stay() => Stay();
+    void ITownScreen.ShowMates() => MateRosterDialog.Show(this, _player);
+
+    void ITownScreen.LeaveHeir() => HomeRooms.LeaveHeir();
+    void ITownScreen.OpenRestMenu() => Menu.Push(HomeRooms.RestMenu);
+    void ITownScreen.OpenSavingsMenu() => Menu.Push(HomeRooms.SavingsMenu);
+    void ITownScreen.OpenStorage() => StorageDialog.Show(Menu.Window ?? this, _player, _game.Items);
+
+    void ITownScreen.ShowEncyclopedia() =>
+        EncyclopediaDialog.Show(Menu.Window ?? this, _game.Directory, _player,
+                                _game.Discoveries?.Table, _game.Hints, _game.Book);
+
+    void ITownScreen.ReadBooks() =>
+        Books.Read(Menu.Window ?? this, text => (Owner as ShipMapWindow)?.Say(text));
+
+    bool ITownScreen.IsDrink(string item) => DrinkAt(item) != null;
+
+    void ITownScreen.Drink(string item)
+    {
+        if (DrinkAt(item) is not { } drink) return;
+        Guests.Drink(drink, DrinkNameOf(drink));
+    }
 
     /// <summary>
     /// 도시 그림 창을 연다. 그림을 못 풀면 null 이다 — 그림이 없다고 입항까지 막을 일은 아니다.
