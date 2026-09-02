@@ -2270,13 +2270,53 @@ public sealed class ShipMapWindow : Window
         _game.Player.Explored.Mark(cell.CellX, cell.CellY);
     }
 
+    /// <summary>발견을 마지막으로 재 본 칸. 그 사이를 지나온 칸도 함께 훑는다.</summary>
+    private (int X, int Y)? _lastChecked;
+
+    /// <summary>
+    /// 한 번에 훑는 칸 수의 위쪽 끝. 이보다 멀리 뛰었으면 지금 칸만 본다 —
+    /// 입항·출항처럼 자리가 통째로 옮겨간 것이지 지나온 것이 아니다.
+    /// </summary>
+    private const int MaxTrail = 64;
+
+    /// <summary>지난번 잰 칸에서 지금 칸까지, 지나온 칸을 차례로 낸다.</summary>
+    /// <remarks>
+    /// <b>이것이 없으면 좁은 발견물을 밟고도 지나친다.</b> 발견 판정은 100ms 짜리 상태
+    /// 시계에 걸려 있는데, 걸음은 화면 프레임마다 나아간다. 뭍의 한 프레임은
+    /// <c>(3 x 이동값 + 54) / 10 / 16</c> 칸이라(<see cref="Engine.Sea.Sailing.CellsPerTick"/>)
+    /// 이동값이 10 이면 0.5칸, 60프레임이면 초당 서른 칸이다 — 100ms 사이에 서너 칸을
+    /// 건너뛴다. 카르낙 거석군의 자리가 <b>X 1226~1227 · Y 291~292 두 칸</b>이라
+    /// 지금 칸만 보면 열에 아홉은 못 잡는다.
+    /// </remarks>
+    private static IEnumerable<(int X, int Y)> Trail((int X, int Y) from, (int X, int Y) to)
+    {
+        int dx = to.X - from.X, dy = to.Y - from.Y;
+        int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+
+        if (steps == 0 || steps > MaxTrail) { yield return to; yield break; }
+
+        // 지난번에 이미 본 칸(from)은 건너뛰고 그 다음 칸부터 낸다.
+        for (int i = 1; i <= steps; i++)
+            yield return (from.X + dx * i / steps, from.Y + dy * i / steps);
+    }
+
     private void CheckDiscovery()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;
         if (_game.Discoveries is not { } log) return;
         if (_host.ShipCell is not { } cell) return;
 
-        int id = log.At(_game.Player, cell.CellX, cell.CellY, _host.IsOnLand);
+        var now = (cell.CellX, cell.CellY);
+        var from = _lastChecked ?? now;
+        _lastChecked = now;
+
+        int id = -1;
+        foreach (var (x, y) in Trail(from, now))
+        {
+            id = log.At(_game.Player, x, y, _host.IsOnLand);
+            if (id >= 0) break;
+        }
+
         if (id < 0) return;
         if (log.Table.Find(id) is not { } row) return;
 
