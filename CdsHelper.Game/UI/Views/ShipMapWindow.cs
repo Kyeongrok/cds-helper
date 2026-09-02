@@ -113,6 +113,7 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>선원들이 지친 만큼. 폭풍을 맞으면 오르고 자택 휴양이 푼다.</summary>
     private readonly GameButton _tired = new("") { Lit = true, Margin = default };
+    private readonly GameButton _morale = new("") { Lit = true, Margin = default };
 
     /// <summary>태우고 있는 선원 수.</summary>
     private readonly GameButton _crew = new("") { Lit = true, Margin = default };
@@ -229,8 +230,10 @@ public sealed class ShipMapWindow : Window
     public ShipMapWindow()
     {
         Title = "대항해시대3";
+        // 크기는 설정에 적어 둔 것으로 선다(기본은 예전 그대로 1200x800).
         Width = 1200;
         Height = 800;
+        Loaded += (_, _) => SettingsDialog.Apply(this);
         Background = Brushes.Black;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
@@ -370,6 +373,7 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(InfoCell(CityInfoMenu.Gold, _purse, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fame, _fame, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Fatigue, _tired, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Morale, _morale, on: true));
         gameCells.Children.Add(InfoCell(CityInfoMenu.City, _cityLabel, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Language, _language, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Rate, _rate, on: false));
@@ -492,6 +496,7 @@ public sealed class ShipMapWindow : Window
             _purse.Text = $"소지금{_game.Player.Gold,6}닢";
             _fame.Text = $"명성{_game.Player.Fame,6}";
             _tired.Text = $"피로도{_game.Player.Fatigue,4}";
+            _morale.Text = $"규율{_game.Player.Morale,4}";
             _windText.Text = WindLine();
             _crew.Text = $"선원{_game.Player.Crew,4}명";
             _stores.Text = $"물{_game.Player.SupplyOf(SupplyKind.Water),4}통" +
@@ -1925,10 +1930,13 @@ public sealed class ShipMapWindow : Window
     private void PassTime()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;
-        if (_host.IsAnchored || _host.IsOnLand) return;
+        if (_host.IsAnchored) return;
 
         if (++_dayTicks < TicksPerDay) return;
         _dayTicks = 0;
+
+        // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
+        if (_host.IsOnLand) { PassLandDay(); return; }
 
         _game.Player.PassDayAtSea();
         var (lat, _) = _host.ShipLatLon;
@@ -1936,6 +1944,58 @@ public sealed class ShipMapWindow : Window
         CheckSeaEvent();
         CheckEncounter();
     }
+
+    /// <summary>
+    /// 뭍에서 하루가 간다 — 여행비가 나가고 규율이 깎인다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00475470</c> 이다.
+    /// <code>
+    ///   4754BE  eax = 5 - 운용술
+    ///   4754CA  eax *= 대원수                    ; [0x005AA2C4]
+    ///   4754D2  eax = -(eax / 2)
+    ///   4754DA  0x0047CBC0(제독, eax)            ; 소지금에 더한다(음수라 빠진다)
+    ///   4754DF  소지금 &gt; 0 ? edi -= 4 : edi -= 10   ; edi 는 운용술
+    ///   4754F6  새 규율 = 0x00474060(여행물건, edi)
+    /// </code>
+    /// 곧 <b>하루 여행비 = (5 − 운용술) × 대원수 ÷ 2</b> 이고
+    /// <b>하루 규율 = 운용술 − (소지금 &gt; 0 ? 4 : 10)</b> 이다. 운용술 최대가 3이라
+    /// 규율은 늘 깎이고, 가장 느릴 때가 −1(운용술 3 · 돈 있음), 가장 빠를 때가 −10 이다.
+    /// <b>돈을 내고 난 뒤</b>의 소지금을 보므로 여행비를 못 대면 그날부터 두 배 넘게 빠진다.
+    ///
+    /// 소지금은 못 대도 물리지 않고 <b>0 까지만</b> 깎인다(<see cref="Player.Spend"/>).
+    /// </remarks>
+    private void PassLandDay()
+    {
+        var player = _game.Player;
+        int handling = player.LevelOf(Skill.Names[Skill.Handling]);
+
+        player.PassDayAtSea();                       // 날짜는 뭍에서도 간다
+        player.Spend((5 - handling) * player.Crew / 2);
+
+        int before = player.Morale;
+        player.Cheer(handling - (player.Gold > 0 ? 4 : 10));
+        Say(MoraleLine(before, player.Morale));
+    }
+
+    /// <summary>
+    /// 규율이 문턱을 넘어 내려갔을 때만 한 줄 낸다. 아니면 빈 글이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <b>넘어갈 때 한 번</b>만 알린다(<c>0x004754FB</c> 아래) — 그 아래에
+    /// 머무는 동안은 잠잠하다.
+    /// <code>
+    ///   50 넘던 것이 30~50 으로  "대원들이 불만을 품기 시작했습니다!"        0x005354B8
+    ///   30 넘던 것이 10~30 으로  "대원들의 불만이 심해지고 있습니다!"         0x005354E0
+    ///   10 넘던 것이  1~10 으로  "대원들의 불만이 한계에 달했습니다! …"       0x00535508
+    /// </code>
+    /// </remarks>
+    private static string MoraleLine(int before, int after) =>
+        before > 50 && after is > 30 and <= 50 ? "대원들이 불만을 품기 시작했습니다!"
+      : before > 30 && after is > 10 and <= 30 ? "대원들의 불만이 심해지고 있습니다!"
+      : before > 10 && after is > 0 and <= 10
+            ? "대원들의 불만이 한계에 달했습니다! 일단 아무 마을로나 철수합시다."
+      : "";
 
     /// <summary>
     /// 오늘 바다에서 있었던 일을 알린다 — 보급이 줄어든 것과 지친 것.

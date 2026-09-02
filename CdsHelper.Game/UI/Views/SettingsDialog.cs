@@ -22,7 +22,8 @@ public sealed class SettingsDialog : Window
     private readonly Border _bgmRow = new() { Padding = new Thickness(8, 8, 8, 2) };
     private readonly Border _sfxRow = new() { Padding = new Thickness(8, 2, 8, 2) };
     private readonly Border _bgmVolRow = new() { Padding = new Thickness(8, 2, 8, 2) };
-    private readonly Border _sfxVolRow = new() { Padding = new Thickness(8, 2, 8, 4) };
+    private readonly Border _sfxVolRow = new() { Padding = new Thickness(8, 2, 8, 2) };
+    private readonly Border _sizeRow = new() { Padding = new Thickness(8, 2, 8, 4) };
 
     private SettingsDialog(BgmPlayer bgm)
     {
@@ -39,6 +40,7 @@ public sealed class SettingsDialog : Window
         _sfxRow.Child = SfxToggle();
         _bgmVolRow.Child = VolumeRow("배경음악", GameSettings.BgmVolume, StepBgm);
         _sfxVolRow.Child = VolumeRow("효과음  ", GameSettings.SfxVolume, StepSfx);
+        _sizeRow.Child = SizeRow();
 
         var title = GameUi.TitleBar("설정", Close);
         GameUi.EnableDrag(this, title);
@@ -49,6 +51,7 @@ public sealed class SettingsDialog : Window
         stack.Children.Add(_bgmVolRow);
         stack.Children.Add(_sfxRow);
         stack.Children.Add(_sfxVolRow);
+        stack.Children.Add(_sizeRow);
         stack.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -117,6 +120,61 @@ public sealed class SettingsDialog : Window
 
     /// <summary>소리 크기 줄의 칸 폭.</summary>
     private const double StepWidth = 32, NumberWidth = 120;
+
+    /// <summary>
+    /// 게임 창 크기 한 줄 — <c>◀ 1200 x 800 ▶</c> 로 고른다.
+    /// </summary>
+    /// <remarks>
+    /// 원본은 640x480 한 가지지만 우리 지도는 넓으면 넓은 만큼 더 보이는 창이라
+    /// 몇 가지를 열어 두었다(<see cref="GameSettings.Resolutions"/>). 고르면
+    /// <b>그 자리에서</b> 창이 바뀐다 — 다시 켜지 않아도 된다.
+    /// </remarks>
+    private UIElement SizeRow()
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new GameButton("◀", () => StepSize(-1), BandStyle.Button, StepWidth));
+        row.Children.Add(new GameButton($"화면 {GameSettings.WindowSize.Name}", null,
+                                        BandStyle.Button, NumberWidth));
+        row.Children.Add(new GameButton("▶", () => StepSize(+1), BandStyle.Button, StepWidth));
+        return row;
+    }
+
+    /// <summary>크기를 한 칸 옮기고 그 자리에서 창에 먹인다. 끝에서 다시 처음으로 돈다.</summary>
+    private void StepSize(int by)
+    {
+        int count = GameSettings.Resolutions.Length;
+        GameSettings.Resolution = (GameSettings.Resolution + by + count) % count;
+        _sizeRow.Child = SizeRow();
+        Apply(Owner);
+    }
+
+    /// <summary>
+    /// 고른 크기를 창에 먹인다. 창을 처음 띄울 때도 이 손을 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 폭이 0 이면 전체 화면이다 — 테 없는 최대화로 낸다. 창 크기로 돌아올 때는
+    /// 최대화를 풀고 크기를 박은 뒤 화면 한가운데로 다시 앉힌다.
+    /// </remarks>
+    public static void Apply(Window? window)
+    {
+        if (window == null) return;
+
+        var (_, width, height) = GameSettings.WindowSize;
+        if (width == 0)
+        {
+            window.WindowState = WindowState.Maximized;
+            return;
+        }
+
+        window.WindowState = WindowState.Normal;
+        window.Width = width;
+        window.Height = height;
+
+        // 크기를 키우면 창이 화면 밖으로 밀려날 수 있다. 가운데로 다시 앉힌다.
+        var area = SystemParameters.WorkArea;
+        window.Left = area.Left + (area.Width - width) / 2;
+        window.Top = area.Top + (area.Height - height) / 2;
+    }
 
     private void StepBgm(int by)
     {
