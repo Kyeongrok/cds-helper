@@ -244,6 +244,10 @@
                                             x:Name="PART_NationEditMenu"
                                             Header="나라 표"
                                             ToolTip="나라 이름·쓰는 말·수도를 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
+                                        <MenuItem
+                                            x:Name="PART_DisevEditorMenu"
+                                            Header="발견 이벤트"
+                                            ToolTip="DISEV.CDS 의 발견 이벤트 스크립트를 보고 고친다" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>
