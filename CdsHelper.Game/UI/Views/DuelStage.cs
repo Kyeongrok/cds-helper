@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -30,7 +30,7 @@ namespace CdsHelper.Game.UI.Views;
 public sealed class DuelStage : Canvas
 {
     /// <summary>판 크기. 게임 것과 같다(<c>0x004AA7BB</c> 의 <c>0x180</c> x <c>0x100</c>).</summary>
-    public const int StageWidth = 384, StageHeight = 176;
+    public const int StageWidth = DuelArt.ArenaWidth, StageHeight = DuelArt.ArenaHeight;
 
     /// <summary>두 사람이 서는 자리와 내지를 때 나가는 거리(<c>0x004A794A</c> 의 <c>sub eax,0x1E</c>).</summary>
     private const double MyLeft = 8, FoeLeft = StageWidth - FighterSprites.Width - 8, Lunge = 30;
@@ -58,7 +58,8 @@ public sealed class DuelStage : Canvas
         _foeSet = foeSet;
         Width = StageWidth;
         Height = StageHeight;
-        Background = new SolidColorBrush(Color.FromRgb(0x18, 0x14, 0x10));
+        // 바탕은 비운다 — 뒤에 깔린 마당 그림(asset/duel)이 그대로 비쳐야 한다.
+        Background = Brushes.Transparent;
         ClipToBounds = true;
 
         foreach (var image in new[] { _me, _foe })
