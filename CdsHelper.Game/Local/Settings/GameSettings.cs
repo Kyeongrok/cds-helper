@@ -25,6 +25,9 @@ public sealed class GameSettingsData
     /// <summary>도시 창이 열릴 때 줄 효과. <see cref="Settings.CityOpenEffect"/> 의 이름이다.</summary>
     public string CityOpenEffect { get; set; } = "Expand";
 
+    /// <summary>게임 창 크기 — <see cref="GameSettings.Resolutions"/> 의 몇째인지.</summary>
+    public int Resolution { get; set; } = GameSettings.DefaultResolution;
+
     /// <summary>지도 위에 좌표 상자를 겹쳐 보일지.</summary>
     public bool ShowCoordOverlay { get; set; } = true;
 
@@ -303,6 +306,37 @@ public static class GameSettings
         get => Get(d => d.BarCells);
         set => Set(d => d.BarCells = value == null ? null : [.. value]);
     }
+
+    /// <summary>
+    /// 고를 수 있는 게임 창 크기.
+    /// </summary>
+    /// <remarks>
+    /// 원본은 <b>640x480 한 가지</b>다. 우리 지도는 훑어 보는 창이라 넓으면 넓은 만큼 더
+    /// 보이므로 몇 가지를 열어 둔다. 원본 그림이 4:3 이라 4:3 을 위주로 두고, 지금까지
+    /// 쓰던 1200x800 을 그대로 기본으로 남긴다. 폭이 0 이면 <b>전체 화면</b>이다.
+    /// </remarks>
+    public static readonly (string Name, int Width, int Height)[] Resolutions =
+    [
+        ("800 x 600", 800, 600),
+        ("1024 x 768", 1024, 768),
+        ("1200 x 800", 1200, 800),
+        ("1280 x 960", 1280, 960),
+        ("1600 x 1200", 1600, 1200),
+        ("전체 화면", 0, 0),
+    ];
+
+    /// <summary>기본 크기 — 지금까지 쓰던 1200x800 이다.</summary>
+    public const int DefaultResolution = 2;
+
+    /// <summary>지금 고른 창 크기가 <see cref="Resolutions"/> 의 몇째인지.</summary>
+    public static int Resolution
+    {
+        get => Get(d => Math.Clamp(d.Resolution, 0, Resolutions.Length - 1));
+        set => Set(d => d.Resolution = Math.Clamp(value, 0, Resolutions.Length - 1));
+    }
+
+    /// <summary>지금 고른 창 크기. 폭이 0 이면 전체 화면이다.</summary>
+    public static (string Name, int Width, int Height) WindowSize => Resolutions[Resolution];
 
     /// <summary>지도 위에 바람·해류 화살표를 얹을지. 함대 창 커맨드에서 켜고 끈다.</summary>
     public static bool ShowFlowArrows

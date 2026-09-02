@@ -22,14 +22,20 @@ internal static class CityInfoMenu
     /// 그 줄이 조용히 흐려진다 — 그래서 양쪽이 이 이름을 함께 쓴다.
     /// </summary>
     public const string Date = "날짜", Coord = "위도·경도", Gold = "소지금",
-                        Fame = "명성", City = "도시명", Fatigue = "피로도",
+                        Fame = "명성", City = "도시명", Fatigue = "피로도", Morale = "규율",
                         Crew = "선원·대원", Stores = "물·식량", DaysLeft = "남은일수",
                         Wind = "바람·속도", Language = "언어", Rate = "시세";
 
-    /// <summary>게임 도시정보 창의 줄 차례. 화면에서 그대로 옮겼다.</summary>
+    /// <summary>
+    /// 게임 도시정보 창의 줄 차례. 화면에서 그대로 옮겼다.
+    /// </summary>
+    /// <remarks>
+    /// <b>「규율」한 줄만 우리가 더한 것이다.</b> 게임 띠에는 없지만 뭍을 걸을 때 하루
+    /// 몇씩 깎이는 값이라 눈으로 봐야 한다(<c>0x00475470</c>). 피로도 옆에 둔다.
+    /// </remarks>
     public static readonly string[] Rows =
     [
-        Date, Crew, Stores, Coord, Gold, Fatigue,
+        Date, Crew, Stores, Coord, Gold, Fatigue, Morale,
         Fame, City, Language, Rate, DaysLeft, Wind,
     ];
 

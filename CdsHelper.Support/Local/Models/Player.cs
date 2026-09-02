@@ -566,6 +566,22 @@ public sealed class Player
         return moved;
     }
 
+    /// <summary>
+    /// 있는 만큼만 치른다 — 모자라도 물리지 않고 0 까지만 깎인다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0047CBC0</c> 이 이렇게 한다 — 소지금을 <c>0x0049E5A0</c> 으로
+    /// <c>0 ~ 1,000,000</c> 사이에 가둔다. 뭍을 걷는 하루 여행비가 이 길로 나간다.
+    /// 물건 값처럼 <b>못 사면 안 사야 하는</b> 자리는 <see cref="Pay"/> 를 쓴다.
+    /// </remarks>
+    /// <returns>실제로 나간 돈.</returns>
+    public int Spend(int amount)
+    {
+        int paid = Math.Clamp(amount, 0, Gold);
+        Gold -= paid;
+        return paid;
+    }
+
     /// <summary>값을 치른다. 모자라면 아무것도 하지 않고 false.</summary>
     public bool Pay(int amount)
     {
