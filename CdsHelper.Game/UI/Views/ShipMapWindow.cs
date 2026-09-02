@@ -208,6 +208,8 @@ public sealed class ShipMapWindow : Window
     ///   0x0056BF18  "소지금%6d닢"
     ///   0x0056BF28  "피로도%4d"
     ///   0x0056BF38  "명성%6d"
+    ///   0x0056BF90  "남은일수%4d"          계약이 없으면 0x0056BFA0 "남은일수----"
+    ///   0x0056BF70  "시세%4d%"
     /// </code>
     /// 칸 너비는 글자 수를 따라가므로 <b>서식이 맞으면 너비도 맞는다</b> — 예전에는
     /// "1499년 5월8일" · "1770닢" 처럼 자리를 안 맞춰 칸마다 폭이 어긋났다.
@@ -498,7 +500,11 @@ public sealed class ShipMapWindow : Window
             _crew.Text = $"선원{_game.Player.Crew,4}명";
             _stores.Text = $"물{_game.Player.SupplyOf(SupplyKind.Water),4}통" +
                            $" 식량{_game.Player.SupplyOf(SupplyKind.Food),4}통";
-            _left.Text = $"남은 {_game.Player.SupplyDaysLeft}일";
+            // 「남은일수」는 <b>계약 기한</b>이다 — 보급이 아니다(0x0047DEF8).
+            // 계약이 없으면 게임처럼 줄을 긋는다.
+            _left.Text = _game.Player.Contract is { } deal
+                ? $"남은일수{deal.DaysLeftOn(_game.Player.Date),4}"
+                : "남은일수----";
             // 가진 배 중 가장 큰 것이 기함이다 — 그 벌의 그림으로 그린다(게임이 안 떠 있을 때).
             // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
             ShipSprites.Use(_game.Player.FlagshipHull?.Hull);
