@@ -1,0 +1,339 @@
+﻿using System.IO;
+using System.Windows;
+using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Game.UI.Views;
+
+namespace CdsHelper.Game.Engine.Disev;
+
+/// <summary>
+/// DISEV.CDS 의 발견 대본을 <b>돌린다</b>.
+/// </summary>
+/// <remarks>
+/// 편집기(<see cref="DisevArchive"/> · <see cref="DisevPart"/> · <see cref="DisevScript"/>)는
+/// 대본을 읽고 고칠 뿐 돌리지는 않았다. 그래서 발견 알림이 표에서 지어 낸 한 줄뿐이었다.
+/// 이것이 그 대본을 차례대로 밟는다.
+///
+/// 카르낙 거석군(파트 19)이 이런 대본이다.
+/// <code>
+///    1 대사   부관      제독! 저것을 보십시오!
+///    2 미디어 동영상    AVI 44
+///    3 음원   재생      75
+///    4 대사   화자없음  카르낙 거석군을 발견했다!
+///    5 외부분기 STORY0.CDS 109
+///    6 대사   부관      드디어 찾아냈군요…
+///   …
+///    9 아이템 획득      고대의 소뿔
+///   13 발견             카르낙 거석군
+/// </code>
+///
+/// <b>파트 번호가 곧 발견물 번호다</b> — 274개가 발견물 표와 1:1 이다.
+///
+/// <b>아직 안 하는 것.</b> 외부 분기(<c>STORY0.CDS</c> · <c>STORY1.CDS</c>)는 그 파일을
+/// 안 뜯어서 <b>건너뛴다</b> — 뛰지 않고 다음 줄로 간다. 그 밖에 뜻을 모르는 명령도
+/// 건너뛴다. 대본이 끊기는 것보다 한 줄 빠지는 편이 낫다.
+/// </remarks>
+public sealed class DisevRunner
+{
+    /// <summary>DISEV.CDS 는 한 번만 읽는다. 게임 폴더가 갈리면 다시 읽는다.</summary>
+    private static DisevArchive? _shared;
+    private static string _sharedFrom = "";
+
+    /// <summary>그 게임 폴더의 DISEV.CDS. 없으면 null 이고, 그러면 대본 없이 지나간다.</summary>
+    public static DisevArchive? Open(string gameDirectory)
+    {
+        if (gameDirectory.Length == 0) return null;
+        if (_shared != null && _sharedFrom == gameDirectory) return _shared;
+
+        string path = Path.Combine(gameDirectory, "DISEV.CDS");
+        if (!File.Exists(path)) return null;
+
+        _shared = DisevArchive.Open(path);
+        _sharedFrom = gameDirectory;
+        return _shared;
+    }
+
+    private readonly Window _owner;
+    private readonly Game _game;
+
+    /// <summary>
+    /// 아직 안 낸 DSTILL 그림 자리. 다음 대사와 <b>함께</b> 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 대본은 그림과 글을 두 줄로 나눠 적지만 화면에는 한 창에 함께 나온다 —
+    /// 히랄다탑(파트 51)이 「DSTILL 69」 다음에 「히랄다탑을 발견했다!」 다.
+    /// 동영상은 다르다. 그쪽은 화면을 가득 덮었다가 사라지고 글이 따로 뜬다.
+    /// </remarks>
+    private int _pendingStill = -1;
+
+    private DisevRunner(Window owner, Game game)
+    {
+        _owner = owner;
+        _game = game;
+    }
+
+    /// <summary>
+    /// 그 발견물의 대본을 돌린다. 대본이 없으면 false — 부른 쪽이 예전처럼 한 줄만 낸다.
+    /// </summary>
+    /// <param name="owner">창을 얹을 자리.</param>
+    /// <param name="game">이 판.</param>
+    /// <param name="discoveryId">발견물 번호 = DISEV 파트 번호.</param>
+    public static bool Run(Window owner, Game game, int discoveryId)
+    {
+        if (Open(game.Directory) is not { } archive) return false;
+        if (discoveryId < 0 || discoveryId >= archive.PartCount) return false;
+
+        var raw = archive.Part(discoveryId);
+        if (raw.Length == 0) return false;
+        if (DisevPart.Parse(raw, out _) is not { } part) return false;
+
+        var runner = new DisevRunner(owner, game);
+        int body = runner.PickBody(part);
+        if (body < 0) return false;
+
+        runner.RunChunk(part, body);
+        return true;
+    }
+
+    /// <summary>
+    /// 조건이 맞는 첫 슬롯의 본문 자리. 없으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 슬롯은 <c>[조건][본문]</c> 짝이 여럿이고, 앞에서부터 조건이 맞는 것을 쓴다.
+    /// 조건 덩이가 비었거나(바로 <c>FF</c>) 뜻을 모르는 것뿐이면 <b>맞은 것으로 친다</b> —
+    /// 카르낙 거석군의 「조건 없음 · 항상 발생」이 그 꼴이다.
+    /// </remarks>
+    private int PickBody(DisevPart part)
+    {
+        foreach (var slot in part.Slots)
+        {
+            var (from, to) = part.ChunkRange(slot.Condition);
+            if (Passes(DisevScript.Parse(part.Data, from, to))) return slot.Body;
+        }
+        return part.Slots.Count > 0 ? part.Slots[0].Body : -1;
+    }
+
+    /// <summary>조건 덩이가 통과인지. 모르는 조건은 통과로 친다.</summary>
+    private bool Passes(List<DisevScript.Op> ops)
+    {
+        foreach (var op in ops)
+        {
+            if (op.Kind == "덩이/갈래 끝") break;
+            if (!Holds(op)) return false;
+        }
+        return true;
+    }
+
+    /// <summary>조건 한 줄이 참인지. 아는 것만 본다.</summary>
+    private bool Holds(DisevScript.Op op)
+    {
+        var raw = DisevScript.ParseHex(op.Hex);
+        if (raw == null) return true;
+
+        long Field(int at, int width) =>
+            DisevForm.Read(raw, new DisevForm.Field("", at, width));
+
+        switch (op.Kind)
+        {
+            case "발견 완료 조건":
+                return _game.Player.HasFound((int)Field(2, 2));
+            case "미발견 조건":
+                return !_game.Player.HasFound((int)Field(2, 2));
+            case "아이템 소지 조건":
+                return _game.Player.Items.Contains((int)Field(2, 2));
+            case "아이템 비소지 조건":
+                return !_game.Player.Items.Contains((int)Field(2, 2));
+            case "연도 조건":
+                return _game.Player.Date.Year >= Field(2, 2);
+            case "연도 상한 조건":
+                return _game.Player.Date.Year <= Field(2, 2);
+            case "연도 범위 조건":
+                return _game.Player.Date.Year >= Field(2, 2)
+                    && _game.Player.Date.Year <= Field(5, 2);
+            case "무작위 확률 조건":
+            {
+                long denominator = Field(2, 4);
+                return denominator > 0 && _game.Random.Next((int)denominator) < Field(7, 4);
+            }
+            default:
+                // 뜻을 모르는 조건은 막지 않는다 — 막으면 대본이 통째로 안 돈다.
+                return true;
+        }
+    }
+
+    /// <summary>본문 덩이를 차례대로 밟는다.</summary>
+    private void RunChunk(DisevPart part, int start)
+    {
+        var (from, to) = part.ChunkRange(start);
+        var ops = DisevScript.Parse(part.Data, from, to);
+
+        // 자리로 줄을 찾을 수 있게 해 둔다 — 분기가 바이트 자리로 뛴다.
+        var at = new Dictionary<int, int>();
+        for (int i = 0; i < ops.Count; i++) at[ops[i].Offset] = i;
+
+        // 대본이 꼬여 제자리를 맴돌 수 있다. 줄 수의 몇 곱으로 끊는다.
+        int budget = Math.Max(64, ops.Count * 8);
+
+        for (int i = 0; i < ops.Count && budget-- > 0; )
+        {
+            var op = ops[i];
+            if (op.Kind == "덩이/갈래 끝") return;
+
+            int jump = Step(op);
+            if (jump == 0) { i++; continue; }
+
+            // 상대 이동은 <b>그 명령이 끝난 자리</b>에서 잰다.
+            int target = op.Offset + op.Length + jump;
+            if (!at.TryGetValue(target, out int next)) return;   // 덩이 밖이면 멈춘다
+            i = next;
+        }
+    }
+
+    /// <summary>
+    /// 명령 한 줄을 치른다. 뛰어야 하면 상대 이동값을, 아니면 0 을 낸다.
+    /// </summary>
+    private int Step(DisevScript.Op op)
+    {
+        var raw = DisevScript.ParseHex(op.Hex);
+        if (raw == null) return 0;
+
+        long Field(int at, int width) =>
+            DisevForm.Read(raw, new DisevForm.Field("", at, width));
+
+        switch (op.Kind)
+        {
+            case "대사":
+                Speak(raw);
+                return 0;
+
+            case "AVI 재생":
+                // 파트 안의 두 꼴 — 00 02 [u16] 은 슬롯이 +2, 02 [u16] 은 +1 이다.
+                MoviePlayer.Play(_owner, DiscoveryDialog.MovieOf(
+                    _game.Directory, (int)Field(op.Length == 4 ? 2 : 1, 2)));
+                return 0;
+
+            case "음원 재생":
+                _game.Sfx?.Play((int)Field(2, 2));
+                return 0;
+
+            // 그림은 바로 안 낸다 — 다음 대사와 한 창에 함께 낸다.
+            case "DSTILL 이미지 재생":
+                _pendingStill = (int)Field(1, 2);
+                return 0;
+            case "EVSTILL 이미지 표시":
+                _pendingStill = (int)Field(2, 2);
+                return 0;
+
+            case "능력치 증가":
+                Adjust((int)Field(2, 2), +(int)Field(5, 4));
+                return 0;
+            case "능력치 감소":
+                Adjust((int)Field(2, 2), -(int)Field(5, 4));
+                return 0;
+
+            case "아이템 획득":
+                _game.Player.Take((int)Field(2, 2));
+                return 0;
+            case "아이템 상실":
+                _game.Player.Drop((int)Field(2, 2));
+                return 0;
+
+            case "발견물 등록/발견 처리":
+                _game.Player.Discover((int)Field(2, 2));
+                return 0;
+
+            case "금화 증가":
+                _game.Player.Earn((int)Field(2, 4));
+                return 0;
+            case "금화 감소":
+                _game.Player.Pay((int)Field(2, 4));
+                return 0;
+
+            // 늘 뛰는 것.
+            case "이동":
+                return (int)(short)Field(2, 2);
+
+            // 조건이 맞으면 뛴다. 조건 부분은 Holds 와 같은 눈으로 본다.
+            case "발견물 조건 분기":
+                return _game.Player.HasFound((int)Field(3, 2)) ? (int)(short)Field(5, 2) : 0;
+            case "아이템 조건 분기":
+                return _game.Player.Items.Contains((int)Field(3, 2)) ? (int)(short)Field(5, 2) : 0;
+            case "소지금 비교 분기":
+                return _game.Player.Gold < Field(6, 4) ? (int)(short)Field(10, 2) : 0;
+
+            // 외부 분기는 그 파일을 안 뜯어서 안 뛴다 — 다음 줄로 그냥 간다.
+            case "STORY0.CDS 외 분기":
+            case "STORY1.CDS 외 분기":
+            default:
+                return 0;
+        }
+    }
+
+    /// <summary>
+    /// 능력치 한 칸을 그만큼 움직인다. 아는 칸만 움직이고 나머지는 지나간다.
+    /// </summary>
+    /// <remarks>번호는 <see cref="DisevScript.StatNames"/> 표 그대로다.</remarks>
+    private void Adjust(int stat, int by)
+    {
+        switch (stat)
+        {
+            case 0: _game.Player.Tire(by); break;      // 피로도
+            case 1: _game.Player.Cheer(by); break;     // 규율(사기)
+            case 3:                                    // 소지금
+                if (by >= 0) _game.Player.Earn(by); else _game.Player.Pay(-by);
+                break;
+            case 17: _game.Player.Fame = Math.Max(0, _game.Player.Fame + by); break;   // 명성
+        }
+    }
+
+    /// <summary>대사 한 줄을 낸다. 화자에 따라 얼굴이 갈린다.</summary>
+    private void Speak(byte[] raw)
+    {
+        // 창 플래그 한 바이트가 앞에 붙을 수 있다. 0A 부터가 알맹이다.
+        int textStart = raw.Length > 0 && raw[0] == 0x0A ? 1 : 2;
+        if (textStart >= raw.Length) return;
+
+        int end = Array.IndexOf(raw, (byte)0, textStart);
+        if (end < 0) end = raw.Length;
+
+        var (speaker, body) = DisevScript.DecodeDialogue(raw.AsSpan(textStart, end - textStart));
+        if (body.Length == 0) return;
+
+        // 앞줄이 그림을 걸어 두었으면 그림과 글을 한 창에 낸다.
+        if (_pendingStill >= 0)
+        {
+            int still = _pendingStill;
+            _pendingStill = -1;
+            DiscoveryDialog.Show(_owner, _game.Stills, still, body);
+            return;
+        }
+
+        TalkDialog.Say(_owner, FaceOf(speaker), "", body);
+    }
+
+    /// <summary>
+    /// 그 화자의 얼굴. 모르는 화자면 null 이고, 그러면 얼굴 없이 글만 나온다.
+    /// </summary>
+    /// <remarks>
+    /// 「검사관」은 CP932 로 <c>監察官</c> 이라 <b>감찰관</b>이다 — 계약할 때 딸려 온 그
+    /// 사람이고 얼굴이 늘 232 다(<see cref="Town.Inspector"/>).
+    /// 「부관」은 부하 첫 자리라 그 사람 제 얼굴을 쓴다.
+    /// </remarks>
+    private uint[]? FaceOf(string? speaker) => speaker switch
+    {
+        null or "" => null,
+        "부관" => MateFace(),
+        "검사관" or "감찰관" => _game.Faces?.TryGetBgra(Town.Inspector.Face, female: false),
+        _ => null,
+    };
+
+    /// <summary>부하 첫 자리의 얼굴. 자리가 비었거나 신상을 못 찾으면 null.</summary>
+    private uint[]? MateFace()
+    {
+        string mate = _game.Player.MateAt(0);
+        if (mate.Length == 0) return null;
+
+        return _game.MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
+            ? _game.Faces?.TryGetBgra(who.Face, female: false)
+            : null;
+    }
+}
