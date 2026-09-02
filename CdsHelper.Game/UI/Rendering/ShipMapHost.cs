@@ -274,13 +274,46 @@ public sealed class ShipMapHost : HwndHost
         {
             if (_inCity == value) return;
             _inCity = value;
-            // 게임 화면에서 뽑은 남색. 짙기는 지도가 비쳐 보이는 만큼만 준다.
-            _renderer.Cover = value ? (0x24 / 255f, 0x37 / 255f, 0x5B / 255f, 0.72f) : default;
-            _dirty = true;
+            ApplyCover();
         }
     }
 
     private bool _inCity;
+
+    /// <summary>
+    /// 사건이 도는 동안 지도를 <b>같은 남색으로 덮는다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 발견 대본이 도는 내내 게임 화면이 파래진다 — 뭍의 모래빛까지 통째로 남빛이 된다.
+    /// 원본은 팔레트를 갈아 끼우는 것이고, 우리는 도시에 들어갈 때 쓰는 그 덮개를 그대로
+    /// 쓴다.
+    ///
+    /// <b>WPF 로는 못 덮는다.</b> 이 칸은 <see cref="System.Windows.Interop.HwndHost"/> 라
+    /// 자식 창(D3D 스왑체인)이 WPF 그림 위에 뜬다 — 그 위에 사각형을 얹어 봐야 밑에
+    /// 깔릴 뿐이다(좌표 상자도 그래서 제 창에 띄운다). 그리는 쪽에서 섞어야 한다.
+    /// </remarks>
+    public bool Shaded
+    {
+        get => _shaded;
+        set
+        {
+            if (_shaded == value) return;
+            _shaded = value;
+            ApplyCover();
+        }
+    }
+
+    private bool _shaded;
+
+    /// <summary>덮개를 지금 상태에 맞춘다. 도시에 들어갔거나 사건이 도는 동안 덮는다.</summary>
+    private void ApplyCover()
+    {
+        // 게임 화면에서 뽑은 남색. 짙기는 지도가 비쳐 보이는 만큼만 준다.
+        _renderer.Cover = _inCity || _shaded
+            ? (0x24 / 255f, 0x37 / 255f, 0x5B / 255f, 0.72f)
+            : default;
+        _dirty = true;
+    }
 
     /// <summary>
     /// 참이면 바다 명령(닻·상륙·출항·배 놓기·조종)을 받지 않는다. 도시 화면이 떠 있는
