@@ -313,13 +313,23 @@ public sealed class DisevEditorDialog : Window
                 return new ChunkRow
                 {
                     Start = start,
-                    Text = $"덩이 +0x{start:X4}  {to - from,4}바이트  ({_part.UsersOf(start)})",
+                    // 무엇에 쓰이는 덩이인지를 <b>앞에</b> 적는다 — 조건인지 본문인지가
+                    // 자리·크기보다 먼저 눈에 들어와야 한다.
+                    Text = $"{_part.UsersOf(start),-14}  +0x{start:X4}  {to - from,4}바이트",
                 };
             })
             .ToList();
 
         _chunks.ItemsSource = rows;
-        if (rows.Count > 0) _chunks.SelectedIndex = 0;
+
+        // <b>첫 덩이는 대개 조건이다.</b> 자리로 늘어놓으면 조건이 본문보다 앞에 서는데,
+        // 조건 덩이는 「조건 없음」이면 FF 한 줄뿐이라 골라 봐야 아무것도 안 나온다.
+        // 그래서 <b>0번 슬롯의 본문</b>을 먼저 편다 — 사람이 보고 싶은 것은 그쪽이다.
+        int first = _part.Slots.Count > 0
+            ? rows.FindIndex(r => r.Start == _part.Slots[0].Body)
+            : -1;
+        if (first < 0 && rows.Count > 0) first = 0;
+        if (first >= 0) _chunks.SelectedIndex = first;
     }
 
     private void ShowChunk()
