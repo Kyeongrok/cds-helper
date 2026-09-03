@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using CdsHelper.Support.Local.Models;
 
+using CdsHelper.Game.Local.Helpers;
+
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
@@ -138,12 +140,14 @@ public sealed class HullSelectDialog : Window
 
         for (int c = 0; c < cells.Length; c++)
         {
-            var tb = new TextBlock
+            // 줄 글씨도 <b>게임 글꼴</b>이다. 살 수 없는 배는 흐리게 내는데, 글꼴은 색이
+            // 색표 색인이라 회색 자리가 없다 — 칸 자체의 투명도로 흐리게 한다.
+            var tb = new GameUi.GameLabel(GameFont.BlackColor)
             {
                 Text = cells[c],
-                Foreground = dim ? Brushes.Gray : Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                FontSize = 13,
+                Bold = true,
+                FallbackBrush = dim ? Brushes.Gray : Brushes.Black,
+                Opacity = dim ? 0.45 : 1.0,
                 Margin = new Thickness(3, 1, 3, 1),
                 HorizontalAlignment = header || c == 0
                     ? HorizontalAlignment.Center

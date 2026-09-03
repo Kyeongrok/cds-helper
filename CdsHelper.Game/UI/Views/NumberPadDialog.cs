@@ -39,7 +39,7 @@ internal sealed class NumberPadDialog : Window
         Margin = new Thickness(8, 2, 10, 2),
     };
 
-    private readonly TextBlock _screen;
+    private readonly GameUi.GameLabel _screen;
     private readonly int _min, _max;
     private string _typed;
     private int? _result;
@@ -57,12 +57,12 @@ internal sealed class NumberPadDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _screen = new TextBlock
+        // 숫자 표시줄도 게임 글꼴이다. 게임은 계산기 칸을 <b>기울여 찍지 않는다</b> —
+        // 예전에는 WPF 글자를 기울여 계산기처럼 보이게 했었다.
+        _screen = new GameUi.GameLabel(GameFont.BlackColor)
         {
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = 30,
-            FontStyle = FontStyles.Italic,
+            Bold = true,
+            FallbackBrush = System.Windows.Media.Brushes.Black,
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(8, 2, 10, 2),
         };

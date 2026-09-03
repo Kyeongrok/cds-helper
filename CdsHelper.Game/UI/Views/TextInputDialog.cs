@@ -1,8 +1,10 @@
-using System.Text;
+﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+
+using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -32,7 +34,7 @@ public sealed class TextInputDialog : Window
     /// <summary>모으는 중인 한글 한 자(초성·중성·종성 자리).</summary>
     private int _lead = -1, _vowel = -1, _tail;
 
-    private readonly TextBlock _line;
+    private readonly GameUi.GameLabel _line;
     private readonly Border _page;
     private readonly int _maxLength;
     private string? _result;
@@ -68,14 +70,9 @@ public sealed class TextInputDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _line = new TextBlock
-        {
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = 17,
-            Margin = new Thickness(8, 3, 8, 3),
-            MinWidth = 300,
-        };
+        _line = Ink("");
+        _line.Margin = new Thickness(8, 3, 8, 3);
+        _line.MinWidth = 300;
 
         _page = new Border { Padding = new Thickness(10, 8, 10, 8) };
         ShowRoman();
@@ -172,14 +169,7 @@ public sealed class TextInputDialog : Window
                 Background = Brushes.Transparent,
                 Padding = new Thickness(key.Length > 1 ? 4 : 6, 2, key.Length > 1 ? 4 : 6, 2),
                 Cursor = Cursors.Hand,
-                Child = new TextBlock
-                {
-                    Text = key,
-                    Foreground = Brushes.Black,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = key.Length > 1 ? 13 : 17,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                },
+                Child = Ink(key, center: true),
             };
             cell.MouseEnter += (_, _) => cell.Background = GameUi.ItemFill;
             cell.MouseLeave += (_, _) => cell.Background = Brushes.Transparent;
@@ -266,6 +256,22 @@ public sealed class TextInputDialog : Window
         _result = null;
         Close();
     }
+
+    /// <summary>
+    /// 입력 칸과 자판 글자. <b>게임 글꼴</b>로 찍는다 — 바탕이 밝아 검은 글씨다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 글꼴을 못 읽었을 때만 윈도 글꼴로 물러선다(<see cref="GameUi.GameLabel"/>).
+    /// </remarks>
+    private static GameUi.GameLabel Ink(string text, bool center = false) =>
+        new(GameFont.BlackColor)
+        {
+            Text = text,
+            Bold = true,
+            FallbackBrush = System.Windows.Media.Brushes.Black,
+            HorizontalAlignment = center ? HorizontalAlignment.Center : HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
 
     /// <summary>
     /// 판을 띄우고 지은 글을 낸다. 중단했으면 null.
