@@ -44,17 +44,29 @@ public static class LandEvents
     /// <param name="Cornered">도망치려다 막혔는지 — 말이 갈린다.</param>
     public readonly record struct Outcome(bool Won, int Dead, bool Cornered = false);
 
+    /// <summary>짐승과 회오리가 나는 지형 부류(<c>0x00427A26</c>).</summary>
+    public const int BeastGround = 2;
+
+    /// <summary>독충이 나는 지형 부류(<c>0x0042782F</c>).</summary>
+    public const int VerminGround = 6;
+
     /// <summary>
     /// 오늘 무엇을 마주치는지. 아무 일도 없으면 null.
     /// </summary>
     /// <remarks>
-    /// 게임은 지형 번호로 가른다 — 짐승은 2, 독충은 6 이다. 우리 쪽에는 그 번호가 없어
-    /// <b>둘 다 굴린다</b>. 짐승이 먼저다.
+    /// <b>지형이 가른다.</b> 짐승은 부류 2, 독충은 부류 6 에서만 난다 — 부류는 자리를
+    /// 열여섯으로 나눠 잡은 칸의 그림 번호로 표(<c>0x004CD048</c>)를 찾은 값이다
+    /// (<see cref="Table.TerrainTable.ClassOfCell"/>).
     /// </remarks>
-    public static Meeting? Meet(GameRandom dice, IReadOnlyList<int> here)
+    /// <param name="ground">지금 선 자리의 지형 부류. 모르면 -1 을 준다.</param>
+    public static Meeting? Meet(GameRandom dice, int ground, IReadOnlyList<int> here)
     {
-        if (dice.Next(BeastOdds) == 0) return new Meeting(BeastAt(here, dice), Venomous: false);
-        if (dice.Next(VerminOdds) == 0) return new Meeting(Vermin[dice.Next(Vermin.Length)], true);
+        if (ground == BeastGround && dice.Next(BeastOdds) == 0)
+            return new Meeting(BeastAt(here, dice), Venomous: false);
+
+        if (ground == VerminGround && dice.Next(VerminOdds) == 0)
+            return new Meeting(Vermin[dice.Next(Vermin.Length)], true);
+
         return null;
     }
 
@@ -143,9 +155,11 @@ public static class LandEvents
     ///   427DBA  지형(0x00426740) == 2
     ///   427DC8  rand(500) == 0
     /// </code>
-    /// 지형 번호가 우리 쪽에 없어 굴림만 쓴다.
+    /// 사흘 조건(<c>[0x005A4D20] % 3</c>)은 그 값이 무엇인지 아직 못 짚어 뺐다.
     /// </remarks>
-    public static bool Tornado(GameRandom dice) => dice.Next(TornadoOdds) == 0;
+    /// <param name="ground">지금 선 자리의 지형 부류.</param>
+    public static bool Tornado(GameRandom dice, int ground) =>
+        ground == BeastGround && dice.Next(TornadoOdds) == 0;
 
     /// <summary>
     /// 회오리에 휩쓸린다 — <b>가릴 것도 고를 것도 없다</b>. 죽은 대원 수를 낸다.
