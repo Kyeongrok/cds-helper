@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -83,13 +83,17 @@ public sealed class DisevEditorDialog : Window
     public DisevEditorDialog()
     {
         Title = "발견 이벤트 편집기 (DISEV.CDS)";
-        Width = 1220;
-        Height = 800;
+        Width = 1280;
+        Height = 860;
+        MinWidth = 900;
+        MinHeight = 640;
+        // 바탕을 못 박는다 — 안 주면 창 테마에 딸려 글씨가 안 보이는 자리가 생긴다.
+        Background = System.Windows.Media.Brushes.White;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        Col("자리", nameof(OpRow.At), 70);
-        Col("바이트", nameof(OpRow.Hex), 330);
-        Col("풀이", nameof(OpRow.Text), 660);
+        Col("자리", nameof(OpRow.At), 60);
+        Col("바이트", nameof(OpRow.Hex), 300);
+        Col("풀이", nameof(OpRow.Text), 0);      // 남는 자리를 다 먹는다
 
         _open.Click += (_, _) => Pick();
         _applyChunk.Click += (_, _) => ApplyChunk();
@@ -173,12 +177,19 @@ public sealed class DisevEditorDialog : Window
         Margin = new Thickness(4, 4, 10, 2),
     };
 
+    /// <summary>
+    /// 명령 목록의 칸 하나. <paramref name="width"/> 가 0 이면 <b>남는 자리를 다 먹는다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 마지막 「풀이」 칸을 못 박아 두었더니 세 칸을 더한 폭이 창보다 넓어 오른쪽이
+    /// 잘려 나갔다. 남는 만큼 늘어나게 두어야 창 크기와 상관없이 다 보인다.
+    /// </remarks>
     private void Col(string header, string path, double width) =>
         _ops.Columns.Add(new DataGridTextColumn
         {
             Header = header,
             Binding = new Binding(path),
-            Width = new DataGridLength(width),
+            Width = width > 0 ? new DataGridLength(width) : new DataGridLength(1, DataGridLengthUnitType.Star),
         });
 
     /// <summary>명령 목록 한 줄.</summary>
