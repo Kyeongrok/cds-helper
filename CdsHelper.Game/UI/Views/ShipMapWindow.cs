@@ -2005,6 +2005,10 @@ public sealed class ShipMapWindow : Window
     private void CheckLandEvent()
     {
         var dice = new GameRandom(Environment.TickCount);
+
+        // 회오리가 먼저다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
+        if (LandEvents.Tornado(dice)) { Tornado(dice); return; }
+
         if (LandEvents.Meet(dice, []) is not { } met) return;
 
         _asking = true;
@@ -2033,6 +2037,37 @@ public sealed class ShipMapWindow : Window
             NoticeDialog.Show(this, end.Cornered ? "위험하다! 제독, 도망칠 수 없습니다!"
                                                  : "우와앗, 안되겠다, 제독");
             NoticeDialog.Show(this, $"대원 {end.Dead}명이 사망했습니다.");
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
+    /// <summary>
+    /// 회오리에 휩쓸린다 — 말 다섯이 잇달아 나고 대원이 서른 넘게 죽는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00427DB8</c> 이다. 짐승과 달리 <b>가릴 것도 고를 것도 없다</b> —
+    /// 말 셋이 나고, 그림이 한 번 돌고(<c>0x0048E820(13)</c>), 말 둘이 더 난 뒤에
+    /// 죽은 수를 알린다. 그림은 아직 안 뽑아서 말만 낸다.
+    /// </remarks>
+    private void Tornado(GameRandom dice)
+    {
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var face = MateFace();
+            var lines = LandEvents.TornadoLines;
+
+            for (int i = 0; i < 3; i++) ConfirmDialog.Tell(this, lines[i], face: face);
+
+            int dead = LandEvents.Strike(_game.Player, dice);
+
+            for (int i = 3; i < lines.Length; i++) ConfirmDialog.Tell(this, lines[i], face: face);
+            NoticeDialog.Show(this, $"대원 {dead}명이 사망했습니다.");
         }
         finally
         {
