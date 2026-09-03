@@ -81,12 +81,13 @@ def main():
             ARENA_W, ARENA_H, paint(art, palette, ARENA_W, ARENA_H, 74))
         print("duel-%s.png  %s" % (name, what))
 
-        # 눈금판은 마당 빛깔을 따라간다. 해전이 쓰는 갑판 것만 남긴다.
-        if name == "deck":
-            png(os.path.join(OUT, "duel-panel.png"),
-                PANEL_W, PANEL_H,
-                paint(panel, palette, PANEL_W, PANEL_H, 11, PANEL_SKIP))
-            print("duel-panel.png  눈금판")
+        # <b>눈금판은 제 팔레트가 없어 마당 것을 같이 쓴다.</b> 그래서 마당마다 빛깔이
+        # 다르다 — 갑판 것 하나만 뽑아 두면 초원 판에 갑판 빛깔이 얹혀 보랏빛이 된다.
+        # 마당마다 한 장씩 뽑는다.
+        png(os.path.join(OUT, "duel-panel-%s.png" % name),
+            PANEL_W, PANEL_H,
+            paint(panel, palette, PANEL_W, PANEL_H, 11, PANEL_SKIP))
+        print("duel-panel-%s.png  눈금판(%s 빛깔)" % (name, what))
 
 
 if __name__ == "__main__":

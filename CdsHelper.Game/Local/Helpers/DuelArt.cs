@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -10,7 +10,7 @@ namespace CdsHelper.Game.Local.Helpers;
 /// (<c>0x004AA7BB</c>). 위가 마당, 아래가 눈금판이다.
 /// <code>
 ///   duel-field · wood · sand · tavern · mosque · temple · deck   384x136  마당 일곱
-///   duel-panel                                                   384x112  눈금판
+///   duel-panel-<마당>                                             384x112  눈금판 일곱
 /// </code>
 /// 사람 그림만은 <see cref="FighterSprites"/> 가 CDS 에서 그때그때 푼다 — 벌이 아홉에
 /// 장이 서른셋이라 미리 뽑아 두면 파일이 삼백 장 가까이 된다.
@@ -37,7 +37,7 @@ public sealed class DuelArt
     /// 눈금판 위의 자리들. 왼쪽이 상대, 오른쪽이 나다.
     /// </summary>
     /// <remarks>
-    /// <c>asset/duel/duel-panel.png</c> 의 자리표 네모를 그대로 재었다.
+    /// <c>asset/duel/duel-panel-*.png</c> 의 자리표 네모를 그대로 재었다.
     /// <code>
     ///   초상   왼 (  7,  8) 84x96      오른 (293,  8) 84x96
     ///   고른 손 왼 (112, 24) 64x16     오른 (208, 24) 64x16
@@ -67,7 +67,18 @@ public sealed class DuelArt
     /// 문화권이 어느 마당을 쓰는지는 아직 못 짚어 <b>초원</b>을 밑값으로 둔다 —
     /// 화면에서 본 반란 판도 초원이었다.
     /// </remarks>
-    public const string Field = "duel-field", Deck = "duel-deck", Panel = "duel-panel";
+    public const string Field = "duel-field", Deck = "duel-deck";
+
+    /// <summary>
+    /// 그 마당에 딸린 눈금판.
+    /// </summary>
+    /// <remarks>
+    /// <b>눈금판은 제 팔레트가 없어 마당 것을 같이 쓴다.</b> 그래서 마당마다 빛깔이
+    /// 다르다 — 예전에는 갑판 것 하나만 뽑아 두어 초원 판에 갑판 빛깔이 얹혀 판이
+    /// 보랏빛으로 물들었다. 이제 마당마다 한 장씩 있다.
+    /// </remarks>
+    public static string PanelFor(string arena) =>
+        "duel-panel-" + (arena.StartsWith("duel-") ? arena[5..] : arena);
 
     private readonly string _dir;
 
@@ -82,7 +93,7 @@ public sealed class DuelArt
         LastError = "";
         string dir = Path.Combine(AppContext.BaseDirectory, ArtDirectory);
         if (!Directory.Exists(dir)) dir = ArtDirectory;         // 개발 중에는 소스 옆이다
-        if (!File.Exists(Path.Combine(dir, Panel + ".png")))
+        if (!File.Exists(Path.Combine(dir, PanelFor(Field) + ".png")))
         {
             LastError = $"{dir} 에 일기토 그림이 없습니다 (tools/extract_duel_art.py 로 뜹니다)";
             return null;
