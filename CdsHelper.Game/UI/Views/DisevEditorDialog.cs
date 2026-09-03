@@ -7,6 +7,8 @@ using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
 using Microsoft.Win32;
 
+using CdsHelper.Game.Engine.Disev;
+
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
@@ -65,6 +67,7 @@ public sealed class DisevEditorDialog : Window
     private readonly Button _revert = Bar("이 발견물 되돌리기");
     private readonly Button _revertAll = Bar("전부 되돌리기");
     private readonly Button _save = Bar("저장");
+    private readonly Button _bake = Bar("게임에 굽기");
     private readonly TextBlock _status = new() { Margin = new Thickness(10, 4, 10, 8), TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _header = new() { Margin = new Thickness(4, 6, 10, 2) };
 
@@ -100,8 +103,9 @@ public sealed class DisevEditorDialog : Window
         _applyOp.Click += (_, _) => ApplyOp();
         _wide.Click += (_, _) => { if (_textBox != null) _textBox.Text = DisevForm.ToWide(_textBox.Text); };
         _revert.Click += (_, _) => RevertOne();
-        _revertAll.Click += (_, _) => { _archive?.RevertAll(); RefreshDiscoveries(); ShowPart(); };
+        _revertAll.Click += (_, _) => RevertAll();
         _save.Click += (_, _) => Save();
+        _bake.Click += (_, _) => Bake();
 
         _discoveries.SelectionChanged += (_, _) => ShowPart();
         _chunks.SelectionChanged += (_, _) => ShowChunk();
@@ -111,7 +115,7 @@ public sealed class DisevEditorDialog : Window
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(10, 8, 10, 0),
-            Children = { _open, _applyChunk, _revert, _revertAll, _save },
+            Children = { _open, _applyChunk, _revert, _revertAll, _save, _bake },
         };
 
         var formBar = new StackPanel
@@ -250,6 +254,9 @@ public sealed class DisevEditorDialog : Window
             return;
         }
 
+        // 앞서 적어 둔 것을 그 위에 씌운다 — 앱을 껐다 켜도 고친 대본이 그대로 뜬다.
+        DisevEdits.ApplyTo(_archive);
+
         // 이름표는 같은 폴더의 EXE 에서 온다. 없어도 번호로는 다룰 수 있다.
         string dir = Path.GetDirectoryName(path) ?? "";
         _names = DiscoveryTable.Open(dir);
@@ -260,7 +267,8 @@ public sealed class DisevEditorDialog : Window
         if (_discoveries.Items.Count > 0) _discoveries.SelectedIndex = 0;
 
         string missing = _names == null ? " (CDS_95.EXE 를 못 읽어 이름 없이 번호로만 보입니다)" : "";
-        _status.Text = $"{path} — 파트 {_archive.PartCount}개{missing}";
+        string edited = DisevEdits.Count > 0 ? $" · 적어 둔 것 {DisevEdits.Count}개를 씌웠습니다" : "";
+        _status.Text = $"{path} — 파트 {_archive.PartCount}개{missing}{edited}";
     }
 
     private void RefreshDiscoveries()
@@ -612,11 +620,24 @@ public sealed class DisevEditorDialog : Window
     {
         if (_archive == null || SelectedPart < 0) return;
         _archive.Revert(SelectedPart);
+        DisevEdits.Reset(SelectedPart);      // 적어 둔 것에서도 지운다
         RefreshDiscoveries();
         ShowPart();
         _status.Text = $"파트 {SelectedPart} 를 원래대로 되돌렸습니다.";
     }
 
+    /// <summary>
+    /// 고친 것을 <b>따로 적어 둔다</b> — 원본 <c>DISEV.CDS</c> 는 안 건드린다.
+    /// </summary>
+    /// <remarks>
+    /// 이 집의 규칙이다. 원본 파일은 읽기만 하고 사람이 갈아 둔 것은
+    /// <c>%APPDATA%\CdsHelper\exe-tables\발견이벤트-고친것.json</c> 에 적는다
+    /// (<see cref="DisevEdits"/>) — 도시 문화권·왕국을 갈아 두는 것과 같은 결이고,
+    /// 게임 파일을 새로 깔아도 고친 것이 살아 있다.
+    ///
+    /// 적어 두면 <b>우리 놀이에는 곧장 든다</b> — 발견하러 가면 그 대본이 돈다
+    /// (<see cref="DisevRunner.Open"/> 이 열 때마다 씌운다).
+    /// </remarks>
     private void Save()
     {
         if (_archive == null) return;
@@ -626,15 +647,63 @@ public sealed class DisevEditorDialog : Window
             return;
         }
 
+        int wrote = 0;
+        for (int i = 0; i < _archive.PartCount; i++)
+        {
+            if (!_archive.IsModified(i)) continue;
+            DisevEdits.Set(i, _archive.Part(i));
+            wrote++;
+        }
+
+        _status.Text = $"{wrote}개를 적어 두었습니다 — 놀이에는 바로 듭니다. "
+                     + $"원본 게임에 먹이려면 「게임에 굽기」를 누르세요. "
+                     + $"(적어 둔 곳: {TableCache.PathFor("발견이벤트-고친것")})";
+    }
+
+    /// <summary>
+    /// 적어 둔 것을 <c>DISEV.CDS</c> 에 굽는다 — <b>원본 게임에 먹일 때만</b> 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// <c>CDS_95.EXE</c> 는 우리 JSON 을 모르니 게임으로 확인하려면 한 번 구워야 한다.
+    /// EXE 패치 창이 <c>custom_patches.json</c> 을 두고 「적용」할 때만 EXE 를 건드리는
+    /// 것과 같은 차례다.
+    ///
+    /// 굽기 전에 274개 파트를 되읽어 대 보고, 날짜 붙인 <c>.bak</c> 을 남긴 뒤에 덮는다
+    /// (<see cref="DisevArchive.Save"/>). 고친 파트는 <b>압축 없이</b> 들어가 파일이 커진다.
+    /// </remarks>
+    private void Bake()
+    {
+        if (_archive == null) return;
+        if (!_archive.HasChanges)
+        {
+            _status.Text = "고친 것이 없습니다.";
+            return;
+        }
+
+        if (!ConfirmDialog.Ask(this,
+                "게임 폴더의 DISEV.CDS 를 다시 씁니다. 원본은 .bak 으로 남깁니다. 좋습니까?",
+                "게임에 굽기"))
+            return;
+
         string? backup = _archive.Save();
         if (backup == null)
         {
-            _status.Text = $"저장하지 못했습니다 — {DisevArchive.LastError}";
+            _status.Text = $"굽지 못했습니다 — {DisevArchive.LastError}";
             return;
         }
 
         RefreshDiscoveries();
         ShowPart();
-        _status.Text = $"저장했습니다. 백업: {Path.GetFileName(backup)}";
+        _status.Text = $"DISEV.CDS 에 구웠습니다. 백업: {Path.GetFileName(backup)}";
+    }
+
+    /// <summary>이 발견물의 고친 것을 걷는다 — 적어 둔 것에서도 지운다.</summary>
+    private void RevertAll()
+    {
+        _archive?.RevertAll();
+        DisevEdits.ResetAll();
+        RefreshDiscoveries();
+        ShowPart();
+        _status.Text = "고친 것을 몽땅 걷었습니다.";
     }
 }
