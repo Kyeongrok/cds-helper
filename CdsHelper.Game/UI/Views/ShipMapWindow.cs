@@ -2578,6 +2578,7 @@ public sealed class ShipMapWindow : Window
         _game.Bgm.Play(track);
         SetInCity(true);          // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
         _game.Player.EnterCity(city, name);
+        PassPortDays();           // 들어가는 데 열흘
         // 새 판은 자택 안에서 시작한다 — 게임도 판을 열면 자택 명령 창이 이미 떠 있다.
         if (enterHome) dialog.EnterHome();
         dialog.Closed += (_, _) =>
@@ -2590,10 +2591,26 @@ public sealed class ShipMapWindow : Window
             _host.Paused = false;
             _asking = false;
             _game.Player.EnterCity(-1);
+            PassPortDays();          // 나오는 데도 열흘
             InfoMenu.Close();        // 도시를 나오면 도시정보 창도 같이 걷는다
         };
         return true;
     }
+
+    /// <summary>마을에 들고 나는 데 드는 날수.</summary>
+    /// <remarks>
+    /// 게임은 마을에 들 때와 날 때 <b>열흘씩</b> 보낸다 — <c>0x004A2AD0(10, 2)</c> 을
+    /// 부르는 자리가 도시 쪽 <c>0x0046875A</c>·<c>0x00468786</c> 과 항구 쪽
+    /// <c>0x00477326</c> 에 나란히 있다.
+    ///
+    /// <b>이 스무 날이 빠져 있어 우리 놀이가 훨씬 빨랐다.</b> 세비야에서 카르낙 거석군을
+    /// 왕복하면 원본이 스무아흐레인데, 그 가운데 스무 날이 들고 나는 값이고 실제로 걷는
+    /// 것은 아흐레쯤이다. 우리는 걷는 날만 세고 있었으니 절반이 될 수밖에 없었다.
+    /// </remarks>
+    private const int PortDays = 10;
+
+    /// <summary>마을에 들거나 날 때 열흘을 보낸다.</summary>
+    private void PassPortDays() => _game.Player.AdvanceDays(PortDays);
 
     /// <summary>
     /// 게임 원본 화면 조각과 비트맵 글꼴을 한 번만 읽어 <see cref="GameUi"/> 에 넣는다.
