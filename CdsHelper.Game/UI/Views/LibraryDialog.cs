@@ -44,7 +44,7 @@ public sealed class LibraryDialog : Window
     private readonly Func<int, string> _hintName;
     private readonly Canvas _layer = new();
     private readonly Border _tag;
-    private readonly TextBlock _tagText;
+    private readonly GameUi.GameLabel _tagText;
     private readonly int _scale;
 
     /// <summary>
@@ -98,11 +98,11 @@ public sealed class LibraryDialog : Window
             Children = { shelf, _layer },
         };
 
-        _tagText = new TextBlock
+        // 책 이름표도 <b>게임 글꼴</b>이다 — 밝은 나무 바탕이라 검은 글씨다.
+        _tagText = new GameUi.GameLabel(GameFont.BlackColor)
         {
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = 13,
+            Bold = true,
+            FallbackBrush = Brushes.Black,
         };
         _tag = new Border
         {
@@ -130,26 +130,7 @@ public sealed class LibraryDialog : Window
         }
 
         // 게임에는 제목 띠가 없다 — 양피지 오른쪽 위에 닫기 조각만 얹혀 있다.
-        var close = new Border
-        {
-            Width = CloseSize * _scale,
-            Height = CloseSize * _scale,
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = "×",
-                FontSize = 11 * _scale,
-                FontWeight = FontWeights.Bold,
-                Foreground = Brushes.Black,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
-        };
-        // 누른 자리에서 바로 닫는다 — 창 끌기가 ButtonUp 을 삼킨다.
-        close.MouseLeftButtonDown += (_, e) => { e.Handled = true; Close(); };
+        var close = GameUi.CloseBox(Close, _scale);
         Canvas.SetLeft(close, (BookShelf.ShelfWidth - CloseSize - CloseInset) * _scale);
         Canvas.SetTop(close, CloseInset * _scale);
         Panel.SetZIndex(close, 30);
