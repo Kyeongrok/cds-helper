@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using CdsHelper.Support.Local.Models;
 
+using CdsHelper.Game.Local.Helpers;
+
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
@@ -26,7 +28,7 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class ShipNameDialog : Window
 {
-    private readonly TextBlock _name;
+    private readonly GameUi.GameLabel _name;
     private readonly List<Border> _rows = [];
     private string? _result;
 
@@ -43,15 +45,9 @@ public sealed class ShipNameDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _name = new TextBlock
-        {
-            Text = current,
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            FontSize = 17,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 3, 8, 3),
-        };
+        _name = Ink(current);
+        _name.VerticalAlignment = VerticalAlignment.Center;
+        _name.Margin = new Thickness(8, 3, 8, 3);
 
         // 오른쪽 끝의 작은 단추 — 원본 계산기 아이콘이다.
         var pad = GameUi.CalcButton(TypeIt, 18);
@@ -71,13 +67,7 @@ public sealed class ShipNameDialog : Window
                 Background = Brushes.Transparent,
                 Padding = new Thickness(10, 1, 6, 1),
                 Cursor = Cursors.Hand,
-                Child = new TextBlock
-                {
-                    Text = name,
-                    Foreground = Brushes.Black,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 16,
-                },
+                Child = Ink(name),
             };
             row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Choose(pick); };
             _rows.Add(row);
@@ -177,6 +167,21 @@ public sealed class ShipNameDialog : Window
         _result = null;
         Close();
     }
+
+    /// <summary>
+    /// 입력 칸과 자판 글자. <b>게임 글꼴</b>로 찍는다 — 바탕이 밝아 검은 글씨다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 글꼴을 못 읽었을 때만 윈도 글꼴로 물러선다(<see cref="GameUi.GameLabel"/>).
+    /// </remarks>
+    private static GameUi.GameLabel Ink(string text) => new(GameFont.BlackColor)
+    {
+        Text = text,
+        Bold = true,
+        FallbackBrush = System.Windows.Media.Brushes.Black,
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
 
     /// <summary>
     /// 창을 띄우고 정한 이름을 낸다. 중단했거나 이름이 비었으면 null.
