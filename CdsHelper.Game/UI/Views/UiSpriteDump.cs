@@ -22,6 +22,14 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal static class UiSpriteDump
 {
+    /// <summary>
+    /// 폭을 굳이 안 재고 아는 대로 박아 두는 파트. <see cref="BestWidth"/> 의 행 간 상관은
+    /// 후보 폭이 둘 다 실제 길이를 나누어떨어뜨리면 헷갈릴 수 있다 — 파트3(아이콘)이 그래서
+    /// 한때 32 로 잘못 잡혔다(진짜는 16). <see cref="UiSprites.IconPart"/> 문서에 그 사연이
+    /// 있다.
+    /// </summary>
+    private static readonly Dictionary<int, int> KnownWidths = new() { [3] = 16 };
+
     /// <summary>파트 4 안에 든 상자들의 자리와 높이, 그리고 붙일 이름.</summary>
     private static readonly (int Y, int H, string Name)[] TitleBoxes =
     [
@@ -51,7 +59,7 @@ internal static class UiSpriteDump
             var d = archive.Decode(i);
             if (d == null || d.Length < 64) continue;
 
-            int w = BestWidth(d);
+            int w = KnownWidths.TryGetValue(i, out var known) ? known : BestWidth(d);
             if (w <= 0) continue;
             Write(d, w, d.Length / w, 0, Path.Combine(outDir, $"misc-{i:D2}.png"));
             made++;

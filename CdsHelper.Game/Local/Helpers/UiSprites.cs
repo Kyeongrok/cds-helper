@@ -120,26 +120,46 @@ public sealed class UiSprites
     private readonly byte[]? _icons;
     private readonly byte[]? _digits;
 
-    private UiSprites(byte[]? band, uint[][]? bandPieces, byte[]? icons, byte[]? digits)
+    /// <summary>asset/ui/misc-03.png (16x96, BGRA). 있으면 이것으로 아이콘을 낸다.</summary>
+    private readonly uint[]? _iconsBgra;
+
+    /// <summary>
+    /// asset/ui/misc-07.png (24x240, BGRA) — 배경(<see cref="DigitClear"/> 색)은 이미
+    /// 알파 0 으로 지워 뒀다. 있으면 이것으로 숫자를 낸다.
+    /// </summary>
+    private readonly uint[]? _digitsBgra;
+
+    private UiSprites(byte[]? band, uint[][]? bandPieces,
+                      byte[]? icons, uint[]? iconsBgra, byte[]? digits, uint[]? digitsBgra)
     {
         _band = band;
         _bandPieces = bandPieces;
         _icons = icons;
+        _iconsBgra = iconsBgra;
         _digits = digits;
+        _digitsBgra = digitsBgra;
     }
 
     /// <summary>숫자 조각을 읽었는지.</summary>
-    public bool HasDigits => _digits != null;
+    public bool HasDigits => _digits != null || _digitsBgra != null;
 
     /// <summary>
     /// 숫자 한 장을 BGRA 로 꺼낸다(비침은 알파 0). 조각이 없거나 0~9 밖이면 null.
     /// </summary>
     public uint[]? Digit(int digit)
     {
-        if (_digits == null || digit < 0 || digit >= DigitCount) return null;
+        if (digit < 0 || digit >= DigitCount) return null;
 
         var bgra = new uint[DigitWidth * DigitHeight];
         int at = digit * DigitWidth * DigitHeight;
+
+        if (_digitsBgra != null)
+        {
+            Array.Copy(_digitsBgra, at, bgra, 0, bgra.Length);
+            return bgra;
+        }
+
+        if (_digits == null) return null;
         for (int k = 0; k < bgra.Length; k++)
         {
             byte ix = _digits[at + k];
@@ -161,9 +181,9 @@ public sealed class UiSprites
     private static readonly string[] PieceFileNames = ["left", "mid", "right"];
 
     /// <summary>
-    /// 띠 조각을 연다. <b>asset/ui/band 를 먼저 본다</b> — 게임 폴더가 없어도 앱에 실려 있고,
-    /// 손으로 다듬은 그림도 그대로 반영된다. 거기 조각이 없거나 깨졌을 때만
-    /// 게임 폴더의 MISC.CDS 로 대신한다. 아이콘·숫자는 asset 에 조각이 없어 늘 MISC.CDS 다.
+    /// 띠·아이콘·숫자 조각을 연다. <b>asset/ui 를 먼저 본다</b> — 게임 폴더가 없어도
+    /// 앱에 실려 있고, 손으로 다듬은 그림도 그대로 반영된다. 거기 조각이 없거나 깨졌을
+    /// 때만 게임 폴더의 MISC.CDS 로 대신한다.
     /// </summary>
     /// <param name="gameDirectory">게임 폴더. 없어도 asset 조각만으로 열릴 수 있다.</param>
     public static UiSprites? Open(string gameDirectory)
@@ -171,6 +191,8 @@ public sealed class UiSprites
         LastError = "";
 
         var bandPieces = LoadBandAsset();
+        var iconsBgra = LoadPiecePng(AssetPath("misc-03.png"), IconWidth, IconHeight * IconCount);
+        var digitsBgra = LoadDigitAsset();
 
         byte[]? cdsBand = null;
         byte[]? icons = null;
@@ -189,13 +211,19 @@ public sealed class UiSprites
                     if (part != null && part.Length >= StyleBytes * StyleCount) cdsBand = part;
                 }
 
-                // 아이콘은 없어도 창은 열린다 — 그때는 글자 화살표로 물러선다.
-                icons = archive.PartCount > IconPart ? archive.Decode(IconPart) : null;
-                if (icons != null && icons.Length < IconWidth * IconHeight * IconCount) icons = null;
+                // 아이콘도 asset 을 못 읽었을 때만 — 없어도 창은 열린다(글자 화살표로 물러선다).
+                if (iconsBgra == null)
+                {
+                    icons = archive.PartCount > IconPart ? archive.Decode(IconPart) : null;
+                    if (icons != null && icons.Length < IconWidth * IconHeight * IconCount) icons = null;
+                }
 
-                // 숫자 조각도 덤이다 — 없으면 계산기가 윈도 글꼴로 물러선다.
-                digits = archive.PartCount > DigitPart ? archive.Decode(DigitPart) : null;
-                if (digits != null && digits.Length < DigitWidth * DigitHeight * DigitCount) digits = null;
+                // 숫자도 마찬가지 — 없으면 계산기가 윈도 글꼴로 물러선다.
+                if (digitsBgra == null)
+                {
+                    digits = archive.PartCount > DigitPart ? archive.Decode(DigitPart) : null;
+                    if (digits != null && digits.Length < DigitWidth * DigitHeight * DigitCount) digits = null;
+                }
             }
         }
 
@@ -205,7 +233,30 @@ public sealed class UiSprites
             return null;
         }
 
-        return new UiSprites(cdsBand, bandPieces, icons, digits);
+        return new UiSprites(cdsBand, bandPieces, icons, iconsBgra, digits, digitsBgra);
+    }
+
+    /// <summary><c>asset/ui</c> 밑의 파일 자리.</summary>
+    private static string AssetPath(string fileName) =>
+        Path.Combine(AppContext.BaseDirectory, "asset", "ui", fileName);
+
+    /// <summary>
+    /// asset/ui/misc-07.png 를 읽고 배경(<see cref="DigitClear"/> 색)을 알파 0 으로 지운다.
+    /// PNG 는 CDS 원본과 달리 배경도 불투명하게 뜬 것이라 그대로 쓰면 숫자마다 검은 상자가
+    /// 진다 — CDS 경로가 색인 <see cref="DigitClear"/> 를 건너뛰는 것과 같은 뜻으로,
+    /// 그 색과 정확히 같은 픽셀만 지운다.
+    /// </summary>
+    private static uint[]? LoadDigitAsset()
+    {
+        var pixels = LoadPiecePng(AssetPath("misc-07.png"), DigitWidth, DigitHeight * DigitCount);
+        if (pixels == null) return null;
+
+        int ci = DigitClear * 3;
+        uint clear = 0xFF000000u | (uint)(GamePalette.Rgb[ci] << 16
+                                         | GamePalette.Rgb[ci + 1] << 8 | GamePalette.Rgb[ci + 2]);
+        for (int i = 0; i < pixels.Length; i++)
+            if (pixels[i] == clear) pixels[i] = 0;
+        return pixels;
     }
 
     /// <summary>
@@ -214,12 +265,11 @@ public sealed class UiSprites
     /// </summary>
     private static uint[][]? LoadBandAsset()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "asset", "ui", "band");
         var pieces = new uint[StyleCount * 3][];
         for (int s = 0; s < StyleCount; s++)
             for (int k = 0; k < 3; k++)
             {
-                var file = Path.Combine(dir, $"{StyleFileNames[s]}-{PieceFileNames[k]}.png");
+                var file = AssetPath($"band/{StyleFileNames[s]}-{PieceFileNames[k]}.png");
                 var px = LoadPiecePng(file, PieceWidth[k], BandHeight);
                 if (px == null) return null;
                 pieces[s * 3 + k] = px;
@@ -315,10 +365,18 @@ public sealed class UiSprites
     /// <param name="index"><see cref="IconUp"/> · <see cref="IconCalc"/> 따위.</param>
     public uint[]? Icon(int index)
     {
-        if (_icons == null || index < 0 || index >= IconCount) return null;
+        if (index < 0 || index >= IconCount) return null;
 
         var bgra = new uint[IconWidth * IconHeight];
         int at = index * IconWidth * IconHeight;
+
+        if (_iconsBgra != null)
+        {
+            Array.Copy(_iconsBgra, at, bgra, 0, bgra.Length);
+            return bgra;
+        }
+
+        if (_icons == null) return null;
         for (int k = 0; k < bgra.Length; k++)
         {
             int i = _icons[at + k] * 3;
