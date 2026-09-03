@@ -82,21 +82,8 @@ public sealed class CityInfoDialog : Window
         head.Children.Add(Text(cityName, 16));
         head.Children.Add(Text(nation?.Name ?? "", 16));
 
-        var close = new Border
-        {
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(5, 0, 5, 0),
-            Cursor = Cursors.Hand,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 12, 12, 0),
-            ToolTip = "닫기",
-            Child = new TextBlock { Text = "✕", Foreground = Brushes.Black, FontWeight = FontWeights.Bold },
-        };
-        close.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        close.MouseLeftButtonUp += (_, e) => { e.Handled = true; Close(); };
+        // 닫기는 게임 조각으로 그린 공용 것이다 — 창마다 손으로 짓지 않는다.
+        var close = GameUi.CloseBox(Close);
 
         var top = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(close, Dock.Right);
@@ -165,12 +152,18 @@ public sealed class CityInfoDialog : Window
         return line;
     }
 
-    private static TextBlock Text(string text, double size) => new()
+    /// <summary>
+    /// 판 위의 글씨. <b>게임 글꼴</b>로 찍는다 — 바탕이 밝아 검은 글씨다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 글꼴은 크기가 한 가지라 <paramref name="size"/> 는 <b>물러설 때만</b> 든다 —
+    /// 글꼴을 못 읽었을 때의 WPF 글자 크기다.
+    /// </remarks>
+    private static GameUi.GameLabel Text(string text, double size) => new(GameFont.BlackColor)
     {
         Text = text,
-        Foreground = Ink,
-        FontSize = size,
-        FontWeight = FontWeights.Bold,
+        Bold = true,
+        FallbackBrush = Ink,
         VerticalAlignment = VerticalAlignment.Center,
     };
 

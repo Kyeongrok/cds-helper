@@ -68,21 +68,11 @@ public sealed class GoodsInfoDialog : Window
         rows.Children.Add(Row("분류", category));
         rows.Children.Add(Row("개체중량", $"{goods.Weight}"));
 
-        var close = new Border
-        {
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(5, 0, 5, 0),
-            Cursor = Cursors.Hand,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 12, 12, 0),
-            ToolTip = "닫기",
-            Child = new TextBlock { Text = "✕", Foreground = Brushes.Black, FontWeight = FontWeights.Bold },
-        };
-        close.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        close.MouseLeftButtonUp += (_, e) => { e.Handled = true; Close(); };
+        // 닫기는 게임 조각으로 그린 공용 것이다 — 창마다 손으로 짓지 않는다.
+        var close = GameUi.CloseBox(Close);
+        close.HorizontalAlignment = HorizontalAlignment.Right;
+        close.VerticalAlignment = VerticalAlignment.Top;
+        close.Margin = new Thickness(0, 12, 12, 0);
 
         var cancel = GameUi.PushButton("취소", Close, 78);
         cancel.HorizontalAlignment = HorizontalAlignment.Right;
@@ -109,27 +99,27 @@ public sealed class GoodsInfoDialog : Window
     private static FrameworkElement Row(string name, string value)
     {
         var line = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 4) };
-        var label = new TextBlock
-        {
-            Text = name,
-            Foreground = Ink,
-            FontSize = 15,
-            FontWeight = FontWeights.Bold,
-            Width = value.Length > 0 ? 80 : double.NaN,
-        };
+        var label = Label(name, value.Length > 0 ? 80 : double.NaN);
         DockPanel.SetDock(label, Dock.Left);
         line.Children.Add(label);
 
-        if (value.Length > 0)
-            line.Children.Add(new TextBlock
-            {
-                Text = value,
-                Foreground = Ink,
-                FontSize = 15,
-                FontWeight = FontWeights.Bold,
-            });
+        if (value.Length > 0) line.Children.Add(Label(value));
         return line;
     }
+
+    /// <summary>
+    /// 판 위의 글씨. <b>게임 글꼴</b>로 찍는다 — 바탕이 밝아 검은 글씨다.
+    /// </summary>
+    private static GameUi.GameLabel Label(string text, double width = double.NaN) =>
+        new(GameFont.BlackColor)
+        {
+            Text = text,
+            Bold = true,
+            FallbackBrush = Ink,
+            Width = width,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
 
     /// <summary>교역품 하나를 보여 준다.</summary>
     public static void Show(Window owner, GoodsTable.Goods goods, string category, ItemArt? art) =>

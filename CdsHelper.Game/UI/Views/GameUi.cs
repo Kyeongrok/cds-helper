@@ -651,6 +651,38 @@ internal static class GameUi
     /// <summary>닫기 단추 한 변. 게임 것도 띠(24) 안에 위아래 4씩을 남기고 이만큼이다.</summary>
     public const int CloseBoxSize = 16;
 
+    /// <summary>게임 글꼴의 한 칸 — 한글 한 자가 두 칸이다.</summary>
+    public const double CellWidth = 8;
+
+    /// <summary>
+    /// 글을 그 폭에 맞춰 줄로 끊는다. 게임 글꼴은 한 칸에 딱 떨어지므로 칸으로 센다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="GameLabel"/> 은 한 줄을 그림 한 장으로 찍는다 — 스스로 접지 않으므로
+    /// 여러 줄짜리 글은 부르는 쪽이 이렇게 끊어 한 줄씩 쌓아야 한다.
+    /// 이미 들어 있는 줄바꿈은 그 자리에서 끊는다.
+    /// </remarks>
+    public static List<string> Wrap(string text, double width)
+    {
+        var lines = new List<string>();
+        var line = new System.Text.StringBuilder();
+        double used = 0;
+
+        foreach (char c in text)
+        {
+            if (c == '\n') { lines.Add(line.ToString()); line.Clear(); used = 0; continue; }
+            if (c == '\r') continue;
+
+            double w = c < 0x80 ? CellWidth : CellWidth * 2;
+            if (used + w > width) { lines.Add(line.ToString()); line.Clear(); used = 0; }
+            line.Append(c);
+            used += w;
+        }
+        if (line.Length > 0) lines.Add(line.ToString());
+
+        return lines.Count > 0 ? lines : [text];
+    }
+
     /// <summary>
     /// 게임 창 오른쪽 위의 닫기(X) 단추. <b>MISC.CDS 에 그런 조각은 없다</b> —
     /// 게임이 그때그때 그리는 상자다. 그래서 여기서도 점을 찍어 짓는다.

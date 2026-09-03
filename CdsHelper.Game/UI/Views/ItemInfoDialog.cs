@@ -75,16 +75,11 @@ public sealed class ItemInfoDialog : Window
                 SnapsToDevicePixels = true,
             };
 
-        var text = new TextBlock
-        {
-            Text = description.Length > 0 ? description : "(설명이 없다)",
-            Foreground = Ink,
-            FontSize = 15,
-            FontWeight = FontWeights.Bold,
-            TextWrapping = TextWrapping.Wrap,
-            LineHeight = 24,
-            LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-        };
+        // 게임 글꼴은 한 줄을 그림 한 장으로 찍는다 — 접는 것은 이쪽 몫이다.
+        var text = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
+        foreach (string line in GameUi.Wrap(
+                     description.Length > 0 ? description : "(설명이 없다)", TextWidth))
+            text.Children.Add(Label(line));
 
         var body = new DockPanel { LastChildFill = true, Margin = new Thickness(14, 12, 14, 8) };
         DockPanel.SetDock(picture, Dock.Left);
@@ -110,19 +105,9 @@ public sealed class ItemInfoDialog : Window
     {
         var row = new DockPanel { LastChildFill = true, Margin = new Thickness(12, 8, 8, 4) };
 
-        var close = new Border
-        {
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(5, 0, 5, 0),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "닫기",
-            Child = new TextBlock { Text = "✕", Foreground = Brushes.Black, FontWeight = FontWeights.Bold },
-        };
-        close.MouseLeftButtonDown += (_, e) => e.Handled = true;   // 제목 줄 끌기에 안 먹히게
-        close.MouseLeftButtonUp += (_, e) => { e.Handled = true; Close(); };
+        // 닫기는 게임 조각으로 그린 공용 것이다 — 창마다 손으로 짓지 않는다.
+        var close = GameUi.CloseBox(Close);
+        close.VerticalAlignment = VerticalAlignment.Center;
         DockPanel.SetDock(close, Dock.Right);
         row.Children.Add(close);
 
@@ -140,12 +125,18 @@ public sealed class ItemInfoDialog : Window
         return row;
     }
 
-    private static TextBlock Label(string text) => new()
+    /// <summary>설명 글이 놓이는 자리의 폭(점). 그림 자리를 뺀 나머지다.</summary>
+    private const double TextWidth = 560 - ItemArt.Width - 60;
+
+    /// <summary>
+    /// 판 위의 글씨. <b>게임 글꼴</b>로 찍는다 — 바탕이 밝아 검은 글씨다.
+    /// </summary>
+    private static GameUi.GameLabel Label(string text) => new(GameFont.BlackColor)
     {
         Text = text,
-        Foreground = Ink,
-        FontSize = 15,
-        FontWeight = FontWeights.Bold,
+        Bold = true,
+        FallbackBrush = Ink,
+        HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
