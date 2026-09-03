@@ -105,8 +105,32 @@ public sealed class DuelDialog : Window
     private readonly int[] _wasMine = new int[Duel.Lines];
     private readonly int[] _wasFoe = new int[Duel.Lines];
 
-    /// <summary>명령 창이 앉는 자리 — 오른쪽 초상 위다.</summary>
+    /// <summary>명령 창이 앉는 자리 — 마당 한가운데다.</summary>
     private readonly Border _keyBox = new();
+
+    /// <summary>명령 창이 마당 위에서 내려앉는 깊이(점).</summary>
+    private const double KeyBoxTop = 28;
+
+    /// <summary>
+    /// 말풍선 자리 — 두 초상 사이다. 화면에서 재어 맞췄다.
+    /// </summary>
+    private const double BubbleX = 120, BubbleY = 12, BubbleW = 180, BubbleH = 76;
+
+    /// <summary>상대가 하는 말이 적히는 흰 말풍선. 할 말이 없으면 안 보인다.</summary>
+    private readonly StackPanel _bubbleText = new()
+    {
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(10, 4, 8, 4),
+    };
+
+    private readonly Border _bubble = new()
+    {
+        Background = System.Windows.Media.Brushes.White,
+        BorderBrush = System.Windows.Media.Brushes.Black,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(10),
+        Visibility = Visibility.Collapsed,
+    };
 
     private DuelDialog(Duel duel, GameRandom dice, uint[]? face, uint[]? myFace,
                        FighterSprites? art, int foeSet, DuelArt? board, string arena)
@@ -159,19 +183,27 @@ public sealed class DuelDialog : Window
                 DuelArt.Slots.BarW, DuelArt.Slots.BarH);
         }
 
-        // 손을 고를 때만 뜨는 작은 명령 창 — 오른쪽 초상 자리를 덮는다(게임도 그렇다).
+        // 상대가 하는 말은 <b>눈금판 위의 흰 말풍선</b>이다 — 두 초상 사이를 채운다.
+        Put(canvas, _bubble, BubbleX, Top + BubbleY, BubbleW, BubbleH);
+
+        // 판 밑에는 아무것도 안 붙인다. 게임 판은 384x248 이 전부이고, 상대의 말은
+        // 제목 「일기토」가 붙은 <b>제 창</b>으로 따로 난다. 어느 판인지(맞부딪힘·공격·
+        // 방어)는 명령 창의 줄 이름이 그대로 일러 준다.
+        // 손을 고를 때만 뜨는 작은 명령 창. 마당 <b>한가운데</b>에 뜬다(게임도 그 자리다).
         _keyBox.Background = GameUi.MenuBack;
         _keyBox.BorderBrush = GameUi.Edge;
         _keyBox.BorderThickness = new Thickness(1);
         _keyBox.Padding = new Thickness(3);
         _keyBox.Child = _keys;
-        Put(canvas, _keyBox, DuelArt.Slots.MyPortraitX - 4, Top + 2);
+        _keyBox.HorizontalAlignment = HorizontalAlignment.Center;
+        _keyBox.VerticalAlignment = VerticalAlignment.Top;
+        _keyBox.Margin = new Thickness(0, KeyBoxTop, 0, 0);
 
-        // 판 밑에는 아무것도 안 붙인다. 게임 판은 384x248 이 전부이고, 상대의 말은
-        // 제목 「일기토」가 붙은 <b>제 창</b>으로 따로 난다. 어느 판인지(맞부딪힘·공격·
-        // 방어)는 명령 창의 줄 이름이 그대로 일러 준다.
-        var page = new StackPanel { Width = DuelArt.BoardWidth };
+        // 판 위에 겹쳐 놓아야 판 밖으로 삐져나가지 않는다 — 예전에는 자리를 못 박아
+        // 오른쪽으로 벗어났다.
+        var page = new Grid { Width = DuelArt.BoardWidth, Height = DuelArt.BoardHeight };
         page.Children.Add(canvas);
+        page.Children.Add(_keyBox);
 
         Content = new Border
         {
@@ -259,6 +291,36 @@ public sealed class DuelDialog : Window
     };
 
     private static Border Framed(UIElement inner) => new() { Background = Slot, Child = inner };
+
+    /// <summary>
+    /// 말풍선에 상대의 말을 적는다. 빈 글이면 풍선을 걷는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이 말을 <b>판 위 흰 말풍선</b>으로 낸다 — 제목 붙은 딴 창이 아니다.
+    /// 글꼴도 판과 같은 게임 글꼴이고 바탕이 희어 검은 글씨다.
+    /// </remarks>
+    private void Speak(string text)
+    {
+        _bubbleText.Children.Clear();
+
+        if (text.Length == 0)
+        {
+            _bubble.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        foreach (string line in GameUi.Wrap(text, BubbleW - 20))
+            _bubbleText.Children.Add(new GameUi.GameLabel(GameFont.BlackColor)
+            {
+                Text = line,
+                Bold = true,
+                FallbackBrush = System.Windows.Media.Brushes.Black,
+                HorizontalAlignment = HorizontalAlignment.Left,
+            });
+
+        _bubble.Child = _bubbleText;
+        _bubble.Visibility = Visibility.Visible;
+    }
 
     /// <summary>그 판에 고른 손의 이름 — 맞부딪힘·공격이면 치는 줄, 방어면 막는 손이다.</summary>
     private static string MoveName(Duel.Phase was, int move)
@@ -370,6 +432,7 @@ public sealed class DuelDialog : Window
         // 손을 고르고 나면 단추를 걷는다 — 그림이 도는 동안은 아무것도 못 누른다.
         _keys.Children.Clear();
         _keyBox.Visibility = Visibility.Collapsed;
+        Speak("");                 // 새 판이 시작되면 앞 말은 걷는다
         _focus = null;
 
         // 두 사람이 고른 손을 가운데 홈에 적는다.
@@ -411,10 +474,8 @@ public sealed class DuelDialog : Window
         Refresh();
         Keep();          // 빨강은 이번 판 것만 — 다음 판 기준을 여기서 갈무리한다
 
-        // 상대의 말은 제목 「일기토」가 붙은 창으로 난다 — 게임도 그 자리다.
-        ConfirmDialog.Tell(this,
-            Line(turn) + Environment.NewLine + Environment.NewLine + Taunt(turn),
-            "일기토", _face);
+        // 상대의 말은 판 위 흰 말풍선으로 난다 — 게임도 그 자리다.
+        Speak(Taunt(turn));
 
         if (_duel.Over)
         {
@@ -433,29 +494,9 @@ public sealed class DuelDialog : Window
         Rebuild();
     }
 
-    /// <summary>이번 판에 무엇이 오갔는지 한 줄로 적는다.</summary>
-    private static string Line(in Duel.Turn turn)
-    {
-        string what = turn.Was == Duel.Phase.Guard
-            ? $"{Duel.Guards[turn.MyMove]} — 상대의 {Duel.Attacks[turn.FoeMove]}"
-            : turn.Was == Duel.Phase.Clash
-                ? $"{Duel.Attacks[turn.MyMove]} — 상대도 {Duel.Attacks[turn.FoeMove]}"
-                : $"{(turn.Finisher ? Duel.Finishers : Duel.Attacks)[turn.MyMove]}"
-                  + $" — 상대는 {Duel.Guards[turn.FoeMove]}";
-
-        string how = turn.Blow switch
-        {
-            Duel.Blow.Blocked => "막혔다.",
-            Duel.Blow.MeHit => $"{Duel.Parts[turn.Line]}단을 맞았다! {turn.Hurt}",
-            Duel.Blow.MeGrazed => $"{Duel.Parts[turn.Line]}단을 스쳤다. {turn.Hurt}",
-            Duel.Blow.FoeGrazed => $"{Duel.Parts[turn.Line]}단을 스쳤다. {turn.Hurt}",
-            _ => $"{Duel.Parts[turn.Line]}단에 꽂혔다! {turn.Hurt}",
-        };
-
-        if (turn.Critical) how = "회심의 일격! " + how;
-        if (turn.Finisher && turn.Blow != Duel.Blow.Blocked) how = "필살! " + how;
-        return what + "\n" + how;
-    }
+    // 「이번 판에 무엇이 오갔는지」를 한 줄로 적던 손은 걷었다. 게임은 그런 줄을 안
+    // 낸다 — 오간 손은 눈금판 가운데 라벨 둘이, 맞고 안 맞고는 그림과 체력 막대가
+    // 일러 준다. 말풍선에는 상대의 <b>비아냥</b>만 뜬다.
 
     /// <summary>상대가 하는 말. 어느 줄에서 고를지는 게임과 같다(<c>0x004A6E77</c>).</summary>
     private string Taunt(in Duel.Turn turn)
