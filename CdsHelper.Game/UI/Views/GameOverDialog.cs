@@ -56,17 +56,16 @@ public sealed class GameOverDialog : Window
 
         if (Picture(stills, picture) is { } art) stack.Children.Add(art);
 
-        stack.Children.Add(new Border
-        {
-            Margin = new Thickness(0, 24, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Child = Ask(),
-        });
-
         page.Children.Add(stack);
         Content = page;
 
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { _again = false; Close(); } };
+        // 그림이 다 깔린 뒤에 물음창을 그 위로 얹는다. 물음은 <b>여느 물음창</b>이다 —
+        // 게임도 알림과 물음이 한 함수라(0x00469060) 여기만 딴 상자를 지을 까닭이 없다.
+        Loaded += (_, _) =>
+        {
+            _again = ConfirmDialog.Ask(this, "게임을 다시 시작하겠습니까?", "CONTINUE?");
+            Close();
+        };
     }
 
     /// <summary>벽지 무늬 — 타이틀 화면 것을 그대로 깐다.</summary>
@@ -92,44 +91,6 @@ public sealed class GameOverDialog : Window
             Padding = new Thickness(6),
             HorizontalAlignment = HorizontalAlignment.Center,
             Child = image,
-        };
-    }
-
-    /// <summary>「CONTINUE?」 물음 — 제목 띠에 영문, 아래 한 줄과 YES·NO 다.</summary>
-    private UIElement Ask()
-    {
-        var focus = new GameUi.FocusGroup();
-
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 12),
-        };
-        buttons.Children.Add(focus.Add("YES", () => { _again = true; Close(); }, 96));
-        buttons.Children.Add(focus.Add("NO", () => { _again = false; Close(); }, 96));
-
-        var body = new StackPanel { MinWidth = 300 };
-        body.Children.Add(GameUi.TitleBar("CONTINUE?", null));
-        body.Children.Add(new TextBlock
-        {
-            Text = "게임을 다시 시작하겠습니까?",
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 16,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(20, 14, 20, 4),
-        });
-        body.Children.Add(buttons);
-
-        KeyDown += (_, e) => { if (focus.HandleKey(e.Key)) e.Handled = true; };
-
-        return new Border
-        {
-            Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Child = body,
         };
     }
 

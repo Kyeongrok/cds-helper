@@ -1,132 +1,22 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 게임 창 한 벌을 갖춘 밑바탕 창. 이대로도 "한 마디 알리고 확인 받기" 로 쓰고,
-/// 물려받아 본문과 단추를 늘려 쓸 수도 있다.
+/// 한 마디 알리고 확인만 받는 창 — <see cref="ConfirmDialog"/> 를 부르는 <b>이름 하나</b>다.
 /// </summary>
 /// <remarks>
-/// 창을 지을 때마다 되풀이하던 것들 — 테 두 겹, 제목 띠, 끌어 옮기기, 단추 초점 깜빡임,
-/// ESC 로 닫기 — 을 여기 한 번만 적어 두었다. 물려받는 쪽은 <see cref="AddLine"/> 와
-/// <see cref="AddButton"/> 만 부르면 된다.
-/// <code>
-///   ┌ 테 ────────────────────┐
-///   │  제목 띠 (있을 때만)    │   GameUi.TitleFrame
-///   │  본문                   │   AddLine · Add
-///   │  단추 줄                │   AddButton
-///   └────────────────────────┘
-/// </code>
-/// 본문과 단추 줄을 따로 담아 둔 까닭은 차례 때문이다. 한 칸에 몰아 두면 창을 지은 뒤에
-/// 본문을 더할 때 이미 놓인 단추 <b>밑으로</b> 붙는다.
+/// 본디 <b>물려받아 늘려 쓰는 밑바탕</b>으로 지었다(테 두 겹 · 제목 띠 · 끌기 · 단추 초점).
+/// 그런데 물려받은 창이 한 벌도 없었고, 쓰이는 것은 <c>Show(글, 제목)</c> 하나뿐이었다 —
+/// <see cref="NoticeDialog"/> 와 하는 일이 똑같은데 폭 셈만 달랐다(이쪽은 <c>620</c> 에서
+/// 접고, 물음창은 게임 셈으로 늘인다). 그래서 같은 말이 자리마다 다른 폭으로 떴다.
 ///
-/// 단추는 <see cref="GameUi.FocusGroup"/> 에 묶여, 방향키로 옮기고 엔터로 고른다 —
-/// 지금 어느 것이 골라져 있는지는 안쪽 테가 깜빡여 알린다(게임이 그렇게 알린다).
+/// 늘려 쓸 밑바탕이 필요하면 <see cref="InfoDialog"/> 가 있다 — 그쪽은 열둘이 물려받아
+/// 쓰고 있다.
 /// </remarks>
-public class GameDialog : Window
+public static class GameDialog
 {
-    private readonly GameUi.FocusGroup _focus = new();
-
-    /// <summary>글·칸이 쌓이는 자리.</summary>
-    private readonly StackPanel _body = new();
-
-    /// <summary>맨 아래 단추 줄.</summary>
-    private readonly StackPanel _buttons = new()
-    {
-        Orientation = Orientation.Horizontal,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        Margin = new Thickness(0, 4, 0, 18),
-    };
-
-    /// <param name="title">제목 띠에 얹을 글. 안 주면 띠를 두지 않는다.</param>
-    protected GameDialog(string? title = null)
-    {
-        Title = title ?? "";
-        WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.NoResize;
-        SizeToContent = SizeToContent.WidthAndHeight;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        ShowInTaskbar = false;
-        Background = GameUi.Back;
-
-        // 620 은 게임 물음창 폭을 재어 맞춘 값이다. 글이 길면 여기서 접힌다.
-        var stack = new StackPanel { MaxWidth = 620 };
-
-        if (!string.IsNullOrEmpty(title))
-        {
-            // 원본 조각을 못 읽었으면 띠 없이 글만 낸다 — 민색 상자를 대신 두면 게임 것과 안 맞는다.
-            var bar = GameUi.TitleFrame(GameUi.Sprites, title);
-            if (bar != null) stack.Children.Add(bar);
-        }
-
-        stack.Children.Add(_body);
-        stack.Children.Add(_buttons);
-
-        Content = new Border
-        {
-            Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(4),
-            Child = stack,
-        };
-
-        KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Escape) { Close(); return; }
-            if (_focus.HandleKey(e.Key)) e.Handled = true;
-        };
-        GameUi.EnableDrag(this, stack);
-    }
-
-    /// <summary>본문에 무엇이든 하나 얹는다.</summary>
-    protected void Add(UIElement element) => _body.Children.Add(element);
-
-    /// <summary>
-    /// 본문에 글 한 덩이를 얹는다. 길면 접힌다.
-    /// </summary>
-    /// <remarks>
-    /// <c>AddText</c> 라 하지 않은 것은 <see cref="ContentControl.AddText"/> 와 이름이
-    /// 겹치기 때문이다. 숨기면(<c>new</c>) 부르는 쪽이 어느 것인지 헷갈린다.
-    /// </remarks>
-    protected TextBlock AddLine(string text)
-    {
-        var block = new TextBlock
-        {
-            Text = text,
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 16,
-            TextWrapping = TextWrapping.Wrap,
-            LineHeight = 26,
-            LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-            Margin = new Thickness(28, 20, 28, 16),
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        Add(block);
-        return block;
-    }
-
-    /// <summary>
-    /// 아래 단추 줄에 단추 하나를 단다. 먼저 단 것에 초점이 가 있다.
-    /// </summary>
-    protected Border AddButton(string text, Action run, double width = 96)
-    {
-        var button = _focus.Add(text, run, width);
-        _buttons.Children.Add(button);
-        return button;
-    }
-
-    /// <summary>
-    /// 한 마디 알리고 확인만 받는다. 늘리지 않고 이대로 쓸 때의 길이다.
-    /// </summary>
-    public static void Show(Window owner, string text, string? title = null)
-    {
-        var dialog = new GameDialog(title) { Owner = owner };
-        dialog.AddLine(text);
-        dialog.AddButton("확인", dialog.Close);
-        dialog.ShowDialog();
-    }
+    /// <param name="owner">알림을 얹을 창.</param>
+    /// <param name="text">할 말.</param>
+    /// <param name="title">제목 띠에 얹을 글. 비우면 띠를 안 단다.</param>
+    public static void Show(System.Windows.Window owner, string text, string? title = null) =>
+        ConfirmDialog.Tell(owner, text, title);
 }
