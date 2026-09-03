@@ -90,8 +90,6 @@ public sealed class DuelDialog : Window
     private readonly DuelStage? _stage;
 
     private readonly StackPanel _keys = new();
-    private readonly TextBlock _says = new();
-    private readonly TextBlock _phase = new();
 
     /// <summary>부위 막대 여섯 — 남은 것과 이번에 깎인 것을 겹쳐 그린다.</summary>
     private readonly Border[] _mine = new Border[Duel.Lines];
@@ -100,8 +98,8 @@ public sealed class DuelDialog : Window
     private readonly Border[] _theirsHurt = new Border[Duel.Lines];
 
     /// <summary>가운데 라벨 둘 — 이번에 고른 손.</summary>
-    private readonly TextBlock _myMove = MoveLabel();
-    private readonly TextBlock _foeMove = MoveLabel();
+    private readonly GameUi.GameLabel _myMove = MoveLabel();
+    private readonly GameUi.GameLabel _foeMove = MoveLabel();
 
     /// <summary>지난 판의 부위 값 — 얼마나 깎였는지 빨강으로 내려고 들고 있는다.</summary>
     private readonly int[] _wasMine = new int[Duel.Lines];
@@ -168,22 +166,11 @@ public sealed class DuelDialog : Window
         _keyBox.Child = _keys;
         Put(canvas, _keyBox, DuelArt.Slots.MyPortraitX - 4, Top + 2);
 
-        // 상대의 말은 판 밖에 둔다 — 게임은 제목 붙은 창으로 따로 내는데,
-        // 그 창까지는 아직 안 옮겼다.
-        _says.Foreground = GameUi.Text;
-        _says.FontSize = 13;
-        _says.TextWrapping = TextWrapping.Wrap;
-        _says.MinHeight = 40;
-        _says.Margin = new Thickness(8, 6, 8, 2);
-
-        _phase.Foreground = GameUi.Edge;
-        _phase.FontWeight = FontWeights.Bold;
-        _phase.Margin = new Thickness(8, 0, 8, 8);
-
+        // 판 밑에는 아무것도 안 붙인다. 게임 판은 384x248 이 전부이고, 상대의 말은
+        // 제목 「일기토」가 붙은 <b>제 창</b>으로 따로 난다. 어느 판인지(맞부딪힘·공격·
+        // 방어)는 명령 창의 줄 이름이 그대로 일러 준다.
         var page = new StackPanel { Width = DuelArt.BoardWidth };
         page.Children.Add(canvas);
-        page.Children.Add(_says);
-        page.Children.Add(_phase);
 
         Content = new Border
         {
@@ -255,15 +242,19 @@ public sealed class DuelDialog : Window
         };
     }
 
-    /// <summary>고른 손이 적히는 검은 홈.</summary>
-    private static TextBlock MoveLabel() => new()
+    /// <summary>
+    /// 고른 손이 적히는 검은 홈. <b>게임 글꼴</b>로 찍는다.
+    /// </summary>
+    /// <remarks>
+    /// 글꼴을 못 읽었을 때만 윈도 글꼴로 물러선다 — 검은 홈이라 그때 쓸 색을 흰빛으로
+    /// 일러 준다(<see cref="GameUi.GameLabel.FallbackBrush"/>).
+    /// </remarks>
+    private static GameUi.GameLabel MoveLabel() => new(GameFont.WhiteColor)
     {
-        Foreground = Brushes.White,
-        FontSize = 11,
-        FontWeight = FontWeights.Bold,
+        Bold = true,
+        FallbackBrush = Brushes.White,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-        TextAlignment = TextAlignment.Center,
     };
 
     private static Border Framed(UIElement inner) => new() { Background = Slot, Child = inner };
@@ -304,13 +295,6 @@ public sealed class DuelDialog : Window
             Paint(_mine[i], _mineHurt[i], _duel.MyParts[i], _wasMine[i], _duel.MyFull, full);
             Paint(_theirs[i], _theirsHurt[i], _duel.FoeParts[i], _wasFoe[i], _duel.FoeFull, full);
         }
-
-        _phase.Text = _duel.Now switch
-        {
-            Duel.Phase.Clash => "맞부딪힌다",
-            Duel.Phase.Attack => "친다",
-            _ => "막는다",
-        };
     }
 
     /// <summary>막대 한 칸을 칠한다 — 남은 것이 파랑, 이번에 깎인 만큼이 빨강이다.</summary>
@@ -379,7 +363,6 @@ public sealed class DuelDialog : Window
         _keys.Children.Clear();
         _keyBox.Visibility = Visibility.Collapsed;
         _focus = null;
-        _says.Text = "";
 
         // 두 사람이 고른 손을 가운데 홈에 적는다.
         _myMove.Text = MoveName(turn.Was, turn.MyMove);
@@ -387,7 +370,7 @@ public sealed class DuelDialog : Window
 
         var (mine, theirs, myLunge, foeLunge) = Moves(turn);
         _stage.Play(mine, theirs, myLunge, foeLunge,
-                    onSay: () => _says.Text = Line(turn),
+                    onSay: null,
                     onHurt: Refresh,
                     onDone: () => Settle(turn));
     }
@@ -420,11 +403,10 @@ public sealed class DuelDialog : Window
         Refresh();
         Keep();          // 빨강은 이번 판 것만 — 다음 판 기준을 여기서 갈무리한다
 
-        // 게임은 상대의 말을 <b>제목 「일기토」가 붙은 창</b>으로 따로 낸다.
-        // 판 아래 글줄에도 그대로 남겨 둔다 — 창을 닫고 나서도 보이게.
-        string said = Line(turn) + Environment.NewLine + Environment.NewLine + Taunt(turn);
-        _says.Text = said;
-        ConfirmDialog.Tell(this, said, "일기토", _face);
+        // 상대의 말은 제목 「일기토」가 붙은 창으로 난다 — 게임도 그 자리다.
+        ConfirmDialog.Tell(this,
+            Line(turn) + Environment.NewLine + Environment.NewLine + Taunt(turn),
+            "일기토", _face);
 
         if (_duel.Over)
         {
@@ -435,7 +417,7 @@ public sealed class DuelDialog : Window
             ok.Height = UiSprites.BandHeight;
             _keys.Children.Add(ok);
             _focus = focus;
-            _phase.Text = _duel.Won == true ? "쓰러뜨렸다!" : "쓰러졌다...";
+            _keyBox.Visibility = Visibility.Visible;
             return;
         }
 
