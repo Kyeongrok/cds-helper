@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -86,26 +86,50 @@ internal sealed class TowerPuzzleDialog : InfoDialog
         Panel.SetZIndex(_held, 90);
         _scene.Children.Add(_held);
 
+        // 알림줄은 판 위 왼쪽 꼭대기에 얹는다 — 밤색 판이 없어지면 붙일 데가 없다.
+        _line.FallbackBrush = Ring;
+        _line.IsHitTestVisible = false;
+        Canvas.SetLeft(_line, 14);
+        Canvas.SetTop(_line, 10);
+        Panel.SetZIndex(_line, 100);
+        _scene.Children.Add(_line);
+
         _scene.Background = Brushes.Transparent;
         _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
 
         double zoom = GameUi.PixelZoom(this, Zoom);
         _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        var rows = new StackPanel();
-        rows.Children.Add(_line);
-        rows.Children.Add(Gap(4));
-        rows.Children.Add(_scene);
+        // 게임은 미니 게임에 밤색 판도 제목도 아래 단추 줄도 안 두른다 — 그림에 금빛
+        // 테만 두르고, 할 일은 오른쪽 단추 차림표가 맡는다(성배 퍼즐·미궁 64 와 같다).
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = GameUi.Back;
+        Content = GameUi.GoldFrame(_scene);
+        GameUi.EnableDrag(this, _scene);
 
-        Build("발라몬의 탑 퍼즐", rows, SceneWidth * zoom + 30, SceneHeight * zoom + 130,
-              new GameButton("게임 설명", Explain),
-              new GameButton("포기한다", Close));
-
-        MouseRightButtonUp += (_, _) => { _game.PutBack(); Sync(); };
+        // 오른쪽 단추는 <b>두 가지</b>를 한다 — 들고 있던 판자를 도로 놓고, 차림표를 편다.
+        MouseRightButtonUp += (_, e) =>
+        {
+            _game.PutBack();
+            Sync();
+            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+        };
         KeyDown += (_, e) => { if (e.Key is Key.Escape) { _game.PutBack(); Sync(); } };
 
         Sync();
     }
+
+    /// <summary>오른쪽 단추가 부르는 차림표. 예전 아래 단추 줄이 그대로 여기로 왔다.</summary>
+    private IReadOnlyList<(string, Action?)> Commands() =>
+    [
+        ("게임 설명", Explain),
+        ("포기한다", Close),
+        ("게임 복귀", () => { }),   // 차림표만 닫는다
+    ];
 
     private void Lay(BitmapSource? art, double x, double y, double width, double height)
     {
@@ -221,16 +245,19 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     /// <remarks>
     /// 게임도 <c>0x0045FB79</c> 에서 «판자를 몇 장 사용하겠습니까?»(<c>0x00571E90</c>)
     /// 를 먼저 묻는다 — <c>0x00481FE0(4, 4, 8, 1, 1)</c> 이라 넷에서 여덟까지다.
+    ///
+    /// <b>그 <c>0x00481FE0</c> 이 계산기다</b> — 나이·생일을 받는 것과 같은 물건이라
+    /// (<see cref="NumberPadDialog"/>) 넷째·다섯째 인자가 <c>MIN·MAX</c> 단추가 넣는
+    /// 값이다. 예전에는 «4장 · 5장 …» 을 늘어놓은 목록으로 물었는데, 게임은 목록을 안
+    /// 낸다.
     /// </remarks>
     public static void Play(Window owner, Random rng)
     {
-        var counts = Enumerable.Range(TowerPuzzle.LeastPlanks,
-                                      TowerPuzzle.MostPlanks - TowerPuzzle.LeastPlanks + 1)
-                               .Select(n => $"{n}장").ToList();
+        int? planks = NumberPadDialog.Ask(owner, TowerPuzzle.LeastPlanks,
+                                          TowerPuzzle.LeastPlanks, TowerPuzzle.MostPlanks,
+                                          "판자를 몇 장 사용하겠습니까?");
+        if (planks == null) return;
 
-        int pick = MapPointDialog.Ask(owner, counts, "판자를 몇 장 사용하겠습니까?");
-        if (pick < 0) return;
-
-        new TowerPuzzleDialog(TowerPuzzle.LeastPlanks + pick, rng) { Owner = owner }.ShowDialog();
+        new TowerPuzzleDialog(planks.Value, rng) { Owner = owner }.ShowDialog();
     }
 }
