@@ -14,8 +14,10 @@ namespace CdsHelper.Game.Engine.Land;
 ///   427A2F  rand(200) == 0   짐승        427838  rand(250) == 0   독충
 ///   427A52  자리(경도 0x5B63B0 · 위도 0x5B63B4)로 어느 짐승인지 고른다
 /// </code>
-/// <b>아직 안 옮긴 것</b> — 같은 덩이에 회오리 · 유성 · 일식이 더 있다
-/// (<c>0x00427E2C</c> 어름). 확률과 조건을 아직 못 짚었다.
+/// 회오리(<c>0x00427DB8</c>)는 짜임이 다르다 — <b>고를 것이 없고</b> 그냥 당한다.
+///
+/// <b>아직 안 옮긴 것</b> — 같은 덩이의 유성(<c>0x00427D05</c>, 소원 빌기)과
+/// 일식(「태양이 사라지고 있습니다!」).
 /// </remarks>
 public static class LandEvents
 {
@@ -127,6 +129,48 @@ public static class LandEvents
 
         return new Outcome(false, Kill(player, met, dice), Cornered: true);
     }
+
+    /// <summary>회오리가 칠 확률의 분모(<c>0x00427DC8</c>).</summary>
+    public const int TornadoOdds = 500;
+
+    /// <summary>
+    /// 오늘 회오리가 치는지.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 셋을 함께 본다(<c>0x00427DA3</c> 부터).
+    /// <code>
+    ///   427DA3  [0x005A4D20] % 3 != 0        ; 사흘에 두 번 꼴로만 본다
+    ///   427DBA  지형(0x00426740) == 2
+    ///   427DC8  rand(500) == 0
+    /// </code>
+    /// 지형 번호가 우리 쪽에 없어 굴림만 쓴다.
+    /// </remarks>
+    public static bool Tornado(GameRandom dice) => dice.Next(TornadoOdds) == 0;
+
+    /// <summary>
+    /// 회오리에 휩쓸린다 — <b>가릴 것도 고를 것도 없다</b>. 죽은 대원 수를 낸다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x00427E8F</c> 가 <c>rand(30) + 30</c> 이다 — <b>서른에서 쉰아홉</b>이 한 번에
+    /// 죽는다. 짐승에 물려 서넛 잃는 것과는 자릿수가 다르다. 술집 소문이 「회오리를 만난
+    /// 탐험가를 만났다네. 그 동료가 말려들어 죽었다는군」(<c>0x00550888</c>) 인 까닭이다.
+    /// </remarks>
+    public static int Strike(Player player, GameRandom dice)
+    {
+        int dead = Math.Min(dice.Next(30) + 30, player.Crew);
+        player.AddCrew(-dead);
+        return dead;
+    }
+
+    /// <summary>회오리가 치는 동안 나오는 말 다섯(<c>0x00533C78</c> 부터).</summary>
+    public static readonly string[] TornadoLines =
+    [
+        "제독, 굉장한 바람이군요.",
+        "뭐, 뭐야! 저것은?",
+        "우와아, 여기서도... 큰일이다!",
+        "후우, 간신히 살아있는 듯 하군요.",
+        "제독은 괜찮으십니까?",
+    ];
 
     /// <summary>죽는 대원 수 — 독사가 더 사납다(<c>0x0042796D</c>).</summary>
     private static int Kill(Player player, in Meeting met, GameRandom dice)
