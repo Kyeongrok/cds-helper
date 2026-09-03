@@ -1631,6 +1631,17 @@ public sealed class ShipMapHost : HwndHost
     private const int SpriteHalfCells = 1;
 
     /// <summary>
+    /// 도시에 <b>닿았다</b>고 칠 때 얹는 여유 칸.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 <see cref="SpriteHalfCells"/>(1) 을 얹었다 — 그림끼리 스치기만 해도
+    /// 물어보라는 뜻이었는데, 화면에서 보면 <b>아직 한참 떨어져 있는데</b> 창이 떴다.
+    /// 게임 셈(<c>0x0048DA29</c> 의 <c>dx &lt;= 1</c>)에는 그런 여유가 없으므로 0 으로 둔다 —
+    /// 말이 도시 칸에 실제로 들어서야 묻는다.
+    /// </remarks>
+    private const int TouchSlack = 0;
+
+    /// <summary>
     /// 말이 닿은 도시 ID. 없으면 -1.
     /// </summary>
     /// <remarks>
@@ -1664,13 +1675,13 @@ public sealed class ShipMapHost : HwndHost
         for (int id = 0; id < CityExeTable.Count; id++)
         {
             if (!_cities.TryCell(id, out int cx, out int cy, out int reach)) continue;
-            if (fy < cy - TownSlack - SpriteHalfCells || fy > cy + reach + SpriteHalfCells) continue;
+            if (fy < cy - TownSlack - TouchSlack || fy > cy + reach + TouchSlack) continue;
 
             // 가로는 이어져 있다 — 날짜변경선을 넘어도 같은 도시다.
             int dx = fx - cx;
             if (dx > WorldMapRenderer.UnfoldedW / 2) dx -= WorldMapRenderer.UnfoldedW;
             if (dx < -WorldMapRenderer.UnfoldedW / 2) dx += WorldMapRenderer.UnfoldedW;
-            if (dx < -TownSlack - SpriteHalfCells || dx > reach + SpriteHalfCells) continue;
+            if (dx < -TownSlack - TouchSlack || dx > reach + TouchSlack) continue;
 
             return id;
         }
