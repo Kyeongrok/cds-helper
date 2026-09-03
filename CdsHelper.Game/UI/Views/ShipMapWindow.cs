@@ -14,6 +14,7 @@ using CdsHelper.Support.Local.Settings;
 using Prism.Ioc;
 using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Game.Engine.Disev;
+using CdsHelper.Game.Engine.Land;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Sea;
 using CdsHelper.Game.Local.Settings;
@@ -1984,10 +1985,60 @@ public sealed class ShipMapWindow : Window
         // 빈 글로 덮어쓰면 어제 적힌 한 줄이 하루 만에 지워진다. 할 말이 있을 때만 적는다.
         if (MoraleLine(before, player.Morale) is { Length: > 0 } line) Say(line);
 
+        // 뭍에서는 짐승과 독충을 마주친다.
+        CheckLandEvent();
+
         // 규율이 바닥나면 반란이다 — 게임도 뭍(0x0047557D)과 바다(0x004758B4) 양쪽에서
         // <b>이전 규율 &gt; 0 이고 새 값이 0</b> 일 때만 0x004751E0 을 부른다.
         // 대표와의 일기토까지는 이미 옮겨 두었다(바다 사건 쪽 Mutiny).
         if (before > 0 && player.Morale == 0) Mutiny();
+    }
+
+    /// <summary>
+    /// 뭍을 걷다 짐승이나 독충을 마주친다 — 「싸운다 · 도망친다」.
+    /// </summary>
+    /// <remarks>
+    /// 셈은 <see cref="LandEvents"/> 가 다 하고 여기서는 말만 낸다. 문구는 게임
+    /// <c>0x005338E0</c> 덩이에서 그대로 옮겼다 — 짐승은 조사가 하나 더 붙는 서식이라
+    /// (「큰일이다! %s%s다!」) 이름 뒤에 은/는을 넣는다.
+    /// </remarks>
+    private void CheckLandEvent()
+    {
+        var dice = new GameRandom(Environment.TickCount);
+        if (LandEvents.Meet(dice, []) is not { } met) return;
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var face = MateFace();     // 말을 거는 것은 부관이다
+            string what = met.Venomous
+                ? $"큰일이다! {met.Name}다!"
+                : $"큰일이다! {met.Name}{GameUi.Josa(met.Name, "이", "가")}다!";
+
+            ConfirmDialog.Tell(this, what, face: face);
+            ConfirmDialog.Tell(this, "제독, 어떻게 하시겠습니까?", face: face);
+
+            bool fight = ChoiceDialog.Pick(this, "", ["싸운다", "도망친다"]) == 0;
+            var end = fight ? LandEvents.Fight(_game.Player, met, dice)
+                            : LandEvents.Flee(_game.Player, met, dice);
+
+            if (end.Won)
+            {
+                NoticeDialog.Show(this, fight ? "제독, 퇴치했습니다."
+                                              : "후우..., 간신히 도망쳐 나왔습니다.");
+                return;
+            }
+
+            NoticeDialog.Show(this, end.Cornered ? "위험하다! 제독, 도망칠 수 없습니다!"
+                                                 : "우와앗, 안되겠다, 제독");
+            NoticeDialog.Show(this, $"대원 {end.Dead}명이 사망했습니다.");
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
     }
 
     /// <summary>
