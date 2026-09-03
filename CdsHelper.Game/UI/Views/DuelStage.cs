@@ -32,8 +32,15 @@ public sealed class DuelStage : Canvas
     /// <summary>판 크기. 게임 것과 같다(<c>0x004AA7BB</c> 의 <c>0x180</c> x <c>0x100</c>).</summary>
     public const int StageWidth = DuelArt.ArenaWidth, StageHeight = DuelArt.ArenaHeight;
 
-    /// <summary>두 사람이 서는 자리와 내지를 때 나가는 거리(<c>0x004A794A</c> 의 <c>sub eax,0x1E</c>).</summary>
-    private const double MyLeft = 8, FoeLeft = StageWidth - FighterSprites.Width - 8, Lunge = 30;
+    /// <summary>
+    /// 두 사람이 서는 자리와 내지를 때 나가는 거리(<c>0x004A794A</c> 의 <c>sub eax,0x1E</c>).
+    /// </summary>
+    /// <remarks>
+    /// <b>상대가 왼쪽, 내가 오른쪽</b>이다. 그림이 그렇게 그려져 있다 — 제독 벌(0)은
+    /// <b>왼쪽을 보고</b> 상대 벌은 <b>오른쪽을 본다</b>. 예전에는 자리를 뒤바꿔 놓아
+    /// 둘이 등을 지고 서 있었다.
+    /// </remarks>
+    private const double FoeLeft = 8, MyLeft = StageWidth - FighterSprites.Width - 8, Lunge = 30;
 
     /// <summary>한 판의 틱 수와 틱 하나의 길이.</summary>
     public const int Ticks = 17;
@@ -141,8 +148,9 @@ public sealed class DuelStage : Canvas
 
     private void Draw()
     {
-        Put(_me, 0, _myMove, MyLeft, forward: true, _myLunge);
-        Put(_foe, _foeSet, _foeMove, FoeLeft, forward: false, _foeLunge);
+        // 내지를 때 나아가는 쪽도 서로 반대다 — 나는 왼쪽으로, 상대는 오른쪽으로.
+        Put(_me, 0, _myMove, MyLeft, forward: false, _myLunge);
+        Put(_foe, _foeSet, _foeMove, FoeLeft, forward: true, _foeLunge);
     }
 
     private void Put(Image image, int set, FighterSprites.Move move, double left,

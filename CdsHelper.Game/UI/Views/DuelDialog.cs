@@ -136,7 +136,8 @@ public sealed class DuelDialog : Window
 
         // ── 아래층: 눈금판 ────────────────────────────────────────────────
         const int Top = DuelArt.ArenaHeight;
-        Put(canvas, Picture(board?.Path_(DuelArt.Panel)), 0, Top,
+        // 눈금판은 마당 빛깔을 따라간다 — 초원이면 초원 것, 갑판이면 갑판 것.
+        Put(canvas, Picture(board?.Path_(DuelArt.PanelFor(arena))), 0, Top,
             DuelArt.PanelWidth, DuelArt.PanelHeight);
 
         // 왼쪽이 상대, 오른쪽이 나다.
@@ -275,12 +276,14 @@ public sealed class DuelDialog : Window
     /// </summary>
     private static Border Bar(out Border left, out Border hurt)
     {
+        // 남은 것은 왼쪽에서 자라고, 깎인 것은 <b>오른쪽 끝에서</b> 자란다.
+        // 화면을 보면 파란 막대가 줄어든 만큼 그 오른쪽이 빨개진다.
         left = new Border { Background = Left_, HorizontalAlignment = HorizontalAlignment.Left };
-        hurt = new Border { Background = Hurt, HorizontalAlignment = HorizontalAlignment.Left };
+        hurt = new Border { Background = Hurt, HorizontalAlignment = HorizontalAlignment.Right };
 
         var stack = new Grid();
-        stack.Children.Add(hurt);   // 깎인 자리가 남은 것 오른쪽에 붙게 폭으로 민다
         stack.Children.Add(left);
+        stack.Children.Add(hurt);
 
         return new Border { Background = Slot, Child = stack };
     }
@@ -297,13 +300,18 @@ public sealed class DuelDialog : Window
         }
     }
 
-    /// <summary>막대 한 칸을 칠한다 — 남은 것이 파랑, 이번에 깎인 만큼이 빨강이다.</summary>
+    /// <summary>
+    /// 막대 한 칸을 칠한다 — 남은 것이 파랑, <b>이번 판에 깎인 만큼</b>이 빨강이다.
+    /// </summary>
+    /// <remarks>
+    /// 파랑은 왼쪽에서 남은 만큼, 빨강은 오른쪽 끝에서 <b>이번에 잃은 만큼</b>이다.
+    /// 둘 사이가 검게 남으면 그것은 <b>지난 판까지 잃은 것</b>이다.
+    /// </remarks>
     private static void Paint(Border left, Border hurt, int now, int was, int full, double width)
     {
         int cap = Math.Max(1, full);
         left.Width = width * Math.Clamp(now, 0, cap) / cap;
-        // 빨강은 남은 것 <b>바로 오른쪽</b>에 붙는다. 겹쳐 그리므로 폭만 늘려 주면 된다.
-        hurt.Width = width * Math.Clamp(Math.Max(now, was), 0, cap) / cap;
+        hurt.Width = width * Math.Clamp(was - now, 0, cap) / cap;
     }
 
     /// <summary>이번 판이 끝나면 부위 값을 갈무리한다 — 다음 판의 빨강 기준이다.</summary>

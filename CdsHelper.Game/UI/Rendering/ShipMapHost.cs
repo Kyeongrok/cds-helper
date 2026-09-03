@@ -1342,7 +1342,9 @@ public sealed class ShipMapHost : HwndHost
     /// 짐승과 회오리는 <b>2</b>, 독충은 <b>6</b> 에서만 난다.
     /// </remarks>
     public int TerrainClass =>
-        ShipCell is { } cell ? _terrain.ClassOfCell(CellValue(cell.CellX, cell.CellY)) : -1;
+        _terrain != null && ShipCell is { } cell
+            ? _terrain.ClassOfCell(CellValue(cell.CellX, cell.CellY))
+            : -1;
 
     /// <summary>커서가 가리키는 칸. 커서가 창 밖이면 null.</summary>
     public CellInfo? MouseCell => _mouseInside && _ready
