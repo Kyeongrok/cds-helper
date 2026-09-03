@@ -2419,6 +2419,8 @@ public sealed class ShipMapWindow : Window
                 _game.Player.Cheer(SeaEvents.MutinyCheer);
                 NoticeDialog.Show(this, "이것으로 불만 없겠지!");
                 NoticeDialog.Show(this, "반란을 진압했습니다");
+                // 규율이 도로 올랐으니 띠에 남아 있던 불만 글도 걷는다.
+                Say("");
                 return;
             }
 

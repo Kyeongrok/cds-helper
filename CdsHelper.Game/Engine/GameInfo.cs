@@ -1,3 +1,4 @@
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine;
@@ -23,9 +24,35 @@ public static class GameInfo
                    .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")];
     }
 
-    /// <summary>가지고 있는 힌트의 이름. 표 → DB → 번호 차례로 물러선다.</summary>
-    public static List<string> HintNames(Game game) =>
-        [.. game.Player.Hints.Order().Select(game.HintName)];
+    /// <summary>
+    /// 가지고 있는 힌트의 이름. 표 → DB → 번호 차례로 물러선다.
+    /// </summary>
+    /// <remarks>
+    /// <b>찾아낸 것의 힌트는 뺀다.</b> 힌트는 「아직 못 찾은 것을 어디서 찾나」를 적어 둔
+    /// 쪽지라, 그 발견물을 이미 찾았으면 목록에 남을 까닭이 없다. 힌트와 발견물은
+    /// 번호로 짝을 맺는다(힌트의 <c>Discovery</c> 와 발견물의 <c>Hint</c> 가 같은 값).
+    /// </remarks>
+    public static List<string> HintNames(Game game)
+    {
+        var table = game.Discoveries?.Table;
+        var hints = game.Hints;
+
+        return [.. game.Player.Hints.Order()
+                   .Where(id => !Found(game, table, hints, id))
+                   .Select(game.HintName)];
+    }
+
+    /// <summary>그 힌트가 가리키는 발견물을 이미 찾았는지.</summary>
+    private static bool Found(Game game, DiscoveryTable? table,
+                              HintTable? hints, int hint)
+    {
+        if (table == null || hints?.Find(hint) is not { } row) return false;
+
+        foreach (var found in table.Discoveries)
+            if (found.Hint == row.Discovery && game.Player.HasFound(found.Id)) return true;
+
+        return false;
+    }
 
     /// <summary>
     /// 계약 정보 판에 채울 것.
