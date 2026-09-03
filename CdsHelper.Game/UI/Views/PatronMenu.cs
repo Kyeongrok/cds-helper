@@ -473,10 +473,23 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         Say(inTime ? "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게."
                    : "꽤 늦었군. 그래, 결과는 어떤가?");
 
+        int fame = 0;
+        var taken = new List<string>();
+
         foreach (var row in rows)
         {
             Say($"[{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다.");
             _player.Announce(row.Id);
+            // 알린 것마다 명성이 오른다 — 항구 발표와 같은 셈이다(0x0047E849).
+            fame += Harbor.FameFor(row);
+
+            // 그 발견물이 준 물건은 <b>후원자가 가져간다</b> — 맡긴 일의 증거물이라
+            // 내 것이 아니다. 「고대의 소뿔」이 소지품에 남아 있으면 안 된다.
+            if (row.GivesItem && _player.Items.Contains(row.ItemId))
+            {
+                _player.Drop(row.ItemId);
+                taken.Add(_game.Items?.Find(row.ItemId)?.Name ?? $"아이템 {row.ItemId}");
+            }
         }
 
         Say("굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.");
@@ -485,7 +498,20 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.Earn(paid);
         _player.EndContract();
 
+        foreach (string got in taken)
+            GameDialog.Show(_view, $"[{got}]{GameUi.Josa(got, "을", "를")} 건네주었다");
+
         GameDialog.Show(_view, $"금화 {paid}닢을 받았다!");
+
+        if (fame > 0)
+        {
+            _player.Fame += fame;
+            GameDialog.Show(_view, $"명성이 {fame} 올라갔다!");
+        }
+
+        // 보고가 끝나면 그 줄이 사라져야 한다 — 계약이 없어졌으니 「보고」 줄도 없다.
+        // 줄 목록을 다시 지어 그리게 한다(TownWorks.LinesOf 가 후원자 줄을 다시 고른다).
+        _menu.Refresh();
     }
 
     /// <summary>
