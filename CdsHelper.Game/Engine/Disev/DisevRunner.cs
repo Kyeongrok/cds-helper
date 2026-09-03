@@ -34,21 +34,32 @@ namespace CdsHelper.Game.Engine.Disev;
 /// </remarks>
 public sealed class DisevRunner
 {
-    /// <summary>DISEV.CDS 는 한 번만 읽는다. 게임 폴더가 갈리면 다시 읽는다.</summary>
+    /// <summary>
+    /// DISEV.CDS 는 한 번만 읽는다. 게임 폴더가 갈리거나 <b>파일이 새로 써지면</b> 다시 읽는다.
+    /// </summary>
+    /// <remarks>
+    /// 다시 읽는 자리를 둔 까닭은 <b>편집기</b> 때문이다. 발견 이벤트 편집기가 같은 파일을
+    /// 고쳐 쓰는데, 여기서 한 번 읽고 붙들고 있으면 앱을 껐다 켜기 전에는 고친 대본이
+    /// 안 돈다. 쓴 시각이 갈리면 새로 읽는다.
+    /// </remarks>
     private static DisevArchive? _shared;
     private static string _sharedFrom = "";
+    private static DateTime _sharedWhen;
 
     /// <summary>그 게임 폴더의 DISEV.CDS. 없으면 null 이고, 그러면 대본 없이 지나간다.</summary>
     public static DisevArchive? Open(string gameDirectory)
     {
         if (gameDirectory.Length == 0) return null;
-        if (_shared != null && _sharedFrom == gameDirectory) return _shared;
 
         string path = Path.Combine(gameDirectory, "DISEV.CDS");
         if (!File.Exists(path)) return null;
 
+        var when = File.GetLastWriteTimeUtc(path);
+        if (_shared != null && _sharedFrom == gameDirectory && _sharedWhen == when) return _shared;
+
         _shared = DisevArchive.Open(path);
         _sharedFrom = gameDirectory;
+        _sharedWhen = when;
         return _shared;
     }
 
