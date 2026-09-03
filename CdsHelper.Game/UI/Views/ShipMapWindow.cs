@@ -1757,7 +1757,7 @@ public sealed class ShipMapWindow : Window
         // 바다에서는 함대좌표 칸에 지금 자리를 적는다. 도시 안이라면 게임처럼 "---" 다.
         ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _game.Player, CoordLine(), _game.Items))),
         // 부하가 있으면 게임처럼 누구를 볼지 먼저 묻는다 — 도시 창과 한 벌이다.
-        ("인물정보", () => PersonInfoMenu.Show(this, _game, CommandMenu)),
+        ("인물정보", () => Info(() => PersonInfoMenu.Show(this, _game, CommandMenu))),
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
             this, _game.Player, _game.Items, null, null, GameInfo.DiscoveryNames(_game)))),
         ("힌트정보", () => Info(() => HintListDialog.Show(this, GameInfo.HintNames(_game)))),
@@ -1821,8 +1821,12 @@ public sealed class ShipMapWindow : Window
     /// <summary>정보 판 하나를 띄운다 — 커맨드 창은 접고, 배는 세워 둔 채다.</summary>
     private void Info(Action show)
     {
+        // 창을 닫으면 Closed 가 멈춤을 푼다. 그런데 판이 뜨는 동안에도 <b>계속 멎어
+        // 있어야</b> 한다 — 안 그러면 인물정보를 보는 사이에 구름과 물결만 흘러 다닌다.
         CommandMenu.Close();
-        show();
+        _host.Paused = true;
+        try { show(); }
+        finally { _host.Paused = false; }
     }
 
     /// <summary>해상 커맨드 창. 하나만 띄운다.</summary>
@@ -2005,11 +2009,12 @@ public sealed class ShipMapWindow : Window
     private void CheckLandEvent()
     {
         var dice = new GameRandom(Environment.TickCount);
+        int ground = _host.TerrainClass;      // 짐승·회오리는 2, 독충은 6 에서만 난다
 
         // 회오리가 먼저다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
-        if (LandEvents.Tornado(dice)) { Tornado(dice); return; }
+        if (LandEvents.Tornado(dice, ground)) { Tornado(dice); return; }
 
-        if (LandEvents.Meet(dice, []) is not { } met) return;
+        if (LandEvents.Meet(dice, ground, []) is not { } met) return;
 
         _asking = true;
         _host.Paused = true;

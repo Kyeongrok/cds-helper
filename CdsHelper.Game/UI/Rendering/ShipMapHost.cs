@@ -1333,6 +1333,17 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>지금 배가 선 칸.</summary>
     public CellInfo? ShipCell => _shipKnown ? Describe(_shipX, _shipY) : null;
 
+    /// <summary>
+    /// 지금 선 칸의 <b>지형 부류</b>(0~6). 모르면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 뭍 사건을 이 값으로 가른다 — <c>0x00426740</c> 이 자리를 열여섯으로 나눠
+    /// 칸을 잡고, 그 칸의 그림 번호(하위 열넉 비트)로 부류표(<c>0x004CD048</c>)를 찾는다.
+    /// 짐승과 회오리는 <b>2</b>, 독충은 <b>6</b> 에서만 난다.
+    /// </remarks>
+    public int TerrainClass =>
+        ShipCell is { } cell ? _terrain.ClassOfCell(CellValue(cell.CellX, cell.CellY)) : -1;
+
     /// <summary>커서가 가리키는 칸. 커서가 창 밖이면 null.</summary>
     public CellInfo? MouseCell => _mouseInside && _ready
         ? Describe(_lastOrigin.X + _mouse.X * _lastDpiX * _cellsPerPixel,
