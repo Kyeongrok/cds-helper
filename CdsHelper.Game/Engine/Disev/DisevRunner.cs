@@ -38,13 +38,17 @@ public sealed class DisevRunner
     /// DISEV.CDS 는 한 번만 읽는다. 게임 폴더가 갈리거나 <b>파일이 새로 써지면</b> 다시 읽는다.
     /// </summary>
     /// <remarks>
-    /// 다시 읽는 자리를 둔 까닭은 <b>편집기</b> 때문이다. 발견 이벤트 편집기가 같은 파일을
-    /// 고쳐 쓰는데, 여기서 한 번 읽고 붙들고 있으면 앱을 껐다 켜기 전에는 고친 대본이
-    /// 안 돈다. 쓴 시각이 갈리면 새로 읽는다.
+    /// 다시 읽는 자리를 둔 까닭은 <b>편집기</b> 때문이다. 여기서 한 번 읽고 붙들고 있으면
+    /// 앱을 껐다 켜기 전에는 고친 대본이 안 돈다. 파일에 쓴 시각이 갈리거나
+    /// <see cref="DisevEdits"/> 의 수가 갈리면 새로 읽는다.
+    ///
+    /// 원본 <c>DISEV.CDS</c> 는 그대로 두고 갈아 둔 파트만 <b>덧씌운다</b> — 그래야
+    /// 게임 파일을 새로 깔아도 고친 것이 살아 있다.
     /// </remarks>
     private static DisevArchive? _shared;
     private static string _sharedFrom = "";
     private static DateTime _sharedWhen;
+    private static int _sharedEdits = -1;
 
     /// <summary>그 게임 폴더의 DISEV.CDS. 없으면 null 이고, 그러면 대본 없이 지나간다.</summary>
     public static DisevArchive? Open(string gameDirectory)
@@ -55,11 +59,16 @@ public sealed class DisevRunner
         if (!File.Exists(path)) return null;
 
         var when = File.GetLastWriteTimeUtc(path);
-        if (_shared != null && _sharedFrom == gameDirectory && _sharedWhen == when) return _shared;
+        if (_shared != null && _sharedFrom == gameDirectory && _sharedWhen == when
+            && _sharedEdits == DisevEdits.Count) return _shared;
 
         _shared = DisevArchive.Open(path);
+        // 손으로 갈아 둔 대본을 그 위에 씌운다 — 원본 CDS 는 안 건드린다.
+        if (_shared != null) DisevEdits.ApplyTo(_shared);
+
         _sharedFrom = gameDirectory;
         _sharedWhen = when;
+        _sharedEdits = DisevEdits.Count;
         return _shared;
     }
 
