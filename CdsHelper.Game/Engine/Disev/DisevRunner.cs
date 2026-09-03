@@ -35,42 +35,35 @@ namespace CdsHelper.Game.Engine.Disev;
 public sealed class DisevRunner
 {
     /// <summary>
-    /// DISEV.CDS 는 한 번만 읽는다. 게임 폴더가 갈리거나 <b>파일이 새로 써지면</b> 다시 읽는다.
+    /// 대본 책은 한 번만 읽는다. <b>적어 둔 것이 새로 써지면</b> 다시 읽는다.
     /// </summary>
     /// <remarks>
-    /// 다시 읽는 자리를 둔 까닭은 <b>편집기</b> 때문이다. 여기서 한 번 읽고 붙들고 있으면
-    /// 앱을 껐다 켜기 전에는 고친 대본이 안 돈다. 파일에 쓴 시각이 갈리거나
-    /// <see cref="DisevEdits"/> 의 수가 갈리면 새로 읽는다.
+    /// 읽는 것은 <c>DISEV.CDS</c> 가 아니라 <c>발견이벤트.json</c> 이다
+    /// (<see cref="DisevBook"/>). 그 파일이 없으면 책이 원본을 떠서 <b>먼저 적어 두고</b>
+    /// 그것을 읽는다 — 이 집이 EXE 표를 다루는 결과 같다.
     ///
-    /// 원본 <c>DISEV.CDS</c> 는 그대로 두고 갈아 둔 파트만 <b>덧씌운다</b> — 그래야
-    /// 게임 파일을 새로 깔아도 고친 것이 살아 있다.
+    /// 다시 읽는 자리를 둔 까닭은 편집기 때문이다. 여기서 한 번 읽고 붙들고 있으면 앱을
+    /// 껐다 켜기 전에는 고친 대본이 안 돈다.
     /// </remarks>
-    private static DisevArchive? _shared;
+    private static DisevBook? _shared;
     private static string _sharedFrom = "";
     private static DateTime _sharedWhen;
-    private static int _sharedEdits = -1;
 
-    /// <summary>그 게임 폴더의 DISEV.CDS. 없으면 null 이고, 그러면 대본 없이 지나간다.</summary>
-    public static DisevArchive? Open(string gameDirectory)
+    /// <summary>그 게임 폴더의 대본 책. 없으면 null 이고, 그러면 대본 없이 지나간다.</summary>
+    public static DisevBook? Open(string gameDirectory)
     {
-        if (gameDirectory.Length == 0) return null;
+        var when = Stamp();
+        if (_shared != null && _sharedFrom == gameDirectory && _sharedWhen == when) return _shared;
 
-        string path = Path.Combine(gameDirectory, "DISEV.CDS");
-        if (!File.Exists(path)) return null;
-
-        var when = File.GetLastWriteTimeUtc(path);
-        if (_shared != null && _sharedFrom == gameDirectory && _sharedWhen == when
-            && _sharedEdits == DisevEdits.Count) return _shared;
-
-        _shared = DisevArchive.Open(path);
-        // 손으로 갈아 둔 대본을 그 위에 씌운다 — 원본 CDS 는 안 건드린다.
-        if (_shared != null) DisevEdits.ApplyTo(_shared);
-
+        _shared = DisevBook.Open(gameDirectory);
         _sharedFrom = gameDirectory;
-        _sharedWhen = when;
-        _sharedEdits = DisevEdits.Count;
+        _sharedWhen = Stamp();
         return _shared;
     }
+
+    /// <summary>적어 둔 책에 쓴 시각. 아직 없으면 밑값이다.</summary>
+    private static DateTime Stamp() =>
+        File.Exists(DisevBook.Path_) ? File.GetLastWriteTimeUtc(DisevBook.Path_) : DateTime.MinValue;
 
     private readonly Window _owner;
     private readonly Game _game;
@@ -102,10 +95,10 @@ public sealed class DisevRunner
     /// <param name="discoveryId">발견물 번호 = DISEV 파트 번호.</param>
     public static bool Run(Window owner, Game game, int discoveryId)
     {
-        if (Open(game.Directory) is not { } archive) return false;
-        if (discoveryId < 0 || discoveryId >= archive.PartCount) return false;
+        if (Open(game.Directory) is not { } book) return false;
+        if (discoveryId < 0 || discoveryId >= book.Count) return false;
 
-        var raw = archive.Part(discoveryId);
+        var raw = book.Part(discoveryId);
         if (raw.Length == 0) return false;
         if (DisevPart.Parse(raw, out _) is not { } part) return false;
 

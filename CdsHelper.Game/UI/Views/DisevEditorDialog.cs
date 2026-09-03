@@ -62,16 +62,19 @@ public sealed class DisevEditorDialog : Window
         Margin = new Thickness(4, 0, 10, 4),
     };
 
-    private readonly Button _open = Bar("DISEV 열기");
+    private readonly Button _open = Bar("원본 폴더 고르기");
     private readonly Button _applyChunk = Bar("덩이 적용");
-    private readonly Button _revert = Bar("이 발견물 되돌리기");
-    private readonly Button _revertAll = Bar("전부 되돌리기");
+    private readonly Button _revert = Bar("이 발견물만 원본으로");
+    private readonly Button _revertAll = Bar("원본에서 다시 뜨기");
     private readonly Button _save = Bar("저장");
     private readonly Button _bake = Bar("게임에 굽기");
     private readonly TextBlock _status = new() { Margin = new Thickness(10, 4, 10, 8), TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _header = new() { Margin = new Thickness(4, 6, 10, 2) };
 
-    private DisevArchive? _archive;
+    private DisevBook? _book;
+
+    /// <summary>원본이 있는 게임 폴더 — 굽거나 되돌릴 때만 쓴다.</summary>
+    private string _gameDir = "";
     private DiscoveryTable? _names;
     private ItemTable? _items;
     private CityTable? _cities;
@@ -221,44 +224,51 @@ public sealed class DisevEditorDialog : Window
         public override string ToString() => Text;
     }
 
-    /// <summary>세이브를 연 폴더에 <c>DISEV.CDS</c> 가 있으면 그것부터 연다.</summary>
-    private void OpenDefault()
-    {
-        string dir = Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "";
-        string guess = Path.Combine(dir, "DISEV.CDS");
-        if (File.Exists(guess)) Load(guess);
-        else _status.Text = "「DISEV 열기」로 게임 폴더의 DISEV.CDS 를 골라 주세요.";
-    }
+    /// <summary>
+    /// 창이 뜨면 곧장 연다 — 적어 둔 <c>발견이벤트.json</c> 이 있으면 그것을, 없으면
+    /// 세이브를 연 폴더의 <c>DISEV.CDS</c> 를 떠서 적고 그것을.
+    /// </summary>
+    private void OpenDefault() => Load(GameFolder());
 
+    /// <summary>게임 폴더를 고른다 — 적어 둔 것이 없거나 딴 판을 뜰 때 쓴다.</summary>
     private void Pick()
     {
-        string dir = Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "";
-        var dialog = new OpenFileDialog
+        var dialog = new OpenFolderDialog
         {
-            Title = "DISEV.CDS 열기",
-            Filter = "발견 이벤트 (DISEV.CDS)|DISEV.CDS|CDS 아카이브 (*.cds)|*.cds|모든 파일|*.*",
-            InitialDirectory = Directory.Exists(dir) ? dir : "",
+            Title = "게임 폴더 고르기 (DISEV.CDS 가 있는 곳)",
+            InitialDirectory = GameFolder(),
         };
-        if (dialog.ShowDialog(this) == true) Load(dialog.FileName);
+        if (dialog.ShowDialog(this) == true) Load(dialog.FolderName, fresh: true);
     }
 
-    private void Load(string path)
+    /// <summary>세이브를 연 폴더가 곧 게임 폴더다 — 앱의 다른 데도 그렇게 잡는다.</summary>
+    private static string GameFolder() =>
+        Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "";
+
+    /// <summary>
+    /// 대본 책을 연다 — <b>읽는 것은 <c>발견이벤트.json</c></b> 이다.
+    /// </summary>
+    /// <remarks>
+    /// 그 파일이 없으면 <see cref="DisevBook"/> 이 게임 폴더의 <c>DISEV.CDS</c> 를 통째로
+    /// 떠서 <b>먼저 적어 두고</b> 그것을 읽는다. 이 집이 EXE 표를 다루는 결과 같다.
+    /// </remarks>
+    /// <param name="dir">게임 폴더.</param>
+    /// <param name="fresh">참이면 적어 둔 것을 버리고 원본에서 다시 뜬다.</param>
+    private void Load(string dir, bool fresh = false)
     {
-        _archive = DisevArchive.Open(path);
-        if (_archive == null)
+        _gameDir = dir;
+        _book = fresh ? DisevBook.Dump(dir) : DisevBook.Open(dir);
+
+        if (_book == null)
         {
-            _status.Text = $"열지 못했습니다 — {DisevArchive.LastError}";
+            _status.Text = $"열지 못했습니다 — {DisevBook.LastError}";
             _discoveries.ItemsSource = null;
             _chunks.ItemsSource = null;
             _ops.ItemsSource = null;
             return;
         }
 
-        // 앞서 적어 둔 것을 그 위에 씌운다 — 앱을 껐다 켜도 고친 대본이 그대로 뜬다.
-        DisevEdits.ApplyTo(_archive);
-
-        // 이름표는 같은 폴더의 EXE 에서 온다. 없어도 번호로는 다룰 수 있다.
-        string dir = Path.GetDirectoryName(path) ?? "";
+        // 이름표는 게임 폴더의 EXE 에서 온다. 없어도 번호로는 다룰 수 있다.
         _names = DiscoveryTable.Open(dir);
         _items = ItemTable.Open(dir);
         _cities = CityTable.Open();
@@ -266,23 +276,22 @@ public sealed class DisevEditorDialog : Window
         RefreshDiscoveries();
         if (_discoveries.Items.Count > 0) _discoveries.SelectedIndex = 0;
 
-        string missing = _names == null ? " (CDS_95.EXE 를 못 읽어 이름 없이 번호로만 보입니다)" : "";
-        string edited = DisevEdits.Count > 0 ? $" · 적어 둔 것 {DisevEdits.Count}개를 씌웠습니다" : "";
-        _status.Text = $"{path} — 파트 {_archive.PartCount}개{missing}{edited}";
+        string missing = _names == null ? "  (CDS_95.EXE 를 못 읽어 이름 없이 번호로만 보입니다)" : "";
+        _status.Text = $"{DisevBook.Path_} — 파트 {_book.Count}개{missing}";
     }
 
     private void RefreshDiscoveries()
     {
-        if (_archive == null) return;
+        if (_book == null) return;
         int keep = _discoveries.SelectedIndex;
 
-        var rows = new List<PartRow>(_archive.PartCount);
-        for (int i = 0; i < _archive.PartCount; i++)
+        var rows = new List<PartRow>(_book.Count);
+        for (int i = 0; i < _book.Count; i++)
         {
             var record = _names?.Find(i);
             string name = record?.Name ?? $"발견물 {i}";
             string category = record is { } row && row.CategoryName.Length > 0 ? $" · {row.CategoryName}" : "";
-            string mark = _archive.IsModified(i) ? " ●" : "";
+            string mark = _book.IsEdited(i) ? " ●" : "";
             rows.Add(new PartRow { Index = i, Text = $"{i:000}  {name}{category}{mark}" });
         }
 
@@ -300,9 +309,9 @@ public sealed class DisevEditorDialog : Window
         ClearForm();
         _part = null;
 
-        if (_archive == null || SelectedPart < 0) return;
+        if (_book == null || SelectedPart < 0) return;
 
-        var data = _archive.Part(SelectedPart);
+        var data = _book.Part(SelectedPart);
         _part = DisevPart.Parse(data, out string error);
         if (_part == null)
         {
@@ -312,7 +321,7 @@ public sealed class DisevEditorDialog : Window
 
         _header.Text = $"파트 {SelectedPart} · {data.Length}바이트 · 단계 번호 {_part.Step} · "
                      + $"슬롯 {_part.Slots.Count}개 · 덩이 {_part.ChunkStarts.Count}개"
-                     + (_archive.IsModified(SelectedPart) ? "   ● 고침" : "");
+                     + (_book.IsEdited(SelectedPart) ? "   ● 고침" : "");
 
         var rows = _part.ChunkStarts
             .Select(start =>
@@ -502,7 +511,7 @@ public sealed class DisevEditorDialog : Window
     /// <summary>칸에 적은 값으로 명령 하나를 갈아 끼운다.</summary>
     private void ApplyOp()
     {
-        if (_archive == null || _part == null || _op is not { } op ||
+        if (_book == null || _part == null || _op is not { } op ||
             _chunks.SelectedItem is not ChunkRow chunk) return;
 
         byte[] replacement;
@@ -568,7 +577,7 @@ public sealed class DisevEditorDialog : Window
 
     private void ApplyChunk()
     {
-        if (_archive == null || _part == null || _chunks.SelectedItem is not ChunkRow chunk)
+        if (_book == null || _part == null || _chunks.SelectedItem is not ChunkRow chunk)
         {
             _status.Text = "고칠 덩이를 먼저 고르세요.";
             return;
@@ -593,7 +602,7 @@ public sealed class DisevEditorDialog : Window
     /// <summary>고친 덩이를 파트에 넣고 화면을 다시 그린다.</summary>
     private void Commit(int chunkStart, byte[] chunkBytes, string message)
     {
-        if (_archive == null || _part == null) return;
+        if (_book == null || _part == null) return;
 
         var rebuilt = _part.Rebuild(chunkStart, chunkBytes, out string error);
         if (rebuilt == null)
@@ -608,102 +617,87 @@ public sealed class DisevEditorDialog : Window
         }
 
         int part = SelectedPart, chunkIndex = _chunks.SelectedIndex, opIndex = _ops.SelectedIndex;
-        _archive.ReplacePart(part, rebuilt);
+        _book.Replace(part, rebuilt);
         RefreshDiscoveries();
         ShowPart();
         if (chunkIndex >= 0 && chunkIndex < _chunks.Items.Count) _chunks.SelectedIndex = chunkIndex;
         if (opIndex >= 0 && opIndex < _ops.Items.Count) _ops.SelectedIndex = opIndex;
-        _status.Text = message + " — 아직 파일에는 안 썼습니다. 「저장」을 눌러야 들어갑니다.";
+        _status.Text = message + " — 아직 적어 두지 않았습니다. 「저장」을 눌러야 들어갑니다.";
     }
 
+    /// <summary>이 발견물만 원본 대본으로 되돌린다.</summary>
     private void RevertOne()
     {
-        if (_archive == null || SelectedPart < 0) return;
-        _archive.Revert(SelectedPart);
-        DisevEdits.Reset(SelectedPart);      // 적어 둔 것에서도 지운다
+        if (_book == null || SelectedPart < 0) return;
+
+        if (!_book.Restore(SelectedPart, _gameDir))
+        {
+            _status.Text = $"되돌리지 못했습니다 — {DisevBook.LastError}";
+            return;
+        }
+
+        _book.Save();
         RefreshDiscoveries();
         ShowPart();
-        _status.Text = $"파트 {SelectedPart} 를 원래대로 되돌렸습니다.";
+        _status.Text = $"파트 {SelectedPart} 를 원본 대본으로 되돌렸습니다.";
+    }
+
+    /// <summary>적어 둔 것을 통째로 버리고 원본에서 다시 뜬다.</summary>
+    private void RevertAll()
+    {
+        if (!ConfirmDialog.Ask(this,
+                "적어 둔 대본을 버리고 DISEV.CDS 에서 다시 뜹니다. 고친 것이 다 사라집니다. 좋습니까?",
+                "원본에서 다시 뜨기"))
+            return;
+
+        Load(_gameDir, fresh: true);
+        if (_book != null) _status.Text = $"원본에서 다시 떴습니다 — 파트 {_book.Count}개";
     }
 
     /// <summary>
-    /// 고친 것을 <b>따로 적어 둔다</b> — 원본 <c>DISEV.CDS</c> 는 안 건드린다.
+    /// 고친 것을 <c>발견이벤트.json</c> 에 적어 둔다 — 원본 <c>DISEV.CDS</c> 는 안 건드린다.
     /// </summary>
     /// <remarks>
-    /// 이 집의 규칙이다. 원본 파일은 읽기만 하고 사람이 갈아 둔 것은
-    /// <c>%APPDATA%\CdsHelper\exe-tables\발견이벤트-고친것.json</c> 에 적는다
-    /// (<see cref="DisevEdits"/>) — 도시 문화권·왕국을 갈아 두는 것과 같은 결이고,
-    /// 게임 파일을 새로 깔아도 고친 것이 살아 있다.
-    ///
     /// 적어 두면 <b>우리 놀이에는 곧장 든다</b> — 발견하러 가면 그 대본이 돈다
-    /// (<see cref="DisevRunner.Open"/> 이 열 때마다 씌운다).
+    /// (<see cref="DisevRunner.Open"/> 이 이 책을 읽는다). 원본 게임에 먹이려면
+    /// 「게임에 굽기」를 한 번 더 눌러야 한다.
     /// </remarks>
     private void Save()
     {
-        if (_archive == null) return;
-        if (!_archive.HasChanges)
+        if (_book == null) return;
+        if (!_book.HasChanges)
         {
             _status.Text = "고친 것이 없습니다.";
             return;
         }
 
-        int wrote = 0;
-        for (int i = 0; i < _archive.PartCount; i++)
-        {
-            if (!_archive.IsModified(i)) continue;
-            DisevEdits.Set(i, _archive.Part(i));
-            wrote++;
-        }
-
-        _status.Text = $"{wrote}개를 적어 두었습니다 — 놀이에는 바로 듭니다. "
-                     + $"원본 게임에 먹이려면 「게임에 굽기」를 누르세요. "
-                     + $"(적어 둔 곳: {TableCache.PathFor("발견이벤트-고친것")})";
+        _book.Save();
+        RefreshDiscoveries();
+        ShowPart();
+        _status.Text = "적어 두었습니다 — 놀이에는 바로 듭니다. "
+                     + $"원본 게임에 먹이려면 「게임에 굽기」를 누르세요. ({DisevBook.Path_})";
     }
 
     /// <summary>
-    /// 적어 둔 것을 <c>DISEV.CDS</c> 에 굽는다 — <b>원본 게임에 먹일 때만</b> 쓴다.
+    /// 적어 둔 대본을 <c>DISEV.CDS</c> 에 굽는다 — <b>원본 게임에 먹일 때만</b> 쓴다.
     /// </summary>
     /// <remarks>
-    /// <c>CDS_95.EXE</c> 는 우리 JSON 을 모르니 게임으로 확인하려면 한 번 구워야 한다.
-    /// EXE 패치 창이 <c>custom_patches.json</c> 을 두고 「적용」할 때만 EXE 를 건드리는
-    /// 것과 같은 차례다.
-    ///
-    /// 굽기 전에 274개 파트를 되읽어 대 보고, 날짜 붙인 <c>.bak</c> 을 남긴 뒤에 덮는다
-    /// (<see cref="DisevArchive.Save"/>). 고친 파트는 <b>압축 없이</b> 들어가 파일이 커진다.
+    /// <c>CDS_95.EXE</c> 는 우리 JSON 을 모른다. 굽기 전에 파트를 죄다 되읽어 대 보고
+    /// 날짜 붙인 <c>.bak</c> 을 남긴 뒤에 덮는다. EXE 패치 창이 <c>custom_patches.json</c> 을
+    /// 두고 「적용」할 때만 EXE 를 건드리는 것과 같은 차례다.
     /// </remarks>
     private void Bake()
     {
-        if (_archive == null) return;
-        if (!_archive.HasChanges)
-        {
-            _status.Text = "고친 것이 없습니다.";
-            return;
-        }
+        if (_book == null) return;
 
         if (!ConfirmDialog.Ask(this,
                 "게임 폴더의 DISEV.CDS 를 다시 씁니다. 원본은 .bak 으로 남깁니다. 좋습니까?",
                 "게임에 굽기"))
             return;
 
-        string? backup = _archive.Save();
-        if (backup == null)
-        {
-            _status.Text = $"굽지 못했습니다 — {DisevArchive.LastError}";
-            return;
-        }
-
-        RefreshDiscoveries();
-        ShowPart();
-        _status.Text = $"DISEV.CDS 에 구웠습니다. 백업: {Path.GetFileName(backup)}";
-    }
-
-    /// <summary>이 발견물의 고친 것을 걷는다 — 적어 둔 것에서도 지운다.</summary>
-    private void RevertAll()
-    {
-        _archive?.RevertAll();
-        DisevEdits.ResetAll();
-        RefreshDiscoveries();
-        ShowPart();
-        _status.Text = "고친 것을 몽땅 걷었습니다.";
+        string? backup = _book.Bake(_gameDir);
+        _status.Text = backup == null
+            ? $"굽지 못했습니다 — {DisevBook.LastError}"
+            : $"DISEV.CDS 에 구웠습니다. 백업: {Path.GetFileName(backup)}";
     }
 }
