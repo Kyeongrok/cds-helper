@@ -41,6 +41,9 @@ public static class GameSave
     /// </remarks>
     public const int FaceFrom = 25;
 
+    /// <summary>나라 적대도와 열린 문이 적히기 시작한 판.</summary>
+    public const int StandingFrom = 26;
+
     /// <summary>이 판부터 <c>ShipStats</c> 에 마스트의 돛도 함께 적힌다.</summary>
     public const int SailsInStatsFrom = 19;
 
@@ -141,7 +144,9 @@ public static class GameSave
         int? SpouseId = null, Dictionary<int, int>? Liking = null,
         string? Name = null, string? Family = null, string? Given = null,
         Dictionary<string, int>? Tongues = null,
-        int? Face = null, int? Fortune = null);
+        int? Face = null, int? Fortune = null,
+        Dictionary<int, int>? Hostility = null, List<int>? OpenedGates = null,
+        List<int>? TalksLost = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -157,7 +162,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(FaceFrom, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(StandingFrom, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -185,7 +190,9 @@ public static class GameSave
                             player.Liking.ToDictionary(p => p.Key, p => p.Value),
                             player.Name, player.Family, player.Given,
                             new Dictionary<string, int>(player.Tongues),
-                            player.Face, player.Fortune);
+                            player.Face, player.Fortune,
+                            player.Hostility.ToDictionary(e => e.Key, e => e.Value),
+                            [.. player.OpenedGates], [.. player.TalksLost]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

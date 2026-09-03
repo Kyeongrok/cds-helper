@@ -17,6 +17,7 @@ using CdsHelper.Game.Engine.Disev;
 using CdsHelper.Game.Engine.Land;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Sea;
+using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
@@ -1553,6 +1554,10 @@ public sealed class ShipMapWindow : Window
             if (saved.Given != null) _game.Player.Given = saved.Given;
             _game.Player.RestoreTongues(saved.Tongues);
 
+            // 나라 적대도와 열린 적대 도시. 판 26 앞의 세이브에는 없어 죄다 0 으로 시작한다 —
+            // 게임도 켤 때는 0 이다(형편 판 0x005859C0 은 .bss 다).
+            _game.Player.RestoreStandings(saved.Hostility, saved.OpenedGates, saved.TalksLost);
+
             // 얼굴과 운명 코드는 판 25 부터 적힌다. 운명 코드가 없으면 얼굴 번호로
             // 물러선다 — 그때까지는 새 놀이가 앞의 열여섯만 고르게 해 둘이 같았다.
             if (saved.Face is { } face) _game.Player.Face = face;
@@ -1864,6 +1869,9 @@ public sealed class ShipMapWindow : Window
         bool inCity = false;
         try
         {
+            // 적대 도시면 물음창 대신 공격·잠입·교섭·떠난다가 뜬다(0x00468804).
+            if (!PassGate(city, name, byLand)) return;
+
             // 게임도 그냥 물음창이다 — 짙은 밤색 판에 흰 글씨, 아래에 YES/NO 둘.
             // 배면 "항구로", 말이면 "도시로" 로 갈아 낸다(문구는 하나다).
             if (ConfirmDialog.Ask(this,
@@ -1903,6 +1911,9 @@ public sealed class ShipMapWindow : Window
         bool inCity = false;
         try
         {
+            // 커맨드로 곧장 들어가도 문은 같다 — 적대 도시면 차림표부터다.
+            if (!PassGate(city, name, byLand: _host.IsOnLand)) return;
+
             _host.EnterPort(name);
             inCity = ShowCityPicture(city, name);
         }
@@ -1914,6 +1925,49 @@ public sealed class ShipMapWindow : Window
                 _asking = false;
             }
         }
+    }
+
+    /// <summary>
+    /// 그 도시의 문을 지난다 — 적대 도시면 차림표를 내고, 들어가도 되면 참.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 입항을 시도할 때 문을 <b>두 번</b> 본다(<c>0x00468790</c>).
+    /// <code>
+    ///   468804  그 나라 적대도 &gt; 0        →  적대 차림표 0x004A56F0
+    ///   46882C  트루데시야스 조약에 막힘   →  같은 차림표 0x0046ABB0
+    /// </code>
+    /// 어느 쪽이든 한 번 뚫으면(공략·잠입·교섭) 그 도시는 그냥 열린다 —
+    /// 「제독, 이것으로 마을에 들어갈 수 있습니다」(<c>0x00551C28</c>).
+    ///
+    /// <b>적대도는 아직 오를 일이 없다</b> — 게임에서도 켤 때는 죄다 0 이고
+    /// (<c>0x005859C0</c> 은 <c>.bss</c> 다) 무엇이 처음 올리는지를 못 짚었다. 그래서
+    /// 지금 이 문이 실제로 닫히는 것은 <b>조약</b> 쪽뿐이다.
+    /// </remarks>
+    private bool PassGate(int city, string name, bool byLand)
+    {
+        if (_game.Player.IsGateOpen(city)) return true;
+
+        int nation = _game.CityRows?.NationOf(city) ?? -1;
+        bool angry = nation >= 0 && _game.Player.HostilityOf(nation) > 0;
+        bool treaty = Standoff.TreatyBars(_game.Player.Date.Year, _game.Player.Nation, nation);
+        if (!angry && !treaty) return true;
+
+        // 조약 쪽은 무엇에 막혔는지를 먼저 이른다(0x00552208).
+        if (treaty && !angry)
+        {
+            string theirs = _game.Nations?.Find(nation)?.Name ?? "";
+            NoticeDialog.Show(this,
+                string.Format(Standoff.TreatyWord, Standoff.TreatyName, theirs), name);
+        }
+
+        var end = HostileCityMenu.Run(this, _game, city, name, byLand);
+        if (end.GameOver)
+        {
+            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+            Dispatcher.BeginInvoke(ReturnToTitle);
+            return false;
+        }
+        return end.Entered;
     }
 
     /// <summary>
@@ -2012,7 +2066,7 @@ public sealed class ShipMapWindow : Window
         int ground = _host.TerrainClass;      // 짐승·회오리는 2, 독충은 6 에서만 난다
 
         // 회오리가 먼저다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
-        if (LandEvents.Tornado(dice, ground)) { Tornado(dice); return; }
+        if (LandEvents.Tornado(dice, ground, _game.Player.Date.Year)) { Tornado(dice); return; }
 
         if (LandEvents.Meet(dice, ground, []) is not { } met) return;
 
