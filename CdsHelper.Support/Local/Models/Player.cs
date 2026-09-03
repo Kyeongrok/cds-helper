@@ -795,6 +795,85 @@ public sealed class Player
         return PurchaseResult.Ok;
     }
 
+    private readonly Dictionary<int, int> _hostility = [];
+    private readonly HashSet<int> _openedGates = [];
+    private readonly HashSet<int> _talksLost = [];
+
+    /// <summary>
+    /// 나라마다의 <b>적대도</b>. 0 이면 여느 나라다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 나라마다 열여섯 바이트짜리 형편 레코드를 <c>0x005859C0</c> 에 두고 적대도를
+    /// <c>+0x0C</c> 에 적는다(<c>0x00429D90</c>). 그 판은 <c>.bss</c> 라 켤 때는 죄다 0 이고
+    /// 세이브에 통째로 실린다(<c>0x0047858E</c>, 일흔여덟 칸).
+    ///
+    /// <b>무엇이 처음 적대도를 올리는지는 아직 못 짚었다</b> — 우리는 마을을 치거나
+    /// 숨어들다 잡혔을 때 올린다.
+    /// </remarks>
+    public IReadOnlyDictionary<int, int> Hostility => _hostility;
+
+    /// <summary>그 나라의 적대도. 모르는 나라면 0.</summary>
+    public int HostilityOf(int nation) => _hostility.GetValueOrDefault(nation);
+
+    /// <summary>그 나라를 성나게 한다.</summary>
+    public void Anger(int nation, int by = 1)
+    {
+        if (nation < 0 || by <= 0) return;
+        _hostility[nation] = HostilityOf(nation) + by;
+    }
+
+    /// <summary>그 나라를 달랜다.</summary>
+    public void Calm(int nation) => _hostility.Remove(nation);
+
+    /// <summary>
+    /// 적대 도시 가운데 <b>문이 열린</b> 곳. 공략·잠입·교섭에 성공하면 는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 「제독, 이것으로 마을에 들어갈 수 있습니다」(<c>0x00551C28</c>) 다. 한 번
+    /// 열리면 그 도시는 적대도와 상관없이 그냥 들어간다.
+    /// </remarks>
+    public IReadOnlyCollection<int> OpenedGates => _openedGates;
+
+    /// <summary>그 적대 도시의 문이 이미 열렸는지.</summary>
+    public bool IsGateOpen(int city) => _openedGates.Contains(city);
+
+    /// <summary>적대 도시의 문을 연다. 처음 여는 것이면 true.</summary>
+    public bool OpenGate(int city) => city >= 0 && _openedGates.Add(city);
+
+    /// <summary>
+    /// 교섭이 어그러진 자리. <b>마을 쪽과 항구 쪽을 따로</b> 센다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 도시 레코드에 <c>+0xB0</c>(항구)와 <c>+0xB4</c>(마을) 두 자리를 둔다
+    /// (<c>0x004A56A7</c>). 한 번 어그러지면 그 자리에서는 <b>「떠난다」가 꺼져</b>
+    /// 물러설 수 없다.
+    /// </remarks>
+    public bool TalkLostAt(int city, bool byLand) => _talksLost.Contains(GateKey(city, byLand));
+
+    /// <summary>교섭이 어그러졌다고 적어 둔다.</summary>
+    public void MarkTalkLost(int city, bool byLand) => _talksLost.Add(GateKey(city, byLand));
+
+    /// <summary>적어 둔 자리 — 마을 쪽과 항구 쪽이 다른 칸이다.</summary>
+    private static int GateKey(int city, bool byLand) => city * 2 + (byLand ? 0 : 1);
+
+    /// <summary>적어 둔 형편을 통째로 되돌린다(세이브를 읽을 때).</summary>
+    public void RestoreStandings(IEnumerable<KeyValuePair<int, int>>? hostility,
+                                 IEnumerable<int>? openedGates,
+                                 IEnumerable<int>? talksLost)
+    {
+        _hostility.Clear();
+        foreach (var (nation, level) in hostility ?? []) _hostility[nation] = level;
+
+        _openedGates.Clear();
+        foreach (int city in openedGates ?? []) _openedGates.Add(city);
+
+        _talksLost.Clear();
+        foreach (int key in talksLost ?? []) _talksLost.Add(key);
+    }
+
+    /// <summary>세이브에 적을 교섭 실패 자리(칸 번호 그대로).</summary>
+    public IReadOnlyCollection<int> TalksLost => _talksLost;
+
     /// <summary>그 힌트를 이미 얻었는지.</summary>
     public bool HasHint(int hint) => _hints.Contains(hint);
 

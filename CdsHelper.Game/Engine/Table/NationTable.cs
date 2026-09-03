@@ -7,9 +7,14 @@ namespace CdsHelper.Game.Local.Helpers;
 /// </summary>
 /// <remarks>
 /// <code>
-///   표 VA 0x004CA370, 24바이트 x 40 (색인 = 나라 번호)
+///   표 VA 0x004CA370, 24바이트 x 78 (색인 = 나라 번호)
 ///   +0x00  이름 ptr("잉글랜드 왕국")   +0x04  언어(0~13)   +0x08  수도 도시 번호
+///   +0x0C  갈래(0x004A1800 이 읽는다)
 /// </code>
+/// <b>나라는 마흔이 아니라 일흔여덟이다.</b> 예전에는 마흔에서 끊어 명·조선·일본과
+/// 아메리카 나라들이 통째로 빠졌다 — 세이브가 이 표를 <c>0x005859C0</c> 부터
+/// <c>0x00585EA0</c> 까지 적는데(<c>0x0047858E</c>) 한 칸이 열여섯이라 <b>일흔여덟</b>
+/// 칸이다.</code>
 /// <b>도시의 언어는 여기서 온다.</b> 도시 줄에는 언어가 없고 나라 번호만 있다
 /// (<see cref="CityExeTable.NationOf"/>) — 도시를 정복하면 정복한 나라의 말을 쓰게 되므로
 /// 도시에 박아 둘 수가 없다.
@@ -28,7 +33,10 @@ public sealed class NationTable
     private const int RowSize = 24;
 
     /// <summary>나라 수.</summary>
-    public const int Count = 40;
+    public const int Count = 78;
+
+    /// <summary>알맹이 모양 판 — 갈래를 더하고 나라 수를 고치면서 올렸다.</summary>
+    private const int Shape = 2;
 
     private const int ProbeId = 11;
     private const string ProbeName = "잉글랜드 왕국";
@@ -36,8 +44,18 @@ public sealed class NationTable
     /// <summary>나라 하나.</summary>
     /// <param name="Language">언어 번호. 이름은 <see cref="CityBuildingTable.LanguageNames"/>.</param>
     /// <param name="Capital">수도 도시 번호.</param>
+    /// <param name="Sect">
+    /// 나라 갈래(<c>+0x0C</c>). <b>도시의 문화권과는 다른 물건</b>이다
+    /// (<see cref="CityExeTable.CultureOf"/>).
+    /// </param>
+    /// <remarks>
+    /// 갈래는 유럽이 0, 동유럽·정교권이 2, <b>이슬람권이 3</b>(사파비만 4), 인도가 3·5·6,
+    /// 명·조선이 7, 일본이 6, 아메리카가 8 이다. <b>3 이나 4 일 때만 적대 도시에
+    /// 「잠입한다」가 켜진다</b>(<c>0x004A1800</c>) — 명이나 조선에 못 숨어드는 까닭이다.
+    /// </remarks>
     [method: JsonConstructor]
-    public readonly record struct Nation(int Id, string Name, int Language, int Capital);
+    public readonly record struct Nation(int Id, string Name, int Language, int Capital,
+                                         int Sect = 0);
 
     /// <summary>JSON 으로 적어 두는 알맹이.</summary>
     internal sealed record Snapshot(Nation[] Nations);
@@ -65,7 +83,8 @@ public sealed class NationTable
     /// <summary>표를 연다. 적어 둔 JSON 이 있으면 그것을 읽는다.</summary>
     public static NationTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                              Shape);
         LastError = error;
         return snapshot == null ? null : new NationTable(snapshot);
     }
@@ -82,7 +101,8 @@ public sealed class NationTable
                 id,
                 exe.Text(exe.Word(row + 0x00)) ?? "",
                 exe.Int(row + 0x04),
-                exe.Int(row + 0x08));
+                exe.Int(row + 0x08),
+                exe.Int(row + 0x0C));
         }
 
         if (nations[ProbeId].Name != ProbeName)

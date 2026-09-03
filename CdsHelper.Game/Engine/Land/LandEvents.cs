@@ -151,15 +151,19 @@ public static class LandEvents
     /// <remarks>
     /// 게임은 셋을 함께 본다(<c>0x00427DA3</c> 부터).
     /// <code>
-    ///   427DA3  [0x005A4D20] % 3 != 0        ; 사흘에 두 번 꼴로만 본다
+    ///   427DA3  [0x005A4D20] % 3 != 0        ; 해를 셋으로 나눈 나머지
     ///   427DBA  지형(0x00426740) == 2
     ///   427DC8  rand(500) == 0
     /// </code>
-    /// 사흘 조건(<c>[0x005A4D20] % 3</c>)은 그 값이 무엇인지 아직 못 짚어 뺐다.
+    /// <b><c>0x005A4D20</c> 은 해(년)다.</b> <c>0x00469880</c> 이 그것을
+    /// <c>0x5D6</c>(=1494)과 견주어 트루데시야스 조약을 켜는 데서 잡았다. 그러니 이 조건은
+    /// 「사흘에 두 번」이 아니라 <b>셋에 두 해꼴로만 회오리가 부는 해</b>다 — 1480·1481
+    /// 에는 불고 1482 에는 안 분다.
     /// </remarks>
     /// <param name="ground">지금 선 자리의 지형 부류.</param>
-    public static bool Tornado(GameRandom dice, int ground) =>
-        ground == BeastGround && dice.Next(TornadoOdds) == 0;
+    /// <param name="year">지금 해.</param>
+    public static bool Tornado(GameRandom dice, int ground, int year) =>
+        year % 3 != 0 && ground == BeastGround && dice.Next(TornadoOdds) == 0;
 
     /// <summary>
     /// 회오리에 휩쓸린다 — <b>가릴 것도 고를 것도 없다</b>. 죽은 대원 수를 낸다.

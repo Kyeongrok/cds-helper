@@ -27,6 +27,34 @@ internal sealed class ChoiceDialog : Window
 {
     private int _picked = -1;
 
+    private ChoiceDialog(string title, IReadOnlyList<(string Text, bool On)> rows)
+    {
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = GameUi.Back;
+
+        var items = new List<GameMenuRow>();
+        for (int i = 0; i < rows.Count; i++)
+        {
+            int pick = i;
+            // 꺼진 줄은 <b>자리를 지킨 채</b> 죽는다 — 할 일을 안 주면 GameMenu 가 흐린
+            // 단추로 낸다. 게임도 넉 줄을 먼저 깔고 그 뒤에 켜고 끈다(0x004A5726).
+            items.Add(new GameMenuRow(rows[i].Text,
+                                      rows[i].On ? () => { _picked = pick; Close(); } : null));
+        }
+
+        var box = new GameMenu(title, items);
+        var frame = new Border { Background = GameUi.Back, Child = box };
+        GameUi.EnableDrag(this, frame);
+        Content = frame;
+
+        KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
+        MouseRightButtonUp += (_, _) => Close();
+    }
+
     private ChoiceDialog(string title, IReadOnlyList<string> rows, string? cancel)
     {
         WindowStyle = WindowStyle.None;
@@ -83,6 +111,21 @@ internal sealed class ChoiceDialog : Window
     public static int Pick(Window owner, string title, IReadOnlyList<string> rows)
     {
         var dialog = new ChoiceDialog(title, rows, null) { Owner = owner };
+        dialog.ShowDialog();
+        return dialog._picked;
+    }
+
+    /// <summary>
+    /// 줄마다 <b>켜고 끌 수 있는</b> 고르기 창. 물렀으면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 적대 도시의 공격·잠입·교섭·떠난다가 이 모양이다(<c>0x004A56F0</c>) — 꺼진 줄도
+    /// 자리를 안 비우므로 <b>고른 값이 곧 붙박이 번호</b>다. 마지막 줄은 <see cref="GameMenu"/>
+    /// 가 알아서 회녹색 나가기 띠로 낸다(적대 차림표의 「떠난다」가 그 자리다).
+    /// </remarks>
+    public static int Pick(Window owner, string title, IReadOnlyList<(string Text, bool On)> rows)
+    {
+        var dialog = new ChoiceDialog(title, rows) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
     }
