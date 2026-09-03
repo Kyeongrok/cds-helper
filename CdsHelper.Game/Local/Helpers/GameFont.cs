@@ -65,14 +65,15 @@ public sealed class GameFont
     public static string LastError { get; private set; } = "";
 
     /// <summary>
-    /// 게임 폴더에서 글꼴 두 개를 읽는다. 한글 글꼴이 없으면 null —
-    /// ANK 는 없어도 한글은 찍히므로 그것만 빠진 채로 연다.
+    /// 글꼴 두 개를 읽는다. <b>asset 을 먼저 본다</b> — 게임 폴더가 없어도 앱에 실려 있다
+    /// (<see cref="ResolvePath"/>). 한글 글꼴이 없으면 null — ANK 는 없어도 한글은
+    /// 찍히므로 그것만 빠진 채로 연다.
     /// </summary>
     public static GameFont? Open(string gameDirectory)
     {
         LastError = "";
-        var hanPath = Path.Combine(gameDirectory, "ALL_FONT.16P");
-        if (!File.Exists(hanPath)) { LastError = $"{hanPath} 가 없습니다"; return null; }
+        var hanPath = ResolvePath(gameDirectory, "ALL_FONT.16P");
+        if (hanPath == null) { LastError = "ALL_FONT.16P 를 asset 에도 게임 폴더에도 못 찾았습니다"; return null; }
 
         byte[] han;
         try { han = File.ReadAllBytes(hanPath); }
@@ -90,8 +91,8 @@ public sealed class GameFont
         }
 
         byte[]? ank = null;
-        var ankPath = Path.Combine(gameDirectory, "ANKFONT.DAT");
-        if (File.Exists(ankPath))
+        var ankPath = ResolvePath(gameDirectory, "ANKFONT.DAT");
+        if (ankPath != null)
         {
             try
             {
@@ -102,6 +103,19 @@ public sealed class GameFont
         }
 
         return new GameFont(han, index, ank);
+    }
+
+    /// <summary>
+    /// asset 에 실어 둔 것을 먼저 본다 — 게임 폴더가 없어도 늘 있다. 거기 없을 때만
+    /// 게임 폴더에서 찾는다. 어느 쪽에도 없으면 null.
+    /// </summary>
+    private static string? ResolvePath(string gameDirectory, string fileName)
+    {
+        var asset = Path.Combine(AppContext.BaseDirectory, "asset", fileName);
+        if (File.Exists(asset)) return asset;
+
+        var game = Path.Combine(gameDirectory, fileName);
+        return File.Exists(game) ? game : null;
     }
 
     private static Encoding? _cp949;

@@ -1,4 +1,6 @@
 ﻿using System.IO;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -106,13 +108,22 @@ public sealed class UiSprites
     private static readonly int[] PieceOffset = [0, 384, 576];
     private static readonly int[] PieceWidth = [CapWidth, MidWidth, CapWidth];
 
-    private readonly byte[] _band;
+    /// <summary>MISC.CDS 파트4 원본(팔레트 인덱스). asset 조각으로 지었으면 null.</summary>
+    private readonly byte[]? _band;
+
+    /// <summary>
+    /// asset/ui/band 의 아홉 조각(BGRA, 이미 참값 색). style*3+k 로 찾는다.
+    /// MISC.CDS 로 지었으면 null.
+    /// </summary>
+    private readonly uint[][]? _bandPieces;
+
     private readonly byte[]? _icons;
     private readonly byte[]? _digits;
 
-    private UiSprites(byte[] band, byte[]? icons, byte[]? digits)
+    private UiSprites(byte[]? band, uint[][]? bandPieces, byte[]? icons, byte[]? digits)
     {
         _band = band;
+        _bandPieces = bandPieces;
         _icons = icons;
         _digits = digits;
     }
@@ -143,32 +154,98 @@ public sealed class UiSprites
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>게임 폴더의 MISC.CDS 를 연다. 없거나 모양이 다르면 null.</summary>
+    /// <summary>asset/ui/band 조각 파일 이름. <see cref="BandStyle"/> 값 순서 그대로다.</summary>
+    private static readonly string[] StyleFileNames = ["title", "button", "alt"];
+
+    /// <summary>왼끝·가운데·오른끝 파일 이름. <see cref="PieceOffset"/> 차례 그대로다.</summary>
+    private static readonly string[] PieceFileNames = ["left", "mid", "right"];
+
+    /// <summary>
+    /// 띠 조각을 연다. <b>asset/ui/band 를 먼저 본다</b> — 게임 폴더가 없어도 앱에 실려 있고,
+    /// 손으로 다듬은 그림도 그대로 반영된다. 거기 조각이 없거나 깨졌을 때만
+    /// 게임 폴더의 MISC.CDS 로 대신한다. 아이콘·숫자는 asset 에 조각이 없어 늘 MISC.CDS 다.
+    /// </summary>
+    /// <param name="gameDirectory">게임 폴더. 없어도 asset 조각만으로 열릴 수 있다.</param>
     public static UiSprites? Open(string gameDirectory)
     {
         LastError = "";
+
+        var bandPieces = LoadBandAsset();
+
+        byte[]? cdsBand = null;
+        byte[]? icons = null;
+        byte[]? digits = null;
+
         var path = Path.Combine(gameDirectory, "MISC.CDS");
-        if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
-
-        var archive = Ls12Reader.Open(path);
-        if (archive == null) { LastError = $"{path} 를 읽지 못했습니다"; return null; }
-        if (archive.PartCount <= BandPart) { LastError = "MISC.CDS 에 띠 조각이 없습니다"; return null; }
-
-        var part = archive.Decode(BandPart);
-        if (part == null || part.Length < StyleBytes * StyleCount)
+        if (File.Exists(path))
         {
-            LastError = "띠 조각이 기대한 크기가 아닙니다";
+            var archive = Ls12Reader.Open(path);
+            if (archive != null && archive.PartCount > BandPart)
+            {
+                // 띠 조각은 asset 을 못 읽었을 때만 CDS 에서 마저 찾는다.
+                if (bandPieces == null)
+                {
+                    var part = archive.Decode(BandPart);
+                    if (part != null && part.Length >= StyleBytes * StyleCount) cdsBand = part;
+                }
+
+                // 아이콘은 없어도 창은 열린다 — 그때는 글자 화살표로 물러선다.
+                icons = archive.PartCount > IconPart ? archive.Decode(IconPart) : null;
+                if (icons != null && icons.Length < IconWidth * IconHeight * IconCount) icons = null;
+
+                // 숫자 조각도 덤이다 — 없으면 계산기가 윈도 글꼴로 물러선다.
+                digits = archive.PartCount > DigitPart ? archive.Decode(DigitPart) : null;
+                if (digits != null && digits.Length < DigitWidth * DigitHeight * DigitCount) digits = null;
+            }
+        }
+
+        if (bandPieces == null && cdsBand == null)
+        {
+            LastError = $"asset/ui/band 조각도 {path} 도 못 읽었습니다";
             return null;
         }
-        // 아이콘은 없어도 창은 열린다 — 그때는 글자 화살표로 물러선다.
-        var icons = archive.PartCount > IconPart ? archive.Decode(IconPart) : null;
-        if (icons != null && icons.Length < IconWidth * IconHeight * IconCount) icons = null;
 
-        // 숫자 조각도 덤이다 — 없으면 계산기가 윈도 글꼴로 물러선다.
-        var digits = archive.PartCount > DigitPart ? archive.Decode(DigitPart) : null;
-        if (digits != null && digits.Length < DigitWidth * DigitHeight * DigitCount) digits = null;
+        return new UiSprites(cdsBand, bandPieces, icons, digits);
+    }
 
-        return new UiSprites(part, icons, digits);
+    /// <summary>
+    /// asset/ui/band 의 아홉 조각(title·button·alt × 왼끝·가운데·오른끝)을 읽는다.
+    /// 하나라도 없거나 크기가 다르면 통째로 null 이다 — 조각이 섞이면 이음매가 어긋난다.
+    /// </summary>
+    private static uint[][]? LoadBandAsset()
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "asset", "ui", "band");
+        var pieces = new uint[StyleCount * 3][];
+        for (int s = 0; s < StyleCount; s++)
+            for (int k = 0; k < 3; k++)
+            {
+                var file = Path.Combine(dir, $"{StyleFileNames[s]}-{PieceFileNames[k]}.png");
+                var px = LoadPiecePng(file, PieceWidth[k], BandHeight);
+                if (px == null) return null;
+                pieces[s * 3 + k] = px;
+            }
+        return pieces;
+    }
+
+    /// <summary>조각 PNG 한 장을 BGRA 로 읽는다. 없거나 크기가 다르거나 못 읽으면 null.</summary>
+    private static uint[]? LoadPiecePng(string path, int width, int height)
+    {
+        if (!File.Exists(path)) return null;
+        try
+        {
+            var frame = BitmapFrame.Create(new Uri(path, UriKind.Absolute),
+                                           BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+            if (frame.PixelWidth != width || frame.PixelHeight != height) return null;
+
+            var converted = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+            var pixels = new uint[width * height];
+            converted.CopyPixels(pixels, width * 4, 0);
+            return pixels;
+        }
+        catch (Exception ex) when (ex is IOException or NotSupportedException or FileFormatException)
+        {
+            return null;
+        }
     }
 
     /// <summary>가운데를 <paramref name="cells"/> 번 되풀이했을 때의 띠 폭.</summary>
@@ -254,12 +331,21 @@ public sealed class UiSprites
     /// <summary>조각 하나(<paramref name="k"/> = 0 왼끝 / 1 가운데 / 2 오른끝)를 x 자리에 옮긴다.</summary>
     private void Blit(uint[] dst, int stride, BandStyle style, int k, int x)
     {
-        int src = (int)style * StyleBytes + PieceOffset[k];
         int w = PieceWidth[k];
+
+        if (_bandPieces != null)
+        {
+            var piece = _bandPieces[(int)style * 3 + k];
+            for (int r = 0; r < BandHeight; r++)
+                Array.Copy(piece, r * w, dst, r * stride + x, w);
+            return;
+        }
+
+        int src = (int)style * StyleBytes + PieceOffset[k];
         for (int r = 0; r < BandHeight; r++)
             for (int c = 0; c < w; c++)
             {
-                int i = _band[src + r * w + c] * 3;
+                int i = _band![src + r * w + c] * 3;
                 dst[r * stride + x + c] = (uint)(0xFF << 24 | GamePalette.Rgb[i] << 16
                                                 | GamePalette.Rgb[i + 1] << 8 | GamePalette.Rgb[i + 2]);
             }
