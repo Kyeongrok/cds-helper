@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -122,24 +122,51 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         _log.IsHitTestVisible = false;
         _scene.Children.Add(_log);
 
+        // 알림줄은 판 위 왼쪽 꼭대기에 얹는다 — 밤색 판이 없어지면 붙일 데가 없다.
+        _line.FallbackBrush = Brushes.White;
+        _line.IsHitTestVisible = false;
+        Canvas.SetLeft(_line, 14);
+        Canvas.SetTop(_line, 10);
+        Panel.SetZIndex(_line, 60);
+        _scene.Children.Add(_line);
+
         _scene.Background = Brushes.Transparent;
         _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
 
         double zoom = GameUi.PixelZoom(this, Zoom);
         _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        var rows = new StackPanel();
-        rows.Children.Add(_line);
-        rows.Children.Add(Gap(4));
-        rows.Children.Add(_scene);
+        // 게임은 미니 게임에 밤색 판도 제목도 아래 단추 줄도 안 두른다 — 그림에 금빛
+        // 테만 두르고, 할 일은 오른쪽 단추 차림표가 맡는다(성배 퍼즐·미궁 64 와 같다).
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = GameUi.Back;
+        Content = GameUi.GoldFrame(_scene);
+        GameUi.EnableDrag(this, _scene);
 
-        Build("천칭 퍼즐", rows, SceneWidth * zoom + 30, SceneHeight * zoom + 130,
-              new GameButton("게임 설명", Explain),
-              new GameButton("포기한다", AskGiveUp));
+        // 오른쪽 단추는 <b>두 가지</b>를 한다 — 접시에 올린 금화를 내리고, 차림표를 편다.
+        // 예전에는 내리기만 했다.
+        MouseRightButtonUp += (_, e) =>
+        {
+            _game.Clear();
+            Sync();
+            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+        };
+        KeyDown += (_, e) => { if (e.Key is Key.Escape) { _game.Clear(); Sync(); } };
 
-        MouseRightButtonUp += (_, _) => { _game.Clear(); Sync(); };
         Sync();
     }
+
+    /// <summary>오른쪽 단추가 부르는 차림표. 예전 아래 단추 줄이 그대로 여기로 왔다.</summary>
+    private IReadOnlyList<(string, Action?)> Commands() =>
+    [
+        ("게임 설명", Explain),
+        ("포기한다", AskGiveUp),
+        ("게임 복귀", () => { }),   // 차림표만 닫는다
+    ];
 
     /// <summary>단추 하나. 그림은 게임 것을 그대로 쓴다.</summary>
     private void Button(int at, string art, Action run)

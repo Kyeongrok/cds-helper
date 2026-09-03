@@ -44,7 +44,7 @@ internal sealed class NumberPadDialog : Window
     private string _typed;
     private int? _result;
 
-    private NumberPadDialog(int start, int min, int max)
+    private NumberPadDialog(int start, int min, int max, string prompt)
     {
         _min = min;
         _max = max;
@@ -87,6 +87,18 @@ internal sealed class NumberPadDialog : Window
         _digits.Visibility = art ? Visibility.Visible : Visibility.Collapsed;
 
         var stack = new StackPanel();
+
+        // 물음이 딸려 오면 숫자 칸 위에 한 줄로 얹는다 — 발라몬의 탑이 «판자를 몇 장
+        // 사용하겠습니까?» 를 그렇게 묻는다(0x0045FB79). 안 주면 예전처럼 숫자만 뜬다.
+        if (prompt.Length > 0)
+            stack.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
+            {
+                Text = prompt,
+                Bold = true,
+                FallbackBrush = System.Windows.Media.Brushes.White,
+                Margin = new Thickness(8, 6, 8, 0),
+            });
+
         stack.Children.Add(new Border
         {
             Background = GameUi.PageFill,
@@ -198,9 +210,10 @@ internal sealed class NumberPadDialog : Window
     /// <param name="start">처음 들어 있을 수.</param>
     /// <param name="min">가장 작은 값(MIN 단추가 넣는 값).</param>
     /// <param name="max">가장 큰 값(MAX 단추가 넣는 값).</param>
-    public static int? Ask(Window owner, int start, int min, int max)
+    /// <param name="prompt">숫자 칸 위에 얹을 물음. 안 주면 숫자만 뜬다.</param>
+    public static int? Ask(Window owner, int start, int min, int max, string prompt = "")
     {
-        var dialog = new NumberPadDialog(start, min, max) { Owner = owner };
+        var dialog = new NumberPadDialog(start, min, max, prompt) { Owner = owner };
         dialog.ShowDialog();
         return dialog._result;
     }

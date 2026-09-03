@@ -1,10 +1,11 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -57,14 +58,12 @@ internal sealed class FishingGameDialog : InfoDialog
     private readonly Image _hook = new() { Width = HookSize, Height = HookSize };
     private readonly Image _boat = new() { Width = BeastSize, Height = BeastSize };
     private readonly Image[] _arrow = new Image[2];
-    private readonly GameUi.GameLabel _line = Label("");
+    private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
     private readonly DispatcherTimer _clock = new();
-    private readonly GameButton _drop;
 
     private FishingGameDialog(Random rng)
     {
         _game = new FishingGame(rng);
-        _drop = new GameButton("떨어뜨린다", LetGo);
 
         Lay(Picture("fish-bg.png"), 0, 0, SceneWidth, SceneHeight);
 
@@ -108,22 +107,33 @@ internal sealed class FishingGameDialog : InfoDialog
             _arrow[i] = image;
         }
 
+        // 알림줄은 하늘 자리에 얹는다 — 화살표(x 224)와 안 겹친다.
+        _line.FallbackBrush = Brushes.White;
+        _line.IsHitTestVisible = false;
+        Canvas.SetLeft(_line, 10);
+        Canvas.SetTop(_line, 12);
+        Panel.SetZIndex(_line, 60);
+        _scene.Children.Add(_line);
+
         _scene.Background = Brushes.Transparent;
         _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
         // 모니터 배율을 물어 나눠 준다 — 그림 점 하나가 화면 점 하나가 되게.
         double zoom = GameUi.PixelZoom(this, Zoom);
         _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        var rows = new StackPanel();
-        rows.Children.Add(_line);
-        rows.Children.Add(Gap(4));
-        rows.Children.Add(_scene);
+        // 게임은 미니 게임에 밤색 판도 제목도 아래 단추 줄도 안 두른다 — 그림에 금빛
+        // 테만 두르고, 할 일은 오른쪽 단추 차림표가 맡는다(성배 퍼즐·미궁 64 와 같다).
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
+        Background = GameUi.Back;
+        Content = GameUi.GoldFrame(_scene);
+        GameUi.EnableDrag(this, _scene);
 
-        Build("낚시 게임", rows, SceneWidth * zoom + 30, SceneHeight * zoom + 130,
-              _drop,
-              new GameButton("←", () => Steer(-1)),
-              new GameButton("→", () => Steer(+1)),
-              new GameButton("게임 설명", Explain));
+        MouseRightButtonUp += (_, e) =>
+            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
 
         KeyDown += (_, e) =>
         {
@@ -190,13 +200,28 @@ internal sealed class FishingGameDialog : InfoDialog
         Sync();
     }
 
+    /// <summary>
+    /// 오른쪽 단추가 부르는 차림표. 예전 아래 단추 줄이 그대로 여기로 왔다.
+    /// </summary>
+    /// <remarks>
+    /// 바늘이 내려가는 동안에는 「떨어뜨린다」가 죽는다 — 예전에는 단추의
+    /// <c>On</c> 을 내려 같은 일을 했다.
+    /// </remarks>
+    private IReadOnlyList<(string, Action?)> Commands() =>
+    [
+        ("떨어뜨린다", _game.Started || _game.Got != FishingGame.Catch.None ? null : LetGo),
+        ("← 왼쪽으로", _game.Started ? () => Steer(-1) : null),
+        ("→ 오른쪽으로", _game.Started ? () => Steer(+1) : null),
+        ("게임 설명", Explain),
+        ("게임 복귀", () => { }),   // 차림표만 닫는다
+    ];
+
     /// <summary>떨어뜨린다. 한 번 놓으면 스스로 내려간다.</summary>
     private void LetGo()
     {
         if (_game.Started || _game.Got != FishingGame.Catch.None) return;
 
         _game.Drop();
-        _drop.On = false;
         _clock.Start();
         Sync();
     }
