@@ -81,6 +81,9 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// <summary>화살표는 <b>가는 칸</b>에서 이만큼 옮겨 얹는다(<c>0x0042C0A0</c> 벌).</summary>
     private const int ArrowW = 32, ArrowH = 24, ArrowDx = 25, ArrowDy = -2;
 
+    /// <summary>UNDO 쪽지의 숫자 자리(<c>0x0042BE55</c>) — 화면 좌표에서 배경 자리를 뺀 것.</summary>
+    private const int UndoX = 34 - BackX, UndoY = 41 - BackY;
+
     private static readonly Brush Ring = Frozen(Colors.White);
 
     private readonly MazePuzzle _game;
@@ -94,7 +97,20 @@ internal sealed class MazePuzzleDialog : InfoDialog
         Height = HeroSize,
         IsHitTestVisible = false,
     };
-    private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
+    /// <summary>
+    /// 왼쪽 위 <b>UNDO 쪽지</b>에 적히는 취소 횟수. 쪽지 그림은 배경에 그려져 있고
+    /// (「UNDO」 글자까지), 숫자만 게임이 얹는다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0042be55  [0x62B2D4] = 0x29        ; y = 41
+    ///   0042be5f  eax = 0x22               ; x = 34
+    ///   0042be7f  0x004B60C0(판, "%d/3", [this+0x304])
+    /// </code>
+    /// 자리는 <b>화면 좌표</b>라 배경이 놓이는 (8, 8) 을 빼야 우리 판의 자리가 된다.
+    /// 오른쪽 아래 「GIVE UP」 쪽지에는 숫자가 없어 배경 그림 그대로다.
+    /// </remarks>
+    private readonly GameUi.GameLabel _undo = new(GameFont.BlackColor) { Bold = true };
 
     /// <summary>지금 짚은 방향. 게임의 <c>[0x2FC]</c> 다.</summary>
     private int _point = -1;
@@ -118,6 +134,13 @@ internal sealed class MazePuzzleDialog : InfoDialog
         Panel.SetZIndex(_hero, 50);
         _scene.Children.Add(_hero);
 
+        // 왼쪽 위 UNDO 쪽지 위의 숫자. 쪽지와 「UNDO」 글자는 배경 그림에 있다.
+        _undo.IsHitTestVisible = false;
+        Canvas.SetLeft(_undo, UndoX);
+        Canvas.SetTop(_undo, UndoY);
+        Panel.SetZIndex(_undo, 70);
+        _scene.Children.Add(_undo);
+
         // 빈 데도 누름을 받아야 한다. 누름을 여기서 먹어야 판에 걸린 창 끌기가 안 물고 간다.
         _scene.Background = Brushes.Transparent;
         _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
@@ -139,7 +162,7 @@ internal sealed class MazePuzzleDialog : InfoDialog
         GameUi.EnableDrag(this, _scene);
 
         MouseRightButtonUp += (_, e) =>
-            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+            GameUi.ContextMenuAt(this, e.GetPosition(this), Commands());
 
         KeyDown += OnKey;
         Sync();
@@ -308,15 +331,22 @@ internal sealed class MazePuzzleDialog : InfoDialog
     }
 
     /// <summary>오른쪽 단추 차림표의 줄. 게임 갈무리 차례 그대로다.</summary>
-    private IReadOnlyList<(string, Action?)> Commands() =>
-    [
-        ("보물 상자를 연다", _game.ChestAt(_game.Here) != 0
-                            && !_game.ChestOpen(_game.ChestAt(_game.Here)) ? OpenChest : null),
-        ("ＵＮＤＯ", _game.CanUndo ? AskUndo : null),
-        ("게임 설명", Explain),
-        ("포기한다", AskGiveUp),
-        ("게임 복귀", () => { }),   // 차림표만 닫는다
-    ];
+    /// <remarks>
+    /// 글귀와 차례는 게임 것 그대로다(<c>0x00559BE8</c>~<c>0x00559C30</c>) —
+    /// 「보물 상자를 연다」는 상자를 밟고 섰을 때만 끼워진다.
+    /// </remarks>
+    private IReadOnlyList<(string, Action?)> Commands()
+    {
+        var rows = new List<(string, Action?)>();
+        if (_game.ChestAt(_game.Here) != 0 && !_game.ChestOpen(_game.ChestAt(_game.Here)))
+            rows.Add(("보물 상자를 연다", OpenChest));
+
+        rows.Add(("ＵＮＤＯ(취소)", _game.CanUndo ? AskUndo : null));
+        rows.Add(("포기한다", AskGiveUp));
+        rows.Add(("게임 설명", Explain));
+        rows.Add(("게임으로 돌아간다", () => { }));   // 차림표만 닫는다
+        return rows;
+    }
 
     private void OpenChest()
     {
@@ -353,17 +383,29 @@ internal sealed class MazePuzzleDialog : InfoDialog
         Sync();
     }
 
-    private void Explain() =>
-        NoticeDialog.Show(this,
-            "바닥을 전부 한번씩만 통과해, 출구로 나가 주십시오." + Environment.NewLine +
-            "나아갈 방향의 방을 눌러 이동합니다." + Environment.NewLine +
-            "키보드는 ↑↓←→ 와 PageUp·PageDown 으로 움직이고," + Environment.NewLine +
-            "[U N D O(취소)]는 스페이스키를 누릅니다." + Environment.NewLine +
-            "[U N D O(취소)]를 사용할 수 있는 것은 3회까지입니다." + Environment.NewLine +
-            Environment.NewLine +
-            "보물 상자는 숫자가 적은 순서로 밖에 열지 못합니다만 열지 않아도 밖으로 나갈 " +
-            "수 있습니다. 바닥을 전부 통과하지 않고 출구로 가면 처음으로 돌아갑니다. " +
-            "이것도 3회까지입니다.", "게임 설명");
+    /// <summary>
+    /// 「게임 설명」 — 게임 EXE 의 글을 <b>한 자도 안 고치고</b> 옮겼다
+    /// (<c>0x00559D40</c>, 제목 <c>0x00559D30</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이 글을 두 군데서 낸다 — <b>판을 열기 전에 한 번</b>(<c>0x0042C84E</c>)과,
+    /// 놀이 도중 차림표의 「게임 설명」을 골랐을 때(<c>0x0042B839</c>)다. 둘 다
+    /// <c>0x0049E3E0</c>(제목 달린 알림창)로 낸다.
+    /// </remarks>
+    private static void Explain(Window owner) =>
+        NoticeDialog.Show(owner, Rules, "게임 설명");
+
+    private void Explain() => Explain(this);
+
+    /// <summary>게임 EXE 의 설명 글 그대로(<c>0x00559D40</c>) — 일곱 줄이다.</summary>
+    private static readonly string Rules =
+        "바닥을 전부 한번씩만 통과해, 출구로 나가 주십시오." + Environment.NewLine +
+        "나아갈 방향의 표시 위에서 마우스의 왼쪽 버튼을 누르며 이동합니다." + Environment.NewLine +
+        "되돌릴 때에는 [U N D O(취소)]의 위에서 왼쪽 버튼을 누릅니다." + Environment.NewLine +
+        "[U N D O(취소)]를 사용할 수 있는 것은 3회까지입니다." + Environment.NewLine +
+        "키보드의 경우, ↑↓←→와 Roll(Page)Up·Roll(Page)Down 키로 나아갈 방향을 지정해 Return(Enter)키로 이동합니다." + Environment.NewLine +
+        "[U N D O(취소)]는 스페이스키를 누릅니다." + Environment.NewLine +
+        "보물 상자는 숫자가 적은 순서로 밖에 열지 못합니다만 열지 않아도 밖으로 나갈 수 있습니다. 바닥을 전부 통과하지 않고 출구로 가면 처음으로 돌아갑니다. 이것도 3회까지입니다.";
 
     private void AskGiveUp()
     {
@@ -374,10 +416,8 @@ internal sealed class MazePuzzleDialog : InfoDialog
 
     private void Sync()
     {
-        _line.Text = $"  밟은 방 {_game.Walked}/{MazePuzzle.Rooms}" +
-                     $"   상자 {_game.Opened}/{MazePuzzle.Chests}" +
-                     $"   취소 {_game.Undone}/{MazePuzzle.MaxUndo}" +
-                     $"   다시 {_game.Restarted}/{MazePuzzle.MaxRestart}";
+        // 게임이 적는 것은 취소 횟수 하나뿐이다("%d/3", 0x0053CED4).
+        _undo.Text = $"{_game.Undone}/{MazePuzzle.MaxUndo}";
 
         var floor = Picture("maze-floor.png");
 
@@ -423,6 +463,9 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// <summary>놀이를 한 판 하고 <c>0x0042C8A0</c> 이 하듯 결과를 알린다.</summary>
     public static void Play(Window owner, Random rng)
     {
+        // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다(0x0042C84E).
+        Explain(owner);
+
         var dialog = new MazePuzzleDialog(rng) { Owner = owner };
         dialog.ShowDialog();
 

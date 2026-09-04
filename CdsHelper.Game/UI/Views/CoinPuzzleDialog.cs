@@ -153,7 +153,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         {
             _game.Clear();
             Sync();
-            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+            GameUi.ContextMenuAt(this, e.GetPosition(this), Commands());
         };
         KeyDown += (_, e) => { if (e.Key is Key.Escape) { _game.Clear(); Sync(); } };
 

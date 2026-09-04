@@ -133,7 +133,7 @@ internal sealed class FishingGameDialog : InfoDialog
         GameUi.EnableDrag(this, _scene);
 
         MouseRightButtonUp += (_, e) =>
-            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+            GameUi.ContextMenuAt(this, e.GetPosition(this), Commands());
 
         KeyDown += (_, e) =>
         {

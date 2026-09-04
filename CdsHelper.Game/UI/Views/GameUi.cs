@@ -223,6 +223,29 @@ internal static class GameUi
     }
 
     /// <summary>
+    /// 누른 자리에 차림표를 띄운다 — <b>창 안의 자리</b>를 받는다.
+    /// </summary>
+    /// <remarks>
+    /// <c>PointToScreen</c> 은 <b>실픽셀</b>을 내는데 창 자리는 WPF 단위라, 배율이 100% 가
+    /// 아닌 화면에서는 그대로 넘기면 차림표가 <b>게임 판 바깥</b>으로 밀려난다. 175% 짜리
+    /// 화면에서 오른쪽 아래로 크게 벗어나 있었다 — 미니 게임 여섯이 다 같은 자리였다.
+    /// 그래서 옮기는 일을 여기 한 군데로 모은다.
+    /// </remarks>
+    public static void ContextMenuAt(Window owner, Point insideWindow,
+                                     IReadOnlyList<(string Text, Action? Run)> rows) =>
+        ContextMenu(owner, ToScreen(owner, insideWindow), rows);
+
+    /// <summary>창 안의 한 자리를 화면 좌표(WPF 단위)로 옮긴다.</summary>
+    public static Point ToScreen(Window owner, Point at)
+    {
+        var device = owner.PointToScreen(at);
+        var source = PresentationSource.FromVisual(owner);
+        return source == null
+            ? device
+            : source.CompositionTarget.TransformFromDevice.Transform(device);
+    }
+
+    /// <summary>
     /// 미니 게임 판을 두르는 <b>금빛 액자</b>. 밤색 판도 제목도 아래 단추도 없다.
     /// </summary>
     /// <remarks>

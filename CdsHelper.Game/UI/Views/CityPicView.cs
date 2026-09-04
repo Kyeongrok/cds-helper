@@ -37,6 +37,25 @@ public sealed class CityPicView : Window, ITownScreen
     /// <summary>건물 이름표와 명령 창을 얹는 자리. 그림과 같은 격자 칸에 둔다.</summary>
     private readonly Canvas _layer = new();
 
+    /// <summary>
+    /// 사건이 도는 동안 그림을 덮는 <b>파란 막</b>.
+    /// </summary>
+    /// <remarks>
+    /// 발견을 보고하는 동안 게임 화면이 파래진다 — 바다에서 발견할 때 지도가 파래지는 것과
+    /// 같은 몫이고(<see cref="Rendering.ShipMapHost.Shaded"/>), 도시 그림에도 있어야
+    /// 후원자에게 보고하는 대목이 게임과 같아진다.
+    /// </remarks>
+    private readonly System.Windows.Shapes.Rectangle _shade = new()
+    {
+        Fill = new SolidColorBrush(Color.FromArgb(0x88, 0x18, 0x30, 0x70)),
+        Visibility = Visibility.Collapsed,
+        IsHitTestVisible = false,
+    };
+
+    /// <summary>그림을 파랗게 덮거나 걷는다.</summary>
+    public void Shade(bool on) =>
+        _shade.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>건물 이름표들. 명령 창이 열리면 다 감춘다.</summary>
     private readonly List<Border> _tags = [];
 
@@ -331,11 +350,15 @@ public sealed class CityPicView : Window, ITownScreen
         // 도트 그림이라 늘릴 때 섞으면 뭉개진다 — 게임 화면처럼 각을 살린다.
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
 
+        // 사건이 도는 동안 그림을 파랗게 덮는 막. 지도 쪽의 ShipMapHost.Shaded 와 같은 몫이다.
+        _shade.Width = image.Width;
+        _shade.Height = image.Height;
+
         var picBox = new Grid
         {
             Width = image.Width,
             Height = image.Height,
-            Children = { image, _layer },
+            Children = { image, _layer, _shade },
         };
 
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
