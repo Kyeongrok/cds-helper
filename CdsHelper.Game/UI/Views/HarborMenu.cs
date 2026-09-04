@@ -497,8 +497,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// </summary>
     /// <remarks>
     /// 알리면 명성이 <b>보수 ÷ 70</b>(적어도 10)만큼 오른다(<c>0x0047E849</c> 가 보수를
-    /// 0x46 으로 나누고 10 과 견준다). 게임은 그 자리에서 피로도도 풀고 규율을 100 으로
-    /// 되돌리는데, 그 둘은 아직 우리 쪽에 없다.
+    /// 0x46 으로 나누고 10 과 견준다). 그 자리에서 <b>피로도가 풀리고 규율이 100 으로
+    /// 돌아온다</b>(<c>0x0047E885</c> · <c>0x0047E88A</c>) — <see cref="Harbor.Celebrate"/> 다.
     ///
     /// 하나 알리고 나면 목록으로 돌아온다 — 게임도 고른 것을 다 알릴 때까지 돈다.
     /// </remarks>
@@ -520,6 +520,7 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
             int fame = Harbor.FameFor(row);
             _player.Fame += fame;
+            Harbor.Celebrate(_player);
 
             GameDialog.Show(owner, $"{row.Name}의 발견을 발표했다!");
             GameDialog.Show(owner, $"명성이 {fame} 올라갔다!");

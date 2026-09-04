@@ -456,9 +456,28 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// (<c>0x004AACA0</c>, 볼트 23) — 우리 쪽의 "알림" 과 같은 자리라 그렇게 적는다.
     /// 그래서 <b>계약으로 맡은 것은 항구에서 못 알리고 여기서만 매듭이 지어진다.</b>
     ///
-    /// 아직 안 옮긴 것 — 모조품 갈래, 남이 먼저 발표해 버렸을 때 깎이는 갈래, 선대의 계약.
+    /// 발견물 하나마다의 셈은 <c>0x004111D0</c> 이고 <see cref="Palace"/> 에 옮겼다 —
+    /// 명성 <see cref="Palace.FameFor"/>, 친밀도 <see cref="Palace.ClosenessFor"/>,
+    /// 후원자에게 쌓이는 값 <see cref="Palace.CreditFor"/> 다.
+    ///
+    /// 아직 안 옮긴 것 — 모조품 갈래("이것은 모조품이네", <c>0x00530BC8</c>), 선대의 계약.
     /// </remarks>
     public void Report(Patron patron) => Alone(() => ReportNow(patron));
+
+    /// <summary>
+    /// 남이 먼저 보고해 버린 발견물인가. <b>우리 쪽에서는 늘 거짓이다.</b>
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x004AADB0</c> 으로 가리고, 참이면 <b>명성이 한 톨도 안 오르고</b> 사례도
+    /// 계약금/4(늦었으면 0)로 깎인다.
+    ///
+    /// <b>원본에서도 이것이 켜지는 일은 없다.</b> 남의 이름을 사람 칸 2 에 올리는 길은
+    /// 이벤트 명령 둘뿐인데(<c>0x3F</c> · <c>0x68 0B</c>, 볼트 23), 딸려 오는 대본
+    /// (<c>DISEV.CDS</c> · <c>STORY0/1.CDS</c> · <c>HIST_EV.CDS</c>) 어디에도 그 명령이
+    /// 없다. 새 판은 세 칸을 모두 비우고 시작한다(<c>0x004AA9B3</c>). 그러니 이 자리는
+    /// 거짓이 맞고, 셈만 <see cref="Palace.FameFor"/> 에 갖춰 둔다.
+    /// </remarks>
+    private const bool KnownByOthers = false;
 
     private void ReportNow(Patron patron)
     {
@@ -473,23 +492,35 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         Say(inTime ? "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게."
                    : "꽤 늦었군. 그래, 결과는 어떤가?");
 
-        int fame = 0;
+        int fame = 0, closer = 0;
         var taken = new List<string>();
 
         foreach (var row in rows)
         {
             Say($"[{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다.");
             _player.Announce(row.Id);
-            // 알린 것마다 명성이 오른다 — 항구 발표와 같은 셈이다(0x0047E849).
-            fame += Harbor.FameFor(row);
+            // 좋아하는 갈래를 물어다 주면 덤이 붙는다(0x004ADAE0 이 후원자 표 +0x38 을 본다).
+            closer += Palace.ClosenessFor(row, inTime, KnownByOthers,
+                                          patron.Likes(row.Category), _random);
+            // 알린 것마다 명성이 오른다. 항구 발표(보수/70)와 셈이 다르다 — 보고는
+            // 보수/50 이고 늦으면 그 반이다(0x004111D0).
+            fame += Palace.FameFor(row, inTime, KnownByOthers);
 
-            // 그 발견물이 준 물건은 <b>후원자가 가져간다</b> — 맡긴 일의 증거물이라
-            // 내 것이 아니다. 「고대의 소뿔」이 소지품에 남아 있으면 안 된다.
-            if (row.GivesItem && _player.Items.Contains(row.ItemId))
-            {
-                _player.Drop(row.ItemId);
-                taken.Add(_game.Items?.Find(row.ItemId)?.Name ?? $"아이템 {row.ItemId}");
-            }
+            // 그 발견물이 준 물건은 후원자가 <b>돌려준다</b> — "이것은 자네가 가지고 가게"
+            // 하고 소지품에 넣는다(0x004113F5 → 0x004B1710). 빼앗기는 것이 아니다.
+            // 서적·유물(아이템 분류 7)만 그렇고, 이미 들고 있으면 그대로 둔다.
+            if (row.GivesItem && _game.Items?.Find(row.ItemId) is { } gift
+                && gift.Category == Palace.KeepsakeCategory
+                && !_player.Items.Contains(row.ItemId) && _player.Take(row.ItemId))
+                taken.Add(gift.Name);
+        }
+
+        // 친밀도는 발견물마다 움직이고, 게임도 그때마다 한 줄씩 낸다(0x0041127B).
+        // 우리는 한 번에 몰아서 낸다 — 보고 한 번에 여럿을 알리는 일이 잦아서다.
+        if (closer != 0)
+        {
+            _player.Endear(patron.Name, closer);
+            GameDialog.Show(_view, closer > 0 ? "친밀도가 올라갔다!" : "친밀도가 내려갔다!");
         }
 
         Say("굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.");
@@ -499,7 +530,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.EndContract();
 
         foreach (string got in taken)
-            GameDialog.Show(_view, $"[{got}]{GameUi.Josa(got, "을", "를")} 건네주었다");
+            GameDialog.Show(_view, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다!");
 
         GameDialog.Show(_view, $"금화 {paid}닢을 받았다!");
 
@@ -507,6 +538,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         {
             _player.Fame += fame;
             GameDialog.Show(_view, $"명성이 {fame} 올라갔다!");
+            // 명성이 오른 때만 함께 딸려 온다 — 항구 발표와 같은 두 줄이다(0x0041156A).
+            Harbor.Celebrate(_player);
         }
 
         // 보고가 끝나면 그 줄이 사라져야 한다 — 계약이 없어졌으니 「보고」 줄도 없다.
@@ -598,9 +631,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     private bool Forgiven(Patron patron, bool overdue) =>
         Palace.Forgiven(patron.Fame, _player.Fame, overdue, _random);
 
-    /// <summary>보고 사례(<see cref="Palace.RewardFor"/>).</summary>
+    /// <summary>
+    /// 보고 사례. 남이 먼저 발표해 버렸으면 <b>깎인 사례</b>다(<c>0x00411FC0</c> 이 가른다).
+    /// </summary>
     private int RewardFor(Contract contract, bool inTime) =>
-        Palace.RewardFor(contract.Unpaid, inTime, _random);
+        KnownByOthers ? Palace.ScoopedRewardFor(contract.Amount, inTime)
+                      : Palace.RewardFor(contract.Unpaid, inTime, _random);
 
 
     /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
@@ -686,7 +722,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             if (row < 0 || row >= mine.Count) return;
 
             var (patron, sponsor) = mine[row];
-            PatronInfoDialog.Show(owner, patron, sponsor?.Name, sponsor?.Job);
+            PatronInfoDialog.Show(owner, patron, sponsor?.Name, sponsor?.Job,
+                                  _player.ClosenessOf(patron.Name));
         }
     }
 }

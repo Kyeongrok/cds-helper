@@ -27,6 +27,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_CityCultureMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_NationEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DisevEditorMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_VoyagerEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
@@ -48,6 +49,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_CityCultureMenu = "PART_CityCultureMenu";
     private const string PART_NationEditMenu = "PART_NationEditMenu";
     private const string PART_DisevEditorMenu = "PART_DisevEditorMenu";
+    private const string PART_VoyagerEditMenu = "PART_VoyagerEditMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
@@ -150,6 +152,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_DisevEditorMenu) is MenuItem disevEditorMenu)
         {
             disevEditorMenu.Click += OnDisevEditorMenuClick;
+        }
+
+        if (GetTemplateChild(PART_VoyagerEditMenu) is MenuItem voyagerEditMenu)
+        {
+            voyagerEditMenu.Click += OnVoyagerEditMenuClick;
         }
 
         if (GetTemplateChild(PART_ImageShrinkMenu) is MenuItem imageShrinkMenu)
@@ -325,6 +332,10 @@ public class CdsHelperWindow : CdsWindow
     // 저장할 때 옆에 시각을 붙인 백업을 남긴다.
     private void OnDisevEditorMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.DisevEditorDialog.Show(this);
+
+    // 역사 항해자 열넷이 언제 무엇을 채가는지 고치는 창. 이 놀이의 유일한 경쟁자다.
+    private void OnVoyagerEditMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.VoyagerEditDialog.Show(this);
 
     // 그림 파일을 골라 크기·용량을 줄이는 창. 게임과는 상관없는 손도구다.
     private void OnImageShrinkMenuClick(object sender, RoutedEventArgs e)

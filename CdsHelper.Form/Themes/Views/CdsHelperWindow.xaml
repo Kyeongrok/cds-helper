@@ -248,6 +248,10 @@
                                             x:Name="PART_DisevEditorMenu"
                                             Header="발견 이벤트"
                                             ToolTip="DISEV.CDS 의 발견 이벤트 스크립트를 보고 고친다" />
+                                        <MenuItem
+                                            x:Name="PART_VoyagerEditMenu"
+                                            Header="경쟁자"
+                                            ToolTip="역사 항해자 열넷이 언제 무엇을 채가는지 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -62,7 +62,7 @@ public sealed class PatronInfoDialog : Window
     private static readonly string[] Categories =
         ["지리", "역사", "보물", "종교", "교역품", "미신", "생물", "민족"];
 
-    private PatronInfoDialog(Patron patron, string name, string job)
+    private PatronInfoDialog(Patron patron, string name, string job, int closeness)
     {
         Title = "후원자 정보";
         WindowStyle = WindowStyle.None;
@@ -78,7 +78,7 @@ public sealed class PatronInfoDialog : Window
         Put(board, LineX, LineTop + LineGap * 1, $"국적  {patron.Nationality}");
         Put(board, LineX, LineTop + LineGap * 2, $"도시  {patron.City}");
         Put(board, LineX, LineTop + LineGap * 3, $"직업  {Pad(job, 10)} 권력  {patron.Power}");
-        Put(board, LineX, LineTop + LineGap * 4, $"친밀도 {Closeness,4}");
+        Put(board, LineX, LineTop + LineGap * 4, $"친밀도 {closeness,4}");
 
         Put(board, LikeX, 112, "발견물의 취향");
         for (int i = 0; i < Categories.Length; i++)
@@ -100,11 +100,6 @@ public sealed class PatronInfoDialog : Window
         MouseRightButtonUp += (_, _) => Close();
     }
 
-    /// <summary>
-    /// 친밀도. 아직 올리는 길이 없어 늘 0 이다 — 게임도 새 판에서는 0 에서 시작한다.
-    /// </summary>
-    private const int Closeness = 0;
-
     /// <summary>게임의 <c>%-10s</c> 처럼 바이트로 세어 채운다.</summary>
     private static string Pad(string text, int width) => GameUi.Pad(text, width);
 
@@ -125,9 +120,16 @@ public sealed class PatronInfoDialog : Window
     /// <summary>후원자 상세 창을 연다.</summary>
     /// <param name="name">화면에 낼 이름. 게임 표 이름(가운뎃점)이 있으면 그것을 준다.</param>
     /// <param name="job">직업 이름. 게임 표에서 온 것이면 그것을 준다.</param>
-    public static void Show(Window owner, Patron patron, string? name = null, string? job = null) =>
+    /// <param name="closeness">
+    /// 친밀도(0~100). 게임은 후원자 객체 <c>+0x20</c> 에 들고 <b>0 에서 시작한다</b> —
+    /// 발견물을 보고할 때마다 움직인다(<c>0x004111D0</c>,
+    /// <see cref="Engine.Town.Palace.ClosenessFor"/>).
+    /// </param>
+    public static void Show(Window owner, Patron patron, string? name = null, string? job = null,
+                            int closeness = 0) =>
         new PatronInfoDialog(patron,
                              string.IsNullOrEmpty(name) ? patron.Name : name,
-                             string.IsNullOrEmpty(job) ? patron.Occupation : job)
+                             string.IsNullOrEmpty(job) ? patron.Occupation : job,
+                             closeness)
         { Owner = owner }.ShowDialog();
 }

@@ -120,6 +120,9 @@ public static class GameSave
     /// 부하로 삼은 사람의 됨됨이(얼굴·능력치·명성·연령). 판 20 부터 있다 — 그 전
     /// 세이브에서는 null 이라 게임 세이브를 뒤져 채운다.
     /// </param>
+    /// <param name="Closeness">
+    /// 후원자마다의 친밀도(0~100). 판 26 부터 있다 — 없으면 다들 0 에서 시작한다.
+    /// </param>
     /// <remarks>
     /// 판 18 부터 <c>ShipStats</c> 에 포탑수·대포갈래·대포수가 함께 적힌다. 그 앞 세이브는
     /// 그 칸이 비어(0·0·0) 들어오므로 <b>선체 기본값으로 되살린다</b> —
@@ -146,7 +149,7 @@ public static class GameSave
         Dictionary<string, int>? Tongues = null,
         int? Face = null, int? Fortune = null,
         Dictionary<int, int>? Hostility = null, List<int>? OpenedGates = null,
-        List<int>? TalksLost = null);
+        List<int>? TalksLost = null, Dictionary<string, int>? Closeness = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -192,7 +195,8 @@ public static class GameSave
                             new Dictionary<string, int>(player.Tongues),
                             player.Face, player.Fortune,
                             player.Hostility.ToDictionary(e => e.Key, e => e.Value),
-                            [.. player.OpenedGates], [.. player.TalksLost]);
+                            [.. player.OpenedGates], [.. player.TalksLost],
+                            player.Closeness.ToDictionary(e => e.Key, e => e.Value));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

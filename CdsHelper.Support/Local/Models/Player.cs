@@ -329,6 +329,48 @@ public sealed class Player
     /// <summary>낯을 튼다. 처음이면 true.</summary>
     public bool Meet(string name) => !string.IsNullOrEmpty(name) && _met.Add(name);
 
+    private readonly Dictionary<string, int> _closeness = [];
+
+    /// <summary>친밀도의 위(<c>0x00478530</c> 이 0~100 으로 자른다).</summary>
+    public const int MaxCloseness = 100;
+
+    /// <summary>
+    /// 후원자마다의 친밀도(0~<see cref="MaxCloseness"/>). 움직인 적 있는 사람만 들어 있다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 후원자 객체 <c>+0x20</c> 에 들고 <b>0 에서 시작한다</b> — 후원자 정보 창의
+    /// 「친밀도」가 이 값이다. 후원자 표의 <c>+0x30</c> 은 이름은 같아도 딴 값이다:
+    /// 그쪽은 낼 자금을 가르는 밑값이고(<c>0x004AF086</c> 이 표를 읽는다) 놀이 내내 안 바뀐다.
+    ///
+    /// 여급의 친밀도(<see cref="Liking"/>)와 같은 함수로 오르내리지만 자리는 따로다.
+    /// </remarks>
+    public IReadOnlyDictionary<string, int> Closeness => _closeness;
+
+    /// <summary>그 후원자와의 친밀도. 아직 움직인 적이 없으면 0 이다.</summary>
+    public int ClosenessOf(string name) =>
+        !string.IsNullOrEmpty(name) && _closeness.TryGetValue(name, out int now) ? now : 0;
+
+    /// <summary>
+    /// 친밀도를 움직인다(<c>0x00478530</c>). 돌려주는 것은 움직인 뒤의 값이다.
+    /// </summary>
+    public int Endear(string name, int by)
+    {
+        if (string.IsNullOrEmpty(name)) return 0;
+        int now = Math.Clamp(ClosenessOf(name) + by, 0, MaxCloseness);
+        _closeness[name] = now;
+        return now;
+    }
+
+    /// <summary>적어 둔 친밀도를 되돌린다.</summary>
+    public void RestoreCloseness(Dictionary<string, int>? closeness)
+    {
+        _closeness.Clear();
+        if (closeness == null) return;
+        foreach (var (name, value) in closeness)
+            if (!string.IsNullOrEmpty(name))
+                _closeness[name] = Math.Clamp(value, 0, MaxCloseness);
+    }
+
     /// <summary>
     /// 자리별 부하. 색인이 <see cref="MateRoles"/> 의 자리고, 빈 자리는 빈 문자열이다.
     /// </summary>

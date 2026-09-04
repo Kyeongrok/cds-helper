@@ -80,6 +80,7 @@ public sealed class Game
         _itemText = null; _itemTextTried = false;
         _itemArt = null;
         _discoveries = null; _discoveriesTried = false;
+        _voyagers = null; _voyagersTried = false;
         _stills = null; _stillsTried = false;
         _fighters = null; _fightersTried = false;
         _book = null; _bookTried = false;
@@ -182,9 +183,19 @@ public sealed class Game
                 Debug.WriteLine($"[Game] 발견물 표 없음: {DiscoveryTable.LastError}");
                 return null;
             }
-            return _discoveries = new DiscoveryLog(table, Hints);
+            return _discoveries = new DiscoveryLog(table, Hints, Voyagers);
         }
     }
+
+    /// <summary>
+    /// 역사 항해자 열넷(<c>HISTCHR.CDS</c>) — 이 놀이의 <b>유일한 경쟁자</b>다.
+    /// </summary>
+    /// <remarks>
+    /// 못 읽어도 놀이는 돈다 — 그때는 아무도 선수를 치지 않아 발견물이 늘 열려 있다.
+    /// </remarks>
+    public HistoryVoyages? Voyagers =>
+        Once(ref _voyagers, ref _voyagersTried, HistoryVoyages.Open,
+             () => HistoryVoyages.LastError, "역사 항해자");
 
     /// <summary>여급 표 — 술집에 서는 127명. 궁합이 여기서 나온다.</summary>
     public BarmaidTable? Barmaids =>
@@ -416,6 +427,8 @@ public sealed class Game
     private Dictionary<int, string>? _hintNames;
 
     private bool _cityPicsTried, _buildingsTried, _booksTried, _hintsTried;
+    private HistoryVoyages? _voyagers;
+    private bool _voyagersTried;
     private bool _sponsorsTried, _itemsTried, _sailsTried, _discoveriesTried;
     private bool _nationsTried, _goodsTried, _cityRowsTried, _facesTried, _speakersTried;
     private bool _effectsTried, _guestsTried, _photosTried, _itemTextTried, _rosterTried;
