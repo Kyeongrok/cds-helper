@@ -78,6 +78,42 @@ public sealed class DiscoveryLog
     }
 
     /// <summary>
+    /// 그 힌트가 <b>보고까지 끝났는지</b> — 원본 힌트 상태의 bit1 이다.
+    /// </summary>
+    /// <remarks>
+    /// 원본은 힌트마다 상태 한 칸을 들고 있다(<c>0x0058B4E0</c>, 8바이트 x 186 의 <c>+0x04</c>).
+    /// 나오는 값은 넷뿐이다.
+    /// <code>
+    ///   8  1000  아무것도 아직
+    ///   13 1101  힌트만 얻었다            ← 일람·설득 목록에 뜨는 것은 이것뿐이다
+    ///   11 1011  힌트 없이 찾아 보고했다
+    ///   15 1111  힌트 얻고 보고까지
+    /// </code>
+    /// <b>bit1 은 "발견" 이 아니라 "보고" 다.</b> 발견만 해서는 안 켜진다 — 후원자에게
+    /// 보고하는 <c>0x004AACA0</c> 이 보고한 발견물의 유적 번호(<c>+0x08</c>)를 꺼내 힌트
+    /// 186개를 훑으며 같은 번호를 가진 것을 모두 켠다(<c>or [힌트+4], 3</c>). 그래서 발견하고
+    /// 보고하기 전까지는 힌트가 목록에 그대로 남아 있는 것이 원본의 옳은 모습이다.
+    ///
+    /// 여기서는 상태 칸을 따로 들지 않고 <see cref="Player.Announced"/> 로 그때그때 따진다 —
+    /// 보고를 무를 길이 없으니 결과가 같고, 두 곳이 어긋날 수도 없다.
+    /// </remarks>
+    public bool IsHintDone(Player player, int hintId)
+    {
+        if (_hints?.Find(hintId) is not { } hint) return false;
+
+        foreach (int id in player.Announced)
+            if (_table.Find(id) is { } row && row.Hint == hint.Discovery) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// 아직 살아 있는 힌트 — 얻었고 아직 보고 안 한 것(상태 13). 번호 차례로 낸다.
+    /// </summary>
+    /// <remarks>「취득 힌트 일람」과 후원자 설득 목록이 함께 쓴다.</remarks>
+    public List<int> LiveHints(Player player) =>
+        [.. player.Hints.Where(id => !IsHintDone(player, id)).Order()];
+
+    /// <summary>
     /// 지금 칸에서 발견될 것. 없으면 -1.
     /// </summary>
     /// <param name="player">주인공. 이미 발견한 것과 가진 힌트를 본다.</param>
