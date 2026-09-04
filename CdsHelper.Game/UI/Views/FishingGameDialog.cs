@@ -142,7 +142,7 @@ internal sealed class FishingGameDialog : InfoDialog
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
         Background = GameUi.Back;
-        Content = GameUi.GoldFrame(_scene);
+        Content = GameUi.GoldFrame(_scene, Close);
         GameUi.EnableDrag(this, _scene);
 
         MouseRightButtonUp += (_, e) =>

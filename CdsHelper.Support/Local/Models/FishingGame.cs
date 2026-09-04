@@ -188,13 +188,27 @@ public sealed class FishingGame
             _cell[at] = rng.Next(11) < 7 ? Squid : Octopus;
         }
 
-        // 헤엄쳐 다니는 것 열 마리(0x0047B92E~0x0047BA22). 오징어·낙지가 없는 칸에 놓고,
-        // 가는 쪽과 그림 갈래를 굴린다.
+        // 헤엄쳐 다니는 것 열 마리(0x0047B92E~0x0047BA22).
+        //
+        // <b>빈 칸에만 놓는다</b> — 0x0047B941 이 칸 값이 0 보다 크면 그 마리를 물리고
+        // 다시 굴린다. 길·오징어·낙지는 물론이고 <b>먼저 놓인 잡어도 피한다</b>
+        // (0x0047B955 가 앉은 칸을 6 으로 적어 두기 때문이다).
+        //
+        // 가는 쪽도 굴리는 것이 아니라 <b>이웃을 보고</b> 정한다 — 0x0047B976 이 왼쪽 칸이
+        // 오징어(2)나 낙지(4)면 그쪽으로 안 간다. 양쪽이 다 막혔으면 오른쪽으로 둔다.
+        var taken = new bool[Cells];
         for (int k = 0; k < Swimmers; k++)
         {
             int at;
-            do { at = rng.Next(Cells); } while (_cell[at] >= Squid);
-            _swim[k] = new Swimmer(at, rng.Next(2) + 1, rng.Next(5) >= 4 ? 0 : 1);
+            do { at = rng.Next(Cells); } while (_cell[at] != Empty || taken[at]);
+            taken[at] = true;
+
+            int side = at % Columns;
+            bool leftWall = side == 0 || _cell[at - 1] >= Squid;
+            bool rightWall = side == Columns - 1 || _cell[at + 1] >= Squid;
+            int way = leftWall ? 1 : rightWall ? 2 : rng.Next(2) + 1;
+
+            _swim[k] = new Swimmer(at, way, rng.Next(5) >= 4 ? 0 : 1);
         }
 
         // 바늘은 떨어뜨리는 칸의 <b>맨 윗줄 위</b>에서 시작한다(0x0047BA33 의 -7).

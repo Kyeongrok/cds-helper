@@ -25,6 +25,9 @@ public sealed class Duel
     /// <summary>막는 몸짓 이름(<c>0x00533E08</c> 벌).</summary>
     public static readonly string[] GuardNames = ["뛴다", "피한다", "웅크린다"];
 
+    /// <summary>몸짓 벌 수 — <c>FIGHTER.CDS</c> 의 파트 0·2·4…16 아홉 벌이다.</summary>
+    public const int Kits = 9;
+
     /// <summary>싸우는 이 하나.</summary>
     /// <remarks>
     /// 값을 담는 자리는 <c>0x004A87AA</c> 벌이다 — 내 것이 <c>[0x160]</c> 부터,
@@ -33,10 +36,11 @@ public sealed class Duel
     public sealed class Fighter
     {
         public Fighter(string name, int body, int might, int sword, int luck,
-                       int weapon, int armour, int face = -1)
+                       int weapon, int armour, int face = -1, int kit = 0)
         {
             Name = name;
             Face = face;
+            Kit = Math.Clamp(kit, 0, Kits - 1);
             Might = might;
             Sword = sword;
             Luck = luck;
@@ -51,6 +55,16 @@ public sealed class Duel
 
         /// <summary>얼굴 번호(<see cref="Local.Helpers.Portraits"/>). 모르면 -1 이다.</summary>
         public int Face { get; }
+
+        /// <summary>
+        /// 몸짓 벌(0~8) — <c>FIGHTER.CDS</c> 의 아홉 벌 가운데 어느 것으로 그릴지다.
+        /// </summary>
+        /// <remarks>
+        /// <b>게임이 어느 칸을 보고 고르는지는 아직 못 짚었다.</b> 그리는 자리
+        /// (<c>0x004A7104</c>)가 인물 객체를 꺼내 쓰는 것까지는 봤으니 그 안 어딘가다.
+        /// 그때까지는 부르는 쪽이 넣어 준다.
+        /// </remarks>
+        public int Kit { get; }
 
         /// <summary>무력(<c>[0x170]</c>·<c>[0x174]</c>). 인물 <c>+0x28</c> 에 1 을 더한 것.</summary>
         public int Might { get; }

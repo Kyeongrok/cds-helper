@@ -144,7 +144,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
         Background = GameUi.Back;
-        Content = GameUi.GoldFrame(_scene);
+        Content = GameUi.GoldFrame(_scene, Close);
         GameUi.EnableDrag(this, _scene);
 
         // 오른쪽 단추는 <b>두 가지</b>를 한다 — 접시에 올린 금화를 내리고, 차림표를 편다.
