@@ -1967,6 +1967,12 @@ public sealed class ShipMapWindow : Window
         }
 
         var end = HostileCityMenu.Run(this, _game, city, name, byLand, MapAreaOnScreen());
+
+        // 성문 앞에서는 그 도시 곡이 돌았다. 못 들어가고 물러서면 되돌린다 —
+        // 들어갔으면 ShowCityPicture 가 제 곡을 다시 건다.
+        if (!end.Entered)
+            _game.Bgm.Play(_host.IsOnLand ? BgmPlayer.LandTrack : BgmPlayer.SeaTrack);
+
         if (end.GameOver)
         {
             GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
