@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Town;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -38,6 +39,11 @@ internal static class HostileCityMenu
     {
         // 게임도 그림부터 편다 — 도시는 그려지고 성문에서 막히는 것이다.
         var scene = GateScene.Open(owner, game, city, mapArea);
+
+        // 그림이 펴졌으면 이미 도시에 닿은 것이라 곡도 그 도시 것으로 바뀐다.
+        // 못 들어가고 물러서면 부르는 쪽이 뭍·바다 곡으로 되돌린다(ShipMapWindow.PassGate).
+        if (scene != null)
+            game.Bgm.Play(BgmPlayer.CityTrackForCulture(game.CityRows?.CultureOf(city) ?? 0));
         try
         {
             return AtTheGate(scene as Window ?? owner, game, city, cityName, byLand);
