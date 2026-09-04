@@ -90,7 +90,7 @@ public sealed class SeaCombatDialog : Window
         double zoom = GameUi.PixelZoom(this, scale);
         _board.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        Content = GameUi.GoldFrame(_board);
+        Content = GameUi.GoldFrame(_board, Close);
         GameUi.EnableDrag(this, _board);
 
         MouseRightButtonUp += (_, e) => GameUi.ContextMenuAt(

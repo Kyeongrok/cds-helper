@@ -254,6 +254,45 @@ internal static class GameUi
     /// (<see cref="ContextMenu(Window, Point, System.Collections.Generic.IReadOnlyList{ValueTuple{string, Action}})"/>).
     /// 밖에서 안으로 <c>검은 줄 1 · 밝은 금 1 · 금 3 · 짙은 금 1 · 검은 줄 1</c> 이다.
     /// </remarks>
+    /// <summary>
+    /// 금빛 액자에 <b>닫기 단추</b>를 얹은 것. 미니 게임들이 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 미니 게임 창은 제목 줄이 없어 마우스로 나갈 길이 없었다 — ESC 나 오른쪽 단추
+    /// 차림표를 알아야 했다. 게임 원본에는 없는 단추지만 <b>나갈 길은 눈에 보여야 한다</b>.
+    /// 판 오른쪽 위 모서리에 조그맣게 얹는다.
+    /// </remarks>
+    public static FrameworkElement GoldFrame(UIElement content, Action close)
+    {
+        var mark = new Border
+        {
+            Background = ItemFill,
+            BorderBrush = ItemEdge,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(5, 0, 5, 1),
+            Cursor = Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 8, 8, 0),
+            ToolTip = "닫기",
+            Child = new TextBlock
+            {
+                Text = "✕",
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold,
+                FontSize = 12,
+            },
+        };
+        mark.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        mark.MouseLeftButtonUp += (_, e) => { e.Handled = true; close(); };
+
+        var host = new Grid();
+        host.Children.Add(GoldFrame(content));
+        host.Children.Add(mark);
+        Panel.SetZIndex(mark, 1000);
+        return host;
+    }
+
     public static Border GoldFrame(UIElement content) => new()
     {
         BorderBrush = EdgeDark,

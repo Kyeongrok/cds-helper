@@ -337,8 +337,8 @@ internal sealed class DuelDialog : InfoDialog
     /// </remarks>
     private void Finish(bool won)
     {
-        Pose(_myArt, MyArtX, won ? WonFrame : FellFrame, mirror: false);
-        Pose(_theirArt, TheirArtX, won ? FellFrame : WonFrame, mirror: true);
+        Pose(_myArt, MyArtX, won ? WonFrame : FellFrame, mirror: false, _game.Mine.Kit);
+        Pose(_theirArt, TheirArtX, won ? FellFrame : WonFrame, mirror: true, _game.Theirs.Kit);
         _scene.UpdateLayout();
 
         if (won) return;
@@ -359,9 +359,9 @@ internal sealed class DuelDialog : InfoDialog
     /// <summary>
     /// 싸움꾼을 그 자세로 세운다. 그림은 <b>왼쪽을 보고</b> 그려져 있어 적은 뒤집는다.
     /// </summary>
-    private void Pose(Image art, double x, int frame, bool mirror)
+    private void Pose(Image art, double x, int frame, bool mirror, int kit)
     {
-        var picture = Picture($"duel-fighter-0-{frame:00}.png");
+        var picture = Picture($"duel-fighter-{kit}-{frame:00}.png");
         if (picture == null) return;
 
         art.Source = picture;
@@ -377,8 +377,8 @@ internal sealed class DuelDialog : InfoDialog
     /// <summary>바로 앞 수의 몸짓을 둘 다 세운다.</summary>
     private void PoseRound()
     {
-        Pose(_myArt, MyArtX, Frame(_game.MyPose), mirror: false);
-        Pose(_theirArt, TheirArtX, Frame(_game.TheirPose), mirror: true);
+        Pose(_myArt, MyArtX, Frame(_game.MyPose), mirror: false, _game.Mine.Kit);
+        Pose(_theirArt, TheirArtX, Frame(_game.TheirPose), mirror: true, _game.Theirs.Kit);
     }
 
     /// <summary>몸짓 번호를 그림 번호로. 아직 한 수도 안 두었으면 선 자세다.</summary>
