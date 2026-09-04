@@ -1966,12 +1966,20 @@ public sealed class ShipMapWindow : Window
                 string.Format(Standoff.TreatyWord, Standoff.TreatyName, theirs), name);
         }
 
+        // 도시 그림이 펴지는 동안은 이미 도시에 닿은 것이다 — 지도에 남색 막을 씌운다.
+        // 그림을 못 여는 판이면 차림표만 뜨므로 막도 씌우지 않는다.
+        bool veiled = _game.CityPics != null;
+        if (veiled) SetInCity(true);
+
         var end = HostileCityMenu.Run(this, _game, city, name, byLand, MapAreaOnScreen());
 
-        // 성문 앞에서는 그 도시 곡이 돌았다. 못 들어가고 물러서면 되돌린다 —
-        // 들어갔으면 ShowCityPicture 가 제 곡을 다시 건다.
+        // 성문 앞에서는 막이 씌워지고 그 도시 곡이 돌았다. 못 들어가고 물러서면 되돌린다 —
+        // 들어갔으면 ShowCityPicture 가 막도 곡도 제 것으로 다시 건다.
         if (!end.Entered)
+        {
+            if (veiled) SetInCity(false);
             _game.Bgm.Play(_host.IsOnLand ? BgmPlayer.LandTrack : BgmPlayer.SeaTrack);
+        }
 
         if (end.GameOver)
         {
