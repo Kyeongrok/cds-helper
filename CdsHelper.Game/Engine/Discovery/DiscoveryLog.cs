@@ -1,4 +1,4 @@
-using CdsHelper.Game.Local.Helpers;
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Discovery;
@@ -27,17 +27,34 @@ public sealed class DiscoveryLog
 {
     private readonly DiscoveryTable _table;
     private readonly HintTable? _hints;
+    private readonly HistoryVoyages? _history;
 
     /// <param name="table">EXE 의 발견물 표.</param>
     /// <param name="hints">
     /// EXE 의 힌트 표. 없으면 힌트로 열리는 발견물(12 대발견 등)은 끝내 안 열린다 —
     /// 표를 못 읽었다고 아무 데서나 발견되게 하는 것보다 낫다.
     /// </param>
-    public DiscoveryLog(DiscoveryTable table, HintTable? hints)
+    /// <param name="history">
+    /// 역사 항해자 열넷(<c>HISTCHR.CDS</c>). 없으면 아무도 선수를 안 친다.
+    /// </param>
+    public DiscoveryLog(DiscoveryTable table, HintTable? hints, HistoryVoyages? history = null)
     {
         _table = table;
         _hints = hints;
+        _history = history;
     }
+
+    /// <summary>
+    /// 그 발견물을 <b>역사가 이미 가져갔는지</b>. 가져갔으면 그 사람 번호, 아니면 -1.
+    /// </summary>
+    /// <remarks>
+    /// <b>한 번짜리</b>(<see cref="DiscoveryTable.Record.Once"/>)에만 걸린다. 게임의
+    /// <c>0x004AAC10</c> 이 표 <c>+0x2C</c> 를 보고, 한 번짜리인데 사람 칸 0·1 에 이미
+    /// 이름이 있으면 발견을 아예 안 적는 그 자리다. 여럿이 거듭 발견하는 것(생물·교역품
+    /// 따위)은 몇 번이고 다시 잡힌다.
+    /// </remarks>
+    public int TakenBy(in DiscoveryTable.Record row, DateTime date) =>
+        row.Once && _history != null ? _history.TakenBy(row.Id, date) : -1;
 
     /// <summary>발견물 표.</summary>
     public DiscoveryTable Table => _table;
@@ -71,6 +88,10 @@ public sealed class DiscoveryLog
     /// 사각형이 겹치면 <b>가장 좁은 것</b>이 이긴다 — 신대륙(480칸 폭) 안에 있는 유적이
     /// 신대륙에 가려지지 않게 하려는 것이다. 넓이가 같으면 번호가 작은 쪽이 이긴다
     /// (게임도 <c>0x004256DE</c> 에서 &gt; 로만 갈아 끼운다).
+    ///
+    /// <b>한 가지 다르게 한다</b> — 역사가 가져간 것은 여기서 미리 뺀다. 게임은 그래도
+    /// 사건을 틀어 놓고 <c>0x004AAC10</c> 이 조용히 안 적는 쪽인데, 그러면 그 자리를 지날
+    /// 때마다 아무것도 안 남는 연출만 되풀이된다.
     /// </remarks>
     public int At(Player player, int cellX, int cellY, bool onLand)
     {
@@ -84,6 +105,7 @@ public sealed class DiscoveryLog
             if (row.Indirect) continue;              // 깃발 0x04 가 없어 자리로는 안 잡힌다
             if (player.HasFound(row.Id)) continue;
             if (!IsOpen(player, row)) continue;
+            if (TakenBy(row, player.Date) >= 0) continue;   // 역사가 먼저 가져갔다
 
             if (row.Span >= best) continue;
             best = row.Span;
@@ -96,6 +118,17 @@ public sealed class DiscoveryLog
     /// <summary>
     /// 발견한 것으로 적는다. 주는 아이템이 있으면 소지품에 넣는다.
     /// </summary>
+    /// <remarks>
+    /// 관문이 하나 더 있다(<c>0x004AAC10</c>) — 발견물 표 <c>+0x2C</c> 가 1
+    /// (<see cref="DiscoveryTable.Record.Once"/>, 한 번만 발견되는 것)인데 사람 칸 0·1 에
+    /// 이미 이름이 올라가 있으면 <b>아무것도 적지 않는다</b>. 깃발 <c>0x40</c> 도 안 서서
+    /// 항구 발표 목록(<c>0x00476DA0</c>)에 뜨지도 않는다. 그것이 <see cref="TakenBy"/> 다.
+    ///
+    /// 칸 1 을 채우는 것은 <b>역사 항해자 열넷</b>(<see cref="HistoryVoyages"/>)이다.
+    /// 예순일곱 건을 채가고 그 중 스물한 건이 한 번짜리라 <b>선수를 빼앗기면 영영 못
+    /// 얻는다</b> — 희망봉(1488.01)·마젤란해협(1520.10)·기저의 3대 피라미드(1519.07)·
+    /// 잉카제국(1533.11) 따위다.
+    /// </remarks>
     /// <returns>
     /// 넣은 아이템 번호. 주는 것이 없거나, 이미 발견한 것이거나, <b>소지품이 꽉 차서</b>
     /// 못 들었으면 -1. (발견 자체는 그대로 적힌다 — 물건만 못 드는 것이다.)
@@ -103,6 +136,7 @@ public sealed class DiscoveryLog
     public int Discover(Player player, int id)
     {
         if (_table.Find(id) is not { } row) return -1;
+        if (TakenBy(row, player.Date) >= 0) return -1;
         if (!player.Discover(id)) return -1;
 
         if (!row.GivesItem) return -1;

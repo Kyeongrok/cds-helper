@@ -15,8 +15,35 @@ public static class Harbor
     public const int FameFloor = 10;
 
     /// <summary>그것을 알려서 오르는 명성.</summary>
+    /// <remarks>
+    /// 후원자에게 하는 <b>보고</b>는 셈이 다르다 — <see cref="Palace.FameFor"/> 는 보수/50
+    /// 이고 늦으면 반이다. 같은 발견물이라도 계약으로 맡아 보고하는 편이 후하다.
+    /// </remarks>
     public static int FameFor(DiscoveryTable.Record row) =>
         Math.Max(FameFloor, row.Reward / FamePerReward);
+
+    /// <summary>
+    /// 알리고 나면 <b>피로도가 풀리고 규율이 꽉 찬다</b>(<c>0x0047E885</c> · <c>0x0047E88A</c>).
+    /// </summary>
+    /// <remarks>
+    /// 후원자에게 보고할 때도 똑같이 한다(<c>0x0041156A</c>) — 다만 그쪽은 <b>명성이 오른
+    /// 때만</b>이다. 이미 알려진 것을 보고하면 명성 칸과 함께 이 줄도 건너뛴다.
+    /// </remarks>
+    public static void Celebrate(Player player)
+    {
+        player.SetFatigue(0);
+        player.SetMorale(Player.MaxMorale);
+    }
+
+    /// <summary>
+    /// 이미 세상에 알려진 것을 알리려 들었을 때 듣는 말(<c>0x0055A298</c>).
+    /// </summary>
+    /// <remarks>
+    /// 판정은 <c>0x004AADB0</c> 이다 — 발견물 인스턴스의 사람 칸 2 에 남의 이름이 올라가
+    /// 있으면 참이고, 그러면 <b>명성이 안 오른다</b>. 남이 먼저 보고해 버린 것이라
+    /// 우리 쪽에는 아직 그 갈래가 없다(라이벌 항해자를 안 옮겼다).
+    /// </remarks>
+    public const string AlreadyKnown = "자네, 그런 건 벌써 모두 알고 있네.";
 
     /// <summary>
     /// 지금 항구에서 알릴 수 있는 발견물. 찾은 차례대로다.

@@ -1558,6 +1558,9 @@ public sealed class ShipMapWindow : Window
             // 게임도 켤 때는 0 이다(형편 판 0x005859C0 은 .bss 다).
             _game.Player.RestoreStandings(saved.Hostility, saved.OpenedGates, saved.TalksLost);
 
+            // 후원자 친밀도. 판 26 앞의 세이브에는 없어 다들 0 에서 시작한다 — 게임도 그렇다.
+            _game.Player.RestoreCloseness(saved.Closeness);
+
             // 얼굴과 운명 코드는 판 25 부터 적힌다. 운명 코드가 없으면 얼굴 번호로
             // 물러선다 — 그때까지는 새 놀이가 앞의 열여섯만 고르게 해 둘이 같았다.
             if (saved.Face is { } face) _game.Player.Face = face;
