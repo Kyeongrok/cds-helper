@@ -849,8 +849,14 @@ public sealed class Player
     /// <c>+0x0C</c> 에 적는다(<c>0x00429D90</c>). 그 판은 <c>.bss</c> 라 켤 때는 죄다 0 이고
     /// 세이브에 통째로 실린다(<c>0x0047858E</c>, 일흔여덟 칸).
     ///
-    /// <b>무엇이 처음 적대도를 올리는지는 아직 못 짚었다</b> — 우리는 마을을 치거나
-    /// 숨어들다 잡혔을 때 올린다.
+    /// <b>처음 값은 나라 표에서 온다.</b> 판을 열 때 <c>0x0041B320</c> 이 나라 표
+    /// <c>0x004CA370</c> 의 <c>+0x14</c>(출입여부)를 이 칸으로 떠 준다. 그래서 그라나다와
+    /// 오스만·투르크는 첫날부터 2 다. 여기서는 <b>이 딕셔너리에 아무것도 없으면 표 값이
+    /// 그대로 쓰인다</b>(<c>Standoff.EntryOf</c>) — 표를 고치면 놀이에 곧장 먹는다.
+    ///
+    /// <b>아직 이 값을 올리는 데는 없다.</b> <see cref="Anger"/> 와 <see cref="Calm"/> 는
+    /// 갖춰만 두었다 — 마을을 치거나 숨어들다 잡혔을 때 올리는 것은 앞으로 할 일이다.
+    /// 지금은 문을 하나씩 여는 쪽으로 갈음한다(<see cref="IsGateOpen"/>).
     /// </remarks>
     public IReadOnlyDictionary<int, int> Hostility => _hostility;
 
@@ -865,7 +871,15 @@ public sealed class Player
     }
 
     /// <summary>그 나라를 달랜다.</summary>
-    public void Calm(int nation) => _hostility.Remove(nation);
+    /// <remarks>
+    /// <b>칸을 지우지 않고 0 을 적는다.</b> 지우면 나라 표의 처음 값(출입여부)이 되살아나
+    /// 그라나다를 달래 놓고도 다시 막히는 꼴이 된다.
+    /// </remarks>
+    public void Calm(int nation)
+    {
+        if (nation < 0) return;
+        _hostility[nation] = 0;
+    }
 
     /// <summary>
     /// 적대 도시 가운데 <b>문이 열린</b> 곳. 공략·잠입·교섭에 성공하면 는다.

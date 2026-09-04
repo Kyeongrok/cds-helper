@@ -1,3 +1,4 @@
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Town;
@@ -22,6 +23,35 @@ namespace CdsHelper.Game.Engine.Town;
 /// </remarks>
 public static class Standoff
 {
+    /// <summary>
+    /// 그 나라의 <b>출입여부</b> — 0 자유 · 1 배로는 못 들어감 · 2 아주 막힘.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 판을 열 때 나라 표 <c>+0x14</c> 를 형편 칸으로 뜨고(<c>0x0041B320</c>), 그 뒤로는
+    /// 형편 칸만 본다. 여기서는 <b>주인공이 아직 그 나라를 건드린 적이 없으면 표 값을 그대로
+    /// 쓴다</b> — 결과가 같으면서, 표를 고치면 놀이에 곧장 먹는다.
+    /// </remarks>
+    public static int EntryOf(Player player, NationTable? nations, int nation)
+    {
+        if (nation < 0) return 0;
+        if (player.Hostility.TryGetValue(nation, out int moved)) return moved;
+        return nations?.Find(nation)?.Entry ?? 0;
+    }
+
+    /// <summary>
+    /// 그 문이 막혔는가 — <b>항구와 뭍의 잣대가 다르다</b>.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   004687fd  출입여부 &gt; 0   → 적대 차림표 0x004A56F0(1)   ; 1 = 항구
+    ///   004770bd  출입여부 == 2  → 적대 차림표 0x004A56F0(0)   ; 0 = 마을(뭍)
+    /// </code>
+    /// 그래서 <b>1 은 배로만 막고 뭍은 연다.</b> 출입여부가 1 인 나라 열다섯이 죄다
+    /// 이슬람권과 명인 것이 이 읽기와 맞는다 — 배로 항구에 들이대면 쫓기지만 뭍길로는
+    /// 드나든다. 2 인 그라나다와 오스만·투르크만 뭍까지 막힌다.
+    /// </remarks>
+    public static bool Barred(int entry, bool byLand) => byLand ? entry >= 2 : entry > 0;
+
     /// <summary>고른 값. 꺼진 칸도 자리를 지키므로 붙박이 번호다.</summary>
     public const int Attack = 0, Sneak = 1, Talk = 2, Leave = 3;
 
