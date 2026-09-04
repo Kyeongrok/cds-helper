@@ -1951,7 +1951,8 @@ public sealed class ShipMapWindow : Window
         if (_game.Player.IsGateOpen(city)) return true;
 
         int nation = _game.CityRows?.NationOf(city) ?? -1;
-        bool angry = nation >= 0 && _game.Player.HostilityOf(nation) > 0;
+        int entry = Standoff.EntryOf(_game.Player, _game.Nations, nation);
+        bool angry = nation >= 0 && Standoff.Barred(entry, byLand);
         bool treaty = Standoff.TreatyBars(_game.Player.Date.Year, _game.Player.Nation, nation);
         if (!angry && !treaty) return true;
 

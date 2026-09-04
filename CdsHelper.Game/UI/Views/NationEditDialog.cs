@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -8,7 +8,7 @@ using CdsHelper.Support.Local.Settings;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 나라 표를 고치는 창 — 이름 · 쓰는 말 · 수도.
+/// 나라 표를 고치는 창 — 이름 · 쓰는 말 · 수도 · 출입여부.
 /// </summary>
 /// <remarks>
 /// <b>적어 둔 <c>나라표.json</c> 을 직접 고치지 않는다.</b> 그 파일은 EXE 에서 구워 둔
@@ -60,6 +60,8 @@ public sealed class NationEditDialog : Window
         Col("언어", nameof(Row.LanguageName), 130, readOnly: true);
         Col("수도ID", nameof(Row.Capital), 60);
         Col("수도", nameof(Row.CapitalName), 130, readOnly: true);
+        Col("출입ID", nameof(Row.Access), 60);
+        Col("출입여부", nameof(Row.AccessName), 150, readOnly: true);
         Col("고침", nameof(Row.Mark), 44, readOnly: true);
 
         _grid.CellEditEnding += (_, e) =>
@@ -102,8 +104,12 @@ public sealed class NationEditDialog : Window
         public string Name { get; set; } = "";
         public int Language { get; set; }
         public int Capital { get; set; }
+
+        /// <summary>출입여부 0~2. 0 자유 · 1 배로는 못 들어감 · 2 아주 막힘.</summary>
+        public int Access { get; set; }
         public string LanguageName { get; init; } = "";
         public string CapitalName { get; init; } = "";
+        public string AccessName { get; init; } = "";
         public string Mark { get; init; } = "";
     }
 
@@ -147,6 +153,8 @@ public sealed class NationEditDialog : Window
                 Name = nation.Name,
                 Language = nation.Language,
                 Capital = nation.Capital,
+                Access = nation.Entry,
+                AccessName = NationTable.EntryName(nation.Entry),
                 LanguageName = LanguageName(nation.Language),
                 CapitalName = _cities?.Cities.FirstOrDefault(c => c.Id == nation.Capital).Name ?? "",
                 Mark = NationEdits.Of(nation.Id) == null ? "" : "●",
@@ -176,7 +184,8 @@ public sealed class NationEditDialog : Window
             NationEdits.Set(row.Id,
                             row.Name == game.Name ? null : row.Name,
                             row.Language == game.Language ? null : row.Language,
-                            row.Capital == game.Capital ? null : row.Capital);
+                            row.Capital == game.Capital ? null : row.Capital,
+                            row.Access == game.Entry ? null : row.Access);
         }
         Rebuild();
     }

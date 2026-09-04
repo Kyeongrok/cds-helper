@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Local.Helpers;
+﻿namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
 /// 나라 표를 손으로 고쳐 둔 것. 게임 표(<see cref="NationTable"/>) 위에 덧씌운다.
@@ -18,7 +18,8 @@ public static class NationEdits
     private const string CacheName = "나라-고친것";
 
     /// <summary>고쳐 둔 한 줄. 안 고친 칸은 null 이라 게임 값이 그대로 남는다.</summary>
-    public readonly record struct Entry(int Id, string? Name, int? Language, int? Capital);
+    public readonly record struct Entry(int Id, string? Name, int? Language, int? Capital,
+                                       int? Access = null);
 
     /// <summary>JSON 으로 적어 두는 알맹이.</summary>
     internal sealed record Snapshot(List<Entry> Nations);
@@ -43,16 +44,26 @@ public static class NationEdits
             Name = e.Name ?? game.Name,
             Language = e.Language ?? game.Language,
             Capital = e.Capital ?? game.Capital,
+            Entry = e.Access ?? game.Entry,
         };
     }
 
-    /// <summary>그 나라를 고쳐 씌운다. 셋 다 null 이면 씌운 것을 걷는다.</summary>
-    public static void Set(int id, string? name, int? language, int? capital)
+    /// <summary>그 나라를 고쳐 씌운다. 넷 다 null 이면 씌운 것을 걷는다.</summary>
+    /// <param name="access">
+    /// 출입여부(<see cref="NationTable.Nation.Entry"/>). 0~2 밖은 안 받는다.
+    /// </param>
+    public static void Set(int id, string? name, int? language, int? capital,
+                           int? access = null)
     {
         if (id < 0 || id >= NationTable.Count) return;
+        if (access is { } a && (a < 0 || a >= NationTable.EntryCount)) access = null;
 
-        if (name == null && language == null && capital == null) { Reset(id); return; }
-        Map[id] = new Entry(id, name, language, capital);
+        if (name == null && language == null && capital == null && access == null)
+        {
+            Reset(id);
+            return;
+        }
+        Map[id] = new Entry(id, name, language, capital, access);
         Save();
     }
 
