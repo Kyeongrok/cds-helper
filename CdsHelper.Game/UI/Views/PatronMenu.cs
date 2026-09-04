@@ -156,8 +156,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.Meet(patron.Name);
         Say($"흐음. {me}, 이번 모험 목적은 무엇인가?");
 
-        // 얻은 힌트만 내밀 수 있다. 게임도 상태가 맞는 것만 목록에 올린다(0x0044E7B0).
-        var mine = _player.Hints.Order().ToList();
+        // 얻었고 아직 보고 안 한 힌트만 내밀 수 있다 — 원본 힌트 상태로 13 인 것이다
+        // (0x0044E7B0 이 상태가 맞는 것만 목록에 올린다). 보고를 마치면 0x004AACA0 이
+        // bit1 을 켜서 여기서도 빠진다.
+        var mine = LiveHints;
         var names = mine.Select(_game.HintName).ToList();
         int row = HintListDialog.Pick(_view, names, "제안 선택");
         if (row < 0)
@@ -487,7 +489,17 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 물리므로, 줄부터 감추는 편이 게임과 같고 헛걸음도 없다. 학자 저택처럼 수련만 있는
     /// 건물에서 이 줄이 홀로 떠 있던 것이 그 탓이다.
     /// </remarks>
-    private bool CanPersuade => _player.Hints.Count > 0;
+    private bool CanPersuade => LiveHints.Count > 0;
+
+    /// <summary>
+    /// 아직 살아 있는 힌트 — 얻었고 아직 보고 안 한 것이다(원본 힌트 상태 13).
+    /// </summary>
+    /// <remarks>
+    /// 보고까지 마친 힌트는 여기서 빠진다. 왜 «발견» 이 아니라 «보고» 인지는
+    /// <see cref="DiscoveryLog.IsHintDone"/> 에 적어 두었다.
+    /// </remarks>
+    private List<int> LiveHints =>
+        _game.Discoveries?.LiveHints(_player) ?? [.. _player.Hints.Order()];
 
     /// <summary>이 후원자와 이 자리에서 계약 중인지(<c>0x0044E550</c>).</summary>
     private bool Contracted(Patron patron) =>

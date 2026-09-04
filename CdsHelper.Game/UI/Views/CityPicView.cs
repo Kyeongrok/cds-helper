@@ -952,8 +952,11 @@ public sealed class CityPicView : Window, ITownScreen
     private void ShowHints()
     {
         // 게임은 그냥 늘어놓기만 하지 않는다 — 한 줄을 고르고 결정하면 그 이야기를 편다.
+        //
+        // 보고까지 마친 힌트는 여기서 빠진다(원본 힌트 상태 15). 발견만 해서는 안 빠지는
+        // 것이 옳다 — 까닭은 DiscoveryLog.IsHintDone 에 적어 두었다.
         var owner = _cityMenu.Window ?? this;
-        var ids = _player.Hints.Order().ToList();
+        var ids = _game.Discoveries?.LiveHints(_player) ?? [.. _player.Hints.Order()];
 
         while (true)
         {
