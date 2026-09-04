@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.UI.Views;
 
 namespace CdsHelper.Duel;
@@ -17,12 +17,13 @@ public static class DuelGame
     /// <summary>
     /// 상대의 세기 눈금. 값은 게임의 괴물·적장 벌(<c>0x00440DC1</c>)에서 따 왔다.
     /// </summary>
-    private static readonly (string Name, int Body, int Might, int Sword)[] Foes =
+    /// <summary>얼굴 번호는 MALE.CDS 에서 눈으로 골랐다 — 인물 표에 매인 것이 아니다.</summary>
+    private static readonly (string Name, int Body, int Might, int Sword, int Face)[] Foes =
     [
-        ("해적 두목", 70, 70, 1),
-        ("이슬람 제독", 80, 80, 2),
-        ("토벌대장", 90, 90, 2),
-        ("전설의 검객", 100, 100, 3),
+        ("해적 두목", 70, 70, 1, 41),
+        ("이슬람 제독", 80, 80, 2, 63),
+        ("토벌대장", 90, 90, 2, 12),
+        ("전설의 검객", 100, 100, 3, 88),
     ];
 
     /// <summary>
@@ -41,12 +42,12 @@ public static class DuelGame
         int pick = MapPointDialog.Ask(owner, names, "일기토");
         if (pick < 0) return;
 
-        var (name, body, might, sword) = Foes[pick];
+        var (name, body, might, sword, face) = Foes[pick];
 
         // 아직 인물을 물리지 않았으니 웬만한 모험가 하나를 세운다.
-        var mine = new Duel.Fighter("나", 100, 60, 2, 40, weapon: 34, armour: 25);
+        var mine = new Duel.Fighter("나", 100, 60, 2, 40, weapon: 34, armour: 25, face: 0);
         var theirs = new Duel.Fighter(name, body, might, sword, might,
-                                      weapon: 22 + pick * 10, armour: 15 + pick * 8);
+                                      weapon: 22 + pick * 10, armour: 15 + pick * 8, face: face);
 
         bool? won = DuelDialog.Play(owner, new Duel(mine, theirs, rng));
         if (won == null) return;

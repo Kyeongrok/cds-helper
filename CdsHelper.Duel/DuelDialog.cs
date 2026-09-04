@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Game.UI.Views;
+using CdsHelper.Support.Local.Settings;
 
 namespace CdsHelper.Duel;
 
@@ -57,6 +58,47 @@ internal sealed class DuelDialog : InfoDialog
     /// <summary>상대 얼굴 자리를 채우는 푸른색. 내 쪽 <see cref="Blood"/> 와 짝이다.</summary>
     private static readonly Brush Foe = Frozen(Color.FromRgb(0x6C, 0xA8, 0xD8));
 
+    /// <summary>
+    /// 싸움꾼 그림 — <c>FIGHTER.CDS</c> 의 몸짓 벌 아홉, 한 벌이 144x136 짜리 33장이다.
+    /// </summary>
+    /// <remarks>
+    /// 색인에서 <b>160</b> 을 빼야 팔레트에 닿는다(다른 CDS 는 74 다). 마젠타가 바탕이다.
+    /// 지고 이기는 대목만 뽑아 두었다 — <c>tools/extract_duel_art.py</c> 의
+    /// <c>FIGHTER_KEEP</c> 다.
+    /// <code>
+    ///   24     맞고 칼을 내린다        25     무릎을 꿇는다
+    ///   26~29  엎드린다 — <b>진 자세</b>
+    ///   30~32  칼을 치켜든다 — <b>이긴 자세</b>
+    /// </code>
+    /// </remarks>
+    private const int FighterW = 144, FighterH = 136;
+
+    /// <summary>진 쪽과 이긴 쪽이 짓는 몸짓.</summary>
+    private const int FellFrame = 27, WonFrame = 31;
+
+    /// <summary>겨루기 전에 서 있는 자세.</summary>
+    private const int ReadyFrame = 0;
+
+    /// <summary>싸우는 마당. 그림과 눈금판이 이 이름으로 짝지어 있다.</summary>
+    private const string Arena = "deck";
+
+    /// <summary>
+    /// <see cref="Duel.MyPose"/> 를 몸짓 그림으로 — 치는 자리 셋과 막는 몸짓 셋이다.
+    /// </summary>
+    /// <remarks>
+    /// <b>이 짝은 그림을 눈으로 보고 지었다</b>(EXE 에서 뽑은 것이 아니다). 33장을 펴 놓고
+    /// 자세가 뚜렷한 것을 골랐다.
+    /// <code>
+    ///   상단 22  칼을 머리 위로 치켜든다        뛴다   10  두 발이 땅에서 떨어진다
+    ///   중단 18  앞으로 곧게 찌른다             피한다 11  몸을 비틀어 옆으로 뺀다
+    ///   하단 17  몸을 낮춰 칼을 낮게 뻗는다      웅크린다 9  주저앉아 몸을 웅크린다
+    /// </code>
+    /// </remarks>
+    private static readonly int[] PoseFrame = [22, 18, 17, 10, 11, 9];
+
+    private readonly Image _myArt = new() { Width = FighterW, Height = FighterH };
+    private readonly Image _theirArt = new() { Width = FighterW, Height = FighterH };
+
     private readonly Duel _game;
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
 
@@ -85,11 +127,15 @@ internal sealed class DuelDialog : InfoDialog
     {
         _game = game;
 
-        Lay(Picture("duel-deck.png"), 0, 0, SceneWidth, ArenaHeight);
-        Lay(Picture("duel-panel.png"), 0, ArenaHeight, SceneWidth, PanelHeight);
+        // 마당과 눈금판은 <b>짝</b>이다 — 뽑을 때 duel-<마당>.png · duel-panel-<마당>.png 로 났다.
+        // 예전에는 "duel-panel.png" 를 찾아 그림이 없어 그냥 밤색 판만 보였다.
+        Lay(Picture($"duel-{Arena}.png"), 0, 0, SceneWidth, ArenaHeight);
+        Lay(Picture($"duel-panel-{Arena}.png"), 0, ArenaHeight, SceneWidth, PanelHeight);
 
-        Face(TheirFaceX, Foe);
-        Face(MyFaceX, Blood);
+        // 얼굴은 MALE.CDS 에서 꺼낸다. 못 읽으면 예전처럼 빛깔 칸으로 물러선다.
+        var book = Portraits.Open(Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "");
+        Face(TheirFaceX, Foe, book, _game.Theirs.Face);
+        Face(MyFaceX, Blood, book, _game.Mine.Face);
 
         Caption(_game.Theirs.Name, TheirNameX);
         Caption(_game.Mine.Name, MyNameX);
@@ -112,12 +158,6 @@ internal sealed class DuelDialog : InfoDialog
         double zoom = GameUi.PixelZoom(this, Zoom);
         _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
 
-        var rows = new StackPanel();
-        rows.Children.Add(_step);
-        rows.Children.Add(_line);
-        rows.Children.Add(Gap(4));
-        rows.Children.Add(_scene);
-
         for (int zone = 0; zone < Duel.Zones; zone++)
         {
             int here = zone;
@@ -125,9 +165,23 @@ internal sealed class DuelDialog : InfoDialog
         }
         _blow = new GameButton("필살", Toggle);
 
+        // <b>창틀은 그대로 둔다.</b> 한때 미니 게임들처럼 금빛 액자만 두르고 글을 눈금판에
+        // 얹어 봤는데, 글 바탕이 얼굴과 막대를 덮어 어수선해졌다. 제목 줄의 닫기 단추도
+        // 겨루는 도중에 나갈 길이라 없애면 안 된다.
+        var rows = new StackPanel();
+        rows.Children.Add(_step);
+        rows.Children.Add(_line);
+        rows.Children.Add(Gap(4));
+        rows.Children.Add(_scene);
+
         Build("일기토", rows, SceneWidth * zoom + 30, SceneHeight * zoom + 96,
               _pick[0], _pick[1], _pick[2], _blow,
               new GameButton("설명", Explain));
+
+        MouseRightButtonUp += (_, e) =>
+            GameUi.ContextMenuAt(this, e.GetPosition(this), Commands());
+
+        Loaded += (_, _) => PoseRound();   // 겨루기 전에는 둘 다 선 자세다
 
         KeyDown += (_, e) =>
         {
@@ -172,8 +226,26 @@ internal sealed class DuelDialog : InfoDialog
     }
 
     /// <summary>얼굴 자리. <b>초상화는 아직 안 옮겨</b> 빛깔 판으로 둔다.</summary>
-    private void Face(int x, Brush tint)
+    private void Face(int x, Brush tint, Portraits? book, int face)
     {
+        if (book?.TryGetBgra(face, false) is { } pixels)
+        {
+            var art = new Image
+            {
+                Width = FaceW,
+                Height = FaceH,
+                Source = BitmapSource.Create(Portraits.Width, Portraits.Height, 96, 96,
+                                             PixelFormats.Bgra32, null, pixels,
+                                             Portraits.Width * 4),
+                IsHitTestVisible = false,
+            };
+            RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.NearestNeighbor);
+            Canvas.SetLeft(art, x);
+            Canvas.SetTop(art, FaceY);
+            _scene.Children.Add(art);
+            return;
+        }
+
         var box = new Border
         {
             Width = FaceW,
@@ -238,8 +310,101 @@ internal sealed class DuelDialog : InfoDialog
         _game.Play(pick, _useBlow);
         _useBlow = false;
         Sync();
+        PoseRound();
 
-        if (_game.Over != null) Close();
+        if (_game.Over == null) return;
+
+        // 끝난 자세를 <b>보여 주고</b> 닫는다 — 곧바로 닫으면 이긴 몸짓이 안 보인다.
+        Finish(_game.Over == true);
+
+        var linger = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(LingerMillis),
+        };
+        linger.Tick += (_, _) => { linger.Stop(); Close(); };
+        linger.Start();
+    }
+
+    /// <summary>끝난 자세를 보여 주는 시간(ms).</summary>
+    private const int LingerMillis = 900;
+
+    /// <summary>
+    /// 끝난 자리 — <b>진 쪽은 엎드리고 이긴 쪽은 칼을 치켜든다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 지면 상대가 한마디 한다. 게임은 다섯 마디를 굴려 고른다
+    /// (<c>0x004A9E96</c>~<c>0x004A9EB6</c>).
+    /// </remarks>
+    private void Finish(bool won)
+    {
+        Pose(_myArt, MyArtX, won ? WonFrame : FellFrame, mirror: false);
+        Pose(_theirArt, TheirArtX, won ? FellFrame : WonFrame, mirror: true);
+        _scene.UpdateLayout();
+
+        if (won) return;
+
+        NoticeDialog.Show(this, Taunts[new Random().Next(Taunts.Length)], "일기토");
+    }
+
+    /// <summary>진 쪽에게 상대가 하는 말(<c>0x00534560</c> 벌 다섯).</summary>
+    private static readonly string[] Taunts =
+    [
+        "죽어라!",
+        "상대를 잘못 만난 것 같군...",
+        "미안하지만, 죽어줘야겠네.",
+        "네 여행도 여기까지다.",
+        "저 세상에서나 후회하거라.",
+    ];
+
+    /// <summary>
+    /// 싸움꾼을 그 자세로 세운다. 그림은 <b>왼쪽을 보고</b> 그려져 있어 적은 뒤집는다.
+    /// </summary>
+    private void Pose(Image art, double x, int frame, bool mirror)
+    {
+        var picture = Picture($"duel-fighter-0-{frame:00}.png");
+        if (picture == null) return;
+
+        art.Source = picture;
+        RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.NearestNeighbor);
+        art.RenderTransformOrigin = new Point(0.5, 0.5);
+        art.RenderTransform = mirror ? new ScaleTransform(-1, 1) : null;
+        Canvas.SetLeft(art, x);
+        Canvas.SetTop(art, ArenaHeight - FighterH);
+        Panel.SetZIndex(art, 20);
+        if (!_scene.Children.Contains(art)) _scene.Children.Add(art);
+    }
+
+    /// <summary>바로 앞 수의 몸짓을 둘 다 세운다.</summary>
+    private void PoseRound()
+    {
+        Pose(_myArt, MyArtX, Frame(_game.MyPose), mirror: false);
+        Pose(_theirArt, TheirArtX, Frame(_game.TheirPose), mirror: true);
+    }
+
+    /// <summary>몸짓 번호를 그림 번호로. 아직 한 수도 안 두었으면 선 자세다.</summary>
+    private static int Frame(int pose) =>
+        pose >= 0 && pose < PoseFrame.Length ? PoseFrame[pose] : ReadyFrame;
+
+    /// <summary>싸움꾼이 서는 자리 — 마당 가운데를 두고 좌우로 갈린다.</summary>
+    private const int TheirArtX = 24, MyArtX = SceneWidth - FighterW - 24;
+
+    /// <summary>오른쪽 단추 차림표 — 칠 자리 셋과 필살 · 설명이다.</summary>
+    private IReadOnlyList<(string, Action?)> Commands()
+    {
+        string what = _game.Now == Duel.Step.Guard ? "막는다" : "친다";
+        var rows = new List<(string, Action?)>();
+        for (int zone = 0; zone < Duel.Zones; zone++)
+        {
+            int here = zone;
+            string name = _game.Now == Duel.Step.Guard
+                        ? Duel.GuardNames[zone] : Duel.ZoneNames[zone];
+            rows.Add(($"{name} {what}", () => Take(here)));
+        }
+
+        rows.Add((_useBlow ? "필살 — 켬" : "필살", _game.CanBlow ? Toggle : null));
+        rows.Add(("게임 설명", Explain));
+        rows.Add(("게임 복귀", () => { }));
+        return rows;
     }
 
     private void Explain() =>
