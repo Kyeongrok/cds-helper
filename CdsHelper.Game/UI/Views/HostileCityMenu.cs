@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Town;
 using CdsHelper.Support.Local.Models;
@@ -14,8 +14,15 @@ namespace CdsHelper.Game.UI.Views;
 /// 때까지 돌고, 꺼진 칸도 자리를 안 비운다(<c>0x004A5726</c> 이 넉 줄을 먼저 깔고
 /// 그 뒤에 켜고 끈다).
 ///
+/// 앞머리(<c>0x004A5210</c>)가 먼저다 — <b>도시 그림을 펴고</b> 문지기가
+/// "외국인은 들어올 수 없다" 고 말한 뒤에야 차림표가 뜬다. 말을 못 알아들으면 글자가
+/// ×로 뭉개지고, 대원 중에도 아는 이가 없으면 한 마디 덧붙는다.
+///
 /// <b>공격은 아직 못 옮겼다.</b> 육상전(<c>0x0044A870</c>, 볼트 <c>65.분석-육상전</c>)이
 /// 통째로 남은 숙제라, 물음까지는 게임 그대로 묻고 나서 아직이라고 이른다.
+///
+/// <b>문지기 얼굴은 아직 안 붙였다.</b> 화자표(<c>0x0056823C</c>)의 어느 줄인지 못 짚어,
+/// 얼굴 없이 말만 낸다.
 /// </remarks>
 internal static class HostileCityMenu
 {
@@ -28,7 +35,25 @@ internal static class HostileCityMenu
     /// 적대 도시 앞에 선다.
     /// </summary>
     /// <param name="byLand">말로 왔는지 — 마을 쪽이면 참, 배로 온 항구 쪽이면 거짓.</param>
-    public static Outcome Run(Window owner, Engine.Game game, int city, string cityName, bool byLand)
+    /// <param name="mapArea">도시 그림을 펼 자리. 비어 있으면 임자 창 한가운데다.</param>
+    public static Outcome Run(Window owner, Engine.Game game, int city, string cityName,
+                              bool byLand, Rect mapArea = default)
+    {
+        // 게임도 그림부터 편다 — 도시는 그려지고 성문에서 막히는 것이다.
+        var scene = GateScene.Open(owner, game, city, mapArea);
+        try
+        {
+            return AtTheGate(scene as Window ?? owner, game, city, cityName, byLand);
+        }
+        finally
+        {
+            scene?.Close();
+        }
+    }
+
+    /// <summary>성문 앞에서 문지기를 만나고 차림표를 돌린다.</summary>
+    private static Outcome AtTheGate(Window owner, Engine.Game game, int city, string cityName,
+                                     bool byLand)
     {
         var player = game.Player;
         var dice = new GameRandom(Environment.TickCount);
@@ -36,6 +61,17 @@ internal static class HostileCityMenu
         int sect = nation >= 0 ? game.Nations?.Find(nation)?.Sect ?? 0 : 0;
         string where = Standoff.Where(byLand);
         bool canTalk = true;
+
+        // 문지기가 먼저 말한다(0x004A521A). 아는 말이 아니면 ×로 뭉개져 나오고,
+        // 그때는 대원이 한 마디 덧붙인다 — 마을과 항구의 문구가 다르다(0x004A526E).
+        bool heard = TongueAt(game, city) > 0;
+        TalkDialog.Say(owner, null, cityName,
+                       heard ? Standoff.GateWord
+                             : Standoff.Garble(Standoff.GateWord));
+        if (!heard)
+            TalkDialog.Say(owner, null, cityName,
+                           byLand ? Standoff.GateLostVillage
+                                  : Standoff.GateLostPort);
 
         while (true)
         {

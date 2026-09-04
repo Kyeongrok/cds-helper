@@ -1966,7 +1966,7 @@ public sealed class ShipMapWindow : Window
                 string.Format(Standoff.TreatyWord, Standoff.TreatyName, theirs), name);
         }
 
-        var end = HostileCityMenu.Run(this, _game, city, name, byLand);
+        var end = HostileCityMenu.Run(this, _game, city, name, byLand, MapAreaOnScreen());
         if (end.GameOver)
         {
             GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);

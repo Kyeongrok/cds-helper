@@ -105,7 +105,7 @@ public sealed class NationEditDialog : Window
         public int Language { get; set; }
         public int Capital { get; set; }
 
-        /// <summary>출입여부 0~2. 0 자유 · 1 배로는 못 들어감 · 2 아주 막힘.</summary>
+        /// <summary>출입여부 0~2. 0 자유 · 1 마을만 막힘 · 2 항구까지 막힘.</summary>
         public int Access { get; set; }
         public string LanguageName { get; init; } = "";
         public string CapitalName { get; init; } = "";
