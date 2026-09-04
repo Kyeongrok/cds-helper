@@ -1166,7 +1166,7 @@ public sealed class ShipMapWindow : Window
             "일기토",
         ];
 
-        int pick = MapPointDialog.Ask(this, names, "미니 게임");
+        int pick = MapPointDialog.Ask(this, names, "미니 게임", MapPointDialog.MenuWidth);
         if (pick < 0) return;
 
         switch (pick)

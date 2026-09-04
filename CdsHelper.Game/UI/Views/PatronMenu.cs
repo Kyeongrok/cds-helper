@@ -197,18 +197,22 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 계약금은 반으로 나뉜다 — 절반은 선금으로 그 자리에서 받고, 절반은 성공한 뒤에
         // 받는다. 제안 대사도 그 절반을 두 번 부른다(0x004AF1B6 이 계약금/2 를 두 번 넘기고,
         // 서식은 0x00546B80 "먼저 금화 %ld닢을 주겠다 … %ld닢의 사례" 다).
+        int years = it.Deadline;
         int half = funds / 2;
 
         TalkDialog.Say(_view, face, "",
             $"모험하는데 돈은 필요하겠지. 먼저 금화 {half}닢을 주겠다. " +
-            $"{it.Deadline}년 내에 성공하면 {half}닢의 사례를 약속하겠네. 이것으로 어떤가.");
+            $"{years}년 내에 성공하면 {half}닢의 사례를 약속하겠네. 이것으로 어떤가.");
 
         // 말과 고르기는 <b>따로 뜨는 창 둘</b>이다. 말은 얼굴을 단 알림창(0x004694C0)이고,
         // 고르기는 제목 띠에 기간·금화를 이고 승낙/교섭 두 줄만 놓인 창(0x00469A70,
         // 0x004AF22A 가 줄 수 2 를 넘긴다)이다. 두 줄이 같은 무늬라 Pick 을 쓴다.
-        int pick = ChoiceDialog.Pick(_view, $" 기간{it.Deadline}년 금화 {half}닢 ",
+        int pick = ChoiceDialog.Pick(_view, $" 기간{years}년 금화 {half}닢 ",
                                      ["승낙한다", "교섭한다"]);
-        if (pick != 0) return;      // 교섭은 아직 흉내내지 않는다
+        if (pick < 0) return;
+
+        // 「교섭한다」를 골랐을 때만 한 번 더 묻는다 — <b>되풀이는 없다</b>.
+        if (pick != 0 && !Bargain(patron, face, Say, ref funds, ref years)) return;
 
         // 계약을 적어 두고 선금을 받는다. 게임도 이 자리에서 소지금에 계약금의 절반을
         // 더한다(0x004ADF3E).
@@ -216,7 +220,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         string inspector = Inspector.Pick(_culture, _random);
 
         _player.Sign(new Contract(it.Id, patron.Name, _cityName, funds,
-                                  _player.Date, it.Deadline, inspector));
+                                  _player.Date, years, inspector));
 
         // 맺고 나면 배 → 감찰관 → 배웅 차례다(게임 0x004AF2A3 · 0x004AF2B7 · 0x004AF3A4).
         LendShips(funds, Say);
@@ -309,6 +313,64 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         if (_player.Contract is { } deal) deal.ShipsLent = true;
     }
+
+    /// <summary>
+    /// 「교섭한다」 — 자금을 올리거나 기간을 늘린다(<c>0x004AEDA0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 세 줄짜리 고르기 창이 뜬다(<c>0x004AEDF7</c> 이 줄 수 3 을 넘긴다).
+    /// <code>
+    ///   자금 증가   자금 x 1.3, 기간 절반   — <b>기간이 2년 이상이라야 고를 수 있다</b>
+    ///   기간 연장   기간 x 1.5, 자금 x 0.7  — 1년이면 2년으로
+    ///   변경 없음   그대로
+    /// </code>
+    /// 두 셈 다 <b>10닢 단위로 내린다</b> — 게임이 <c>x13/10/10*5*2</c> 꼴로 셈해서다
+    /// (<c>0x004AEE32</c> · <c>0x004AEEE4</c>).
+    ///
+    /// 자금을 올려 달랬는데 후원자의 재력이 못 미치면 쫓겨난다(<c>0x004AEE7D</c>) —
+    /// "탐욕스러운 놈! 너 같은 녀석에게 볼일 없다. 썩 꺼져라!"(<c>0x00546430</c>).
+    /// </remarks>
+    /// <returns>계약으로 넘어가면 true, 물러났거나 쫓겨났으면 false.</returns>
+    private bool Bargain(Patron patron, uint[]? face, Action<string> Say,
+                         ref int funds, ref int years)
+    {
+        int at = ChoiceDialog.Pick(_view, " 교섭 ",
+            [("자금 증가", years > 1), ("기간 연장", true), ("변경 없음", true)]);
+
+        // <b>「변경 없음」은 바로 계약으로 간다</b> — 제안을 다시 묻지 않는다.
+        // 게임도 그 갈래가 1 을 내고(0x004AEF40), 부르는 쪽은 1 이면 계약을 맺는다
+        // (0x004AF249 가 0 이 아니면 0x004AF28A 로 간다).
+        if (at < 0 || at == 2) return true;
+
+        if (at == 0)
+        {
+            int raised = To10(funds * 13 / 10);
+            if (patron.Wealth < raised)
+            {
+                Say("탐욕스러운 놈! 너 같은 녀석에게 볼일 없다. 썩 꺼져라!");
+                return false;
+            }
+
+            funds = raised;
+            years /= 2;
+            Say($"흐음, 좋다. 돈은 전부 {funds}닢 주겠다. " +
+                $"그대신 기간은 {years}년으로 줄어드네. 이의없겠지.");
+        }
+        else
+        {
+            funds = To10(funds * 7 / 10);
+            years = years > 1 ? years * 15 / 10 : years + 1;
+            Say($"흐음, 좋다. 기간은 {years}년으로 늘려도 상관없네. " +
+                $"그대신 돈은 전부 {funds}닢 이상 줄 수 없네. 이의없겠지.");
+        }
+
+        // 새 값으로 한 번만 되묻는다. 마다하면 이야기가 끝난다.
+        return ConfirmDialog.Ask(_view, $"기간{years}년 금화 {funds}닢으로 하겠습니까?",
+                                 face: face);
+    }
+
+    /// <summary>10닢 단위로 내린다 — 게임의 <c>/10*10</c> 꼴이다.</summary>
+    private static int To10(int coins) => coins / 10 * 10;
 
     /// <summary>친밀도를 모를 때 쓰는 밑값. 표를 못 읽었을 때다.</summary>
     private const int DefaultCloseness = 60;

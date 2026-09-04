@@ -58,6 +58,9 @@ internal sealed class FishingGameDialog : InfoDialog
     private readonly Image _hook = new() { Width = HookSize, Height = HookSize };
     private readonly Image _boat = new() { Width = BeastSize, Height = BeastSize };
     private readonly Image[] _arrow = new Image[2];
+
+    /// <summary>헤엄쳐 다니는 것 열 마리.</summary>
+    private readonly Image[] _swim = new Image[FishingGame.Swimmers];
     private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
     private readonly DispatcherTimer _clock = new();
 
@@ -88,6 +91,16 @@ internal sealed class FishingGameDialog : InfoDialog
         Canvas.SetTop(_boat, 32);   // 배는 물낯(y = 63) 위에 뜬다
         Panel.SetZIndex(_boat, 40);
         _scene.Children.Add(_boat);
+
+        // 헤엄쳐 다니는 것들. 그림은 갈래 둘 x 가는 쪽 둘이다.
+        for (int k = 0; k < FishingGame.Swimmers; k++)
+        {
+            var image = new Image { Width = FishW, Height = FishH, IsHitTestVisible = false };
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            Panel.SetZIndex(image, 30);
+            _scene.Children.Add(image);
+            _swim[k] = image;
+        }
 
         Ready(_hook, Picture("fish-hook.png"));
         Panel.SetZIndex(_hook, 50);
@@ -257,13 +270,38 @@ internal sealed class FishingGameDialog : InfoDialog
         // 바늘 자리는 게임이 쓰는 그대로다 — 세로는 [0xF8], 가로는 칸에 틱을 얹는다.
         Canvas.SetLeft(_hook, GridX + _game.HookX - HookSize / 2.0);
         Canvas.SetTop(_hook, _game.Y - HookSize / 2.0);
+
+        // 헤엄치는 것은 한 줄 시간(마흔 틱)에 한 칸을 간다 — 그 사이를 틱만큼 미끄러진다.
+        for (int k = 0; k < _swim.Length; k++)
+        {
+            var fish = _game.Fish[k];
+            int col = fish.Cell % FishingGame.Columns;
+            int row = fish.Cell / FishingGame.Columns;
+            double slide = _game.Started ? (fish.Way == 1 ? _game.Tick : -_game.Tick) : 0;
+
+            _swim[k].Source = Picture($"fish-small-{fish.Kind * 2 + (fish.Way == 1 ? 0 : 1)}.png");
+            Canvas.SetLeft(_swim[k], CellX(col) + slide - FishW / 2.0);
+            Canvas.SetTop(_swim[k], CellY(row) - FishH / 2.0);
+        }
     }
+
+    /// <summary>게임 EXE 의 설명 글 그대로(<c>0x0056EDB0</c>).</summary>
+    private static readonly string Rules =
+        " 바다에서 바늘을 떨어뜨려서 바닥에 있는 대어를" + Environment.NewLine +
+        "낚는 게임입니다. 낚시바늘은 줄을 따라 내려갑니다." + Environment.NewLine +
+        "내려가는 도중에 화살표를 클릭하든지 ←→버튼을" + Environment.NewLine +
+        "누르면 교차하는 데에서 낚시바늘을 옆으로 이동할 수" + Environment.NewLine +
+        "있습니다만, 다음에 교차하는 데에서는 반드시 밑으로" + Environment.NewLine +
+        "내려갑니다.";
 
     /// <summary>
     /// 한 판 한다. 결과 글은 <c>0x0047AD31</c> 의 뜀표 그대로다.
     /// </summary>
     public static void Play(Window owner, Random rng)
     {
+        // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다(0x0047BD7E).
+        NoticeDialog.Show(owner, Rules, "게임 설명");
+
         var dialog = new FishingGameDialog(rng) { Owner = owner };
         dialog.ShowDialog();
 
