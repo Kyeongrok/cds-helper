@@ -1872,17 +1872,19 @@ public sealed class ShipMapWindow : Window
         bool inCity = false;
         try
         {
-            // 적대 도시면 물음창 대신 공격·잠입·교섭·떠난다가 뜬다(0x00468804).
-            if (!PassGate(city, name, byLand)) return;
-
             // 게임도 그냥 물음창이다 — 짙은 밤색 판에 흰 글씨, 아래에 YES/NO 둘.
             // 배면 "항구로", 말이면 "도시로" 로 갈아 낸다(문구는 하나다).
-            if (ConfirmDialog.Ask(this,
-                    $"[{name}]의 {(byLand ? "도시" : "항구")}로 들어가겠습니까?"))
-            {
-                _host.EnterPort(name);
-                inCity = ShowCityPicture(city, name);
-            }
+            //
+            // 묻는 것이 먼저다. 게임도 이 자리(0x004687EC)에서 대원 대사까지 낸 다음에야
+            // 출입여부를 본다(0x004687FD) — 들어가겠다고 해야 적대 차림표가 뜬다.
+            if (!ConfirmDialog.Ask(this,
+                    $"[{name}]의 {(byLand ? "도시" : "항구")}로 들어가겠습니까?")) return;
+
+            // 막힌 도시면 여기서 공격·잠입·교섭·떠난다가 뜬다(0x00468804).
+            if (!PassGate(city, name, byLand)) return;
+
+            _host.EnterPort(name);
+            inCity = ShowCityPicture(city, name);
         }
         finally
         {
