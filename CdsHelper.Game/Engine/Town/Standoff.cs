@@ -39,18 +39,55 @@ public static class Standoff
     }
 
     /// <summary>
-    /// 그 문이 막혔는가 — <b>항구와 뭍의 잣대가 다르다</b>.
+    /// 그 문이 막혔는가 — <b>마을과 항구의 잣대가 다르다</b>.
     /// </summary>
     /// <remarks>
     /// <code>
-    ///   004687fd  출입여부 &gt; 0   → 적대 차림표 0x004A56F0(1)   ; 1 = 항구
-    ///   004770bd  출입여부 == 2  → 적대 차림표 0x004A56F0(0)   ; 0 = 마을(뭍)
+    ///   004687fd  출입여부 &gt; 0   → 적대 차림표 0x004A56F0(1)   ; 1 = 마을
+    ///   004770bd  출입여부 == 2  → 적대 차림표 0x004A56F0(0)   ; 0 = 항구
     /// </code>
-    /// 그래서 <b>1 은 배로만 막고 뭍은 연다.</b> 출입여부가 1 인 나라 열다섯이 죄다
-    /// 이슬람권과 명인 것이 이 읽기와 맞는다 — 배로 항구에 들이대면 쫓기지만 뭍길로는
-    /// 드나든다. 2 인 그라나다와 오스만·투르크만 뭍까지 막힌다.
+    /// <b>인자가 1 이면 마을이다.</b> 차림표 앞머리 <c>0x004A5210</c> 이 그 인자로 문구를
+    /// 갈라 내는 데서 드러난다 — 인자가 0 이 아니면 <c>0x00551D48</c>
+    /// "…어쩐지 <b>마을</b>에는 들여보내어 주지 않을 것 같습니다", 0 이면
+    /// <c>0x00551D90</c> "…들여보내어 주지 않을 것 같습니다"(마을이라는 말이 없다)다.
+    ///
+    /// 그래서 <b>1 은 마을만 막고 항구는 연다. 2 라야 항구까지 막힌다.</b> 출입여부가 1 인
+    /// 나라 열다섯이 죄다 이슬람권과 명인 것이 이 읽기와 맞는다 — 배로 항구에 대고 교역은
+    /// 하되 내륙 마을에는 못 들어간다. 2 인 그라나다와 오스만·투르크만 항구까지 막힌다.
     /// </remarks>
-    public static bool Barred(int entry, bool byLand) => byLand ? entry >= 2 : entry > 0;
+    public static bool Barred(int entry, bool byLand) => byLand ? entry > 0 : entry >= 2;
+
+    // ── 성문 ──────────────────────────────────────────────────────────────
+
+    /// <summary>성문 문지기가 하는 말(<c>0x00551D28</c>).</summary>
+    public const string GateWord = "외국인은 들어올 수 없다.";
+
+    /// <summary>
+    /// 그 말을 아무도 못 알아들었을 때 대원이 덧붙이는 소리. <b>마을과 항구가 다르다.</b>
+    /// </summary>
+    /// <remarks>
+    /// <c>0x004A526E</c> 가 차림표 인자로 갈라 고른다 — 인자가 0 이 아니면(=마을)
+    /// <c>0x00551D48</c>, 0 이면(=항구) <c>0x00551D90</c> 이다. 마을 쪽에만 「마을」이라는
+    /// 말이 들어가는 이 갈림이 곧 인자의 뜻을 밝혀 준다.
+    /// </remarks>
+    public const string GateLostVillage =
+        "전혀 모르겠습니다만, 어쩐지 마을에는 들여보내어 주지 않을 것 같습니다.";
+    public const string GateLostPort =
+        "무슨 말을 하는 건지 전혀 모르겠습니다만, 들여보내어 주지 않을 것 같습니다.";
+
+    /// <summary>못 알아듣는 말을 <b>×</b> 로 뭉갠다.</summary>
+    /// <remarks>
+    /// 게임은 <c>0x00469540</c> 에서 한다 — 말 번호가 0 이 아니면 일행(<c>0x005B60A0</c>)을
+    /// 훑어 아는 이를 찾고, 없으면 글자를 지운다. <b>띄어쓰기와 마침표는 남는다</b> —
+    /// "외국인은 들어올 수 없다." 가 "×××× ××× × ××." 로 나오는 것이 그 증거다.
+    /// </remarks>
+    public static string Garble(string text)
+    {
+        var made = new System.Text.StringBuilder(text.Length);
+        foreach (char c in text)
+            made.Append(char.IsLetterOrDigit(c) ? '×' : c);
+        return made.ToString();
+    }
 
     /// <summary>고른 값. 꺼진 칸도 자리를 지키므로 붙박이 번호다.</summary>
     public const int Attack = 0, Sneak = 1, Talk = 2, Leave = 3;
