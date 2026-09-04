@@ -20,9 +20,6 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// <b>공격은 아직 못 옮겼다.</b> 육상전(<c>0x0044A870</c>, 볼트 <c>65.분석-육상전</c>)이
 /// 통째로 남은 숙제라, 물음까지는 게임 그대로 묻고 나서 아직이라고 이른다.
-///
-/// <b>문지기 얼굴은 아직 안 붙였다.</b> 화자표(<c>0x0056823C</c>)의 어느 줄인지 못 짚어,
-/// 얼굴 없이 말만 낸다.
 /// </remarks>
 internal static class HostileCityMenu
 {
@@ -65,9 +62,12 @@ internal static class HostileCityMenu
         // 문지기가 먼저 말한다(0x004A521A). 아는 말이 아니면 ×로 뭉개져 나오고,
         // 그때는 대원이 한 마디 덧붙인다 — 마을과 항구의 문구가 다르다(0x004A526E).
         bool heard = TongueAt(game, city) > 0;
-        TalkDialog.Say(owner, null, cityName,
+        int culture = game.CityRows?.CultureOf(city) ?? 0;
+        var gate = game.SpeakerFace(Standoff.GateSpeaker(byLand), culture);
+        TalkDialog.Say(owner, gate, cityName,
                        heard ? Standoff.GateWord
                              : Standoff.Garble(Standoff.GateWord));
+        // 덧붙이는 것은 대원이다 — 문지기 얼굴을 그대로 두면 그가 말한 꼴이 된다.
         if (!heard)
             TalkDialog.Say(owner, null, cityName,
                            byLand ? Standoff.GateLostVillage
