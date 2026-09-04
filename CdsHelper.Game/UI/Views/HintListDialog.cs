@@ -110,7 +110,9 @@ public sealed class HintListDialog : Window
         {
             Background = GameUi.PageFill,
             BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
+            // 테는 도시 명령 창과 같은 한 점이다(GameMenu.BoxEdge) — 두 점씩 두 겹이면
+            // 바깥 테와 겹쳐 두꺼워 보인다.
+            BorderThickness = new Thickness(1),
             Margin = new Thickness(3, 3, 3, 0),
             Padding = new Thickness(2, 1, 2, 1),
             // <b>가로로 넓고 세로는 줄 수를 따라간다.</b> 게임 창이 그렇다 — 두 줄이면
@@ -130,8 +132,7 @@ public sealed class HintListDialog : Window
         {
             Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Margin = new Thickness(2),
+            BorderThickness = new Thickness(1),
             Child = stack,
         };
 

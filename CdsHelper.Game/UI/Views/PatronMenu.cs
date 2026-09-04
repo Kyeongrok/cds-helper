@@ -286,6 +286,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             return;
         }
 
+        // <b>후원자가 먼저 내주겠다고 말한 뒤에</b> 빌릴지 묻는다 — 물음창이 먼저 뜨면
+        // 무엇을 빌리는지 모른 채 고르게 된다. 게임 차례가 그렇다.
+        Say($"모험의 도움을 위해서 배 {ships}척을 항구에 준비시켜 놓겠네. "
+          + "마음대로 사용해도 상관없네.");
+
         // 배가 한 척이라도 있으면 빌릴지 묻는다. 한 척도 없으면 묻지 않고 그냥 준다
         // (0x00410718 이 0x00410800 으로 가려, 0 이면 물음창을 건너뛴다).
         if ((_player.Ships.Count > 0 || _player.DockedAt(_cityId).Count > 0)
@@ -303,9 +308,6 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (given == 0) return;
 
         if (_player.Contract is { } deal) deal.ShipsLent = true;
-
-        Say($"모험의 도움을 위해서 배 {given}척을 항구에 준비시켜 놓겠네. "
-          + "마음대로 사용해도 상관없네.");
     }
 
     /// <summary>친밀도를 모를 때 쓰는 밑값. 표를 못 읽었을 때다.</summary>
@@ -465,6 +467,74 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     public void Report(Patron patron) => Alone(() => ReportNow(patron));
 
     /// <summary>
+    /// 발견물을 하나씩 보고한다 — 게임의 <c>0x00412020</c> 안쪽 차례 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 발견물마다 <b>"…의 발견을 보고했다!!"</b>(<c>0x00530BA8</c>)를 내고, 동영상이나
+    /// 그림이 있으면 그것을 튼 뒤 친밀도 · 아이템 · 명성 차례로 낸다(<c>0x004111D0</c>).
+    /// 사례는 다 끝나고 한 번이다.
+    /// </remarks>
+    /// <returns>받은 사례(닢).</returns>
+    private int ReportEach(Patron patron, Contract contract,
+                           IReadOnlyList<DiscoveryTable.Record> rows, bool inTime)
+    {
+        string me = _player.Name;
+        int fame = 0, closer = 0;
+
+        foreach (var row in rows)
+        {
+            GameDialog.Show(_view,
+                $"{me}{GameUi.Josa(me, "은", "는")} {row.Name}의 발견을 보고했다!!");
+
+            // 동영상이 있으면 틀고, 없고 그림만 있으면 그림을 낸다 — 발견할 때와 같다.
+            if (row.Movie >= 0)
+                MoviePlayer.Play(_view, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
+            else if (row.Picture >= 0)
+                DiscoveryDialog.Show(_view, _game.Stills, row.Picture, row.Name);
+
+            _player.Announce(row.Id);
+
+            // 좋아하는 갈래를 물어다 주면 덤이 붙는다(0x004ADAE0 이 후원자 표 +0x38 을 본다).
+            int by = Palace.ClosenessFor(row, inTime, KnownByOthers,
+                                         patron.Likes(row.Category), _random);
+            if (by != 0)
+            {
+                _player.Endear(patron.Name, by);
+                GameDialog.Show(_view, by > 0 ? "친밀도가 올라갔다!" : "친밀도가 내려갔다!");
+            }
+            closer += by;
+
+            // 그 발견물이 준 물건은 후원자가 <b>돌려준다</b> — "이것은 자네가 가지고 가게"
+            // 하고 소지품에 넣는다(0x004113F5 → 0x004B1710). 빼앗기는 것이 아니다.
+            // 서적·유물(아이템 분류 7)만 그렇고, 이미 들고 있으면 그대로 둔다.
+            if (row.GivesItem && _game.Items?.Find(row.ItemId) is { } gift
+                && gift.Category == Palace.KeepsakeCategory
+                && !_player.Items.Contains(row.ItemId) && _player.Take(row.ItemId))
+                GameDialog.Show(_view, $"[{gift.Name}]{GameUi.Josa(gift.Name, "을", "를")} 손에 넣었다!");
+
+            // 알린 것마다 명성이 오른다. 항구 발표(보수/70)와 셈이 다르다 — 보고는
+            // 보수/50 이고 늦으면 그 반이다(0x004111D0).
+            int up = Palace.FameFor(row, inTime, KnownByOthers);
+            if (up > 0)
+            {
+                _player.Fame += up;
+                GameDialog.Show(_view, $"명성이 {up} 올라갔다!");
+                // 명성이 오른 때만 함께 딸려 온다 — 항구 발표와 같은 두 줄이다(0x0041156A).
+                Harbor.Celebrate(_player);
+            }
+            fame += up;
+        }
+
+        if (fame == 0 && closer == 0)
+            TalkDialog.Say(_view, FaceOf(patron), "", "굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.");
+
+        int paid = RewardFor(contract, inTime);
+        _player.Earn(paid);
+        _player.EndContract();
+        return paid;
+    }
+
+    /// <summary>
     /// 남이 먼저 보고해 버린 발견물인가. <b>우리 쪽에서는 늘 거짓이다.</b>
     /// </summary>
     /// <remarks>
@@ -492,55 +562,26 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         Say(inTime ? "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게."
                    : "꽤 늦었군. 그래, 결과는 어떤가?");
 
-        int fame = 0, closer = 0;
-        var taken = new List<string>();
+        // 인사 다음에 <b>계약 정보 창</b>이 뜬다 — 발견물과 증거품이 거기 적힌다.
+        var sheet = GameInfo.ContractSheetOf(_game);
+        ContractDialog.Show(_view, sheet.Contract, _player.Date,
+                            sheet.HintName, sheet.Found, sheet.Evidence);
 
-        foreach (var row in rows)
+        var stage = _view as CityPicView;
+        int paid;
+        try
         {
-            Say($"[{row.Name}]{GameUi.Josa(row.Name, "을", "를")} 발견했습니다.");
-            _player.Announce(row.Id);
-            // 좋아하는 갈래를 물어다 주면 덤이 붙는다(0x004ADAE0 이 후원자 표 +0x38 을 본다).
-            closer += Palace.ClosenessFor(row, inTime, KnownByOthers,
-                                          patron.Likes(row.Category), _random);
-            // 알린 것마다 명성이 오른다. 항구 발표(보수/70)와 셈이 다르다 — 보고는
-            // 보수/50 이고 늦으면 그 반이다(0x004111D0).
-            fame += Palace.FameFor(row, inTime, KnownByOthers);
-
-            // 그 발견물이 준 물건은 후원자가 <b>돌려준다</b> — "이것은 자네가 가지고 가게"
-            // 하고 소지품에 넣는다(0x004113F5 → 0x004B1710). 빼앗기는 것이 아니다.
-            // 서적·유물(아이템 분류 7)만 그렇고, 이미 들고 있으면 그대로 둔다.
-            if (row.GivesItem && _game.Items?.Find(row.ItemId) is { } gift
-                && gift.Category == Palace.KeepsakeCategory
-                && !_player.Items.Contains(row.ItemId) && _player.Take(row.ItemId))
-                taken.Add(gift.Name);
+            // 보고하는 동안 도시 그림이 파래진다 — 바다에서 발견할 때와 같다.
+            stage?.Shade(true);
+            paid = ReportEach(patron, contract, rows, inTime);
+        }
+        finally
+        {
+            stage?.Shade(false);
         }
 
-        // 친밀도는 발견물마다 움직이고, 게임도 그때마다 한 줄씩 낸다(0x0041127B).
-        // 우리는 한 번에 몰아서 낸다 — 보고 한 번에 여럿을 알리는 일이 잦아서다.
-        if (closer != 0)
-        {
-            _player.Endear(patron.Name, closer);
-            GameDialog.Show(_view, closer > 0 ? "친밀도가 올라갔다!" : "친밀도가 내려갔다!");
-        }
-
-        Say("굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.");
-
-        int paid = RewardFor(contract, inTime);
-        _player.Earn(paid);
-        _player.EndContract();
-
-        foreach (string got in taken)
-            GameDialog.Show(_view, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다!");
-
+        // 사례는 파란 막이 걷힌 뒤에 받는다.
         GameDialog.Show(_view, $"금화 {paid}닢을 받았다!");
-
-        if (fame > 0)
-        {
-            _player.Fame += fame;
-            GameDialog.Show(_view, $"명성이 {fame} 올라갔다!");
-            // 명성이 오른 때만 함께 딸려 온다 — 항구 발표와 같은 두 줄이다(0x0041156A).
-            Harbor.Celebrate(_player);
-        }
 
         // 보고가 끝나면 그 줄이 사라져야 한다 — 계약이 없어졌으니 「보고」 줄도 없다.
         // 줄 목록을 다시 지어 그리게 한다(TownWorks.LinesOf 가 후원자 줄을 다시 고른다).

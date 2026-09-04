@@ -116,7 +116,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
         {
             _game.PutBack();
             Sync();
-            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+            GameUi.ContextMenuAt(this, e.GetPosition(this), Commands());
         };
         KeyDown += (_, e) => { if (e.Key is Key.Escape) { _game.PutBack(); Sync(); } };
 

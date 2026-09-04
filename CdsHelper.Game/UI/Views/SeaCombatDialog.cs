@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -93,8 +93,8 @@ public sealed class SeaCombatDialog : Window
         Content = GameUi.GoldFrame(_board);
         GameUi.EnableDrag(this, _board);
 
-        MouseRightButtonUp += (_, e) => GameUi.ContextMenu(
-            this, PointToScreen(e.GetPosition(this)),
+        MouseRightButtonUp += (_, e) => GameUi.ContextMenuAt(
+            this, e.GetPosition(this),
             [("항복한다", Close), ("게임 복귀", () => { })]);
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };

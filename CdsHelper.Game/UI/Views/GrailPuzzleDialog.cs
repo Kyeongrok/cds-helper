@@ -135,7 +135,7 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         {
             _pick = -1;
             Sync();
-            GameUi.ContextMenu(this, PointToScreen(e.GetPosition(this)), Commands());
+            GameUi.ContextMenuAt(this, e.GetPosition(this), Commands());
         };
         KeyDown += (_, e) => { if (e.Key is Key.Escape) { _pick = -1; Sync(); } };
 
