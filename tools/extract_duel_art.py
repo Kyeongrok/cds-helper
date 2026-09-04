@@ -68,10 +68,43 @@ def paint(pixels, palette, width, height, base, skip=0):
     return rows
 
 
+
+#: 싸움꾼 몸짓 — 파트 0·2·4…16 이 벌 아홉이고 팔레트가 그 다음 홀수 파트다.
+#: 한 벌이 144x136 짜리 33장(646272 = 144*136*33)이고, 색인은 <b>160</b> 을 뺀다.
+#: 서른세 장을 다 뽑는다 — 치고 막고 지고 이기는 몸짓이 골고루 흩어져 있다.
+FIGHTER_W, FIGHTER_H, FIGHTER_FRAMES = 144, 136, 33
+FIGHTER_BASE = 160
+FIGHTER_KEEP = range(FIGHTER_FRAMES)
+
+
+def clear(path, key=(255, 0, 255)):
+    """마젠타 바탕을 비운다 — 싸움꾼은 마당 위에 얹히므로 테가 있으면 안 된다."""
+    from PIL import Image
+    art = Image.open(path).convert("RGBA")
+    art.putdata([(0, 0, 0, 0) if p[:3] == key else p for p in art.getdata()])
+    art.save(path)
+
+
+def fighters(cds):
+    for kit in range(9):
+        art = cds.decode(kit * 2)
+        palette = cds.decode(kit * 2 + 1)
+        for frame in FIGHTER_KEEP:
+            skip = frame * FIGHTER_W * FIGHTER_H
+            rows = paint(art, palette, FIGHTER_W, FIGHTER_H, FIGHTER_BASE, skip)
+            where = os.path.join(OUT, "duel-fighter-%d-%02d.png" % (kit, frame))
+            png(where, FIGHTER_W, FIGHTER_H, rows)
+            clear(where)
+        print("duel-fighter-%d-*.png  %dx%d x%d"
+              % (kit, FIGHTER_W, FIGHTER_H, len(FIGHTER_KEEP)))
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     cds = ls12.Ls12.open(os.path.join(GAME, "FIGHTER.CDS"))
     panel = cds.decode(32)
+
+    fighters(cds)
 
     for part, name, what in ARENAS:
         art = cds.decode(part)

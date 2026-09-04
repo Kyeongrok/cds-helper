@@ -1,4 +1,4 @@
-namespace CdsHelper.Duel;
+﻿namespace CdsHelper.Duel;
 
 /// <summary>
 /// 「일기토」 — 해전에서 기함끼리 붙었을 때 벌이는 일대일 결투.
@@ -33,9 +33,10 @@ public sealed class Duel
     public sealed class Fighter
     {
         public Fighter(string name, int body, int might, int sword, int luck,
-                       int weapon, int armour)
+                       int weapon, int armour, int face = -1)
         {
             Name = name;
+            Face = face;
             Might = might;
             Sword = sword;
             Luck = luck;
@@ -47,6 +48,9 @@ public sealed class Duel
         }
 
         public string Name { get; }
+
+        /// <summary>얼굴 번호(<see cref="Local.Helpers.Portraits"/>). 모르면 -1 이다.</summary>
+        public int Face { get; }
 
         /// <summary>무력(<c>[0x170]</c>·<c>[0x174]</c>). 인물 <c>+0x28</c> 에 1 을 더한 것.</summary>
         public int Might { get; }
@@ -126,6 +130,20 @@ public sealed class Duel
     /// <summary>바로 앞 수가 회심의 일격이었나(<c>[0x13C]</c>).</summary>
     public bool Telling { get; private set; }
 
+    /// <summary>
+    /// 바로 앞 수에 <b>지은 몸짓</b> — 화면이 그림을 고를 때 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0~2</c> 가 치는 자리(상·중·하), <c>3~5</c> 가 막는 몸짓(뛴다·피한다·웅크린다)이다.
+    /// 아직 한 수도 안 두었으면 −1 이다.
+    /// </remarks>
+    public int MyPose { get; private set; } = -1;
+
+    public int TheirPose { get; private set; } = -1;
+
+    /// <summary>막는 몸짓을 몸짓 번호로 — 치는 자리 셋 뒤에 붙는다.</summary>
+    private const int GuardPose = Zones;
+
     /// <summary>필살을 고를 수 있나 — 내가 치는 차례이고 아직 안 썼을 때.</summary>
     public bool CanBlow => Over == null && Now == Step.Strike && !Mine.SpentBlow;
 
@@ -193,6 +211,8 @@ public sealed class Duel
             won = (mine + 1) % Zones == theirs;
         }
 
+        MyPose = mine;
+        TheirPose = theirs;
         Line = $"내 {ZoneNames[mine]}, 상대 {ZoneNames[theirs]} : " +
                (won ? "내가 앞섰다!" : "상대에게 앞을 내주었다.");
         Now = won ? Step.Strike : Step.Guard;
@@ -207,6 +227,8 @@ public sealed class Duel
         int hurt = grade == 2 ? 0 : Hurt(Mine, Theirs, blow, grade == 3);
         if (hurt > 0) Wound(Theirs, zone, hurt);
 
+        MyPose = zone;
+        TheirPose = GuardPose + guard;
         Line = $"{ZoneNames[zone]}{(blow ? "필살" : "공격")} vs {GuardNames[guard]} : " +
                Tale(grade, hurt, "상대");
         Pass(grade);
@@ -240,6 +262,8 @@ public sealed class Duel
         int hurt = grade == 2 ? 0 : Hurt(Theirs, Mine, blow, grade == 3);
         if (hurt > 0) Wound(Mine, zone, hurt);
 
+        MyPose = GuardPose + guard;
+        TheirPose = zone;
         Line = $"상대 {ZoneNames[zone]}{(blow ? "필살" : "공격")} vs {GuardNames[guard]} : " +
                Tale(grade, hurt, "나");
         Pass(grade);
