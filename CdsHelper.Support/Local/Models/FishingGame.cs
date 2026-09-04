@@ -1,4 +1,4 @@
-namespace CdsHelper.Support.Local.Models;
+﻿namespace CdsHelper.Support.Local.Models;
 
 /// <summary>
 /// 미니 게임 「낚시 게임」 — 바늘을 떨어뜨려 바닥의 대어를 낚는 사다리 타기.
@@ -65,6 +65,29 @@ public sealed class FishingGame
         /// <summary>바닥에 걸렸다 — "[지구를 낚았다]고 해야하나."</summary>
         Seabed = 6,
     }
+
+    /// <summary>헤엄쳐 다니는 것 — 열 마리다(<c>0x0047BA1E</c>).</summary>
+    public const int Swimmers = 10;
+
+    /// <summary>
+    /// 헤엄치는 것에 바늘이 걸리는 틱 — 가는 쪽마다 다르다.
+    /// </summary>
+    /// <remarks>
+    /// 오른쪽으로 가는 것은 틱 16(<c>0x0047ABD0</c>), 왼쪽은 틱 14(<c>0x0047AC10</c>)에서
+    /// 잰다. 칸 안에서 자리가 그만큼 어긋나 있어서다.
+    /// </remarks>
+    public const int MeetRight = 16, MeetLeft = 14;
+
+    /// <summary>헤엄치는 것 하나.</summary>
+    /// <param name="Cell">지금 있는 칸.</param>
+    /// <param name="Way">가는 쪽 — 1 이 오른쪽, 2 가 왼쪽이다.</param>
+    /// <param name="Kind">그림 갈래(0·1). 다섯에 넷이 1 이다(<c>0x0047BA03</c>).</param>
+    public readonly record struct Swimmer(int Cell, int Way, int Kind);
+
+    private readonly Swimmer[] _swim = new Swimmer[Swimmers];
+
+    /// <summary>헤엄쳐 다니는 것들.</summary>
+    public IReadOnlyList<Swimmer> Fish => _swim;
 
     private readonly int[] _cell = new int[Cells];
 
@@ -165,6 +188,15 @@ public sealed class FishingGame
             _cell[at] = rng.Next(11) < 7 ? Squid : Octopus;
         }
 
+        // 헤엄쳐 다니는 것 열 마리(0x0047B92E~0x0047BA22). 오징어·낙지가 없는 칸에 놓고,
+        // 가는 쪽과 그림 갈래를 굴린다.
+        for (int k = 0; k < Swimmers; k++)
+        {
+            int at;
+            do { at = rng.Next(Cells); } while (_cell[at] >= Squid);
+            _swim[k] = new Swimmer(at, rng.Next(2) + 1, rng.Next(5) >= 4 ? 0 : 1);
+        }
+
         // 바늘은 떨어뜨리는 칸의 <b>맨 윗줄 위</b>에서 시작한다(0x0047BA33 의 -7).
         At = DropColumn - Columns;
     }
@@ -175,6 +207,32 @@ public sealed class FishingGame
     /// (<c>0x0047AB2C</c>). 곧 <b>한 교차점에 한 번</b>이고, 옮기고 나면 지워져
     /// 다음 교차점에서는 반드시 밑으로 내려간다.
     /// </remarks>
+    /// <summary>
+    /// 헤엄치는 것들이 <b>한 칸씩</b> 옮겨 간다 — 바늘이 한 줄 내려가는 것과 같은 빠르기다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 틱이 마흔일 때에만 옮긴다(<c>0x0047B3E2</c> · <c>0x0047B4CA</c>).
+    /// <b>앞 칸에 오징어나 낙지가 있거나 줄 끝이면 돌아선다</b> — 자리는 그대로 두고
+    /// 가는 쪽만 뒤집는다(<c>0x0047B45B</c> 가 상태에 2 를 넣는 자리다).
+    /// </remarks>
+    private void Swim()
+    {
+        for (int k = 0; k < Swimmers; k++)
+        {
+            var fish = _swim[k];
+            int next = fish.Cell + (fish.Way == 1 ? 1 : -1);
+
+            bool wall = fish.Way == 1 ? next % Columns == 0
+                                      : fish.Cell % Columns == 0;
+            if (wall || next < 0 || next >= Cells || _cell[next] >= Squid)
+            {
+                _swim[k] = fish with { Way = fish.Way == 1 ? 2 : 1 };
+                continue;
+            }
+            _swim[k] = fish with { Cell = next };
+        }
+    }
+
     public void Steer(int way)
     {
         if (Got != Catch.None || !Started) return;
@@ -217,6 +275,14 @@ public sealed class FishingGame
             Tick = 0;
             At += Lean > 0 ? Columns + 1 : Lean < 0 ? Columns - 1 : Columns;
             Lean = 0;
+            Swim();
+        }
+        else if ((Tick == MeetRight || Tick == MeetLeft) && At >= 0 && At < Cells
+                 && Fish.Any(f => f.Cell == At
+                                  && f.Way == (Tick == MeetRight ? 1 : 2)))
+        {
+            Got = Catch.SmallFry;
+            return false;
         }
         else if (Tick == MeetTick && At >= 0 && At < Cells)
         {

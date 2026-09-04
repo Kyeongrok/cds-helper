@@ -29,6 +29,9 @@ internal sealed class MapPointDialog : Window
 
     private int _picked = -1;
 
+    /// <summary>닫히는 중인가. 초점을 잃었을 때 또 닫지 않으려고 둔다.</summary>
+    private bool _closing;
+
     private MapPointDialog(IReadOnlyList<string> names, string title, double rowWidth)
     {
         WindowStyle = WindowStyle.None;
@@ -58,10 +61,26 @@ internal sealed class MapPointDialog : Window
         stack.Children.Add(bar);
         stack.Children.Add(scroller);
 
-        Content = GameUi.WindowFrame(stack);
+        // 테는 도시 명령 창과 같은 한 점이다(GameMenu.BoxEdge). 무늬 액자를 두르면
+        // 줄 단추의 테와 겹쳐 두꺼워 보인다.
+        Content = new Border
+        {
+            Background = GameUi.MenuBack,
+            BorderBrush = GameUi.Edge,
+            BorderThickness = new Thickness(1),
+            Child = stack,
+        };
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
         MouseRightButtonUp += (_, _) => Close();
+
+        // 닫기 단추를 안 눌러도 다른 데를 누르면 닫힌다 — 도시 명령 창과 같은 결이다.
+        //
+        // <b>닫는 중인지 봐야 한다.</b> 줄을 골라 창이 닫히는 동안에도 초점을 잃으며
+        // 이 손잡이가 또 불리는데, 그때 Close 를 부르면 «창을 닫는 중에는 Close 를 호출할
+        // 수 없습니다» 로 터진다.
+        Closing += (_, _) => _closing = true;
+        Deactivated += (_, _) => { if (!_closing) Close(); };
     }
 
     /// <summary>줄 하나의 너비. 도시 이름이 붙은 긴 줄까지 들어가게 잡는다.</summary>
@@ -69,6 +88,15 @@ internal sealed class MapPointDialog : Window
 
     /// <summary>도시 이름만 들어가면 되는 좁은 줄(항구 "마을정보").</summary>
     public const double NarrowWidth = 168;
+
+    /// <summary>
+    /// 이름만 늘어놓는 차림표(타이틀의 「미니 게임」)의 줄 너비.
+    /// </summary>
+    /// <remarks>
+    /// 가장 긴 「화살표 입방체 퍼즐」이 들어가면 된다. 도시 이름이 붙는
+    /// <see cref="RowWidth"/> 를 그대로 쓰면 글자 옆이 휑하다.
+    /// </remarks>
+    public const double MenuWidth = 224;
 
     /// <summary>
     /// 창을 띄우고 고른 줄 번호를 낸다. 물렀으면 -1.
