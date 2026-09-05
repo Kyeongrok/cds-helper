@@ -526,7 +526,7 @@ public sealed class ShipMapWindow : Window
 
         // 창을 옮기면 그 위에 얹힌 도시 그림·커맨드 창도 같이 옮긴다 — 게임에서는 지도 안에
         // 그려진 것이라 따로 남을 수가 없다.
-        // 아직 안 선 도시는 다가가도 안 물어본다(CityFounding).
+        // 아직 안 선 도시는 다가가도 안 물어보고, 지도에서도 지운다(CityFounding).
         _host.CityOpen = _game.CityStanding;
 
         GameUi.CarryOwnedWindows(this);
@@ -1586,6 +1586,11 @@ public sealed class ShipMapWindow : Window
         _game.Bgm.Play(BgmPlayer.SeaTrack);
         SyncOverlay();
 
+        // 날짜가 다 자리잡은 뒤라야 어느 도시가 섰는지 셀 수 있다. 처음 한 번은
+        // 조용히 세고 지도만 갈아 끼운다 — 이어 가는 판에서 스무 줄이 쏟아지면 안 된다.
+        _founded = null;
+        TellFounded();
+
         // 적어 둔 자리가 도시면 도시 화면부터 연다. 바다에서 적었으면(CityId 가 -1) 그대로 둔다 —
         // 어디에서 적었는지는 그 값 하나로 갈린다.
         //
@@ -2087,7 +2092,9 @@ public sealed class ShipMapWindow : Window
     private void TellFounded()
     {
         var now = CityFounding.FoundedBy(_game.Player.Date);
-        if (_founded == null) { _founded = now; return; }
+
+        // 처음 셀 때는 알리지 않는다 — 이어 가는 판이면 이미 다 선 뒤다.
+        if (_founded == null) { _founded = now; HideCities(now); return; }
         if (now.Count == _founded.Count) return;
 
         foreach (int city in now)
@@ -2096,7 +2103,12 @@ public sealed class ShipMapWindow : Window
             NoticeDialog.Show(this, $"{_game.CityName(city)}에 새 항구가 생겼다는군.", "");
         }
         _founded = now;
+        HideCities(now);
     }
+
+    /// <summary>아직 안 선 도시를 지도에서 지운다.</summary>
+    private void HideCities(IReadOnlySet<int> founded) =>
+        _host.HideCities(CityFounding.Hidden.Where(c => !founded.Contains(c)));
 
     /// <summary>지난번에 세어 둔, 선 도시들.</summary>
     private HashSet<int>? _founded;

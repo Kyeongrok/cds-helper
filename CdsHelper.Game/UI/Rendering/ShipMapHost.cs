@@ -1690,6 +1690,38 @@ public sealed class ShipMapHost : HwndHost
     /// </remarks>
     public Func<int, bool>? CityOpen { get; set; }
 
+    /// <summary>
+    /// 아직 안 선 도시를 지도에서 <b>지운다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 지도 자료에는 도시 그림이 박혀 있어 그냥 두면 안 선 도시도 보인다. 게임은 그릴
+    /// 때마다 도시 표 <c>+0x74</c> 의 3×3 바탕 타일로 덮는데(<c>0x0048A1E0</c>), 우리는
+    /// 칸 지도를 한 장으로 올려 두므로 그 자리를 미리 갈아 끼워 둔다.
+    ///
+    /// <paramref name="hidden"/> 이 바뀔 때만 한 장을 새로 짓는다 — 도시가 서는 것은
+    /// 예순 해에 스무 번뿐이라 값이 싸다.
+    /// </remarks>
+    public void HideCities(IEnumerable<int> hidden)
+    {
+        if (_cities is not { } cities) return;
+
+        var patch = new Dictionary<(int X, int Y), ushort>();
+        foreach (int city in hidden)
+        {
+            if (!cities.TryCell(city, out int cx, out int cy, out _)) continue;
+
+            var block = cities.EraseOf(city);
+            for (int i = 0; i < block.Length; i++)
+            {
+                if (block[i] == CityExeTable.Keep) continue;
+
+                int dx = i % CityExeTable.EraseWidth, dy = i / CityExeTable.EraseWidth;
+                patch[(cx + dx, cy + dy)] = block[i];
+            }
+        }
+        _renderer.Erase(patch);
+    }
+
     private int CityAt()
     {
         if (!_shipKnown || _cities == null) return -1;

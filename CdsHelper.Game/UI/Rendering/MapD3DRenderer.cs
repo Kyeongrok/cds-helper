@@ -318,6 +318,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         _cb = _device.CreateBuffer((uint)Marshal.SizeOf<FrameCb>(), BindFlags.ConstantBuffer,
                                    ResourceUsage.Dynamic, CpuAccessFlags.Write);
 
+        _world = worldData;
         CreateCellMap(worldData);
         CreateAtlas(ocean);
         CreatePalette(ocean);
@@ -405,6 +406,42 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         finally { _ctx.Unmap(_flowTex, 0); }
     }
 
+    /// <summary>올려 둔 WORLD.CDS 원본. 칸 지도를 다시 지을 때 쓴다.</summary>
+    private byte[]? _world;
+
+    /// <summary>
+    /// 칸 지도 위에 덮어 둘 것 — <b>아직 안 선 도시를 지우는</b> 바탕 타일이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 그릴 때마다 칸마다 도시를 되짚어 갈아 끼우는데(<c>0x0048A1E0</c>), 우리는
+    /// 칸 지도를 한 장으로 올려 두므로 <b>올릴 때 한 번</b> 덮는다. 도시가 새로 서면
+    /// <see cref="Erase"/> 를 다시 불러 한 장을 새로 짓는다.
+    /// </remarks>
+    private IReadOnlyDictionary<(int X, int Y), ushort>? _erase;
+
+    /// <summary>
+    /// 지울 칸을 갈아 끼우고 칸 지도를 다시 짓는다. 같은 것이면 아무 일도 안 한다.
+    /// </summary>
+    public void Erase(IReadOnlyDictionary<(int X, int Y), ushort> patch)
+    {
+        if (_world is not { } world) return;
+        if (_erase != null && Same(_erase, patch)) return;
+
+        _erase = patch;
+        var old = _cellSrv;
+        CreateCellMap(world);
+        old?.Dispose();
+    }
+
+    private static bool Same(IReadOnlyDictionary<(int X, int Y), ushort> a,
+                             IReadOnlyDictionary<(int X, int Y), ushort> b)
+    {
+        if (a.Count != b.Count) return false;
+        foreach (var (at, tile) in a)
+            if (!b.TryGetValue(at, out ushort had) || had != tile) return false;
+        return true;
+    }
+
     /// <summary>WORLD.CDS 를 펼쳐 칸마다 타일 번호만 담은 텍스처를 만든다.</summary>
     private void CreateCellMap(byte[] world)
     {
@@ -423,6 +460,14 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                     (ushort)((world[odd + cx * 2] | (world[odd + cx * 2 + 1] << 8)) & OceanTiles.TileMask);
             }
         }
+        // 아직 안 선 도시를 지운다 — 도시 표 +0x74 의 바탕 타일로 덮는다.
+        if (_erase is { } erase)
+            foreach (var spot in erase)
+            {
+                var (cx, cy) = spot.Key;
+                if (cx >= 0 && cx < w && cy >= 0 && cy < h) cells[cy * w + cx] = spot.Value;
+            }
+
         _cellSrv = CreateImmutable(cells, w, h, Format.R16_UInt, sizeof(ushort));
     }
 

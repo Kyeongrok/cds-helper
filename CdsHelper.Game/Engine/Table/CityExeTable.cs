@@ -41,7 +41,7 @@ public sealed class CityExeTable
     private const string CacheName = "도시표-게임";
 
     /// <summary>알맹이 모양 판. 지역 무리를 더하며 5 로 올렸다.</summary>
-    private const int Version = 5;
+    private const int Version = 6;
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -79,6 +79,23 @@ public sealed class CityExeTable
     /// <summary>지역 무리가 놓인 자리.</summary>
     private const int RegionOffset = 0x1C;
 
+    /// <summary>
+    /// 도시를 <b>지웠을 때 깔 바탕 타일</b> 3×3 이 놓인 자리(<c>+0x74</c>, 낱말 아홉).
+    /// </summary>
+    /// <remarks>
+    /// 지도 자료에는 도시 그림이 박혀 있고, 렌더러(<c>0x0048A1E0</c>)가 그릴 때 그 위에
+    /// 이 블록을 덮어 도시를 지운다. <c>[dy*3 + dx]</c> 는 도시 칸에서 오른쪽 dx, 아래
+    /// dy 인 칸이고, <c>0xFFFF</c> 는 「안 덮는다」다. 자세한 것은 볼트
+    /// <c>75.분석-도시 등장 시기</c>.
+    /// </remarks>
+    private const int EraseOffset = 0x74, EraseSide = 3;
+
+    /// <summary>덧씌움 블록의 칸 수.</summary>
+    public const int EraseCells = EraseSide * EraseSide;
+
+    /// <summary>「안 덮는다」를 뜻하는 값.</summary>
+    public const ushort Keep = 0xFFFF;
+
     /// <summary>딸린 내륙 도시 번호가 놓인 두 자리.</summary>
     private static readonly int[] InlandOffsets = [0x10, 0x14];
 
@@ -86,9 +103,11 @@ public sealed class CityExeTable
     public const int CultureCount = 11;
 
     /// <summary>JSON 으로 적어 두는 알맹이. 바깥 색인이 도시 번호다.</summary>
+    /// <param name="Erase">도시마다의 3×3 바탕 타일 — <see cref="EraseCells"/> 칸씩이다.</param>
     internal sealed record Snapshot(int[][] Stock, int[] Cultures, int[] Scales,
                                     int[] Nations, int[][] Specials,
-                                    int[] CellX, int[] CellY, int[] Reach, int[] Regions);
+                                    int[] CellX, int[] CellY, int[] Reach, int[] Regions,
+                                    ushort[][] Erase);
 
     private readonly int[][] _stock;
     private readonly int[] _cultures;
@@ -96,6 +115,7 @@ public sealed class CityExeTable
     private readonly int[] _nations;
     private readonly int[][] _specials;
     private readonly int[] _cellX, _cellY, _reach, _regions;
+    private readonly ushort[][] _erase;
 
     private CityExeTable(Snapshot snapshot)
     {
@@ -104,6 +124,7 @@ public sealed class CityExeTable
         _scales = snapshot.Scales;
         _nations = snapshot.Nations;
         _specials = snapshot.Specials;
+        _erase = snapshot.Erase;
         _cellX = snapshot.CellX;
         _cellY = snapshot.CellY;
         _reach = snapshot.Reach;
@@ -163,6 +184,19 @@ public sealed class CityExeTable
     /// 도시에 언어를 박아 두지 않은 것은 정복하면 말이 바뀌기 때문이다.
     /// </remarks>
     /// <remarks>사람이 갈아 둔 것이 있으면 그것이 이긴다(<see cref="CityNationEdits"/>).</remarks>
+    /// <summary>
+    /// 그 도시를 지울 때 깔 바탕 타일 3×3. 못 구하면 빈 배열.
+    /// </summary>
+    /// <remarks>
+    /// <c>[dy*3 + dx]</c> 가 도시 칸에서 오른쪽 dx, 아래 dy 인 칸이고,
+    /// <see cref="Keep"/>(0xFFFF)은 「안 덮는다」다.
+    /// </remarks>
+    public ushort[] EraseOf(int cityId) =>
+        cityId >= 0 && cityId < _erase.Length ? _erase[cityId] : [];
+
+    /// <summary>덧씌움 블록의 한 변.</summary>
+    public const int EraseWidth = EraseSide;
+
     public int NationOf(int cityId)
     {
         int changed = CityNationEdits.Of(cityId);
@@ -234,9 +268,18 @@ public sealed class CityExeTable
         var cellY = new int[Count];
         var reach = new int[Count];
         var regions = new int[Count];
+        var erase = new ushort[Count][];
         for (int city = 0; city < Count; city++)
         {
             int row = TableVa + city * RowSize;
+
+            // 도시를 지웠을 때 깔 바탕 타일 3×3.
+            var block = new ushort[EraseCells];
+            for (int i = 0; i < EraseCells; i++)
+                // Word 는 dword 를 읽으므로 아래 낱말만 떼어 쓴다.
+                block[i] = (ushort)(exe.Word(row + EraseOffset + i * 2) & 0xFFFF);
+            erase[city] = block;
+
             cellX[city] = exe.Int(row + CellXOffset);
             cellY[city] = exe.Int(row + CellYOffset);
             reach[city] = exe.Int(row + ReachOffset);
@@ -279,6 +322,6 @@ public sealed class CityExeTable
         }
 
         return new Snapshot(stock, cultures, scales, nations, specials, cellX, cellY, reach,
-                            regions);
+                            regions, erase);
     }
 }
