@@ -58,6 +58,27 @@ public sealed class TerrainTable
     /// <summary>이 부류부터가 뭍이다. 말은 여기만 지난다.</summary>
     public const int LandMin = 2;
 
+    /// <summary>하루에 든 눈금. 마흔여덟이 하루다(<c>0x0044AF90</c> 의 <c>cmp eax, 0x30</c>).</summary>
+    public const int TicksPerDay = 48;
+
+    /// <summary>
+    /// 칸 하나를 지나는 데 드는 <b>눈금</b>. 표는 <c>0x0053C330 + 종류*8</c> 의 첫 dword 다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0 근해 1 · 1 원양 1 · 2 육지 2 · 3 산 7 · 4 사막 4 · 5 강 1 · 6 숲 5
+    /// </code>
+    /// 바다는 어디든 1 이라 <b>마흔여덟 칸이면 하루</b>고, 뭍은 스물넷(육지)에서
+    /// 여섯(산)까지 줄어든다. 배뿐 아니라 <b>말도 같은 표를 쓴다</b> —
+    /// 그래서 사막을 가로지르면 날이 두 배로 빨리 간다.
+    /// 자세한 것은 볼트 <c>19.분석-날짜와 시간의 흐름</c>.
+    /// </remarks>
+    private static readonly int[] CellTicks = [1, 1, 2, 7, 4, 1, 5];
+
+    /// <summary>그 부류의 칸 하나에 드는 눈금. 모르는 부류면 육지 값으로 물러선다.</summary>
+    public static int TicksOfClass(int kind) =>
+        kind >= 0 && kind < CellTicks.Length ? CellTicks[kind] : CellTicks[LandMin];
+
     /// <summary>
     /// 알맹이 모양 판. 아래 한 바이트가 아니라 칸 값 열네 비트로 찾도록 고치며 2 로 올렸다 —
     /// 예전에 적어 둔 256칸짜리 JSON 을 버리게 한다.
