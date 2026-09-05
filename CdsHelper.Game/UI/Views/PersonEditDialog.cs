@@ -1,8 +1,10 @@
-using System.Globalization;
+﻿using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 using CdsHelper.Support.Local.Settings;
@@ -86,6 +88,10 @@ public sealed class PersonEditDialog : Window
     private PersonTable.Row? _picked;
     private bool _filling;
 
+    /// <summary>얼굴 그림을 떠 오는 손. 세이브를 연 자리에서 게임 폴더를 짐작한다.</summary>
+    private readonly FaceArt _faceArt =
+        new(Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "");
+
     public PersonEditDialog()
     {
         Title = "인물 표 고치기";
@@ -110,9 +116,23 @@ public sealed class PersonEditDialog : Window
         _grid.SelectionChanged += (_, _) => FillSkills(_grid.SelectedItem as PersonTable.Row);
         _grid.CellEditEnding += (_, e) =>
         {
+            if (e.EditAction != DataGridEditAction.Commit) return;
+            if (e.Row.Item is not PersonTable.Row row) return;
+
+            // 얼굴 번호를 고쳤으면 그림 칸도 다시 그려야 한다. 인물 한 줄은 알림을
+            // 안 내보내므로(그냥 프로퍼티다) 표를 통째로 다시 세우고 자리를 되찾는다.
+            bool face = e.Column.Header as string == FaceHeader;
+
             // 칸을 다 쓰고 나서야 값이 들어온다 — 한 박자 뒤에 거둔다.
-            if (e.EditAction == DataGridEditAction.Commit && e.Row.Item is PersonTable.Row row)
-                Dispatcher.BeginInvoke(new Action(() => Save(row)));
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Save(row);
+                if (!face) return;
+
+                _grid.Items.Refresh();
+                _grid.SelectedItem = row;
+                _grid.ScrollIntoView(row);
+            }));
         };
 
         var bar = new StackPanel
@@ -150,6 +170,42 @@ public sealed class PersonEditDialog : Window
 
     /// <summary>고르는 칸 한 줄. 번호를 값으로 두고 이름을 보인다.</summary>
     private sealed record Choice(int Id, string Name);
+
+    /// <summary>
+    /// 얼굴 번호를 그림으로 바꾸는 손.
+    /// </summary>
+    /// <remarks>
+    /// 인물 얼굴은 <b>죄다 MALE.CDS</b> 다 — 여급만 FEMALE.CDS 를 쓰고 그쪽은
+    /// <c>BarmaidBookDialog</c> 가 따로 본다(<c>PersonInfoDialog</c> 도 같은 결이다).
+    /// 표가 이백여든 줄이라 같은 번호를 되풀이해 뜨지 않게 한 번 뜬 것은 담아 둔다.
+    /// </remarks>
+    private sealed class FaceArt(string gameDirectory) : IValueConverter
+    {
+        private readonly Dictionary<int, BitmapSource?> _made = [];
+        private Portraits? _faces;
+        private bool _opened;
+
+        public object? Convert(object? value, Type type, object? param, CultureInfo culture)
+        {
+            if (value is not int face) return null;
+            if (_made.TryGetValue(face, out var kept)) return kept;
+
+            if (!_opened) { _opened = true; _faces = Portraits.Open(gameDirectory); }
+
+            BitmapSource? made = null;
+            if (_faces?.TryGetBgra(face, female: false) is { } px)
+            {
+                made = BitmapSource.Create(Portraits.Width, Portraits.Height, 96, 96,
+                                           PixelFormats.Bgra32, null, px, Portraits.Width * 4);
+                made.Freeze();
+            }
+            _made[face] = made;
+            return made;
+        }
+
+        public object ConvertBack(object? value, Type type, object? param, CultureInfo culture) =>
+            Binding.DoNothing;
+    }
 
     private static readonly Choice[] Buildings =
     [
@@ -189,6 +245,8 @@ public sealed class PersonEditDialog : Window
     {
         Text("번호", nameof(PersonTable.Row.Id), 46, readOnly: true);
         Col("구분", nameof(PersonTable.Row.Id), new KindOfPerson(), 66);
+        Art("초상화", nameof(PersonTable.Row.Face), Portraits.Width * FaceZoom + 12);
+        Text(FaceHeader, nameof(PersonTable.Row.Face), 54);
         Text("이름", nameof(PersonTable.Row.First), 110);
         Text("성", nameof(PersonTable.Row.Last), 140);
         Text("나이", nameof(PersonTable.Row.Age), 48);
@@ -220,6 +278,32 @@ public sealed class PersonEditDialog : Window
             Width = new DataGridLength(width),
             IsReadOnly = true,
         });
+
+    /// <summary>표에 거는 얼굴 크기 — 절반이라야 줄이 안 두꺼워진다.</summary>
+    private const double FaceZoom = 0.5;
+
+    /// <summary>얼굴 번호 칸의 머리. 어느 칸을 고쳤는지 이것으로 짚는다.</summary>
+    private const string FaceHeader = "얼굴";
+
+    /// <summary>얼굴 번호를 그림으로 보이는 칸.</summary>
+    private void Art(string header, string path, double width)
+    {
+        var art = new FrameworkElementFactory(typeof(Image));
+        art.SetBinding(Image.SourceProperty, new Binding(path) { Converter = _faceArt });
+        art.SetValue(FrameworkElement.WidthProperty, Portraits.Width * FaceZoom);
+        art.SetValue(FrameworkElement.HeightProperty, Portraits.Height * FaceZoom);
+        art.SetValue(Image.StretchProperty, Stretch.Fill);
+        // 줄여 거는 것이라 가장가까운점으로 뽑으면 점이 듬성듬성 빠진다.
+        art.SetValue(RenderOptions.BitmapScalingModeProperty, BitmapScalingMode.HighQuality);
+
+        _grid.Columns.Add(new DataGridTemplateColumn
+        {
+            Header = header,
+            CellTemplate = new DataTemplate { VisualTree = art },
+            Width = new DataGridLength(width),
+            IsReadOnly = true,
+        });
+    }
 
     private void Pick(string header, string path, System.Collections.IEnumerable source,
                       double width) =>
@@ -293,13 +377,18 @@ public sealed class PersonEditDialog : Window
         int keep = _grid.SelectedItem is PersonTable.Row picked ? picked.Id : -1;
         string find = _search.Text.Trim();
 
-        var rows = table.People.Where(r =>
+        var named = table.People.Where(r =>
                 r.Name != "???"
                 && (find.Length == 0 || r.Name.Contains(find, StringComparison.OrdinalIgnoreCase))
                 && (_onlyMoving.IsChecked != true
-                    || (r.Id >= PersonTable.VoyagerCount && r.Id < PersonTable.MovingEnd))
-                && (_onlyAppeared.IsChecked != true || r.Appear != 0))
+                    || (r.Id >= PersonTable.VoyagerCount && r.Id < PersonTable.MovingEnd)))
             .ToList();
+
+        // 「등장한 사람만」이 걷어 낸 사람 — 몇을 가렸는지 아래에 적어 준다.
+        // 바르톨로메우·디아스(0번)처럼 아직 등장 안 한 역사 항해사가 여기 걸린다.
+        var rows = _onlyAppeared.IsChecked == true
+            ? named.Where(r => r.Appear != 0).ToList() : named;
+        int hidden = named.Count - rows.Count;
 
         _grid.ItemsSource = rows;
         if (keep >= 0) _grid.SelectedItem = rows.FirstOrDefault(r => r.Id == keep);
@@ -307,7 +396,9 @@ public sealed class PersonEditDialog : Window
 
         _revert.IsEnabled = PersonTable.Edited;
         _status.Text =
-            $"인물 {rows.Count}명 보임 / 표 {PersonTable.Count}칸"
+            $"인물 {rows.Count}명 보임"
+            + (hidden == 0 ? "" : $" (등장 안 한 {hidden}명은 가림)")
+            + $" / 표 {PersonTable.Count}칸"
             + $" — {(PersonTable.Edited ? "고쳐 둔 것" : "같이 깔린 본")}"
             + (PersonTable.Source.Length == 0 ? "" : $" ({PersonTable.Source})")
             + "   ·   고친 것은 놀이 안에서도 그대로 쓰인다";
