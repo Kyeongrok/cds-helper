@@ -538,6 +538,10 @@ public sealed class ShipMapHost : HwndHost
         else if (_onLand && _moored) overlay = SpriteRectAt(_mooredX, _mooredY, origin);
         SyncOverlaySprite();
 
+        // 남의 배가 옮겨 앉았으면 다시 그려야 한다. 자리가 그대로면 아무 일도 없다 —
+        // 사람은 하루에 한 걸음이라 예순 프레임 가운데 쉰아홉은 같은 그림이다.
+        if (SyncFolk(origin, w, h)) _dirty = true;
+
         // 지난 프레임과 똑같으면 그리지 않는다. 배는 0.1초에 한 걸음씩 옮기고 지도는
         // 가장자리에 닿아야 넘어가므로, 60fps 로 도는 동안 거의 다 같은 그림이다.
         if (!_dirty && origin == _drawnOrigin && rect == _drawnShip && overlay == _drawnAnchor
@@ -551,6 +555,152 @@ public sealed class ShipMapHost : HwndHost
         _drawnFlow = flowKey;
         _dirty = false;
         FrameCount++;
+    }
+
+    // ── 남의 배 ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 지도에 함께 낼 사람들 — 세계 칸 자리와 뱃머리(16방위), 그리고 인물 번호다.
+    /// </summary>
+    /// <remarks>
+    /// 누가 어디 있는지는 <c>PersonWorld</c> 가 안다. 여기서는 <b>받아서 그리기만</b> 한다 —
+    /// 지도는 인물 표를 모르는 편이 낫다. 게임도 지도 객체가 인물 배열을 훑어 가까운
+    /// 열여섯을 채운다(<c>0x00426790</c>).
+    /// </remarks>
+    public Func<IReadOnlyList<(double X, double Y, int Heading, int Person)>>? FolkAt { get; set; }
+
+    /// <summary>이번 프레임에 실제로 그린 사람들 — 가까운 차례다.</summary>
+    private readonly List<(double X, double Y, int Heading, int Person)> _folk = [];
+
+    private readonly MapD3DRenderer.FolkDraw[] _folkDraw =
+        new MapD3DRenderer.FolkDraw[MapD3DRenderer.MaxFolk];
+
+    private bool _folkArtReady;
+
+    /// <summary>
+    /// 남의 배 그림 넉 장을 한 번 올린다 — 북 · 서 · 남 · 동 차례다.
+    /// </summary>
+    /// <remarks>
+    /// 내 배와 같은 <c>asset/ship</c> 벌을 쓴다. 게임도 남의 배를 따로 그리지 않는다.
+    /// </remarks>
+    private void UploadFolkSprites()
+    {
+        if (_folkArtReady) return;
+
+        int one = MapD3DRenderer.FolkSize * MapD3DRenderer.FolkSize;
+        var atlas = new uint[one * MapD3DRenderer.FolkFrames];
+
+        // 16방위에서 북(0) · 서(4) · 남(8) · 동(12) 을 뽑는다.
+        for (int i = 0; i < MapD3DRenderer.FolkFrames; i++)
+        {
+            var frame = ShipSprites.Frame(i * 4);
+            if (frame.Length != one) return;                 // 그림 벌이 아직 안 열렸다
+            frame.CopyTo(atlas.AsSpan(i * one));
+        }
+
+        _renderer.SetFolkSprites(atlas);
+        _folkArtReady = true;
+    }
+
+    /// <summary>
+    /// 가까운 사람 열여섯을 골라 화면 자리로 옮긴다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 인물 번호 차례로 앞에서 열여섯을 채우는데, 우리는 <b>가까운 차례</b>로 고른다 —
+    /// 화면에 든 사람이 번호가 커서 밀리면 눈에 안 보여 이상하다.
+    /// </remarks>
+    /// <returns>지난 프레임과 <b>달라졌으면</b> 참 — 그때만 다시 그린다.</returns>
+    private bool SyncFolk((double X, double Y) origin, int w, int h)
+    {
+        int was = _folkShown;
+        _folk.Clear();
+        _folkShown = 0;
+
+        if (FolkAt == null) { _renderer.SetFolk([]); return was > 0; }
+
+        UploadFolkSprites();
+        if (!_folkArtReady) { _renderer.SetFolk([]); return was > 0; }
+
+        // 화면에 든 것만 본다. 가장자리 한 칸은 그림이 걸쳐 보이도록 넉넉히 둔다.
+        double left = origin.X - FolkMargin, top = origin.Y - FolkMargin;
+        double right = origin.X + w * _cellsPerPixel + FolkMargin;
+        double bottom = origin.Y + h * _cellsPerPixel + FolkMargin;
+
+        foreach (var one in FolkAt())
+        {
+            double x = Fold(one.X, origin.X);
+            if (x < left || x > right || one.Y < top || one.Y > bottom) continue;
+            _folk.Add((x, one.Y, one.Heading, one.Person));
+        }
+
+        if (_folk.Count > MapD3DRenderer.MaxFolk)
+        {
+            _folk.Sort((a, b) => Near(a).CompareTo(Near(b)));
+            _folk.RemoveRange(MapD3DRenderer.MaxFolk, _folk.Count - MapD3DRenderer.MaxFolk);
+        }
+
+        float size = (float)(3.0 / _cellsPerPixel);
+        float scale = size / MapD3DRenderer.FolkSize;
+        bool moved = was != _folk.Count;
+
+        for (int i = 0; i < _folk.Count; i++)
+        {
+            var one = _folk[i];
+            var draw = new MapD3DRenderer.FolkDraw(
+                (float)((one.X - origin.X) / _cellsPerPixel - size / 2),
+                (float)((one.Y - origin.Y) / _cellsPerPixel - size / 2),
+                (one.Heading & 0xF) >> 2,                    // 16방위 → 넉 장
+                scale);
+
+            if (!draw.Equals(_folkDraw[i])) moved = true;
+            _folkDraw[i] = draw;
+        }
+        _folkShown = _folk.Count;
+
+        if (moved) _renderer.SetFolk(_folkDraw.AsSpan(0, _folkShown));
+        return moved;
+    }
+
+    /// <summary>지난 프레임에 그린 남의 배 수.</summary>
+    private int _folkShown;
+
+    /// <summary>화면 밖 몇 칸까지 그릴지 — 그림이 세 칸이라 그 반이면 넉넉하다.</summary>
+    private const double FolkMargin = 3;
+
+    /// <summary>내 배에서 그 사람까지 칸 거리의 제곱.</summary>
+    private double Near((double X, double Y, int Heading, int Person) one)
+    {
+        double dx = one.X - _shipX, dy = one.Y - _shipY;
+        return dx * dx + dy * dy;
+    }
+
+    /// <summary>세계가 감기므로 화면 쪽으로 당겨 놓는다 — 동경 180도를 넘어도 이어 보인다.</summary>
+    private static double Fold(double x, double originX)
+    {
+        double w = WorldMapRenderer.UnfoldedW;
+        while (x - originX < -w / 2) x += w;
+        while (x - originX > w / 2) x -= w;
+        return x;
+    }
+
+    /// <summary>
+    /// 내 배에서 <paramref name="radiusCells"/> 칸 안에 있는 <b>가장 가까운 사람</b>.
+    /// 아무도 없으면 −1.
+    /// </summary>
+    /// <remarks>지금 그리고 있는 사람들 가운데서 고른다 — 화면 밖은 만날 일이 없다.</remarks>
+    public (int Person, double Cells) NearestFolk(double radiusCells)
+    {
+        int who = -1;
+        double best = radiusCells * radiusCells;
+
+        foreach (var one in _folk)
+        {
+            double far = Near(one);
+            if (far > best) continue;
+            best = far;
+            who = one.Person;
+        }
+        return (who, who < 0 ? 0 : Math.Sqrt(best));
     }
 
     /// <summary>

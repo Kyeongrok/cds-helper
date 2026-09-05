@@ -493,6 +493,7 @@ public sealed class ShipMapWindow : Window
                                                  : _host.Status;
             CheckPort();
             SpotCities();
+            MeetFolk();
             CheckDiscovery();
             PassTime();
             MarkSeen();
@@ -529,6 +530,9 @@ public sealed class ShipMapWindow : Window
         // 그려진 것이라 따로 남을 수가 없다.
         // 안 선 도시도, 아직 모르는 도시도 다가가도 안 물어보고 지도에서도 지운다.
         _host.CityOpen = _game.CityVisible;
+
+        // 지도에 남의 배를 낸다 — 누가 어디 있는지는 인물 세상이 안다.
+        _host.FolkAt = FolkAfloat;
 
         GameUi.CarryOwnedWindows(this);
 
@@ -2191,6 +2195,83 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>발견 반지름의 밑값 — 게임도 측량술에 둘을 더한다(<c>0x0048D834</c>).</summary>
     private const int SpotBase = 2;
+
+    // ── 바다에서 사람을 만난다 ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// 지금 바다에 떠 있는 사람들 — 지도가 이 목록을 받아 그린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 지도를 그릴 때마다 인물 배열을 통째로 훑는다(<c>0x00426790</c>).
+    ///
+    /// 다만 이쪽은 <b>화면 새로 고침마다</b> 불린다(<c>CompositionTarget.Rendering</c>).
+    /// 사람 자리는 <b>하루에 한 번</b>밖에 안 바뀌므로 날짜와 세상 판이 그대로면 지난
+    /// 목록을 그대로 낸다 — 안 그러면 초당 예순 번 이백여든 줄을 훑고 목록을 새로 짓는다.
+    /// </remarks>
+    private IReadOnlyList<(double X, double Y, int Heading, int Person)> FolkAfloat()
+    {
+        if (_game.World is not { } world) return [];
+
+        world.Advance(_game.Player.Date);
+
+        var now = (_game.Player.Date, world.Revision);
+        if (_folkStamp == now) return _folkList;
+        _folkStamp = now;
+
+        _folkList.Clear();
+        foreach (var (who, x, y, heading) in world.Afloat())
+            _folkList.Add((x, y, heading, who.Id));
+        return _folkList;
+    }
+
+    private readonly List<(double X, double Y, int Heading, int Person)> _folkList = [];
+    private (DateTime Day, int Revision) _folkStamp = (default, -1);
+
+    /// <summary>
+    /// 배가 사람 곁을 지나면 말을 건다.
+    /// </summary>
+    /// <remarks>
+    /// 한 번 만난 사람에게는 <b>그가 다시 떠날 때까지</b> 안 붙는다 — 같은 자리에서
+    /// 몇 번이고 창이 뜨면 배를 못 몬다. 인물 세상이 누가 움직일 때마다 올리는
+    /// <c>Revision</c> 으로 그것을 가른다.
+    /// </remarks>
+    private void MeetFolk()
+    {
+        if (_asking || _host.SeaBlocked || _host.IsOnLand) return;
+        if (_game.World is not { } world) return;
+
+        var (who, cells) = _host.NearestFolk(MeetCells);
+        if (who < 0) { return; }
+
+        // 같은 만남을 두 번 열지 않는다.
+        var mark = (who, world.Revision);
+        if (_met == mark) return;
+        _met = mark;
+
+        if (world.People.FirstOrDefault(r => r.Id == who) is not { } row) return;
+
+        string what = row.Id < HistoryVoyages.Count
+            ? $"{row.Name} 의 함대다!"
+            : $"{row.Name} 의 배와 마주쳤다.";
+
+        _asking = true;
+        try
+        {
+            _host.Paused = true;
+            NoticeDialog.Show(this, what, $"{cells:F0}칸 앞");
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
+    /// <summary>말을 걸 만큼 가까운 거리. 게임 그림이 세 칸이라 그 언저리다.</summary>
+    private const double MeetCells = 3;
+
+    /// <summary>마지막으로 만난 사람과 그때의 세상 판. 같은 만남을 거르는 데 쓴다.</summary>
+    private (int Who, int Revision) _met = (-1, -1);
 
     /// <summary>지난번에 세어 둔, 선 도시들.</summary>
     private HashSet<int>? _founded;
