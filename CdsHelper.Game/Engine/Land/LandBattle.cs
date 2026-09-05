@@ -71,8 +71,9 @@ public sealed class LandBattle
     /// <param name="mine">아군 여섯 자리의 병종. −1 이면 빈 자리다.</param>
     /// <param name="scale">도시 규모(<c>도시 +0x08</c>). 적의 크기가 여기서 나온다.</param>
     public LandBattle(IReadOnlyList<int> mine, Player player, Player.MateInfo? aide,
-                      int scale, int culture, int terrain, GameRandom dice)
+                      int scale, int nation, int culture, int terrain, GameRandom dice)
     {
+        Nation = nation;
         Culture = culture;
         Terrain = Math.Clamp(terrain, 0, 3);
         Scale = Math.Max(0, scale);
@@ -91,6 +92,7 @@ public sealed class LandBattle
         FoeBody = dice.Next(10) + new[] { 60, 75, 85, 90 }[band] - 1;
 
         Muster(scale, dice);
+        Shell(player, dice);
         for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
         FoeRoom = FoeUnits > 0 ? FoeFirst / FoeUnits : FoeFirst;
         MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
@@ -101,6 +103,45 @@ public sealed class LandBattle
 
     /// <summary>도시 규모. 전리품 셈이 이것을 본다.</summary>
     public int Scale { get; }
+
+    /// <summary>도시가 딸린 나라. 증원이 붙을지를 이것도 본다.</summary>
+    public int Nation { get; }
+
+    // ── 증원 2차전 — 0x00449930 ────────────────────────────────────────────────
+
+    /// <summary>증원이 붙는 나라(<c>0x00449956</c> 의 <c>cmp eax, 7</c>).</summary>
+    private const int ReinforcingNation = 7;
+
+    /// <summary>증원이 붙는 도시 규모.</summary>
+    private const int ReinforcingScale = 3;
+
+    /// <summary>이미 한 번 붙었는지(<c>+0x88</c>). 한 판에 딱 한 번이다.</summary>
+    private bool _reinforced;
+
+    /// <summary>증원이 왔을 때 나오는 말(<c>0x0056D0B8</c> 벌).</summary>
+    public const string ReinforceWord = "제독, 적의 새 병력입니다!";
+
+    /// <summary>
+    /// 이겼을 때 적의 새 병력이 붙는지 — <b>마을 공략에서 딱 한 번</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 도시 규모가 셋 위이거나, 작아도 나라가 <b>7</b> 이면 붙는다. 붙으면 적을 다시 짜고
+    /// 턴을 처음으로 돌린다(<c>0x0044998E</c> 가 3 을 내어 고리를 되돌린다).
+    /// </remarks>
+    public bool Reinforce(GameRandom dice)
+    {
+        if (_reinforced) return false;
+        if (Scale < ReinforcingScale && Nation != ReinforcingNation) return false;
+
+        _reinforced = true;
+        for (int i = FirstFoe; i < Slots; i++) _units[i] = default;
+
+        Muster(Scale, dice);
+        for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
+        FoeRoom = FoeUnits > 0 ? MenOn(foe: true) / FoeUnits : FoeFirst;
+        Turn = 1;
+        return true;
+    }
 
     /// <summary>판을 열 때의 인원.</summary>
     public int MyFirst { get; }
@@ -368,6 +409,125 @@ public sealed class LandBattle
 
     /// <summary>다음 턴으로. 열 턴이 지나면 거짓.</summary>
     public bool NextTurn() => ++Turn <= LastTurn;
+
+    /// <summary>
+    /// 다 빈치의 작렬탄(<c>0x00448DD0</c>) — 판이 열릴 때 한 번 굴린다.
+    /// </summary>
+    /// <remarks>
+    /// 아이템 2 를 지녔으면 40%로 <c>0x0056D340</c> "다 빈치 선생의 작렬탄을 받아라!"
+    /// 가 뜨고 그 뒤로 <b>포가 비를 안 탄다</b>. 그 아이템은 그 자리에서 없어진다.
+    /// </remarks>
+    public const int ShellItem = 2, ShellOdds = 40;
+
+    /// <summary>작렬탄을 받았는지. 서 있으면 포가 비를 안 탄다.</summary>
+    public bool Shells { get; private set; }
+
+    /// <summary>작렬탄을 받았을 때 나오는 말(<c>0x0056D340</c>). 안 받았으면 빈 글.</summary>
+    public string ShellWord { get; private set; } = "";
+
+    /// <summary>
+    /// 작렬탄을 굴린다 — 아이템을 지녔으면 <see cref="ShellOdds"/> 로 받는다.
+    /// </summary>
+    /// <remarks>받으면 그 아이템은 그 자리에서 없어진다(<c>0x0047CDB0</c>).</remarks>
+    private void Shell(Player player, GameRandom dice)
+    {
+        if (!player.HasItem(ShellItem)) return;
+        if (dice.Next(100) >= ShellOdds) return;
+
+        player.Drop(ShellItem);
+        Shells = true;
+        ShellWord = "다 빈치 선생의 작렬탄을 받아라!";
+    }
+
+    // ── 적 AI — 0x00447A60 ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 전투 갈래(<c>+0x34</c>). 마을 공략이 <b>2</b> 다.
+    /// </summary>
+    public const int VillageRaid = 2;
+
+    /// <summary>
+    /// 적이 고르는 공격명령(<c>0x00447A60</c>).
+    /// </summary>
+    /// <remarks>
+    /// 양쪽 병사수를 견주고 턴이 여덟을 넘었는지로 갈린다. 마을 공략(갈래 2)만 옮겼다 —
+    /// 함대전 갈래는 우리 쪽에 아직 그 판이 없다.
+    /// <code>
+    ///   턴 &gt;= 8  이기고 있으면  rand(4) != 0 ? 방어중시 : 통상
+    ///            지고  있으면  rand(9) != 0 ? 방어중시 : 통상
+    ///   턴 &lt;  8  이기고 있으면  rand(7) &gt; 3 ? 돌격     : 통상
+    ///            지고  있으면  rand(7) &gt; 2 ? 방어중시 : 통상
+    /// </code>
+    /// <b>적은 마을 공략에서 일기토를 안 건다</b>(<c>0x004479D7</c> 이 갈래 2·4 를
+    /// 먼저 걸러 낸다). 퇴각도 갈래 1 에서만 고른다.
+    /// </remarks>
+    public int FoeOrder(GameRandom dice)
+    {
+        bool ahead = MenOn(foe: true) >= MenOn(foe: false);
+
+        if (Turn >= LateTurn)
+            return dice.Next(ahead ? 4 : 9) != 0 ? Guarded : Normal;
+
+        return ahead ? (dice.Next(7) > 3 ? Charge : Normal)
+                     : (dice.Next(7) > 2 ? Guarded : Normal);
+    }
+
+    /// <summary>적이 셈을 바꾸는 턴(<c>0x00447A7C</c> 의 <c>cmp 턴, 8</c>).</summary>
+    private const int LateTurn = 8;
+
+    // ── 묘책 — 0x004490D0 ──────────────────────────────────────────────────────
+
+    /// <summary>묘책 넷의 이름(<c>0x0056D438</c>). 제목은 「기습명령」이다.</summary>
+    public static readonly string[] Ruses = ["기습", "함정", "암살자", "심판"];
+
+    /// <summary>묘책 번호.</summary>
+    public const int Ambush = 0, Trap = 1, Assassin = 2, Judgement = 3;
+
+    /// <summary>묘책 차림표의 제목(<c>0x0056D458</c>).</summary>
+    public const string RuseTitle = "기습명령";
+
+    /// <summary>
+    /// 묘책이 먹힐 확률 — <b>문화권 x 세 묘책</b> 표(<c>0x00549B80</c>)다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x00449080</c> 이 <c>표[문화권*3 + 묘책] &gt;= rand(100)</c> 으로 가른다.
+    /// 값은 20 · 40 · 60 · 80 넷뿐이다. 심판은 표 밖이라(디버그 전용) 안 쓴다.
+    /// </remarks>
+    private static readonly int[] RuseOdds =
+    [
+        40, 80, 60,   40, 80, 60,   40, 80, 60,   60, 20, 40,
+        60, 40, 80,   40, 80, 20,   80, 60, 20,   20, 60, 40,
+        60, 20, 40,   80, 20, 60,   40, 20, 60,
+    ];
+
+    /// <summary>한 판에 한 번씩만 쓴다(<c>+0x50</c> 의 비트).</summary>
+    private int _usedRuses;
+
+    /// <summary>그 묘책을 아직 안 썼는지.</summary>
+    public bool RuseLeft(int ruse) => (_usedRuses & (1 << ruse)) == 0;
+
+    /// <summary>아직 쓸 수 있는 묘책이 하나라도 있는지.</summary>
+    public bool AnyRuseLeft =>
+        RuseLeft(Ambush) || RuseLeft(Trap) || RuseLeft(Assassin);
+
+    /// <summary>묘책 차림표의 줄들. 쓴 것은 꺼진다.</summary>
+    public IReadOnlyList<(string Text, bool On)> RuseRows() =>
+    [
+        (Ruses[Ambush], RuseLeft(Ambush)),
+        (Ruses[Trap], RuseLeft(Trap)),
+        (Ruses[Assassin], RuseLeft(Assassin)),
+        // 심판은 디버그 아이템(0xB8)이 있어야 열린다 — 우리는 안 낸다.
+        (Ruses[Judgement], false),
+    ];
+
+    /// <summary>그 묘책을 걸어 본다. 먹혔으면 참이고, 어느 쪽이든 한 번 쓰면 없어진다.</summary>
+    public bool TryRuse(int ruse, GameRandom dice)
+    {
+        _usedRuses |= 1 << ruse;
+
+        int at = Math.Clamp(Culture, 0, 10) * 3 + ruse;
+        return at < RuseOdds.Length && RuseOdds[at] >= dice.Next(100);
+    }
 
     /// <summary>공격명령 차림표의 제목(<c>0x0056D7A0</c>).</summary>
     public const string OrderTitle = "공격명령";
