@@ -442,6 +442,8 @@ public sealed class ShipMapWindow : Window
             // 낯을 튼 여급과 그 궁합. 궁합은 초상화 번호 하나로 갈리는데 화면에서는
             // 볼 길이 없어 여기에 둔다.
             ("여급 수첩", () => BarmaidBookDialog.Show(this, _game)),
+            // 제독의 값이 화면 곳곳에 흩어져 있어 한자리에 모아 볼 데가 없었다.
+            ("제독 정보", () => PlayerInfoDialog.Show(this, _game)),
             ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
         shell.Children.Add(titleBar);
