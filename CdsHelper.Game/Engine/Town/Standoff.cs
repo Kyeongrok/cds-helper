@@ -151,9 +151,17 @@ public static class Standoff
     /// <summary>말이 통할 때(<c>0x00551F00</c>).</summary>
     public const string TakeCare = "제독, 조심하십시오.";
 
-    /// <summary>들킨 순간(<c>0x00551F30</c>) · 빠져나온 뒤(<c>0x00551F48</c>).</summary>
+    /// <summary>들킨 순간(<c>0x00551F30</c>).</summary>
     public const string Spotted = "침입자다! 잡아라!!";
-    public const string SneakedIn = "제독, 무사하셨습니까!? 여기서부터는 안전합니다.";
+
+    /// <summary>
+    /// <b>달아났을 때</b>(<c>0x00551F48</c>) — 부관이 있을 때만 나온다(<c>0x004A5425</c>).
+    /// </summary>
+    /// <remarks>
+    /// 예전에 이 줄을 「잠입 성공」에 붙여 두었는데 게임은 그 자리에서 <b>아무 말도 안 한다</b>
+    /// — 굴림에 이기면 <c>0x004A53DC</c> 가 곧장 1 을 돌려주고 도시로 들어간다.
+    /// </remarks>
+    public const string GotAwaySafe = "제독, 무사하셨습니까!? 여기서부터는 안전합니다.";
 
     /// <summary>잡혔을 때(<c>0x00551F78</c> 부터).</summary>
     public const string Caught = "침입자를 잡았다! 재판소에 세워라!!";
@@ -163,8 +171,10 @@ public static class Standoff
         "벌금형 또는 추방을 명한다. 목숨을 구한걸 알라신에게 감사해라.";
     public const string Robbed = "소지금 전부를 빼앗겼다!";
 
-    /// <summary>달아났을 때(<c>0x00552040</c>).</summary>
-    public const string GotAway = "제독, 무사합니까! 여기는 위험하니 포기합시다.";
+    /// <summary>
+    /// <b>재판이 끝난 뒤</b>(<c>0x00552040</c>) — 부관이 있을 때만 나온다(<c>0x004A5557</c>).
+    /// </summary>
+    public const string GiveUpHere = "제독, 무사합니까! 여기는 위험하니 포기합시다.";
 
     /// <summary>잠입이 되는지 굴린다(<c>0x004A539A</c> ~ <c>0x004A53CC</c>).</summary>
     /// <remarks>
@@ -219,17 +229,61 @@ public static class Standoff
     public static int Price(Player player, GameRandom dice) =>
         dice.Next(500) + (5 - player.LevelOf(Skill.Names[Skill.Rhetoric])) * 100;
 
+    /// <summary>
+    /// <b>부관이 있는가.</b> 성문의 말은 부관이 하느냐 그냥 서술하느냐로 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   00468ef0  0x0047CC60(주인공, 0, 0)  ; 부하 칸 [주인공+0x100] 의 첫 자리
+    ///   00468efe  cmp eax,1; sbb eax,eax; inc eax   ; 있으면 1
+    /// </code>
+    /// 그 첫 자리가 <b>부관</b>이다(<see cref="Player.MateRoles"/>). 이 값이
+    /// <c>0x00469680</c>(둘 중 하나를 고른다)과 <c>0x004696B0</c>(있을 때만 말한다)을
+    /// 가르고, 잠입의 말 수준 조언(<c>0x004A52F6</c>)도 이것으로 막힌다.
+    ///
+    /// <b>부관이 없으면 대원이 말을 안 건다.</b> 그래서 「제독, 조심하십시오」 같은 줄이
+    /// 아예 안 나오고, 교섭 결과도 서술 쪽 문구로 나온다.
+    /// </remarks>
+    public static bool HasAide(Player player) =>
+        player.Mates.Count > 0 && player.Mates[0].Length > 0;
+
     /// <summary>교섭이 됐을 때(<c>0x005220A0</c> · <c>0x005220C0</c> · <c>0x005220F0</c>).</summary>
+    /// <remarks>돈 이야기는 <c>0x00469060</c> 이라 부관이 없어도 늘 나온다.</remarks>
     public const string PaidWord = "금화 {0}닢을 건네었습니다.";
+
+    /// <summary>
+    /// 교섭 결과. <b>둘 중 하나만</b> 나온다 — <c>0x00469680</c> 이 부관 여부로 고른다.
+    /// </summary>
     public const string TalkWonWord = "잘됐습니다. 이것으로 {0}에 들어갈 수 있습니다";
     public const string TalkWonNews = "교섭에 성공했습니다. {0}에 들어갈 수 있습니다";
 
-    /// <summary>어그러졌을 때(<c>0x00552130</c> · <c>0x00552158</c>).</summary>
+    /// <summary>
+    /// 어그러졌을 때(<c>0x00552130</c> · <c>0x00552158</c>). 이것도 <b>하나만</b> 나온다.
+    /// </summary>
     public const string TalkLostWord = "교섭할 수 없군요. 제독, 어떻게 할까요?";
     public const string TalkLostNews = "교섭에 실패했습니다. {0}에 들어갈 수 없습니다";
 
     /// <summary>돈이 없을 때(<c>0x00551CE0</c>). 검사는 <c>0x00468BF0</c> 이 한다.</summary>
     public const string TooPoorWord = "소지금이 모자랍니다!";
+
+    /// <summary>
+    /// 성문 차림표의 제목 — <b>「그라나다에 들어간다」</b> 처럼 도시 이름에 붙인다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x00468B80</c> 이 도시 이름 뒤에 <c>0x00551CD0</c>("에 들어간다")을 이어 붙여
+    /// <c>0x004A5798</c> 에서 차림표에 넘긴다.
+    /// </remarks>
+    public static string GateTitle(string cityName) => cityName + "에 들어간다";
+
+    /// <summary>
+    /// 성문에서 저쪽이 하는 말. <b>못 알아들으면 ×로 뭉개진다.</b>
+    /// </summary>
+    /// <remarks>
+    /// 문지기의 말은 죄다 얼굴 대사 창(<c>0x004692E0</c>)으로 나오고, 그 창이
+    /// <c>0x00469540</c> 으로 글자를 뭉갠다 — 인사만이 아니라 「침입자다! 잡아라!!」 도
+    /// 그렇다. 대사 창에는 <b>제목이 없다</b>.
+    /// </remarks>
+    public static string Heard(string words, bool heard) => heard ? words : Garble(words);
 
     /// <summary>배로 왔으면 「항구」, 말로 왔으면 「마을」(<c>0x00552120</c>).</summary>
     public static string Where(bool byLand) => byLand ? "마을" : "항구";

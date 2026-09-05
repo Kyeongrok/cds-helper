@@ -29,7 +29,14 @@ internal sealed class GateScene : Window
     /// (<see cref="EffectAnim.HeartStep"/> · <see cref="EffectAnim.CoinStep"/>)
     /// 걸음 하나를 이만큼으로 잡고 벌마다 곱한다.
     /// </summary>
-    private static readonly TimeSpan StepSpan = TimeSpan.FromMilliseconds(110);
+    /// <remarks>
+    /// <b>이 값은 게임에서 뜬 것이 아니다.</b> 게임은 창 고리가 도는 대로 걸음을 세는데
+    /// (<c>0x004A5DDE</c> 가 <c>[객체+0xCC]</c> 를 올린다) 그 고리의 참을 아직 못 짚었다.
+    /// 눈으로 보며 맞춘 값이다 — 110ms 는 하트가 한 장에 220ms, 열 장에 2.2초라 답답했고,
+    /// 55ms 는 너무 빨랐다. 지금은 <b>하트 한 장 140ms</b>(열 장 1.4초),
+    /// <b>동전 한 장 70ms</b>(스물세 장 1.6초)다.
+    /// </remarks>
+    private static readonly TimeSpan StepSpan = TimeSpan.FromMilliseconds(70);
 
     private readonly Canvas _layer = new() { IsHitTestVisible = false };
     private readonly Engine.Game _game;
