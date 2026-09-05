@@ -496,7 +496,7 @@ internal sealed class CubePuzzleDialog : Window
         "지면에 대하여 수평으로 돌려도 좌대는 움직이지 않는다." + Environment.NewLine +
         "2번 계속해서 수평으로 회전할 수 없다.";
 
-    private static void Explain(Window owner) => NoticeDialog.Show(owner, Rules, "게임 설명");
+    private static void Explain(Window owner) => NoticeDialog.Explain(owner, Rules);
 
     private void Explain() => Explain(this);
 

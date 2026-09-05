@@ -236,7 +236,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     {
         if (!_game.CanWeigh)
         {
-            NoticeDialog.Show(this,
+            NoticeDialog.Explain(this,
                 "더 이상 천칭으로 금화의 무게를 달 수는 없습니다." + Environment.NewLine +
                 "지금까지 얻은 결과를 분석해서 무게가 다른 금화를" + Environment.NewLine +
                 "선택해 주십시오.", "천칭 퍼즐");
@@ -274,7 +274,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     }
 
     private void Explain() =>
-        NoticeDialog.Show(this,
+        NoticeDialog.Explain(this,
             "금 천칭에는 함정이 있습니다. 함정에 빠지지 않게 하기 위해서는 무게가 다른 " +
             "금화를 가려내고 천칭이 평형을 이루게 해야 합니다." + Environment.NewLine +
             Environment.NewLine +
@@ -283,7 +283,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
             "금화를 왼쪽 단추로 누르면 왼쪽 접시에, 오른쪽 단추로 누르면 오른쪽 접시에 " +
             "놓입니다. 접시 하나에 여섯 닢까지 놓을 수 있고, 양쪽 수가 같아야 답니다." +
             Environment.NewLine +
-            "가짜가 무거운지 가벼운지는 알려 주지 않습니다.", "게임 설명");
+            "가짜가 무거운지 가벼운지는 알려 주지 않습니다.");
 
     private void AskGiveUp()
     {

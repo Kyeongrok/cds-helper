@@ -347,7 +347,7 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     }
 
     private void Explain() =>
-        NoticeDialog.Show(this,
+        NoticeDialog.Explain(this,
             "성공조건 [바로 앞에 있는 10개의 성배를 성수로 채워라.]" + Environment.NewLine +
             Environment.NewLine +
             "대·중·소의 물바가지를 잘 써서 큰 항아리 속의 성수로 모든 성배를 채워라." +
@@ -355,7 +355,7 @@ internal sealed class GrailPuzzleDialog : InfoDialog
             "탐험자가 움직일 수 있는 것은 물바가지 뿐이다. 큰 항아리는 물을 풀 수도 있고 " +
             "다시 놓을 수도 있다. 바가지와 바가지의 이동으로는 물이 넘칠 일은 없다." +
             Environment.NewLine +
-            "성배에서 물이 넘치게 되면 당신은 죽게 된다.", "게임 설명");
+            "성배에서 물이 넘치게 되면 당신은 죽게 된다.");
 
     private void AskGiveUp()
     {

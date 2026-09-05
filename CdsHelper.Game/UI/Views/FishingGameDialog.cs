@@ -253,12 +253,12 @@ internal sealed class FishingGameDialog : InfoDialog
     }
 
     private void Explain() =>
-        NoticeDialog.Show(this,
+        NoticeDialog.Explain(this,
             "바다에서 바늘을 떨어뜨려서 바닥에 있는 대어를 낚는 게임입니다. " +
             "낚시바늘은 줄을 따라 내려갑니다." + Environment.NewLine +
             "내려가는 도중에 화살표를 클릭하든지 ←→버튼을 누르면 교차하는 데에서 " +
             "낚시바늘을 옆으로 이동할 수 있습니다만, 다음에 교차하는 데에서는 반드시 " +
-            "밑으로 내려갑니다.", "게임 설명");
+            "밑으로 내려갑니다.");
 
     private void Sync()
     {
@@ -267,9 +267,10 @@ internal sealed class FishingGameDialog : InfoDialog
             ? $"  {_game.Y}/{FishingGame.FloorY}   다음 교차점에서 {way}"
             : "  「떨어뜨린다」를 누르면 내려갑니다";
 
-        // 바늘 자리는 게임이 쓰는 그대로다 — 세로는 [0xF8], 가로는 칸에 틱을 얹는다.
-        Canvas.SetLeft(_hook, GridX + _game.HookX - HookSize / 2.0);
-        Canvas.SetTop(_hook, _game.Y - HookSize / 2.0);
+        // 바늘은 <b>사다리 위에서만</b> 간다 — 가로줄을 건널 때는 높이가 멎고,
+        // 다 건넌 뒤에 세로줄을 내려간다(FishingGame.DrawX · DrawY).
+        Canvas.SetLeft(_hook, GridX + _game.DrawX - HookSize / 2.0);
+        Canvas.SetTop(_hook, _game.DrawY - HookSize / 2.0);
 
         // 헤엄치는 것은 한 줄 시간(마흔 틱)에 한 칸을 간다 — 그 사이를 틱만큼 미끄러진다.
         for (int k = 0; k < _swim.Length; k++)
@@ -300,9 +301,11 @@ internal sealed class FishingGameDialog : InfoDialog
     public static void Play(Window owner, Random rng)
     {
         // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다(0x0047BD7E).
-        NoticeDialog.Show(owner, Rules, "게임 설명");
+        NoticeDialog.Explain(owner, Rules);
 
         var dialog = new FishingGameDialog(rng) { Owner = owner };
+        // 설명에서 확인을 누르면 <b>그 길로 내려간다</b> — 「떨어뜨린다」를 따로 안 누른다.
+        dialog.Loaded += (_, _) => dialog.LetGo();
         dialog.ShowDialog();
 
         switch (dialog._game.Got)

@@ -184,12 +184,11 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     }
 
     private void Explain() =>
-        NoticeDialog.Show(this,
+        NoticeDialog.Explain(this,
             "돌 판자를 셋째 기둥에 다 모으면 됩니다." + Environment.NewLine +
             "한 번에 맨 위 판자 하나만 옮길 수 있고, 저보다 작은 판자 위에는 놓지 " +
             "못합니다." + Environment.NewLine +
-            "기둥을 눌러 집고, 다시 눌러 놓습니다. 오른쪽 단추로 도로 놓습니다.",
-            "게임 설명");
+            "기둥을 눌러 집고, 다시 눌러 놓습니다. 오른쪽 단추로 도로 놓습니다.");
 
     private void Sync()
     {

@@ -127,6 +127,32 @@ public sealed class FishingGame
     /// </summary>
     public double HookX => Column * 40 + (Lean > 0 ? Tick : Lean < 0 ? -Tick : 0);
 
+    /// <summary>한 줄(한 칸)의 길이. 가로 칸 사이도 세로 줄 사이도 이만큼이다.</summary>
+    public const int Span = 40;
+
+    /// <summary>옆으로 건너는 데 쓰는 틱. 나머지 절반으로 내려간다.</summary>
+    private const int CrossTicks = TicksPerRow / 2;
+
+    /// <summary>이 줄이 시작한 높이.</summary>
+    private int RowTop => Y - Tick;
+
+    /// <summary>
+    /// <b>그리는</b> 가로 자리. 사다리는 가로줄과 세로줄뿐이라 비스듬히 가지 않는다.
+    /// </summary>
+    /// <remarks>
+    /// 셈은 <see cref="HookX"/> · <see cref="Y"/> 그대로 두고 <b>보이는 길만</b> ㄱ 자로
+    /// 꺾는다 — 옆으로 갈 때는 앞 절반에 가로줄을 건너고 뒤 절반에 세로줄을 내려간다.
+    /// 한 줄에 드는 틱(<see cref="TicksPerRow"/>)은 그대로라 판이 도는 빠르기는 안 바뀐다.
+    /// </remarks>
+    public double DrawX =>
+        Lean == 0 ? Column * Span
+                  : Column * Span + Lean * Math.Min(Tick, CrossTicks) * (Span / CrossTicks);
+
+    /// <summary><b>그리는</b> 세로 자리. 옆으로 건너는 동안은 줄 높이에 멎어 있다.</summary>
+    public double DrawY =>
+        Lean == 0 ? Y
+                  : RowTop + Math.Max(0, Tick - CrossTicks) * (Span / CrossTicks);
+
     /// <summary>떨어뜨린다.</summary>
     public void Drop() => Started = true;
 

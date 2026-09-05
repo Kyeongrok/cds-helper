@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Game.UI.Views;
 
@@ -47,7 +48,6 @@ internal sealed class GameMenu : Border
     public GameMenu(string title, IReadOnlyList<GameMenuRow> rows, Action? onClose = null)
     {
         var stack = new StackPanel();
-        bool focused = false;
 
         if (title.Length > 0) stack.Children.Add(TitleRow(title, onClose));
 
@@ -62,7 +62,13 @@ internal sealed class GameMenu : Border
             var button = new GameButton(row.Text, row.Run, style) { Margin = default };
 
             // 창이 뜨면 <b>첫 줄에 초점</b>이 가 있다 — 게임도 그 줄의 안쪽 테가 깜빡인다.
-            if (row.Run != null && !focused) { button.Focused = focused = true; }
+            if (row.Run != null)
+            {
+                int at = _picks.Count;
+                _picks.Add(button);
+                if (_at < 0) Focus(0);
+                button.MouseEnter += (_, _) => Focus(at);
+            }
 
             stack.Children.Add(button);
         }
@@ -77,6 +83,79 @@ internal sealed class GameMenu : Border
         // 띠를 넘어 잘린다 — 게임 글꼴이 한 글자 16점이라 조금만 길어도 자리가 모자란다.
         Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         MinWidth = Math.Ceiling(DesiredSize.Width * BoxWiden);
+
+        // 키는 창에 붙는다 — 이 상자가 어느 창에 얹히든 저절로 따라가게 스스로 건다.
+        Loaded += (_, _) => Listen();
+        Unloaded += (_, _) => Deafen();
+    }
+
+    // ── 키로 고르기 ────────────────────────────────────────────────────────────
+
+    /// <summary>고를 수 있는 줄들. 흐린 줄은 안 들어간다.</summary>
+    private readonly List<GameButton> _picks = [];
+
+    /// <summary>지금 초점이 간 줄. 아직 없으면 −1.</summary>
+    private int _at = -1;
+
+    private Window? _keys;
+
+    /// <summary>그 줄로 초점을 옮긴다 — 깜빡이는 안쪽 테가 곧 이것이다.</summary>
+    private void Focus(int index)
+    {
+        if (index < 0 || index >= _picks.Count || index == _at) return;
+        if (_at >= 0 && _at < _picks.Count) _picks[_at].Focused = false;
+        _at = index;
+        _picks[index].Focused = true;
+    }
+
+    private void Listen()
+    {
+        if (_keys != null) return;
+        _keys = Window.GetWindow(this);
+        if (_keys != null) _keys.PreviewKeyDown += OnKey;
+    }
+
+    private void Deafen()
+    {
+        if (_keys == null) return;
+        _keys.PreviewKeyDown -= OnKey;
+        _keys = null;
+    }
+
+    /// <summary>
+    /// 방향키로 옮기고 <b>엔터·스페이스로 고른다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 물음창 쪽은 <see cref="GameUi.FocusGroup"/> 이 진작 이렇게 했는데 차림표 쪽에는
+    /// 손이 아예 없어, 초점 테는 깜빡이면서도 엔터가 안 먹었다. 같은 결로 맞춘다.
+    ///
+    /// 글자를 치는 칸에 초점이 가 있으면 <b>비켜 준다</b> — 개발 창처럼 차림표와 입력 칸이
+    /// 한 창에 같이 있는 데서 스페이스를 가로채면 글을 못 친다.
+    /// </remarks>
+    private void OnKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _picks.Count == 0) return;
+        if (Keyboard.FocusedElement is TextBox or PasswordBox or ComboBox) return;
+
+        switch (e.Key)
+        {
+            case Key.Up or Key.Left:
+                Focus((_at - 1 + _picks.Count) % _picks.Count);
+                break;
+            case Key.Down or Key.Right:
+                Focus((_at + 1) % _picks.Count);
+                break;
+            case Key.Enter or Key.Space:
+                if (_at < 0 || _at >= _picks.Count) return;
+                // 누르면 창이 닫히면서 이 상자가 걷힌다 — 손을 먼저 떼어 두 번 안 먹게 한다.
+                var run = _picks[_at].Run;
+                e.Handled = true;
+                run?.Invoke();
+                return;
+            default:
+                return;
+        }
+        e.Handled = true;
     }
 
     /// <summary>글자와 손을 짝지어 주는 짧은 길. 줄이 많은 창을 적을 때 쓴다.</summary>
