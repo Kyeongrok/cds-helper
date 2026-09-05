@@ -2022,41 +2022,61 @@ public sealed class ShipMapWindow : Window
     /// 바다에서 날이 가게 한다. 하루가 넘으면 사건을 굴린다.
     /// </summary>
     /// <remarks>
-    /// 게임은 함대를 한 걸음 옮길 때마다 하루를 넘기고 그때 사건을 본다. 우리 지도는
-    /// 걸음이 훨씬 잦으므로(<c>0.1초</c>) <see cref="TicksPerDay"/> 걸음을 하루로 묶었다 —
-    /// 리스본에서 카리브까지 오백 칸 남짓이 스물다섯 날쯤 된다.
+    /// 게임은 <b>고리를 한 바퀴 돌 때마다</b> 발밑 칸의 눈금을 하나 붙이고, 마흔여덟
+    /// 눈금이 하루다(<c>0x0048EF7D</c> → <c>0x0044AF90</c> 의 <c>cmp eax, 0x30</c>).
+    /// 붙이는 자리가 고리 안이라 조건이 없다 — <b>칸을 넘든 안 넘든</b> 한 바퀴에 하나다.
     ///
-    /// 마을에 들어가 있거나 멈춰 있는 동안에는 날이 안 간다.
+    /// <b>칸마다 붙이던 것이 틀렸다.</b> 한 걸음은 한 칸이 아니다. 뭍은
+    /// <see cref="Sailing.LandSpeed"/> 가 2 라 걸음이 <c>(3x2+54)/10/16 = 0.375</c>칸이고,
+    /// 그래서 한 칸에 걸음이 <b>2.67</b> 번 든다. 육지(눈금 2)라면 칸마다 5.3눈금이라
+    /// 하루에 아홉 칸 남짓인데, 칸마다 2눈금만 붙이면 스물넉 칸이 되어 <b>날이 세 배 가까이
+    /// 빨리 갔다</b> — 세빌리아에서 톨레도(스물한 칸)까지가 사흘이 아니라 하루였던 것이
+    /// 이것이다.
+    ///
+    /// 바다도 같이 바로잡힌다. 걸음이 배의 이동값에 딸리므로 <b>느린 배는 같은 거리에
+    /// 날이 더 든다</b> — 칸마다 세던 동안에는 배가 아무리 느려도 하루에 마흔여덟 칸이었다.
+    ///
+    /// 마을에 들어가 있거나 멈춰 있는 동안에는 날이 안 간다 — 그때는 걸음도 안 는다.
     /// </remarks>
     private void PassTime()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;
         if (_host.IsAnchored) return;
 
-        // 게임은 <b>한 칸 옮길 때마다</b> 그 칸 종류만큼 눈금을 붙이고, 마흔여덟 눈금이
-        // 하루다(0x0048EF7D). 그래서 바다는 마흔여덟 칸이 하루고 사막은 열두 칸이 하루다.
-        // 예전에는 걸음 스무 번을 하루로 묶어 지형을 아예 안 봤다 — 바다에서 날이 두 배
-        // 넘게 빨리 갔다.
-        if (_host.ShipCell is not { } here) return;
+        // 지난번에 세고 나서 몇 걸음이나 걸었는지. 게임 고리 한 바퀴가 한 걸음이다.
+        long walked = _host.Steps;
+        int since = (int)Math.Min(walked - _steps, MaxCatchUp);
+        if (since <= 0) { _steps = walked; return; }
+        _steps = walked;
 
-        var cell = ((int)here.X, (int)here.Y);
-        if (_atCell is { } was && was == cell) return;      // 아직 같은 칸이다
-        _atCell = cell;
-
-        _ticks += TerrainTable.TicksOfClass(_host.TerrainClass);
+        _ticks += since * TerrainTable.TicksOfClass(_host.TerrainClass);
         if (_ticks < TerrainTable.TicksPerDay) return;
-        _ticks -= TerrainTable.TicksPerDay;
 
-        // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
-        if (_host.IsOnLand) { PassLandDay(); return; }
+        // 한 번에 여러 날이 넘어갈 수 있다 — 사막처럼 눈금이 굵은 데를 지날 때다.
+        int days = _ticks / TerrainTable.TicksPerDay;
+        _ticks -= days * TerrainTable.TicksPerDay;
 
-        _game.Player.PassDayAtSea();
-        var (lat, _) = _host.ShipLatLon;
-        Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
-        PassSeaMorale();
-        CheckSeaEvent();
-        CheckEncounter();
+        for (int i = 0; i < days; i++)
+        {
+            // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
+            if (_host.IsOnLand) { PassLandDay(); continue; }
+
+            _game.Player.PassDayAtSea();
+            var (lat, _) = _host.ShipLatLon;
+            Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
+            PassSeaMorale();
+            CheckSeaEvent();
+            CheckEncounter();
+        }
     }
+
+    /// <summary>
+    /// 한 번에 몰아 셀 걸음의 윗값. 창이 오래 멎었다 살아나도 날이 왕창 넘어가지 않게 한다.
+    /// </summary>
+    private const int MaxCatchUp = TerrainTable.TicksPerDay * 2;
+
+    /// <summary>지난번에 날을 셀 때까지 걸은 걸음 수.</summary>
+    private long _steps;
 
     /// <summary>
     /// 뭍에서 하루가 간다 — 여행비가 나가고 규율이 깎인다.
@@ -2311,7 +2331,6 @@ public sealed class ShipMapWindow : Window
     private int _ticks;
 
     /// <summary>지난번에 세어 둔 칸. 같은 칸에 머무는 동안은 날이 안 간다.</summary>
-    private (int X, int Y)? _atCell;
 
     /// <summary>
     /// 오늘 바다에서 무슨 일이 있었는지 보고, 있으면 겪게 한다.
