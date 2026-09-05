@@ -42,6 +42,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     //       cell.x 를 2500 으로 나눈 나머지로 접어 경도 -180/180 을 잇는다.
     //       배 그림(SpriteRect)이 있으면 그 자리는 지도 대신 배를 낸다. 색인 0 은 비침이다.
     //       덧그림(OverlayRect)은 배보다 먼저 보므로 배 위에 얹힌다 — 닻이 이것이다.
+    //       남의 배(Folk)는 지도 위·내 배 아래다. 구름과 같은 결로 상수 배열에 자리를 싣는다.
     private const string ShaderSource = """
         Texture2D<uint>   CellMap  : register(t0);
         Texture2D<uint>   Atlas    : register(t1);
@@ -55,6 +56,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         Texture2D<uint>   FlowGrid : register(t9);
         Texture2D<float4> ArrowTex : register(t10);
         Texture2D<float4> CloudTex : register(t11);
+        Texture2D<float4> FolkTex  : register(t12);
 
         cbuffer Frame : register(b0)
         {
@@ -69,6 +71,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             float4 Ripple;
             float4 Arrows;
             float4 Clouds[6];
+            float4 Folk[16];
         };
 
         struct VSOut { float4 pos : SV_Position; };
@@ -135,6 +138,19 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             return col;
         }
 
+        float4 FolkOver(float4 col, float2 px)
+        {
+            [unroll] for (int k = 0; k < 16; k++)
+            {
+                if (Folk[k].w <= 0) continue;
+                float2 d = (px - Folk[k].xy) / Folk[k].w;
+                if (any(d < 0) || any(d >= 48.0)) continue;
+                float4 c = FolkTex.Load(int3(int2(d) + int2(0, int(Folk[k].z) * 48), 0));
+                if (c.a > 0) col = c;
+            }
+            return col;
+        }
+
         float4 PS(VSOut i) : SV_Target
         {
             if (OverlayRect.z > 0)
@@ -191,7 +207,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 float4 a = ArrowsAt(cellRaw, i.pos.xy);
                 col.rgb = lerp(col.rgb, a.rgb, a.a);
             }
-            return Tint(CloudsOver(col, i.pos.xy));
+            return Tint(CloudsOver(FolkOver(col, i.pos.xy), i.pos.xy));
         }
         """;
 
@@ -209,6 +225,58 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         public float RippleDirX, RippleDirY, RippleSpeed, RippleTick;
         public float ArrowOn, ArrowGrid, ArrowCols, ArrowRows;
         public fixed float Clouds[MaxClouds * 4];   // x, y, 그림번호, 보일지
+        public fixed float Folk[MaxFolk * 4];       // x, y, 뱃머리(0~3), 배수
+    }
+
+    /// <summary>
+    /// 지도에 함께 낼 남의 배 수. <b>게임과 같이 열여섯</b>이다(<c>0x004267A6</c> 의
+    /// <c>cmp … 0x10</c>).
+    /// </summary>
+    public const int MaxFolk = 16;
+
+    /// <summary>남의 배 그림 한 벌의 방향 수 — 북·서·남·동 넉 장이다.</summary>
+    public const int FolkFrames = 4;
+
+    /// <summary>남의 배 그림 한 변. 내 배와 같은 48이다.</summary>
+    public const int FolkSize = 48;
+
+    /// <summary>
+    /// 남의 배 한 척이 놓일 자리. <paramref name="X"/>·<paramref name="Y"/> 는 화면 왼쪽
+    /// 위(실픽셀), <paramref name="Frame"/> 은 0 북 · 1 서 · 2 남 · 3 동,
+    /// <paramref name="Scale"/> 는 48점 한 변을 몇 배로 늘릴지다.
+    /// </summary>
+    public readonly record struct FolkDraw(float X, float Y, int Frame, float Scale);
+
+    private readonly float[] _folk = new float[MaxFolk * 4];
+
+    /// <summary>
+    /// 이번 프레임에 그릴 남의 배들. 그림을 안 올렸으면 아무 일도 하지 않는다.
+    /// </summary>
+    public void SetFolk(ReadOnlySpan<FolkDraw> folk)
+    {
+        Array.Clear(_folk);
+        if (!_folkReady) return;
+        for (int i = 0; i < folk.Length && i < MaxFolk; i++)
+        {
+            _folk[i * 4 + 0] = folk[i].X;
+            _folk[i * 4 + 1] = folk[i].Y;
+            _folk[i * 4 + 2] = Math.Clamp(folk[i].Frame, 0, FolkFrames - 1);
+            _folk[i * 4 + 3] = folk[i].Scale;       // 0 이면 셰이더가 안 그린다
+        }
+    }
+
+    /// <summary>
+    /// 남의 배 그림 넉 장을 건다 — 48x48 넉 장을 <b>세로로 이은</b> 48x192 다.
+    /// </summary>
+    public void SetFolkSprites(ReadOnlySpan<uint> bgra)
+    {
+        if (bgra.Length != FolkSize * FolkSize * FolkFrames) return;
+
+        var old = _folkSrv;
+        _folkSrv = CreateImmutable(bgra.ToArray(), FolkSize, FolkSize * FolkFrames,
+                                   Format.B8G8R8A8_UNorm, sizeof(uint));
+        old?.Dispose();
+        _folkReady = true;
     }
 
     /// <summary>지도 위에 떠 있는 구름 수. 게임과 같다(<c>0x004890DB</c>).</summary>
@@ -280,6 +348,9 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     private ID3D11ShaderResourceView _arrowSrv = null!;
     private ID3D11ShaderResourceView _cloudSrv = null!;
     private bool _cloudsReady;
+
+    private ID3D11ShaderResourceView _folkSrv = null!;
+    private bool _folkReady;
 
     /// <summary>덧그림 한 변. 셰이더에도 같은 값이 박혀 있다(닻이 배와 같은 48x48 이다).</summary>
     private const int OverlaySize = 48;
@@ -355,6 +426,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
 
         // 구름을 못 읽어도 셰이더에 걸 것은 있어야 한다. 안 그릴 것이므로 한 점이면 된다.
         _cloudSrv = CreateImmutable(new uint[1], 1, 1, Format.B8G8R8A8_UNorm, sizeof(uint));
+        _folkSrv = CreateImmutable(new uint[1], 1, 1, Format.B8G8R8A8_UNorm, sizeof(uint));
     }
 
     /// <summary>
@@ -676,6 +748,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             ArrowRows = WindTable.Rows,
         };
         for (int i = 0; i < _clouds.Length; i++) cb.Clouds[i] = _clouds[i];
+        for (int i = 0; i < _folk.Length; i++) cb.Folk[i] = _folk[i];
 
         var map = _ctx.Map(_cb, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         *(FrameCb*)map.DataPointer = cb;
@@ -690,7 +763,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         _ctx.PSSetConstantBuffer(0, _cb);
         _ctx.PSSetShaderResources(0, [_cellSrv, _atlasSrv, _paletteSrv, _spriteSrv,
                                       _avgSrv[0], _avgSrv[1], _avgSrv[2], _overlaySrv,
-                                      _nextSrv, _flowSrv, _arrowSrv, _cloudSrv]);
+                                      _nextSrv, _flowSrv, _arrowSrv, _cloudSrv, _folkSrv]);
         _ctx.Draw(3, 0);
     }
 
@@ -728,6 +801,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     {
         _rtv?.Dispose();
         _target?.Dispose();
+        _folkSrv?.Dispose();
         _cloudSrv?.Dispose();
         _arrowSrv?.Dispose();
         _flowSrv?.Dispose();

@@ -190,20 +190,92 @@ public sealed class PersonWorld
     /// <summary>출발 도시에서 목적지까지. 자리를 모르면 -1.</summary>
     private int Distance(PersonTable.Row row)
     {
-        if (_cities is not { } cities) return -1;
-        if (!cities.TryCell(row.From, out int fx, out int fy, out _)) return -1;
+        if (Leg(row) is not { } leg) return -1;
+        return (int)Math.Sqrt((double)leg.Dx * leg.Dx + (double)leg.Dy * leg.Dy);
+    }
+
+    /// <summary>
+    /// 지금 가고 있는 다리 — 떠난 자리와 <b>거기서부터 잰 어긋남</b>. 못 재면 null.
+    /// </summary>
+    /// <remarks>
+    /// 세계가 <see cref="WorldWidth"/> 폭으로 감기므로 반 바퀴를 넘으면 짧은 쪽으로 돌린다
+    /// (<c>0x004324E9</c> 의 <c>0x4E2</c> 견줌).
+    /// </remarks>
+    private (int Fx, int Fy, int Dx, int Dy)? Leg(PersonTable.Row row)
+    {
+        if (_cities is not { } cities) return null;
+        if (!cities.TryCell(row.From, out int fx, out int fy, out _)) return null;
 
         int tx, ty;
         if (row.Dest == SpotDest)
         {
-            if (!_bound.TryGetValue(row.Id, out var to)) return -1;
+            if (!_bound.TryGetValue(row.Id, out var to)) return null;
             (tx, ty) = to;
         }
-        else if (!cities.TryCell(row.Dest, out tx, out ty, out _)) return -1;
+        else if (!cities.TryCell(row.Dest, out tx, out ty, out _)) return null;
 
         int dx = tx - fx, dy = ty - fy;
         if (Math.Abs(dx) >= WorldWidth / 2) dx += dx > 0 ? -WorldWidth : WorldWidth;
-        return (int)Math.Sqrt((double)dx * dx + (double)dy * dy);
+        return (fx, fy, dx, dy);
+    }
+
+    /// <summary>
+    /// 그 사람이 <b>지금 서 있는 세계 칸</b>. 도시에 앉아 있으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00432470</c> 이다 — 하루하루 좌표를 옮겨 적지 않고 <b>물어볼 때 셈해
+    /// 낸다</b>. 떠난 자리에서 목표 쪽으로 <c>날 셈 x 24 / 거리</c> 만큼 간 데다.
+    /// 게임은 칸을 열여섯으로 쪼개고 하루를 마흔여덟 눈금으로 다시 쪼개 그 안에서도
+    /// 부드럽게 움직이는데, 우리 셈은 하루가 가장 잘게 나눈 단위라 <b>날 단위</b>다.
+    ///
+    /// 발견물 자리로 갔던 사람은 <b>닿은 뒤에도 그 자리에 서 있다</b> — 앉을 도시가 없다.
+    /// </remarks>
+    public (double X, double Y)? CellOf(PersonTable.Row row)
+    {
+        if (!Moving(row))
+            return _bound.TryGetValue(row.Id, out var stood) ? (stood.X, stood.Y) : null;
+
+        if (Leg(row) is not { } leg) return null;
+
+        int far = (int)Math.Sqrt((double)leg.Dx * leg.Dx + (double)leg.Dy * leg.Dy);
+        double gone = far <= 0 ? 1 : Math.Clamp(row.Wait * (double)SpeedPerDay / far, 0, 1);
+
+        double x = leg.Fx + leg.Dx * gone, y = leg.Fy + leg.Dy * gone;
+        if (x < 0) x += WorldWidth;
+        else if (x >= WorldWidth) x -= WorldWidth;
+        return (x, y);
+    }
+
+    /// <summary>
+    /// 그 사람의 뱃머리 — 16방위(0 북 · 4 서 · 8 남 · 12 동). 서 있으면 남쪽을 본다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 네 쪽만 쓴다(<c>0x00432596</c>) — 어긋남이 큰 축을 골라 그 부호로 정한다.
+    /// </remarks>
+    public int HeadingOf(PersonTable.Row row)
+    {
+        if (Leg(row) is not { } leg) return 8;
+        return Math.Abs(leg.Dy) > Math.Abs(leg.Dx)
+            ? (leg.Dy < 0 ? 0 : 8)
+            : (leg.Dx < 0 ? 4 : 12);
+    }
+
+    /// <summary>
+    /// 지도에 세울 사람들 — 도시 밖에 자리가 있는 이들이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00426790</c> 은 281명을 통째로 훑어 <b>자리가 있는 사람</b>만 골라
+    /// 앞에서부터 열여섯 칸을 채운다. 번호로 거르지 않으므로 역사 항해자도 그대로
+    /// 걸린다 — 바다에서 마주치는 것이 이 때문이다. 몇을 낼지는 부르는 쪽이 정한다.
+    /// </remarks>
+    public IEnumerable<(PersonTable.Row Who, double X, double Y, int Heading)> Afloat()
+    {
+        foreach (var row in _rows)
+        {
+            if (!Active(row) && row.Id >= PersonTable.VoyagerCount) continue;
+            if (CellOf(row) is not { } at) continue;
+            yield return (row, at.X, at.Y, HeadingOf(row));
+        }
     }
 
     // ── 달 넘김 ────────────────────────────────────────────────────────────────
