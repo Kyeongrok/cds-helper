@@ -608,7 +608,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return;
         }
 
-        if (TalkDialog.Ask(_view, face, "", $"[{who.Name}]{Subject(who.Name)} 있다",
+        // <b>이 줄에는 얼굴이 안 붙는다.</b> 「…이 있다」 는 그 사람이 하는 말이 아니라
+        // 눈에 띄었다는 서술이라 게임도 그냥 알림으로 낸다 — 모르는 사람 쪽
+        // (「술을 마시고 있는 남자가 있다」)과 같은 꼴이다. 얼굴은 말을 걸고 나서부터다.
+        if (TalkDialog.Ask(_view, null, "", $"[{who.Name}]{Subject(who.Name)} 있다",
                            "말을 건다", "무시한다") != 0) return;
 
         bool hireable = who.Hire == TavernRoster.Hireable;
