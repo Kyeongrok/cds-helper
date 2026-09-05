@@ -368,8 +368,8 @@ public class CdsHelperWindow : CdsWindow
     private void OnFormationMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.LandFormationDialog.Show(this);
 
-    // 운명 코드는 0~31 한 덩어리라(아래가 젊음, 위가 중년) 얼굴을 더 넣는다고 자리를
-    // 0~16 으로 늘릴 수 없다. 걸음을 키우고 여급 코드를 옮겨 주는 창이다.
+    // 여급 127명의 궁합 코드를 보고 고치는 창. 운명 코드는 0~31 한 덩어리라
+    // 아래 열여섯이 젊은 제독, 위 열여섯이 그 중년 몫이다.
     private void OnFortuneMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.FortuneDialog.Show(this);
 

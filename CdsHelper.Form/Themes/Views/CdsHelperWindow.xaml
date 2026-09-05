@@ -263,7 +263,7 @@
                                         <MenuItem
                                             x:Name="PART_FortuneMenu"
                                             Header="운명 자리"
-                                            ToolTip="주인공 운명 자리 수와 여급 궁합 코드를 본다 — 얼굴을 더 넣었을 때 짝을 지어 주는 데다" />
+                                            ToolTip="여급 127명의 궁합 코드를 보고 고친다 — 어느 운명 자리에 여급이 몇이나 있는지" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>

@@ -9,17 +9,18 @@ using CdsHelper.Support.UI.Units;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 개발 → <b>운명 자리</b> — 주인공의 운명 자리 수와 여급 궁합 코드를 본다.
+/// 개발 → <b>운명 자리</b> — 여급 127명의 궁합 코드를 보고 고친다.
 /// </summary>
 /// <remarks>
-/// 운명 코드는 <b>0~31 한 덩어리</b>다. 아래 절반이 젊은 제독, 위 절반이 그 중년 몫이라
-/// 초상화가 <c>얼굴 + 16</c> 인 것과 똑같은 짜임이다. 그래서 <b>얼굴을 하나 더한다고
-/// 자리를 0~16 으로 늘릴 수 없다</b> — 16 은 이미 「자리 0 의 중년」이다.
+/// 운명 코드는 <b>0~31 한 덩어리</b>다. 아래 열여섯이 젊은 제독, 위 열여섯이 그 중년
+/// 몫이라 초상화가 <c>얼굴 + 16</c> 인 것과 똑같은 짜임이다 — 그래서 자리를 0~16 으로
+/// 늘릴 수는 없다. 16 은 이미 「자리 0 의 중년」이다.
 ///
-/// 늘리려면 걸음 자체를 키워야 한다. 여기서 자리 수를 올리면 여급 코드는
-/// <see cref="FortuneCodes.Translate"/> 가 새 걸음으로 옮겨 앉히므로 뜻이 안 바뀐다 —
-/// 다만 <b>늘린 자리에는 여급이 하나도 없다</b>. 그 자리를 진 제독에게 짝을 주려면
-/// 아래 목록에서 몇을 그 자리로 옮겨야 한다.
+/// 주인공의 자리는 새 놀이가 정한다 — 앞 열여섯 얼굴은 얼굴 번호가 곧 자리고, 더 넣은
+/// 얼굴은 <b>열여섯 가운데 하나를 굴려</b> 준다. 그러니 여기서 할 일은 <b>어느 자리에
+/// 여급이 몇이나 있는지</b> 보고, 쏠린 데를 손보는 것이다.
+///
+/// 고친 것은 <see cref="BarmaidEdits"/> 가 적어 두고 원본 여급표는 안 건드린다.
 /// </remarks>
 public sealed class FortuneDialog : Window
 {
@@ -30,19 +31,10 @@ public sealed class FortuneDialog : Window
         BorderThickness = new Thickness(1),
     };
 
-    private readonly NumericSpinner _slots = new()
-    {
-        Minimum = FortuneCodes.GameSlots,
-        Maximum = FortuneCodes.MaxSlots,
-        Step = 1,
-        DecimalPlaces = 0,
-        Width = 90,
-    };
-
     private readonly NumericSpinner _code = new()
     {
         Minimum = 0,
-        Maximum = FortuneCodes.MaxSlots * 2 - 1,
+        Maximum = FortuneCodes.Slots * 2 - 1,
         Step = 1,
         DecimalPlaces = 0,
         Width = 90,
@@ -67,15 +59,8 @@ public sealed class FortuneDialog : Window
         Background = GameUi.Back;
 
         _table = BarmaidTable.Open(Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "");
-        _slots.Value = FortuneCodes.Slots;
 
         Content = Build();
-
-        _slots.ValueChanged += (_, _) =>
-        {
-            FortuneCodes.Slots = (int)_slots.Value;
-            Refill();
-        };
         _girls.SelectionChanged += (_, _) => Pick();
         Refill();
     }
@@ -166,11 +151,7 @@ public sealed class FortuneDialog : Window
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 0, 0, 8),
-            Children =
-            {
-                Label("자리 수"), _slots,
-                Label("   고른 여급 코드"), _code,
-            },
+            Children = { Label("고른 여급의 궁합 코드"), _code },
         };
 
         var page = new DockPanel { Margin = new Thickness(12) };

@@ -6,9 +6,9 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 여급의 <b>궁합 코드</b>를 손으로 고쳐 둔 것.
 /// </summary>
 /// <remarks>
-/// 운명 자리를 늘리면(<see cref="FortuneCodes.Slots"/>) 늘린 자리에는 여급이 하나도
-/// 없다 — 그 자리를 진 제독은 아무와도 궁합이 안 맞는다. 여기서 몇을 그 자리로 옮겨
-/// 주어야 짝이 생긴다.
+/// 코드는 0~31 한 덩어리고 아래 열여섯이 젊은 제독, 위 열여섯이 그 중년 몫이다
+/// (<see cref="FortuneCodes"/>). 자리마다 여급이 고르게 있지 않아 — 열둘·열셋·열다섯은
+/// 둘뿐이고 셋·여섯은 아홉이다 — 쏠린 데를 손볼 때 쓴다.
 ///
 /// 고친 것은 <c>%APPDATA%\CdsHelper\exe-tables\여급-고친것.json</c> 에 남고, 적어 둔
 /// 여급표(<c>여급표.json</c>)는 EXE 를 읽어 구운 본이라 손대지 않는다.

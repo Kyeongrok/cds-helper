@@ -136,23 +136,11 @@ public sealed class Player
     /// </remarks>
     public int Fortune { get; private set; }
 
-    /// <summary>
-    /// 운명 코드를 넣는다. 자리 밖이면 잘라 넣는다.
-    /// </summary>
-    /// <remarks>
-    /// <b>자리 수는 앱이 정한다</b>(<c>FortuneCodes.Slots</c>). 게임은 열여섯인데, 주인공
-    /// 얼굴을 더 넣으면 늘릴 수 있다 — 그때 여급 코드도 새 걸음으로 같이 옮겨 앉는다.
-    /// 여기서는 그 값을 모르므로 넉넉히 <see cref="MaxFortune"/> 까지만 자른다.
-    /// </remarks>
+    /// <summary>운명 자리를 넣는다. 0~15 를 벗어나면 잘라 넣는다.</summary>
     public void SetFortune(int fortune) => Fortune = Math.Clamp(fortune, 0, MaxFortune);
 
-    /// <summary>
-    /// 운명 코드의 위. 늘릴 수 있는 데까지 열어 둔다(<c>FortuneCodes.MaxSlots</c>).
-    /// </summary>
-    /// <remarks>
-    /// 게임은 젊은 얼굴 열여섯 벌만 쓰므로 실제로는 0~15 다. 자리를 늘린 판만 그 위를 쓴다.
-    /// </remarks>
-    public const int MaxFortune = 63;
+    /// <summary>운명 자리의 위. 게임도 젊은 얼굴 열여섯 벌만 쓴다.</summary>
+    public const int MaxFortune = 15;
 
     /// <summary>국적 이름. 번호가 표 밖이면 첫째다.</summary>
     public string NationName => Nations[Math.Clamp(Nation, 0, Nations.Length - 1)];
