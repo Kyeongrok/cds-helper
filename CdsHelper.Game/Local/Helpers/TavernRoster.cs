@@ -1,59 +1,35 @@
-﻿using System.IO;
-using System.Text;
-
 namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
-/// 게임 세이브(SAVEDATA.CDS)에 적힌 인물 중 <b>그 도시 술집·여관에 앉아 있는 사람</b>.
+/// 인물 표에서 <b>그 도시 술집·여관에 앉아 있는 사람</b>만 골라 낸 것.
 /// 술집 화면에 세울 항해사·부하 후보가 여기서 온다.
 /// </summary>
 /// <remarks>
 /// 게임은 시설을 열 때 그 도시에 있는 인물을 자리에 앉히고, 남는 자리는 지나가는 사람으로
 /// 채운다(볼트 <c>14.분석-술집 화면과 대사</c> 의 "누가 이름 있는 인물이 되는가").
-/// 인물이 어느 도시 어느 건물에 있는지는 세이브 레코드에 그대로 적혀 있다.
+/// 인물이 어느 도시 어느 건물에 있는지는 표에 그대로 적혀 있다.
 ///
-/// <code>
-///   표 시작 0x924A, 레코드 0x90 바이트, 최대 461개
-///   +0x0A  등장 여부      +0x26  명성(u16)
-///   +0x2E  소재 도시      +0x30  건물(4 주점 · 5 여관)
-///   +0x0B  기술 열셋(0~3) — 항해술·운용술·<b>검술</b>·포술…
-///   +0x18  언어 열넷(0~3)
-///   +0x32  이름(20)       +0x45  성(19, cp949)
-///   +0x58  얼굴코드(u16)  +0x5C  연령(부호 있음)   +0x62  고용상태(1~3)
-/// </code>
-///
-/// <b>읽기만 한다.</b> <see cref="SaveDataService"/> 를 안 쓰고 직접 뜯는 까닭이 이것이다 —
-/// 그쪽은 <see cref="Models.CharacterData"/> 의 속성을 건드리면 세이브에 곧바로 되쓰는
-/// 콜백을 걸어 두므로, 놀이 화면에서 잘못 만지면 남의 진짜 세이브가 바뀐다.
-///
-/// 얼굴코드는 <b>+0x58</b> 이다. <see cref="SaveDataService"/> 는 +0x60 을 얼굴로 보는데
-/// 그 자리는 값이 0~11 뿐인 성좌다(모드 쪽에서 세이브 247건으로 확인).
+/// <b>세이브를 뜯지 않는다.</b> 예전에는 <c>SAVEDATA.CDS</c> 를 그때그때 읽었는데 그러면
+/// 놀이가 남의 세이브에 매인다. 지금은 <see cref="PersonTable"/>(<c>인물표.json</c>)이 원본이고
+/// 이 클래스는 그 위의 <b>보기</b>일 뿐이다 — 자리 값은 <see cref="PersonFile"/> 한 곳만 안다.
 /// </remarks>
 public sealed class TavernRoster
 {
-    private const int TableStart = 0x924A, RecordSize = 0x90, MaxRecords = 461;
-
-    /// <summary>
-    /// 기술 열셋이 시작하는 자리. 검술은 그 세 번째다.
-    /// </summary>
-    /// <remarks>
-    /// 일기토가 검술을 본다(<see cref="Engine.Town.Duel"/>). 세이브에 있는 255명을 훑어
-    /// 값이 0~3 에 드는 것으로 자리를 잡았다 — 피사로가 검술 3, 코론이 0 이다.
-    /// </remarks>
-    private const int SkillsAt = 0x0B;
-
-    /// <summary>건물 번호. 세이브 <c>+0x30</c> 에 이 값이 들어 있다.</summary>
-    public const byte Tavern = 4, Inn = 5;
+    /// <summary>건물 번호.</summary>
+    public const byte Tavern = PersonTable.Tavern, Inn = PersonTable.Inn;
 
     /// <summary>고용 상태. 2 라야 부하로 삼을 수 있다.</summary>
-    public const byte TalkOnly = 1, Hireable = 2, Hired = 3;
+    public const byte TalkOnly = PersonTable.TalkOnly,
+                      Hireable = PersonTable.Hireable,
+                      Hired = PersonTable.Hired;
 
     /// <summary>술집·여관에 앉아 있는 사람 하나.</summary>
-    /// <param name="Index">세이브 안 인물 번호. 그림을 고르는 씨앗으로도 쓴다.</param>
+    /// <param name="Index">인물 번호. 그림을 고르는 씨앗으로도 쓴다.</param>
+    /// <param name="City">소재 도시. -1 이면 어느 도시에도 없다.</param>
     /// <param name="Body">체력 · <paramref name="Mind"/> 지력 · <paramref name="Might"/> 무력
     /// · <paramref name="Charm"/> 매력. 레코드 맨 앞 다섯 바이트가 능력치다(운까지).</param>
     public readonly record struct Person(int Index, string Name, int Fame, int Age,
-                                         byte Hire, int FaceCode, byte City, byte Building,
+                                         byte Hire, int FaceCode, int City, byte Building,
                                          byte Body, byte Mind, byte Might, byte Charm, byte Luck,
                                          byte Sword);
 
@@ -64,54 +40,47 @@ public sealed class TavernRoster
     /// <summary>왜 못 읽었는지. 잘 읽었으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>세이브에서 술집·여관에 있는 사람만 골라 읽는다. 못 읽으면 null.</summary>
-    public static TavernRoster? Open(string saveFilePath)
+    /// <summary>
+    /// 인물 표를 열어 술집·여관에 앉은 사람만 추린다. 표가 비면 null 이다.
+    /// </summary>
+    public static TavernRoster? Open()
     {
-        LastError = "";
-        if (!File.Exists(saveFilePath)) { LastError = $"{saveFilePath} 가 없습니다"; return null; }
-
-        byte[] data;
-        try { data = File.ReadAllBytes(saveFilePath); }
-        catch (IOException ex) { LastError = ex.Message; return null; }
-
-        if (data.Length < TableStart + RecordSize)
+        var table = PersonTable.Open();
+        if (table.IsEmpty)
         {
-            LastError = "세이브가 너무 짧습니다";
+            LastError = PersonTable.LastError.Length > 0
+                ? PersonTable.LastError
+                : "인물 표가 비어 있습니다";
             return null;
         }
+        return From(table);
+    }
 
+    /// <summary>이미 연 표에서 추린다.</summary>
+    public static TavernRoster From(PersonTable table)
+    {
+        LastError = "";
         var people = new List<Person>();
-        for (int i = 0; i < MaxRecords; i++)
+
+        foreach (var r in table.People)
         {
-            int at = TableStart + i * RecordSize;
-            if (at + RecordSize > data.Length) break;
-
-            if (data[at + 0x0A] == 0) continue;                 // 아직 등장하지 않은 인물
-            byte building = data[at + 0x30];
-            if (building is not (Tavern or Inn)) continue;
-
-            string name = Name(data, at);
-            if (name.Length == 0) continue;
+            if (r.Appear == 0) continue;                          // 아직 등장하지 않은 인물
+            if (r.Building is not (Tavern or Inn)) continue;
+            if (r.Name == "???") continue;
 
             people.Add(new Person(
-                i, name,
-                BitConverter.ToUInt16(data, at + 0x26),
-                unchecked((sbyte)data[at + 0x5C]),
-                data[at + 0x62],
-                BitConverter.ToUInt16(data, at + 0x58),
-                data[at + 0x2E], building,
-                data[at + 0x00], data[at + 0x01], data[at + 0x02],
-                data[at + 0x03], data[at + 0x04],
-                Math.Min(data[at + SkillsAt + Support.Local.Models.Skill.Sword],
-                         (byte)Support.Local.Models.Skill.MaxLevel)));
+                r.Id, r.Name, r.Fame, r.Age,
+                Byte(r.Hire), r.Face, r.City, Byte(r.Building),
+                Stat(r, 0), Stat(r, 1), Stat(r, 2), Stat(r, 3), Stat(r, 4),
+                Level(r, Support.Local.Models.Skill.Sword)));
         }
         return new TavernRoster(people);
     }
 
-    /// <summary>그 도시 그 건물에 앉아 있는 사람들. 세이브 차례 그대로다.</summary>
+    /// <summary>그 도시 그 건물에 앉아 있는 사람들. 표에 적힌 차례 그대로다.</summary>
     public IReadOnlyList<Person> At(int city, byte building)
     {
-        if (city < 0 || city > byte.MaxValue) return [];
+        if (city < 0) return [];                            // -1 은 "어디에도 없다" 다
 
         var found = new List<Person>();
         foreach (var p in _people)
@@ -124,8 +93,8 @@ public sealed class TavernRoster
     /// </summary>
     /// <remarks>
     /// 부하로 삼은 사람은 이름만 적어 두므로(<see cref="Support.Local.Models.Player.Mates"/>)
-    /// 얼굴을 다시 구하려면 이렇게 되짚어야 한다. 부하가 되어도 세이브의 소재지는 그대로라
-    /// 표에서 빠지지 않는다.
+    /// 얼굴을 다시 구하려면 이렇게 되짚어야 한다. 부하가 되어도 표의 소재지는 그대로라
+    /// 목록에서 빠지지 않는다.
     /// </remarks>
     public Person? Find(string name)
     {
@@ -135,28 +104,13 @@ public sealed class TavernRoster
         return null;
     }
 
-    /// <summary>이름은 "이름·성" 으로 잇는다. 세이브가 cp949 다.</summary>
-    private static string Name(byte[] data, int at)
-    {
-        string first = Text(data, at + 0x32, 20);
-        string last = Text(data, at + 0x45, 19);
-        if (first.Length > 0 && last.Length > 0) return $"{first}·{last}";
-        return first.Length > 0 ? first : last;
-    }
+    private static byte Byte(int value) => (byte)Math.Clamp(value, 0, byte.MaxValue);
 
-    private static Encoding? _cp949;
+    private static byte Stat(PersonTable.Row row, int slot) =>
+        slot < row.Stats.Length ? Byte(row.Stats[slot]) : (byte)0;
 
-    private static string Text(byte[] data, int at, int max)
-    {
-        int len = 0;
-        while (len < max && at + len < data.Length && data[at + len] != 0) len++;
-        if (len == 0) return "";
-
-        if (_cp949 == null)
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            _cp949 = Encoding.GetEncoding(949);
-        }
-        return _cp949.GetString(data, at, len).Trim();
-    }
+    private static byte Level(PersonTable.Row row, int slot) =>
+        slot < row.Skills.Length
+            ? Byte(Math.Min(row.Skills[slot], Support.Local.Models.Skill.MaxLevel))
+            : (byte)0;
 }

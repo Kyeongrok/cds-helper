@@ -270,22 +270,22 @@ public sealed class Game
     }
 
     /// <summary>
-    /// 게임 세이브의 인물표 — 술집에 앉은 사람과 부하의 신상이 여기서 온다.
+    /// 인물표 — 술집에 앉은 사람과 부하의 신상이 여기서 온다.
     /// </summary>
     /// <remarks>
-    /// 이것만은 게임 폴더가 아니라 <b>세이브 파일</b>에서 읽는다. 사람은 판마다 다르다.
+    /// <b>세이브를 보지 않는다.</b> 같이 깔린 <c>인물표.json</c>(<see cref="PersonTable"/>)이
+    /// 원본이라 <c>SAVEDATA.CDS</c> 가 없어도 술집에 사람이 선다. 개발 창에서 표를 고치면
+    /// <see cref="PersonTable.Revision"/> 이 올라가 다음에 물을 때 새로 읽는다.
     /// </remarks>
     public TavernRoster? Roster
     {
         get
         {
-            if (_roster != null || _rosterTried) return _roster;
+            if (_rosterTried && _rosterRevision == PersonTable.Revision) return _roster;
             _rosterTried = true;
+            _rosterRevision = PersonTable.Revision;
 
-            string? path = AppSettings.LastSaveFilePath;
-            if (string.IsNullOrEmpty(path)) return null;
-
-            _roster = TavernRoster.Open(path);
+            _roster = TavernRoster.Open();
             if (_roster == null) Debug.WriteLine($"[Game] 술집 인물 없음: {TavernRoster.LastError}");
             return _roster;
         }
@@ -418,6 +418,9 @@ public sealed class Game
     private BarmaidTable? _barmaids;
     private bool _barmaidsTried;
     private TavernRoster? _roster;
+
+    /// <summary>인물 표를 읽었을 때의 판. 표가 고쳐지면 달라져 다시 읽게 된다.</summary>
+    private int _rosterRevision = -1;
     private Portraits? _faces;
     private EffectAnim? _effects;
     private TavernGuests? _guests;

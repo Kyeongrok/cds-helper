@@ -50,6 +50,10 @@
       <Content Include="발견물.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <!-- 세이브 없이도 술집에 사람이 서게 하는 본. CdsHelper/SAVEDATA.CDS 에서 구웠다. -->
+      <Content Include="인물표.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
     </ItemGroup>
 
     <ItemGroup>
