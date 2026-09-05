@@ -48,6 +48,12 @@ internal sealed class LandDeployDialog : Window
     /// <summary>부대 한 칸의 한 변.</summary>
     private const int Tile = LandArt.DeploySide;
 
+    /// <summary>
+    /// 그림을 칸 안에서 아래로 붙이는 만큼 — 몸짓 한 장이 48점이라 칸의 아랫절반이다.
+    /// </summary>
+    /// <remarks>병사수 숫자가 칸 위쪽에 찍히므로 그림이 아래로 내려가야 안 겹친다.</remarks>
+    private const int ArtDrop = Tile - LandArt.DeployHeight;
+
     /// <summary>숫자 한 자의 한 변.</summary>
     private const int Digit = LandArt.DigitSide;
 
@@ -178,9 +184,10 @@ internal sealed class LandDeployDialog : Window
         Panel.SetZIndex(_ghost, 100);
         _board.Children.Add(_ghost);
 
-        // 끌다가 칸 밖에서 떼도 손이 풀려야 한다.
+        // 집는 순간 판이 손을 잡으므로(CaptureMouse) 뗌은 <b>늘 판에</b> 온다 —
+        // 칸에 손을 달아 두면 아예 안 불린다. 그래서 놓는 자리는 좌표로 짚는다.
         _board.MouseMove += Move;
-        _board.MouseLeftButtonUp += (_, _) => Release();
+        _board.MouseLeftButtonUp += (_, e) => Land(e);
 
         _board.Children.Add(Place(Button("전회", Previous), BackX, ButtonY));
         _board.Children.Add(Place(Button("결정", Decide), DecideX, ButtonY));
@@ -210,7 +217,6 @@ internal sealed class LandDeployDialog : Window
             Tag = at,
         };
         spot.MouseLeftButtonDown += (_, e) => Grab(at, e);
-        spot.MouseLeftButtonUp += (_, e) => Land(at, e);
         return (Border)Place(spot, where.X, where.Y);
     }
 
@@ -261,7 +267,8 @@ internal sealed class LandDeployDialog : Window
             if (_picked[i] < 0) continue;
             var (x, y) = SlotAt[i];
 
-            if (Unit(_roster.KindAt(_picked[i])) is { } art) _layer.Children.Add(Place(art, x, y));
+            if (Unit(_roster.KindAt(_picked[i])) is { } art)
+                _layer.Children.Add(Place(art, x, y + ArtDrop));
 
             // 병사수는 넉 자리 폭에 가운데로 몬다(0x0049FD14).
             string men = _men[i].ToString();
@@ -282,7 +289,8 @@ internal sealed class LandDeployDialog : Window
         for (int choice = 0; choice < LandRoster.ChoiceCount; choice++)
         {
             var (x, y) = PickAt[choice];
-            if (Unit(_roster.KindAt(choice)) is { } art) _layer.Children.Add(Place(art, x, y));
+            if (Unit(_roster.KindAt(choice)) is { } art)
+                _layer.Children.Add(Place(art, x, y + ArtDrop));
 
 
             int left = Remaining(choice);
@@ -396,22 +404,37 @@ internal sealed class LandDeployDialog : Window
         {
             _ghostOf = choice;
             _ghost.Source = Unit(_roster.KindAt(choice))?.Source;
-            _ghost.Width = _ghost.Height = Tile;
+            _ghost.Width = LandArt.DeployWidth;
+            _ghost.Height = LandArt.DeployHeight;
         }
         _ghost.Visibility = Visibility.Visible;
-        Canvas.SetLeft(_ghost, now.X - Tile / 2.0);
-        Canvas.SetTop(_ghost, now.Y - Tile / 2.0);
+        Canvas.SetLeft(_ghost, now.X - LandArt.DeployWidth / 2.0);
+        Canvas.SetTop(_ghost, now.Y - LandArt.DeployHeight / 2.0);
     }
 
     private int _ghostOf = -1;
 
-    private void Land(int at, MouseButtonEventArgs e)
+    /// <summary>그 자리에 놓인 칸 번호. 판 위 여섯이 0~5, 고르는 넉 칸이 6~9. 밖이면 −1.</summary>
+    private static int SpotAt(Point at)
     {
-        if (_from < 0) return;
+        for (int i = 0; i < SlotCount; i++)
+            if (In(at, SlotAt[i])) return i;
+        for (int i = 0; i < LandRoster.ChoiceCount; i++)
+            if (In(at, PickAt[i])) return SlotCount + i;
+        return -1;
+    }
+
+    private static bool In(Point at, (int X, int Y) box) =>
+        at.X >= box.X && at.X < box.X + Tile && at.Y >= box.Y && at.Y < box.Y + Tile;
+
+    private void Land(MouseButtonEventArgs e)
+    {
+        if (_from < 0) { Release(); return; }
         e.Handled = true;
 
         int from = _from;
         var now = e.GetPosition(_board);
+        int at = SpotAt(now);
         bool dragged = Math.Abs(now.X - _grabbed.X) >= DragSlop
                        || Math.Abs(now.Y - _grabbed.Y) >= DragSlop;
         Release();
@@ -422,7 +445,7 @@ internal sealed class LandDeployDialog : Window
             if (from < SlotCount) Choose(from);
             return;
         }
-        if (at == from) return;
+        if (at < 0 || at == from) return;      // 판 밖에 놓으면 없던 일이다
 
         // 판 밖(고르는 칸)에 놓으면 걷는 것이다.
         if (at >= SlotCount)
