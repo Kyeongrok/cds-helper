@@ -356,6 +356,11 @@ public sealed class DisevRunner
         var (speaker, body) = DisevScript.DecodeDialogue(raw.AsSpan(textStart, end - textStart));
         if (body.Length == 0) return;
 
+        // <b>부관이 없으면 부관 대사는 통째로 건너뛴다.</b> 말할 사람이 없는데 말이 나오면
+        // 안 된다 — 몽생미셸(파트 65)의 +0x0032 가 그 줄이다. 성문에서도 게임이 같은
+        // 잣대를 쓴다(0x00468EF0 이 부하 첫 자리를 본다).
+        if (speaker == Aide && _game.Player.MateAt(0).Length == 0) return;
+
         // 앞줄이 그림을 걸어 두었으면 그림과 글을 한 창에 낸다.
         if (_pendingStill >= 0)
         {
@@ -380,10 +385,41 @@ public sealed class DisevRunner
     private uint[]? FaceOf(string? speaker) => speaker switch
     {
         null or "" => null,
-        "부관" => MateFace(),
+        Aide => MateFace(),
         "검사관" or "감찰관" => _game.Faces?.TryGetBgra(Town.Inspector.Face, female: false),
-        _ => null,
+        _ => FacilityFace(speaker),
     };
+
+    /// <summary>부관 화자 이름. 대본에는 CP932 로 <c>副官</c> 이라 적혀 있다.</summary>
+    private const string Aide = "부관";
+
+    /// <summary>
+    /// 시설 화자의 건물 코드. 화자표(<c>0x0056823C[건물][문화권]</c>)를 그대로 탄다.
+    /// </summary>
+    /// <remarks>
+    /// 몽생미셸(파트 65)의 <c>+0x00A9</c> 가 화자 <b>교회</b> 라 신부 얼굴이 붙는다 —
+    /// 예전에는 모르는 화자로 흘려 얼굴 없이 냈다. 건물 코드는 볼트
+    /// <c>15.분석-건물 화면 엔진</c> 의 그 차례다.
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<string, int> FacilitySpeakers =
+        new Dictionary<string, int>
+        {
+            ["교역소"] = 1, ["왕궁"] = 2, ["교회"] = 3, ["술집"] = 4,
+            ["여관"] = 5, ["조선소"] = 6, ["조합"] = 9, ["성문"] = 10,
+        };
+
+    /// <summary>시설 화자의 얼굴. 그 시설 화자가 아니면 null 이다.</summary>
+    /// <remarks>
+    /// 문화권은 <b>지금 있는 도시</b>의 것이다 — 바다 위라 도시를 모르면 유럽(0)으로 둔다.
+    /// </remarks>
+    private uint[]? FacilityFace(string speaker)
+    {
+        if (!FacilitySpeakers.TryGetValue(speaker, out int code)) return null;
+
+        int city = _game.Player.CityId;
+        int culture = city >= 0 ? _game.CityRows?.CultureOf(city) ?? 0 : 0;
+        return _game.SpeakerFace(code, culture);
+    }
 
     /// <summary>부하 첫 자리의 얼굴. 자리가 비었거나 신상을 못 찾으면 null.</summary>
     private uint[]? MateFace()
