@@ -98,15 +98,17 @@ public sealed class LibraryDialog : Window
             Children = { shelf, _layer },
         };
 
-        // 책 이름표도 <b>게임 글꼴</b>이다 — 밝은 나무 바탕이라 검은 글씨다.
-        _tagText = new GameUi.GameLabel(GameFont.BlackColor)
+        // 책 이름표도 <b>게임 글꼴</b>이다. 글씨는 <b>흰색</b>이고 굵히지 않는다 —
+        // 굵히면 한 점 겹쳐 찍혀서 획에 그림자가 진 것처럼 보인다.
+        _tagText = new GameUi.GameLabel(GameFont.WhiteColor)
         {
-            Bold = true,
-            FallbackBrush = Brushes.Black,
+            FallbackBrush = Brushes.White,
         };
         _tag = new Border
         {
-            Background = GameUi.ItemFill,
+            // 글씨가 희므로 띠는 어두워야 한다. 밝은 나무빛 띠(ItemFill)에 흰 글씨를
+            // 얹으면 글자가 묻힌다.
+            Background = GameUi.MenuBack,
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(2),
             Padding = new Thickness(8, 1, 8, 1),

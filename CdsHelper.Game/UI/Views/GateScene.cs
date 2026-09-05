@@ -25,18 +25,23 @@ namespace CdsHelper.Game.UI.Views;
 internal sealed class GateScene : Window
 {
     /// <summary>
-    /// 한 걸음이 머무는 참. 벌마다 <b>몇 걸음에 한 장</b>인지가 달라서
-    /// (<see cref="EffectAnim.HeartStep"/> · <see cref="EffectAnim.CoinStep"/>)
-    /// 걸음 하나를 이만큼으로 잡고 벌마다 곱한다.
+    /// 한 장이 머무는 참. <b>벌마다 따로 잡는다.</b>
     /// </summary>
     /// <remarks>
-    /// <b>이 값은 게임에서 뜬 것이 아니다.</b> 게임은 창 고리가 도는 대로 걸음을 세는데
-    /// (<c>0x004A5DDE</c> 가 <c>[객체+0xCC]</c> 를 올린다) 그 고리의 참을 아직 못 짚었다.
-    /// 눈으로 보며 맞춘 값이다 — 110ms 는 하트가 한 장에 220ms, 열 장에 2.2초라 답답했고,
-    /// 55ms 는 너무 빨랐다. 지금은 <b>하트 한 장 140ms</b>(열 장 1.4초),
-    /// <b>동전 한 장 70ms</b>(스물세 장 1.6초)다.
+    /// 게임은 벌마다 「몇 걸음에 한 장」인지가 다른데(<see cref="EffectAnim.HeartStep"/> 2 ·
+    /// <see cref="EffectAnim.CoinStep"/> 1) 그 걸음이 몇 밀리초인지는 아직 못 짚었다 —
+    /// 창 고리가 도는 대로 세기 때문이다(<c>0x004A5DDE</c>).
+    ///
+    /// 그래서 <b>눈으로 보며 맞춘 값</b>이다. 하트는 걸음 비율대로 두면 알맞은데
+    /// (한 장 140ms, 열 장 1.4초) 동전은 그 비율대로 70ms 면 팽이처럼 돌아 따라가기가
+    /// 어려웠다. 동전만 100ms 로 늦춰 스물세 장에 2.3초로 두었다.
     /// </remarks>
-    private static readonly TimeSpan StepSpan = TimeSpan.FromMilliseconds(70);
+    private static readonly TimeSpan HeartSpan = TimeSpan.FromMilliseconds(140);
+
+    private static readonly TimeSpan CoinSpan = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>그 벌의 한 장이 머무는 참.</summary>
+    private static TimeSpan SpanOf(int anim) => anim == EffectAnim.Coin ? CoinSpan : HeartSpan;
 
     private readonly Canvas _layer = new() { IsHitTestVisible = false };
     private readonly Engine.Game _game;
@@ -102,7 +107,7 @@ internal sealed class GateScene : Window
     private void Play(int anim, bool won)
     {
         int[] order = EffectAnim.Frames(anim, won);
-        int step = EffectAnim.StepOf(anim);
+        var span = SpanOf(anim);
 
         if (_playing) return;                       // 도는 동안 또 부르면 겹친다
         if (_game.Effects is not { } effects) return;
@@ -134,7 +139,7 @@ internal sealed class GateScene : Window
                     art[f] = bmp;
                 }
                 image.Source = art[f];
-                Wait(StepSpan * step);
+                Wait(span);
             }
         }
         finally

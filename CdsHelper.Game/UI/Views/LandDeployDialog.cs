@@ -142,7 +142,7 @@ internal sealed class LandDeployDialog : Window
         {
             int slot = i;
             _slots[i] = Slab();
-            _slots[i].MouseLeftButtonUp += (_, _) => Drop(slot);
+            _slots[i].MouseLeftButtonUp += (_, _) => Place(slot);
             board.Children.Add(_slots[i]);
         }
 
@@ -280,7 +280,8 @@ internal sealed class LandDeployDialog : Window
 
     // ── 놓고 걷기 ──────────────────────────────────────────────────────────────
 
-    private void Drop(int slot)
+    /// <summary>고른 부대를 그 자리에 놓는다. 이미 놓인 자리를 누르면 걷는다.</summary>
+    private void Place(int slot)
     {
         // 이미 놓인 자리를 누르면 걷어 팔레트로 돌려보낸다.
         if (_placed[slot] is { } there)
