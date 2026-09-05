@@ -424,11 +424,8 @@ internal sealed class CharacterMakeDialog : Window
         // 그 얼굴에 중년 얼굴이 있는지 밑에 한 줄로 이른다 — 없으면 나이가 들어도
         // 얼굴이 안 바뀐다는 뜻이다.
         int aged = PortraitAges.AgedOf(_face, female: false, _faces);
-        int slot = PortraitAges.SlotOf(_face);
-
-        string middle = aged != _face ? $"중년 {aged}번" : "중년 없음";
-        string destiny = slot >= 0 ? $"운명 {slot}" : "운명 미정";
-        _agedNote.Text = $"{_face}번 · {middle} · {destiny}";
+        string middle = aged != _face ? $"중년 {aged}번" : "중년 얼굴 없음";
+        _agedNote.Text = $"{_face}번 · {middle}";
     }
 
     /// <summary>얼굴 번호와 중년 짝을 이르는 줄.</summary>
@@ -436,6 +433,20 @@ internal sealed class CharacterMakeDialog : Window
     {
         FallbackBrush = Ink,
     };
+
+    /// <summary>
+    /// 그 얼굴이 지고 나올 <b>운명 자리</b>(0~15).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 앞의 열여섯만 고르게 해서 <b>얼굴 번호가 곧 자리</b>였다 — 그 열여섯은
+    /// 게임 그대로 둔다. 더 넣은 얼굴에는 매인 자리가 없으므로 <b>열여섯 가운데 하나를
+    /// 굴려</b> 준다. 자리는 얼굴에 딸린 값이 아니라 여급 궁합에만 쓰이므로
+    /// (<see cref="FortuneCodes"/>) 굴려도 어긋날 데가 없다.
+    /// </remarks>
+    private static int Destiny(int face) =>
+        face < FortuneCodes.Slots
+            ? face
+            : new Engine.GameRandom(Environment.TickCount).Next(FortuneCodes.Slots);
 
     private static int Number(GameUi.GameLabel box, int fallback) =>
         int.TryParse(box.Text, out int n) ? n : fallback;
@@ -485,13 +496,9 @@ internal sealed class CharacterMakeDialog : Window
         dialog.ShowDialog();
         if (!dialog._ok) return false;
 
-        // 운명 자리는 얼굴이 지고 나오는 값이다. 앞 열여섯은 얼굴 번호가 곧 자리고,
-        // 더 넣은 얼굴은 사람이 정해 둔 것이 있으면 그것을, 없으면 자리 0 을 준다.
-        int slot = PortraitAges.SlotOf(dialog._face);
         player.SetProfile(dialog._family.Text, dialog._given.Text,
                           Number(dialog._age, 25), Number(dialog._month, 1), Number(dialog._day, 1),
-                          dialog._blood, dialog._nation, dialog._face,
-                          slot >= 0 ? slot : 0);
+                          dialog._blood, dialog._nation, dialog._face, Destiny(dialog._face));
         return true;
     }
 

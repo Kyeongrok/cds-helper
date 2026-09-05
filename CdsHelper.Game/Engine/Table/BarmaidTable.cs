@@ -44,9 +44,8 @@ public sealed class BarmaidTable
     /// 서른여섯 살부터 주인공 얼굴 코드에 더하는 값 — 게임 값이다.
     /// </summary>
     /// <remarks>
-    /// 지금 실제로 쓰는 걸음은 <see cref="FortuneCodes.Slots"/> 다. 운명 자리를
-    /// 늘리면 걸음도 같이 커지고, 표에 적힌 코드는 <see cref="FortuneCodes.Translate"/>
-    /// 가 새 공간으로 옮겨 준다.
+    /// 코드 공간의 짜임은 <see cref="FortuneCodes"/> 에 적어 두었다 — 0~15 가 젊은 제독,
+    /// 16~31 이 그 중년 몫이라 <b>한 덩어리</b>다.
     /// </remarks>
     public const int AgedFaceStep = 16;
 
@@ -110,21 +109,20 @@ public sealed class BarmaidTable
     /// 여급 전부. 운명 코드는 <b>지금 걸음</b>으로 옮겨 낸다.
     /// </summary>
     /// <remarks>
-    /// 적어 둔 표에는 게임 값(걸음 16)이 그대로 있고, 자리를 늘렸으면 읽을 때마다
-    /// <see cref="FortuneCodes.Translate"/> 가 새 공간으로 옮긴다 — 표를
-    /// 다시 굽지 않아도 되고, 자리를 되돌리면 값도 저절로 돌아온다.
+    /// 적어 둔 표에는 EXE 값이 그대로 있고, 사람이 고쳐 둔 코드만
+    /// <see cref="BarmaidEdits"/> 가 읽을 때 얹는다 — 표를 다시 굽지 않아도 되고,
+    /// 되돌리면 값도 저절로 돌아온다.
     /// </remarks>
     public IReadOnlyList<Barmaid> Barmaids =>
-        [.. _rows.Select(r => r with { Fortune = CodeOf(r) })];
+        BarmaidEdits.All.Count == 0
+            ? _rows
+            : [.. _rows.Select(r => r with { Fortune = CodeOf(r) })];
 
-    /// <summary>
-    /// 그 여급의 궁합 코드. 사람이 고쳐 둔 것이 있으면 그것이 이기고, 없으면 표 값을
-    /// 지금 걸음으로 옮긴다.
-    /// </summary>
+    /// <summary>그 여급의 궁합 코드. 사람이 고쳐 둔 것이 있으면 그것이 이긴다.</summary>
     private static int CodeOf(Barmaid her)
     {
         int mine = BarmaidEdits.Of(her.Id);
-        return mine >= 0 ? mine : FortuneCodes.Translate(her.Fortune);
+        return mine >= 0 ? mine : her.Fortune;
     }
 
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>

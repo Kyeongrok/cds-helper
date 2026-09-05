@@ -4,7 +4,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
-using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
 using Microsoft.Win32;
 
@@ -91,22 +90,6 @@ public sealed class PortraitAddDialog : Window
         IsEnabled = false,
     };
 
-    /// <summary>넣은 얼굴이 지고 나올 운명 자리. 안 정하면 꺼 둔다.</summary>
-    private readonly CheckBox _destiny = new()
-    {
-        Content = "운명 자리를 준다",
-        Margin = new Thickness(0, 0, 12, 0),
-    };
-    private readonly NumericSpinner _slot = new()
-    {
-        Minimum = 0,
-        Maximum = FortuneCodes.MaxSlots - 1,
-        Step = 1,
-        DecimalPlaces = 0,
-        Width = 90,
-        IsEnabled = false,
-    };
-
     private string _source = "";
     private byte[]? _indexed;
 
@@ -132,9 +115,6 @@ public sealed class PortraitAddDialog : Window
         _append.Unchecked += (_, _) => { _at.IsEnabled = true; Tell(); };
         _pair.Checked += (_, _) => { _pairWith.IsEnabled = true; Tell(); };
         _pair.Unchecked += (_, _) => { _pairWith.IsEnabled = false; Tell(); };
-        _destiny.Checked += (_, _) => { _slot.IsEnabled = true; Tell(); };
-        _destiny.Unchecked += (_, _) => { _slot.IsEnabled = false; Tell(); };
-        _slot.ValueChanged += (_, _) => Tell();
 
         var put = new Button
         {
@@ -162,7 +142,6 @@ public sealed class PortraitAddDialog : Window
         rows.Children.Add(Line(new TextBlock { Text = "맞추기", Width = 60 }, _cover, _contain));
         rows.Children.Add(Line(new TextBlock { Text = "자리", Width = 60 }, _append, _at));
         rows.Children.Add(Line(new TextBlock { Text = "중년", Width = 60 }, _pair, _pairWith));
-        rows.Children.Add(Line(new TextBlock { Text = "운명", Width = 60 }, _destiny, _slot));
         rows.Children.Add(_status);
         rows.Children.Add(new StackPanel
         {
@@ -247,20 +226,10 @@ public sealed class PortraitAddDialog : Window
             ? $" {(int)_pairWith.Value}번이 서른여섯 살부터 이 얼굴로 바뀐다."
             : "";
 
-        // 그 운명 자리를 맡은 여급이 하나도 없으면 그 얼굴로는 아무와도 궁합이 안 맞는다.
-        string fate = "";
-        if (_destiny.IsChecked == true)
-        {
-            int slot = (int)_slot.Value;
-            var girls = BarmaidTable.Open(Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "");
-            fate = FortuneCodes.Empty(slot, girls)
-                ? $" 운명 자리 {slot} 에는 아직 여급이 없다 — 그 얼굴로는 아무와도 궁합이 안 맞는다."
-                : $" 운명 자리 {slot} 을 진다.";
-        }
 
         _status.Text = $"{Path.GetFileName(path)} 에 {where}. "
                        + $"지금 {count}장이 들어 있다. 처음 손댈 때 옆에 .bak 을 남긴다."
-                       + aging + fate;
+                       + aging;
         _status.Foreground = Brushes.DimGray;
     }
 
@@ -296,16 +265,9 @@ public sealed class PortraitAddDialog : Window
             paired = $" {young}번의 중년 얼굴로 짝지었습니다.";
         }
 
-        string fated = "";
-        if (_destiny.IsChecked == true)
-        {
-            PortraitAges.SetSlot(put, (int)_slot.Value);
-            fated = $" 운명 자리 {(int)_slot.Value} 을 주었습니다.";
-        }
-
         // Portraits 는 열 때마다 파일을 다시 읽으므로 따로 놓아 줄 것이 없다.
         Added = put;
-        _status.Text = $"{put}번으로 넣었습니다.{paired}{fated}";
+        _status.Text = $"{put}번으로 넣었습니다.{paired}";
         _status.Foreground = Brushes.SeaGreen;
         Tell();
     }
