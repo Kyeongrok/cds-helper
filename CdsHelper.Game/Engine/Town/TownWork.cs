@@ -113,6 +113,7 @@ public static class TownWorks
         // ── 그 밖 ─────────────────────────────────────────────────────────
         new(TownWork.Read, "열람", FacilityKind.Library),
         new(TownWork.Explore, "탐험을 떠난다", FacilityKind.Gate),
+        // 자리를 안 적는다 — 발견물이 된 건물이면 어느 시설에나 붙는다(0x004733B1).
         new(TownWork.Comment, "해설"),
         new(TownWork.System, "기능", FacilityKind.Home, FacilityKind.Inn),
 
@@ -200,6 +201,12 @@ public static class TownWorks
         foreach (var row in All)
         {
             if (row.Name != item) continue;
+
+            // 해설도 자리를 안 적어 두었다 — 발견물이 된 건물이면 왕궁이든 교회든 어디든
+            // 붙기 때문이다. 그러니 아래의 "자리가 없으면 후원자 줄" 규칙보다 먼저 걸러야
+            // 한다. 예전에는 이 줄이 없어서, 후원자가 안 앉은 건물에서 해설이 늘 흐렸다
+            // (알함브라 궁전이 그랬다 — 붙기는 붙는데 눌리지 않았다).
+            if (row.Work == TownWork.Comment) return TownWork.Comment;
 
             // 자리를 안 적어 둔 줄(설득·보고·계약중단)은 후원자가 앉았을 때만 산다.
             if (row.At.Length == 0) return patronHere ? row.Work : TownWork.None;

@@ -1252,7 +1252,24 @@ public sealed class CityPicView : Window, ITownScreen
 
     void ITownScreen.OpenSystemMenu() => Menu.Push(SystemMenu);
 
-    void ITownScreen.Persuade(Patron patron) => Patrons.Persuade(patron);
+    /// <summary>
+    /// 설득 — 끝나면 <b>그 건물에서 나온다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 설득이 끝나면 명령 창으로 안 돌아가고 도시 그림으로 물러선다. 시설의
+    /// "고른 것 처리"(<c>0x0044ED1A</c>)가 <b>설득 본체가 돌려준 값을 그대로 제 반환값으로
+    /// 내보내므로</b>(<c>0x0044ED28</c> → <c>0x0044ED30</c> → <c>0x0044EE05</c>) 설득이
+    /// 화면을 접을 수 있다 — 다른 줄들은 제 값을 따로 만들어 낸다.
+    ///
+    /// 문전박대도 마찬가지다. 명성이 모자라 집사가 돌려보내면 게임은 그 자리에서 도시
+    /// 그림으로 돌아간다(<see cref="PatronMenu.Persuade"/>).
+    /// </remarks>
+    void ITownScreen.Persuade(Patron patron)
+    {
+        Patrons.Persuade(patron);
+        CloseMenu();
+    }
+
     void ITownScreen.Report(Patron patron) => Patrons.Report(patron);
     void ITownScreen.BreakContract(Patron patron) => Patrons.BreakContract(patron);
 
