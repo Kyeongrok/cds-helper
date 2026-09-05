@@ -1701,24 +1701,32 @@ public sealed class ShipMapHost : HwndHost
     /// <paramref name="hidden"/> 이 바뀔 때만 한 장을 새로 짓는다 — 도시가 서는 것은
     /// 예순 해에 스무 번뿐이라 값이 싸다.
     /// </remarks>
-    public void HideCities(IEnumerable<int> hidden)
+    public void HideCities(IEnumerable<int> hidden,
+                           IEnumerable<(int X, int Y, ushort[] Block)>? places = null)
     {
         if (_cities is not { } cities) return;
 
         var patch = new Dictionary<(int X, int Y), ushort>();
+
+        void Lay(int x0, int y0, ushort[] block, int width, ushort keep)
+        {
+            for (int i = 0; i < block.Length; i++)
+            {
+                if (block[i] == keep) continue;
+                patch[(x0 + i % width, y0 + i / width)] = block[i];
+            }
+        }
+
         foreach (int city in hidden)
         {
             if (!cities.TryCell(city, out int cx, out int cy, out _)) continue;
-
-            var block = cities.EraseOf(city);
-            for (int i = 0; i < block.Length; i++)
-            {
-                if (block[i] == CityExeTable.Keep) continue;
-
-                int dx = i % CityExeTable.EraseWidth, dy = i / CityExeTable.EraseWidth;
-                patch[(cx + dx, cy + dy)] = block[i];
-            }
+            Lay(cx, cy, cities.EraseOf(city), CityExeTable.EraseWidth, CityExeTable.Keep);
         }
+
+        // 아직 못 찾은 발견물도 같은 손으로 가린다 — 그쪽은 2×2 다.
+        foreach (var (x, y, block) in places ?? [])
+            Lay(x, y, block, DiscoveryTable.EraseWidth, DiscoveryTable.Keep);
+
         _renderer.Erase(patch);
     }
 

@@ -41,7 +41,7 @@ public sealed class CityExeTable
     private const string CacheName = "도시표-게임";
 
     /// <summary>알맹이 모양 판. 지역 무리를 더하며 5 로 올렸다.</summary>
-    private const int Version = 6;
+    private const int Version = 7;
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -90,6 +90,20 @@ public sealed class CityExeTable
     /// </remarks>
     private const int EraseOffset = 0x74, EraseSide = 3;
 
+    /// <summary>
+    /// 도시 형편 낱말이 놓인 자리(<c>+0x62</c>). 판을 열 때 도시 레코드 <c>+0x04</c> 로
+    /// 옮겨진다(<c>0x004299B7</c>).
+    /// </summary>
+    /// <remarks>
+    /// <b>비트 0</b> 은 「이미 아는 도시」다 — 선 101곳이 죄다 유럽·지중해고, 나머지는
+    /// 항해하다 가까이 가야 켜진다(<c>0x0048D983</c>). <b>비트 2</b> 는 「아직 안 세워졌다」다
+    /// (<see cref="CityFounding"/>).
+    /// </remarks>
+    private const int FlagOffset = 0x62;
+
+    /// <summary>「이미 아는 도시」 비트와 「아직 안 세워짐」 비트.</summary>
+    public const int KnownBit = 1, UnfoundedBit = 4;
+
     /// <summary>덧씌움 블록의 칸 수.</summary>
     public const int EraseCells = EraseSide * EraseSide;
 
@@ -107,7 +121,7 @@ public sealed class CityExeTable
     internal sealed record Snapshot(int[][] Stock, int[] Cultures, int[] Scales,
                                     int[] Nations, int[][] Specials,
                                     int[] CellX, int[] CellY, int[] Reach, int[] Regions,
-                                    ushort[][] Erase);
+                                    ushort[][] Erase, int[] Flags);
 
     private readonly int[][] _stock;
     private readonly int[] _cultures;
@@ -116,6 +130,7 @@ public sealed class CityExeTable
     private readonly int[][] _specials;
     private readonly int[] _cellX, _cellY, _reach, _regions;
     private readonly ushort[][] _erase;
+    private readonly int[] _flags;
 
     private CityExeTable(Snapshot snapshot)
     {
@@ -125,6 +140,7 @@ public sealed class CityExeTable
         _nations = snapshot.Nations;
         _specials = snapshot.Specials;
         _erase = snapshot.Erase;
+        _flags = snapshot.Flags;
         _cellX = snapshot.CellX;
         _cellY = snapshot.CellY;
         _reach = snapshot.Reach;
@@ -196,6 +212,15 @@ public sealed class CityExeTable
 
     /// <summary>덧씌움 블록의 한 변.</summary>
     public const int EraseWidth = EraseSide;
+
+    /// <summary>그 도시의 형편 낱말(<c>+0x62</c>). 범위 밖이면 0.</summary>
+    public int FlagsOf(int cityId) =>
+        cityId >= 0 && cityId < _flags.Length ? _flags[cityId] : 0;
+
+    /// <summary>
+    /// 놀이를 켤 때부터 <b>아는 도시</b>인지 — 유럽·지중해 101곳이 그렇다.
+    /// </summary>
+    public bool KnownAtStart(int cityId) => (FlagsOf(cityId) & KnownBit) != 0;
 
     public int NationOf(int cityId)
     {
@@ -269,6 +294,7 @@ public sealed class CityExeTable
         var reach = new int[Count];
         var regions = new int[Count];
         var erase = new ushort[Count][];
+        var flags = new int[Count];
         for (int city = 0; city < Count; city++)
         {
             int row = TableVa + city * RowSize;
@@ -279,6 +305,7 @@ public sealed class CityExeTable
                 // Word 는 dword 를 읽으므로 아래 낱말만 떼어 쓴다.
                 block[i] = (ushort)(exe.Word(row + EraseOffset + i * 2) & 0xFFFF);
             erase[city] = block;
+            flags[city] = (int)(exe.Word(row + FlagOffset) & 0xFFFF);
 
             cellX[city] = exe.Int(row + CellXOffset);
             cellY[city] = exe.Int(row + CellYOffset);
@@ -322,6 +349,6 @@ public sealed class CityExeTable
         }
 
         return new Snapshot(stock, cultures, scales, nations, specials, cellX, cellY, reach,
-                            regions, erase);
+                            regions, erase, flags);
     }
 }
