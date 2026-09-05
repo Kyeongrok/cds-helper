@@ -2019,8 +2019,19 @@ public sealed class ShipMapWindow : Window
         if (_asking || _host.Paused || _host.SeaBlocked) return;
         if (_host.IsAnchored) return;
 
-        if (++_dayTicks < TicksPerDay) return;
-        _dayTicks = 0;
+        // 게임은 <b>한 칸 옮길 때마다</b> 그 칸 종류만큼 눈금을 붙이고, 마흔여덟 눈금이
+        // 하루다(0x0048EF7D). 그래서 바다는 마흔여덟 칸이 하루고 사막은 열두 칸이 하루다.
+        // 예전에는 걸음 스무 번을 하루로 묶어 지형을 아예 안 봤다 — 바다에서 날이 두 배
+        // 넘게 빨리 갔다.
+        if (_host.ShipCell is not { } here) return;
+
+        var cell = ((int)here.X, (int)here.Y);
+        if (_atCell is { } was && was == cell) return;      // 아직 같은 칸이다
+        _atCell = cell;
+
+        _ticks += TerrainTable.TicksOfClass(_host.TerrainClass);
+        if (_ticks < TerrainTable.TicksPerDay) return;
+        _ticks -= TerrainTable.TicksPerDay;
 
         // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
         if (_host.IsOnLand) { PassLandDay(); return; }
@@ -2028,6 +2039,7 @@ public sealed class ShipMapWindow : Window
         _game.Player.PassDayAtSea();
         var (lat, _) = _host.ShipLatLon;
         Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
+        PassSeaMorale();
         CheckSeaEvent();
         CheckEncounter();
     }
@@ -2074,6 +2086,46 @@ public sealed class ShipMapWindow : Window
         // 대표와의 일기토까지는 이미 옮겨 두었다(바다 사건 쪽 Mutiny).
         if (before > 0 && player.Morale == 0) Mutiny();
     }
+
+    /// <summary>
+    /// 바다에서 하루가 가면 규율이 깎인다 — <b>항해술 − 6</b>.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00475810</c> 부터다. 뭍과 달리 여행비는 안 나가고 규율만 움직인다.
+    /// <code>
+    ///   47574a  edi = 그 기능을 제일 잘 아는 사람의 <b>항해술</b>  ; 뭍은 운용술이다
+    ///   475810  test [0x005A4D18], 8       ; 항해 루프가 도는 날에만
+    ///   475822  eax = 0x00426740()         ; 지금 칸의 종류(0 근해 · 1 원양 · 2 뭍 …)
+    ///   475827  dec eax
+    ///   47582b  cmp eax, 1 ; mov eax, 2 ; adc eax, -1
+    ///             (종류-1) &lt; 1  → eax = 2   ; 근해·원양
+    ///             그 밖         → eax = 1
+    ///   475838  eax *= 3                   ; <b>바다 6 · 뭍 3</b>
+    ///   47583b  edi -= eax
+    /// </code>
+    /// <b>볼트 70편이 3 과 6 을 거꾸로 적어 두었다.</b> <c>cmp</c> 뒤의 <c>adc</c> 를
+    /// 풀면 근해·원양이 2(×3 = 6)다. 항해술 최대가 3 이라 바다에서는 하루 −3 이 가장
+    /// 느리고, 뭍(−1)보다 훨씬 빠르게 깎인다.
+    ///
+    /// <c>[esp+0x14]</c> 에서 한 번 더 빼는데 그 값은 아직 못 짚었다 — 여기서는 뺀다.
+    /// </remarks>
+    private void PassSeaMorale()
+    {
+        var player = _game.Player;
+        int sailing = player.LevelOf(Skill.Names[Skill.Sailing]);
+
+        int before = player.Morale;
+        player.Cheer(sailing - SeaMoraleDrain);
+
+        // 바다 쪽 문구는 「선원」이다 — 뭍의 「대원」과 갈린다(0x0047585E).
+        if (MoraleLine(before, player.Morale) is { Length: > 0 } line)
+            Say(line.Replace("대원", "선원"));
+
+        if (before > 0 && player.Morale == 0) Mutiny();
+    }
+
+    /// <summary>바다에서 하루에 빠지는 규율의 밑값(<c>0x00475838</c> 의 3 x 2).</summary>
+    private const int SeaMoraleDrain = 6;
 
     /// <summary>
     /// 뭍을 걷다 짐승이나 독충을 마주친다 — 「싸운다 · 도망친다」.
@@ -2241,9 +2293,11 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>한 걸음(<c>0.1초</c>) 몇 번을 하루로 세는지.</summary>
-    private const int TicksPerDay = 20;
+    /// <summary>하루가 차기까지 쌓인 눈금. 마흔여덟이면 날이 넘어간다.</summary>
+    private int _ticks;
 
-    private int _dayTicks;
+    /// <summary>지난번에 세어 둔 칸. 같은 칸에 머무는 동안은 날이 안 간다.</summary>
+    private (int X, int Y)? _atCell;
 
     /// <summary>
     /// 오늘 바다에서 무슨 일이 있었는지 보고, 있으면 겪게 한다.
