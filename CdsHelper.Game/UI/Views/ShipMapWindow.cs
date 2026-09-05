@@ -492,6 +492,7 @@ public sealed class ShipMapWindow : Window
             _status.Text = _focusNote.Length > 0 ? $"{_host.Status}    {_focusNote}"
                                                  : _host.Status;
             CheckPort();
+            SpotCities();
             CheckDiscovery();
             PassTime();
             MarkSeen();
@@ -526,8 +527,8 @@ public sealed class ShipMapWindow : Window
 
         // 창을 옮기면 그 위에 얹힌 도시 그림·커맨드 창도 같이 옮긴다 — 게임에서는 지도 안에
         // 그려진 것이라 따로 남을 수가 없다.
-        // 아직 안 선 도시는 다가가도 안 물어보고, 지도에서도 지운다(CityFounding).
-        _host.CityOpen = _game.CityStanding;
+        // 안 선 도시도, 아직 모르는 도시도 다가가도 안 물어보고 지도에서도 지운다.
+        _host.CityOpen = _game.CityVisible;
 
         GameUi.CarryOwnedWindows(this);
 
@@ -1566,6 +1567,10 @@ public sealed class ShipMapWindow : Window
             // 게임도 켤 때는 0 이다(형편 판 0x005859C0 은 .bss 다).
             _game.Player.RestoreStandings(saved.Hostility, saved.OpenedGates, saved.TalksLost);
 
+            // 항해하다 알게 된 도시들. 판 27 앞의 세이브에는 없어 유럽 101곳만 아는 채로
+            // 시작한다 — 원본을 처음 켠 것과 같다.
+            _game.Player.RestoreKnownCities(saved.KnownCities);
+
             // 후원자 친밀도. 판 26 앞의 세이브에는 없어 다들 0 에서 시작한다 — 게임도 그렇다.
             _game.Player.RestoreCloseness(saved.Closeness);
 
@@ -2106,9 +2111,86 @@ public sealed class ShipMapWindow : Window
         HideCities(now);
     }
 
-    /// <summary>아직 안 선 도시를 지도에서 지운다.</summary>
-    private void HideCities(IReadOnlySet<int> founded) =>
-        _host.HideCities(CityFounding.Hidden.Where(c => !founded.Contains(c)));
+    /// <summary>
+    /// 지도에서 지울 도시들 — <b>아직 안 섰거나, 아직 모르는</b> 도시다.
+    /// </summary>
+    private void HideCities(IReadOnlySet<int>? founded = null)
+    {
+        var up = founded ?? CityFounding.FoundedBy(_game.Player.Date);
+        var gone = new List<int>();
+
+        for (int city = 0; city < CityExeTable.Count; city++)
+        {
+            bool standing = !CityFounding.Hidden.Contains(city) || up.Contains(city);
+            if (!standing || !_game.CityKnown(city)) gone.Add(city);
+        }
+        _host.HideCities(gone, HiddenPlaces());
+    }
+
+    /// <summary>
+    /// 아직 못 찾은 발견물의 자리와 그 바탕 타일 — 지도에서 지울 것들이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 도시와 똑같은 손으로 가린다(<c>0x00425720</c> → <c>0x004AADD0</c> →
+    /// <c>0x004AAE90</c>). 사각형이 없는 발견물(유적 속 물건 따위)은 지도에 자리가 없어
+    /// 건너뛴다.
+    /// </remarks>
+    private IEnumerable<(int X, int Y, ushort[] Block)> HiddenPlaces()
+    {
+        if (_game.Discoveries?.Table is not { } table) yield break;
+
+        foreach (var row in table.Discoveries)
+        {
+            if (!row.HasPlace || row.Erase is not { Length: > 0 } block) continue;
+            if (_game.Player.HasFound(row.Id)) continue;
+
+            yield return (row.X1, row.Y1, block);
+        }
+    }
+
+    /// <summary>
+    /// 가까이 지나가면 도시를 알아본다(<c>0x0048D983</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배를 가운데 두고 <b>반지름 안의 원</b>(<c>dx² + dy² &lt;= r²</c>)을 훑는다.
+    /// 반지름은 <b>측량술 + 2</b> 이고(<c>0x0048D82F</c> 이 부하 표에서 기능 7 을 떠 온다),
+    /// 망원경을 지녔으면 두 칸 더 본다(<c>0x0048D84A</c>).
+    ///
+    /// <b>이미 선 도시만 걸린다</b> — <c>0x0048D94A</c> 의 <c>test al, 5</c> 가 비트 0(안다)과
+    /// 비트 2(아직 안 세워짐)를 함께 보아 <b>둘 다 없어야</b> 발견으로 친다.
+    /// </remarks>
+    private void SpotCities()
+    {
+        if (_asking || _host.SeaBlocked) return;
+        if (_game.CityRows is not { } rows) return;
+        if (_host.ShipCell is not { } here) return;
+
+        var spotted = new List<int>();
+        int reach = _game.Player.LevelOf(Skill.Names[Skill.Survey]) + SpotBase;
+        int far = reach * reach;
+        int sx = (int)here.X, sy = (int)here.Y;
+
+        for (int city = 0; city < CityExeTable.Count; city++)
+        {
+            if (_game.CityKnown(city)) continue;
+            if (!_game.CityStanding(city)) continue;         // 아직 안 선 도시는 못 본다
+            if (!rows.TryCell(city, out int cx, out int cy, out _)) continue;
+
+            int dx = cx - sx, dy = cy - sy;
+            if (dx * dx + dy * dy > far) continue;
+
+            if (_game.Player.Know(city)) spotted.Add(city);
+        }
+        if (spotted.Count == 0) return;
+
+        // 지도는 한 번만 다시 짓는다 — 한 틱에 둘을 봐도 한 장이면 된다.
+        HideCities();
+        foreach (int city in spotted)
+            NoticeDialog.Show(this, $"[{_game.CityName(city)}]을(를) 발견했다!", "");
+    }
+
+    /// <summary>발견 반지름의 밑값 — 게임도 측량술에 둘을 더한다(<c>0x0048D834</c>).</summary>
+    private const int SpotBase = 2;
 
     /// <summary>지난번에 세어 둔, 선 도시들.</summary>
     private HashSet<int>? _founded;
@@ -2814,6 +2896,9 @@ public sealed class ShipMapWindow : Window
         }
         finally
         {
+            // 찾았으면 지도에 돋는다 — 못 찾은 동안 바탕 타일로 덮여 있었다.
+            HideCities();
+
             Tint(false);
             _host.Paused = false;
             _asking = false;

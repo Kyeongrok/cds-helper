@@ -899,6 +899,32 @@ public sealed class Player
     /// </remarks>
     public IReadOnlyCollection<int> OpenedGates => _openedGates;
 
+    private readonly HashSet<int> _knownCities = [];
+
+    /// <summary>
+    /// <b>아는 도시</b> — 지도에 뜨는 도시들.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 도시 레코드 <c>+0x04</c> 의 비트 0 으로 들고 있고, 처음 켜져 있는 101곳이
+    /// 죄다 유럽·지중해다. 나머지는 항해하다 가까이 가야 켜진다(<c>0x0048D983</c>).
+    /// 켤 때 어디가 켜져 있는지는 도시 표가 알고 있으므로(<c>CityExeTable.KnownAtStart</c>)
+    /// 여기에는 <b>놀이 중에 새로 안 것</b>만 담는다.
+    /// </remarks>
+    public IReadOnlyCollection<int> KnownCities => _knownCities;
+
+    /// <summary>그 도시를 알게 되었는지 적어 둔다. 처음 아는 것이면 참.</summary>
+    public bool Know(int city) => city >= 0 && _knownCities.Add(city);
+
+    /// <summary>놀이 중에 알게 된 도시인지.</summary>
+    public bool Knows(int city) => _knownCities.Contains(city);
+
+    /// <summary>세이브에서 아는 도시를 되돌린다.</summary>
+    public void RestoreKnownCities(IEnumerable<int>? cities)
+    {
+        _knownCities.Clear();
+        foreach (int city in cities ?? []) _knownCities.Add(city);
+    }
+
     /// <summary>그 적대 도시의 문이 이미 열렸는지.</summary>
     public bool IsGateOpen(int city) => _openedGates.Contains(city);
 

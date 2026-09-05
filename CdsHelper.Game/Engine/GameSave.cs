@@ -149,7 +149,8 @@ public static class GameSave
         Dictionary<string, int>? Tongues = null,
         int? Face = null, int? Fortune = null,
         Dictionary<int, int>? Hostility = null, List<int>? OpenedGates = null,
-        List<int>? TalksLost = null, Dictionary<string, int>? Closeness = null);
+        List<int>? TalksLost = null, Dictionary<string, int>? Closeness = null,
+        List<int>? KnownCities = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -196,7 +197,8 @@ public static class GameSave
                             player.Face, player.Fortune,
                             player.Hostility.ToDictionary(e => e.Key, e => e.Value),
                             [.. player.OpenedGates], [.. player.TalksLost],
-                            player.Closeness.ToDictionary(e => e.Key, e => e.Value));
+                            player.Closeness.ToDictionary(e => e.Key, e => e.Value),
+                            [.. player.KnownCities]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

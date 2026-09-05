@@ -309,6 +309,20 @@ public sealed class Game
     /// </remarks>
     public bool CityStanding(int city) => CityFounding.Standing(city, Player.Date);
 
+    /// <summary>
+    /// 그 도시를 <b>아는지</b> — 지도에 뜨는지.
+    /// </summary>
+    /// <remarks>
+    /// 유럽·지중해 101곳은 켤 때부터 알고(<see cref="CityExeTable.KnownAtStart"/>),
+    /// 나머지는 가까이 가야 안다(<see cref="Player.Know"/>). 게임의 도시 레코드
+    /// <c>+0x04</c> 비트 0 이다.
+    /// </remarks>
+    public bool CityKnown(int city) =>
+        (CityRows?.KnownAtStart(city) ?? true) || Player.Knows(city);
+
+    /// <summary>그 도시가 <b>지금 지도에 보이는가</b> — 서 있고, 알고 있어야 한다.</summary>
+    public bool CityVisible(int city) => CityStanding(city) && CityKnown(city);
+
     public PersonWorld? World
     {
         get

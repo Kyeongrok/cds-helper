@@ -32,7 +32,7 @@ public sealed class DiscoveryTable
     private const string CacheName = "발견물표";
 
     /// <summary>알맹이 모양 판. 그림·동영상 칸을 더하면서 올렸다.</summary>
-    private const int SnapshotVersion = 2;
+    private const int SnapshotVersion = 3;
 
     private const int TableVa = 0x0051C540;
 
@@ -49,6 +49,22 @@ public sealed class DiscoveryTable
     /// </remarks>
     public const string MovieFolder = "AVI";
     private const int RowSize = 92;
+
+    /// <summary>
+    /// 발견물을 <b>지웠을 때 깔 바탕 타일</b> 2×2 가 놓인 자리(<c>+0x54</c>).
+    /// </summary>
+    /// <remarks>
+    /// 지도 렌더러(<c>0x0048A1E0</c>)가 도시와 똑같은 손으로 발견물도 가린다 —
+    /// <c>0x00425720</c> 으로 그 칸의 발견물을 찾고, <c>0x004AADD0</c> 이 「이미 찾았나」를
+    /// 본 뒤 아직이면 <c>0x004AAE90(dx, dy)</c> 이 낸 타일로 덮는다. 그 손이 짚는 자리가
+    /// <c>[발견물*92 + 0x54 + dy*4 + dx*2]</c> 라 <b>2×2</b> 다 — 도시는 3×3 인데 이쪽은
+    /// 렌더러가 <c>0x0048A45D</c> 에서 dx·dy 가 2 이상이면 아예 안 탄다.
+    /// </remarks>
+    private const int EraseOffset = 0x54;
+
+    /// <summary>덧씌움 블록의 한 변과 「안 덮는다」 값.</summary>
+    public const int EraseWidth = 2;
+    public const ushort Keep = 0xFFFF;
 
     /// <summary>발견물 수.</summary>
     public const int Count = 274;
@@ -95,7 +111,8 @@ public sealed class DiscoveryTable
     public readonly record struct Record(
         int Id, string Name, int Category, int Hint, int Reward, int ItemId,
         bool Indirect, bool OpenAtStart, bool OnLand, bool Once,
-        int X1, int Y1, int X2, int Y2, int Picture = -1, int Movie = -1)
+        int X1, int Y1, int X2, int Y2, int Picture = -1, int Movie = -1,
+        ushort[]? Erase = null)
     {
         /// <summary>세계지도에 자리가 있는지. 없으면 다른 길로만 얻는다.</summary>
         [JsonIgnore] public bool HasPlace => X1 != NoPlace;
@@ -175,7 +192,15 @@ public sealed class DiscoveryTable
                 X2: exe.Int(row + 0x4C),
                 Y2: exe.Int(row + 0x50),
                 Picture: exe.Int(row + 0x0C),
-                Movie: exe.Int(row + 0x10));
+                Movie: exe.Int(row + 0x10),
+                // 아직 못 찾은 발견물을 지도에서 지울 때 깔 바탕 타일 2x2.
+                Erase:
+                [
+                    (ushort)(exe.Word(row + EraseOffset) & 0xFFFF),
+                    (ushort)(exe.Word(row + EraseOffset + 2) & 0xFFFF),
+                    (ushort)(exe.Word(row + EraseOffset + 4) & 0xFFFF),
+                    (ushort)(exe.Word(row + EraseOffset + 6) & 0xFFFF),
+                ]);
         }
 
         if (rows[ProbeId].Name != ProbeName)
