@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -52,7 +52,7 @@ internal sealed class LandBattleScene : Window
         Height = LandArt.FieldHeight,
     };
 
-    private LandBattleScene(Engine.Game game, LandBattle battle, int scale)
+    private LandBattleScene(Engine.Game game, LandBattle battle, double scale)
     {
         _battle = battle;
         _art = game.Directory.Length > 0 ? LandArt.Open(game.Directory) : null;
@@ -84,10 +84,9 @@ internal sealed class LandBattleScene : Window
     /// </summary>
     public static bool Run(Window? owner, Engine.Game game, LandBattle battle, GameRandom dice)
     {
-        double areaW = owner?.ActualWidth ?? LandArt.FieldWidth;
-        double areaH = owner?.ActualHeight ?? LandArt.FieldHeight;
-        int scale = Math.Max(1, Math.Min(3, (int)Math.Min(areaW * 0.95 / LandArt.FieldWidth,
-                                                          areaH * 0.95 / LandArt.FieldHeight)));
+        // 배치 판과 같은 셈이다 — 화면 점에 딱 떨어져야 점이 안 뭉갠다.
+        int zoom = GameUi.PixelFit(owner, LandArt.FieldWidth, LandArt.FieldHeight);
+        double scale = GameUi.PixelZoom(owner, zoom);
 
         var scene = new LandBattleScene(game, battle, scale) { _game = game, _dice = dice };
         if (owner != null) scene.Owner = owner;
