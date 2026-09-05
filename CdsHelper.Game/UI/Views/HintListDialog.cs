@@ -18,7 +18,11 @@ namespace CdsHelper.Game.UI.Views;
 public sealed class HintListDialog : Window
 {
     /// <summary>목록 칸의 폭과 가장 높은 자리. 게임 갈무리에서 잰 값이다.</summary>
-    private const double ListWidth = 300, ListMaxHeight = 280;
+    /// <remarks>
+    /// 글자 높이를 자로 삼아 원본과 대 보면 판이 <b>한 뼘 넓었다</b> — 제목 글씨 폭에 견준
+    /// 판 폭이 원본은 4.8배인데 우리는 5.4배였다. 300 에서 264 로 줄여 맞췄다.
+    /// </remarks>
+    private const double ListWidth = 264, ListMaxHeight = 280;
 
     /// <summary>고른 줄의 바탕. 게임 갈무리에서 집은 파랑이다.</summary>
     private static readonly Brush PickFill = Frozen(Color.FromRgb(0x4A, 0x64, 0x9E));
@@ -33,8 +37,11 @@ public sealed class HintListDialog : Window
     /// <summary>줄 좌우 여백. 게임은 종이 테에 바짝 붙여 찍는다.</summary>
     private const double RowPad = 3;
 
-    /// <summary>아래 단추 둘의 폭·높이와 사이. 게임 조각 단추다.</summary>
-    private const double ButtonWidth = 128, ButtonGap = 12;
+    /// <summary>
+    /// 아래 단추 둘의 폭·높이와 사이. 게임 조각 단추다.
+    /// </summary>
+    /// <remarks>단추도 같은 자로 재면 원본이 제목 글씨의 1.34배인데 우리는 1.63배였다.</remarks>
+    private const double ButtonWidth = 106, ButtonGap = 12;
 
     /// <summary>고른 줄. 아무것도 안 골랐으면 -1.</summary>
     private int _picked = -1;

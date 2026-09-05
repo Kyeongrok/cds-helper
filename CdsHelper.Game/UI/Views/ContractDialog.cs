@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -63,13 +63,22 @@ public sealed class ContractDialog : Window
         return b;
     }
 
-    /// <summary>글이 놓이는 판의 크기. 발견물·증거품 칸이 게임처럼 넉넉히 비도록 못 박는다.</summary>
-    private const double BoardWidth = 560, BoardHeight = 420;
+    /// <summary>
+    /// 글이 놓이는 판의 크기. 발견물·증거품 칸이 게임처럼 넉넉히 비도록 못 박는다.
+    /// </summary>
+    /// <remarks>
+    /// <b>원본은 가로세로가 거의 같다.</b> 화면으로 재 보면 판이 1.05:1 인데 예전 값
+    /// (560x420)은 1.33:1 이라 옆으로 퍼져 보였고, 아래가 통째로 비었다.
+    /// </remarks>
+    private const double BoardWidth = 470, BoardHeight = 440;
 
     /// <summary>발견물·증거품 칸에 비워 두는 높이. 게임도 이만큼씩 띄운다.</summary>
-    private const double ListHeight = 96;
+    private const double ListHeight = 84;
 
-    private ContractDialog(Contract contract, DateTime today, string title,
+    /// <summary>목록 상자가 왼쪽에서 들어가는 만큼. 게임도 라벨보다 안쪽에서 시작한다.</summary>
+    private const double ListIndent = 74;
+
+    private ContractDialog(Contract contract, DateTime today, string title, string sponsorShown,
                            IReadOnlyList<string> found, IReadOnlyList<string> evidence)
     {
         Title = "계약 정보";
@@ -81,7 +90,7 @@ public sealed class ContractDialog : Window
         Background = Back;
 
         var rows = new StackPanel();
-        rows.Children.Add(Label($"   스폰서  {contract.Sponsor}"));
+        rows.Children.Add(Label($"   스폰서  {sponsorShown}"));
         if (contract.City.Length > 0) rows.Children.Add(Label($"     마을  {contract.City}"));
 
         rows.Children.Add(Gap());
@@ -180,15 +189,24 @@ public sealed class ContractDialog : Window
     /// <summary>줄 사이를 띄우는 빈 칸. 게임도 묶음 사이를 한 줄만큼 띄운다.</summary>
     private static UIElement Gap() => new Border { Height = 10 };
 
-    /// <summary>이름을 죽 늘어놓는 칸. 비어 있으면 자리만 비워 둔다(게임도 그렇다).</summary>
+    /// <summary>
+    /// 이름을 죽 늘어놓는 칸. <b>담긴 것이 있으면 양피지 상자</b>가 깔리고, 비어 있으면
+    /// 자리만 비워 둔다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 화면을 보면 발견물에는 밝은 상자가 깔리는데 증거품 자리는 그냥 밤색이다 —
+    /// 그때 발견물에는 든 것이 있었고 증거품은 비어 있었다. 곧 <b>빈 칸에는 상자를 안
+    /// 깐다</b>. 상자는 라벨보다 안쪽에서 시작해 오른쪽 끝까지 간다.
+    /// </remarks>
     private static UIElement List(IReadOnlyList<string> names, double height)
     {
-        var stack = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
-        foreach (var name in names) stack.Children.Add(Label($"      {name}"));
+        var stack = new StackPanel { Margin = new Thickness(6, 2, 0, 0) };
+        foreach (var name in names) stack.Children.Add(Ledger(name));
 
-        return new Border
+        var box = new Border
         {
             Height = height,
+            Margin = new Thickness(ListIndent, 2, 0, 0),
             Child = new ScrollViewer
             {
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -196,7 +214,21 @@ public sealed class ContractDialog : Window
                 Content = stack,
             },
         };
+        if (names.Count == 0) return box;
+
+        box.Background = GameUi.PageFill;
+        box.BorderBrush = GameUi.ItemEdge;
+        box.BorderThickness = new Thickness(2);
+        return box;
     }
+
+    /// <summary>양피지 상자 안의 글씨. 바탕이 밝아 검은 글꼴 조각을 쓴다.</summary>
+    private static GameUi.GameLabel Ledger(string text) => new(GameFont.BlackColor)
+    {
+        Text = text,
+        FallbackBrush = Brushes.Black,
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
 
     /// <summary>
     /// 밤색 판 위에 얹는 밝은 글씨. 줄이 세로로 쌓이므로 <b>왼쪽에 붙여</b> 둔다 — 그냥 두면
@@ -213,11 +245,16 @@ public sealed class ContractDialog : Window
     /// 계약 정보 창을 연다. 계약이 없으면 게임처럼 한 줄로 물린다.
     /// </summary>
     /// <param name="hintName">제목에 쓸 힌트 이름.</param>
+    /// <param name="sponsorName">
+    /// 화면에 낼 후원자 이름. 게임 표에 적힌 대로 <b>가운뎃점</b>이 든 이름이다
+    /// (「프란시스코 · 레이넬 · 파레일로」). 안 주면 계약에 적힌 이름을 그대로 쓴다.
+    /// </param>
     /// <param name="found">이 계약을 맺은 뒤 발견한 것의 이름.</param>
     /// <param name="evidence">그 발견물이 준 물건 중 아직 지닌 것의 이름.</param>
     public static void Show(Window owner, Contract? contract, DateTime today,
                             string hintName,
-                            IReadOnlyList<string> found, IReadOnlyList<string> evidence)
+                            IReadOnlyList<string> found, IReadOnlyList<string> evidence,
+                            string? sponsorName = null)
     {
         if (contract == null)
         {
@@ -225,7 +262,8 @@ public sealed class ContractDialog : Window
             return;
         }
 
-        new ContractDialog(contract, today, hintName, found, evidence) { Owner = owner }
+        string shown = string.IsNullOrEmpty(sponsorName) ? contract.Sponsor : sponsorName;
+        new ContractDialog(contract, today, hintName, shown, found, evidence) { Owner = owner }
             .ShowDialog();
     }
 }
