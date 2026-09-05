@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using CdsHelper.Game.Engine.Discovery;
@@ -99,7 +99,7 @@ public sealed class VoyagerEditDialog : Window
         _who.SelectionChanged += (_, _) => Rebuild();
         _add.Click += (_, _) => AddRow();
         _drop.Click += (_, _) => DropRow();
-        _reset.Click += (_, _) => { VoyagerEdits.Reset(Picked); Reload(); };
+        _reset.Click += (_, _) => { if (Editing) { VoyagerEdits.Reset(Picked); Reload(); } };
         _resetAll.Click += (_, _) => { VoyagerEdits.ResetAll(); Reload(); };
 
         var bar = new StackPanel
@@ -135,8 +135,20 @@ public sealed class VoyagerEditDialog : Window
         public string Mark { get; init; } = "";
     }
 
-    /// <summary>지금 고르고 있는 사람. 아무도 안 골랐으면 0 번이다.</summary>
-    private int Picked => _who.SelectedIndex < 0 ? 0 : _who.SelectedIndex;
+    /// <summary>고르는 칸의 첫 줄 — 열넷을 통째로 본다는 뜻이다.</summary>
+    private const int All = -1;
+
+    /// <summary>
+    /// 지금 고르고 있는 사람. 첫 줄(「전체」)이면 <see cref="All"/> 이다.
+    /// </summary>
+    /// <remarks>
+    /// <b>「전체」일 때는 고칠 수가 없다.</b> 줄을 더하거나 지우거나 되돌리는 손은 다
+    /// 사람 하나를 집어야 하기 때문이다 — 그때는 목록을 <b>읽기만</b> 한다.
+    /// </remarks>
+    private int Picked => _who.SelectedIndex <= 0 ? All : _who.SelectedIndex - 1;
+
+    /// <summary>지금 한 사람만 보고 있는지. 그때만 고칠 수 있다.</summary>
+    private bool Editing => Picked != All;
 
     private void Col(string header, string path, double width, bool readOnly = false) =>
         _grid.Columns.Add(new DataGridTextColumn
@@ -149,6 +161,7 @@ public sealed class VoyagerEditDialog : Window
 
     private void Load()
     {
+        _who.Items.Add("전체");
         for (int i = 0; i < HistoryVoyages.Count; i++)
             _who.Items.Add($"{i,2}. {HistoryVoyages.NameOf(i)}");
         _who.SelectedIndex = 0;
@@ -181,7 +194,7 @@ public sealed class VoyagerEditDialog : Window
         var rows = new List<Row>();
         foreach (var voyage in table.All)
         {
-            if (voyage.Voyager != who) continue;
+            if (who != All && voyage.Voyager != who) continue;
             var found = _finds?.Find(voyage.Discovery);
             rows.Add(new Row
             {
@@ -195,6 +208,10 @@ public sealed class VoyagerEditDialog : Window
                 Mark = VoyagerEdits.Touched(who) ? "●" : "",
             });
         }
+
+        // 「전체」 일 때는 읽기만 한다 — 고치는 손이 다 사람 하나를 집어야 하기 때문이다.
+        _grid.IsReadOnly = !Editing;
+        _add.IsEnabled = _drop.IsEnabled = _reset.IsEnabled = Editing;
 
         _grid.ItemsSource = rows;
 
@@ -211,7 +228,7 @@ public sealed class VoyagerEditDialog : Window
     /// <summary>그 사람에게 줄을 하나 더한다 — 놀이 첫날로 놓고 시작한다.</summary>
     private void AddRow()
     {
-        if (_table == null) return;
+        if (_table == null || !Editing) return;
 
         var rows = Now();
         rows.Add(new HistoryVoyages.Voyage(Picked, Support.Local.Models.Player.StartDate.Year, 1, 0));
@@ -221,7 +238,7 @@ public sealed class VoyagerEditDialog : Window
 
     private void DropRow()
     {
-        if (_table == null || _grid.SelectedItem is not Row picked) return;
+        if (_table == null || !Editing || _grid.SelectedItem is not Row picked) return;
 
         var rows = Now();
         int at = rows.FindIndex(v => v.Year == picked.Year && v.Month == picked.Month
@@ -240,7 +257,8 @@ public sealed class VoyagerEditDialog : Window
     /// <summary>고친 칸을 거둔다 — 파일과 같아지면 씌운 것을 걷는다.</summary>
     private void Collect()
     {
-        if (_table is not { } table || _grid.ItemsSource is not List<Row> rows) return;
+        if (_table is not { } table || !Editing
+            || _grid.ItemsSource is not List<Row> rows) return;
 
         int who = Picked;
         var edited = rows
