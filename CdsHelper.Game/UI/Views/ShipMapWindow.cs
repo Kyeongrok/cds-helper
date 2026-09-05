@@ -1176,7 +1176,7 @@ public sealed class ShipMapWindow : Window
 
         switch (pick)
         {
-            case 0: GrailPuzzleDialog.Play(this, _game.Player, _game.Random); break;
+            case 0: GrailPuzzleDialog.Play(this, _game.Player, _game.Random, _game.Sfx); break;
             case 1: SphinxQuizDialog.Play(this, _game.Random); break;
             case 2:
                 if (MazeGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");

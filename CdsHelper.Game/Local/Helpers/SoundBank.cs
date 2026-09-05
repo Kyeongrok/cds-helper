@@ -35,6 +35,32 @@ public sealed class SoundBank : IDisposable
     /// </summary>
     public const int TurnedAwayPart = 1;
 
+    /// <summary>
+    /// 성배 퍼즐에서 <b>물을 옮길 때</b> 나는 소리 — 파트 0(사운드 ID 28)이다.
+    /// </summary>
+    /// <remarks>
+    /// 붓는 몸짓을 한 걸음 옮기는 <c>0x00467A90</c> 이 맨 앞에서
+    /// <c>0x004225A0(0x1C, 0)</c> 을 부른다. <c>0x1C</c> 가 28 이고 WAVE 는 28부터라
+    /// 파트 0 이다. 소리 내는 손은 <c>0x004225A0(사운드 ID, 0)</c> 하나고 부르는 데가
+    /// 아흔 남짓이라, 다른 효과음도 이 자리에서 되짚으면 된다.
+    /// </remarks>
+    public const int PourPart = 0;
+
+    /// <summary>성배를 다 채웠을 때 나는 소리 — 파트 11(사운드 ID 39, <c>0x0046860A</c>).</summary>
+    public const int GrailWonPart = 11;
+
+    /// <summary>
+    /// 부대배치에서 부대를 <b>놓을 때</b> 나는 소리 — 파트 0(사운드 ID 28, <c>0x0049F23E</c>).
+    /// </summary>
+    /// <remarks>성배에 물을 부을 때와 같은 소리다(<see cref="PourPart"/>).</remarks>
+    public const int DeployPlacePart = 0;
+
+    /// <summary>
+    /// 부대배치에서 부대를 <b>걷을 때</b> 나는 소리 — 파트 1(사운드 ID 29, <c>0x0049F205</c>).
+    /// </summary>
+    /// <remarks>닻을 올리고 내릴 때와 같은 소리다(<see cref="AnchorPart"/>).</remarks>
+    public const int DeployLiftPart = 1;
+
     private readonly WaveBank _bank;
     private readonly SoundPlayer _player = new();
 

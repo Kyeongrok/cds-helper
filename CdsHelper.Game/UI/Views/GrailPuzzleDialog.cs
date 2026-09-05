@@ -316,12 +316,27 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     /// <summary>놓는다. 무슨 일이 일어날지는 놓는 자리가 정한다.</summary>
     private void PutDown(int from, int to)
     {
+        int was = _game.Moves;
         _game.Drop(from, to);
         _pick = -1;
         Sync();
 
-        if (_game.Over != null) Close();
+        // 물이 실제로 옮겨졌을 때만 소리가 난다 — 게임도 붓는 몸짓을 도는 자리에서
+        // 낸다(0x00467A90). 헛손질에는 아무 소리도 안 난다.
+        if (_game.Moves != was) _sfx?.Play(SoundBank.PourPart);
+
+        if (_game.Over != null)
+        {
+            // 다 채웠으면 수를 얼마나 썼든 소리가 난다 — 게임도 「모든 성배를 성수로
+            // 채웠다!」 바로 앞에서 낸다(0x0046860A).
+            if (_game.Over is not (GrailPuzzle.Result.GaveUp or GrailPuzzle.Result.Spilled))
+                _sfx?.Play(SoundBank.GrailWonPart);
+            Close();
+        }
     }
+
+    /// <summary>효과음 벌. 게임 폴더를 모르면 null 이라 조용히 논다.</summary>
+    private SoundBank? _sfx;
 
     /// <summary>오른쪽 단추 차림표의 줄. 게임 갈무리 차례 그대로다.</summary>
     private IReadOnlyList<(string, Action?)> Commands() =>
@@ -393,13 +408,14 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     /// 게임은 「대실패」와 「다시 한번 찬스」 뒤에 "다시 도전하겠습니까?" 를 묻고
     /// 그러겠다면 문제를 <b>새로 굴려</b> 다시 시작한다(<c>0x00468511</c> 로 돌아간다).
     /// </remarks>
-    public static void Play(Window owner, Player player, Random rng)
+    public static void Play(Window owner, Player player, Random rng, SoundBank? sfx = null)
     {
         while (true)
         {
             var dialog = new GrailPuzzleDialog(rng.Next(GrailPuzzle.Problems.Length))
             {
                 Owner = owner,
+                _sfx = sfx,
             };
             dialog.ShowDialog();
 
