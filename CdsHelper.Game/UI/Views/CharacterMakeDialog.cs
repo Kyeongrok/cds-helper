@@ -424,10 +424,11 @@ internal sealed class CharacterMakeDialog : Window
         // 그 얼굴에 중년 얼굴이 있는지 밑에 한 줄로 이른다 — 없으면 나이가 들어도
         // 얼굴이 안 바뀐다는 뜻이다.
         int aged = PortraitAges.AgedOf(_face, female: false, _faces);
-        _agedNote.Text = _face < GameFaceChoices && aged != _face
-            ? $"{_face}번 · 중년 {aged}번"
-            : aged != _face ? $"{_face}번 · 중년 {aged}번(지어 둔 짝)"
-                            : $"{_face}번 · 중년 얼굴 없음";
+        int slot = PortraitAges.SlotOf(_face);
+
+        string middle = aged != _face ? $"중년 {aged}번" : "중년 없음";
+        string destiny = slot >= 0 ? $"운명 {slot}" : "운명 미정";
+        _agedNote.Text = $"{_face}번 · {middle} · {destiny}";
     }
 
     /// <summary>얼굴 번호와 중년 짝을 이르는 줄.</summary>
@@ -484,9 +485,13 @@ internal sealed class CharacterMakeDialog : Window
         dialog.ShowDialog();
         if (!dialog._ok) return false;
 
+        // 운명 자리는 얼굴이 지고 나오는 값이다. 앞 열여섯은 얼굴 번호가 곧 자리고,
+        // 더 넣은 얼굴은 사람이 정해 둔 것이 있으면 그것을, 없으면 자리 0 을 준다.
+        int slot = PortraitAges.SlotOf(dialog._face);
         player.SetProfile(dialog._family.Text, dialog._given.Text,
                           Number(dialog._age, 25), Number(dialog._month, 1), Number(dialog._day, 1),
-                          dialog._blood, dialog._nation, dialog._face);
+                          dialog._blood, dialog._nation, dialog._face,
+                          slot >= 0 ? slot : 0);
         return true;
     }
 

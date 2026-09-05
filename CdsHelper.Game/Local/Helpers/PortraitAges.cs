@@ -85,6 +85,68 @@ public static class PortraitAges
         return aged < count;
     }
 
+    // ── 얼굴이 지고 나오는 운명 자리 ──────────────────────────────────────────
+
+    /// <summary>적어 둘 파일 이름.</summary>
+    private const string SlotCacheName = "초상화-운명자리";
+
+    /// <summary>얼굴이 지고 나오는 운명 자리 한 줄.</summary>
+    public readonly record struct Destiny(int Face, int Slot);
+
+    /// <summary>JSON 으로 적어 두는 알맹이.</summary>
+    internal sealed record SlotSnapshot(List<Destiny> Faces);
+
+    private static Dictionary<int, int>? _slots;
+
+    /// <summary>
+    /// 그 얼굴이 지고 나오는 <b>운명 자리</b>. 사람이 안 정했으면 −1 이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 앞의 열여섯만 고르게 해서 <b>얼굴 번호가 곧 운명 자리</b>였다. 얼굴을
+    /// 더 넣으면 그 셈이 안 통하므로, 새 얼굴이 어느 자리를 지고 나올지는
+    /// <b>사람이 정한다</b>. 안 정하면 <see cref="SlotOf"/> 가 −1 을 내고, 부르는 쪽이
+    /// 그때 무엇으로 물러설지 고른다.
+    /// </remarks>
+    public static int SlotOf(int face)
+    {
+        if (face < 0) return -1;
+        if (Slots.TryGetValue(face, out int slot)) return slot;
+
+        // 게임이 짝지어 둔 앞 열여섯은 얼굴 번호가 곧 자리다.
+        return face < FortuneCodes.GameSlots ? face : -1;
+    }
+
+    /// <summary>얼굴이 지고 나올 자리를 정한다. −1 이면 정한 것을 걷는다.</summary>
+    public static void SetSlot(int face, int slot)
+    {
+        if (face < 0) return;
+        if (slot < 0) Slots.Remove(face);
+        else Slots[face] = Math.Clamp(slot, 0, FortuneCodes.Slots - 1);
+        SaveSlots();
+    }
+
+    /// <summary>정해 둔 자리 전부.</summary>
+    public static IReadOnlyDictionary<int, int> AllSlots => Slots;
+
+    private static Dictionary<int, int> Slots => _slots ??= LoadSlots();
+
+    private static Dictionary<int, int> LoadSlots()
+    {
+        var saved = TableCache.Read<SlotSnapshot>(SlotCacheName);
+        var map = new Dictionary<int, int>();
+        foreach (var row in saved?.Data.Faces ?? [])
+            if (row.Face >= 0 && row.Slot >= 0) map[row.Face] = row.Slot;
+        return map;
+    }
+
+    private static void SaveSlots()
+    {
+        var rows = Slots.OrderBy(p => p.Key).Select(p => new Destiny(p.Key, p.Value)).ToList();
+        TableCache.Write(SlotCacheName, new TableCache.Cached<SlotSnapshot>(
+            $"{rows.Count}자리", new SlotSnapshot(rows), "사람이 정한 것"));
+        Changed?.Invoke();
+    }
+
     /// <summary>짝을 지어 둔다. <paramref name="aged"/> 가 −1 이면 짝을 없앤다.</summary>
     public static void Set(int face, int aged, bool female)
     {

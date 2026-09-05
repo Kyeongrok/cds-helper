@@ -40,7 +40,14 @@ public sealed class BarmaidTable
     /// <summary>여급 수.</summary>
     public const int Count = 127;
 
-    /// <summary>서른여섯 살부터 주인공 얼굴 코드에 더하는 값.</summary>
+    /// <summary>
+    /// 서른여섯 살부터 주인공 얼굴 코드에 더하는 값 — 게임 값이다.
+    /// </summary>
+    /// <remarks>
+    /// 지금 실제로 쓰는 걸음은 <see cref="FortuneCodes.Slots"/> 다. 운명 자리를
+    /// 늘리면 걸음도 같이 커지고, 표에 적힌 코드는 <see cref="FortuneCodes.Translate"/>
+    /// 가 새 공간으로 옮겨 준다.
+    /// </remarks>
     public const int AgedFaceStep = 16;
 
     /// <summary>그 나이부터 나이 든 얼굴로 친다.</summary>
@@ -99,17 +106,36 @@ public sealed class BarmaidTable
 
     private BarmaidTable(Snapshot snapshot) => _rows = snapshot.Barmaids;
 
-    /// <summary>여급 전부.</summary>
-    public IReadOnlyList<Barmaid> Barmaids => _rows;
+    /// <summary>
+    /// 여급 전부. 운명 코드는 <b>지금 걸음</b>으로 옮겨 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 적어 둔 표에는 게임 값(걸음 16)이 그대로 있고, 자리를 늘렸으면 읽을 때마다
+    /// <see cref="FortuneCodes.Translate"/> 가 새 공간으로 옮긴다 — 표를
+    /// 다시 굽지 않아도 되고, 자리를 되돌리면 값도 저절로 돌아온다.
+    /// </remarks>
+    public IReadOnlyList<Barmaid> Barmaids =>
+        [.. _rows.Select(r => r with { Fortune = CodeOf(r) })];
+
+    /// <summary>
+    /// 그 여급의 궁합 코드. 사람이 고쳐 둔 것이 있으면 그것이 이기고, 없으면 표 값을
+    /// 지금 걸음으로 옮긴다.
+    /// </summary>
+    private static int CodeOf(Barmaid her)
+    {
+        int mine = BarmaidEdits.Of(her.Id);
+        return mine >= 0 ? mine : FortuneCodes.Translate(her.Fortune);
+    }
 
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
     /// <summary>그 사람. 없으면 null.</summary>
-    public Barmaid? Find(int id) => id >= 0 && id < _rows.Count ? _rows[id] : null;
+    public Barmaid? Find(int id) =>
+        id >= 0 && id < _rows.Count ? Barmaids[id] : null;
 
     /// <summary>그 마을 술집에 서는 사람들.</summary>
-    public List<Barmaid> InCity(int cityId) => [.. _rows.Where(b => b.City == cityId)];
+    public List<Barmaid> InCity(int cityId) => [.. Barmaids.Where(b => b.City == cityId)];
 
     /// <summary>
     /// 그 마을 술집에 <b>지금</b> 서 있는 여급. 없으면 null.
@@ -122,7 +148,7 @@ public sealed class BarmaidTable
     public Barmaid? Standing(int cityId, int year)
     {
         Barmaid? found = null;
-        foreach (var b in _rows)
+        foreach (var b in Barmaids)
         {
             if (b.City != cityId || b.Year > year) continue;
             if (found is not { } had || b.Year >= had.Year) found = b;
@@ -139,7 +165,7 @@ public sealed class BarmaidTable
     /// </param>
     /// <param name="age">지금 나이.</param>
     public static int FortuneOf(int fortune, int age) =>
-        fortune + (age >= AgedFrom ? AgedFaceStep : 0);
+        FortuneCodes.CodeOf(fortune, age >= AgedFrom);
 
     /// <summary>
     /// 궁합이 맞는지 — 두 코드가 같거나 하나 차이일 때다(<c>0x00465E90</c>).
