@@ -281,13 +281,42 @@ public sealed class Game
     {
         get
         {
-            if (_rosterTried && _rosterRevision == PersonTable.Revision) return _roster;
-            _rosterTried = true;
-            _rosterRevision = PersonTable.Revision;
+            if (World is not { } world) return null;
 
-            _roster = TavernRoster.Open();
-            if (_roster == null) Debug.WriteLine($"[Game] 술집 인물 없음: {TavernRoster.LastError}");
+            world.Advance(Player.Date);
+            if (_roster != null && _rosterWalk == world.Revision) return _roster;
+
+            _rosterWalk = world.Revision;
+            _roster = TavernRoster.From(world.People);
             return _roster;
+        }
+    }
+
+    /// <summary>
+    /// 인물이 옮겨 다니는 세상. 표가 고쳐지면 새로 연다.
+    /// </summary>
+    /// <remarks>
+    /// 날짜를 따라잡는 것은 <see cref="Roster"/> 가 물을 때다 — 굴림이 씨를 뿌린 주사위라
+    /// 언제 따라잡아도 같은 세상이 되므로 시계에 손을 걸어 둘 까닭이 없다.
+    /// </remarks>
+    public PersonWorld? World
+    {
+        get
+        {
+            if (_world != null && _worldRevision == PersonTable.Revision) return _world;
+
+            var table = PersonTable.Open();
+            _worldRevision = PersonTable.Revision;
+            _roster = null;
+            _rosterWalk = -1;
+
+            if (table.IsEmpty)
+            {
+                Debug.WriteLine($"[Game] 인물 표가 비었습니다: {PersonTable.LastError}");
+                return _world = null;
+            }
+            return _world = new PersonWorld(table, CityRows, Buildings,
+                                            Support.Local.Models.Player.StartDate);
         }
     }
 
@@ -418,9 +447,13 @@ public sealed class Game
     private BarmaidTable? _barmaids;
     private bool _barmaidsTried;
     private TavernRoster? _roster;
+    private PersonWorld? _world;
 
-    /// <summary>인물 표를 읽었을 때의 판. 표가 고쳐지면 달라져 다시 읽게 된다.</summary>
-    private int _rosterRevision = -1;
+    /// <summary>인물 표를 읽었을 때의 판. 표가 고쳐지면 달라져 세상을 새로 연다.</summary>
+    private int _worldRevision = -1;
+
+    /// <summary>술집 목록을 짤 때 사람들이 서 있던 자리. 누가 움직이면 달라진다.</summary>
+    private int _rosterWalk = -1;
     private Portraits? _faces;
     private EffectAnim? _effects;
     private TavernGuests? _guests;
@@ -434,5 +467,5 @@ public sealed class Game
     private bool _voyagersTried;
     private bool _sponsorsTried, _itemsTried, _sailsTried, _discoveriesTried;
     private bool _nationsTried, _goodsTried, _cityRowsTried, _facesTried, _speakersTried;
-    private bool _effectsTried, _guestsTried, _photosTried, _itemTextTried, _rosterTried;
+    private bool _effectsTried, _guestsTried, _photosTried, _itemTextTried;
 }
