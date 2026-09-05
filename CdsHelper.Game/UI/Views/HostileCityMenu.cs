@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using CdsHelper.Game.Engine;
+using CdsHelper.Game.Engine.Land;
 using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -24,6 +25,15 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal static class HostileCityMenu
 {
+    /// <summary>
+    /// 마을을 칠 때 펴는 싸움터 — LANDDATA 파트 1(<b>도시</b>)이다.
+    /// </summary>
+    /// <remarks>
+    /// 싸움터 넷 가운데 어느 것을 펼지는 판을 세우는 자리(<c>0x0044A646</c> 어름)가
+    /// 전투 갈래로 가르는데, 마을 공략은 도시 그림이다.
+    /// </remarks>
+    private const int CityField = 0;
+
     /// <summary>한 판의 끝.</summary>
     /// <param name="Entered">문이 열렸는지 — 들어가도 되면 참.</param>
     /// <param name="GameOver">잡혀 죽었는지(<c>0x004A559F</c>).</param>
@@ -97,10 +107,13 @@ internal static class HostileCityMenu
                     if (!ConfirmDialog.Ask(owner, Standoff.AttackWord, cityName)) break;
 
                     // 게임도 물음 뒤에 부대배치 화면부터 편다(0x0044A870 의 0x00446E60).
-                    // 배치까지가 옮긴 데고, 전투 본체(0x00449C80)는 아직 남은 숙제다.
-                    if (LandDeployDialog.Show(owner, game, cityName))
-                        NoticeDialog.Show(owner,
-                            "…(부대는 섰지만 육상전 본체는 아직 옮기지 못했다. 이번에는 물러선다.)", "");
+                    // 배치가 끝나면 그 길로 싸움터로 넘어간다.
+                    if (LandDeployDialog.Show(owner, game, cityName) is not { } line) break;
+
+                    var field = new LandBattle(line, player.Crew + 1,
+                                               game.CityRows?.ScaleOf(city) ?? 0,
+                                               culture, CityField, dice);
+                    LandBattleScene.Run(owner, game, field);
                     break;
 
                 case Standoff.Sneak:
