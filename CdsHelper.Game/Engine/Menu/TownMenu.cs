@@ -75,6 +75,9 @@ internal static class TownMenu
             // 발견한 건물의 해설 — 그림 한 장과 그 이야기다.
             TownWork.Comment => () => screen.ShowComment(code),
 
+            // 술집 주인이 계약한 것의 실마리를 준다 — 술을 한잔 사야 입을 연다.
+            TownWork.Info => screen.HearInfo,
+
             // 함대편성은 그 안의 네 줄이 다 막히면 저도 흐려진다.
             TownWork.FleetForm when screen.CanFormFleet => screen.OpenFleetForm,
             TownWork.CityInfo => screen.ShowPortCityInfo,
