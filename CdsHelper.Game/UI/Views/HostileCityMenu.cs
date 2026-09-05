@@ -114,7 +114,7 @@ internal static class HostileCityMenu
                         ? player.MateInfoOf(player.Mates[0]) : null;
                     var field = new LandBattle(line, player, aide,
                                                game.CityRows?.ScaleOf(city) ?? 0,
-                                               culture, CityField, dice);
+                                               nation, culture, CityField, dice);
                     if (!LandBattleScene.Run(owner, game, field, dice)) break;
 
                     // 이겼으면 그 도시는 그 뒤로 그냥 열린다 — 교섭·잠입으로 뚫었을 때와

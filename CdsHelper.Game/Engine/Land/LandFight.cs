@@ -33,7 +33,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     public int Dances { get; private set; }
 
     /// <summary>다 빈치의 작렬탄 — 서 있으면 포가 비를 무시한다(<c>+0x3C</c> 의 <c>0x48</c>).</summary>
-    public bool Shells { get; set; }
+    private bool Shells => battle.Shells;
 
     /// <summary>
     /// 한 턴을 굴린다. 돌려주는 것은 그 턴에 일어난 일들이다.
@@ -45,12 +45,23 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         _log.Clear();
 
         // 차례는 행동속도가 빠른 쪽부터다(0x00447C20 → 0x004493BE 의 순서표).
-        foreach (int slot in Order())
+        // 기습이 먹히면 아군이, 어그러지면 적이 앞선다(0x00447E10).
+        var order = Order();
+        if (_ambush != 0)
+        {
+            bool mineFirst = _ambush > 0;
+            order = [.. order.OrderByDescending(s => (s < LandBattle.FirstFoe) == mineFirst)];
+            _ambush = 0;
+        }
+
+        foreach (int slot in order)
         {
             if (!battle.Units[slot].Standing) continue;
+            if (_frozen.Remove(slot)) continue;          // 함정에 걸린 부대는 못 움직인다
             Act(slot, slot < LandBattle.FirstFoe ? mine : theirs);
             if (Over != null) break;
         }
+        _frozen.Clear();
 
         // 비는 한 턴만 온다(0x00449403 이 그 비트를 끈다).
         Raining = false;
@@ -59,6 +70,86 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
 
     /// <summary>싸움이 끝났으면 이긴 쪽 — 참이면 아군, 거짓이면 적. 아직이면 null.</summary>
     public bool? Over { get; private set; }
+
+    /// <summary>이번 턴에 못 움직이는 부대들 — 함정에 걸린 자리다(<c>+0x1C</c> 의 0x20).</summary>
+    private readonly HashSet<int> _frozen = [];
+
+    /// <summary>이번 턴에 앞서는 쪽 — 1 아군 · −1 적 · 0 없음.</summary>
+    private int _ambush;
+
+    /// <summary>싸움을 그대로 끝낸다 — 일기토가 판을 가른 자리다.</summary>
+    public void End(bool won) => Over = won;
+
+    // ── 묘책 — 0x004490D0 ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 묘책을 건다. 돌려주는 것은 화면에 낼 줄들이다.
+    /// </summary>
+    /// <remarks>
+    /// 성사는 <see cref="LandBattle.TryRuse"/> 가 굴린다. 어그러지면 <b>그대로 제 발등을
+    /// 찍는다</b> — 함정은 아군 한 부대가 묶이고, 암살자는 아군 한 부대가 없어진다.
+    /// </remarks>
+    public IReadOnlyList<Line> Ruse(int ruse, GameRandom dice, out bool asked)
+    {
+        var said = new List<Line>();
+        bool won = battle.TryRuse(ruse, dice);
+        asked = false;
+
+        switch (ruse)
+        {
+            case LandBattle.Ambush:
+                // 성사면 먼저 칠지 묻고, 어그러지면 적이 먼저 친다(0x00447E10).
+                said.Add(new Line(won ? "기습성공! 선제 공격을 가하겠습니까?"
+                                      : "기습실패! 복병을 만났다!"));
+                _ambush = won ? 1 : -1;
+                asked = won;
+                break;
+
+            case LandBattle.Trap:
+                int caught = Any(!won, dice);
+                if (caught >= 0)
+                {
+                    _frozen.Add(caught);
+                    said.Add(new Line($"{Name(caught)}이(가) 함정에 빠졌다!"));
+                }
+                break;
+
+            case LandBattle.Assassin:
+                // 상대 부대가 하나뿐이면 아무 일도 안 일어난다.
+                int side = won ? LandBattle.FirstFoe : 0;
+                if (Count(side) <= 1) { said.Add(new Line("암살자는 실패했다!")); break; }
+
+                int killed = Any(!won, dice);
+                if (killed >= 0)
+                {
+                    battle.SetMen(killed, 0);
+                    said.Add(new Line($"{Name(killed)}이(가) 몰살당했다!"));
+                    Done();
+                }
+                break;
+        }
+
+        _log.Clear();
+        _log.AddRange(said);
+        return said;
+    }
+
+    /// <summary>그 편에서 아무 부대 하나. 없으면 −1.</summary>
+    private int Any(bool mine, GameRandom dice)
+    {
+        int side = mine ? 0 : LandBattle.FirstFoe;
+        var live = new List<int>();
+        for (int i = side; i < side + LandBattle.PerSide; i++) if (Alive(i)) live.Add(i);
+        return live.Count == 0 ? -1 : live[dice.Next(live.Count)];
+    }
+
+    /// <summary>그 편에 선 부대 수.</summary>
+    private int Count(int side)
+    {
+        int n = 0;
+        for (int i = side; i < side + LandBattle.PerSide; i++) if (Alive(i)) n++;
+        return n;
+    }
 
     // ── 차례 ───────────────────────────────────────────────────────────────────
 

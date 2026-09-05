@@ -4,7 +4,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Land;
+using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -106,6 +108,9 @@ internal sealed class LandBattleScene : Window
         var dice = _dice ?? new GameRandom(Environment.TickCount);
         var fight = new LandFight(_battle, dice);
 
+        // 판이 열릴 때 한 번 — 아이템을 지녔으면 작렬탄을 받는다(0x00448DD0).
+        if (_battle.ShellWord.Length > 0) NoticeDialog.Show(this, _battle.ShellWord, "");
+
         // 첫 턴에만 일기토를 걸 수 있다(0x0044A604 가 +0x54 를 4 로 두고, 한 번
         // 싸우고 나면 0x00449BC5 어름이 끈다).
         bool first = true;
@@ -115,7 +120,8 @@ internal sealed class LandBattleScene : Window
             NoticeDialog.Show(this, _battle.TurnWord, "");
 
             int order = ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
-                                          _battle.OrderRows(canDuel: first, canRuse: false));
+                                          _battle.OrderRows(canDuel: first,
+                                                            canRuse: _battle.AnyRuseLeft));
             if (order < 0) continue;                 // 물러도 차림표가 다시 뜬다
 
             if (order == LandBattle.Retreat)
@@ -128,14 +134,38 @@ internal sealed class LandBattleScene : Window
             // 「애니메이션」은 켜고 끄는 것이라 턴이 안 간다(0x00449190).
             if (order == LandBattle.Animate) { _quick = !_quick; continue; }
 
-            // 일기토는 아직 못 옮겼다 — 고르면 통상공격으로 친다.
-            if (order == LandBattle.Duel) order = LandBattle.Normal;
+            // 「일기토」는 판을 한 판에 가른다 — 이기면 그대로 이긴다(0x004478A0).
+            if (order == LandBattle.Duel)
+            {
+                if (!Asked()) continue;
+                bool beat = Fought(dice);
+                fight.End(beat);
+                Settle(beat, retreated: false, dice);
+                return beat;
+            }
+
+            // 「묘책」은 턴을 안 쓴다 — 걸어 두고 명령을 다시 고른다(0x004490D0).
+            if (order == LandBattle.Ruse)
+            {
+                Wile(fight, dice);
+                continue;
+            }
+
             first = false;
 
-            Play(fight.Turn(order, Foe(dice)));
+            Play(fight.Turn(order, _battle.FoeOrder(dice)));
 
             if (fight.Over is { } won)
             {
+                // 마을 공략에서는 적의 새 병력이 딱 한 번 붙는다(0x00449930).
+                if (won && _battle.Reinforce(dice))
+                {
+                    NoticeDialog.Show(this, LandBattle.ReinforceWord, "");
+                    fight = new LandFight(_battle, dice);
+                    Redraw();
+                    first = true;
+                    continue;
+                }
                 Settle(won, retreated: false, dice);
                 return won;
             }
@@ -153,18 +183,55 @@ internal sealed class LandBattleScene : Window
     private bool _quick;
 
     /// <summary>
-    /// 적이 고르는 공격명령(<c>0x00447A60</c>).
+    /// 「묘책」 — 기습·함정·암살자 가운데 하나를 건다(<c>0x004490D0</c>).
     /// </summary>
     /// <remarks>
-    /// 게임의 적 AI 는 아직 다 못 짚었다. 굴림으로 셋 가운데 하나를 고르는 얼개만
-    /// 옮겼다 — 통상이 반이고 나머지 반을 방어중시와 돌격이 나눈다.
+    /// 한 판에 하나씩만 쓴다. 어그러지면 제 발등을 찍으므로 문화권마다의 성공률
+    /// (<c>0x00549B80</c>)이 그대로 값이 된다.
     /// </remarks>
-    private static int Foe(GameRandom dice) => dice.Next(4) switch
+    private void Wile(LandFight fight, GameRandom dice)
     {
-        0 => LandBattle.Guarded,
-        1 => LandBattle.Charge,
-        _ => LandBattle.Normal,
-    };
+        int pick = ChoiceDialog.Pick(this, $" {LandBattle.RuseTitle} ", _battle.RuseRows());
+        if (pick < 0 || pick == LandBattle.Judgement) return;
+
+        var said = fight.Ruse(pick, dice, out bool asked);
+        foreach (var line in said)
+        {
+            if (line.Text.Length == 0) continue;
+            // 기습이 먹히면 그대로 물음이 된다("선제 공격을 가하겠습니까?").
+            if (asked) ConfirmDialog.Ask(this, line.Text);
+            else NoticeDialog.Show(this, line.Text, "");
+        }
+        Redraw();
+    }
+
+    /// <summary>
+    /// 「일기토」 — 제독이 적 대장과 맞선다(<c>0x004478A0</c> → <c>0x004AA700</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임도 여느 일대일 결투 판을 그대로 불러 쓴다. 이기면 싸움이 그 자리에서
+    /// 끝나고, 지면 그대로 진다. 마을 공략에서는 <b>적이 먼저 거는 일은 없다</b>
+    /// (<c>0x004479D7</c> 이 갈래 2·4 를 걸러 낸다).
+    /// </remarks>
+    /// <summary>일기토를 걸겠냐고 묻는다 — 게임도 「상대해 주마!」로 먼저 이른다.</summary>
+    private bool Asked() => ConfirmDialog.Ask(this, "상대해 주마!");
+
+    private bool Fought(GameRandom dice)
+    {
+        if (_game is not { } game) return false;
+
+        var me = game.Player;
+        var mine = new Duel.Fighter(me.Name.Length > 0 ? me.Name : "제독",
+                                    me.AbilityOf(Ability.Body), me.AbilityOf(Ability.Might),
+                                    me.LevelOf(Skill.Names[Skill.Sword]),
+                                    me.AbilityOf(Ability.Luck), 0, 0);
+        var foe = new Duel.Fighter("적장", _battle.FoeBody, _battle.FoeMight,
+                                   _battle.SkillAt(LandBattle.FirstFoe, Skill.Sword),
+                                   _battle.FoeLuck, 0, 0);
+
+        var duel = new Duel(mine, foe, shield: false, dice.Next());
+        return DuelDialog.Show(this, duel, dice, null);
+    }
 
     /// <summary>한 턴에 일어난 일을 보여 주고 판을 다시 그린다.</summary>
     private void Play(IReadOnlyList<LandFight.Line> lines)
