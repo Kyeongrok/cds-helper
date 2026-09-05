@@ -98,7 +98,7 @@ internal static class HostileCityMenu
 
                     // 게임도 물음 뒤에 부대배치 화면부터 편다(0x0044A870 의 0x00446E60).
                     // 배치까지가 옮긴 데고, 전투 본체(0x00449C80)는 아직 남은 숙제다.
-                    if (LandDeployDialog.Show(owner, game, cityName, culture))
+                    if (LandDeployDialog.Show(owner, game, cityName))
                         NoticeDialog.Show(owner,
                             "…(부대는 섰지만 육상전 본체는 아직 옮기지 못했다. 이번에는 물러선다.)", "");
                     break;

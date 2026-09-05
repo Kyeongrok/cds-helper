@@ -423,9 +423,12 @@ public sealed class Player
     /// </remarks>
     /// <param name="Sword">검술(0~3). 일기토에서 부관을 내보낼 때 이것을 본다.
     /// 예전 갈무리에는 없던 칸이라 없으면 0 이다.</param>
+    /// <param name="Shooting">사격술(0~3) · <paramref name="Gunnery"/> 포술(0~3).
+    /// 육상전 부대배치가 제독 것과 견주어 <b>높은 쪽</b>을 쓴다(<c>0x00446F70</c>).
+    /// 검술처럼 예전 갈무리에는 없던 칸이라 없으면 0 이다.</param>
     public readonly record struct MateInfo(string Name, int Face, int Fame, int Age,
                                            int Body, int Mind, int Might, int Charm, int Luck,
-                                           int Sword = 0);
+                                           int Sword = 0, int Shooting = 0, int Gunnery = 0);
 
     private readonly Dictionary<string, MateInfo> _mateBook = [];
 
