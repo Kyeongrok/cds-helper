@@ -283,13 +283,15 @@ public sealed class LandBattle
     ///   0 · 1 · 2 → 0      3 · 8 → 1      4 → 2      5 → 3
     ///   6 → 4      7 → 5      9 → 6      10 → 7
     /// </code>
-    /// <b>낱낱이 푼 것은 진형 2(이슬람)뿐이다</b> — <c>0x004A07C0</c> 이다. 나머지 일곱은
-    /// 병종 몇을 못 짚어 그 진형이 쓰는 것으로 채운다. 어느 것이든 <b>첫 부대가 대장</b>이고
-    /// 나머지가 원거리·근접으로 붙는 얼개는 같다.
+    /// 어느 진형이든 <b>첫 부대가 대장</b>이고, 자리가 남으면 <b>대장을 뺀 병종 가운데
+    /// 하나를 굴려 되풀이</b>한다(<c>0x004A067F</c> 벌의 <c>rand</c> + 색인 읽기).
+    ///
+    /// 몇몇 자리는 <b>적 대장의 기능</b>이 정한다. 진형 0 은 <c>기능 &gt;= 3</c> 하나로
+    /// 가르고(플레이어 쪽 규칙과 같다), 나머지는 <c>3 이면 큰 것 · 2 면 반반 · 그 밑이면
+    /// 작은 것</c> 세 갈래다.
     /// </remarks>
     private int[] Formation(int units, GameRandom dice)
     {
-        var kinds = new int[Math.Max(units, 1)];
         int shape = Culture switch
         {
             0 or 1 or 2 => 0,
@@ -302,59 +304,106 @@ public sealed class LandBattle
             _ => 7,
         };
 
-        // 대장은 진형마다 다르다 — 12 족장 · 13 영주 · 14 장군.
-        kinds[0] = shape switch
-        {
-            1 or 7 => LandUnits.Chief,
-            6 => LandUnits.Lord,
-            _ => LandUnits.General,
-        };
+        int sword = FoeSkill(Skill.Sword);
+        int gunnery = FoeSkill(Skill.Gunnery);
+        int shooting = FoeSkill(Skill.Shooting);
 
-        // 뒤따르는 병종. 진형 2 는 게임 그대로고(포술·검술 자리로 갈린다), 나머지는
-        // 그 진형이 쓰는 병종을 돌려 쓴다.
-        int[] rest = shape switch
+        // 대장과 그 뒤에 붙는 병종들. 자리가 모자라면 앞에서부터 잘린다.
+        int leader;
+        int[] rest;
+        switch (shape)
         {
-            1 => [LandUnits.Shaman, LandUnits.Bow, LandUnits.Spear, LandUnits.Light],
-            2 => [Cannoneer(dice), Rider(dice), LandUnits.Bow, LandUnits.Bow, LandUnits.Light],
-            3 => [LandUnits.Monk, LandUnits.Bow, LandUnits.Light],
-            4 => [LandUnits.Bombard, LandUnits.Bow, LandUnits.Light],
-            5 => [LandUnits.Bow, LandUnits.Light],
-            6 => [LandUnits.Ninja, LandUnits.Bow, LandUnits.Light],
-            7 => [LandUnits.Leopard, LandUnits.Indio, LandUnits.Bow],
-            _ => [LandUnits.Gunner, LandUnits.Bow, LandUnits.Spear, LandUnits.Light],
-        };
-        for (int i = 1; i < kinds.Length; i++) kinds[i] = rest[(i - 1) % rest.Length];
+            case 0:     // 유럽 — 플레이어와 같은 넷을 낸다(0x004A0530)
+                leader = sword >= 3 && gunnery >= 3 && shooting >= 3
+                    ? LandUnits.GreatAdmiral : LandUnits.Admiral;
+                rest =
+                [
+                    gunnery >= 3 ? LandUnits.Cannon : LandUnits.Gunner,
+                    shooting >= 3 ? LandUnits.Musket : LandUnits.Matchlock,
+                    sword >= 3 ? LandUnits.HeavyHorse : LandUnits.Horse,
+                ];
+                break;
+
+            case 1:     // 아프리카(0x004A06B0)
+                leader = LandUnits.Chief;
+                rest = [LandUnits.Shaman, LandUnits.Bow, LandUnits.Spear, LandUnits.Light];
+                break;
+
+            case 2:     // 이슬람(0x004A07C0)
+                leader = LandUnits.General;
+                rest =
+                [
+                    Bigger(gunnery, LandUnits.Cannon, LandUnits.Gunner, dice),
+                    Bigger(sword, LandUnits.Camel, LandUnits.Light, dice),
+                    LandUnits.Bow,
+                ];
+                break;
+
+            case 3:     // 인도(0x004A0980) — 코끼리가 나온다
+                leader = LandUnits.General;
+                rest =
+                [
+                    LandUnits.Monk,
+                    Bigger(sword, LandUnits.Elephant, LandUnits.Light, dice),
+                    LandUnits.Bow,
+                ];
+                break;
+
+            case 4:     // (0x004A0AE0)
+                leader = LandUnits.General;
+                rest =
+                [
+                    LandUnits.Bombard, LandUnits.Bow,
+                    Bigger(sword, LandUnits.HeavyHorse, LandUnits.Horse, dice),
+                ];
+                break;
+
+            case 5:     // (0x004A0C30)
+                leader = LandUnits.General;
+                rest =
+                [
+                    LandUnits.Bow,
+                    Bigger(sword, LandUnits.HeavyHorse, LandUnits.Horse, dice),
+                ];
+                break;
+
+            case 6:     // 일본(0x004A0D50)
+                leader = LandUnits.Lord;
+                rest =
+                [
+                    Bigger(sword, LandUnits.Hatamoto, LandUnits.Samurai, dice),
+                    LandUnits.Ninja, LandUnits.Ninja,
+                ];
+                break;
+
+            default:    // 신대륙(0x004A0E70)
+                leader = LandUnits.Chief;
+                rest = [LandUnits.Leopard, LandUnits.Indio, LandUnits.Bow];
+                break;
+        }
+
+        var kinds = new int[Math.Max(units, 1)];
+        kinds[0] = leader;
+        for (int i = 1; i < kinds.Length; i++)
+            // 늘어놓을 것이 다 떨어지면 그 가운데 하나를 굴려 되풀이한다.
+            kinds[i] = i - 1 < rest.Length ? rest[i - 1] : rest[dice.Next(rest.Length)];
         return kinds;
     }
 
     /// <summary>
-    /// 진형 2 의 둘째 부대 — 적 대장의 <b>포술</b>이 정한다(<c>0x004A0835</c>).
+    /// 기능이 만점이면 큰 병종, 하나 모자라면 반반, 그 밑이면 작은 병종
+    /// (<c>0x004A0835</c> 벌의 세 갈래).
     /// </summary>
-    /// <remarks>3 이면 캐논포병, 2 면 반반, 그 밑이면 포병이다.</remarks>
-    private int Cannoneer(GameRandom dice)
-    {
-        int gunnery = FoeSkill(Skill.Gunnery);
-        bool big = gunnery >= 3 || (gunnery == 2 && dice.Next(2) == 0);
-        return big ? LandUnits.Cannon : LandUnits.Gunner;
-    }
+    private static int Bigger(int level, int big, int small, GameRandom dice) =>
+        level >= 3 || (level == 2 && dice.Next(2) == 0) ? big : small;
 
     /// <summary>
-    /// 진형 2 의 셋째 부대 — 적 대장의 <b>검술</b>이 정한다(<c>0x004A0872</c>).
-    /// </summary>
-    /// <remarks>3 이면 낙타병, 2 면 반반, 그 밑이면 경보병이다.</remarks>
-    private int Rider(GameRandom dice)
-    {
-        int sword = FoeSkill(Skill.Sword);
-        bool big = sword >= 3 || (sword == 2 && dice.Next(2) == 0);
-        return big ? LandUnits.Camel : LandUnits.Light;
-    }
-
-    /// <summary>
-    /// 적 대장의 기능. <b>적 대장 인물을 아직 안 들고 있어</b> 지력에서 어림한다.
+    /// 적 대장의 기능 자리. <b>적 대장 인물을 아직 안 들고 있어</b> 능력에서 어림한다.
     /// </summary>
     /// <remarks>
-    /// 게임은 <c>0x00446F70(기능, 6)</c> 으로 적 대장 인물 레코드를 본다. 우리는 그 자리에
-    /// 세울 인물을 안 만들어 두었으므로, 능력을 셋으로 갈라 자리를 매긴다.
+    /// 게임은 <c>0x00446F70(기능, 6)</c> 으로 적 대장 인물 레코드를 그대로 본다. 우리는
+    /// 그 자리에 세울 인물을 안 만들어 두었으므로 검술은 무력에서, 포술·사격술은 지력에서
+    /// 넷으로 갈라 매긴다.
     /// </remarks>
     private int FoeSkill(int slot)
     {
