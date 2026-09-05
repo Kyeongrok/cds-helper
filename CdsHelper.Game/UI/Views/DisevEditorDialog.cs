@@ -31,7 +31,21 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class DisevEditorDialog : Window
 {
-    private readonly ListBox _discoveries = new() { Width = 240, Margin = new Thickness(10, 6, 4, 6) };
+    private readonly ListBox _discoveries = new() { Margin = new Thickness(0, 4, 0, 0) };
+
+    /// <summary>발견물 이름으로 걸러 낸다. 글자를 칠 때마다 목록이 줄어든다.</summary>
+    private readonly TextBox _find = new() { Padding = new Thickness(3, 2, 3, 2) };
+
+    /// <summary>갈래로 걸러 낸다. 첫 줄이 「모두」다.</summary>
+    private readonly ComboBox _category = new() { Margin = new Thickness(0, 4, 0, 0) };
+
+    /// <summary>걸러 내고 몇 개가 남았는지.</summary>
+    private readonly TextBlock _found = new()
+    {
+        Margin = new Thickness(2, 4, 0, 0),
+        Foreground = System.Windows.Media.Brushes.Gray,
+        FontSize = 11,
+    };
     private readonly ListBox _chunks = new() { Height = 92, Margin = new Thickness(4, 6, 10, 4) };
 
     private readonly DataGrid _ops = new()
@@ -111,6 +125,10 @@ public sealed class DisevEditorDialog : Window
         _bake.Click += (_, _) => Bake();
 
         _discoveries.SelectionChanged += (_, _) => ShowPart();
+
+        // 글자를 칠 때마다·갈래를 고를 때마다 목록을 다시 짠다.
+        _find.TextChanged += (_, _) => RefreshDiscoveries();
+        _category.SelectionChanged += (_, _) => RefreshDiscoveries();
         _chunks.SelectionChanged += (_, _) => ShowChunk();
         _ops.SelectionChanged += (_, _) => BuildForm();
 
@@ -150,9 +168,23 @@ public sealed class DisevEditorDialog : Window
         right.Children.Add(formHost);
         right.Children.Add(_ops);
 
+        // 왼쪽 기둥 — 찾기 칸과 갈래 칸을 목록 위에 얹는다.
+        _category.Items.Add(AllCategories);
+        foreach (string name in DiscoveryTable.CategoryNames) _category.Items.Add(name);
+        _category.SelectedIndex = 0;
+
+        var picker = new DockPanel { Width = 240, Margin = new Thickness(10, 6, 4, 6) };
+        DockPanel.SetDock(_find, Dock.Top);
+        DockPanel.SetDock(_category, Dock.Top);
+        DockPanel.SetDock(_found, Dock.Top);
+        picker.Children.Add(_find);
+        picker.Children.Add(_category);
+        picker.Children.Add(_found);
+        picker.Children.Add(_discoveries);
+
         var body = new DockPanel();
-        DockPanel.SetDock(_discoveries, Dock.Left);
-        body.Children.Add(_discoveries);
+        DockPanel.SetDock(picker, Dock.Left);
+        body.Children.Add(picker);
         body.Children.Add(right);
 
         var page = new DockPanel();
@@ -280,23 +312,52 @@ public sealed class DisevEditorDialog : Window
         _status.Text = $"{DisevBook.Path_} — 파트 {_book.Count}개{missing}";
     }
 
+    /// <summary>갈래 칸의 첫 줄 — 거르지 않는다는 뜻이다.</summary>
+    private const string AllCategories = "갈래 모두";
+
+    /// <summary>
+    /// 목록을 다시 짠다. <see cref="_find"/> 의 글자와 <see cref="_category"/> 의 갈래로 거른다.
+    /// </summary>
+    /// <remarks>
+    /// <b>고른 줄은 목록 자리가 아니라 발견물 번호로 붙든다.</b> 거르고 나면 자리가 통째로
+    /// 밀리므로 자리로 붙들면 엉뚱한 발견물이 뜬다.
+    ///
+    /// 번호로도 찾게 해 두었다 — "137" 을 치면 137번이 걸린다. 이름을 모르는 채 자리만
+    /// 아는 일이 잦다.
+    /// </remarks>
     private void RefreshDiscoveries()
     {
         if (_book == null) return;
-        int keep = _discoveries.SelectedIndex;
+        int keep = SelectedPart;
+
+        string find = _find.Text.Trim();
+        string pick = _category.SelectedItem as string ?? AllCategories;
 
         var rows = new List<PartRow>(_book.Count);
         for (int i = 0; i < _book.Count; i++)
         {
             var record = _names?.Find(i);
             string name = record?.Name ?? $"발견물 {i}";
-            string category = record is { } row && row.CategoryName.Length > 0 ? $" · {row.CategoryName}" : "";
+            string category = record?.CategoryName ?? "";
+
+            if (pick != AllCategories && category != pick) continue;
+            if (find.Length > 0
+                && !name.Contains(find, StringComparison.OrdinalIgnoreCase)
+                && !$"{i:000}".Contains(find)
+                && i.ToString() != find) continue;
+
+            string tail = category.Length > 0 ? $" · {category}" : "";
             string mark = _book.IsEdited(i) ? " ●" : "";
-            rows.Add(new PartRow { Index = i, Text = $"{i:000}  {name}{category}{mark}" });
+            rows.Add(new PartRow { Index = i, Text = $"{i:000}  {name}{tail}{mark}" });
         }
 
         _discoveries.ItemsSource = rows;
-        if (keep >= 0 && keep < rows.Count) _discoveries.SelectedIndex = keep;
+
+        // 붙들던 줄이 걸러져 나갔으면 첫 줄로 옮긴다 — 빈 채로 두면 오른쪽이 통째로 빈다.
+        _discoveries.SelectedItem = rows.FirstOrDefault(r => r.Index == keep) ?? rows.FirstOrDefault();
+        _found.Text = rows.Count == _book.Count
+            ? $"{rows.Count}개"
+            : $"{rows.Count}개 보임 / 모두 {_book.Count}개";
     }
 
     private int SelectedPart => (_discoveries.SelectedItem as PartRow)?.Index ?? -1;
