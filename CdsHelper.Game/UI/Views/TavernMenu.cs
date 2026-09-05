@@ -678,7 +678,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                                         Theirs(who), Shielded(), Environment.TickCount);
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo),
-                        myFace: _game.Faces?.TryGetBgra(_player.Face, female: false),
+                        myFace: _game.Faces?.TryGetBgra(
+                            PortraitAges.At(_player.Face, _player.Age, false, _game.Faces),
+                            female: false),
                         arena: "duel-tavern");
 
         int lost = duel.BodyLost;

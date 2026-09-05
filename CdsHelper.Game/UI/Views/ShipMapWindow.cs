@@ -2575,7 +2575,10 @@ public sealed class ShipMapWindow : Window
             DuelDialog.Show(this, duel, dice,
                             _game.Faces?.TryGetBgra(MutinyFace, female: false),
                             _game.Fighters, foeSet: 1,
-                            myFace: _game.Faces?.TryGetBgra(_game.Player.Face, female: false),
+                            myFace: _game.Faces?.TryGetBgra(
+                                PortraitAges.At(_game.Player.Face, _game.Player.Age,
+                                                false, _game.Faces),
+                                female: false),
                             arena: land ? DuelArt.Field : DuelArt.Deck);
 
             if (duel.Won == true)

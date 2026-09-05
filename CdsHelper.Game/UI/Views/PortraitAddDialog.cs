@@ -74,6 +74,22 @@ public sealed class PortraitAddDialog : Window
         IsEnabled = false,
     };
 
+    /// <summary>넣고 나서 그 얼굴을 누구의 중년 얼굴로 삼을지. 안 삼으면 꺼 둔다.</summary>
+    private readonly CheckBox _pair = new()
+    {
+        Content = "이 얼굴을 다음 얼굴의 중년으로 삼는다",
+        Margin = new Thickness(0, 0, 12, 0),
+    };
+    private readonly NumericSpinner _pairWith = new()
+    {
+        Minimum = 0,
+        Maximum = 9999,
+        Step = 1,
+        DecimalPlaces = 0,
+        Width = 90,
+        IsEnabled = false,
+    };
+
     private string _source = "";
     private byte[]? _indexed;
 
@@ -97,6 +113,8 @@ public sealed class PortraitAddDialog : Window
         _contain.Checked += (_, _) => Reshape();
         _append.Checked += (_, _) => { _at.IsEnabled = false; Tell(); };
         _append.Unchecked += (_, _) => { _at.IsEnabled = true; Tell(); };
+        _pair.Checked += (_, _) => { _pairWith.IsEnabled = true; Tell(); };
+        _pair.Unchecked += (_, _) => { _pairWith.IsEnabled = false; Tell(); };
 
         var put = new Button
         {
@@ -123,6 +141,7 @@ public sealed class PortraitAddDialog : Window
         rows.Children.Add(Line(new TextBlock { Text = "성별", Width = 60 }, _male, _female));
         rows.Children.Add(Line(new TextBlock { Text = "맞추기", Width = 60 }, _cover, _contain));
         rows.Children.Add(Line(new TextBlock { Text = "자리", Width = 60 }, _append, _at));
+        rows.Children.Add(Line(new TextBlock { Text = "중년", Width = 60 }, _pair, _pairWith));
         rows.Children.Add(_status);
         rows.Children.Add(new StackPanel
         {
@@ -203,8 +222,13 @@ public sealed class PortraitAddDialog : Window
             ? $"맨 뒤({count}번)에 새로 붙인다"
             : $"{(int)_at.Value}번을 갈아 끼운다";
 
+        string aging = _pair.IsChecked == true
+            ? $" {(int)_pairWith.Value}번이 서른여섯 살부터 이 얼굴로 바뀐다."
+            : "";
+
         _status.Text = $"{Path.GetFileName(path)} 에 {where}. "
-                       + $"지금 {count}장이 들어 있다. 처음 손댈 때 옆에 .bak 을 남긴다.";
+                       + $"지금 {count}장이 들어 있다. 처음 손댈 때 옆에 .bak 을 남긴다."
+                       + aging;
         _status.Foreground = Brushes.DimGray;
     }
 
@@ -230,9 +254,19 @@ public sealed class PortraitAddDialog : Window
             return;
         }
 
+        // 「중년으로 삼는다」를 켜 두었으면 그 짝을 적어 둔다 — 이 짝이 없으면 나이가
+        // 들어도 얼굴이 안 바뀐다(PortraitAges).
+        string paired = "";
+        if (_pair.IsChecked == true)
+        {
+            int young = (int)_pairWith.Value;
+            PortraitAges.Set(young, put, female);
+            paired = $" {young}번의 중년 얼굴로 짝지었습니다.";
+        }
+
         // Portraits 는 열 때마다 파일을 다시 읽으므로 따로 놓아 줄 것이 없다.
         Added = put;
-        _status.Text = $"{put}번으로 넣었습니다.";
+        _status.Text = $"{put}번으로 넣었습니다.{paired}";
         _status.Foreground = Brushes.SeaGreen;
         Tell();
     }
