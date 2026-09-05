@@ -78,6 +78,7 @@ internal sealed class LandDeployDialog : Window
 
     private readonly LandArt? _art;
     private readonly LandRoster _roster;
+    private readonly SoundBank? _sfx;
 
     /// <summary>자리마다 놓인 것 — 고르는 넉 칸의 번호, 비었으면 −1.</summary>
     private readonly int[] _picked = [-1, -1, -1, -1, -1, -1];
@@ -101,6 +102,7 @@ internal sealed class LandDeployDialog : Window
     {
         _roster = roster;
         _art = game.Directory.Length > 0 ? LandArt.Open(game.Directory) : null;
+        _sfx = game.Sfx;
 
         Title = $"{cityName} — 부대배치";
         Width = LandArt.BoardWidth * scale;
@@ -333,7 +335,11 @@ internal sealed class LandDeployDialog : Window
         int pick = ChoiceDialog.Pick(this, LandRoster.PickTitle, rows);
         if (pick < 0) return;
 
-        _picked[slot] = pick == LandRoster.None ? -1 : pick;
+        // 놓는 소리와 걷는 소리가 다르다(0x0049F23E · 0x0049F205).
+        bool clearing = pick == LandRoster.None;
+        _sfx?.Play(clearing ? SoundBank.DeployLiftPart : SoundBank.DeployPlacePart);
+
+        _picked[slot] = clearing ? -1 : pick;
         Redraw();
     }
 
