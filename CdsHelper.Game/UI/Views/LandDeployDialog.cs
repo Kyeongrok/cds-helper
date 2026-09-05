@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls.Primitives;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -13,303 +12,377 @@ namespace CdsHelper.Game.UI.Views;
 /// </summary>
 /// <remarks>
 /// 게임의 <c>0x0049E000</c>~<c>0x004A0500</c> 이다(볼트 <c>65.분석-육상전</c> 4절).
+/// 자리와 크기를 손으로 짐작하지 않았다 — 게임이 그림을 어디에 얹는지 그대로 옮겼다.
 /// <code>
-///   0x004A1200  부대 수 = min(6, max(1, 총인원 / 15))
-///   0x004A04F0  총인원 = 선원 + 1
-///   0x004A04B0  저절로 나누기 — 총인원 ÷ 부대수, 나머지는 마지막 칸에 몬다
-///   0x004473B0  「결정」 검사 — 제독 부대가 없으면 물린다
+///   0049ec00  자리 여섯   (16,16) (128,16) (240,16) (16,160) (128,160) (240,160)
+///   0049ecd1  고르는 넉 칸 (368,16) (480,16) (368,160) (480,160)
+///   0049fefb  판 그림      0x004B5CB9(0, 0, 592, 320, 파트 6)
+///   0049ff37  부대 한 칸   96 x 96
+///   0049f8b5  「결정」 (536,292) 48x24 · 0049f947 「전회」 (478,292) 48x24
 /// </code>
 ///
-/// <b>아직 못 짚은 것 둘.</b> 첫째, 배치판 그림(LANDDATA 파트 6)의 짜임을 못 풀어
-/// 돌 판을 <see cref="Slab"/> 로 그린다. 둘째, <b>플레이어가 낼 수 있는 병종의 범위</b>가
-/// 아직이라(볼트 11절) 제독 한 부대에 나머지는 경보병으로 둔다 — 부대 수와 나눔은
-/// 게임 셈 그대로다.
+/// <b>낼 수 있는 병종은 넷</b>이다 — 대장 · 근접 · 사격 · 포. 무엇이 되는지는 제 기능이
+/// 정하고, 갈래마다 몇 부대까지인지도 기능이 정한다. 셈은 <see cref="LandRoster"/> 에 있다.
+///
+/// <b>「전회」는 물러서는 단추가 아니라 지난번 배치를 다시 펴는 단추</b>다
+/// (<c>0x0049F540</c> 이 <c>0x0056EAB8</c> 여섯 칸을 그대로 되놓는다). 새 놀이에서 그 여섯이
+/// 죄다 −1 인 것도 그래서다 — 아직 한 번도 안 싸운 것이다.
 /// </remarks>
 internal sealed class LandDeployDialog : Window
 {
-    /// <summary>자리 여섯. 이름은 게임 표 <c>0x00559448</c> 차례다.</summary>
-    private static readonly string[] SlotNames =
+    /// <summary>판 위 자리 여섯(<c>0x0049EC00</c>). 앞 셋이 윗줄, 뒤 셋이 아랫줄이다.</summary>
+    private static readonly (int X, int Y)[] SlotAt =
     [
-        "전열 왼측", "전열 중앙", "전열 우측",
-        "후열 왼측", "후열 중앙", "후열 우측",
+        (16, 16), (128, 16), (240, 16),
+        (16, 160), (128, 160), (240, 160),
     ];
 
-    /// <summary>자리 수와 한 줄에 놓는 수.</summary>
-    private const int SlotCount = 6, SlotsPerRow = 3;
+    /// <summary>고르는 넉 칸(<c>0x0049ECD1</c>) — 대장 · 근접 · 사격 · 포 차례다.</summary>
+    private static readonly (int X, int Y)[] PickAt =
+    [
+        (368, 16), (480, 16),
+        (368, 160), (480, 160),
+    ];
 
-    /// <summary>부대 하나에 드는 최소 인원 — <c>0x004A1200</c> 의 15 다.</summary>
-    private const int PerUnit = 15;
+    /// <summary>부대 한 칸의 한 변.</summary>
+    private const int Tile = LandArt.DeploySide;
 
-    /// <summary>제독 병종 번호.</summary>
-    private const int Admiral = 2;
+    /// <summary>숫자 한 자의 한 변.</summary>
+    private const int Digit = LandArt.DigitSide;
 
-    /// <summary>세워 둔 대신 병종 — 낼 수 있는 병종을 아직 못 짚었다.</summary>
-    private const int Footman = 5;
+    /// <summary>병사수를 넉 자리로 보고 가운데로 몬다(<c>0x0049FD14</c>).</summary>
+    private const int DigitSlots = 4;
 
-    private readonly Engine.Game _game;
+    /// <summary>병종 이름을 얹는 자리 — 칸 밑 <c>0x70</c> 이다(<c>0x0049FDDE</c>).</summary>
+    private const int NameDrop = 0x70;
+
+    /// <summary>「×」와 남은 수를 얹는 자리(<c>0x0049FE21</c> · <c>0x0049FE7E</c>).</summary>
+    private const int CrossX = 0x20, CrossY = 0x70, CountX = 0x30, CountY = 0x68;
+
+    /// <summary>단추 둘(<c>0x0049F8B5</c> · <c>0x0049F947</c>).</summary>
+    private const int ButtonY = 292, ButtonW = 48, ButtonH = 24,
+                      BackX = 478, DecideX = 536;
+
+    /// <summary>글자 한 자가 차지하는 폭의 절반 — 이름을 가운데로 몰 때 쓴다.</summary>
+    private const int HalfCell = 4, NameCells = 12;
+
+    /// <summary>
+    /// 지난번 배치 — 게임의 <c>0x0056EAB8</c> 여섯 칸이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 정적 자리에 들고 있어 한 판 안에서만 살아 있다. 병종 번호가 아니라
+    /// <b>고르는 넉 칸의 번호</b>로 적어 둔다 — 기능이 오르면 같은 자리라도 병종이
+    /// 달라지는데, 게임의 <c>0x0049F370</c> 이 되놓을 때 바로 그 옮김을 한다.
+    /// </remarks>
+    private static readonly int[] LastPicked = [-1, -1, -1, -1, -1, -1];
+
     private readonly LandArt? _art;
-    private readonly int _culture;
+    private readonly LandRoster _roster;
 
-    /// <summary>팔레트 한 벌 — 아직 안 놓은 부대들.</summary>
-    private readonly List<Troop> _pool = [];
+    /// <summary>자리마다 놓인 것 — 고르는 넉 칸의 번호, 비었으면 −1.</summary>
+    private readonly int[] _picked = [-1, -1, -1, -1, -1, -1];
 
-    /// <summary>자리 여섯에 놓인 것. 비었으면 null.</summary>
-    private readonly Troop?[] _placed = new Troop?[SlotCount];
+    /// <summary>자리마다 나뉜 병사수.</summary>
+    private readonly int[] _men = new int[LandRoster.SlotCount];
 
-    private readonly Border[] _slots = new Border[SlotCount];
-    private readonly StackPanel _palette = new() { Orientation = Orientation.Vertical };
-    private readonly TextBlock _status = new()
+    private readonly Canvas _board = new()
     {
-        Margin = new Thickness(10, 6, 10, 0),
-        Foreground = GameUi.Text,
-        TextWrapping = TextWrapping.Wrap,
+        Width = LandArt.BoardWidth,
+        Height = LandArt.BoardHeight,
     };
 
-    private Troop? _picked;
-
-    /// <summary>부대 하나 — 병종과 사람 수.</summary>
-    private sealed class Troop
+    private readonly Canvas _layer = new()
     {
-        public int Kind { get; init; }
-        public int Men { get; set; }
-        public string Name =>
-            Kind >= 0 && Kind < LandUnits.Names.Length ? LandUnits.Names[Kind] : $"병종 {Kind}";
-    }
+        Width = LandArt.BoardWidth,
+        Height = LandArt.BoardHeight,
+    };
 
-    private LandDeployDialog(Engine.Game game, string cityName, int culture)
+    private LandDeployDialog(Engine.Game game, string cityName, LandRoster roster, int scale)
     {
-        _game = game;
-        _culture = culture;
+        _roster = roster;
         _art = game.Directory.Length > 0 ? LandArt.Open(game.Directory) : null;
 
         Title = $"{cityName} — 부대배치";
-        Width = 900;
-        Height = 560;
+        Width = LandArt.BoardWidth * scale;
+        Height = LandArt.BoardHeight * scale;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = GameUi.Back;
+        Background = Brushes.Black;
 
-        Split();
-        Content = Build();
+        Content = Build(scale);
         Redraw();
     }
 
-    /// <summary>창을 띄운다. 「결정」을 눌렀으면 참.</summary>
-    public static bool Show(Window? owner, Engine.Game game, string cityName, int culture)
+    /// <summary>
+    /// 창을 띄운다. 「결정」을 눌렀으면 참.
+    /// </summary>
+    /// <remarks>
+    /// 문화권을 안 받는다 — 낼 수 있는 여덟 병종은 <see cref="LandUnitArt.PartOf"/> 에서
+    /// 죄다 아군·적으로만 갈리고 문화권으로는 안 갈린다.
+    /// </remarks>
+    public static bool Show(Window? owner, Engine.Game game, string cityName)
     {
-        var window = new LandDeployDialog(game, cityName, culture);
+        var roster = LandRoster.For(game.Player, Aide(game));
+
+        double areaW = owner?.ActualWidth ?? LandArt.BoardWidth;
+        double areaH = owner?.ActualHeight ?? LandArt.BoardHeight;
+        int scale = Math.Max(1, Math.Min(3, (int)Math.Min(areaW * 0.95 / LandArt.BoardWidth,
+                                                          areaH * 0.95 / LandArt.BoardHeight)));
+
+        var window = new LandDeployDialog(game, cityName, roster, scale);
         if (owner != null) window.Owner = owner;
         return window.ShowDialog() == true;
     }
 
-    // ── 부대 나누기 ────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// 부대 수와 사람 수를 게임 셈대로 나눈다.
-    /// </summary>
-    /// <remarks>
-    /// 총인원은 <b>선원 + 1</b>(제독 자신)이고, 부대 수는 <c>min(6, max(1, 총인원/15))</c> 다.
-    /// 여섯 부대를 다 쓰려면 아흔 명이 있어야 한다. 나머지는 마지막 칸에 몬다.
-    /// </remarks>
-    private void Split()
+    /// <summary>부관 신상. 없으면 null — 그때는 제독의 기능만 본다.</summary>
+    private static Support.Local.Models.Player.MateInfo? Aide(Engine.Game game)
     {
-        int men = _game.Player.Crew + 1;
-        int units = Math.Clamp(men / PerUnit, 1, SlotCount);
-        int each = men / units;
+        var mates = game.Player.Mates;
+        if (mates.Count == 0) return null;
 
-        for (int i = 0; i < units; i++)
-            _pool.Add(new Troop
-            {
-                // 첫 부대가 제독이다 — 「결정」이 이것을 찾는다(0x004473B0).
-                Kind = i == 0 ? Admiral : Footman,
-                Men = i == units - 1 ? men - each * (units - 1) : each,
-            });
+        string name = mates[0];
+        return name.Length > 0 ? game.Player.MateInfoOf(name) : null;
     }
 
     // ── 화면 ───────────────────────────────────────────────────────────────────
 
-    private UIElement Build()
+    private UIElement Build(int scale)
     {
-        var board = new UniformGrid
-        {
-            Rows = SlotCount / SlotsPerRow,
-            Columns = SlotsPerRow,
-            Margin = new Thickness(12),
-        };
-        for (int i = 0; i < SlotCount; i++)
+        if (Picture() is { } board) _board.Children.Add(Place(board, 0, 0));
+        else _board.Background = new SolidColorBrush(Color.FromRgb(0x6B, 0x5E, 0x55));
+
+        // 판 위에서 자리를 누르는 것이 배치다. 칸에 그림이 없어도 누를 수 있어야 하므로
+        // 자리마다 눈에 안 띄는 네모를 하나씩 깔아 둔다.
+        for (int i = 0; i < LandRoster.SlotCount; i++)
         {
             int slot = i;
-            _slots[i] = Slab();
-            _slots[i].MouseLeftButtonUp += (_, _) => Place(slot);
-            board.Children.Add(_slots[i]);
+            var spot = new Border
+            {
+                Width = Tile,
+                Height = Tile,
+                Background = Brushes.Transparent,
+                Cursor = System.Windows.Input.Cursors.Hand,
+            };
+            spot.MouseLeftButtonUp += (_, _) => Choose(slot);
+            _board.Children.Add(Place(spot, SlotAt[i].X, SlotAt[i].Y));
         }
 
-        var back = GameUi.PushButton("전회", () => { DialogResult = false; Close(); }, 72);
-        var decide = GameUi.PushButton("결정", Decide, 72);
-        decide.Margin = new Thickness(6, 0, 0, 0);
+        _board.Children.Add(_layer);
+        Canvas.SetLeft(_layer, 0);
+        Canvas.SetTop(_layer, 0);
 
-        var buttons = new StackPanel
+        _board.Children.Add(Place(Button("전회", Previous), BackX, ButtonY));
+        _board.Children.Add(Place(Button("결정", Decide), DecideX, ButtonY));
+
+        var box = new Canvas
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 8, 12, 12),
-            Children = { back, decide },
+            Width = LandArt.BoardWidth * scale,
+            Height = LandArt.BoardHeight * scale,
+            Children = { _board },
         };
-
-        var right = new DockPanel { Width = 300 };
-        DockPanel.SetDock(buttons, Dock.Bottom);
-        right.Children.Add(buttons);
-        right.Children.Add(new ScrollViewer
-        {
-            Content = _palette,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(4, 12, 12, 0),
-        });
-
-        var body = new DockPanel();
-        DockPanel.SetDock(right, Dock.Right);
-        body.Children.Add(right);
-        body.Children.Add(board);
-
-        var page = new DockPanel();
-        DockPanel.SetDock(_status, Dock.Bottom);
-        page.Children.Add(_status);
-        page.Children.Add(body);
-        return page;
-    }
-
-    /// <summary>
-    /// 자리 하나 — 게임의 돌 판이다.
-    /// </summary>
-    /// <remarks>
-    /// LANDDATA 파트 6 의 짜임을 못 풀어 그림 대신 그린다. 풀리면 이 자리에 얹으면 된다.
-    /// </remarks>
-    private static Border Slab() => new()
-    {
-        Margin = new Thickness(6),
-        BorderThickness = new Thickness(3),
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x5E, 0x55)),
-        Background = new LinearGradientBrush(
-            Color.FromRgb(0xA8, 0x9C, 0x94), Color.FromRgb(0x7D, 0x71, 0x69), 90),
-        Cursor = System.Windows.Input.Cursors.Hand,
-    };
-
-    private void Redraw()
-    {
-        for (int i = 0; i < SlotCount; i++) _slots[i].Child = Face(_placed[i], SlotNames[i]);
-
-        _palette.Children.Clear();
-        foreach (var troop in _pool) _palette.Children.Add(Tile(troop));
-
-        int left = _pool.Count;
-        _status.Text = _picked is { } pick
-            ? $"「{pick.Name} x{pick.Men}」 을 놓을 자리를 고르세요.  (남은 부대 {left})"
-            : left > 0
-                ? $"오른쪽에서 부대를 고르고 자리를 누르세요.  (남은 부대 {left})"
-                : "다 놓았습니다. 「결정」을 누르세요.";
-    }
-
-    /// <summary>자리에 놓인 부대의 얼굴. 비었으면 자리 이름만 흐리게 낸다.</summary>
-    private UIElement Face(Troop? troop, string name)
-    {
-        if (troop == null)
-            return new TextBlock
-            {
-                Text = name,
-                Foreground = new SolidColorBrush(Color.FromArgb(0x66, 0x30, 0x28, 0x22)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        if (Picture(troop.Kind) is { } art) stack.Children.Add(art);
-        stack.Children.Add(new TextBlock
-        {
-            Text = $"{troop.Name}  x{troop.Men}",
-            Foreground = Brushes.Black,
-            FontWeight = FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        });
-        return stack;
-    }
-
-    /// <summary>팔레트 한 칸.</summary>
-    private UIElement Tile(Troop troop)
-    {
-        var stack = new StackPanel { Orientation = Orientation.Horizontal };
-        if (Picture(troop.Kind) is { } art) stack.Children.Add(art);
-        stack.Children.Add(new TextBlock
-        {
-            Text = $"{troop.Name}  x{troop.Men}",
-            Foreground = GameUi.Text,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(6, 0, 0, 0),
-        });
-
-        var box = new Border
-        {
-            Child = stack,
-            Margin = new Thickness(0, 0, 0, 6),
-            Padding = new Thickness(6),
-            BorderThickness = new Thickness(2),
-            BorderBrush = ReferenceEquals(troop, _picked) ? Brushes.Gold : GameUi.Edge,
-            Background = GameUi.MenuBack,
-            Cursor = System.Windows.Input.Cursors.Hand,
-        };
-        box.MouseLeftButtonUp += (_, _) => { _picked = troop; Redraw(); };
+        _board.RenderTransform = new ScaleTransform(scale, scale);
         return box;
     }
 
-    /// <summary>그 병종의 첫 몸짓. 게임 폴더를 모르면 null 이다.</summary>
-    private Image? Picture(int kind)
+    private static GameButton Button(string text, Action run) =>
+        new(text, run, BandStyle.Button, ButtonW)
+        {
+            Margin = default,
+            Height = ButtonH,
+        };
+
+    private static FrameworkElement Place(FrameworkElement what, int x, int y)
     {
-        if (_art == null) return null;
+        Canvas.SetLeft(what, x);
+        Canvas.SetTop(what, y);
+        return what;
+    }
 
-        var bgra = _art.TryGetUnit(kind, friend: true, _culture, frame: 0, out int w, out int h);
-        if (bgra == null) return null;
+    /// <summary>배치 판 그림. 못 읽으면 null.</summary>
+    private Image? Picture()
+    {
+        if (_art?.TryGetBoard() is not { } bgra) return null;
+        return Put(bgra, LandArt.BoardWidth, LandArt.BoardHeight);
+    }
 
+    private static Image Put(uint[] bgra, int w, int h)
+    {
         var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
         bmp.Freeze();
 
         var image = new Image { Source = bmp, Width = w, Height = h, Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }
 
-    // ── 놓고 걷기 ──────────────────────────────────────────────────────────────
+    // ── 다시 그리기 ────────────────────────────────────────────────────────────
 
-    /// <summary>고른 부대를 그 자리에 놓는다. 이미 놓인 자리를 누르면 걷는다.</summary>
-    private void Place(int slot)
+    private void Redraw()
     {
-        // 이미 놓인 자리를 누르면 걷어 팔레트로 돌려보낸다.
-        if (_placed[slot] is { } there)
+        Split();
+        _layer.Children.Clear();
+
+        for (int i = 0; i < LandRoster.SlotCount; i++)
         {
-            _pool.Add(there);
-            _placed[slot] = null;
-            _picked = there;
-            Redraw();
+            if (_picked[i] < 0) continue;
+            var (x, y) = SlotAt[i];
+
+            if (Unit(_roster.KindAt(_picked[i])) is { } art) _layer.Children.Add(Place(art, x, y));
+
+            // 병사수는 넉 자리 폭에 가운데로 몬다(0x0049FD14).
+            string men = _men[i].ToString();
+            int left = x + (DigitSlots - men.Length) * Digit / 2;
+            foreach (char c in men)
+            {
+                if (Number(c - '0') is { } glyph) _layer.Children.Add(Place(glyph, left, y));
+                left += Digit;
+            }
+
+            // 병종 이름은 칸 밑에 붙는다(0x0049FDDE).
+            string name = _roster.NameAt(_picked[i]);
+            if (Word(name) is { } label)
+                _layer.Children.Add(Place(label, x + (NameCells - Bytes(name)) * HalfCell,
+                                          y + NameDrop));
+        }
+
+        for (int choice = 0; choice < LandRoster.ChoiceCount; choice++)
+        {
+            var (x, y) = PickAt[choice];
+            if (Unit(_roster.KindAt(choice)) is { } art) _layer.Children.Add(Place(art, x, y));
+
+            int left = Remaining(choice);
+            if (Word("×") is { } cross) _layer.Children.Add(Place(cross, x + CrossX, y + CrossY));
+            if (Number(Math.Min(left, 9)) is { } glyph)
+                _layer.Children.Add(Place(glyph, x + CountX, y + CountY));
+        }
+    }
+
+    /// <summary>그 병종의 배치 화면 그림. 못 구하면 null.</summary>
+    private Image? Unit(int kind)
+    {
+        if (_art == null) return null;
+
+        var bgra = _art.TryGetDeployUnit(kind, out int w, out int h);
+        return bgra == null ? null : Put(bgra, w, h);
+    }
+
+    /// <summary>숫자 한 자. 못 구하면 게임 글꼴로 물러선다.</summary>
+    private FrameworkElement? Number(int digit)
+    {
+        if (_art?.TryGetDigit(digit) is { } bgra) return Put(bgra, Digit, Digit);
+        return Word(digit.ToString());
+    }
+
+    private static FrameworkElement? Word(string text) =>
+        GameUi.GameFontLabel(text, GameFont.ButtonColor, 1, GameUi.ItemTextHeight);
+
+    /// <summary>게임이 이름 길이를 재는 방식 — 바이트 수다(<c>0x0049FDC3</c>).</summary>
+    private static int Bytes(string text) =>
+        System.Text.Encoding.GetEncoding(949).GetByteCount(text);
+
+    // ── 셈 ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>판에 선 부대 수.</summary>
+    private int Standing() => _picked.Count(p => p >= 0);
+
+    /// <summary>그 갈래를 몇 부대 더 낼 수 있는지(<c>0x0049F6E0</c>).</summary>
+    private int Remaining(int choice)
+    {
+        int placed = _picked.Count(p => p == choice);
+        return Math.Max(0, _roster.CapAt(choice) - placed);
+    }
+
+    /// <summary>
+    /// 인원을 다시 나눈다 — <b>고르게 나누고 나머지는 대장 부대</b>가 갖는다.
+    /// </summary>
+    /// <remarks><c>0x0049F640</c> 이 부대를 놓거나 걷을 때마다 이것을 다시 돌린다.</remarks>
+    private void Split()
+    {
+        Array.Clear(_men);
+        int units = Standing();
+        if (units == 0) return;
+
+        int each = _roster.Men / units, over = _roster.Men % units;
+        for (int i = 0; i < LandRoster.SlotCount; i++)
+        {
+            if (_picked[i] < 0) continue;
+            _men[i] = each + (_picked[i] == LandRoster.Leader ? over : 0);
+        }
+    }
+
+    // ── 누르기 ─────────────────────────────────────────────────────────────────
+
+    /// <summary>자리를 누르면 「선택」 차림표가 뜬다(<c>0x0049F010</c>).</summary>
+    private void Choose(int slot)
+    {
+        // 빈 자리에 하나 더 세우는 것이면 사람이 남았는지부터 본다(0x004A00A0).
+        if (_picked[slot] < 0 && Standing() >= _roster.Men)
+        {
+            NoticeDialog.Show(this, LandRoster.NoMoreWord, LandRoster.WarnTitle);
             return;
         }
-        if (_picked is not { } pick) return;
 
-        _placed[slot] = pick;
-        _pool.Remove(pick);
-        _picked = _pool.FirstOrDefault();
+        var rows = new (string, bool)[LandRoster.ChoiceCount + 1];
+        for (int i = 0; i < LandRoster.ChoiceCount; i++)
+            rows[i] = (_roster.NameAt(i), Remaining(i) > 0);
+        rows[LandRoster.None] = (LandRoster.NoneWord, true);
+
+        int pick = ChoiceDialog.Pick(this, LandRoster.PickTitle, rows);
+        if (pick < 0) return;
+
+        _picked[slot] = pick == LandRoster.None ? -1 : pick;
         Redraw();
     }
 
     /// <summary>
-    /// 「결정」 — 제독 부대가 판에 없으면 물린다(<c>0x004473B0</c>).
+    /// 「전회」 — 지난번 배치를 그대로 되편다(<c>0x0049F4F0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 되펴기 전에 두 가지를 본다(<c>0x0049F3E0</c>). 갈래마다 지금 낼 수 있는 수를 넘으면
+    /// 「현재의 부대배치가능수 보다 많아…」고, 사람보다 부대가 많으면 「현재 인원수로는
+    /// 나눌 수 없습니다」다. 지난번이 없으면(죄다 −1) 아무 일도 안 일어난다.
+    /// </remarks>
+    private void Previous()
+    {
+        var counts = new int[LandRoster.ChoiceCount];
+        foreach (int choice in LastPicked)
+            if (choice >= 0 && choice < LandRoster.ChoiceCount) counts[choice]++;
+
+        for (int i = 0; i < LandRoster.ChoiceCount; i++)
+            if (counts[i] > _roster.CapAt(i))
+            {
+                NoticeDialog.Show(this, LandRoster.TooManyWord, LandRoster.WarnTitle);
+                return;
+            }
+
+        // 게임이 세는 것은 대장을 뺀 셋뿐이다 — 갈래 셈에서 대장 부대를 빼고(0x0049F49F)
+        // 다시 하나를 더하기 때문에(0x0049F4B5) 대장 한 자리가 셈에서 상쇄된다.
+        int units = counts[LandRoster.Melee] + counts[LandRoster.Shot] + counts[LandRoster.Cannon];
+        if (units > _roster.Men)
+        {
+            NoticeDialog.Show(this, LandRoster.CannotSplitWord, LandRoster.WarnTitle);
+            return;
+        }
+
+        Array.Copy(LastPicked, _picked, LandRoster.SlotCount);
+        Redraw();
+    }
+
+    /// <summary>
+    /// 「결정」 — 대장 부대가 판에 없으면 물린다(<c>0x004473B0</c>).
     /// </summary>
     private void Decide()
     {
-        if (!_placed.Any(t => t is { Kind: Admiral }))
+        if (!_picked.Contains(LandRoster.Leader))
         {
-            NoticeDialog.Show(this, "제독의 부대를 배치해 주십시오", "");
+            NoticeDialog.Show(this, LandRoster.NeedLeaderWord, "");
             return;
         }
+
+        Array.Copy(_picked, LastPicked, LandRoster.SlotCount);
         DialogResult = true;
         Close();
     }

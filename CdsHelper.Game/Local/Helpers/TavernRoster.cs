@@ -31,7 +31,7 @@ public sealed class TavernRoster
     public readonly record struct Person(int Index, string Name, int Fame, int Age,
                                          byte Hire, int FaceCode, int City, byte Building,
                                          byte Body, byte Mind, byte Might, byte Charm, byte Luck,
-                                         byte Sword);
+                                         byte Sword, byte Shooting = 0, byte Gunnery = 0);
 
     private readonly List<Person> _people;
 
@@ -77,7 +77,9 @@ public sealed class TavernRoster
                 r.Id, r.Name, r.Fame, r.Age,
                 Byte(r.Hire), r.Face, r.City, Byte(r.Building),
                 Stat(r, 0), Stat(r, 1), Stat(r, 2), Stat(r, 3), Stat(r, 4),
-                Level(r, Support.Local.Models.Skill.Sword)));
+                Level(r, Support.Local.Models.Skill.Sword),
+                Level(r, Support.Local.Models.Skill.Shooting),
+                Level(r, Support.Local.Models.Skill.Gunnery)));
         }
         return new TavernRoster(people);
     }

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -11,7 +11,7 @@ namespace CdsHelper.Game.Local.Helpers;
 /// <code>
 ///   파트 0 · 5 · 7    팔레트 셋 (258 · 258 · 261바이트, 차례는 파랑·빨강·초록)
 ///   파트 1~4          싸움터 넷 640x480 (도시 · 초지 · 숲 · 황무지)
-///   파트 6            배치판으로 보이는데 짜임을 아직 못 짚었다
+///   파트 6            부대배치 판 592x320 — 팔레트는 파트 5 다
 ///   파트 8~50         부대 그림 — 한 장에 몸짓 여덟(2x4)
 ///   파트 51 · 52      조각 둘
 /// </code>
@@ -28,27 +28,59 @@ public sealed class LandArt
     /// <summary>그림 파트가 쓰는 팔레트.</summary>
     private const int UnitPalette = 7;
 
+    /// <summary>
+    /// 부대배치 판이 쓰는 팔레트.
+    /// </summary>
+    /// <remarks>
+    /// 배치 화면은 파트 5 를 색자리 <b>160</b> 에 앉히고(<c>0x004A01C2</c> 의
+    /// <c>0x004BA161(0xA0, 0x56, 팔레트)</c>) 파트 6 의 점값에 그만큼 더해 찍는다
+    /// (<c>0x004A01FE</c> 의 <c>0x0041F990(0x2E400, 판, 0xA0, -1)</c>). 그 더하기를 도로
+    /// 빼면 파트 5 의 여든여섯 색을 그대로 쓰는 셈이라 여기서는 0 자리부터 찾는다.
+    /// </remarks>
+    private const int BoardPalette = 5;
+
     /// <summary>싸움터 파트가 쓰는 팔레트.</summary>
     private const int FieldPalette = 0;
 
     /// <summary>싸움터 한 장의 크기.</summary>
     public const int FieldWidth = 640, FieldHeight = 480;
 
+    /// <summary>
+    /// 부대배치 판 한 장의 크기 — <b>592 x 320</b>.
+    /// </summary>
+    /// <remarks>
+    /// 파트 6 은 189,440바이트라 나누어떨어지는 꼴이 넷이나 되어 오래 못 짚었는데,
+    /// 고를 것 없이 <b>게임이 찍는 크기</b>가 답이었다. <c>0x0049FEFB</c> 가
+    /// <c>0x004B5CB9(0, 0, 0x250, 0x140, 판)</c> 으로 <b>592 x 320</b> 을 (0,0)에 찍는다.
+    /// 592 x 320 = 189,440 이라 자투리 없이 딱 맞고, 줄 우선으로 읽으면 그림이 선다.
+    /// </remarks>
+    public const int BoardWidth = 592, BoardHeight = 320;
+
     /// <summary>싸움터 파트 — 지형 번호(0 도시 · 1 초지 · 2 숲 · 3 황무지) 차례다.</summary>
     private const int FirstField = 1;
 
-    /// <summary>비침 색인. 다른 벌들처럼 마젠타 자리다.</summary>
-    private const byte Transparent = 64;
+    /// <summary>
+    /// 비침 색인 — 팔레트 <b>맨 끝</b> 자리다.
+    /// </summary>
+    /// <remarks>
+    /// 다른 벌들처럼 마젠타 자리인데 <b>번호가 다르다</b>. 부대 팔레트(파트 7)는 여든일곱
+    /// 색이고 그 마지막 86번이 <c>FF00FF</c> 라, 부대 그림도 숫자 조각도 바탕이 86 이다
+    /// (파트 8 은 36,864점 중 18,510점이 86 이다). 64 로 두었던 동안에는 바탕이 안 뚫려
+    /// 부대마다 자주색 네모가 따라다녔다.
+    /// </remarks>
+    private const byte Transparent = 86;
 
     private readonly Ls12Reader _archive;
     private readonly List<(byte R, byte G, byte B)> _unitColors;
     private readonly List<(byte R, byte G, byte B)> _fieldColors;
+    private readonly List<(byte R, byte G, byte B)> _boardColors;
 
     private LandArt(Ls12Reader archive)
     {
         _archive = archive;
         _unitColors = Colors(archive, UnitPalette);
         _fieldColors = Colors(archive, FieldPalette);
+        _boardColors = Colors(archive, BoardPalette);
     }
 
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 글.</summary>
@@ -103,11 +135,95 @@ public sealed class LandArt
             for (int x = 0; x < width; x++)
             {
                 byte v = pixels[(top + y) * side + left + x];
-                if (v == Transparent) continue;
+                if (Clear(_unitColors, v)) continue;
                 bgra[y * width + x] = Argb(_unitColors, v);
             }
         return bgra;
     }
+
+    /// <summary>
+    /// 부대배치 판 한 장(592x320)을 BGRA 로 푼다. 못 풀면 null.
+    /// </summary>
+    /// <remarks>비침이 없다 — 판이 화면 바닥이라 온통 칠해져 있다.</remarks>
+    public uint[]? TryGetBoard()
+    {
+        var pixels = _archive.Decode(BoardPart);
+        if (pixels == null || pixels.Length < BoardWidth * BoardHeight) return null;
+
+        var bgra = new uint[BoardWidth * BoardHeight];
+        for (int i = 0; i < bgra.Length; i++) bgra[i] = Argb(_boardColors, pixels[i]);
+        return bgra;
+    }
+
+    /// <summary>
+    /// 배치 화면에 세우는 부대 그림 한 칸(96x96). 그 병종을 못 내면 null.
+    /// </summary>
+    /// <remarks>
+    /// 배치 화면은 몸짓 한 장(96x48)이 아니라 <b>넉 장 중 왼위 96x96</b> 을 통째로 찍는다
+    /// (<c>0x0049FF37</c> 의 <c>0x004B6963(0x60, 0x60)</c>). 그리고 여기 세울 수 있는
+    /// 병종은 <see cref="LandUnitArt.DeploySheet"/> 가 −1 을 안 내는 여덟뿐이다.
+    /// </remarks>
+    public uint[]? TryGetDeployUnit(int kind, out int width, out int height)
+    {
+        width = height = DeploySide;
+        if (LandUnitArt.DeploySheet(kind) < 0) return null;
+
+        var pixels = _archive.Decode(LandUnitArt.PartOf(kind, friend: true, culture: 0));
+        if (pixels == null) return null;
+
+        int side = Side(pixels.Length);
+        if (side < DeploySide) return null;
+
+        var bgra = new uint[DeploySide * DeploySide];
+        for (int y = 0; y < DeploySide; y++)
+            for (int x = 0; x < DeploySide; x++)
+            {
+                byte v = pixels[y * side + x];
+                if (Clear(_unitColors, v)) continue;
+                bgra[y * DeploySide + x] = Argb(_unitColors, v);
+            }
+        return bgra;
+    }
+
+    /// <summary>
+    /// 배치 화면이 부대 인원과 남은 수를 찍는 <b>숫자 조각 열</b>(24x24) 한 자.
+    /// 그 자리가 아니면 null.
+    /// </summary>
+    /// <remarks>
+    /// 파트 52 는 5,760바이트라 24x24 짜리 열 자다. 게임도 그렇게 읽는다 — 자리는
+    /// <c>0x0049FD62</c> 가 <c>숫자 x 0x240 + 0xF00</c> 으로 잡는데, <c>0xF00</c> 은
+    /// 파트 51 과 52 를 한 버퍼에 이어 붙일 때 파트 52 가 시작하는 자리고(<c>0x0044A710</c>)
+    /// <c>0x240</c> 이 24x24 다. 찍는 크기도 <c>0x18 x 0x18</c> 이다.
+    /// </remarks>
+    public uint[]? TryGetDigit(int digit)
+    {
+        if (digit < 0 || digit > 9) return null;
+
+        var pixels = _archive.Decode(DigitPart);
+        if (pixels == null || pixels.Length < (digit + 1) * DigitSide * DigitSide) return null;
+
+        int at = digit * DigitSide * DigitSide;
+        var bgra = new uint[DigitSide * DigitSide];
+        for (int i = 0; i < bgra.Length; i++)
+        {
+            byte v = pixels[at + i];
+            if (Clear(_unitColors, v)) continue;
+            bgra[i] = Argb(_unitColors, v);
+        }
+        return bgra;
+    }
+
+    /// <summary>숫자 조각이 든 파트와 한 자의 크기.</summary>
+    private const int DigitPart = 52;
+
+    /// <summary>숫자 한 자의 한 변.</summary>
+    public const int DigitSide = 24;
+
+    /// <summary>배치 판이 든 파트.</summary>
+    private const int BoardPart = 6;
+
+    /// <summary>배치 화면이 찍는 부대 한 칸의 한 변.</summary>
+    public const int DeploySide = 96;
 
     /// <summary>싸움터 한 장(640x480)을 BGRA 로 푼다. 못 풀면 null.</summary>
     /// <param name="terrain">0 도시 · 1 초지 · 2 숲 · 3 황무지.</param>
@@ -130,6 +246,10 @@ public sealed class LandArt
         65536 => 256,
         _ => 0,
     };
+
+    /// <summary>비칠 자리인지 — 마지막 마젠타 자리이거나 팔레트 밖이면 그렇다.</summary>
+    private static bool Clear(List<(byte R, byte G, byte B)> colors, byte index) =>
+        index == Transparent || index >= colors.Count;
 
     private static uint Argb(List<(byte R, byte G, byte B)> colors, byte index) =>
         index < colors.Count
@@ -175,6 +295,30 @@ public static class LandUnitArt
 
     /// <summary>병종 수.</summary>
     public const int KindCount = 24;
+
+    /// <summary>
+    /// 배치 화면이 미리 읽어 두는 부대 그림 여덟(파트 8~15) 중 그 병종의 자리.
+    /// 못 내는 병종이면 −1 이다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x0049F7D0</c> 이 병종을 <b>버퍼 안 자리</b>로 옮기는데, 그 자리가 죄다
+    /// <c>0x9000</c>(36,864 = 192x192)의 배수라 곧 <b>파트 번호 − 8</b> 이다. 표
+    /// (<c>0x0049F854</c>)를 보면 값이 있는 병종이 여덟뿐이고, 나머지는 −1 을 낸다.
+    /// 배치 화면이 읽어 들이는 것도 정확히 파트 8~15 여덟 장이다(<c>0x004A020B</c>).
+    /// 곧 <b>플레이어가 낼 수 있는 병종은 이 여덟이 전부</b>다.
+    /// </remarks>
+    public static int DeploySheet(int kind) => kind switch
+    {
+        0 => 0,    // 기병       — 파트 8
+        1 => 1,    // 중장기병   — 파트 9
+        15 => 2,   // 화승총대   — 파트 10
+        16 => 3,   // 머스켓총대 — 파트 11
+        18 => 4,   // 포병       — 파트 12
+        19 => 5,   // 캐논포병   — 파트 13
+        2 => 6,    // 제독       — 파트 14
+        3 => 7,    // 무적제독   — 파트 15
+        _ => -1,
+    };
 
     /// <summary>그 병종의 파트 번호.</summary>
     public static int PartOf(int kind, bool friend, int culture) => kind switch
