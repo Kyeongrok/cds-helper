@@ -110,11 +110,18 @@ internal static class HostileCityMenu
                     // 배치가 끝나면 그 길로 싸움터로 넘어간다.
                     if (LandDeployDialog.Show(owner, game, cityName) is not { } line) break;
 
-                    var field = new LandBattle(line, player.Crew + 1,
+                    var aide = player.Mates.Count > 0 && player.Mates[0].Length > 0
+                        ? player.MateInfoOf(player.Mates[0]) : null;
+                    var field = new LandBattle(line, player, aide,
                                                game.CityRows?.ScaleOf(city) ?? 0,
                                                culture, CityField, dice);
-                    LandBattleScene.Run(owner, game, field);
-                    break;
+                    if (!LandBattleScene.Run(owner, game, field, dice)) break;
+
+                    // 이겼으면 그 도시는 그 뒤로 그냥 열린다 — 교섭·잠입으로 뚫었을 때와
+                    // 같다("제독, 이것으로 마을에 들어갈 수 있습니다").
+                    player.OpenGate(city);
+                    NoticeDialog.Show(owner, string.Format(Standoff.TalkWonWord, where), "");
+                    return new Outcome(true, false);
 
                 case Standoff.Sneak:
                     // 잠입은 되든 안 되든 차림표가 다시 안 뜬다(0x004A57E7 이 반환값을

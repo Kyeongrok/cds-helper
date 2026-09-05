@@ -9,8 +9,12 @@ namespace CdsHelper.Game.Engine.Land;
 /// 게임의 <c>CLandWar</c>(<c>0x005A47E8</c>)에 맞먹는다. 부대 열둘은 앞 여섯이 아군,
 /// 뒤 여섯이 적이고 레코드가 40바이트씩이다(<c>+0xAC</c>부터).
 ///
-/// <b>여기까지가 옮긴 데다.</b> 판을 세우고 첫 턴 차림표를 내는 데까지고,
-/// 치고받는 셈(<c>0x00449320</c> · <c>0x00448360</c>)은 아직 남았다.
+/// 판을 세우고 값을 치르는 것이 이 클래스고, 한 턴을 굴리는 것은
+/// <see cref="LandFight"/> 다.
+///
+/// <b>아직 안 옮긴 것</b> — 묘책 넷(<c>0x004490D0</c>) · 일기토(<c>0x004478A0</c>) ·
+/// 증원 2차전(<c>0x00449930</c>) · 다 빈치의 작렬탄(<c>0x00448DD0</c>) · 적 AI 의
+/// 명령 고르기(<c>0x00447A60</c>).
 /// </remarks>
 public sealed class LandBattle
 {
@@ -65,14 +69,18 @@ public sealed class LandBattle
     /// 판을 세운다.
     /// </summary>
     /// <param name="mine">아군 여섯 자리의 병종. −1 이면 빈 자리다.</param>
-    /// <param name="men">아군 총인원 — 선원 + 1.</param>
     /// <param name="scale">도시 규모(<c>도시 +0x08</c>). 적의 크기가 여기서 나온다.</param>
-    public LandBattle(IReadOnlyList<int> mine, int men, int scale, int culture, int terrain,
-                      GameRandom dice)
+    public LandBattle(IReadOnlyList<int> mine, Player player, Player.MateInfo? aide,
+                      int scale, int culture, int terrain, GameRandom dice)
     {
         Culture = culture;
         Terrain = Math.Clamp(terrain, 0, 3);
+        Scale = Math.Max(0, scale);
+        _me = player;
+        _aide = aide;
 
+        int men = player.Crew + 1;
+        MyFirst = men;
         Split(mine, men);
 
         // 적 대장의 능력. 규모 0 / 1~2 / 3~4 / 5+ 마다 밑값이 다르다.
@@ -83,7 +91,82 @@ public sealed class LandBattle
         FoeBody = dice.Next(10) + new[] { 60, 75, 85, 90 }[band] - 1;
 
         Muster(scale, dice);
+        for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
+        FoeRoom = FoeUnits > 0 ? FoeFirst / FoeUnits : FoeFirst;
+        MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
     }
+
+    private readonly Player _me;
+    private readonly Player.MateInfo? _aide;
+
+    /// <summary>도시 규모. 전리품 셈이 이것을 본다.</summary>
+    public int Scale { get; }
+
+    /// <summary>판을 열 때의 인원.</summary>
+    public int MyFirst { get; }
+    public int FoeFirst { get; private set; }
+
+    /// <summary>부대 하나의 정원 — 고승의 회복이 이것을 본다(<c>0x00448280</c>).</summary>
+    public int MyRoom { get; private set; }
+    public int FoeRoom { get; private set; }
+
+    private int MyUnits => Standing(0);
+    private int FoeUnits => Standing(FirstFoe);
+
+    private int Standing(int side)
+    {
+        int n = 0;
+        for (int i = side; i < side + PerSide; i++) if (_units[i].Standing) n++;
+        return n;
+    }
+
+    /// <summary>지금 그 편에 남은 병사수.</summary>
+    public int MenOn(bool foe)
+    {
+        int side = foe ? FirstFoe : 0, n = 0;
+        for (int i = side; i < side + PerSide; i++) n += Math.Max(0, _units[i].Men);
+        return n;
+    }
+
+    /// <summary>부대 하나의 정원.</summary>
+    public int RoomPerUnit(int side) => side >= FirstFoe ? FoeRoom : MyRoom;
+
+    /// <summary>그 부대의 병사수를 고쳐 넣는다. 0 이 되면 쓰러진 것이다.</summary>
+    public void SetMen(int slot, int men)
+    {
+        if (slot < 0 || slot >= Slots) return;
+        _units[slot] = _units[slot] with { Men = Math.Max(0, men) };
+    }
+
+    /// <summary>
+    /// 그 자리 부대가 쓰는 <b>기능</b> 자리(0~3).
+    /// </summary>
+    /// <remarks>
+    /// 아군은 제독과 부관 중 큰 쪽이고(<c>0x00446F70</c>), 적은 대장 인물을 아직 안
+    /// 들고 있어 능력에서 어림한다.
+    /// </remarks>
+    public int SkillAt(int slot, int skill)
+    {
+        if (slot >= FirstFoe) return FoeSkill(skill);
+
+        int mine = _me.LevelOf(Skill.Names[skill]);
+        int mate = _aide is not { } who ? 0 : skill switch
+        {
+            Skill.Sword => who.Sword,
+            Skill.Shooting => who.Shooting,
+            Skill.Gunnery => who.Gunnery,
+            _ => 0,
+        };
+        return Math.Max(mine, mate);
+    }
+
+    /// <summary>그 자리 부대의 무력.</summary>
+    public int MightAt(int slot) =>
+        slot >= FirstFoe ? FoeMight : _me.AbilityOf(Ability.Might);
+
+    /// <summary>그 자리 부대의 지력.</summary>
+    public int MindAt(int slot) =>
+        slot >= FirstFoe ? FoeMind : _me.AbilityOf(Ability.Mind);
 
     // ── 아군 ───────────────────────────────────────────────────────────────────
 
@@ -236,6 +319,46 @@ public sealed class LandBattle
     {
         int stat = slot == Skill.Sword ? FoeMight : FoeMind;
         return stat >= 80 ? 3 : stat >= 60 ? 2 : stat >= 40 ? 1 : 0;
+    }
+
+    // ── 끝맺음 — 0x00449870 ────────────────────────────────────────────────────
+
+    /// <summary>싸움이 끝나고 치르는 값.</summary>
+    /// <param name="Loot">전리품 금화(<c>0x00449490</c>).</param>
+    /// <param name="Back">복귀한 부상병(<c>0x00449570</c>).</param>
+    /// <param name="Fame">오른 명성 · <paramref name="Infamy"/> 오른 악명(<c>0x00449600</c>).</param>
+    /// <param name="Might">오른 무력(<c>0x00449730</c>).</param>
+    public readonly record struct Spoils(int Loot, int Back, int Fame, int Infamy, int Might);
+
+    /// <summary>
+    /// 이기거나 물러난 뒤를 치른다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   전리품  ((적 처음 - 적 남은) x (규모+1)) / 10 + rand(50)
+    ///   복귀    율 = 운*5/100 + 의학*2
+    ///           min(처음 - 1, 생존 + 율*(처음 - 생존 - 1)/10)
+    ///   명성    이김 밑 100 · 악명 밑 200 / 짐 악명 밑 300, 명성 += 밑 + rand(11)
+    ///   무력    rand(20) == 0 일 때만 rand(2)+1
+    /// </code>
+    /// 마을 공략(갈래 2)이라 나라가 같을 일이 드물어 <b>이기면 명성 +10</b> 쪽을 쓴다.
+    /// </remarks>
+    public Spoils Finish(bool won, GameRandom dice)
+    {
+        int loot = won ? (FoeFirst - MenOn(foe: true)) * (Scale + 1) / 10 + dice.Next(50) : 0;
+
+        int alive = Math.Max(0, MenOn(foe: false) - 1);
+        int rate = _me.AbilityOf(Ability.Luck) * 5 / 100
+                   + _me.LevelOf(Skill.Names[Skill.Medicine]) * 2;
+        int back = Math.Min(MyFirst - 1, alive + rate * (MyFirst - alive - 1) / 10) - alive;
+        back = Math.Max(0, back);
+
+        int fameBase = won ? 100 : 0;
+        int infamy = won ? 200 : 300;
+        int fame = fameBase + (won ? 10 : 0) + dice.Next(11);
+        int might = dice.Next(20) == 0 ? dice.Next(2) + 1 : 0;
+
+        return new Spoils(loot, back, fame, infamy, might);
     }
 
     // ── 턴 ─────────────────────────────────────────────────────────────────────
