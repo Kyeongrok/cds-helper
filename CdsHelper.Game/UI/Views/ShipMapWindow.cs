@@ -458,13 +458,16 @@ public sealed class ShipMapWindow : Window
         {
             e.Handled = true;
             // 도시 안에서는 함대 커맨드 창을 안 낸다 — 도시 화면이 제 커맨드 창을 따로 낸다.
-            if (_host.SeaBlocked) return;
+            // 물음창으로 멎어 있을 때도 안 낸다.
+            if (_host.SeaBlocked || _host.Paused) return;
             ShowCommandMenu(input, e.GetPosition(input));
         };
         input.MouseLeftButtonDown += (_, e) =>
         {
             // 도시 화면이 떠 있으면 지도는 남색 막 아래다 — 닻도 배 놓기도 받지 않는다.
-            if (_host.SeaBlocked) return;
+            // 커맨드 창·물음창으로 멎어 있을 때도 마찬가지다. 게임이 서 있는데 손이
+            // 먹으면 창 뒤에서 말이 서고 가고, 닻 소리까지 난다.
+            if (_host.SeaBlocked || _host.Paused) return;
             // Ctrl 을 누른 채 찍으면 그 자리에 배를 놓는다. 시작 자리를 손으로 잡는 길이다.
             if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
             {
@@ -1849,8 +1852,19 @@ public sealed class ShipMapWindow : Window
         {
             if (_commandMenuHost != null) return _commandMenuHost;
             _commandMenuHost = new GameMenuHost(this);
-            // 메뉴가 떠 있는 동안은 게임을 멈춘다. 닫히면 어떻게 닫혔든 다시 흐른다.
-            _commandMenuHost.Closed += () => _host.Paused = false;
+            // 메뉴가 떠 있는 동안은 게임을 멈춘다. 닫히면 다시 흐른다 — 다만
+            // <b>남의 멈춤을 밟지 않는다</b>.
+            //
+            // 커맨드 창은 점으로 오므라든 뒤에 닫히므로(GameMenuHost.Close 의
+            // CloseZoomed) 이 알림이 <b>한 박자 늦게</b> 온다. 그 사이에
+            // 「…에 들어간다」가 이미 EnterCity 로 들어가 멈춤을 새로 잡았는데
+            // 여기서 무턱대고 풀어 버리면, 성문 창이 떠 있는 채로 말이 계속 달려
+            // 대륙 끝까지 가 있었다.
+            _commandMenuHost.Closed += () =>
+            {
+                if (_asking || _host.SeaBlocked) return;
+                _host.Paused = false;
+            };
             return _commandMenuHost;
         }
     }

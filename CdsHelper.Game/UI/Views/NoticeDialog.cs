@@ -19,4 +19,19 @@ public static class NoticeDialog
     /// <param name="title">제목 띠에 얹을 글. 비우면 띠를 안 단다.</param>
     public static void Show(System.Windows.Window owner, string text, string? title = null) =>
         ConfirmDialog.Tell(owner, text, title);
+
+    /// <summary>
+    /// 미니게임의 <b>「게임 설명」</b> 창. 글이 왼쪽 테에서 한 뼘 떨어져 시작한다.
+    /// </summary>
+    /// <remarks>
+    /// 여느 알림은 테 바로 옆(<c>7</c>점)에서 글이 시작하는데 설명 글은 그렇게 두면
+    /// 왼쪽이 답답하다. 게임 글꼴 한 자가 <see cref="GameUi.CellWidth"/> 이므로
+    /// <see cref="ExplainCells"/> 자만큼 들인다.
+    /// </remarks>
+    public static void Explain(System.Windows.Window owner, string text,
+                               string title = "게임 설명") =>
+        ConfirmDialog.Tell(owner, text, title, null, ExplainCells * GameUi.CellWidth);
+
+    /// <summary>설명 글을 들이는 글자 수.</summary>
+    private const int ExplainCells = 3;
 }

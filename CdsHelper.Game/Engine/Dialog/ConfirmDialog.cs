@@ -43,7 +43,8 @@ public sealed class ConfirmDialog : Window
 {
     private readonly GameUi.FocusGroup _focus = new();
 
-    private ConfirmDialog(string text, string? title, bool yesNo, uint[]? face)
+    private ConfirmDialog(string text, string? title, bool yesNo, uint[]? face,
+                          double indent)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -116,6 +117,10 @@ public sealed class ConfirmDialog : Window
         var body = new StackPanel { Margin = new Thickness(0, BodyGap, 0, 0) };
         if (face == null)
         {
+            // 미니게임 설명처럼 <b>왼쪽을 한 번 더 들이는</b> 글이 있다. 게임도 설명 글은
+            // 테에서 한 뼘 떨어져 시작한다 — 얼굴이 서는 창은 이미 얼굴만큼 들어가 있으므로
+            // 이쪽만 손댄다.
+            if (indent > 0) words.Margin = new Thickness(indent, 0, 0, 0);
             body.Children.Add(words);
         }
         else
@@ -242,12 +247,13 @@ public sealed class ConfirmDialog : Window
     /// </summary>
     public static bool Ask(Window owner, string text, string? title = null,
                            uint[]? face = null) =>
-        new ConfirmDialog(text, title, yesNo: true, face) { Owner = owner }.ShowDialog() == true;
+        new ConfirmDialog(text, title, yesNo: true, face, 0) { Owner = owner }
+            .ShowDialog() == true;
 
     /// <summary>
     /// 한 마디 알리고 확인만 받는다 — 게임 물음창의 <b>종류 0</b> 이다.
     /// </summary>
     public static void Tell(Window owner, string text, string? title = null,
-                            uint[]? face = null) =>
-        new ConfirmDialog(text, title, yesNo: false, face) { Owner = owner }.ShowDialog();
+                            uint[]? face = null, double indent = 0) =>
+        new ConfirmDialog(text, title, yesNo: false, face, indent) { Owner = owner }.ShowDialog();
 }

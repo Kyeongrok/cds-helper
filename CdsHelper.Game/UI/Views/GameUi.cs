@@ -113,8 +113,18 @@ internal static class GameUi
         if (run != null)
         {
             // 명령 창 줄과 같은 까닭으로 누름도 삼킨다(창 끌기에 먹히지 않게).
-            b.MouseLeftButtonDown += (_, e) => e.Handled = true;
+            b.MouseLeftButtonDown += (_, e) => { e.Handled = true; b.Focus(); };
             b.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+
+            // 초점이 간 단추는 <b>스페이스·엔터로도</b> 눌린다. 테를 따로 안 그리는
+            // 단추라 초점이 어디 있는지는 안 보이지만, 손이 아예 없는 것보다는 낫다.
+            b.Focusable = true;
+            b.KeyDown += (_, e) =>
+            {
+                if (e.Key is not (Key.Enter or Key.Space)) return;
+                e.Handled = true;
+                run();
+            };
         }
         return b;
     }
