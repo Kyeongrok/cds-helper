@@ -28,6 +28,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_NationEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DisevEditorMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_VoyagerEditMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_PersonEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
@@ -50,6 +51,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_NationEditMenu = "PART_NationEditMenu";
     private const string PART_DisevEditorMenu = "PART_DisevEditorMenu";
     private const string PART_VoyagerEditMenu = "PART_VoyagerEditMenu";
+    private const string PART_PersonEditMenu = "PART_PersonEditMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
@@ -157,6 +159,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_VoyagerEditMenu) is MenuItem voyagerEditMenu)
         {
             voyagerEditMenu.Click += OnVoyagerEditMenuClick;
+        }
+
+        if (GetTemplateChild(PART_PersonEditMenu) is MenuItem personEditMenu)
+        {
+            personEditMenu.Click += OnPersonEditMenuClick;
         }
 
         if (GetTemplateChild(PART_ImageShrinkMenu) is MenuItem imageShrinkMenu)
@@ -336,6 +343,11 @@ public class CdsHelperWindow : CdsWindow
     // 역사 항해자 열넷이 언제 무엇을 채가는지 고치는 창. 이 놀이의 유일한 경쟁자다.
     private void OnVoyagerEditMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.VoyagerEditDialog.Show(this);
+
+    // 세이브의 인물 281명을 고치는 창. 나라 표와 달리 세이브를 그 자리에서 고치므로
+    // 처음 고칠 때 시각을 붙인 백업을 옆에 남긴다.
+    private void OnPersonEditMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.PersonEditDialog.Show(this);
 
     // 그림 파일을 골라 크기·용량을 줄이는 창. 게임과는 상관없는 손도구다.
     private void OnImageShrinkMenuClick(object sender, RoutedEventArgs e)
