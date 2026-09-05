@@ -366,11 +366,38 @@ internal static class GameUi
     /// <paramref name="zoom"/> 은 <b>화면 점</b> 단위의 곱이다 — 1 이면 원본 크기,
     /// 2 면 화면에서 두 배다. 정수로만 줘야 점이 안 뭉갠다.
     /// </remarks>
-    public static double PixelZoom(Visual visual, int zoom = 1)
+    public static double PixelZoom(Visual? visual, int zoom = 1)
     {
+        if (visual == null) return zoom;
+
         double scale = VisualTreeHelper.GetDpi(visual).DpiScaleX;
         return scale > 0 ? zoom / scale : zoom;
     }
+
+    /// <summary>
+    /// <paramref name="owner"/> 안에 <paramref name="w"/>x<paramref name="h"/> 점짜리
+    /// 그림을 앉힐 때 쓸 <b>화면 점 단위</b>의 정수 곱. 1 부터 <paramref name="most"/> 까지다.
+    /// </summary>
+    /// <remarks>
+    /// 남은 자리를 <b>DIP 가 아니라 화면 점으로</b> 재는 것이 핵심이다. 배율이 175%면
+    /// DIP 로 잰 자리는 실제보다 1.75배 좁게 나와 곱이 1 로 깎이고, 그 1배짜리 그림을
+    /// 다시 창이 1.75배로 늘리면서 점이 <b>고르지 않게</b> 겹쳐 그림이 찌그러진다.
+    /// 여기서 낸 곱은 <see cref="PixelZoom"/> 에 그대로 넘겨 쓴다.
+    /// </remarks>
+    public static int PixelFit(Visual? owner, int w, int h, int most = 3)
+    {
+        if (owner is not FrameworkElement box || w <= 0 || h <= 0) return 1;
+
+        double dpi = VisualTreeHelper.GetDpi(owner).DpiScaleX;
+        if (dpi <= 0) dpi = 1;
+
+        double areaW = box.ActualWidth * dpi, areaH = box.ActualHeight * dpi;
+        int fit = (int)Math.Min(areaW * FitMargin / w, areaH * FitMargin / h);
+        return Math.Clamp(fit, 1, most);
+    }
+
+    /// <summary>창을 꽉 채우지 않고 남기는 몫.</summary>
+    private const double FitMargin = 0.95;
 
     public static void EnableDrag(Window window, UIElement handle)
     {

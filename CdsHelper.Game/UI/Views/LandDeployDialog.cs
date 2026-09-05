@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -105,7 +105,7 @@ internal sealed class LandDeployDialog : Window
         Height = LandArt.BoardHeight,
     };
 
-    private LandDeployDialog(Engine.Game game, string cityName, LandRoster roster, int scale)
+    private LandDeployDialog(Engine.Game game, string cityName, LandRoster roster, double scale)
     {
         _roster = roster;
         _art = game.Directory.Length > 0 ? LandArt.Open(game.Directory) : null;
@@ -135,10 +135,11 @@ internal sealed class LandDeployDialog : Window
     {
         var roster = LandRoster.For(game.Player, Aide(game));
 
-        double areaW = owner?.ActualWidth ?? LandArt.BoardWidth;
-        double areaH = owner?.ActualHeight ?? LandArt.BoardHeight;
-        int scale = Math.Max(1, Math.Min(3, (int)Math.Min(areaW * 0.95 / LandArt.BoardWidth,
-                                                          areaH * 0.95 / LandArt.BoardHeight)));
+        // 판을 <b>화면 점</b>에 딱 떨어지게 앉힌다 — 배율이 175%인 화면에서 그냥
+        // DIP 로 재면 곱이 1 로 깎이고, 그 1배 그림을 창이 다시 1.75배로 늘리면서
+        // 점이 고르지 않게 겹쳐 그림이 찌그러진다.
+        int zoom = GameUi.PixelFit(owner, LandArt.BoardWidth, LandArt.BoardHeight);
+        double scale = GameUi.PixelZoom(owner, zoom);
 
         var window = new LandDeployDialog(game, cityName, roster, scale);
         if (owner != null) window.Owner = owner;
@@ -163,7 +164,7 @@ internal sealed class LandDeployDialog : Window
 
     // ── 화면 ───────────────────────────────────────────────────────────────────
 
-    private UIElement Build(int scale)
+    private UIElement Build(double scale)
     {
         if (Picture() is { } board) _board.Children.Add(Place(board, 0, 0));
         else _board.Background = new SolidColorBrush(Color.FromRgb(0x6B, 0x5E, 0x55));
