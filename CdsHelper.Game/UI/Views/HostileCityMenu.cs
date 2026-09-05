@@ -46,7 +46,7 @@ internal static class HostileCityMenu
             game.Bgm.Play(BgmPlayer.CityTrackForCulture(game.CityRows?.CultureOf(city) ?? 0));
         try
         {
-            return AtTheGate(scene as Window ?? owner, game, city, cityName, byLand);
+            return AtTheGate(scene as Window ?? owner, scene, game, city, cityName, byLand);
         }
         finally
         {
@@ -55,8 +55,8 @@ internal static class HostileCityMenu
     }
 
     /// <summary>성문 앞에서 문지기를 만나고 차림표를 돌린다.</summary>
-    private static Outcome AtTheGate(Window owner, Engine.Game game, int city, string cityName,
-                                     bool byLand)
+    private static Outcome AtTheGate(Window owner, GateScene? scene, Engine.Game game, int city,
+                                     string cityName, bool byLand)
     {
         var player = game.Player;
         var dice = new GameRandom(Environment.TickCount);
@@ -86,8 +86,8 @@ internal static class HostileCityMenu
             {
                 (Standoff.Choices[Standoff.Attack], true),
                 (Standoff.Choices[Standoff.Sneak], Standoff.CanSneak(sect)),
-                (Standoff.Choices[Standoff.Talk], canTalk),
-                (Standoff.Choices[Standoff.Leave], !player.TalkLostAt(city, byLand)),
+                (Standoff.Choices[Standoff.Talk], canTalk && !player.TalkLostAt(city, byLand)),
+                (Standoff.Choices[Standoff.Leave], true),
             };
 
             int pick = ChoiceDialog.Pick(owner, cityName, rows);
@@ -103,7 +103,8 @@ internal static class HostileCityMenu
                     break;
 
                 case Standoff.Sneak:
-                    if (Sneak(owner, game, dice, city, cityName) is { } sneaked) return sneaked;
+                    if (Sneak(owner, scene, game, dice, city, cityName) is { } sneaked)
+                        return sneaked;
                     break;
 
                 case Standoff.Talk:
@@ -115,7 +116,7 @@ internal static class HostileCityMenu
                         canTalk = false;
                         break;
                     }
-                    if (Talk(owner, game, dice, city, cityName, byLand, where))
+                    if (Talk(owner, scene, game, dice, city, cityName, byLand, where))
                         return new Outcome(Entered: true, GameOver: false);
                     break;
 
@@ -131,15 +132,28 @@ internal static class HostileCityMenu
     /// 교섭한다 — 되면 돈을 건네고 문이 열린다(<c>0x004A55C0</c>).
     /// </summary>
     /// <remarks>
-    /// 어그러지면 그 자리(마을 쪽·항구 쪽)에 <b>실패 표시</b>가 서서 「떠난다」가 죽는다 —
-    /// 게임도 도시 레코드 <c>+0xB0</c>/<c>+0xB4</c> 에 1 을 적는다.
+    /// 어그러지면 그 자리(마을 쪽·항구 쪽)에 <b>실패 표시</b>가 서서 <b>「교섭한다」가 죽는다</b> —
+    /// 게임도 도시 레코드 <c>+0xB0</c>(마을) · <c>+0xB4</c>(항구)에 1 을 적고, 차림표를 깔
+    /// 때 그 값을 도로 읽어 칸을 끈다.
+    /// <code>
+    ///   4a5779  cmp [도시+0xb0], 1      ; 마을 쪽 ([도시+0x9c] 이 0 이 아닐 때)
+    ///   4a5781  cmp [도시+0xb4], 1      ; 항구 쪽
+    ///   4a5788  sbb eax,eax; neg eax    ; 적힌 적 없으면 1(켜짐)
+    ///   4a578f  → 교섭 줄의 켜짐 칸
+    ///   4a5800  같은 칸을 0 으로 — 이번 판에 어그러졌거나 소지금이 0 일 때
+    /// </code>
+    /// <b>한 번 적히면 그 도시에 다시 와도 교섭 칸은 죽어 있다.</b> 되돌리는 손이 없다.
     /// </remarks>
-    private static bool Talk(Window owner, Engine.Game game, GameRandom dice, int city,
-                             string cityName, bool byLand, string where)
+    private static bool Talk(Window owner, GateScene? scene, Engine.Game game, GameRandom dice,
+                             int city, string cityName, bool byLand, string where)
     {
         var player = game.Player;
 
-        if (!Standoff.Talks(player, dice))
+        // 게임도 굴리고 나서 하트를 돌린다(0x004A55EE) — 깨지면 이미 진 것이다.
+        bool won = Standoff.Talks(player, dice);
+        scene?.PlayHeart(won);
+
+        if (!won)
         {
             NoticeDialog.Show(owner, Standoff.TalkLostWord, cityName);
             NoticeDialog.Show(owner, string.Format(Standoff.TalkLostNews, where), cityName);
@@ -159,8 +173,8 @@ internal static class HostileCityMenu
     /// 잠입한다 — 되면 그대로 들어가고, 들키면 달아나거나 재판이다(<c>0x004A52F0</c>).
     /// </summary>
     /// <remarks>달아났으면 null 을 내어 차림표로 돌아간다.</remarks>
-    private static Outcome? Sneak(Window owner, Engine.Game game, GameRandom dice, int city,
-                                  string cityName)
+    private static Outcome? Sneak(Window owner, GateScene? scene, Engine.Game game,
+                                  GameRandom dice, int city, string cityName)
     {
         var player = game.Player;
 
@@ -174,7 +188,11 @@ internal static class HostileCityMenu
         if (turban)
             NoticeDialog.Show(owner, $"{Standoff.TurbanName}을 사용했다", cityName);
 
-        if (Standoff.Sneaks(player, tongue, turban, dice))
+        // 게임도 굴리고 나서 동전을 돌린다(0x004A53D0) — 멎은 쪽이 곧 결과다.
+        bool got = Standoff.Sneaks(player, tongue, turban, dice);
+        scene?.PlayCoin(got);
+
+        if (got)
         {
             NoticeDialog.Show(owner, Standoff.SneakedIn, cityName);
             player.OpenGate(city);
@@ -183,13 +201,17 @@ internal static class HostileCityMenu
 
         NoticeDialog.Show(owner, Standoff.Spotted, cityName);
 
-        if (Standoff.Escapes(player, dice))
+        // 달아나기도 굴리고 나서 벌을 돌린다(0x004A5419 → 파트 0).
+        bool away = Standoff.Escapes(player, dice);
+        scene?.PlayEscape(away);
+
+        if (away)
         {
             NoticeDialog.Show(owner, Standoff.GotAway, cityName);
             return null;                       // 차림표로 돌아간다
         }
 
-        return Trial(owner, game, dice, cityName);
+        return Trial(owner, scene, game, dice, cityName);
     }
 
     /// <summary>
@@ -198,24 +220,39 @@ internal static class HostileCityMenu
     /// <remarks>
     /// <code>
     ///   4a546e  가벼움 = rand(2000) + 1000 &gt; max(0, 악명 - 운 - 1)
-    ///   4a54af  가벼우면 rand(100) &lt; 운 + 1 이라야 추방만, 아니면 벌금 + 소지금 몰수
+    ///   4a549f  그 굴림을 하트로 낸다
+    ///   4a54af  가벼우면 rand(100) &lt; 운 + 1
+    ///   4a54cc  그 굴림을 동전으로 낸다
+    ///           되면 추방만, 아니면 벌금 + 소지금 몰수(0x004A5508)
     ///   4a5561  무거우면 "죽음으로서 속죄하라!" — 그대로 놀이가 끝난다(0x0044AF70)
     /// </code>
+    /// <b>감옥에 갇히는 갈래는 없다.</b> 재판의 끝은 이 셋뿐이고, 갇혀 날짜가 흐르는
+    /// 자리도 없다 — 그 사이의 <c>0x004A5AE0(-1, 1)</c> 은 <c>0x00428000(40, 1)</c> 을
+    /// 부르는 <b>40밀리초 기다리기</b>지 날짜가 아니다.
     /// </remarks>
-    private static Outcome Trial(Window owner, Engine.Game game, GameRandom dice, string cityName)
+    private static Outcome Trial(Window owner, GateScene? scene, Engine.Game game,
+                                 GameRandom dice, string cityName)
     {
         var player = game.Player;
         NoticeDialog.Show(owner, Standoff.Caught, cityName);
 
+        // ① 죄가 가벼운가 — 굴리고 나서 하트를 돌린다(0x004A549F).
         int weight = Math.Max(0, player.Infamy - player.AbilityOf(Ability.Luck) - 1);
-        if (dice.Next(2000) + 1000 <= weight)
+        bool light = dice.Next(2000) + 1000 > weight;
+        scene?.PlayHeart(light);
+
+        if (!light)
         {
             NoticeDialog.Show(owner,
                 $"거기는 악명 높은 {player.Name}군. 죽음으로서 속죄하라!", cityName);
             return new Outcome(Entered: false, GameOver: true);
         }
 
-        if (dice.Next(100) < player.AbilityOf(Ability.Luck) + 1)
+        // ② 운을 한 번 더 — 굴리고 나서 동전을 돌린다(0x004A54CC).
+        bool lucky = dice.Next(100) < player.AbilityOf(Ability.Luck) + 1;
+        scene?.PlayCoin(lucky);
+
+        if (lucky)
         {
             NoticeDialog.Show(owner, Standoff.Banished, cityName);
         }
