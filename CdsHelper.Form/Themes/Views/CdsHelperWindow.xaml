@@ -252,6 +252,10 @@
                                             x:Name="PART_VoyagerEditMenu"
                                             Header="경쟁자"
                                             ToolTip="역사 항해자 열넷이 언제 무엇을 채가는지 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
+                                        <MenuItem
+                                            x:Name="PART_PersonEditMenu"
+                                            Header="인물"
+                                            ToolTip="세이브의 인물 281명을 고친다 — 이름·나이·자리·고용·이동 갈래·기술·언어" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>
