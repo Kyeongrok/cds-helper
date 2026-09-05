@@ -539,7 +539,11 @@ public sealed class CityPicView : Window, ITownScreen
         if (facility.Kind is FacilityKind.Church) return true;
 
         bool passed = _player.Fame >= patron.Fame;
-        PlayFameCheck(passed);
+
+        // <b>낯을 튼 뒤에는 벌을 안 돌린다.</b> 문간은 한 번 통과하면 그만이라, 갈 때마다
+        // 무릎 꿇고 청하는 그림이 도는 것이 되레 어색하다. 판정은 그대로 한다.
+        if (!_player.HasMet(patron.Name)) PlayFameCheck(passed);
+
         if (passed) return true;
 
         _game.Sfx?.Play(SoundBank.TurnedAwayPart);
@@ -942,7 +946,8 @@ public sealed class CityPicView : Window, ITownScreen
         // 계약이 없어도 빈 판을 낸다 — 도시 커맨드는 그 자리에서 물리지 않는다.
         var sheet = GameInfo.ContractSheetOf(_game);
         ContractDialog.Show(this, sheet.Contract, _player.Date,
-                            sheet.HintName, sheet.Found, sheet.Evidence);
+                            sheet.HintName, sheet.Found, sheet.Evidence,
+                            _game.Sponsors?.FindByName(sheet.Contract?.Sponsor ?? "")?.Name);
     }
 
     /// <summary>힌트 이름. 판이 게임 표 · DB · 번호 차례로 물러서며 찾아 준다.</summary>

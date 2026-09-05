@@ -1819,7 +1819,8 @@ public sealed class ShipMapWindow : Window
             return;
         }
         ContractDialog.Show(this, sheet.Contract, _game.Player.Date,
-                            sheet.HintName, sheet.Found, sheet.Evidence);
+                            sheet.HintName, sheet.Found, sheet.Evidence,
+                            _game.Sponsors?.FindByName(sheet.Contract?.Sponsor ?? "")?.Name);
     }
 
     /// <summary>

@@ -97,6 +97,13 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
     private void PersuadeNow(Patron patron)
     {
+        // 내밀 것이 없으면 그 자리에서 물린다(0x004769D4). 문간 관문보다 먼저다.
+        if (LiveHints.Count == 0)
+        {
+            NoticeDialog.Show(_view, "설득 가능한 힌트가 없습니다");
+            return;
+        }
+
         var sponsor = _game.Sponsors?.FindByName(patron.Name);
         string shown = sponsor?.Name ?? patron.Name;             // 게임 이름은 가운뎃점이 들어간다
         string sir = sponsor?.Honorific ?? "각하";
@@ -209,7 +216,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 말과 고르기는 <b>따로 뜨는 창 둘</b>이다. 말은 얼굴을 단 알림창(0x004694C0)이고,
         // 고르기는 제목 띠에 기간·금화를 이고 승낙/교섭 두 줄만 놓인 창(0x00469A70,
         // 0x004AF22A 가 줄 수 2 를 넘긴다)이다. 두 줄이 같은 무늬라 Pick 을 쓴다.
-        int pick = ChoiceDialog.Pick(_view, $" 기간{years}년 금화 {half}닢 ",
+        // <b>제목 띠에는 계약금 전부가 뜬다</b> — 절반이 아니다(서식은 0x00546C18
+        // " 기간%d년 금화 %ld닢 "). 절반은 바로 위 대사가 이미 두 번 불렀다.
+        int pick = ChoiceDialog.Pick(_view, $" 기간{years}년 금화 {funds}닢 ",
                                      ["승낙한다", "교섭한다"]);
         if (pick < 0) return;
 
@@ -481,15 +490,19 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
       : "";
 
     /// <summary>
-    /// 내밀 힌트가 있는지. <b>없으면 "설득" 줄이 안 뜬다</b> — 게임도 그렇다
-    /// (<c>0x0044E9A0</c> 이 후원자·힌트·계약을 함께 본다).
+    /// 후원자가 앉아 있으면 "설득" 줄은 <b>늘 뜬다</b>.
     /// </summary>
     /// <remarks>
-    /// 알현에 들어가도 낼 것이 없으면 "제안 선택" 창이 빈 채로 뜨고 "용건이 없는가?" 로
-    /// 물리므로, 줄부터 감추는 편이 게임과 같고 헛걸음도 없다. 학자 저택처럼 수련만 있는
-    /// 건물에서 이 줄이 홀로 떠 있던 것이 그 탓이다.
+    /// 한때 내밀 힌트가 없으면 줄부터 감췄는데 <b>게임은 그렇지 않다</b> — 눌러 보고 나서
+    /// 「설득 가능한 힌트가 없습니다」로 물린다(<c>0x004769D4</c> 가 <c>0x0055E548</c> 을 낸다).
+    /// <code>
+    ///   004769c6  call 0x0044E7B0(&amp;buf)   ; 내밀 수 있는 힌트를 모은다
+    ///   004769d0  test esi, esi             ; 하나도 없으면
+    ///   004769d4  push 0x0055E548           ;   "설득 가능한 힌트가 없습니다"
+    ///   004769e5  eax = -1                  ;   그러고 물러난다
+    /// </code>
     /// </remarks>
-    private bool CanPersuade => LiveHints.Count > 0;
+    private static bool CanPersuade => true;
 
     /// <summary>
     /// 아직 살아 있는 힌트 — 얻었고 아직 보고 안 한 것이다(원본 힌트 상태 13).
@@ -639,7 +652,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 인사 다음에 <b>계약 정보 창</b>이 뜬다 — 발견물과 증거품이 거기 적힌다.
         var sheet = GameInfo.ContractSheetOf(_game);
         ContractDialog.Show(_view, sheet.Contract, _player.Date,
-                            sheet.HintName, sheet.Found, sheet.Evidence);
+                            sheet.HintName, sheet.Found, sheet.Evidence,
+                            _game.Sponsors?.FindByName(sheet.Contract?.Sponsor ?? "")?.Name);
 
         var stage = _view as CityPicView;
         int paid;
