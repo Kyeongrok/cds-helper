@@ -32,6 +32,8 @@ public sealed class PortraitAddDialog : Window
     {
         Margin = new Thickness(0, 8, 0, 0),
         TextWrapping = TextWrapping.Wrap,
+        // 속에 맞춰 창을 늘리므로 글이 옆으로 뻗지 않게 폭을 잡아 둔다.
+        MaxWidth = 560,
     };
     private readonly TextBlock _picked = new()
     {
@@ -99,8 +101,9 @@ public sealed class PortraitAddDialog : Window
     public PortraitAddDialog()
     {
         Title = "초상화 넣기";
-        Width = 560;
-        Height = 480;
+        // 미리 보기가 세 배로 커서(96x3) 높이를 못 박으면 아래가 잘린다 — 속에 맞춘다.
+        Width = 600;
+        SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 

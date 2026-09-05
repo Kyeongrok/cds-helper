@@ -159,28 +159,30 @@ public sealed class LandArt
     /// 배치 화면에 세우는 부대 그림 한 칸(96x96). 그 병종을 못 내면 null.
     /// </summary>
     /// <remarks>
-    /// 배치 화면은 몸짓 한 장(96x48)이 아니라 <b>넉 장 중 왼위 96x96</b> 을 통째로 찍는다
-    /// (<c>0x0049FF37</c> 의 <c>0x004B6963(0x60, 0x60)</c>). 그리고 여기 세울 수 있는
-    /// 병종은 <see cref="LandUnitArt.DeploySheet"/> 가 −1 을 안 내는 여덟뿐이다.
+    /// <b>몸짓 한 장(96x48)이다.</b> 판을 96 세로줄·48 가로줄로 그어 보면 2x4 로 딱
+    /// 떨어지고 칸마다 무리 하나가 들어 있다 — 96x96 을 떼면 두 칸이 겹쳐 나와 말이
+    /// 넷으로 보인다. 여기 세울 수 있는 병종은
+    /// <see cref="LandUnitArt.DeploySheet"/> 가 −1 을 안 내는 여덟뿐이다.
     /// </remarks>
     public uint[]? TryGetDeployUnit(int kind, out int width, out int height)
     {
-        width = height = DeploySide;
+        width = DeployWidth;
+        height = DeployHeight;
         if (LandUnitArt.DeploySheet(kind) < 0) return null;
 
         var pixels = _archive.Decode(LandUnitArt.PartOf(kind, friend: true, culture: 0));
         if (pixels == null) return null;
 
         int side = Side(pixels.Length);
-        if (side < DeploySide) return null;
+        if (side < DeployWidth) return null;
 
-        var bgra = new uint[DeploySide * DeploySide];
-        for (int y = 0; y < DeploySide; y++)
-            for (int x = 0; x < DeploySide; x++)
+        var bgra = new uint[DeployWidth * DeployHeight];
+        for (int y = 0; y < DeployHeight; y++)
+            for (int x = 0; x < DeployWidth; x++)
             {
                 byte v = pixels[y * side + x];
                 if (Clear(_unitColors, v)) continue;
-                bgra[y * DeploySide + x] = Argb(_unitColors, v);
+                bgra[y * DeployWidth + x] = Argb(_unitColors, v);
             }
         return bgra;
     }
@@ -222,7 +224,10 @@ public sealed class LandArt
     /// <summary>배치 판이 든 파트.</summary>
     private const int BoardPart = 6;
 
-    /// <summary>배치 화면이 찍는 부대 한 칸의 한 변.</summary>
+    /// <summary>배치 화면이 찍는 부대 한 칸 — <b>몸짓 한 장</b>이다.</summary>
+    public const int DeployWidth = 192 / FrameCols, DeployHeight = 192 / FrameRows;
+
+    /// <summary>자리 한 칸의 한 변. 그림은 그 안에 아래로 붙인다.</summary>
     public const int DeploySide = 96;
 
     /// <summary>싸움터 한 장(640x480)을 BGRA 로 푼다. 못 풀면 null.</summary>
