@@ -30,6 +30,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_VoyagerEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PersonEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_FormationMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_FortuneMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
@@ -54,6 +55,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_VoyagerEditMenu = "PART_VoyagerEditMenu";
     private const string PART_PersonEditMenu = "PART_PersonEditMenu";
     private const string PART_FormationMenu = "PART_FormationMenu";
+    private const string PART_FortuneMenu = "PART_FortuneMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
@@ -171,6 +173,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_FormationMenu) is MenuItem formationMenu)
         {
             formationMenu.Click += OnFormationMenuClick;
+        }
+
+        if (GetTemplateChild(PART_FortuneMenu) is MenuItem fortuneMenu)
+        {
+            fortuneMenu.Click += OnFortuneMenuClick;
         }
 
         if (GetTemplateChild(PART_ImageShrinkMenu) is MenuItem imageShrinkMenu)
@@ -360,6 +367,11 @@ public class CdsHelperWindow : CdsWindow
     // 문화권으로 진형이 정해진다 — 맘루크는 이슬람 상비군, 무로마치는 일본 무가군이다.
     private void OnFormationMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.LandFormationDialog.Show(this);
+
+    // 운명 코드는 0~31 한 덩어리라(아래가 젊음, 위가 중년) 얼굴을 더 넣는다고 자리를
+    // 0~16 으로 늘릴 수 없다. 걸음을 키우고 여급 코드를 옮겨 주는 창이다.
+    private void OnFortuneMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.FortuneDialog.Show(this);
 
     // 그림 파일을 골라 크기·용량을 줄이는 창. 게임과는 상관없는 손도구다.
     private void OnImageShrinkMenuClick(object sender, RoutedEventArgs e)

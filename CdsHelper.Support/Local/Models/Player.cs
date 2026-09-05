@@ -136,11 +136,23 @@ public sealed class Player
     /// </remarks>
     public int Fortune { get; private set; }
 
-    /// <summary>운명 코드를 넣는다. 0~15 를 벗어나면 잘라 넣는다.</summary>
+    /// <summary>
+    /// 운명 코드를 넣는다. 자리 밖이면 잘라 넣는다.
+    /// </summary>
+    /// <remarks>
+    /// <b>자리 수는 앱이 정한다</b>(<c>FortuneCodes.Slots</c>). 게임은 열여섯인데, 주인공
+    /// 얼굴을 더 넣으면 늘릴 수 있다 — 그때 여급 코드도 새 걸음으로 같이 옮겨 앉는다.
+    /// 여기서는 그 값을 모르므로 넉넉히 <see cref="MaxFortune"/> 까지만 자른다.
+    /// </remarks>
     public void SetFortune(int fortune) => Fortune = Math.Clamp(fortune, 0, MaxFortune);
 
-    /// <summary>운명 코드의 위. 게임도 젊은 얼굴 열여섯 벌만 쓴다.</summary>
-    public const int MaxFortune = 15;
+    /// <summary>
+    /// 운명 코드의 위. 늘릴 수 있는 데까지 열어 둔다(<c>FortuneCodes.MaxSlots</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 젊은 얼굴 열여섯 벌만 쓰므로 실제로는 0~15 다. 자리를 늘린 판만 그 위를 쓴다.
+    /// </remarks>
+    public const int MaxFortune = 63;
 
     /// <summary>국적 이름. 번호가 표 밖이면 첫째다.</summary>
     public string NationName => Nations[Math.Clamp(Nation, 0, Nations.Length - 1)];
@@ -171,8 +183,12 @@ public sealed class Player
     }
 
     /// <summary>신상을 한꺼번에 박는다. NEW GAME 의 첫 걸음이 부른다.</summary>
+    /// <param name="fortune">
+    /// 그 얼굴이 지고 나올 <b>운명 자리</b>. 안 넘기면 얼굴 번호를 그대로 쓴다 —
+    /// 게임이 앞의 열여섯만 고르게 하던 때의 셈이다.
+    /// </param>
     public void SetProfile(string family, string given, int age, int month, int day,
-                           int blood, int nation, int face)
+                           int blood, int nation, int face, int? fortune = null)
     {
         Family = family.Trim();
         Given = given.Trim();
@@ -184,11 +200,9 @@ public sealed class Player
         Blood = Math.Clamp(blood, 0, BloodTypes.Length - 1);
         Nation = Math.Clamp(nation, 0, Nations.Length - 1);
         Face = Math.Max(0, face);
-        // 새로 지을 때는 고른 초상화 자리가 곧 운명 코드다 — 게임도 그렇게 넣는다.
-        // 게임은 앞의 열여섯만 고르게 해서 둘이 늘 같았는데, 우리는 더 넣은 얼굴도
-        // 고르게 하므로 <b>열여섯으로 접어</b> 넣는다. 잘라 넣으면 열여섯 밖의 얼굴이
-        // 죄다 15 가 되어 여급 궁합이 한쪽으로 쏠린다.
-        SetFortune(Face % (MaxFortune + 1));
+        // 운명 자리는 부르는 쪽이 정해 넘긴다 — 게임은 앞의 열여섯만 고르게 해서
+        // 얼굴 번호가 곧 자리였지만, 얼굴을 더 넣으면 그 셈이 안 통한다.
+        SetFortune(fortune ?? Face);
     }
 
     /// <summary>고를 수 있는 나이.</summary>
