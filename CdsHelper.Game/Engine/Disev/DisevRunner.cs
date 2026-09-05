@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Windows;
+using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Game.UI.Views;
 
@@ -228,7 +229,7 @@ public sealed class DisevRunner
                 return 0;
 
             case "음원 재생":
-                _game.Sfx?.Play((int)Field(2, 2));
+                PlaySound((int)Field(2, 2));
                 return 0;
 
             // 그림은 바로 안 낸다 — 다음 대사와 한 창에 함께 낸다.
@@ -322,6 +323,27 @@ public sealed class DisevRunner
     }
 
     /// <summary>대사 한 줄을 낸다. 화자에 따라 얼굴이 갈린다.</summary>
+    /// <summary>
+    /// 대본이 적어 둔 <b>사운드 ID</b> 하나를 낸다.
+    /// </summary>
+    /// <remarks>
+    /// <b>ID 는 파트 번호가 아니다.</b> 표(<c>0x004C3810</c>)가 두 갈래로 나뉜다 —
+    /// <c>0~27</c> 은 CD 트랙이고 <c>28~77</c> 은 WAVES.CDS 의 파트다. 파트 번호는
+    /// ID 에서 28 을 뺀 값이다(<see cref="WaveBank.FirstSoundId"/>).
+    ///
+    /// 예전에는 ID 를 <see cref="SoundBank.Play"/> 에 그대로 넘겼다. 그러면 알함브라 궁전의
+    /// <c>0E 03 4B 00</c>(ID 75)이 파트 75 를 찾다가 표 밖이라 조용히 넘어갔다 —
+    /// 실제로 나야 할 것은 파트 <c>47</c> 이다.
+    /// </remarks>
+    private void PlaySound(int soundId)
+    {
+        int track = WaveBank.CdTrackFromSoundId(soundId);
+        if (track >= 0) { _game.Bgm.Play(track); return; }
+
+        int part = WaveBank.PartFromSoundId(soundId);
+        if (part >= 0) _game.Sfx?.Play(part);
+    }
+
     private void Speak(byte[] raw)
     {
         // 창 플래그 한 바이트가 앞에 붙을 수 있다. 0A 부터가 알맹이다.
