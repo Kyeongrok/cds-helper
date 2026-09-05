@@ -526,6 +526,9 @@ public sealed class ShipMapWindow : Window
 
         // 창을 옮기면 그 위에 얹힌 도시 그림·커맨드 창도 같이 옮긴다 — 게임에서는 지도 안에
         // 그려진 것이라 따로 남을 수가 없다.
+        // 아직 안 선 도시는 다가가도 안 물어본다(CityFounding).
+        _host.CityOpen = _game.CityStanding;
+
         GameUi.CarryOwnedWindows(this);
 
         // 창이 물러나거나 접히면 좌표 상자도 같이 감춘다 — 제 창이라 그냥 두면 남의 앱 위에 뜬다.
@@ -2058,6 +2061,9 @@ public sealed class ShipMapWindow : Window
 
         for (int i = 0; i < days; i++)
         {
+            // 새 도시가 섰으면 알린다 — 날이 간 뒤라야 그 달로 넘어간 것이 보인다.
+            TellFounded();
+
             // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
             if (_host.IsOnLand) { PassLandDay(); continue; }
 
@@ -2069,6 +2075,31 @@ public sealed class ShipMapWindow : Window
             CheckEncounter();
         }
     }
+
+    /// <summary>
+    /// 새로 선 도시를 알린다 — 신대륙 식민 도시가 해마다 하나씩 늘어난다.
+    /// </summary>
+    /// <remarks>
+    /// 언제 무엇이 서는지는 <see cref="CityFounding"/> 에 있다. 1531년에는 파나마가 선
+    /// 다음 달에 레온·코로·투르히요가 <b>한꺼번에</b> 선다 — 게임의 제작 오류를 그대로
+    /// 옮긴 것이라 그 무더기도 그대로 나온다.
+    /// </remarks>
+    private void TellFounded()
+    {
+        var now = CityFounding.FoundedBy(_game.Player.Date);
+        if (_founded == null) { _founded = now; return; }
+        if (now.Count == _founded.Count) return;
+
+        foreach (int city in now)
+        {
+            if (_founded.Contains(city)) continue;
+            NoticeDialog.Show(this, $"{_game.CityName(city)}에 새 항구가 생겼다는군.", "");
+        }
+        _founded = now;
+    }
+
+    /// <summary>지난번에 세어 둔, 선 도시들.</summary>
+    private HashSet<int>? _founded;
 
     /// <summary>
     /// 한 번에 몰아 셀 걸음의 윗값. 창이 오래 멎었다 살아나도 날이 왕창 넘어가지 않게 한다.
