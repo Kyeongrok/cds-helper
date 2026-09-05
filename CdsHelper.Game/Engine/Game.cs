@@ -299,6 +299,16 @@ public sealed class Game
     /// 날짜를 따라잡는 것은 <see cref="Roster"/> 가 물을 때다 — 굴림이 씨를 뿌린 주사위라
     /// 언제 따라잡아도 같은 세상이 되므로 시계에 손을 걸어 둘 까닭이 없다.
     /// </remarks>
+    /// <summary>
+    /// 그 도시가 <b>지금</b> 지도에 서 있는지.
+    /// </summary>
+    /// <remarks>
+    /// 신대륙 식민 도시 스물셋은 켤 때 없고 해가 가야 하나씩 선다
+    /// (<see cref="CityFounding"/>). 멕시코·산타마르타·리마 셋은 걷어 줄 이벤트가
+    /// 아예 없어 끝까지 안 선다.
+    /// </remarks>
+    public bool CityStanding(int city) => CityFounding.Standing(city, Player.Date);
+
     public PersonWorld? World
     {
         get

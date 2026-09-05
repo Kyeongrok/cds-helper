@@ -45,15 +45,12 @@ public sealed class PersonWorld
     /// 아직 세워지지 않은 도시 — 갈래 3(같은 나라)이 목적지로 삼지 않는다.
     /// </summary>
     /// <remarks>
-    /// 게임은 도시 객체 <c>+0x04</c> 의 비트 2 로 가린다(정적 도시표 <c>0x004D14B0 + 0x62</c> 의
-    /// 첫 값). 처음 켜져 있는 스물셋이 죄다 신대륙 식민 도시라, 표를 새로 굽지 않고 번호로
-    /// 적어 둔다 — 우리 놀이에는 도시를 세우는 이벤트가 없어 값이 변하지 않는다.
+    /// 언제 어느 도시가 서는지는 <see cref="CityFounding"/> 에 모아 두었다 —
+    /// <c>HIST_EV.CDS</c> 의 신도시 이벤트 스무 벌이다. 날짜가 가면 하나씩 열리므로
+    /// 이 목록도 달마다 달라진다.
     /// </remarks>
-    private static readonly HashSet<int> NotFoundedYet =
-    [
-        97, 99, 101, 173, 194, 195, 196, 197, 198, 199, 201, 205,
-        208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 222,
-    ];
+    private HashSet<int> NotFoundedYet =>
+        [.. CityFounding.Hidden.Where(c => !CityFounding.FoundedBy(_asOf).Contains(c))];
 
     private readonly List<PersonTable.Row> _rows;
     private readonly CityExeTable? _cities;

@@ -1680,6 +1680,16 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>
     /// 지금 선 자리가 어느 도시의 어귀인지. 없으면 -1. 바다와 뭍이 같이 쓴다.
     /// </summary>
+    /// <summary>
+    /// 그 도시가 지금 지도에 있는지 물어보는 손. 안 걸면 다 있는 것으로 본다.
+    /// </summary>
+    /// <remarks>
+    /// 신대륙 식민 도시 스물셋은 해가 가야 하나씩 선다(<c>CityFounding</c>). 아직 안 선
+    /// 도시는 <b>다가가도 안 물어본다</b> — 지도 타일에는 그림이 박혀 있지만 들어갈 데가
+    /// 아니다.
+    /// </remarks>
+    public Func<int, bool>? CityOpen { get; set; }
+
     private int CityAt()
     {
         if (!_shipKnown || _cities == null) return -1;
@@ -1688,6 +1698,7 @@ public sealed class ShipMapHost : HwndHost
         int fy = (int)Math.Floor(_shipY);
         for (int id = 0; id < CityExeTable.Count; id++)
         {
+            if (CityOpen is { } open && !open(id)) continue;   // 아직 안 선 도시
             if (!_cities.TryCell(id, out int cx, out int cy, out int reach)) continue;
             if (fy < cy - TownSlack - TouchSlack || fy > cy + reach + TouchSlack) continue;
 
