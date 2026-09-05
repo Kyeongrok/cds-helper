@@ -18,9 +18,10 @@ namespace CdsHelper.Game.Local.Helpers;
 ///
 /// 어느 얼굴을 쓰는지는 인물 표에 적혀 있다(<see cref="SponsorTable"/>).
 ///
-/// <b>우리 asset 폴더에 둔 것을 먼저 본다.</b> 얼굴은 놀이 내내 쓰이는 것이라 게임 폴더가
+/// <b>우리가 들고 있는 벌을 먼저 본다.</b> 얼굴은 놀이 내내 쓰이는 것이라 게임 폴더가
 /// 잡혀 있어야만 나오면 곤란하다 — 부하 인물정보처럼 우리 세이브만으로 서야 하는 자리도
-/// 있다. 없을 때에만 게임 폴더로 물러선다.
+/// 있다. 그 벌이 어디 사는지는 <see cref="PortraitStore"/> 가 안다. 없을 때에만 게임
+/// 폴더로 물러선다.
 /// </remarks>
 public sealed class Portraits
 {
@@ -46,31 +47,35 @@ public sealed class Portraits
     /// <summary>여자 얼굴 장수.</summary>
     public int FemaleCount => _female.PartCount;
 
-    /// <summary>실행 파일 옆에 두는 초상화 자리.</summary>
-    private static string AssetDirectory =>
-        Path.Combine(AppContext.BaseDirectory, "asset");
-
     /// <summary>
-    /// 초상화 두 벌을 연다. <c>asset</c> 폴더 것을 먼저 보고 없으면
+    /// 초상화 두 벌을 연다. 우리 벌(<see cref="PortraitStore"/>)을 먼저 보고 없으면
     /// <paramref name="gameDirectory"/> 로 물러선다. 하나라도 못 구하면 null.
     /// </summary>
     /// <param name="gameDirectory">게임 폴더. 몰라도 되므로 비워 둘 수 있다.</param>
     public static Portraits? Open(string gameDirectory = "")
     {
         LastError = "";
-        var male = OpenOne(gameDirectory, "MALE.CDS");
+        var male = OpenOne(gameDirectory, female: false);
         if (male == null) return null;
-        var female = OpenOne(gameDirectory, "FEMALE.CDS");
-        if (female == null) return null;
-        return new Portraits(male, female);
+        var woman = OpenOne(gameDirectory, female: true);
+        if (woman == null) return null;
+        return new Portraits(male, woman);
     }
 
-    private static Ls12Reader? OpenOne(string gameDirectory, string file)
+    private static Ls12Reader? OpenOne(string gameDirectory, bool female)
     {
-        var path = Path.Combine(AssetDirectory, file);
-        if (!File.Exists(path))
+        string file = PortraitStore.NameOf(female);
+
+        // 아직 꺼내 놓지 않았으면 여기서 꺼내 놓는다.
+        var path = PortraitStore.PathOf(female);
+        if (path.Length == 0 || !File.Exists(path))
         {
-            if (gameDirectory.Length == 0) { LastError = $"{path} 가 없습니다"; return null; }
+            if (gameDirectory.Length == 0)
+            {
+                LastError = PortraitStore.LastError.Length > 0
+                    ? PortraitStore.LastError : $"{file} 이(가) 없습니다";
+                return null;
+            }
             path = Path.Combine(gameDirectory, file);
             if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
         }

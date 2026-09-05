@@ -1,9 +1,10 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
 using CdsHelper.Support.UI.Units;
 
@@ -75,6 +76,25 @@ public sealed class PortraitBookDialog : Window
             _find.Value = put;
             ScrollTo();
         };
+        // 얼굴 하나를 비운다. 맨 뒤라야 아주 들어내고, 가운데는 「없음」으로 덮는다.
+        var drop = new Button
+        {
+            Content = "지우기",
+            Padding = new Thickness(10, 2, 10, 2),
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        drop.Click += (_, _) => Erase();
+
+        // 넣은 얼굴을 죄다 걷고 처음 벌로 돌린다. 원본은 Support 안에 박혀 있으므로
+        // 지금 벌을 지우고 다시 꺼내 놓기만 하면 된다(PortraitStore).
+        var undo = new Button
+        {
+            Content = "원래대로",
+            Padding = new Thickness(10, 2, 10, 2),
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        undo.Click += (_, _) => Reset();
+
         // 숫자를 굴리는 대로 따라간다 — 단추를 또 누르지 않아도 된다.
         _find.ValueChanged += (_, _) => ScrollTo();
 
@@ -82,7 +102,7 @@ public sealed class PortraitBookDialog : Window
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(10, 8, 10, 4),
-            Children = { male, female, big, _find, go, add },
+            Children = { male, female, big, _find, go, add, drop, undo },
         };
 
         var scroll = new ScrollViewer
@@ -102,7 +122,71 @@ public sealed class PortraitBookDialog : Window
         Loaded += (_, _) => Load();
     }
 
-    /// <summary>세이브를 연 자리에서 게임 폴더를 찾는다. 못 찾아도 asset 것으로 열린다.</summary>
+    /// <summary>
+    /// <see cref="_find"/> 가 가리키는 얼굴을 지운다.
+    /// </summary>
+    /// <remarks>
+    /// <b>번호는 절대로 안 밀린다.</b> 게임 자료는 사람을 얼굴 번호로 가리키므로
+    /// (인물표 · 후원자표 · 시설 화자표 <c>0x0056823C</c>) 가운데를 들어내 뒤를 당기면
+    /// 엉뚱한 사람들 얼굴이 한꺼번에 바뀐다. 그래서 둘로 나눈다 —
+    /// <b>맨 뒤</b>는 아주 들어내고(장수가 하나 준다), <b>가운데</b>는 「없음」 그림으로
+    /// 덮어 자리만 비운다.
+    /// </remarks>
+    private void Erase()
+    {
+        if (_faces == null) return;
+
+        int face = (int)_find.Value;
+        int count = _female ? _faces.FemaleCount : _faces.MaleCount;
+        if (face < 0 || face >= count)
+        {
+            MessageBox.Show(this, $"{face}번은 없습니다. 지금 0~{count - 1}번이 들어 있습니다.",
+                            "지우기", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        bool last = face == count - 1;
+        string ask = last
+            ? $"맨 뒤인 {face}번을 아주 지웁니다. {count - 1}장이 됩니다."
+            : $"{face}번을 「없음」 그림으로 비웁니다.\n"
+              + "번호가 밀리면 다른 사람들 얼굴까지 바뀌므로 자리는 그대로 둡니다.";
+
+        if (MessageBox.Show(this, ask, "지우기", MessageBoxButton.OKCancel,
+                            MessageBoxImage.Question) != MessageBoxResult.OK) return;
+
+        bool done = last
+            ? PortraitImport.Remove(_female, face)
+            : PortraitImport.Blank(_female, face);
+        if (!done)
+        {
+            MessageBox.Show(this, PortraitImport.LastError, "지우기",
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        Load();
+        ScrollTo();
+    }
+
+    /// <summary>지금 보고 있는 벌을 처음 것으로 돌린다.</summary>
+    private void Reset()
+    {
+        string which = _female ? "여자" : "남자";
+        if (MessageBox.Show(this,
+                $"{which} 초상화에 넣은 얼굴이 죄다 사라지고 처음 벌로 돌아갑니다. 하시겠습니까?",
+                "원래대로", MessageBoxButton.OKCancel, MessageBoxImage.Warning)
+            != MessageBoxResult.OK) return;
+
+        if (!PortraitStore.Reset(_female))
+        {
+            MessageBox.Show(this, PortraitStore.LastError, "원래대로",
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+        Load();
+    }
+
+    /// <summary>세이브를 연 자리에서 게임 폴더를 찾는다. 못 찾아도 우리 벌로 열린다.</summary>
     private void Load()
     {
         string dir = Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "";

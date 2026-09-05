@@ -1,10 +1,10 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO;
 
 namespace CdsHelper.Support.Local.Helpers;
 
 /// <summary>
-/// LS11/Ls12 아카이브에 파트 하나를 <b>갈아 끼우거나 덧붙이는</b> 손.
+/// LS11/Ls12 아카이브에 파트 하나를 <b>갈아 끼우거나·덧붙이거나·지우는</b> 손.
 /// </summary>
 /// <remarks>
 /// <b>압축은 안 한다.</b> 파트 표는 <c>압축크기 == 원본크기</c> 면 날것으로 보므로
@@ -41,7 +41,70 @@ public static class Ls12Writer
         LastError = "";
         if (raw.Length == 0) { LastError = "넣을 것이 비었습니다"; return false; }
 
-        byte[] data;
+        if (!Read(path, out var data, out var parts)) return false;
+        if (part < 0 || part > parts.Count)
+        {
+            LastError = $"파트 자리가 범위 밖입니다(0~{parts.Count})";
+            return false;
+        }
+
+        // 옮겨 붙일 덩어리들. 갈아 끼우는 자리만 날것으로 바꾼다.
+        var blocks = new List<byte[]>(parts.Count + 1);
+        var plain = new List<uint>(parts.Count + 1);
+        for (int i = 0; i < parts.Count; i++)
+        {
+            if (i == part) { blocks.Add(raw); plain.Add((uint)raw.Length); continue; }
+            if (Slice(data, parts[i], i) is not { } keep) return false;
+            blocks.Add(keep);
+            plain.Add(parts[i].Uncomp);
+        }
+        if (part == parts.Count) { blocks.Add(raw); plain.Add((uint)raw.Length); }
+
+        return Write(path, data, blocks, plain);
+    }
+
+    /// <summary>
+    /// 그 파트를 <b>아주 지운다</b>. 잘 됐으면 참.
+    /// </summary>
+    /// <remarks>
+    /// <b>뒤 번호가 죄다 하나씩 당겨진다.</b> 파트 표에는 번호가 안 적혀 있고 줄 차례가
+    /// 곧 번호라, 가운데를 지우면 그 뒤 것이 전부 밀려 올라간다. 번호로 가리키는 자료가
+    /// 있으면(초상화가 그렇다) 맨 뒤가 아닌 자리는 함부로 지우면 안 된다.
+    /// </remarks>
+    public static bool Remove(string path, int part)
+    {
+        LastError = "";
+        if (!Read(path, out var data, out var parts)) return false;
+
+        if (part < 0 || part >= parts.Count)
+        {
+            LastError = $"파트 자리가 범위 밖입니다(0~{parts.Count - 1})";
+            return false;
+        }
+        if (parts.Count == 1) { LastError = "마지막 하나는 못 지웁니다"; return false; }
+
+        var blocks = new List<byte[]>(parts.Count - 1);
+        var plain = new List<uint>(parts.Count - 1);
+        for (int i = 0; i < parts.Count; i++)
+        {
+            if (i == part) continue;
+            if (Slice(data, parts[i], i) is not { } keep) return false;
+            blocks.Add(keep);
+            plain.Add(parts[i].Uncomp);
+        }
+        return Write(path, data, blocks, plain);
+    }
+
+    // ── 잔손 ───────────────────────────────────────────────────────────────────
+
+    private readonly record struct Row(uint Comp, uint Uncomp, uint Off);
+
+    /// <summary>파일을 읽고 파트 표를 푼다.</summary>
+    private static bool Read(string path, out byte[] data, out List<Row> parts)
+    {
+        data = [];
+        parts = [];
+
         try { data = File.ReadAllBytes(path); }
         catch (IOException e) { LastError = e.Message; return false; }
         catch (UnauthorizedAccessException e) { LastError = e.Message; return false; }
@@ -51,40 +114,38 @@ public static class Ls12Writer
         var magic = System.Text.Encoding.ASCII.GetString(data, 0, 4);
         if (magic != "LS11" && magic != "Ls12") { LastError = "LS11/Ls12 가 아닙니다"; return false; }
 
-        // 원본 파트 표를 그대로 읽는다.
-        var parts = new List<(uint Comp, uint Uncomp, uint Off)>();
         for (int pos = HeadSize; pos + RowSize <= data.Length; pos += RowSize)
         {
             uint comp = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(pos));
             if (comp == 0) break;
-            parts.Add((comp,
-                       BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(pos + 4)),
-                       BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(pos + 8))));
+            parts.Add(new Row(comp,
+                              BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(pos + 4)),
+                              BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(pos + 8))));
         }
         if (parts.Count == 0) { LastError = "파트가 없습니다"; return false; }
-        if (part < 0 || part > parts.Count)
+        return true;
+    }
+
+    /// <summary>손 안 댄 파트의 덩어리를 원본에서 그대로 떼어 온다.</summary>
+    private static byte[]? Slice(byte[] data, Row row, int part)
+    {
+        if (row.Off > (uint)data.Length || row.Comp > (uint)data.Length - row.Off)
         {
-            LastError = $"파트 자리가 범위 밖입니다(0~{parts.Count})";
-            return false;
+            LastError = $"파트 {part} 가 파일 밖을 가리킵니다";
+            return null;
         }
+        return data[(int)row.Off..(int)(row.Off + row.Comp)];
+    }
 
-        // 옮겨 붙일 덩어리들. 갈아 끼우는 자리만 날것으로 바꾼다.
-        var blocks = new List<byte[]>(parts.Count + 1);
-        for (int i = 0; i < parts.Count; i++)
-        {
-            var (comp, _, off) = parts[i];
-            if (i == part) { blocks.Add(raw); continue; }
-
-            if (off > (uint)data.Length || comp > (uint)data.Length - off)
-            {
-                LastError = $"파트 {i} 가 파일 밖을 가리킵니다";
-                return false;
-            }
-            blocks.Add(data[(int)off..(int)(off + comp)]);
-        }
-        if (part == parts.Count) blocks.Add(raw);
-
-        // 표가 길어지면 덩어리가 다 밀리므로 자리를 새로 매긴다.
+    /// <summary>
+    /// 머리를 그대로 두고 표와 덩어리를 새로 깔아 되쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 자리는 파일 첫머리부터 잰 <b>절대 자리</b>다. 파트 수가 바뀌면 표 길이가 달라지면서
+    /// 덩어리가 죄다 밀리므로 자리를 다시 매긴다.
+    /// </remarks>
+    private static bool Write(string path, byte[] data, List<byte[]> blocks, List<uint> plain)
+    {
         int table = HeadSize + blocks.Count * RowSize + 4;
         var made = new byte[table + blocks.Sum(b => b.Length)];
         Array.Copy(data, made, HeadSize);
@@ -93,12 +154,9 @@ public static class Ls12Writer
         for (int i = 0; i < blocks.Count; i++)
         {
             int row = HeadSize + i * RowSize;
-            uint size = (uint)blocks[i].Length;
-            // 갈아 끼운 자리만 날것이라 압축크기와 원본크기가 같다.
-            uint plain = i == part ? size : parts[i].Uncomp;
 
-            BinaryPrimitives.WriteUInt32BigEndian(made.AsSpan(row), size);
-            BinaryPrimitives.WriteUInt32BigEndian(made.AsSpan(row + 4), plain);
+            BinaryPrimitives.WriteUInt32BigEndian(made.AsSpan(row), (uint)blocks[i].Length);
+            BinaryPrimitives.WriteUInt32BigEndian(made.AsSpan(row + 4), plain[i]);
             BinaryPrimitives.WriteUInt32BigEndian(made.AsSpan(row + 8), (uint)at);
 
             Array.Copy(blocks[i], 0, made, at, blocks[i].Length);

@@ -22,6 +22,10 @@
 
     <ItemGroup>
       <EmbeddedResource Include="Local\Assets\mnist_digit.onnx" />
+      <!-- 초상화 원본. DLL 안에 박아 두면 bin 에 고칠 수 있는 사본이 안 생긴다 —
+           넣은 얼굴은 APPDATA 아래로 가므로 다시 구워도 안 날아간다. -->
+      <EmbeddedResource Include="Local\Assets\MALE.CDS" />
+      <EmbeddedResource Include="Local\Assets\FEMALE.CDS" />
     </ItemGroup>
 
 </Project>
