@@ -185,7 +185,10 @@ public sealed class Player
         Nation = Math.Clamp(nation, 0, Nations.Length - 1);
         Face = Math.Max(0, face);
         // 새로 지을 때는 고른 초상화 자리가 곧 운명 코드다 — 게임도 그렇게 넣는다.
-        SetFortune(Face);
+        // 게임은 앞의 열여섯만 고르게 해서 둘이 늘 같았는데, 우리는 더 넣은 얼굴도
+        // 고르게 하므로 <b>열여섯으로 접어</b> 넣는다. 잘라 넣으면 열여섯 밖의 얼굴이
+        // 죄다 15 가 되어 여급 궁합이 한쪽으로 쏠린다.
+        SetFortune(Face % (MaxFortune + 1));
     }
 
     /// <summary>고를 수 있는 나이.</summary>

@@ -111,8 +111,16 @@ internal sealed class CharacterMakeDialog : Window
     /// <summary>이름 한 칸에 들어갈 수 있는 길이.</summary>
     private const int NameLimit = 16;
 
-    /// <summary>새 놀이에서 고를 수 있는 초상화 수 — <b>앞의 열여섯</b>이다.</summary>
-    private const int FaceChoices = 16;
+    /// <summary>
+    /// 게임이 새 놀이에서 고르게 하는 초상화 수 — <b>앞의 열여섯</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 여기서는 <b>더 넣은 얼굴까지 다 고르게 한다</b>. 게임이 열여섯으로 묶어 둔 까닭은
+    /// 뒤 열여섯이 그 중년 얼굴이라서인데(<c>얼굴 + 16</c>), 그 짝을
+    /// <see cref="PortraitAges"/> 가 또렷하게 들고 있으므로 고르는 쪽을 묶을 까닭이 없다.
+    /// 중년 얼굴이 없는 얼굴은 <b>나이가 들어도 안 바뀔 뿐</b>이다.
+    /// </remarks>
+    private const int GameFaceChoices = 16;
 
     // ── 색 ────────────────────────────────────────────────────────────────────
 
@@ -282,6 +290,9 @@ internal sealed class CharacterMakeDialog : Window
         double y = RowFamily + FaceHeight + Gap;
         Band("<<", PortraitX, y, PickWidth, () => Turn(-1));
         Band(">>", PortraitX + PickWidth, y, PickWidth, () => Turn(+1));
+
+        // 화살표 밑에 얼굴 번호와 중년 짝을 적는다.
+        Put(_agedNote, PortraitX, y + UiSprites.BandHeight + 2);
     }
 
     private void NameRow(double y, string label, GameUi.GameLabel box, Func<IReadOnlyList<string>> list)
@@ -382,10 +393,17 @@ internal sealed class CharacterMakeDialog : Window
         _zodiac.Text = Player.ZodiacOf(Number(_month, 1), Number(_day, 1));
     }
 
-    /// <summary>초상화를 하나 옆으로 넘긴다. 고를 수 있는 것은 앞의 열여섯뿐이다.</summary>
+    /// <summary>
+    /// 초상화를 하나 옆으로 넘긴다. <b>들어 있는 얼굴을 다</b> 넘긴다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 앞의 열여섯(<see cref="GameFaceChoices"/>)만 고르게 하는데, 그것은 뒤
+    /// 열여섯이 그 중년 얼굴이라 짝이 어긋나면 안 되기 때문이다. 우리는 짝을 따로
+    /// 들고 있으므로(<see cref="PortraitAges"/>) 더 넣은 얼굴도 고르게 한다.
+    /// </remarks>
     private void Turn(int by)
     {
-        int count = Math.Min(FaceChoices, _faces?.MaleCount ?? 0);
+        int count = _faces?.MaleCount ?? 0;
         if (count <= 0) return;
         _face = (_face + by % count + count) % count;
         ShowFace();
@@ -402,7 +420,21 @@ internal sealed class CharacterMakeDialog : Window
         _portrait.Source = bmp;
         _portrait.Stretch = Stretch.Fill;
         RenderOptions.SetBitmapScalingMode(_portrait, BitmapScalingMode.NearestNeighbor);
+
+        // 그 얼굴에 중년 얼굴이 있는지 밑에 한 줄로 이른다 — 없으면 나이가 들어도
+        // 얼굴이 안 바뀐다는 뜻이다.
+        int aged = PortraitAges.AgedOf(_face, female: false, _faces);
+        _agedNote.Text = _face < GameFaceChoices && aged != _face
+            ? $"{_face}번 · 중년 {aged}번"
+            : aged != _face ? $"{_face}번 · 중년 {aged}번(지어 둔 짝)"
+                            : $"{_face}번 · 중년 얼굴 없음";
     }
+
+    /// <summary>얼굴 번호와 중년 짝을 이르는 줄.</summary>
+    private readonly GameUi.GameLabel _agedNote = new(GameFont.ButtonColor)
+    {
+        FallbackBrush = Ink,
+    };
 
     private static int Number(GameUi.GameLabel box, int fallback) =>
         int.TryParse(box.Text, out int n) ? n : fallback;

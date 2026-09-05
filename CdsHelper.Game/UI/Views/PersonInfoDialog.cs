@@ -114,7 +114,10 @@ internal sealed class PersonInfoDialog : InfoDialog
 
     /// <summary>왼쪽 위 초상화. 얼굴을 못 읽었으면 안 세운다.</summary>
     private static UIElement? Face(Player player, Portraits? faces) =>
-        Face(faces?.TryGetBgra(player.Face, female: false));
+        // 서른여섯부터는 중년 얼굴로 바뀐다 — 다만 그 짝이 있을 때만이다
+        // (PortraitAges). 더 넣은 얼굴처럼 짝이 없으면 젊은 얼굴 그대로 늙는다.
+        Face(faces?.TryGetBgra(PortraitAges.At(player.Face, player.Age, false, faces),
+                               female: false));
 
     /// <summary>이미 꺼내 둔 얼굴 점으로 초상화를 세운다.</summary>
     private static UIElement? Face(uint[]? px)
