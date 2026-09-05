@@ -991,7 +991,8 @@ public sealed class CityPicView : Window, ITownScreen
                 CanAnnounce: Port.Announceable().Count > 0,
                 PatronRow: patron == null ? null : Patrons.PatronRow(patron),
                 Commented: Commented(code),
-                Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null),
+                Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,
+                Contracted: _player.Contract != null),
             this);
     }
 
@@ -1275,6 +1276,7 @@ public sealed class CityPicView : Window, ITownScreen
         CloseMenu();
     }
 
+    void ITownScreen.HearInfo() => Guests.HearInfo();
     void ITownScreen.Report(Patron patron) => Patrons.Report(patron);
     void ITownScreen.BreakContract(Patron patron) => Patrons.BreakContract(patron);
 

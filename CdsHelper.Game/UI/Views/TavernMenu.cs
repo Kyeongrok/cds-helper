@@ -137,6 +137,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             ConfirmDialog.Tell(_view, "돈 먼저 지불하게.", face: face);
             return;
         }
+        _drank = true;
 
         _player.Pay(price);
         if (drink.Proof <= 0) return;
@@ -906,6 +907,108 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 상대가 말을 잇는다. 돈이 모자랄 때 물리는 "돈 먼저 지불하게."(<c>0x0054AC98</c>)만
     /// 게임 것이다.
     /// </remarks>
+    /// <summary>
+    /// 이 방문에 술을 한잔이라도 샀는지. 게임은 술집 화면 객체의 <c>+0xB4</c> 에 적는다.
+    /// </summary>
+    /// <remarks>「정보를 듣는다」가 이것을 본다 — 마시기 전에는 입을 안 연다.</remarks>
+    private bool _drank;
+
+    /// <summary>
+    /// 술집의 <b>정보를 듣는다</b> — 주인이 계약한 것의 실마리를 준다(<c>0x0042F8xx</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   계약 힌트 → 목적 도시를 찾는다          0x0042F790 → 0x00429970
+    ///   못 찾으면    "정보? 그런 것은 없네"                    0x0054ADB8
+    ///   술을 안 샀으면
+    ///     처음      "%s? 으~ ~음.....! … 마시면 가르쳐 주지"  0x0054ACB0
+    ///     그 뒤     "자, 우리 가게 술을 마신다면 가르쳐 주지." 0x0054AD10
+    ///   술을 샀으면
+    ///     여기면    힌트 본문을 그대로 읽어 준다               0x004B0990
+    ///     같은 문화권 "확실히 %s에서 비슷한 소문을 들은 적이…"  0x0054AD40
+    ///     아니면    "%s%s 간 선원한테서 그런 이야기를…"        0x0054AD70
+    /// </code>
+    /// 방향 이름은 문화권 표(<c>0x00560BE8</c>)의 열하나인데 <b>아메리카만 「신대륙」</b>으로
+    /// 바꿔 부른다(<c>0x0042FA6C</c> 가 10 을 따로 가린다).
+    ///
+    /// <b>목적 도시를 찾는 셈은 우리 것이다.</b> 게임의 <c>0x0042F790</c> 을 아직 못 풀어,
+    /// 발견물이 앉은 사각형에 든 도시를 찾고 없으면 가장 가까운 도시를 집는다.
+    /// </remarks>
+    public void HearInfo() => Alone(() =>
+    {
+        var face = _game.SpeakerFace(BuildingCode, _cultureNo);
+        void Say(string words) => TalkDialog.Say(_view, face, "", words);
+
+        if (_player.Contract is not { } deal
+            || _game.Hints?.Find(deal.Hint) is not { } hint
+            || TargetCity(hint.Discovery) is not int target)
+        {
+            Say("정보? 그런 것은 없네");
+            return;
+        }
+
+        if (!_drank)
+        {
+            Say(_asked
+                ? "자, 우리 가게 술을 마신다면 가르쳐 주지."
+                : $"{hint.Name}? 으~ ~음.....! 그러고 보니 들은 적이 있는 것 같군! "
+                  + "자, 우리 가게 술을 마시면 가르쳐 주지.");
+            _asked = true;
+            return;
+        }
+
+        if (target == _cityId) { Say(hint.Text.Length > 0 ? hint.Text : hint.Name); return; }
+
+        int mine = _game.CityRows?.CultureOf(_cityId) ?? -1;
+        int there = _game.CityRows?.CultureOf(target) ?? -2;
+        if (mine == there)
+        {
+            Say($"확실히 {_game.CityName(target)}에서 비슷한 소문을 들은 적이 있네.");
+            return;
+        }
+
+        string way = Bearing(there);
+        Say($"{way}{GameUi.Josa(way, "으로", "로")} 간 선원한테서 그런 이야기를 들은 적이 있네.");
+    });
+
+    /// <summary>한 번이라도 물어봤는지 — 두 번째부터는 짧게 물린다.</summary>
+    private bool _asked;
+
+    /// <summary>
+    /// 문화권을 부르는 이름(<c>0x00560BE8</c>). 아메리카(10)만 「신대륙」이다.
+    /// </summary>
+    private static readonly string[] Bearings =
+    [
+        "이베리아", "북유럽", "지중해", "아프리카", "중근동", "인도",
+        "중국", "중앙아시아", "동남아시아", "일본", "신대륙",
+    ];
+
+    private static string Bearing(int culture) =>
+        culture >= 0 && culture < Bearings.Length ? Bearings[culture] : "먼 바다";
+
+    /// <summary>
+    /// 그 발견물이 앉은 도시. 사각형 안에 든 도시를 찾고, 없으면 가장 가까운 도시다.
+    /// </summary>
+    private int? TargetCity(int discovery)
+    {
+        if (_game.CityRows is not { } cities) return null;
+        if (_game.Discoveries?.Table.Find(discovery) is not { HasPlace: true } row) return null;
+
+        int cx = (row.X1 + row.X2) / 2, cy = (row.Y1 + row.Y2) / 2;
+        int best = -1;
+        long near = long.MaxValue;
+
+        for (int city = 0; city < CityExeTable.Count; city++)
+        {
+            if (!cities.TryCell(city, out int x, out int y, out _)) continue;
+            if (row.Covers(x, y)) return city;
+
+            long dx = x - cx, dy = y - cy, far = dx * dx + dy * dy;
+            if (far < near) { near = far; best = city; }
+        }
+        return best >= 0 ? best : null;
+    }
+
     public bool BuyDrink()
     {
         if (_player.Gold < Tavern.DrinkPrice)
@@ -914,6 +1017,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return false;
         }
         _player.SetGold(_player.Gold - Tavern.DrinkPrice);
+        _drank = true;
         return true;
     }
 

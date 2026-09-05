@@ -49,6 +49,9 @@ public enum TownWork
 
     /// <summary>발견한 건물의 <b>해설</b>. 발견하고 나서야 줄이 붙는다.</summary>
     Comment,
+
+    /// <summary>술집의 <b>정보를 듣는다</b>. 계약을 맺고 있을 때만 줄이 붙는다.</summary>
+    Info,
 }
 
 /// <summary>일 하나가 <b>어느 자리에 무슨 이름으로</b> 나오는지.</summary>
@@ -98,6 +101,7 @@ public static class TownWorks
         new(TownWork.OddJob, "허드렛일", FacilityKind.Inn),
         new(TownWork.MateForm, "부하편성", FacilityKind.Inn, FacilityKind.Tavern),
         new(TownWork.Treat, "포카를 권한다", FacilityKind.Tavern),
+        new(TownWork.Info, "정보를 듣는다", FacilityKind.Tavern),
 
         // ── 자택 ──────────────────────────────────────────────────────────
         new(TownWork.Rest, "휴양", FacilityKind.Home),
@@ -147,9 +151,11 @@ public static class TownWorks
     /// <param name="Commented">
     /// 이 건물이 발견물이고 <b>이미 발견했는지</b> — 그때만 "해설" 줄이 붙는다.
     /// </param>
+    /// <param name="Contracted">계약을 맺고 있는지 — 술집의 「정보를 듣는다」가 그때 붙는다.</param>
     public readonly record struct TownState(bool Teaches, bool Poor, bool CanAnnounce,
                                             string? PatronRow, bool Commented = false,
-                                            IReadOnlyList<string>? Drinks = null);
+                                            IReadOnlyList<string>? Drinks = null,
+                                            bool Contracted = false);
 
     /// <summary>
     /// 그 시설의 명령 창에 늘어놓을 줄들. 차례와 문구는 <see cref="Facility.Menu"/> 것이고,
@@ -162,6 +168,10 @@ public static class TownWorks
         // 술집이 파는 술은 맨 앞에 붙는다. 고장마다 가짓수가 달라 표에서 골라 온다.
         if (facility.Kind == FacilityKind.Tavern && state.Drinks is { Count: > 0 } drinks)
             items.InsertRange(0, drinks);
+
+        // 「정보를 듣는다」는 <b>술보다도 위</b>다 — 계약을 맺고 있을 때만 붙는다.
+        if (facility.Kind == FacilityKind.Tavern && state.Contracted)
+            items.Insert(0, NameOf(TownWork.Info));
 
         // 가르치는 건물인데 줄에 수련이 없으면(학자 저택 따위) 맨 앞에 붙여 준다.
         string train = NameOf(TownWork.Train);

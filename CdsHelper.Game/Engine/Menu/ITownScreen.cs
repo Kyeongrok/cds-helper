@@ -67,6 +67,9 @@ internal interface ITownScreen
     /// <summary>탐험을 떠난다. 나가도 좋은지는 성문이 따진다.</summary>
     void Explore(int buildingCode);
 
+    /// <summary>술집의 「정보를 듣는다」 — 주인이 계약한 것의 실마리를 준다.</summary>
+    void HearInfo();
+
     /// <summary>발견한 건물의 해설 — 그림 한 장과 그 이야기.</summary>
     void ShowComment(int buildingCode);
 
