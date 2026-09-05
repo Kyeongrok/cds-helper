@@ -90,6 +90,11 @@ public sealed class PersonTable
         /// <summary>목적지 도시. -1 이면 가는 데가 없다.</summary>
         public int Dest { get; set; } = -1;
 
+        /// <summary>
+        /// 떠나 온 도시. 길 위에 있는 동안만 선다(게임의 <c>[인물+0x100]</c> 출발 좌표 몫이다).
+        /// </summary>
+        public int From { get; set; } = -1;
+
         /// <summary>날 셈. 음수면 그만큼 더 쉰다(도착하면 -60 이 박힌다).</summary>
         public int Wait { get; set; }
 

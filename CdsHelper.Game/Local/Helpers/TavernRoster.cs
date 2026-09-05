@@ -57,12 +57,17 @@ public sealed class TavernRoster
     }
 
     /// <summary>이미 연 표에서 추린다.</summary>
-    public static TavernRoster From(PersonTable table)
+    public static TavernRoster From(PersonTable table) => From(table.People);
+
+    /// <summary>
+    /// 줄 목록에서 추린다 — <see cref="PersonWorld"/> 처럼 사람이 옮겨 다니는 쪽이 쓴다.
+    /// </summary>
+    public static TavernRoster From(IReadOnlyList<PersonTable.Row> rows)
     {
         LastError = "";
         var people = new List<Person>();
 
-        foreach (var r in table.People)
+        foreach (var r in rows)
         {
             if (r.Appear == 0) continue;                          // 아직 등장하지 않은 인물
             if (r.Building is not (Tavern or Inn)) continue;
