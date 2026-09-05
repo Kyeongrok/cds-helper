@@ -256,6 +256,10 @@
                                             x:Name="PART_PersonEditMenu"
                                             Header="인물"
                                             ToolTip="세이브의 인물 281명을 고친다 — 이름·나이·자리·고용·이동 갈래·기술·언어" />
+                                        <MenuItem
+                                            x:Name="PART_FormationMenu"
+                                            Header="부대 편성"
+                                            ToolTip="적이 내는 부대 세트 여덟 벌을 보고 고친다 — 맘루크·예니체리·사무라이가 무엇을 데리고 나오는지" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>

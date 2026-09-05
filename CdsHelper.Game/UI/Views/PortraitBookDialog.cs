@@ -58,6 +58,23 @@ public sealed class PortraitBookDialog : Window
 
         var go = new Button { Content = "번호로 가기", Padding = new Thickness(10, 2, 10, 2) };
         go.Click += (_, _) => ScrollTo();
+
+        // 바깥 그림을 게임 얼굴로 넣는다 — 넣고 나면 이 목록도 새로 편다.
+        var add = new Button
+        {
+            Content = "초상화 넣기…",
+            Padding = new Thickness(10, 2, 10, 2),
+            Margin = new Thickness(16, 0, 0, 0),
+        };
+        add.Click += (_, _) =>
+        {
+            int put = PortraitAddDialog.Show(this);
+            if (put < 0) return;
+
+            Load();
+            _find.Value = put;
+            ScrollTo();
+        };
         // 숫자를 굴리는 대로 따라간다 — 단추를 또 누르지 않아도 된다.
         _find.ValueChanged += (_, _) => ScrollTo();
 
@@ -65,7 +82,7 @@ public sealed class PortraitBookDialog : Window
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(10, 8, 10, 4),
-            Children = { male, female, big, _find, go },
+            Children = { male, female, big, _find, go, add },
         };
 
         var scroll = new ScrollViewer
