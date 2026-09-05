@@ -339,8 +339,10 @@ public sealed class Game
                 Debug.WriteLine($"[Game] 인물 표가 비었습니다: {PersonTable.LastError}");
                 return _world = null;
             }
+            // 역사 항해자 열넷은 주사위가 아니라 제 대본대로 움직인다 — 대본을 물려준다.
             return _world = new PersonWorld(table, CityRows, Buildings,
-                                            Support.Local.Models.Player.StartDate);
+                                            Support.Local.Models.Player.StartDate,
+                                            Voyagers, Discoveries?.Table);
         }
     }
 

@@ -31,8 +31,19 @@ namespace CdsHelper.Game.Engine.Discovery;
 ///   +0x00  u16 ?          +0x02  u16 칸 수 N
 ///   +0x04  N x (u16 조건 오프셋, u16 본문 오프셋)     ; 둘 다 +4 를 더해야 파일 자리다
 ///   조건 : 1C 17 &lt;달&gt; 16 &lt;u16 해&gt; FF
-///   본문 : 명령들 — 그 안의 01 0B &lt;u16&gt; 이 발견 기록이다
+///   본문 : 명령들 — FF 로 끊는다
 /// </code>
+///
+/// 본문에서 우리가 읽는 명령은 둘이다.
+/// <code>
+///   01 0B &lt;u16 발견물&gt;   그 발견물을 이 사람 이름으로 채간다
+///   3C 08 &lt;u16 도시&gt;     이 사람을 그 도시로 <b>떠나보낸다</b>   (0x0040AB77)
+///   3C 0B &lt;u16 발견물&gt;   이 사람을 그 발견물 자리로 보낸다       (0x0040AC82)
+/// </code>
+/// <b>사람은 피연산자가 아니다</b> — <c>3C</c> 는 대본의 주인을 옮긴다(<c>ctx+0x10</c>).
+/// 둘 다 끝에서 목적지·출발좌표를 박고 <c>날 셈 = 0</c>, <c>[인물+0xB4] = -1</c> 로 도시에서
+/// 빼낸다. 그래서 <b>바다 위에서 역사 항해자와 마주친다</b> — 지도에 사람을 띄우는
+/// <c>0x00426790</c> 은 281명을 통째로 훑으면서 「지금 자리가 있는가」만 본다.
 /// </remarks>
 public sealed class HistoryVoyages
 {
@@ -43,7 +54,7 @@ public sealed class HistoryVoyages
     public const string CacheName = "역사항해자";
 
     /// <summary>알맹이 모양 판.</summary>
-    private const int SnapshotVersion = 1;
+    private const int SnapshotVersion = 2;
 
     /// <summary>역사 항해자 수. 파일 파트 수이자 인물 번호 0~13 이다.</summary>
     public const int Count = 14;
@@ -80,18 +91,41 @@ public sealed class HistoryVoyages
     }
 
     /// <summary>JSON 으로 구워 두는 알맹이.</summary>
-    internal sealed record Snapshot(List<Voyage> Voyages);
+    /// <summary>
+    /// 대본이 사람을 옮기는 한 수.
+    /// </summary>
+    /// <param name="City">가는 도시. <c>3C 08</c> 이 아니면 −1.</param>
+    /// <param name="Discovery">가는 발견물 자리. <c>3C 0B</c> 이 아니면 −1.</param>
+    public readonly record struct Move(int Voyager, int Year, int Month, int City, int Discovery)
+    {
+        /// <summary>대본이 도는 날 — 달의 첫날이다.</summary>
+        public DateTime On => new(Year, Month, 1);
+
+        /// <summary>도시로 가는 수인가.</summary>
+        public bool ToCity => City >= 0;
+    }
+
+    internal sealed record Snapshot(List<Voyage> Voyages, List<Move>? Moves = null);
 
     /// <summary>사람 차례, 그 다음 날짜 차례.</summary>
+    /// <summary>사람 차례 · 날짜 차례로 세우는 견줌.</summary>
+    public static readonly Comparison<Move> MoveOrder = (a, b) =>
+        a.Voyager != b.Voyager ? a.Voyager - b.Voyager
+        : a.Year != b.Year ? a.Year - b.Year
+        : a.Month != b.Month ? a.Month - b.Month
+        : a.City != b.City ? a.City - b.City : a.Discovery - b.Discovery;
+
     public static readonly Comparison<Voyage> ByVoyagerThenDate =
         (a, b) => a.Voyager != b.Voyager ? a.Voyager - b.Voyager : a.On.CompareTo(b.On);
 
     private readonly List<Voyage> _original;
     private List<Voyage> _voyages;
+    private readonly List<Move> _moves;
     private int _stamp = -1;
 
-    private HistoryVoyages(List<Voyage> original)
+    private HistoryVoyages(List<Voyage> original, List<Move> moves)
     {
+        _moves = moves;
         _original = original;
         _voyages = original;
     }
@@ -120,6 +154,24 @@ public sealed class HistoryVoyages
     public IReadOnlyList<Voyage> Original => _original;
 
     /// <summary>
+    /// 대본이 사람을 옮기는 수 전부. 사람 차례 · 날짜 차례다.
+    /// </summary>
+    /// <remarks>
+    /// 채가는 것과 달리 <b>손으로 고치는 길이 없다</b> — 자리를 옮기는 것뿐이라 판을
+    /// 흔들 일이 없고, 고칠 데를 늘리면 <see cref="VoyagerEdits"/> 가 지고 있는 짐만
+    /// 커진다. <see cref="PersonWorld"/> 가 매월 1일에 이 목록을 본다.
+    /// </remarks>
+    public IReadOnlyList<Move> Moves => _moves;
+
+    /// <summary>그 사람이 그 달에 떠나는 수들. 없으면 빈 목록.</summary>
+    public IEnumerable<Move> MovesOn(int voyager, int year, int month)
+    {
+        foreach (var move in _moves)
+            if (move.Voyager == voyager && move.Year == year && move.Month == month)
+                yield return move;
+    }
+
+    /// <summary>
     /// 게임 폴더에서 읽는다. 못 읽으면 구워 둔 JSON 으로 물러서고, 그것도 없으면 null.
     /// </summary>
     /// <remarks>
@@ -131,12 +183,17 @@ public sealed class HistoryVoyages
     {
         LastError = "";
 
-        var voyages = FromFile(gameDirectory);
+        var moves = new List<Move>();
+        var voyages = FromFile(gameDirectory, moves);
         if (voyages != null)
             TableCache.Write(CacheName, new TableCache.Cached<Snapshot>(
-                $"{Count}명 {voyages.Count}건", new Snapshot(voyages), FileName, SnapshotVersion));
-        else
-            voyages = TableCache.Read<Snapshot>(CacheName)?.Data.Voyages;
+                $"{Count}명 {voyages.Count}건 · 이동 {moves.Count}수",
+                new Snapshot(voyages, moves), FileName, SnapshotVersion));
+        else if (TableCache.Read<Snapshot>(CacheName)?.Data is { } kept)
+        {
+            voyages = kept.Voyages;
+            moves = kept.Moves ?? [];
+        }
 
         if (voyages == null || voyages.Count == 0)
         {
@@ -145,11 +202,11 @@ public sealed class HistoryVoyages
         }
 
         LastError = "";
-        return new HistoryVoyages(voyages);
+        return new HistoryVoyages(voyages, moves);
     }
 
     /// <summary><c>HISTCHR.CDS</c> 에서 읽어 낸다. 못 읽으면 null 이고 까닭이 남는다.</summary>
-    private static List<Voyage>? FromFile(string gameDirectory)
+    private static List<Voyage>? FromFile(string gameDirectory, List<Move> moves)
     {
         if (gameDirectory.Length == 0) { LastError = "게임 폴더를 모릅니다"; return null; }
 
@@ -164,11 +221,12 @@ public sealed class HistoryVoyages
 
         var voyages = new List<Voyage>();
         for (int who = 0; who < Count; who++)
-            if (archive.Decode(who) is { } part) Read(who, part, voyages);
+            if (archive.Decode(who) is { } part) Read(who, part, voyages, moves);
 
         if (voyages.Count == 0) { LastError = $"{FileName} 에서 발견 기록을 못 찾았습니다"; return null; }
 
         voyages.Sort(ByVoyagerThenDate);
+        moves.Sort(MoveOrder);
         return voyages;
     }
 
@@ -191,8 +249,8 @@ public sealed class HistoryVoyages
     public static string NameOf(int voyager) =>
         voyager >= 0 && voyager < Names.Length ? Names[voyager] : "";
 
-    /// <summary>대본 하나에서 날짜 붙은 발견 기록을 뽑는다.</summary>
-    private static void Read(int who, byte[] part, List<Voyage> into)
+    /// <summary>대본 하나에서 날짜 붙은 발견 기록과 이동을 뽑는다.</summary>
+    private static void Read(int who, byte[] part, List<Voyage> into, List<Move> moves)
     {
         if (part.Length < 4) return;
 
@@ -234,6 +292,26 @@ public sealed class HistoryVoyages
             if (at < 0) continue;
 
             into.Add(new Voyage(who, blocks[at].Year, blocks[at].Month, id));
+        }
+
+        // 3C 08 <도시> · 3C 0B <발견물> — 대본의 주인을 옮긴다.
+        for (int i = 0; i + 3 < part.Length; i++)
+        {
+            if (part[i] != 0x3C) continue;
+
+            int sub = part[i + 1], arg = U16(part, i + 2);
+            bool city = sub == 0x08 && arg < CityExeTable.Count;
+            bool spot = sub == 0x0B && arg < DiscoveryTable.Count;
+            if (!city && !spot) continue;               // 글 속의 우연한 두 바이트를 거른다
+
+            int at = -1;
+            for (int k = 0; k < blocks.Count && blocks[k].Body <= i; k++) at = k;
+            if (at < 0) continue;
+
+            // 대본이 같은 수를 잇달아 두 번 적어 둔 데가 많다 — 한 번만 담는다.
+            var move = new Move(who, blocks[at].Year, blocks[at].Month,
+                                city ? arg : -1, spot ? arg : -1);
+            if (!moves.Contains(move)) moves.Add(move);
         }
     }
 
