@@ -26,6 +26,15 @@ namespace CdsHelper.Game.Local.Helpers;
 /// </remarks>
 public sealed class EffectAnim
 {
+    /// <summary>
+    /// 짐 싣기(파트 0~3). 껍데기는 <c>0x004A6120</c> 이다.
+    /// </summary>
+    /// <remarks>
+    /// 이름은 그림에서 붙였는데, <b>적대 도시에서 들킨 뒤 달아나는 굴림</b>도 이 벌을 쓴다
+    /// (<c>0x004A5419</c>). 게임이 벌을 아껴 쓴 자리다.
+    /// </remarks>
+    public const int Load = 0;
+
     /// <summary>한 장의 한 변. 게임이 늘 이 크기로 그린다.</summary>
     public const int Size = 80;
     private const int Pixels = Size * Size;
@@ -50,7 +59,76 @@ public sealed class EffectAnim
     /// </remarks>
     public const int Heart = 3;
 
+    /// <summary>
+    /// 동전 던지기(파트 16~19) — 팽팽 돌다가 멎는다. 껍데기는 <c>0x004A6380</c> 이다.
+    /// </summary>
+    /// <remarks>
+    /// 적대 도시에 <b>잠입</b>할 때 이 벌이 돈다(<c>0x004A53D0</c>). 굴림을 하고 나서
+    /// 부르므로 멎은 쪽이 곧 결과다.
+    /// </remarks>
+    public const int Coin = 4;
+
     public const int Persuade = 5;
+
+    // ── 장을 넘기는 차례 ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 벌마다 장을 넘기는 셈이 다르다 — <c>0x004A5F37</c> 의 갈래표가 셋으로 나눈다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   갈래 0 (짐 싣기 · 서기 · 하트 · 설득)  0x004A5CB0   장 간격 2
+    ///   갈래 1 (대포)                          0x004A5D20   장 간격 10
+    ///   갈래 2 (동전)                          0x004A5D80   장 간격 1
+    /// </code>
+    /// 「장 간격」은 <c>[객체+0xD0]</c> 이고, 걸음이 그만큼 쌓여야 한 장이 넘어간다
+    /// (<c>0x004A5DDE</c>). 그래서 <b>동전이 하트보다 두 배 빠르다</b>.
+    /// </remarks>
+    public const int HeartStep = 2, CoinStep = 1, CannonStep = 10;
+
+    /// <summary>그 벌의 장 간격. 갈래표(<c>0x004A6100</c>)가 정한다.</summary>
+    public static int StepOf(int anim) =>
+        anim == Cannon ? CannonStep : anim == Coin ? CoinStep : HeartStep;
+
+    /// <summary>그 벌이 넘어가는 차례. 동전만 제 셈이고 나머지는 갈래 0 을 쓴다.</summary>
+    public static int[] Frames(int anim, bool won) =>
+        anim == Coin ? CoinFrames(won) : HeartFrames(won);
+
+    /// <summary>
+    /// 갈래 0 — 짐 싣기 · 서기 · 하트 · 설득이 넘어가는 차례(<c>0x004A5CB0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   걸음 0~5   0 과 1 을 번갈아 낸다(0 에서 시작하므로 1 부터 나온다)
+    ///   걸음 6~7   장을 안 바꾸고 그대로 둔다
+    ///   걸음 8     결말 장 — 되면 2, 어그러지면 3 (0x004A5CF9)
+    ///   걸음 9     그대로 두고, 10 에서 끝난다
+    /// </code>
+    /// </remarks>
+    public static int[] HeartFrames(bool won) =>
+        [1, 0, 1, 0, 1, 0, 0, 0, won ? 2 : 3, won ? 2 : 3];
+
+    /// <summary>
+    /// 동전이 넘어가는 차례(<c>0x004A5D80</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   004a5d8c  cmp [객체+0xBC], 1      ; 굴림 결과
+    ///   004a5d92  sbb edx,edx; add edx,0x15  ; 되면 21, 어그러지면 20 걸음까지 돈다
+    ///   004a5da0  and eax, 3             ; 그리는 장 = 걸음 % 4
+    ///   004a5db9  add edx, 2             ; 그 뒤 두 걸음은 장을 안 바꾼다
+    /// </code>
+    /// 마지막으로 돈 걸음이 되면 20(<c>20 % 4 = 0</c>), 어그러지면 19(<c>19 % 4 = 3</c>)라
+    /// <b>멎는 장이 갈린다</b> — 되면 첫째 장, 어그러지면 넷째 장에서 멎는다.
+    /// </remarks>
+    public static int[] CoinFrames(bool won)
+    {
+        int spins = won ? 21 : 20;                    // 0x15 / 0x14
+        var order = new int[spins + 2];               // 뒤 두 걸음은 멎은 장 그대로
+        for (int step = 0; step < spins; step++) order[step] = step % FrameCount;
+        order[spins] = order[spins + 1] = order[spins - 1];
+        return order;
+    }
 
     /// <summary>원 바깥(비침) 색인.</summary>
     private const byte Transparent = 74;

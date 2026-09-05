@@ -180,9 +180,19 @@ public static class Standoff
         >= dice.Next(250);
 
     /// <summary>들킨 뒤에 달아나는지(<c>0x004A5401</c>). 못 달아나면 재판이다.</summary>
-    /// <remarks><c>rand(90) &lt;= 무력 + 1</c> 이라야 빠져나온다.</remarks>
+    /// <remarks>
+    /// <code>
+    ///   4a5401  eax = rand(90)
+    ///   4a540b  ecx = [0x005B60C0] + 1        ; 능력 여섯의 첫 칸
+    ///   4a5412  eax &lt;= ecx 라야 빠져나온다
+    /// </code>
+    /// <b>무력이 아니라 체력이다.</b> <c>0x005B60C0</c> 이 능력 배열의 머리이고
+    /// (<see cref="Ability.Body"/>), 같은 배열의 <c>+0xC</c> 를 교섭이 매력으로,
+    /// <c>+0x10</c> 을 재판이 운으로 쓰는 것과 앞뒤가 맞는다. 예전에 무력으로 적어
+    /// 두었던 것을 바로잡았다.
+    /// </remarks>
     public static bool Escapes(Player player, GameRandom dice) =>
-        dice.Next(90) <= player.AbilityOf(Ability.Might) + 1;
+        dice.Next(90) <= player.AbilityOf(Ability.Body) + 1;
 
     // ── 교섭 ──────────────────────────────────────────────────────────────
 
