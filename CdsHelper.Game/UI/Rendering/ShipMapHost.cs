@@ -260,6 +260,17 @@ public sealed class ShipMapHost : HwndHost
     /// </summary>
     public bool Paused { get; set; }
 
+    /// <summary>
+    /// 배(말)를 옮긴 <b>걸음 수</b>. 게임의 항해 고리 한 바퀴에 맞먹는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 고리를 한 바퀴 돌 때마다 발밑 칸의 눈금을 하나 붙이고
+    /// (<c>0x0048EF7D</c>) 마흔여덟 눈금이 하루다. 그 고리 한 바퀴가 여기서는
+    /// <see cref="TickSeconds"/> 짜리 걸음 하나라, 날을 세는 쪽이 이 수를 본다.
+    /// 멎어 있거나 닻을 내렸으면 안 오른다 — 게임도 그때는 고리가 안 돈다.
+    /// </remarks>
+    public long Steps { get; private set; }
+
     /// <summary>커서를 따라 배를 몬다. 끄면 게임 함대 자리를 그대로 따라간다.</summary>
     public bool SteerWithMouse { get; set; } = true;
 
@@ -956,6 +967,7 @@ public sealed class ShipMapHost : HwndHost
             _tickAccum -= TickSeconds;
             var (step, driftX, driftY) = Push();
             Step(_dirX * step + driftX, _dirY * step + driftY);
+            Steps++;
         }
     }
 
