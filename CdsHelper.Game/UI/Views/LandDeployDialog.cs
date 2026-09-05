@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Engine.Land;
@@ -124,7 +125,7 @@ internal sealed class LandDeployDialog : Window
     /// 문화권을 안 받는다 — 낼 수 있는 여덟 병종은 <see cref="LandUnitArt.PartOf"/> 에서
     /// 죄다 아군·적으로만 갈리고 문화권으로는 안 갈린다.
     /// </remarks>
-    public static bool Show(Window? owner, Engine.Game game, string cityName)
+    public static int[]? Show(Window? owner, Engine.Game game, string cityName)
     {
         var roster = LandRoster.For(game.Player, Aide(game));
 
@@ -135,7 +136,13 @@ internal sealed class LandDeployDialog : Window
 
         var window = new LandDeployDialog(game, cityName, roster, scale);
         if (owner != null) window.Owner = owner;
-        return window.ShowDialog() == true;
+        if (window.ShowDialog() != true) return null;
+
+        // 자리마다의 <b>병종 번호</b>를 낸다 — 빈 자리는 −1 이다.
+        var kinds = new int[LandRoster.SlotCount];
+        for (int i = 0; i < kinds.Length; i++)
+            kinds[i] = window._picked[i] < 0 ? -1 : roster.KindAt(window._picked[i]);
+        return kinds;
     }
 
     /// <summary>부관 신상. 없으면 null — 그때는 제독의 기능만 본다.</summary>
@@ -157,23 +164,23 @@ internal sealed class LandDeployDialog : Window
 
         // 판 위에서 자리를 누르는 것이 배치다. 칸에 그림이 없어도 누를 수 있어야 하므로
         // 자리마다 눈에 안 띄는 네모를 하나씩 깔아 둔다.
-        for (int i = 0; i < LandRoster.SlotCount; i++)
-        {
-            int slot = i;
-            var spot = new Border
-            {
-                Width = Tile,
-                Height = Tile,
-                Background = Brushes.Transparent,
-                Cursor = System.Windows.Input.Cursors.Hand,
-            };
-            spot.MouseLeftButtonUp += (_, _) => Choose(slot);
-            _board.Children.Add(Place(spot, SlotAt[i].X, SlotAt[i].Y));
-        }
+        for (int i = 0; i < LandRoster.SlotCount; i++) _board.Children.Add(Spot(i, SlotAt[i]));
+
+        // 고르는 넉 칸도 같은 네모를 깐다 — 여기서 집어 판으로 끌어다 놓는다.
+        for (int i = 0; i < LandRoster.ChoiceCount; i++)
+            _board.Children.Add(Spot(SlotCount + i, PickAt[i]));
 
         _board.Children.Add(_layer);
         Canvas.SetLeft(_layer, 0);
         Canvas.SetTop(_layer, 0);
+
+        RenderOptions.SetBitmapScalingMode(_ghost, BitmapScalingMode.NearestNeighbor);
+        Panel.SetZIndex(_ghost, 100);
+        _board.Children.Add(_ghost);
+
+        // 끌다가 칸 밖에서 떼도 손이 풀려야 한다.
+        _board.MouseMove += Move;
+        _board.MouseLeftButtonUp += (_, _) => Release();
 
         _board.Children.Add(Place(Button("전회", Previous), BackX, ButtonY));
         _board.Children.Add(Place(Button("결정", Decide), DecideX, ButtonY));
@@ -187,6 +194,28 @@ internal sealed class LandDeployDialog : Window
         _board.RenderTransform = new ScaleTransform(scale, scale);
         return box;
     }
+
+    /// <summary>
+    /// 손을 받는 네모 하나. <paramref name="at"/> 이 자리고, 번호가 여섯 밑이면 판의
+    /// 자리, 그 위면 고르는 칸이다.
+    /// </summary>
+    private Border Spot(int at, (int X, int Y) where)
+    {
+        var spot = new Border
+        {
+            Width = Tile,
+            Height = Tile,
+            Background = Brushes.Transparent,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Tag = at,
+        };
+        spot.MouseLeftButtonDown += (_, e) => Grab(at, e);
+        spot.MouseLeftButtonUp += (_, e) => Land(at, e);
+        return (Border)Place(spot, where.X, where.Y);
+    }
+
+    /// <summary>판의 자리 수. 그 위 번호는 고르는 칸이다.</summary>
+    private const int SlotCount = LandRoster.SlotCount;
 
     private static GameButton Button(string text, Action run) =>
         new(text, run, BandStyle.Button, ButtonW)
@@ -255,6 +284,7 @@ internal sealed class LandDeployDialog : Window
             var (x, y) = PickAt[choice];
             if (Unit(_roster.KindAt(choice)) is { } art) _layer.Children.Add(Place(art, x, y));
 
+
             int left = Remaining(choice);
             if (Word("×") is { } cross) _layer.Children.Add(Place(cross, x + CrossX, y + CrossY));
             if (Number(Math.Min(left, 9)) is { } glyph)
@@ -316,6 +346,121 @@ internal sealed class LandDeployDialog : Window
     }
 
     // ── 누르기 ─────────────────────────────────────────────────────────────────
+
+    // ── 끌어다 놓기 ────────────────────────────────────────────────────────────
+
+    /// <summary>집은 데. 판이면 0~5, 고르는 칸이면 6~9. 안 집었으면 −1.</summary>
+    private int _from = -1;
+
+    /// <summary>집을 때 누른 자리 — 끌었는지 딸깍했는지를 가른다.</summary>
+    private Point _grabbed;
+
+    /// <summary>끌고 다니는 그림.</summary>
+    private readonly Image _ghost = new()
+    {
+        IsHitTestVisible = false,
+        Opacity = 0.85,
+        Visibility = Visibility.Collapsed,
+    };
+
+    /// <summary>이만큼 넘게 끌어야 끈 것으로 본다.</summary>
+    private const double DragSlop = 6;
+
+    private void Grab(int at, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (at >= SlotCount)
+        {
+            // 고르는 칸은 남은 수가 있어야 집힌다.
+            if (Remaining(at - SlotCount) <= 0) return;
+        }
+        else if (_picked[at] < 0) return;              // 빈 자리는 집을 것이 없다
+
+        _from = at;
+        _grabbed = e.GetPosition(_board);
+        _board.CaptureMouse();
+    }
+
+    private void Move(object sender, MouseEventArgs e)
+    {
+        if (_from < 0) return;
+
+        var now = e.GetPosition(_board);
+        if (Math.Abs(now.X - _grabbed.X) < DragSlop && Math.Abs(now.Y - _grabbed.Y) < DragSlop)
+            return;
+
+        int choice = _from >= SlotCount ? _from - SlotCount : _picked[_from];
+        if (choice < 0) return;
+
+        if (_ghost.Source == null || _ghostOf != choice)
+        {
+            _ghostOf = choice;
+            _ghost.Source = Unit(_roster.KindAt(choice))?.Source;
+            _ghost.Width = _ghost.Height = Tile;
+        }
+        _ghost.Visibility = Visibility.Visible;
+        Canvas.SetLeft(_ghost, now.X - Tile / 2.0);
+        Canvas.SetTop(_ghost, now.Y - Tile / 2.0);
+    }
+
+    private int _ghostOf = -1;
+
+    private void Land(int at, MouseButtonEventArgs e)
+    {
+        if (_from < 0) return;
+        e.Handled = true;
+
+        int from = _from;
+        var now = e.GetPosition(_board);
+        bool dragged = Math.Abs(now.X - _grabbed.X) >= DragSlop
+                       || Math.Abs(now.Y - _grabbed.Y) >= DragSlop;
+        Release();
+
+        // 끌지 않고 딸깍했으면 게임의 「선택」 차림표를 편다(0x0049F010).
+        if (!dragged)
+        {
+            if (from < SlotCount) Choose(from);
+            return;
+        }
+        if (at == from) return;
+
+        // 판 밖(고르는 칸)에 놓으면 걷는 것이다.
+        if (at >= SlotCount)
+        {
+            if (from < SlotCount) Put(from, -1);
+            return;
+        }
+
+        int choice = from >= SlotCount ? from - SlotCount : _picked[from];
+        if (choice < 0) return;
+
+        // 판에서 판으로 옮기면 자리를 맞바꾼다. 고르는 칸에서 왔으면 그냥 놓는다.
+        if (from < SlotCount)
+        {
+            (_picked[at], _picked[from]) = (_picked[from], _picked[at]);
+            _sfx?.Play(SoundBank.DeployPlacePart);
+            Redraw();
+            return;
+        }
+        if (_picked[at] != choice && Remaining(choice) <= 0) return;
+        Put(at, choice);
+    }
+
+    /// <summary>손을 떼고 끌던 그림을 걷는다.</summary>
+    private void Release()
+    {
+        _from = -1;
+        _board.ReleaseMouseCapture();
+        _ghost.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>그 자리에 놓거나(−1 이면) 걷는다.</summary>
+    private void Put(int slot, int choice)
+    {
+        _picked[slot] = choice;
+        _sfx?.Play(choice < 0 ? SoundBank.DeployLiftPart : SoundBank.DeployPlacePart);
+        Redraw();
+    }
 
     /// <summary>자리를 누르면 「선택」 차림표가 뜬다(<c>0x0049F010</c>).</summary>
     private void Choose(int slot)
