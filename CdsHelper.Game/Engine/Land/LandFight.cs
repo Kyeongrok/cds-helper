@@ -1,4 +1,4 @@
-using CdsHelper.Support.Local.Models;
+﻿using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Land;
 
@@ -43,6 +43,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     public IReadOnlyList<Line> Turn(int mine, int theirs)
     {
         _log.Clear();
+        (_myOrder, _foeOrder) = (mine, theirs);
 
         // 차례는 행동속도가 빠른 쪽부터다(0x00447C20 → 0x004493BE 의 순서표).
         // 기습이 먹히면 아군이, 어그러지면 적이 앞선다(0x00447E10).
@@ -58,7 +59,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         {
             if (!battle.Units[slot].Standing) continue;
             if (_frozen.Remove(slot)) continue;          // 함정에 걸린 부대는 못 움직인다
-            Act(slot, slot < LandBattle.FirstFoe ? mine : theirs);
+            Act(slot);
             if (Over != null) break;
         }
         _frozen.Clear();
@@ -196,7 +197,23 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
 
     // ── 부대 하나 움직이기 — 0x00448050 ────────────────────────────────────────
 
-    private void Act(int slot, int order)
+    /// <summary>이번 턴에 두 편이 고른 공격명령.</summary>
+    private int _myOrder, _foeOrder;
+
+    /// <summary>
+    /// 그 자리가 <b>제 편의</b> 명령. 공격은 치는 쪽 것이고 <b>방어는 맞는 쪽 것</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00448120</c>(공격)·<c>0x00448180</c>(방어)이 둘 다 <b>자리를 받아</b>
+    /// 여섯보다 작으면 아군 명령(<c>+0x90</c>)을, 아니면 적 명령(<c>+0x94</c>)을 본다.
+    ///
+    /// 예전에는 <b>치는 쪽 명령 하나로</b> 공격도 방어도 굽혔다. 그래서 내가 돌격을
+    /// 고르면 적 방어까지 0.7 로 깎이고, 적이 돌격을 고르면 <b>내 방어</b>가 0.7 로
+    /// 깎였다 — 한 턴에 아군이 통째로 쓰러져 판에서 사라지곤 했다.
+    /// </remarks>
+    private int OrderAt(int slot) => slot < LandBattle.FirstFoe ? _myOrder : _foeOrder;
+
+    private void Act(int slot)
     {
         var unit = battle.Units[slot];
         var kind = LandUnits.KindOf(unit.Kind);
@@ -208,9 +225,9 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 // 창병만 앞열 하나와 그 뒤까지 둘을 친다(0x004487C0).
                 int front = Pick(!mine, frontOnly: true);
                 if (front < 0) { Done(); return; }
-                Hit(slot, front, order);
+                Hit(slot, front);
                 if (unit.Kind == LandUnits.Spear && Behind(front) is { } back && Alive(back))
-                    Hit(slot, back, order);
+                    Hit(slot, back);
                 break;
 
             case LandUnits.Kind.Shot:
@@ -219,14 +236,14 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 if (unit.Kind == LandUnits.Bow)
                 {
                     int one = Pick(!mine, frontOnly: false);
-                    if (one >= 0) Hit(slot, one, order);
+                    if (one >= 0) Hit(slot, one);
                 }
-                else foreach (int at in All(!mine, frontOnly: true)) Hit(slot, at, order);
+                else foreach (int at in All(!mine, frontOnly: true)) Hit(slot, at);
                 break;
 
             case LandUnits.Kind.Cannon:
                 if (Damp(unit.Kind)) { Say(slot, "비에 젖어 불이 붙지 않는다!"); break; }
-                foreach (int at in All(!mine, frontOnly: false)) Hit(slot, at, order);
+                foreach (int at in All(!mine, frontOnly: false)) Hit(slot, at);
                 break;
 
             default:
@@ -282,11 +299,11 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
 
     // ── 한 대 때리기 — 0x00449250 ──────────────────────────────────────────────
 
-    private void Hit(int from, int to, int order)
+    private void Hit(int from, int to)
     {
         if (!Alive(from) || !Alive(to)) return;
 
-        int hurt = Worth(from, to, order);
+        int hurt = Worth(from, to);
 
         // 되받아치기 — 사무라이 15 · 하타모토 20 · 영주 25 (0x004481E0).
         int kick = battle.Units[to].Kind switch
@@ -301,7 +318,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         {
             Say(to, "받아쳤다!");
             (from, to) = (to, from);
-            hurt = Worth(from, to, order);
+            hurt = Worth(from, to);
         }
 
         // 닌자의 변신술 — 비가 아닐 때 40%로 피해가 없다.
@@ -321,7 +338,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     /// <summary>
     /// 피해를 매긴다(<c>0x00448360</c>).
     /// </summary>
-    private int Worth(int from, int to, int order)
+    private int Worth(int from, int to)
     {
         var a = battle.Units[from];
         var d = battle.Units[to];
@@ -336,8 +353,9 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                                     battle.SkillAt(to, Skill.Shooting),
                                     battle.SkillAt(to, Skill.Theology));
 
-        atk = Bent(atk, order, attacking: true);
-        def = Bent(def, order, attacking: false);
+        // 공격은 치는 쪽 명령으로, <b>방어는 맞는 쪽 명령</b>으로 굽힌다.
+        atk = Bent(atk, OrderAt(from), attacking: true);
+        def = Bent(def, OrderAt(to), attacking: false);
 
         // 춤 겹수는 <b>적 쪽 공격</b>에만 붙는다(0x00448360 이 슬롯 6 이상을 본다).
         if (from >= LandBattle.FirstFoe)

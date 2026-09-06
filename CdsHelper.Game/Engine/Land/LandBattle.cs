@@ -541,13 +541,36 @@ public sealed class LandBattle
                      Ruse = 5, Animate = 6;
 
     /// <summary>
-    /// 지금 고를 수 있는 명령들. 꺼진 줄도 자리를 지킨다.
+    /// 일기토를 걸 수 있는지 — <b>차림표를 열 때마다 굴린다</b>(<c>0x00447930</c>).
     /// </summary>
     /// <remarks>
-    /// <b>일기토는 아무 때나 못 건다</b> — <c>0x00449BC5</c> 어름이 <c>+0x54</c> 가 −1 이나
-    /// 4 가 아니면 끈다. 판을 세울 때 4 로 두므로(<c>0x0044A604</c>) 첫 턴에는 켜져 있고,
-    /// 한 번 싸우고 나면 꺼진다. 묘책도 같은 자리의 <c>0x20</c> 비트로 갈린다.
+    /// 차림표를 짓는 <c>0x00449BC8</c> 이 일기토 비트(<c>0x08</c>)를 <b>먼저 막아 두고</b>,
+    /// <c>0x00447930</c> 이 참을 내면 푼다. 그 셈이 이렇다.
+    /// <code>
+    ///   0044793A  몫 = 내 운 * 3 / 10          ; 0x00446FF0(4, 0) — 능력 4 가 운
+    ///   00447951  몫 -= 내 무력                ; 0x00446FF0(2, 0)
+    ///   0044795C  몫 += 적 대장 무력           ; 0x00446FF0(2, 6)
+    ///   00447965  몫이 0 이하면 0
+    ///   0044799D  rand(100) &lt;= 몫 이면 열린다
+    ///   004479B0  갈래(+0x34)가 2 나 4 면 그래도 닫는다
+    /// </code>
+    /// 곧 <b>적 대장이 나보다 셀수록</b> 열린다 — 내가 훨씬 세면 굳이 일대일로 겨룰
+    /// 까닭이 없다는 셈이다. 운이 조금 거든다.
+    ///
+    /// <b>갈래 문은 안 걸었다.</b> 우리 판은 다 마을 공략(갈래 2)이라 그대로 옮기면
+    /// 일기토가 아예 안 뜬다 — 게임에는 다른 갈래의 뭍싸움이 더 있지만 우리에게는
+    /// 아직 그 판이 없다.
     /// </remarks>
+    public bool DuelOffered(GameRandom dice)
+    {
+        int odds = _me.AbilityOf(Ability.Luck) * 3 / 10
+                 - _me.AbilityOf(Ability.Might) + FoeMight;
+        return odds > 0 && dice.Next(100) <= odds;
+    }
+
+    /// <summary>
+    /// 지금 고를 수 있는 명령들. 꺼진 줄도 자리를 지킨다.
+    /// </summary>
     public IReadOnlyList<(string Text, bool On)> OrderRows(bool canDuel, bool canRuse) =>
     [
         (Orders[Normal], true),
