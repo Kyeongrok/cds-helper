@@ -84,9 +84,16 @@ internal sealed class PersonInfoDialog : InfoDialog
     }
 
     /// <summary>
-    /// 부하 하나의 판. 제독 판과 같은 틀이되 <b>세이브가 아는 것만</b> 적는다 —
-    /// 직업·소지금·저금·빚·국적은 부하에게 없는 칸이라 아예 안 낸다.
+    /// 부하 하나의 판. 제독 판과 같은 틀이되 <b>세이브가 아는 것만</b> 적는다.
     /// </summary>
+    /// <remarks>
+    /// 직업·소지금·저금·빚·국적·<b>별자리·혈액형</b>은 안 낸다 — 부하에게 없는 칸이다.
+    /// 인물 한 칸(0x90바이트)을 푸는 <c>0x00432B20</c> 을 따라가 보면 능력 여섯 · 행운 ·
+    /// 등급 · 기술 열셋 · 어학 열넷 … 으로 끝까지 채워지는데 그 어디에도 생일이나
+    /// 혈액형 칸이 없다. 「별자리」라는 글자도 EXE 전체에서 <b>딱 한 군데</b>,
+    /// 제독 판 서식(<c>0x00570FA8</c>)에만 있다. 혈액형 표(<c>0x005609A0</c>)를 쓰는 데도
+    /// 제독 판과 캐릭터 만들기 둘뿐이다.
+    /// </remarks>
     private PersonInfoDialog(Player.MateInfo who, string role, Portraits? faces)
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
@@ -106,7 +113,8 @@ internal sealed class PersonInfoDialog : InfoDialog
         rows.Children.Add(Gap(14));
         rows.Children.Add(BlackLine($"  연령  /{who.Age,2}세"));
 
-        Build("", rows, BoardWidth, BoardHeight, new GameButton("취소", Close));
+        Build("", rows, BoardWidth, BoardHeight,
+              new GameButton("특기", () => ShowSkills(who.Name)), new GameButton("취소", Close));
     }
 
     /// <summary>이 판의 글 한 줄 — 검정 글씨다.</summary>
@@ -147,6 +155,13 @@ internal sealed class PersonInfoDialog : InfoDialog
 
     /// <summary>「특기」 — 기술 열셋과 어학 열넷을 두 칸으로 늘어놓는다.</summary>
     private void ShowSkills(Player player) => SkillSheetDialog.Show(this, player);
+
+    /// <summary>부하의 「특기」. 인물 표에 그 사람이 없으면 못 찾았다고 이른다.</summary>
+    private void ShowSkills(string name)
+    {
+        if (!SkillSheetDialog.Show(this, name))
+            NoticeDialog.Show(this, $"{name}의 특기를 찾지 못했다", "인물정보");
+    }
 
     /// <summary>인물정보 판을 연다.</summary>
     /// <param name="gameDirectory">초상화를 읽을 게임 폴더. 없으면 얼굴 없이 뜬다.</param>

@@ -365,7 +365,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     {
         if (_game.Guests is not { } book || _game.Faces is not { } faces) return null;
 
-        var people = _game.Roster?.At(_cityId, TavernRoster.Tavern) ?? [];
+        var people = Sitting(TavernRoster.Tavern);
         var keys = new List<int>(people.Count);
         foreach (var p in people) keys.Add(p.Index);
 
@@ -400,7 +400,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (book == null) return [];
 
         byte building = kind == FacilityKind.Tavern ? TavernRoster.Tavern : TavernRoster.Inn;
-        var people = _game.Roster?.At(_cityId, building) ?? [];
+        var people = Sitting(building);
         var keys = new List<int>(people.Count);
         foreach (var p in people) keys.Add(p.Index);
 
@@ -578,6 +578,22 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 그 사람과 낯을 텄는지. 세이브에 고용 가능(2)·고용 중(3)으로 적혀 있으면 이미 아는
     /// 사이로 보고, 그 밖에는 술집에서 한잔 사야 이름을 알게 된다.
     /// </summary>
+    /// <summary>
+    /// 그 건물에 <b>앉아 있는</b> 사람들.
+    /// </summary>
+    /// <remarks>
+    /// <b>이미 고용한 사람은 뺀다.</b> 부하가 되면 배를 타고 따라다니지 술집에 남아
+    /// 있을 까닭이 없다. 인물 표에는 그대로 그 도시 그 건물이 적혀 있으므로
+    /// (게임은 고용 칸을 3 으로 바꿔 표에서 걷는다) 여기서 걸러 낸다.
+    /// </remarks>
+    private IReadOnlyList<TavernRoster.Person> Sitting(byte building)
+    {
+        var people = _game.Roster?.At(_cityId, building) ?? [];
+        if (_player.MateCount == 0) return people;
+
+        return [.. people.Where(p => !_player.HasMate(p.Name))];
+    }
+
     private bool Known(TavernRoster.Person who) =>
         who.Hire >= TavernRoster.Hireable || _player.HasMet(who.Name);
 
@@ -615,13 +631,20 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (TalkDialog.Ask(_view, null, "", $"[{who.Name}]{Subject(who.Name)} 있다",
                            "말을 건다", "무시한다") != 0) return;
 
+        // 일기토는 <b>역사 항해자 열넷에게만</b> 건다. 게임도 차림표를 짓고 나서
+        // 조건이 안 맞으면 그 줄을 지운다(0x004A4AA0 이 0x00468F70 의 답을 보고
+        // [esp+0x18] 을 0 으로 눕힌다). 그 조건은 아직 못 밝혔고, 실제 놀이에서
+        // 역사 인물에게만 뜨는 것을 보고 그대로 맞춘다.
         bool hireable = who.Hire == TavernRoster.Hireable;
-        string[] choices = hireable
-            ? ["정보를 듣는다", "부하로 고용한다", "일기토를 신청한다", "떠난다"]
-            : ["정보를 듣는다", "일기토를 신청한다", "떠난다"];
-        int duelAt = hireable ? 2 : 1;
+        bool duelable = who.Index < PersonTable.VoyagerCount;
 
-        int at = TalkDialog.Ask(_view, face, "", "무슨 용건인가?", choices);
+        var rows = new List<string> { "정보를 듣는다" };
+        if (hireable) rows.Add("부하로 고용한다");
+        int duelAt = duelable ? rows.Count : -1;
+        if (duelable) rows.Add("일기토를 신청한다");
+        rows.Add("떠난다");
+
+        int at = TalkDialog.Ask(_view, face, "", "무슨 용건인가?", [.. rows]);
         if (at == duelAt) { Duel(who, face); return; }
 
         switch (at)

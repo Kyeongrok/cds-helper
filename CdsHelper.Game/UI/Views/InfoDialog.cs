@@ -152,7 +152,8 @@ internal abstract class InfoDialog : Window
     /// <summary>
     /// 묶음 머리 — 게임은 <c>━━━━━━━━기술━━━━━━━━</c> 처럼 줄표로 싼다.
     /// </summary>
-    protected static UIElement Divider(string text) => Label($"   ━━━━━━━━{text}━━━━━━━━");
+    protected static UIElement Divider(string text, byte color = GameFont.WhiteColor) =>
+        Label($"   ━━━━━━━━{text}━━━━━━━━", color);
 
     /// <summary>제목 줄 오른쪽 끝의 닫기(X).</summary>
     /// <summary>
