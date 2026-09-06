@@ -20,7 +20,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 굴러간다(<see cref="CityCultureEdits"/>) — 세빌리아를 이슬람으로 갈아 두고 그 마을에
 /// 들어가면 조선소에 이슬람 쪽 사람이 앉는다. 게임 EXE 는 손대지 않는다.
 /// </remarks>
-public sealed class CityCultureDialog : Window
+public sealed class CityCultureDialog : GameWindow
 {
     /// <summary>얼굴을 낼 시설들. 화자가 없는 자택·저택 따위는 뺐다.</summary>
     private static readonly (int Code, string Name)[] Kinds =

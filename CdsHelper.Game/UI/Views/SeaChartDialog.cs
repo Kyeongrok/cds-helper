@@ -16,7 +16,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그림은 지도 쪽(<see cref="ShipMapHost.Chart"/>)이 짓는다. 밝힘은 주인공이 든다
 /// (<see cref="Support.Local.Models.ExploredMap"/>) — 세이브에 함께 적힌다.
 /// </remarks>
-public sealed class SeaChartDialog : Window
+public sealed class SeaChartDialog : GameWindow
 {
     /// <summary>몇 배로 키워 낼지. 625x313 을 그대로 내면 너무 작다.</summary>
     private const int Scale = 2;

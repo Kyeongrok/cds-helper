@@ -28,7 +28,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 위 칸의 값은 <b>게임 숫자 글꼴</b>로 찍는다(MISC.CDS 파트 7, 24x24 기울임체 열 장 ·
 /// <see cref="UiSprites.Digit"/>). 조각이 없을 때만 윈도 기울임꼴로 물러선다.
 /// </remarks>
-internal sealed class NumberPadDialog : Window
+internal sealed class NumberPadDialog : GameWindow
 {
     /// <summary>값이 찍히는 칸. 게임 숫자 조각을 이어 붙인 그림이다.</summary>
     private readonly Image _digits = new()

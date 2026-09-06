@@ -29,7 +29,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 건드린다. 처음 벌은 <c>CdsHelper.Support.dll</c> 안에 박혀 있으므로, 되돌리려면
 /// 초상화 창의 「원래대로」를 누르면 된다.
 /// </remarks>
-public sealed class PortraitAddDialog : Window
+public sealed class PortraitAddDialog : GameWindow
 {
     /// <summary>보여 줄 때 키우는 배수 — 도트를 눈으로 재려면 이만큼은 커야 한다.</summary>
     private const int Zoom = 3;

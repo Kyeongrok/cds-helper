@@ -22,7 +22,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 칸은 선반 세 줄에 열일곱 자리씩이다 — 게임 화면에서 재어 맞췄다. 책이 51권을 넘으면
 /// 뒤는 안 꽂는다(넘기는 장치는 아직 흉내내지 않았다).
 /// </remarks>
-public sealed class LibraryDialog : Window
+public sealed class LibraryDialog : GameWindow
 {
     /// <summary>
     /// 선반 세 줄. 책등 그림의 <b>위</b>가 놓이는 높이다(책장 그림 384x320 기준).

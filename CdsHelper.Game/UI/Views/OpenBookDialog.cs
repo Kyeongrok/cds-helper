@@ -20,7 +20,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 글, 표 <c>0x00543FA0</c>). 쪽 번호는 두 면 아래 가운데에 <c>-3-</c> · <c>-4-</c> 처럼
 /// 붙는다.
 /// </remarks>
-public sealed class OpenBookDialog : Window
+public sealed class OpenBookDialog : GameWindow
 {
     /// <summary>글이 앉는 자리(책 틀 안의 그림 점).</summary>
     private const double TextLeft = OpenBookArt.RightPageX + 24;

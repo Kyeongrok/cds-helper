@@ -18,7 +18,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 판 모양은 계약 정보 창(<see cref="ContractDialog"/>)과 같다 — 게임도 이 판들을 한 벌로
 /// 그린다. 그래서 바탕색·글씨색·닫기 단추를 여기 모아 두고 물려 쓴다.
 /// </remarks>
-internal abstract class InfoDialog : Window
+internal abstract class InfoDialog : GameWindow
 {
     /// <summary>화면 바탕. 보급·계약 화면과 같은 밤색 판이다.</summary>
     protected static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));

@@ -32,7 +32,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 시작하는데(<c>0x004AD850</c> 이 건드리지 않는다), 그것을 올리는 길(선물·보고)을 아직
 /// 흉내내지 않아 늘 0 이다. 파산(객체 <c>+0x28</c> 의 비트 12)도 마찬가지라 안 찍는다.
 /// </remarks>
-public sealed class PatronInfoDialog : Window
+public sealed class PatronInfoDialog : GameWindow
 {
     /// <summary>화면 바탕. 계약 정보·보급 화면과 같은 밤색 판이다.</summary>
     private static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));

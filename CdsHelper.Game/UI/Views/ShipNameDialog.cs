@@ -26,7 +26,7 @@ namespace CdsHelper.Game.UI.Views;
 ///   0x00531478  "배의 이름을 정해 주십시오"
 /// </code>
 /// </remarks>
-public sealed class ShipNameDialog : Window
+public sealed class ShipNameDialog : GameWindow
 {
     private readonly GameUi.GameLabel _name;
     private readonly List<Border> _rows = [];

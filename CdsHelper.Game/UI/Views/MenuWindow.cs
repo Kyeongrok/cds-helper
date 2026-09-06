@@ -11,7 +11,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 명령 창 하나를 담아 제 창(HWND)으로 띄운다. 도시 그림 창 옆에 붙여 놓으려고 쓴다 —
 /// 그림 안에 그리면 그림이 작을 때 창을 꽉 채워 버린다(게임도 그림 옆에 따로 띄운다).
 /// </summary>
-public sealed class MenuWindow : Window
+public sealed class MenuWindow : GameWindow
 {
     private readonly Border _root;
 

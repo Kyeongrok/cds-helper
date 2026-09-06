@@ -39,7 +39,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 글은 창 한가운데에 놓인다 — 게임도 한 줄일 때는 남는 칸의 반만큼 밀어 가운데로 맞춘다.
 /// 상자에는 <b>밝은 테가 한 점</b> 둘린다(게임 색표의 <c>0x2B</c> = 212,200,176).
 /// </remarks>
-public sealed class ConfirmDialog : Window
+public sealed class ConfirmDialog : GameWindow
 {
     private readonly GameUi.FocusGroup _focus = new();
 
@@ -253,7 +253,16 @@ public sealed class ConfirmDialog : Window
     /// <summary>
     /// 한 마디 알리고 확인만 받는다 — 게임 물음창의 <b>종류 0</b> 이다.
     /// </summary>
+    /// <param name="under">
+    /// 주면 그 창 <b>바로 아래</b>에 선다. 설명판을 위에 세워 두고 평을 아래에 내는
+    /// 자리(<see cref="HintDetailDialog"/>)가 그렇다 — 안 주면 여느 때처럼 주인 창
+    /// 가운데다. 이때 둘은 <b>한 덩이로 게임 창 가운데</b>에 앉는다.
+    /// </param>
     public static void Tell(Window owner, string text, string? title = null,
-                            uint[]? face = null, double indent = 0) =>
-        new ConfirmDialog(text, title, yesNo: false, face, indent) { Owner = owner }.ShowDialog();
+                            uint[]? face = null, double indent = 0, Window? under = null)
+    {
+        var box = new ConfirmDialog(text, title, yesNo: false, face, indent) { Owner = owner };
+        if (under != null) GameUi.PlaceUnder(box, under, GameUi.RootOf(owner));
+        box.ShowDialog();
+    }
 }

@@ -25,7 +25,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 바탕의 벽지 무늬는 타이틀 화면 것과 같은 그림이라 그것을 깔아 쓴다.
 /// </remarks>
-public sealed class GameOverDialog : Window
+public sealed class GameOverDialog : GameWindow
 {
     /// <summary>놀이가 끝나는 까닭마다의 그림 번호(<c>0x00410CC2</c>).</summary>
     public const int MutinyLost = 0x0B, Ending2 = 0x0C, Ending3 = 0x0D;

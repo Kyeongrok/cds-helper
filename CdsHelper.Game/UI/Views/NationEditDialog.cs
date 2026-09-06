@@ -16,7 +16,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 표가 읽힐 때 얹는다 — 그래서 여기서 고치면 <b>놀이 안에서도 그대로</b> 따라온다.
 /// 도시·문화권 창과 같은 결이다.
 /// </remarks>
-public sealed class NationEditDialog : Window
+public sealed class NationEditDialog : GameWindow
 {
     private readonly DataGrid _grid = new()
     {

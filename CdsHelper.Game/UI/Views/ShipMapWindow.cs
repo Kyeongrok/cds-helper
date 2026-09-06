@@ -434,7 +434,7 @@ public sealed class ShipMapWindow : Window
         // 윈도 제목 줄 대신 크롬처럼 우리가 그린 줄을 얹는다.
         // 왼쪽 위 햄버거에는 앱이 적어 둔 것을 들여다보는 줄을 단다.
         var shell = new DockPanel { LastChildFill = true };
-        var titleBar = ChromeTitleBar.Attach(this,
+        var titleBar = ChromeTitleBar.Attach(this, out var hamburger,
             // 설정은 게임 띠에 두었다가 햄버거로 옮겼다 — 게임 띠에 없는 칸이라
             // 섞여 있으면 원본과 달라 보인다(개발 창을 옮긴 것과 같은 까닭이다).
             ("설정", () => SettingsDialog.Show(this, _game.Bgm)),
@@ -449,6 +449,11 @@ public sealed class ShipMapWindow : Window
         shell.Children.Add(titleBar);
         shell.Children.Add(_screen);
         Content = shell;
+
+        // 대화 상자가 떠 있는 동안은 <b>게임 화면과 햄버거만</b> 손을 안 받게 덮는다 —
+        // 제목 줄의 최소화·최대화·닫기는 살아 있어야 오른쪽 위 단추로 게임을 끝낼 수
+        // 있다(원본이 그렇다). 햄버거를 덮는 것은 상자 위에서 또 상자를 열지 못하게다.
+        GameWindow.Cover(this, hamburger == null ? [_screen] : [_screen, hamburger]);
 
         PreviewKeyDown += OnTitleKey;   // 타이틀에서만 먹는다(그 안에서 화면을 본다)
         input.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(input));

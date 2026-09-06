@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -23,7 +23,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 평 글은 게임 표 <c>0x00560F38</c> 에서 온다. 한 줄이 <b>여덟 바이트</b>라 앞이 부관이
 /// 있을 때, 뒤가 없을 때다(<c>0x0046EE92</c> 와 <c>0x0046EEBA</c>).
 /// </remarks>
-public sealed class HintDetailDialog : Window
+public sealed class HintDetailDialog : GameWindow
 {
     /// <summary>판의 색. 게임 갈무리에서 집은 회청색이다.</summary>
     private static readonly Brush PanelFill = Frozen(Color.FromRgb(0x6E, 0x82, 0xA6));
@@ -79,6 +79,9 @@ public sealed class HintDetailDialog : Window
         };
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
+
+        // 판도 끌어 옮길 수 있어야 한다 — 아래 말 창과 겹치면 손으로 비켜 놓는다.
+        GameUi.EnableDrag(this, (UIElement)Content);
     }
 
     /// <summary>판 위에 글 한 줄 — 검은 벌이다.</summary>
@@ -149,8 +152,15 @@ public sealed class HintDetailDialog : Window
         ["터무니 없는 이야기인 것 같군요. 찾기 힘들 것 같군요.", "찾을 수 있을 것 같지 않습니다."],
     ];
 
-    /// <summary>판이 주인 창 위쪽에서 얼마나 내려앉는지.</summary>
-    private const double PanelTop = 40;
+    /// <summary>
+    /// 판을 처음 앉힐 때 <b>아래 말 창 몫</b>으로 미리 비워 두는 높이.
+    /// </summary>
+    /// <remarks>
+    /// 말 창은 떠 봐야 크기를 알므로, 그때 <see cref="GameUi.PlaceUnder"/> 가 둘을 한
+    /// 덩이로 다시 앉힌다. 여기서는 그 값에 가깝게 어림잡아 두어 판이 눈에 띄게 튀지
+    /// 않게만 한다 — 한 줄짜리 평에 확인 단추면 이만큼이다.
+    /// </remarks>
+    private const double NoticeRoom = 122;
 
     /// <summary>
     /// 힌트 하나를 펴 본다 — 파란 판을 띄우고, 부관의 평은 <b>따로</b> 말 창으로 낸다.
@@ -161,17 +171,20 @@ public sealed class HintDetailDialog : Window
         string head = category.Length > 0 ? $"{hint.Name}({category})" : hint.Name;
         var panel = new HintDetailDialog(head, hint.Text) { Owner = owner };
 
-        // 판은 화면 위쪽에 세운다. 말 창은 여느 대사처럼 가운데에 뜨므로 겹치지 않는다.
+        // 판과 말 창은 <b>한 덩이로 게임 창 가운데</b>에 앉는다. 예전에는 말 창이 주인
+        // 창 가운데에 떠 설명 글을 반쯤 가렸고, 주인이 도시 커맨드 창처럼 작으면 둘 다
+        // 화면 구석으로 몰렸다.
+        var stage = GameUi.RootOf(owner);
         panel.SourceInitialized += (_, _) =>
         {
-            panel.Left = owner.Left + (owner.ActualWidth - panel.ActualWidth) / 2;
-            panel.Top = owner.Top + PanelTop;
+            panel.Left = stage.Left + (stage.ActualWidth - panel.ActualWidth) / 2;
+            panel.Top = stage.Top + (stage.ActualHeight - panel.ActualHeight - NoticeRoom) / 2;
         };
         panel.Show();
 
         try
         {
-            ConfirmDialog.Tell(owner, CommentOn(hint.Grade, fame, hasMate));
+            ConfirmDialog.Tell(owner, CommentOn(hint.Grade, fame, hasMate), under: panel);
         }
         finally
         {

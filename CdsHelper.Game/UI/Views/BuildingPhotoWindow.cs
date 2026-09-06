@@ -20,7 +20,7 @@ namespace CdsHelper.Game.UI.Views;
 /// <b>초점을 뺏지 않는다</b>(<see cref="Window.ShowActivated"/> = false). 이 창은 보여 주기만
 /// 하는 것이라, 초점을 가져가면 방금 연 명령 창이 뒤로 밀려 방향키가 안 먹는다.
 /// </remarks>
-public sealed class BuildingPhotoWindow : Window
+public sealed class BuildingPhotoWindow : GameWindow
 {
     /// <summary>
     /// 손님 한 명. 그림과 크기, 커서를 올렸을 때 뜰 이름표, 눌렀을 때 할 일을 함께 든다.

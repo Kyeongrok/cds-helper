@@ -26,7 +26,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 쓰는 것 말고는 길이 없다 — 한글은 글자가 만 자가 넘어 통째로 늘어놓을 수가 없다.
 /// 초성 열아홉 · 중성 스물하나 · 종성 스물일곱을 늘어놓고 찍는 대로 모아 준다.
 /// </remarks>
-public sealed class TextInputDialog : Window
+public sealed class TextInputDialog : GameWindow
 {
     /// <summary>지금까지 지은 글.</summary>
     private readonly StringBuilder _text = new();

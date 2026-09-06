@@ -34,7 +34,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 바뀌는데 그 길을 아직 안 만들었다.</item>
 /// </list>
 /// </remarks>
-public sealed class CityInfoDialog : Window
+public sealed class CityInfoDialog : GameWindow
 {
     /// <summary>게임 화면에서 뽑은 남회색 바탕. 아이템 창과 같다.</summary>
     private static readonly Brush Back = GameUi.InfoBack;

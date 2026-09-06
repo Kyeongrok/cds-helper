@@ -14,7 +14,7 @@ namespace CdsHelper.Game.UI.Views;
 /// <remarks>
 /// 켜고 끈 것은 <see cref="GameSettings.BgmEnabled"/> 에 적혀 다음에 켤 때도 그대로다.
 /// </remarks>
-public sealed class SettingsDialog : Window
+public sealed class SettingsDialog : GameWindow
 {
     private readonly BgmPlayer _bgm;
 

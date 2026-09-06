@@ -24,7 +24,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 무엇이든 받아 준다. 그 도시가 파는 물건인지는 안 따진다.
 /// </remarks>
-public sealed class MarketSellDialog : Window
+public sealed class MarketSellDialog : GameWindow
 {
     /// <summary>
     /// 줄 속 칸 — (갈래) · 이름. 둘 다 오른쪽맞춤이다.

@@ -31,7 +31,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 쪽은 펼친 책(<see cref="OpenBookDialog"/>)으로 한 장씩 넘긴다 — 도서관에서 힌트를
 /// 얻을 때 쓰는 그 화면이다. 쪽 글은 그 발견물에 딸린 힌트 글이다.
 /// </remarks>
-public sealed class EncyclopediaDialog : Window
+public sealed class EncyclopediaDialog : GameWindow
 {
     /// <summary>책이 꽂히는 선반 — 백과사전은 <b>맨 윗줄 한 줄</b>이면 다 든다(여덟 권).</summary>
     private const double ShelfTop = 66;

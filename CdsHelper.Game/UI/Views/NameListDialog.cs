@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using CdsHelper.Game.Local.Helpers;
@@ -27,7 +27,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 예전에는 도시 건물 고르는 창(<see cref="MapPointDialog"/>)을 빌려 썼는데, 그쪽은
 /// 줄마다 띠 단추가 서는 딴 모양이라 게임 것과 달랐다.
 /// </remarks>
-public sealed class NameListDialog : Window
+public sealed class NameListDialog : GameWindow
 {
     /// <summary>줄 속 칸 — 이름 하나. 게임은 왼쪽맞춤이다.</summary>
     private static readonly GameListColumn[] Columns =

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -77,8 +77,14 @@ internal static class ChromeTitleBar
     /// 왼쪽 위 햄버거 단추를 눌렀을 때 내려올 줄들. 하나도 안 주면 단추를 달지 않는다.
     /// <c>Run</c> 이 null 인 줄은 흐려 두고 안 먹는다.
     /// </param>
-    public static FrameworkElement Attach(Window win, params (string Text, Action? Run)[] menu)
+    /// <param name="menuButton">
+    /// 왼쪽 햄버거. 대화 상자가 떠 있는 동안 이것만 따로 덮으려고 내준다 — 상자 위에서
+    /// 또 상자를 열 수 있으면 안 된다. 차림표가 없으면 null.
+    /// </param>
+    public static FrameworkElement Attach(Window win, out FrameworkElement? menuButton,
+                                          params (string Text, Action? Run)[] menu)
     {
+        menuButton = null;
         WindowChrome.SetWindowChrome(win, new WindowChrome
         {
             // 위 32 점이 제목 줄이 된다 — 끌기와 두 번 눌러 최대화를 윈도가 알아서 한다.
@@ -116,6 +122,7 @@ internal static class ChromeTitleBar
             var hamburger = MenuButton(menu);
             DockPanel.SetDock(hamburger, System.Windows.Controls.Dock.Left);
             bar.Children.Add(hamburger);
+            menuButton = hamburger;
         }
         bar.Children.Add(text);
 

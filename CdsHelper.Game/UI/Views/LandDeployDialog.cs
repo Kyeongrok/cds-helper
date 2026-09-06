@@ -29,7 +29,7 @@ namespace CdsHelper.Game.UI.Views;
 /// (<c>0x0049F540</c> 이 <c>0x0056EAB8</c> 여섯 칸을 그대로 되놓는다). 새 놀이에서 그 여섯이
 /// 죄다 −1 인 것도 그래서다 — 아직 한 번도 안 싸운 것이다.
 /// </remarks>
-internal sealed class LandDeployDialog : Window
+internal sealed class LandDeployDialog : GameWindow
 {
     /// <summary>판 위 자리 여섯(<c>0x0049EC00</c>). 앞 셋이 윗줄, 뒤 셋이 아랫줄이다.</summary>
     private static readonly (int X, int Y)[] SlotAt =

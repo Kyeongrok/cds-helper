@@ -28,7 +28,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 한 턴이 남긴 줄을 하나씩 세우고 그때마다 판을 다시 그린다. 「애니메이션」을 끄면
 /// 줄을 안 세우고 몰아서 끝낸다.
 /// </remarks>
-internal sealed class LandBattleScene : Window
+internal sealed class LandBattleScene : GameWindow
 {
     /// <summary>
     /// 부대 열둘이 서는 자리(<c>0x00445258</c>~<c>0x004453B9</c>).

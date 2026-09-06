@@ -23,7 +23,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 마지막 줄은 <see cref="GameMenu"/> 가 알아서 회녹색 띠로 낸다 — 게임도 나가기 줄을
 /// 그렇게 갈라 놓는다.
 /// </remarks>
-internal sealed class ChoiceDialog : Window
+internal sealed class ChoiceDialog : GameWindow
 {
     private int _picked = -1;
 

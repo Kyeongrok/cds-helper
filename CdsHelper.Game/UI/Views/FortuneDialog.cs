@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -22,7 +22,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 고친 것은 <see cref="BarmaidEdits"/> 가 적어 두고 원본 여급표는 안 건드린다.
 /// </remarks>
-public sealed class FortuneDialog : Window
+public sealed class FortuneDialog : GameWindow
 {
     private readonly ListBox _girls = new()
     {

@@ -412,6 +412,60 @@ internal static class GameUi
     /// <summary>창을 꽉 채우지 않고 남기는 몫.</summary>
     private const double FitMargin = 0.95;
 
+    /// <summary>
+    /// 이 창을 <paramref name="under"/> <b>바로 아래</b> 가운데에 세운다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 그림판이나 설명판을 위쪽에 세우고 말 창을 그 아래에 따로 띄운다 — 한
+    /// 창에 붙이면 판이 세로로 길어지고, 겹쳐 놓으면 설명이 가린다.
+    ///
+    /// <paramref name="stage"/> 를 주면 <b>둘을 한 덩이로 보고</b> 그 창 가운데에
+    /// 앉힌다. 안 그러면 딸린 창(도시 커맨드 창 같은 작은 창)이 주인이라 그 작은 창을
+    /// 따라 화면 구석에 몰린다. 화면 밖으로 나가면 안쪽으로 되민다.
+    ///
+    /// 크기는 <b>떠 봐야</b> 알 수 있으므로 <see cref="FrameworkElement.Loaded"/> 에서
+    /// 잰다. 부르는 쪽은 <c>ShowDialog()</c> 앞에 걸어 두기만 하면 된다.
+    /// </remarks>
+    public static void PlaceUnder(Window box, Window under, Window? stage = null, double gap = 12)
+    {
+        box.WindowStartupLocation = WindowStartupLocation.Manual;
+        box.Loaded += (_, _) =>
+        {
+            var room = SystemParameters.WorkArea;
+            if (stage != null)
+            {
+                double whole = under.ActualHeight + gap + box.ActualHeight;
+                under.Left = Fit(stage.Left + (stage.ActualWidth - under.ActualWidth) / 2,
+                                 under.ActualWidth, room.Left, room.Right);
+                under.Top = Fit(stage.Top + (stage.ActualHeight - whole) / 2,
+                                whole, room.Top, room.Bottom);
+            }
+
+            box.Left = Fit(under.Left + (under.ActualWidth - box.ActualWidth) / 2,
+                           box.ActualWidth, room.Left, room.Right);
+            box.Top = Fit(under.Top + under.ActualHeight + gap,
+                          box.ActualHeight, room.Top, room.Bottom);
+        };
+    }
+
+    /// <summary>그 길이짜리를 두 끝 안에 밀어 넣는다.</summary>
+    private static double Fit(double at, double size, double first, double last) =>
+        Math.Clamp(at, first, Math.Max(first, last - size));
+
+    /// <summary>
+    /// 딸린 창들을 거슬러 올라간 <b>맨 위 창</b> — 게임 창(지도 창)이다.
+    /// </summary>
+    /// <remarks>
+    /// 도시 커맨드 창처럼 작은 창이 주인일 때 그 창을 기준으로 자리를 잡으면 화면
+    /// 구석에 몰린다. 가운데에 세워야 하는 판은 이 창을 무대로 삼는다.
+    /// </remarks>
+    public static Window RootOf(Window window)
+    {
+        var top = window;
+        while (top.Owner != null) top = top.Owner;
+        return top;
+    }
+
     public static void EnableDrag(Window window, UIElement handle)
     {
         handle.MouseLeftButtonDown += (_, _) =>

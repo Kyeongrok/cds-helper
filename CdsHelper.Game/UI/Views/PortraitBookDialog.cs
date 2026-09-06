@@ -21,7 +21,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그림은 <b>1배</b>로 건다 — 조각 그대로 80x96 이라야 게임 화면과 눈으로 맞댈 수 있다.
 /// 크게 볼 때만 두 배로 건다.
 /// </remarks>
-public sealed class PortraitBookDialog : Window
+public sealed class PortraitBookDialog : GameWindow
 {
     /// <summary>한 줄에 몇 장을 놓을지. 창 폭에 맞춰 저절로 접힌다.</summary>
     private const double CellPad = 6;

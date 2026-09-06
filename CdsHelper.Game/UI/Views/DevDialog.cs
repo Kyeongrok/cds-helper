@@ -19,7 +19,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 늘리고 줄이는 단추는 정해진 폭으로 움직이고, 칸에 수를 적어 넣으면 그 값이 그대로 된다.
 /// 값은 0 밑으로 안 내려간다.
 /// </remarks>
-public sealed class DevDialog : Window
+public sealed class DevDialog : GameWindow
 {
     /// <summary>단추 한 번에 움직이는 폭.</summary>
     private const int GoldStep = 10000, FameStep = 500;
