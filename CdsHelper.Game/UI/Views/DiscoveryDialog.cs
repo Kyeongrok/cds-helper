@@ -69,8 +69,31 @@ public sealed class DiscoveryDialog : Window
 
     private readonly GameUi.FocusGroup _focus = new();
 
-    private DiscoveryDialog(BitmapSource? picture, double width, string text, string? movie,
-                            string? title)
+    /// <summary>
+    /// 발견물 <b>그림만</b> 띄우는 창.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 그림과 알림을 <b>따로</b> 띄운다 — 알림만 끌 수 있고 그림은 제자리에
+    /// 남는다. 예전에는 둘을 한 창에 붙여 두어 같이 움직였다.
+    /// </remarks>
+    private sealed class Still : Window
+    {
+        public Still(UIElement art, double width)
+        {
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            SizeToContent = SizeToContent.WidthAndHeight;
+            ShowInTaskbar = false;
+            Background = GameUi.Back;
+            IsHitTestVisible = false;          // 그림은 손을 안 받는다 — 못 끈다
+            Content = new StackPanel { Width = width, Children = { Framed(art) } };
+        }
+    }
+
+    /// <summary>그림 창과 알림 창 사이 틈.</summary>
+    private const double StillGap = 12;
+
+    private DiscoveryDialog(string text, string? title)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -79,45 +102,7 @@ public sealed class DiscoveryDialog : Window
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        // 액자가 좌우로 더 먹으므로 창도 그만큼 넓어야 한다.
-        var stack = new StackPanel
-        {
-            Width = movie != null ? MovieWidth + FrameGrow
-                  : picture == null ? width : width + FrameGrow,
-        };
-
-        if (movie != null)
-        {
-            // 동영상은 그림 자리에 그대로 얹는다. 코덱이 없어 못 틀면 그 칸만 비고
-            // 글은 그대로 나온다 — 발견은 이미 적혔고 그림은 덤이다.
-            var player = new MediaElement
-            {
-                Source = new Uri(movie),
-                LoadedBehavior = MediaState.Manual,
-                UnloadedBehavior = MediaState.Close,
-                Stretch = Stretch.Uniform,
-                Width = MovieWidth,
-                Height = MovieHeight,
-            };
-            player.MediaFailed += (_, _) => player.Visibility = Visibility.Collapsed;
-            player.MediaEnded += (_, _) => player.Stop();
-            Loaded += (_, _) => player.Play();
-            Closed += (_, _) => player.Close();
-            stack.Children.Add(Framed(player));
-        }
-        else if (picture != null)
-        {
-            var image = new Image
-            {
-                Source = picture,
-                Width = picture.PixelWidth,
-                Height = picture.PixelHeight,
-            };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
-            RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
-
-            stack.Children.Add(Framed(image));
-        }
+        var stack = new StackPanel { Width = MinWidth_ };
 
         // 해설은 여러 줄이라 왼쪽에 붙이고, 발견 알림은 한 줄이라 가운데다.
         var lines = Wrap(text, stack.Width - SidePad * 2);
@@ -198,7 +183,71 @@ public sealed class DiscoveryDialog : Window
             width = w;
         }
 
-        new DiscoveryDialog(art, width, text, movie, title) { Owner = owner }.ShowDialog();
+        // 그림이 있으면 <b>따로</b> 띄운다 — 알림만 끌 수 있고 그림은 제자리에 남는다.
+        var still = Picture(art, movie, width, out var stop);
+        var show = still == null ? null : new Still(still, width + FrameGrow) { Owner = owner };
+        if (show != null)
+        {
+            show.Show();
+            Centre(show, owner, up: true);
+        }
+
+        var say = new DiscoveryDialog(text, title) { Owner = owner };
+        if (show != null)
+        {
+            // 알림은 그림 바로 아래 가운데다. 거기서부터 끌고 다닐 수 있다.
+            say.WindowStartupLocation = WindowStartupLocation.Manual;
+            say.Loaded += (_, _) =>
+            {
+                say.Left = show.Left + (show.ActualWidth - say.ActualWidth) / 2;
+                say.Top = show.Top + show.ActualHeight + StillGap;
+            };
+        }
+
+        try { say.ShowDialog(); }
+        finally { stop?.Invoke(); show?.Close(); }
+    }
+
+    /// <summary>그림 창 속에 넣을 것. 그림도 동영상도 없으면 null.</summary>
+    private static UIElement? Picture(BitmapSource? art, string? movie, double width,
+                                      out Action? stop)
+    {
+        stop = null;
+        if (movie != null)
+        {
+            // 코덱이 없어 못 틀면 그 창만 비고 알림은 그대로 나온다 — 그림은 덤이다.
+            var player = new MediaElement
+            {
+                Source = new Uri(movie),
+                LoadedBehavior = MediaState.Manual,
+                UnloadedBehavior = MediaState.Close,
+                Stretch = Stretch.Uniform,
+                Width = MovieWidth,
+                Height = MovieHeight,
+            };
+            player.MediaFailed += (_, _) => player.Visibility = Visibility.Collapsed;
+            player.MediaEnded += (_, _) => player.Stop();
+            player.Loaded += (_, _) => player.Play();
+            stop = player.Close;
+            return player;
+        }
+        if (art == null) return null;
+
+        var image = new Image { Source = art, Width = art.PixelWidth, Height = art.PixelHeight };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+        return image;
+    }
+
+    /// <summary>
+    /// 그 창을 주인 가운데에 놓는다. <paramref name="up"/> 이면 알림이 들어갈 만큼 위로 올린다.
+    /// </summary>
+    private static void Centre(Window what, Window owner, bool up)
+    {
+        what.UpdateLayout();
+        double lift = up ? (what.ActualHeight + StillGap) / 4 : 0;
+        what.Left = owner.Left + (owner.ActualWidth - what.ActualWidth) / 2;
+        what.Top = owner.Top + (owner.ActualHeight - what.ActualHeight) / 2 - lift;
     }
 
     /// <summary>그 발견물의 동영상 파일 자리. 없으면 null.</summary>

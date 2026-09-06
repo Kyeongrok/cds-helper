@@ -91,9 +91,13 @@ internal sealed class LandBattleScene : Window
 
         var scene = new LandBattleScene(game, battle, scale) { _game = game, _dice = dice };
         if (owner != null) scene.Owner = owner;
+
+        // 싸움 곡으로 갈아 끼웠다가 끝나면 듣던 것으로 되돌린다.
+        int was = game.Bgm.Track;
+
         scene.Show();
         try { return scene.Fight(); }
-        finally { scene.Close(); }
+        finally { scene.Close(); game.Bgm.Play(was); }
     }
 
     private Engine.Game? _game;
@@ -107,6 +111,9 @@ internal sealed class LandBattleScene : Window
     {
         var dice = _dice ?? new GameRandom(Environment.TickCount);
         var fight = new LandFight(_battle, dice);
+
+        // 싸우는 동안은 그 곡이 돈다. 끝나면 부르는 쪽이 제 곡으로 되돌린다.
+        _game?.Bgm.Play(BgmPlayer.BattleTrack);
 
         // 판이 열릴 때 한 번 — 아이템을 지녔으면 작렬탄을 받는다(0x00448DD0).
         if (_battle.ShellWord.Length > 0) NoticeDialog.Show(this, _battle.ShellWord, "");

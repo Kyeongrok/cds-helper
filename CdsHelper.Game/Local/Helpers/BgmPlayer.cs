@@ -26,6 +26,9 @@ public sealed class BgmPlayer : IDisposable
     /// <summary>뭍에 올라 말로 다니는 동안 도는 곡.</summary>
     public const int LandTrack = 26;
 
+    /// <summary>육상전이 도는 동안의 곡.</summary>
+    public const int BattleTrack = 28;
+
     /// <summary>술집에 들어가 있는 동안 도는 곡.</summary>
     public const int TavernTrack = 22;
 
