@@ -19,8 +19,8 @@ namespace CdsHelper.Game.UI.Views;
 /// (<c>tools/extract_minigame_art.py</c>). 자리 표가 EXE 에 셋으로 나뉘어 있다.
 /// <code>
 ///   0x00549E10  파트 0 — 금화 32x32 <b>스물여덟 장</b>
-///                        0~12 번호 새긴 1~13 (밝은 벌) · 13~25 같은 열셋(어두운 벌)
-///                        26~27 납작하게 누운 둘
+///                        0~12 번호 새긴 1~13 · 13~25 같은 열셋(<b>손이 얹혔을 때</b>)
+///                        26~27 납작하게 누운 하나와 그 손 얹힌 벌
 ///   0x00549E20  파트 1 — 기둥 64x160 · 대 176x16 · 나무 천칭 192x144 둘
 ///                        · 금 천칭 208x168 셋
 ///   0x00549E3C  파트 2 — 단추 64x32 셋 · 접시 80x144 둘 · 받침 96x48 · 배경 448x384
@@ -32,6 +32,9 @@ namespace CdsHelper.Game.UI.Views;
 ///   0x00452709  단추 64x32 를 (112, 240) 에
 ///   0x0045274A  다음 단추를 (192, 240) 에
 /// </code>
+/// 배경을 (8, 8) 에 놓는다는 것이 곧 <b>게임 좌표에서 여덟을 빼면 우리 좌표</b>라는
+/// 말이다 — 464x400 창에 8점 테를 두르고 그 안이 448x384 다. 아래 자리들은 다 그렇게
+/// 옮겨 적었다.
 /// 배경에 <b>오른쪽 흰 테 칸</b>과 <b>아래 검은 칸</b>이 비어 있다 — 금화를 늘어놓는
 /// 데와 자취를 적는 데다. <b>그 둘 말고는 아무것도 얹지 않는다</b> — 게임 화면에 없는
 /// 것을 덧대면 그만큼 게임이 아니게 된다.
@@ -42,9 +45,13 @@ namespace CdsHelper.Game.UI.Views;
 /// <code>
 ///   기둥 coin-post   ( 97, 44)  64x160      받침 coin-stand  ( 88, 29)  96x48
 ///   대   coin-beam   ( 51, 53) 176x16
-///   접시 coin-pan-1  ( 27, 65)  80x144      coin-pan-0       (163, 65)  80x144
-///   기움 coin-wood-0 ( 30, 42) 192x144      coin-wood-1      ( 30, 41)  192x144
+///   접시 coin-pan-0  ( 27, 65)  80x144      coin-pan-0       (163, 65)  80x144
+///   기움 coin-wood-0 ( 33, 41) 192x144      coin-wood-1      ( 29, 41)  192x144
 /// </code>
+/// <b>접시 두 벌은 좌우가 아니다</b> — <c>0x00452627</c> 을 보면 왼쪽도 오른쪽도
+/// <c>0x549E48</c>(coin-pan-0) 한 벌을 쓰고, <c>0x549E4C</c>(coin-pan-1) 는
+/// <b>그 접시를 고른 동안</b>만 갈아 끼운다. 좌우로 나눠 걸어 두어 오른 접시가
+/// 어두웠다.
 /// <b>금 천칭은 안 쓴다</b> — 왼 접시에 얹힌 장식은 다 풀고 난 뒤에 나오는 것이다.
 ///
 /// 금화는 <b>끌어다 접시에 놓을 수</b> 있고, 딸깍으로도 놓인다(왼쪽 단추가 왼접시,
@@ -64,7 +71,8 @@ internal sealed class CoinPuzzleDialog : InfoDialog
                                            LeftPanAt = (27, 65), RightPanAt = (163, 65);
 
     /// <summary>기운 벌 둘 — 0 은 왼쪽이 내려간 것, 1 은 오른쪽이 내려간 것.</summary>
-    private static readonly (int X, int Y)[] WoodAt = [(30, 42), (30, 41)];
+    /// <remarks><c>0x004524FE</c> 가 (41, 49) 에, <c>0x0045254C</c> 가 (37, 49) 에 놓는다.</remarks>
+    private static readonly (int X, int Y)[] WoodAt = [(33, 41), (29, 41)];
 
     /// <summary>
     /// 단추 자리. 아는 둘이 <c>0x00452709</c> 의 (112, 240) 과 <c>0x0045274A</c> 의
@@ -83,37 +91,64 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// 간격이 0.292 · 첫 칸이 왼쪽에서 0.062 · 위에서 0.057 이다. 그걸 157·252 에
     /// 옮기면 아래 값이 된다.
     /// </remarks>
-    private const int TrayX = 283, TrayY = 32, TrayStep = 46, TrayPer = 3;
+    /// <remarks>
+    /// 뒤에 <c>0x004527F4</c> 에서 셈을 그대로 읽었다 — 게임은
+    /// <c>x = 46*칸 + 0x122</c> · <c>y = 46*줄 + 0x28</c> 이니 테 여덟을 빼면 아래다.
+    /// </remarks>
+    private const int TrayX = 282, TrayY = 32, TrayStep = 46, TrayPer = 3;
 
-    /// <summary>자취를 적는 아래 검은 칸.</summary>
-    private const int LogX = 34, LogY = 296;
+    /// <summary>
+    /// 자취를 적는 아래 검은 칸 — <b>줄마다 자리를 짚어</b> 적는다.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 한 줄을 통째로 글로 이어 붙여 <see cref="StackPanel"/> 에 쌓았더니
+    /// 줄이 가운데로 몰려 「2-」·「3-」이 들쭉날쭉했다. 게임은 <c>0x004520F0</c> 부터
+    /// <b>자리를 하나하나 대고</b> 찍는다.
+    /// <code>
+    ///   0x004520F0  "1-" "2-" "3-" 을 x 0x2C, y 0x138·0x14C·0x160 에
+    ///   0x004521C5  기울기 표를 왼쪽 x 0x52 · 오른쪽 x 0x190 에
+    ///   0x004522FB  왼 접시 번호를 x 0xE6 에서 <b>왼쪽으로</b> 0x12 씩
+    ///   0x00452349  오른 접시 번호를 x 0x104 에서 <b>오른쪽으로</b> 0x12 씩
+    /// </code>
+    /// 테 여덟을 뺀 것이 아래 값이다. 번호는 <b>금화 차례로</b> 도는데 왼쪽은 자리가
+    /// 왼쪽으로 가므로 <b>거꾸로 적힌다</b> — 1·2 를 왼 접시에 올리면 「2 1」이다.
+    /// </remarks>
+    private const int LogX = 36, LogY = 304, LogStep = 20;
+
+    /// <summary>기울기 표를 찍는 두 자리 — 줄의 양 끝이다.</summary>
+    private const int LogLeftMark = 74, LogRightMark = 392;
+
+    /// <summary>왼 접시 번호가 <b>끝나는</b> 자리와 오른 접시 번호가 <b>시작하는</b> 자리.</summary>
+    private const int LogLeftEnd = 222, LogRightStart = 252;
+
+    /// <summary>번호 한 자리마다의 걸음. 두 자리 수는 여덟 점을 더 먹는다.</summary>
+    private const int LogRun = 18, LogWide = 8;
 
     /// <summary>
     /// 두 접시의 가운데와 <b>금화가 얹히는 높이</b> — 천칭 그림에서 잰 것이다.
     /// </summary>
     /// <remarks>
-    /// 접시 그림에서 <b>가장 넓은 줄</b>을 찾고 거기서 여섯 점을 올린 데가 금화 자리다 —
-    /// 평평한 접시(<c>coin-pan-1</c>)가 <c>y 85</c> 에서 가장 넓고 금화가 <c>79</c> 에
-    /// 놓이는 것을 기준으로 삼았다. 기운 벌도 같은 규칙으로 쟀다.
+    /// <c>0x0045283A</c> 의 그리는 셈을 그대로 읽었다 — 평형이면 왼쪽이 <c>(0x32, 0x94)</c>
+    /// 오른쪽이 <c>(0xBC, 0x94)</c> 이고 한 닢 올릴 때마다 <c>y</c> 가 여덟씩 준다.
+    /// 기울면 거기서 조금씩 밀린다. 테 여덟을 뺀 것이 아래 값이다.
     /// </remarks>
-    private static readonly (int X, int Y) LevelLeftPile = (39, 142), LevelRightPile = (175, 142);
+    private static readonly (int X, int Y) LevelLeftPile = (42, 140), LevelRightPile = (180, 140);
 
     /// <summary>기운 벌에서 금화가 쌓이는 자리 — <c>[기움][0]</c> 왼쪽 · <c>[기움][1]</c> 오른쪽.</summary>
     private static readonly (int X, int Y)[][] WoodPile =
     [
-        [(47, 164), (171, 130)],   // 왼쪽이 내려갔다
-        [(46, 130), (172, 163)],   // 오른쪽이 내려갔다
+        [(50, 158), (176, 125)],   // 왼쪽이 내려갔다
+        [(46, 125), (174, 159)],   // 오른쪽이 내려갔다
     ];
 
     /// <summary>
     /// 금화 한 닢을 더 얹을 때마다 올라가는 높이.
     /// </summary>
     /// <remarks>
-    /// 게임 화면에서 두 닢 쌓인 것을 재면 높이가 스물여섯쯤이다 — 납작 금화 한 장의
-    /// 잉크가 열여섯이니 한 닢에 <b>아홉</b>씩 올라간다. 넷으로 두었더니 두 닢이 거의
-    /// 겹쳐 한 닢처럼 보였다.
+    /// <c>0x00452948</c> 의 <c>add ebx, 8</c> 이 그것이다 — 자리마다 <c>y</c> 를 여덟씩
+    /// 뺀다. 납작 금화의 잉크가 열여섯이니 반씩 겹쳐 쌓인다.
     /// </remarks>
-    private const int StackRise = 9;
+    private const int StackRise = 8;
 
 
     /// <summary>
@@ -132,7 +167,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// <summary>천칭에서 <b>기울기에 따라 갈아 끼우는</b> 조각들. 기둥·받침은 안 바뀐다.</summary>
     private readonly List<Image> _arm = [];
     private readonly Border[] _coin;
-    private readonly StackPanel _log = new();
+    private readonly Canvas _log = new();
 
     /// <summary>접시에 쌓아 둔 납작 금화들. 다시 그릴 때마다 걷고 새로 놓는다.</summary>
     private readonly List<Image> _piled = [];
@@ -173,8 +208,11 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         Button(1, "coin-button-1.png", () => { _game.Clear(); Sync(); });
         Button(2, "coin-button-2.png", DoDecide);
 
-        Canvas.SetLeft(_log, LogX);
-        Canvas.SetTop(_log, LogY);
+        // 자취 칸은 판 전체를 덮는 빈 겹이다 — 글자마다 판 좌표로 자리를 짚는다.
+        Canvas.SetLeft(_log, 0);
+        Canvas.SetTop(_log, 0);
+        _log.Width = SceneWidth;
+        _log.Height = SceneHeight;
         _log.IsHitTestVisible = false;
         _scene.Children.Add(_log);
 
@@ -444,10 +482,9 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         if (tilt == CoinPuzzle.Tilt.Level)
         {
             Arm("coin-beam.png", BeamAt, 176, 16);
-            // 접시 두 벌은 <b>왼쪽이 0</b> 이다 — 게임 화면에 맞춰 보면 왼 접시는 밝고
-            // 오른 접시는 어둡다. 거꾸로 걸어 두었었다.
+            // 좌우가 <b>같은 벌</b>이다 — coin-pan-1 은 그 접시를 고른 동안만 쓴다.
             Arm("coin-pan-0.png", LeftPanAt, 80, 144);
-            Arm("coin-pan-1.png", RightPanAt, 80, 144);
+            Arm("coin-pan-0.png", RightPanAt, 80, 144);
             (leftPile, rightPile) = (LevelLeftPile, LevelRightPile);
         }
         else
@@ -473,40 +510,81 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         _log.Children.Clear();
         for (int n = 0; n < CoinPuzzle.Weighings; n++)
         {
-            string body;
+            int y = LogY + n * LogStep;
+            Say($"{n + 1}-", LogX, y);
+
             if (n < _game.Log.Count)
             {
                 var record = _game.Log[n];
-                body = $"{Numbers(record.Left)}  {record.Result switch
-                {
-                    CoinPuzzle.Tilt.Left => "＞",
-                    CoinPuzzle.Tilt.Right => "＜",
-                    _ => "＝",
-                }}  {Numbers(record.Right)}";
+                var (left, right) = Marks(record.Result);
+                Say(left, LogLeftMark, y);
+                Say(right, LogRightMark, y);
+                Numbers(record.Left, record.Right, y);
             }
-            else if (n == _game.Log.Count)
-            {
-                body = $"{Numbers(_game.Left)}     {Numbers(_game.Right)}".TrimEnd();
-            }
-            else body = "";
-
-            _log.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
-            {
-                Text = $"{n + 1}-   {body}",
-            });
+            else if (n == _game.Log.Count) Numbers(_game.Left, _game.Right, y);
         }
     }
 
-    /// <summary>금화 번호를 늘어놓는다. 표에는 0부터지만 사람에게는 1부터다.</summary>
-    private static string Numbers(IReadOnlyList<int> coins) =>
-        string.Join(" ", coins.Select(c => c + 1));
+    /// <summary>
+    /// 그 기울기의 표 두 짝 — 줄 <b>왼끝</b>과 <b>오른끝</b>에 하나씩이다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x00453B1E0</c> 언저리의 글이 그대로다 — 평형은 양쪽 다 <c>＝</c>, 기울면
+    /// 내려간 쪽이 <c>↓</c> 올라간 쪽이 <c>↑</c> 다.
+    /// </remarks>
+    private static (string Left, string Right) Marks(CoinPuzzle.Tilt tilt) => tilt switch
+    {
+        CoinPuzzle.Tilt.Left => ("↓", "↑"),
+        CoinPuzzle.Tilt.Right => ("↑", "↓"),
+        _ => ("＝", "＝"),
+    };
+
+    /// <summary>
+    /// 한 줄에 금화 번호를 늘어놓는다.
+    /// </summary>
+    /// <remarks>
+    /// 왼 접시는 <see cref="LogLeftEnd"/> 에서 <b>왼쪽으로</b> 적어 나가므로 번호가
+    /// 거꾸로 놓이고, 오른 접시는 <see cref="LogRightStart"/> 에서 오른쪽으로 적는다.
+    /// 두 자리 수는 왼쪽으로 여덟 점 더 물러나 <b>오른끝이 그대로</b> 맞는다.
+    ///
+    /// 도는 차례는 <b>금화 번호 순</b>이다 — 게임이 금화를 0번부터 훑으며 어느 접시에
+    /// 있는지 보기 때문이다. 올린 차례가 아니다.
+    /// </remarks>
+    private void Numbers(IReadOnlyList<int> left, IReadOnlyList<int> right, int y)
+    {
+        int x = LogLeftEnd;
+        foreach (int coin in left.Order())
+        {
+            if (coin + 1 >= 10) x -= LogWide;
+            Say($"{coin + 1}", x, y);
+            x -= LogRun;
+        }
+
+        x = LogRightStart;
+        foreach (int coin in right.Order())
+        {
+            Say($"{coin + 1}", x, y);
+            x += coin + 1 >= 10 ? LogRun + LogWide : LogRun;
+        }
+    }
+
+    /// <summary>자취 칸에 글자 한 덩이를 그 자리에 찍는다.</summary>
+    private void Say(string text, int x, int y)
+    {
+        var label = new GameUi.GameLabel(GameFont.WhiteColor) { Text = text };
+        Canvas.SetLeft(label, x);
+        Canvas.SetTop(label, y);
+        _log.Children.Add(label);
+    }
 
     /// <summary>접시 하나에 금화 <paramref name="count"/> 닢을 쌓는다.</summary>
     private void Pile(int count, (int X, int Y) at)
     {
         for (int i = 0; i < count; i++)
         {
-            var image = Piece(Picture($"coin-gold-{i % 2}.png"), at.X, at.Y - i * StackRise, 32, 32);
+            // 납작 금화는 <b>한 벌</b>이다 — coin-gold-1 은 손이 얹혔을 때 쓰는 벌이라
+            // 번갈아 깔면 안 된다.
+            var image = Piece(Picture("coin-gold-0.png"), at.X, at.Y - i * StackRise, 32, 32);
             Panel.SetZIndex(image, 40 + i);
             _piled.Add(image);
         }
