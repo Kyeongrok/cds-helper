@@ -379,21 +379,34 @@ internal static class GameUi
     /// 그림을 앉힐 때 쓸 <b>화면 점 단위</b>의 정수 곱. 1 부터 <paramref name="most"/> 까지다.
     /// </summary>
     /// <remarks>
-    /// 남은 자리를 <b>DIP 가 아니라 화면 점으로</b> 재는 것이 핵심이다. 배율이 175%면
-    /// DIP 로 잰 자리는 실제보다 1.75배 좁게 나와 곱이 1 로 깎이고, 그 1배짜리 그림을
-    /// 다시 창이 1.75배로 늘리면서 점이 <b>고르지 않게</b> 겹쳐 그림이 찌그러진다.
-    /// 여기서 낸 곱은 <see cref="PixelZoom"/> 에 그대로 넘겨 쓴다.
+    /// 두 걸음이다.
+    /// <list type="number">
+    ///   <item><b>창에 맞춰 곱을 잡는다</b> — 여기는 <b>DIP</b> 로 잰다. 예전부터 그렇게
+    ///   재 왔으므로 그래야 <b>보이는 크기가 예전 그대로</b>다.</item>
+    ///   <item><b>그 크기를 화면 점에서 정수 곱으로 올린다.</b> 배율이 175%면 1배짜리
+    ///   그림을 창이 1.75배로 늘리면서 점이 <b>고르지 않게</b> 겹쳐 찌그러지는데, 미리
+    ///   2배로 그려 두면 그럴 일이 없다.</item>
+    /// </list>
+    /// 마지막으로 화면 밖으로 나가면 한 칸씩 줄인다. 여기서 낸 곱은
+    /// <see cref="PixelZoom"/> 에 그대로 넘겨 쓴다.
     /// </remarks>
     public static int PixelFit(Visual? owner, int w, int h, int most = 3)
     {
-        if (owner is not FrameworkElement box || w <= 0 || h <= 0) return 1;
+        if (w <= 0 || h <= 0) return 1;
 
-        double dpi = VisualTreeHelper.GetDpi(owner).DpiScaleX;
+        double dpi = owner == null ? 1 : VisualTreeHelper.GetDpi(owner).DpiScaleX;
         if (dpi <= 0) dpi = 1;
 
-        double areaW = box.ActualWidth * dpi, areaH = box.ActualHeight * dpi;
-        int fit = (int)Math.Min(areaW * FitMargin / w, areaH * FitMargin / h);
-        return Math.Clamp(fit, 1, most);
+        double roomW = (owner as FrameworkElement)?.ActualWidth ?? w;
+        double roomH = (owner as FrameworkElement)?.ActualHeight ?? h;
+        int fit = Math.Clamp((int)Math.Min(roomW * FitMargin / w, roomH * FitMargin / h), 1, most);
+
+        int zoom = Math.Max(1, (int)Math.Round(fit * dpi));
+
+        var screen = SystemParameters.WorkArea;
+        while (zoom > 1 && (w * zoom > screen.Width * dpi || h * zoom > screen.Height * dpi))
+            zoom--;
+        return zoom;
     }
 
     /// <summary>창을 꽉 채우지 않고 남기는 몫.</summary>

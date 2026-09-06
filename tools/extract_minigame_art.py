@@ -99,17 +99,27 @@ CLEAR = (255, 0, 255)
 #: BALANCE.CDS(코인 게임 = 천칭 퍼즐)는 파트가 넷이다 — 0·1·2 가 점, 3 이 157색
 #: 팔레트다. 자리 표가 EXE 에 셋으로 나뉘어 있다.
 #:
-#:     파트 0  0x00549E10  금화 32x32 두 벌 (26624 · 27648)
-#:     파트 1  0x00549E20  천칭 — 대 176x16, 나무 192x144 둘, 금 208x168 셋
+#:     파트 0  0x00549E10  금화 32x32 — <b>스물여덟 장</b>이다
+#:                             0~12  번호 새긴 금화 1~13 (밝은 벌)
+#:                            13~25  같은 열셋 (어두운 벌 — 접시에 올린 것)
+#:                            26~27  납작하게 누운 금화 둘 (접시 위에서 옆으로 보이는 것)
+#:                          둘레는 색인 230(마젠타)이라 그것만 비운다.
+#:     파트 1  0x00549E20  천칭 — 기둥 64x160, 대 176x16, 나무 192x144 둘,
+#:                                    금 208x168 셋
+#:                             기둥은 자리 0 이다. 표에는 안 적혀 있지만 파트 1 앞머리
+#:                             10,240바이트가 딱 64x160 이고, 실제로 갈색 기둥과 받침이다.
 #:     파트 2  0x00549E3C  단추 64x32 셋 · 접시 80x144 둘 · 받침 96x48 · 배경 448x384
 #:
 #: 배경은 0x00451F91 이 (8, 8) 에 찍는다 — 창이 464x400 이니 8점 테를 두른 꼴이다.
 BALANCE_COIN = [
+    (0, 0, 13, 32, 32, "coin-face-{0}.png"),
+    (0, 13312, 13, 32, 32, "coin-face-dim-{0}.png"),
     (0, 26624, 2, 32, 32, "coin-gold-{0}.png"),
     (2, 33792, 1, 448, 384, "coin-bg.png"),
     (2, 6144, 2, 80, 144, "coin-pan-{0}.png"),
     (2, 29184, 1, 96, 48, "coin-stand.png"),
     (2, 0, 3, 64, 32, "coin-button-{0}.png"),
+    (1, 0, 1, 64, 160, "coin-post.png"),
     (1, 10240, 1, 176, 16, "coin-beam.png"),
     (1, 13056, 2, 192, 144, "coin-wood-{0}.png"),
 ]
@@ -228,6 +238,10 @@ def strip(game, name, table, out_solid):
         print(f"{shape.format('*')}  {width}x{height} x{count}  (자리 {first})")
 
 
+#: BALANCE.CDS 조각의 비침 색인. 팔레트 156번이 (255, 0, 255) 다.
+BALANCE_CLEAR_INDEX = 230
+
+
 def balance(game):
     """BALANCE.CDS 는 점이 파트 셋에 나뉘어 있어 따로 자른다."""
     from PIL import Image
@@ -242,6 +256,9 @@ def balance(game):
     own = ls12.palette(archive.decode(3))
 
     def color(v):
+        # 둘레가 마젠타(색인 230)다 — 팔레트 밖 색인과 똑같이 비운다.
+        if v == BALANCE_CLEAR_INDEX:
+            return CLEAR
         k = v - BASE
         return own[k] if 0 <= k < len(own) else CLEAR
 

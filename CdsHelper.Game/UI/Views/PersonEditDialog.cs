@@ -397,6 +397,7 @@ public sealed class PersonEditDialog : Window
         _revert.IsEnabled = PersonTable.Edited;
         _status.Text =
             $"인물 {rows.Count}명 보임"
+            + (table.Year > 0 ? $" · 나이는 {table.Year}년 기준" : "")
             + (hidden == 0 ? "" : $" (등장 안 한 {hidden}명은 가림)")
             + $" / 표 {PersonTable.Count}칸"
             + $" — {(PersonTable.Edited ? "고쳐 둔 것" : "같이 깔린 본")}"

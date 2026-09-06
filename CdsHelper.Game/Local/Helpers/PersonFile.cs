@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -29,6 +29,16 @@ public static class PersonFile
 {
     /// <summary>알맹이 기준 표 시작. 파일 자리는 판 문자열 길이에 딸려 움직인다.</summary>
     private const int TableStartRel = 0x9237;
+
+    /// <summary>알맹이 기준 <b>해</b>가 놓인 자리(낱말).</summary>
+    /// <remarks>
+    /// 표에 적힌 나이는 <b>그 세이브의 그 해</b> 나이다 — 게임이 해마다 한 살씩 먹인다.
+    /// 그래서 표를 구울 때 해를 함께 적어 두어야 다른 해의 나이를 셀 수 있다.
+    /// </remarks>
+    private const int YearRel = 0x02;
+
+    /// <summary>마지막으로 읽은 세이브의 해. 못 읽었으면 0.</summary>
+    public static int LastYear { get; private set; }
 
     /// <summary>한 칸의 크기.</summary>
     public const int RecordSize = 0x90;
@@ -64,7 +74,11 @@ public static class PersonFile
             return null;
         }
 
-        int start = BodyStart(data) + TableStartRel;
+        int body = BodyStart(data);
+        LastYear = body + YearRel + 2 <= data.Length
+            ? BitConverter.ToUInt16(data, body + YearRel) : 0;
+
+        int start = body + TableStartRel;
         if (start + (RecordSize * PersonTable.Count) > data.Length)
         {
             LastError = "세이브가 너무 짧습니다 — 인물 표가 다 들어 있지 않습니다";

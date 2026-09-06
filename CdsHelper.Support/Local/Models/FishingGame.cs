@@ -130,11 +130,27 @@ public sealed class FishingGame
     /// <summary>한 줄(한 칸)의 길이. 가로 칸 사이도 세로 줄 사이도 이만큼이다.</summary>
     public const int Span = 40;
 
-    /// <summary>옆으로 건너는 데 쓰는 틱. 나머지 절반으로 내려간다.</summary>
-    private const int CrossTicks = TicksPerRow / 2;
+    /// <summary>
+    /// 옆으로 건너는 데 쓰는 틱. 나머지로 내려가며 따라붙는다.
+    /// </summary>
+    /// <remarks>
+    /// 한 칸이 가로세로 <see cref="Span"/> 으로 같고 한 줄이 <see cref="TicksPerRow"/> 틱이라,
+    /// <b>내려가는 빠르기는 틱당 1</b> 이다. 옆으로도 그렇게 하려면 마흔 틱이 다 드는데
+    /// 그러면 그 줄에서 내려갈 참이 없어진다 — 판 도는 시간은 그대로 두고 가로만
+    /// <b>사분의 삼</b>으로 늦춘다. 틱당 1.3 이라 예전(틱당 2)보다 눈에 한결 낫다.
+    /// </remarks>
+    private const int CrossTicks = TicksPerRow * 3 / 4;
 
-    /// <summary>이 줄이 시작한 높이.</summary>
-    private int RowTop => Y - Tick;
+    /// <summary>옆으로 가겠다고 한 <b>그 틱</b>과 그때의 깊이.</summary>
+    /// <remarks>
+    /// 줄 한가운데서 방향을 틀면 여기가 곧 꺾이는 자리다. 줄 첫머리(<c>Tick = 0</c>)에서
+    /// 재면 <b>이미 지난 만큼이 한꺼번에 반영되어 바늘이 옆으로 튄다</b> — 틱 30에
+    /// 눌렀는데 가로로 한 칸을 그 자리에서 건너뛰던 것이 그것이다.
+    /// </remarks>
+    private int _leanAt, _leanY;
+
+    /// <summary>이번에 옆으로 건너는 데 실제로 쓸 틱. 줄 끝을 넘지 않는다.</summary>
+    private int CrossSpan => Math.Max(1, Math.Min(CrossTicks, TicksPerRow - _leanAt));
 
     /// <summary>
     /// <b>그리는</b> 가로 자리. 사다리는 가로줄과 세로줄뿐이라 비스듬히 가지 않는다.
@@ -146,12 +162,27 @@ public sealed class FishingGame
     /// </remarks>
     public double DrawX =>
         Lean == 0 ? Column * Span
-                  : Column * Span + Lean * Math.Min(Tick, CrossTicks) * (Span / CrossTicks);
+                  : Column * Span + Lean * Span
+                    * Math.Clamp((Tick - _leanAt) / (double)CrossSpan, 0, 1);
 
-    /// <summary><b>그리는</b> 세로 자리. 옆으로 건너는 동안은 줄 높이에 멎어 있다.</summary>
-    public double DrawY =>
-        Lean == 0 ? Y
-                  : RowTop + Math.Max(0, Tick - CrossTicks) * (Span / CrossTicks);
+    /// <summary>
+    /// <b>그리는</b> 세로 자리. 가로줄을 건너는 동안은 <b>누른 그때의 깊이</b>에 멎어
+    /// 있다가, 다 건넌 뒤에 실제 깊이로 따라붙는다.
+    /// </summary>
+    public double DrawY
+    {
+        get
+        {
+            if (Lean == 0) return Y;
+
+            int crossEnd = _leanAt + CrossSpan;
+            if (Tick <= crossEnd) return _leanY;
+
+            double gone = Math.Clamp((Tick - crossEnd) / (double)Math.Max(1, TicksPerRow - crossEnd),
+                                     0, 1);
+            return _leanY + (Y - _leanY) * gone;
+        }
+    }
 
     /// <summary>떨어뜨린다.</summary>
     public void Drop() => Started = true;
@@ -283,7 +314,11 @@ public sealed class FishingGame
         else Lean = 0;
 
         // 옆으로 가겠다고 한 틱은 안 내려간다 — 게임도 [0x1F8] 을 세운다.
-        if (Lean != was) _hold = true;
+        if (Lean == was) return;
+
+        _hold = true;
+        _leanAt = Tick;                  // 여기서부터 가로줄을 건넌다
+        _leanY = Y;
     }
 
     /// <summary>

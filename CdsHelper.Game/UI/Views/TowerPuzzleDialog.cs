@@ -23,6 +23,12 @@ namespace CdsHelper.Game.UI.Views;
 ///           «자리 + (판자번호 - 1) * 12800» 으로 몇째 벌인지 준다
 /// </code>
 /// 받침 자리는 배경에서 재어 썼다 — 위 하나, 아래 둘이 세모꼴로 놓인다.
+/// <b>그림 말고는 아무것도 얹지 않는다</b> — 게임 화면에 없는 것을 덧대면 그만큼
+/// 게임이 아니게 된다. 들고 있는 판자는 떠 있는 그림 자체가 알려 준다.
+///
+/// 판자는 <b>끌어다 옮길 수</b> 있고, 딸깍 두 번(집을 기둥 · 놓을 기둥)으로도 옮긴다.
+/// 규칙은 <see cref="TowerPuzzle.Tap"/> 하나라 둘이 같은 길로 든다 — 끌기는 「집기
+/// 딸깍」과 「놓기 딸깍」을 한 몸짓으로 묶은 것뿐이다.
 /// </remarks>
 internal sealed class TowerPuzzleDialog : InfoDialog
 {
@@ -33,9 +39,17 @@ internal sealed class TowerPuzzleDialog : InfoDialog
 
     private const int PlankW = 160, PlankH = 80;
 
-    /// <summary>받침 셋의 가운데 x 와 판자가 얹히는 y. 배경에서 잰 것이다.</summary>
-    private static readonly int[] PegX = [86, 226, 360];
-    private static readonly int[] PegY = [352, 210, 352];
+    /// <summary>
+    /// 받침 셋의 가운데 x 와 판자가 얹히는 y. 배경에서 잰 것이다.
+    /// </summary>
+    /// <remarks>
+    /// <b>차례가 뜻을 가진다.</b> 다 모아야 하는 데가 <see cref="TowerPuzzle.Goal"/> —
+    /// 곧 <b>셋째</b> 기둥이고(<c>0x004305EE</c> 가 <c>[esi+0x144]</c> 를 판자 수와 견준다),
+    /// 그 자리는 배경에서 <b>가운데 위</b>에 홀로 놓인 받침이다. 쌓아 올리는 것이 이 놀이의
+    /// 「탑」이니 눈에도 그렇게 보여야 한다. 아래 둘이 앞의 두 자리다.
+    /// </remarks>
+    private static readonly int[] PegX = [86, 360, 226];
+    private static readonly int[] PegY = [352, 352, 210];
 
     /// <summary>판자 한 장이 쌓일 때마다 이만큼 올라간다.</summary>
     private const int Rise = 18;
@@ -53,7 +67,6 @@ internal sealed class TowerPuzzleDialog : InfoDialog
         Visibility = Visibility.Collapsed,
         IsHitTestVisible = false,
     };
-    private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
 
     private TowerPuzzleDialog(int planks, Random rng)
     {
@@ -74,8 +87,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
                 BorderThickness = new Thickness(2),
                 Cursor = Cursors.Hand,
             };
-            box.MouseLeftButtonDown += (_, e) => e.Handled = true;
-            box.MouseLeftButtonUp += (_, e) => { e.Handled = true; Tap(here); };
+            box.MouseLeftButtonDown += (_, e) => Grab(here, e);
             Canvas.SetLeft(box, PegX[peg] - PlankW / 2);
             Canvas.SetTop(box, PegY[peg] - 110);
             _scene.Children.Add(box);
@@ -86,16 +98,12 @@ internal sealed class TowerPuzzleDialog : InfoDialog
         Panel.SetZIndex(_held, 90);
         _scene.Children.Add(_held);
 
-        // 알림줄은 판 위 왼쪽 꼭대기에 얹는다 — 밤색 판이 없어지면 붙일 데가 없다.
-        _line.FallbackBrush = Ring;
-        _line.IsHitTestVisible = false;
-        Canvas.SetLeft(_line, 14);
-        Canvas.SetTop(_line, 10);
-        Panel.SetZIndex(_line, 100);
-        _scene.Children.Add(_line);
-
         _scene.Background = Brushes.Transparent;
         _scene.MouseLeftButtonDown += (_, e) => e.Handled = true;
+
+        // 집는 순간 판이 손을 잡으므로 뗌은 늘 판에 온다 — 놓는 기둥은 좌표로 짚는다.
+        _scene.MouseMove += Drag;
+        _scene.MouseLeftButtonUp += Land;
 
         double zoom = GameUi.PixelZoom(this, Zoom);
         _scene.LayoutTransform = new ScaleTransform(zoom, zoom);
@@ -162,6 +170,87 @@ internal sealed class TowerPuzzleDialog : InfoDialog
         return bmp;
     }
 
+    // ── 끌어다 놓기 ────────────────────────────────────────────────────────────
+
+    /// <summary>누른 기둥과 자리. 안 누르고 있으면 −1.</summary>
+    private int _from = -1;
+    private Point _grabbed;
+    private bool _dragging;
+
+    /// <summary>끌었다고 치는 거리(판 점).</summary>
+    private const double DragSlop = 5;
+
+    /// <summary>
+    /// 기둥을 눌렀다 — <b>빈손이면 여기서 집는다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 이미 판자를 들고 있으면 여기서는 아무것도 안 한다. 놓는 것은 <see cref="Land"/>
+    /// 라야 끌어서 놓는 것과 딸깍으로 놓는 것이 한 길로 든다.
+    /// </remarks>
+    private void Grab(int peg, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_game.Won) return;
+
+        _from = peg;
+        _dragging = false;
+        _grabbed = e.GetPosition(_scene);
+        _scene.CaptureMouse();
+
+        if (_game.Held <= 0) Tap(peg);      // 빈손 — 집는다
+    }
+
+    private void Drag(object sender, MouseEventArgs e)
+    {
+        if (_from < 0 || _game.Held <= 0) return;
+
+        var now = e.GetPosition(_scene);
+        if (!_dragging)
+        {
+            if (Math.Abs(now.X - _grabbed.X) < DragSlop && Math.Abs(now.Y - _grabbed.Y) < DragSlop)
+                return;
+            _dragging = true;
+        }
+
+        // 끄는 동안은 들고 있는 판자가 손끝을 따라온다.
+        Canvas.SetLeft(_held, now.X - PlankW / 2.0);
+        Canvas.SetTop(_held, now.Y - PlankH / 2.0);
+    }
+
+    private void Land(object sender, MouseButtonEventArgs e)
+    {
+        if (_from < 0) return;
+        e.Handled = true;
+
+        int from = _from;
+        bool dragged = _dragging;
+        var now = e.GetPosition(_scene);
+        _from = -1;
+        _dragging = false;
+        _scene.ReleaseMouseCapture();
+
+        if (_game.Held <= 0) return;
+
+        // 끌지 않고 딸깍만 했으면 집은 채로 둔다 — 다음 딸깍이 놓을 기둥이다.
+        if (!dragged) { if (PegAt(now) is int to && to != from) Tap(to); Sync(); return; }
+
+        // 기둥 밖에 놓으면 없던 일이다 — 도로 제자리에 얹는다.
+        if (PegAt(now) is int drop) Tap(drop);
+        else _game.PutBack();
+        Sync();
+    }
+
+    /// <summary>그 자리에 놓인 기둥 번호. 어느 기둥도 아니면 null.</summary>
+    private int? PegAt(Point at)
+    {
+        for (int peg = 0; peg < TowerPuzzle.Pegs; peg++)
+        {
+            double x = PegX[peg] - PlankW / 2.0, y = PegY[peg] - 110;
+            if (at.X >= x && at.X < x + PlankW && at.Y >= y && at.Y < y + 150) return peg;
+        }
+        return null;
+    }
+
     private void Tap(int peg)
     {
         if (_game.Won) return;
@@ -192,16 +281,14 @@ internal sealed class TowerPuzzleDialog : InfoDialog
 
     private void Sync()
     {
-        _line.Text = $"  판자 {_game.Planks}장   {_game.Moves}수" +
-                     (_game.Held > 0 ? $"   {_game.Held}번 판자를 들었다" : "");
-
         foreach (var image in _planks) _scene.Children.Remove(image);
         _planks.Clear();
 
         for (int peg = 0; peg < TowerPuzzle.Pegs; peg++)
         {
             var stack = _game.Stack(peg);
-            for (int i = 0; i < stack.Count; i++) Plank(stack[i], PegX[peg], PegY[peg] - i * Rise);
+            for (int i = 0; i < stack.Count; i++)
+                Plank(stack[i], i, PegX[peg], PegY[peg] - i * Rise);
 
             _spot[peg].BorderBrush = peg == _game.HeldFrom ? Ring : Brushes.Transparent;
         }
@@ -221,7 +308,8 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     }
 
     /// <summary>판자 한 장. 조각 번호는 <c>판자번호 - 1</c> 이다.</summary>
-    private void Plank(int plank, int centre, int bottom)
+    /// <param name="level">아래에서 몇째로 쌓였는지. 앞뒤를 이것으로 가른다.</param>
+    private void Plank(int plank, int level, int centre, int bottom)
     {
         var image = new Image
         {
@@ -231,7 +319,9 @@ internal sealed class TowerPuzzleDialog : InfoDialog
             IsHitTestVisible = false,
         };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
-        Panel.SetZIndex(image, 10 + plank);
+        // 앞뒤는 <b>쌓인 차례</b>로 정한다 — 판자 번호로 정하면 큰 것이 늘 앞이라
+        // 위에 얹은 작은 판자가 뒤로 숨는다.
+        Panel.SetZIndex(image, 10 + level);
         Canvas.SetLeft(image, centre - PlankW / 2);
         Canvas.SetTop(image, bottom - PlankH / 2);
         _scene.Children.Add(image);

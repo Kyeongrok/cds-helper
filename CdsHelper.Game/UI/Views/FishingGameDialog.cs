@@ -51,7 +51,14 @@ internal sealed class FishingGameDialog : InfoDialog
     private const int BeastSize = 32, HookSize = 16, FishW = 32, FishH = 16;
 
     /// <summary>한 틱에 얼마나 쉴지. 게임은 안 쉬고 그리는 대로 돈다.</summary>
-    private static readonly TimeSpan TickTime = TimeSpan.FromMilliseconds(20);
+    private static readonly TimeSpan TickTime = TimeSpan.FromMilliseconds(TickMs);
+
+    /// <summary>
+    /// 한 틱에 드는 밀리초. 한 줄(<see cref="FishingGame.TicksPerRow"/> = 40틱)이
+    /// <c>40 x 40 = 1.6초</c>다.
+    /// </summary>
+    /// <remarks>예전에는 20ms 라 한 줄이 0.8초였는데 눈으로 좇기에 너무 빨랐다.</remarks>
+    private const int TickMs = 40;
 
     private readonly FishingGame _game;
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
@@ -242,15 +249,48 @@ internal sealed class FishingGameDialog : InfoDialog
     /// <summary>한 틱.</summary>
     private void Beat()
     {
+        // 걸린 뒤에는 셈을 멈추고 끌어 올리는 것만 보인다.
+        if (_reeling >= 0) { Reel(); return; }
+
         if (!_game.Step())
         {
-            _clock.Stop();
             Sync();
-            Close();
+            _reeling = (int)_game.Y;      // 걸린 그 깊이에서 감아올리기 시작한다
             return;
         }
         Sync();
     }
+
+    /// <summary>
+    /// 걸린 것을 <b>끌어 올린다</b>. 다 올라오면 창을 닫는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 무엇이든 걸리면 그 자리에서 멎지 않고 줄을 감아 올린다. 내려갈 때보다
+    /// 빠르게 올린다 — 기다리는 맛이 없는 대목이라 <see cref="ReelStep"/> 만큼씩 당긴다.
+    /// </remarks>
+    private void Reel()
+    {
+        _reeling -= ReelStep;
+        if (_reeling <= FishingGame.TopY)
+        {
+            _clock.Stop();
+            Close();
+            return;
+        }
+        Canvas.SetTop(_hook, _reeling - HookSize / 2.0);
+
+        // 걸린 것도 함께 딸려 올라온다.
+        if (_catch != null) Canvas.SetTop(_catch, _reeling - FishH / 2.0);
+    }
+
+    /// <summary>한 틱에 감아 올리는 깊이. 내려갈 때(한 틱에 1)보다 빠르다.</summary>
+    private const int ReelStep = 6;
+
+    /// <summary>감아 올리는 중인 깊이. −1 이면 아직 걸리지 않았다.</summary>
+    private int _reeling = -1;
+
+    /// <summary>바늘에 딸려 올라오는 것. 없으면 null.</summary>
+    private Image? _catch;
 
     private void Explain() =>
         NoticeDialog.Explain(this,
@@ -262,15 +302,18 @@ internal sealed class FishingGameDialog : InfoDialog
 
     private void Sync()
     {
+        // 다음에 어느 쪽으로 꺾는지만 알린다 — 깊이는 화면에 그대로 보이고, 조작 안내는
+        // 오른쪽 차림표가 맡는다. 게임 화면에 없는 것을 덧대지 않는다.
         string way = _game.Lean > 0 ? "오른쪽으로" : _game.Lean < 0 ? "왼쪽으로" : "곧장 아래로";
-        _line.Text = _game.Started
-            ? $"  {_game.Y}/{FishingGame.FloorY}   다음 교차점에서 {way}"
-            : "  「떨어뜨린다」를 누르면 내려갑니다";
+        _line.Text = _game.Started ? $"  다음 교차점에서 {way}" : "";
 
         // 바늘은 <b>사다리 위에서만</b> 간다 — 가로줄을 건널 때는 높이가 멎고,
         // 다 건넌 뒤에 세로줄을 내려간다(FishingGame.DrawX · DrawY).
         Canvas.SetLeft(_hook, GridX + _game.DrawX - HookSize / 2.0);
         Canvas.SetTop(_hook, _game.DrawY - HookSize / 2.0);
+
+        // 걸린 순간, 무엇이 걸렸는지 붙잡아 둔다 — 감아 올릴 때 함께 딸려 온다.
+        if (_catch == null && _game.Got != FishingGame.Catch.None) Hooked();
 
         // 헤엄치는 것은 한 줄 시간(마흔 틱)에 한 칸을 간다 — 그 사이를 틱만큼 미끄러진다.
         for (int k = 0; k < _swim.Length; k++)
@@ -280,10 +323,42 @@ internal sealed class FishingGameDialog : InfoDialog
             int row = fish.Cell / FishingGame.Columns;
             double slide = _game.Started ? (fish.Way == 1 ? _game.Tick : -_game.Tick) : 0;
 
-            _swim[k].Source = Picture($"fish-small-{fish.Kind * 2 + (fish.Way == 1 ? 0 : 1)}.png");
+            // 머리가 가는 쪽을 본다. 벌 둘 가운데 <b>0 이 왼쪽</b>을 보므로(잉크가 왼쪽에
+            // 몰려 있다) 오른쪽으로 가는 갈래 1 에는 <b>1</b> 을 걸어야 한다 —
+            // 거꾸로 걸어 두어 지느러미 쪽으로 나아가고 있었다.
+            _swim[k].Source = Picture($"fish-small-{fish.Kind * 2 + (fish.Way == 1 ? 1 : 0)}.png");
             Canvas.SetLeft(_swim[k], CellX(col) + slide - FishW / 2.0);
             Canvas.SetTop(_swim[k], CellY(row) - FishH / 2.0);
         }
+    }
+
+    /// <summary>
+    /// 걸린 것을 바늘 자리에 붙인다. 헤엄치던 놈이면 그 그림을 그대로 물려받는다.
+    /// </summary>
+    private void Hooked()
+    {
+        string? art = _game.Got switch
+        {
+            FishingGame.Catch.SquidCaught => "fish-big-1.png",
+            FishingGame.Catch.OctopusCaught => "fish-big-2.png",
+            FishingGame.Catch.BigOne => "fish-small-0.png",
+            FishingGame.Catch.SmallFry or FishingGame.Catch.SmallFryToo => "fish-small-0.png",
+            _ => null,
+        };
+        if (art == null) return;
+
+        _catch = new Image
+        {
+            Source = Picture(art),
+            Width = FishW,
+            Height = FishH,
+            IsHitTestVisible = false,
+        };
+        RenderOptions.SetBitmapScalingMode(_catch, BitmapScalingMode.NearestNeighbor);
+        Panel.SetZIndex(_catch, 80);
+        Canvas.SetLeft(_catch, GridX + _game.DrawX - FishW / 2.0);
+        Canvas.SetTop(_catch, _game.DrawY - FishH / 2.0);
+        _scene.Children.Add(_catch);
     }
 
     /// <summary>게임 EXE 의 설명 글 그대로(<c>0x0056EDB0</c>).</summary>
