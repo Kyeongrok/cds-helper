@@ -421,14 +421,6 @@ public sealed class DisevRunner
         return _game.SpeakerFace(code, culture);
     }
 
-    /// <summary>부하 첫 자리의 얼굴. 자리가 비었거나 신상을 못 찾으면 null.</summary>
-    private uint[]? MateFace()
-    {
-        string mate = _game.Player.MateAt(0);
-        if (mate.Length == 0) return null;
-
-        return _game.MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
-            ? _game.Faces?.TryGetBgra(who.Face, female: false)
-            : null;
-    }
+    /// <summary>부하 첫 자리의 얼굴. 판이 들고 있는 것을 그대로 쓴다.</summary>
+    private uint[]? MateFace() => _game.AideFace;
 }

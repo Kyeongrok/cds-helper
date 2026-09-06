@@ -81,9 +81,10 @@ internal static class HostileCityMenu
         int culture = game.CityRows?.CultureOf(city) ?? 0;
         var gate = game.SpeakerFace(Standoff.GateSpeaker(byLand), culture);
         TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.GateWord, heard));
-        // 덧붙이는 것은 대원이다 — 문지기 얼굴을 그대로 두면 그가 말한 꼴이 된다.
+        // 덧붙이는 것은 <b>부관</b>이다 — 문지기 얼굴을 그대로 두면 그가 말한 꼴이 된다.
+        // 부관이 없으면 얼굴 없이 글만 낸다.
         if (!heard)
-            TalkDialog.Say(owner, null, "",
+            TalkDialog.Say(owner, game.AideFace, "",
                            byLand ? Standoff.GateLostVillage
                                   : Standoff.GateLostPort);
 
@@ -104,7 +105,8 @@ internal static class HostileCityMenu
                 case Standoff.Attack:
                     // 물음은 하나다 — 게임이 글 둘을 넘기지만 그중 하나만 띄운다
                     // (0x00469680, Standoff.SureWord 주석 참고).
-                    if (!ConfirmDialog.Ask(owner, Standoff.SureWord, cityName)) break;
+                    // 되묻는 것도 <b>부관</b>이고 <b>제목 띠가 없다</b>.
+                    if (!ConfirmDialog.Ask(owner, Standoff.SureWord, null, game.AideFace)) break;
 
                     // 게임도 물음 뒤에 부대배치 화면부터 편다(0x0044A870 의 0x00446E60).
                     // 배치가 끝나면 그 길로 싸움터로 넘어간다.

@@ -1177,6 +1177,8 @@ public sealed class ShipMapWindow : Window
             "성배 퍼즐", "스핑크스 퀴즈", "미궁 64 퍼즐", "낚시 게임",
             "코인 게임", "발라몬의 탑 퍼즐", "화살표 입방체 퍼즐",
             "일기토",
+            // 게임에 없는 줄이다 — 육상전 셈을 도시 없이 돌려 보려고 뒤에 붙였다.
+            "육상전 모의전",
         ];
 
         int pick = MapPointDialog.Ask(this, names, "미니 게임", MapPointDialog.MenuWidth);
@@ -1198,6 +1200,7 @@ public sealed class ShipMapWindow : Window
                 if (DuelGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
                 else DuelGame(this, _game.Random);
                 break;
+            case 8: LandSparDialog.Play(this, _game); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
     }
