@@ -215,6 +215,55 @@ public sealed class LandArt
         return bgra;
     }
 
+    /// <summary>
+    /// 말풍선을 짜는 <b>16x16 조각</b> 한 장(파트 51). 그 자리가 아니면 null.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 판 위 말을 창이 아니라 <b>말풍선</b>으로 낸다. 짜는 자리가
+    /// <c>0x00445B20</c> 인데, 파트 51·52 를 한 버퍼에 이어 붙인 뱅크(<c>0x005A4A8C</c>)
+    /// 에서 <c>+0x300</c>·<c>+0x400</c>·<c>+0x100</c>(또는 <c>+0x900</c>)·
+    /// <c>+0x200</c>(또는 <c>+0xA00</c>) 넷을 가져다 쓴다 — 곧 파트 51 의 조각
+    /// 3 · 4 · 1(9) · 2(10) 이고 한 장이 <c>0x100</c> = 16x16 이다.
+    ///
+    /// 조각 열다섯 장을 뽑아 보면 <b>둥근 상자의 네 귀</b>다.
+    /// <code>
+    ///    0 · 5 · 8    채움          6 왼 테     7 위 테
+    ///    3 왼위        4 오른위
+    ///    1 왼아래(민)  2 오른아래(<b>꼬리</b>)   ← 적이 말할 때
+    ///    9 왼아래(<b>꼬리</b>)  10 오른아래(민)  ← 아군이 말할 때
+    /// </code>
+    /// 꼬리가 말하는 부대 쪽을 가리키므로 편에 따라 갈라 쓴다.
+    /// </remarks>
+    public uint[]? TryGetBubble(int piece)
+    {
+        if (piece < 0) return null;
+
+        var pixels = _archive.Decode(BubblePart);
+        int side = BubbleSide * BubbleSide;
+        if (pixels == null || pixels.Length < (piece + 1) * side) return null;
+
+        int at = piece * side;
+        var bgra = new uint[side];
+        for (int i = 0; i < bgra.Length; i++)
+        {
+            byte v = pixels[at + i];
+            if (Clear(_unitColors, v)) continue;
+            bgra[i] = Argb(_unitColors, v);
+        }
+        return bgra;
+    }
+
+    /// <summary>말풍선 조각이 든 파트와 한 장의 한 변.</summary>
+    private const int BubblePart = 51;
+
+    /// <summary>말풍선 조각 한 장의 한 변.</summary>
+    public const int BubbleSide = 16;
+
+    /// <summary>말풍선 조각 번호 — 네 귀와 꼬리 붙은 두 벌.</summary>
+    public const int BubbleTopLeft = 3, BubbleTopRight = 4,
+                     BubbleFoeLeft = 1, BubbleFoeRight = 2,
+                     BubbleMineLeft = 9, BubbleMineRight = 10;
+
     /// <summary>숫자 조각이 든 파트와 한 자의 크기.</summary>
     private const int DigitPart = 52;
 

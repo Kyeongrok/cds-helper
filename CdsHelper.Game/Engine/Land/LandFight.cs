@@ -223,7 +223,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         {
             case LandUnits.Kind.Melee:
                 // 창병만 앞열 하나와 그 뒤까지 둘을 친다(0x004487C0).
-                int front = Pick(!mine, frontOnly: true);
+                int front = Across(mine, frontOnly: true);
                 if (front < 0) { Done(); return; }
                 Hit(slot, front);
                 if (unit.Kind == LandUnits.Spear && Behind(front) is { } back && Alive(back))
@@ -235,15 +235,15 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 // 궁병만 아무나 하나를 노린다(0x00448880). 나머지는 앞열 전부대다.
                 if (unit.Kind == LandUnits.Bow)
                 {
-                    int one = Pick(!mine, frontOnly: false);
+                    int one = Across(mine, frontOnly: false);
                     if (one >= 0) Hit(slot, one);
                 }
-                else foreach (int at in All(!mine, frontOnly: true)) Hit(slot, at);
+                else foreach (int at in Facing(mine, frontOnly: true)) Hit(slot, at);
                 break;
 
             case LandUnits.Kind.Cannon:
                 if (Damp(unit.Kind)) { Say(slot, "비에 젖어 불이 붙지 않는다!"); break; }
-                foreach (int at in All(!mine, frontOnly: false)) Hit(slot, at);
+                foreach (int at in Facing(mine, frontOnly: false)) Hit(slot, at);
                 break;
 
             default:
@@ -401,6 +401,23 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     }
 
     /// <summary>그 편에서 노릴 수 있는 부대들.</summary>
+    /// <summary>
+    /// 그 부대가 노릴 <b>맞은편</b> 자리들. 아군이 치면 적 쪽, 적이 치면 아군 쪽이다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="All"/> 는 <b>어느 편인지</b>를 받는데(<c>foe</c> 가 참이면 적 쪽),
+    /// 부르는 쪽은 <b>치는 쪽이 누구인지</b>를 들고 있다. 그래서 아군이 칠 때
+    /// (<paramref name="mine"/> 이 참) 적 쪽을 보려면 <c>foe: true</c> 여야 한다 — 곧
+    /// 그대로 넘기면 된다.
+    ///
+    /// 예전에는 <c>!mine</c> 을 넘겨 <b>제 편을 쳤다</b>. 그래서 아군이 공격해도 피해가
+    /// 아군 머리 위에 떴다.
+    /// </remarks>
+    private IEnumerable<int> Facing(bool mine, bool frontOnly) => All(foe: mine, frontOnly);
+
+    /// <summary>맞은편에서 노릴 부대 하나 — <see cref="Facing"/> 와 같은 셈이다.</summary>
+    private int Across(bool mine, bool frontOnly) => Pick(foe: mine, frontOnly);
+
     private IEnumerable<int> All(bool foe, bool frontOnly)
     {
         int side = foe ? LandBattle.FirstFoe : 0;
