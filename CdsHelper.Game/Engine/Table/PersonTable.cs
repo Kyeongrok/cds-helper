@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Local.Helpers;
+﻿namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
 /// 인물 표 — 281명. 술집·여관에 앉는 사람과 부하 후보가 여기서 온다.
@@ -31,7 +31,7 @@ public sealed class PersonTable
     private const string CacheName = "인물표";
 
     /// <summary>알맹이 모양 판. 칸을 더하면 올린다 — 옛 파일은 버리고 다시 굽는다.</summary>
-    private const int Shape = 1;
+    private const int Shape = 2;
 
     /// <summary>인물 칸 수. EXE 가 못박은 값이다(<c>0x004319D0</c> 의 <c>cmp eax, 0x119</c>).</summary>
     public const int Count = 281;
@@ -139,11 +139,47 @@ public sealed class PersonTable
     }
 
     /// <summary>JSON 으로 적어 두는 알맹이.</summary>
-    internal sealed record Snapshot(List<Row> People);
+    /// <param name="Year">
+    /// 이 표를 구운 해. 적힌 나이가 <b>그 해</b>의 나이다 — 0 이면 모르는 것이라
+    /// 나이를 그대로 쓴다.
+    /// </param>
+    internal sealed record Snapshot(List<Row> People, int Year = 0);
 
     private readonly List<Row> _rows;
 
-    private PersonTable(List<Row> rows) => _rows = rows;
+    private PersonTable(List<Row> rows, int year = 0)
+    {
+        _rows = rows;
+        Year = year;
+    }
+
+    /// <summary>
+    /// 이 표를 구운 해. 적힌 나이가 그 해의 나이다. 모르면 0.
+    /// </summary>
+    /// <remarks>
+    /// <b>게임은 사람에게 해마다 한 살을 먹인다.</b> 1480년 세이브와 1517년 세이브를
+    /// 맞대 보면 나이 차가 사람마다 <b>꼭 37</b>이다(코론 29↔66 · 페르난 46↔83 ·
+    /// 에스칸데 7↔44). 그러니 표에 적힌 나이는 「그 해의 나이」일 뿐이고, 다른 해를
+    /// 셈하려면 해를 알아야 한다.
+    /// </remarks>
+    public int Year { get; }
+
+    /// <summary>그 사람이 <paramref name="on"/> 해에 몇 살인가.</summary>
+    public int AgeOn(Row row, int on) => Year <= 0 ? row.Age : row.Age + (on - Year);
+
+    /// <summary>
+    /// 그 사람이 그 해에 <b>돌아다니는가</b> — 등장했고 열여덟에서 예순 사이다.
+    /// </summary>
+    /// <remarks>게임의 <c>0x004322B0</c> 이다. 이 문턱이 곧 사람이 나타나고 스러지는 때다.</remarks>
+    public bool ActiveOn(Row row, int on)
+    {
+        if (row.Appear == 0) return false;
+        int age = AgeOn(row, on);
+        return age is >= Youngest and <= Oldest;
+    }
+
+    /// <summary>움직일 수 있는 나이. <c>0x004322B0</c> 의 <c>0x12</c> ~ <c>0x3C</c> 다.</summary>
+    public const int Youngest = 18, Oldest = 60;
 
     /// <summary>인물 전부. 차례는 번호 차례다.</summary>
     public IReadOnlyList<Row> People => _rows;
@@ -186,15 +222,15 @@ public sealed class PersonTable
         {
             Edited = true;
             Source = saved.Source.Length > 0 ? saved.Source : "고친 것";
-            return new PersonTable(Fix(saved.Data.People));
+            return new PersonTable(Fix(saved.Data.People), saved.Data.Year);
         }
         Edited = false;
 
         // ② 같이 깔린 본
-        if (Shipped() is { Count: > 0 } shipped)
+        if (Shipped() is { People.Count: > 0 } shipped)
         {
             Source = "인물표.json";
-            return new PersonTable(shipped);
+            return new PersonTable(shipped.People, shipped.Year);
         }
 
         // ③ 씨앗 세이브 — 본까지 없는 자리에서만 온다
@@ -202,7 +238,7 @@ public sealed class PersonTable
         if (PersonFile.ReadAll(seed) is { } baked)
         {
             Source = System.IO.Path.GetFileName(seed) ?? "SAVEDATA.CDS";
-            return new PersonTable(baked);
+            return new PersonTable(baked, PersonFile.LastYear);
         }
 
         LastError = PersonFile.LastError;
@@ -218,7 +254,7 @@ public sealed class PersonTable
     /// 본은 손으로 굽는 것이라 <see cref="TableCache"/> 의 껍데기(<c>Stamp</c>·<c>Data</c>)가
     /// 있을 수도 없을 수도 있다. 둘 다 받아 준다.
     /// </remarks>
-    private static List<Row>? Shipped()
+    private static Snapshot? Shipped()
     {
         try
         {
@@ -227,11 +263,12 @@ public sealed class PersonTable
 
             string text = System.IO.File.ReadAllText(path);
             var bare = System.Text.Json.JsonSerializer.Deserialize<Snapshot>(text);
-            if (bare?.People is { Count: > 0 }) return Fix(bare.People);
+            if (bare?.People is { Count: > 0 }) return bare with { People = Fix(bare.People) };
 
             var wrapped = System.Text.Json.JsonSerializer
                 .Deserialize<TableCache.Cached<Snapshot>>(text);
-            return wrapped?.Data.People is { Count: > 0 } rows ? Fix(rows) : null;
+            return wrapped?.Data.People is { Count: > 0 }
+                ? wrapped.Data with { People = Fix(wrapped.Data.People) } : null;
         }
         catch (Exception ex)
             when (ex is System.IO.IOException or UnauthorizedAccessException

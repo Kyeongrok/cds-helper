@@ -284,10 +284,16 @@ public sealed class Game
             if (World is not { } world) return null;
 
             world.Advance(Player.Date);
-            if (_roster != null && _rosterWalk == world.Revision) return _roster;
 
-            _rosterWalk = world.Revision;
-            _roster = TavernRoster.From(world.People);
+            // 해가 바뀌면 나이 문에 드나드는 사람이 생기므로 해도 열쇠에 넣는다 —
+            // 일곱 살이던 후안·데·에스칸데가 1491년에 술집에 앉는 것이 이 때문이다.
+            int year = Player.Date.Year;
+            if (_roster != null && _rosterWalk == (world.Revision, year)) return _roster;
+
+            _rosterWalk = (world.Revision, year);
+            _roster = TavernRoster.From(world.People,
+                                        r => world.Table.ActiveOn(r, year),
+                                        r => world.Table.AgeOn(r, year));
             return _roster;
         }
     }
@@ -332,7 +338,7 @@ public sealed class Game
             var table = PersonTable.Open();
             _worldRevision = PersonTable.Revision;
             _roster = null;
-            _rosterWalk = -1;
+            _rosterWalk = (-1, -1);
 
             if (table.IsEmpty)
             {
@@ -479,7 +485,7 @@ public sealed class Game
     private int _worldRevision = -1;
 
     /// <summary>술집 목록을 짤 때 사람들이 서 있던 자리. 누가 움직이면 달라진다.</summary>
-    private int _rosterWalk = -1;
+    private (int Walk, int Year) _rosterWalk = (-1, -1);
     private Portraits? _faces;
     private EffectAnim? _effects;
     private TavernGuests? _guests;

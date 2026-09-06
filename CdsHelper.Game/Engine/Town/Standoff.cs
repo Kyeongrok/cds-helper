@@ -122,7 +122,26 @@ public static class Standoff
     public const string GiveUpWord = "할 수 없군요. 포기합시다.";
 
     /// <summary>공격 전에 두 번 묻는 말(<c>0x00551BF0</c> · <c>0x00551C00</c>).</summary>
+    /// <summary>
+    /// 쳐들어가기 전에 <b>한 번</b> 묻는 말.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 물음을 <b>두 번 하지 않는다</b> — <c>0x00468970</c> 이 글 둘을 함께 넘기면
+    /// <c>0x00469680</c> 이 <c>0x00468EF0</c> 의 답에 따라 <b>둘 중 하나만</b> 골라 띄운다.
+    /// <code>
+    ///   00468970  push 0x551C00      ; "육상 전투에 들어가겠습니다. 좋습니까?"
+    ///             push 0x551BF0      ; "진심이십니까!?"
+    ///             push 2
+    ///             call 0x469680
+    ///   00469680  call 0x468EF0
+    ///             je  … eax = [esp+0xc]   ; 0 이면 뒤엣것
+    ///             …   eax = [esp+8]       ; 1 이면 앞엣것
+    /// </code>
+    /// 실제 놀이에서 뜨는 것은 <b>앞엣것</b>이라 그것만 쓴다.
+    /// </remarks>
     public const string SureWord = "진심이십니까!?";
+
+    /// <summary>고르는 다른 한 쪽. 아직 어느 때 이 글이 뜨는지는 안 밝혔다.</summary>
     public const string AttackWord = "육상 전투에 들어가겠습니다. 좋습니까?";
 
     // ── 잠입 ──────────────────────────────────────────────────────────────

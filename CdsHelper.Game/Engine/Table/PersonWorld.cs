@@ -25,17 +25,18 @@ namespace CdsHelper.Game.Local.Helpers;
 ///
 /// <b>게임과 다른 것 둘.</b>
 /// <list type="number">
-///   <item><b>나이를 안 먹인다.</b> 표의 나이는 구워 온 판의 값이고 우리 놀이는
-///   1480년에 시작하므로, 해를 더하면 스무 해 만에 죄다 예순을 넘겨 아무도 안 움직이게
-///   된다. 그래서 활동 판정(18~60)은 표에 적힌 나이를 그대로 본다.</item>
+///   <item><b>역사 항해자는 나이를 안 본다.</b> 아래 것과 같은 까닭이다.</item>
 ///
 ///   <item><b>역사 항해자 열넷은 활동 판정을 안 본다.</b> 게임은
-///   <c>0x004327F0</c> 첫 줄에서 활동 판정을 먼저 하지만, 우리 표가 <b>1517년 판</b>에서
-///   구운 것이라 그때 이미 죽은 다섯(디아스 · 아르메이다 · 알브켈케 · 코론 · 캐벗)이
-///   「등장 안 함」으로 적혀 있다. 그대로 보면 1480년에 시작하는 판에서 정작 초반의
-///   주인공들이 얼어붙는다. <b>대본이 곧 그 사람의 한살이</b>라 — 디아스는 1480~1500,
-///   코론은 1485~1506 이 전부다 — 날짜를 대본에 맡기는 편이 오히려 판에 맞는다.</item>
+///   <c>0x004327F0</c> 첫 줄에서 활동 판정을 먼저 하지만, 이들은 <b>대본이 곧 한살이</b>라
+///   — 디아스는 1480~1500, 코론은 1485~1506 이 전부다 — 날짜를 대본에 맡기는 편이 판에
+///   맞는다. 표의 0번 디아스는 1480년 세이브에서 나이가 <c>255</c> 라 나이로는 셀 수도
+///   없다.</item>
 /// </list>
+///
+/// <b>나이는 먹인다.</b> 게임은 해마다 한 살씩 올리고, 그것이 곧 사람이 나타나고
+/// 스러지는 문이다 — 1480년 세이브에서 일곱 살인 후안·데·에스칸데는 1491년에야 술집에
+/// 앉는다. 셈은 표가 한다(<see cref="PersonTable.ActiveOn"/>).
 /// </remarks>
 public sealed class PersonWorld
 {
@@ -47,9 +48,6 @@ public sealed class PersonWorld
 
     /// <summary>세계가 감기는 너비. <c>0x9C4</c> 다.</summary>
     private const int WorldWidth = 0x9C4;
-
-    /// <summary>움직일 수 있는 나이. <c>0x004322B0</c> 의 <c>0x12</c> ~ <c>0x3C</c> 다.</summary>
-    private const int Youngest = 18, Oldest = 60;
 
     /// <summary>몇 달에 한 번꼴로 움직이는가. <c>0x0043284A</c> 의 <c>push 5</c> 다.</summary>
     private const int Odds = 5;
@@ -65,6 +63,7 @@ public sealed class PersonWorld
     private HashSet<int> NotFoundedYet =>
         [.. CityFounding.Hidden.Where(c => !CityFounding.FoundedBy(_asOf).Contains(c))];
 
+    private readonly PersonTable _table;
     private readonly List<PersonTable.Row> _rows;
     private readonly CityExeTable? _cities;
     private readonly bool[] _harbor;
@@ -106,6 +105,7 @@ public sealed class PersonWorld
                        DateTime start, HistoryVoyages? script = null,
                        DiscoveryTable? places = null)
     {
+        _table = table;
         _rows = [.. table.People];
         _cities = cities;
         _harbor = Harbors(buildings);
@@ -121,6 +121,9 @@ public sealed class PersonWorld
 
     /// <summary>지금 인물들. 표를 연 그 줄을 그대로 옮겨 다닌다.</summary>
     public IReadOnlyList<PersonTable.Row> People => _rows;
+
+    /// <summary>밑에 깔린 표 — 나이를 셈할 때 쓴다(구운 해를 알고 있다).</summary>
+    public PersonTable Table => _table;
 
     /// <summary>누가 움직일 때마다 하나씩 오른다 — 술집 목록을 다시 짤 때가 언제인지 알린다.</summary>
     public int Revision { get; private set; }
@@ -376,8 +379,7 @@ public sealed class PersonWorld
     }
 
     /// <summary>등장했고 열여덟에서 예순 사이인가.</summary>
-    private static bool Active(PersonTable.Row row) =>
-        row.Appear != 0 && row.Age >= Youngest && row.Age <= Oldest;
+    private bool Active(PersonTable.Row row) => _table.ActiveOn(row, _asOf.Year);
 
     /// <summary>갈 만한 도시를 모은다. 하나도 없으면 그 달은 안 움직인다.</summary>
     private List<int> Candidates(PersonTable.Row row)
