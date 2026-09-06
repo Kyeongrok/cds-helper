@@ -22,7 +22,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 이 창은 그림만 깐다 — 말과 차림표는 이 창을 임자로 삼아 그 위에 뜬다.
 /// </remarks>
-internal sealed class GateScene : Window
+internal sealed class GateScene : GameWindow
 {
     /// <summary>
     /// 한 장이 머무는 참. <b>벌마다 따로 잡는다.</b>

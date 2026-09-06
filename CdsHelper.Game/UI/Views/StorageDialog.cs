@@ -30,7 +30,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 손이 간 쪽 목록만 고른 줄을 남색으로 뒤집고, 안 간 쪽은 검은 테로만 알린다 —
 /// 게임 갈무리가 그렇다(<see cref="GameList.Focused"/>).
 /// </remarks>
-public sealed class StorageDialog : Window
+public sealed class StorageDialog : GameWindow
 {
     /// <summary>빈 칸을 나타내는 값. 게임도 -1 로 둔다.</summary>
     private const int Empty = -1;

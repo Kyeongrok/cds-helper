@@ -19,7 +19,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 읽기만 한다. 고치려면 "폴더 열기" 로 파일을 직접 열면 된다 — 이 창에서 고치게 하면
 /// 반쯤 고친 JSON 이 적혀 표가 아예 안 열리는 일이 생긴다.
 /// </remarks>
-public sealed class GameDataDialog : Window
+public sealed class GameDataDialog : GameWindow
 {
     /// <summary>
     /// 미리 보기에 한 번에 올리는 글자 수. 건물표는 1504줄이라 다 펼치면 40만 자가 넘는데,

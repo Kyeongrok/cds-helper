@@ -16,7 +16,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 살 수 없는 줄은 흐려 두고 고를 수도 없게 한다. 소지금이 모자라거나 배가 이미
 /// <see cref="Player.MaxShips"/> 척이면 그렇다 — 까닭은 창 아래에 적는다.
 /// </remarks>
-public sealed class HullSelectDialog : Window
+public sealed class HullSelectDialog : GameWindow
 {
     /// <summary>
     /// 표 머리글. <b>값 칸은 없다</b> — 게임 표도 대포수에서 끝난다.

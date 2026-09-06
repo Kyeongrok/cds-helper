@@ -45,7 +45,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 계약이 없으면 이 창을 열지 않고 게임처럼 한 줄로 물린다 — "계약을 맺지 않았습니다"
 /// (<c>0x00533228</c>, 부르는 곳 <c>0x00426018</c>).
 /// </remarks>
-public sealed class ContractDialog : Window
+public sealed class ContractDialog : GameWindow
 {
     /// <summary>화면 바탕. 보급 화면과 같은 밤색 판이다.</summary>
     private static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));

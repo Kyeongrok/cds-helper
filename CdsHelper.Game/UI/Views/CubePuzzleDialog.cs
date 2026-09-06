@@ -44,7 +44,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그 안에 없다. 돌 때마다 면을 그려 내는 것으로 보이는데 그 자리를 아직 못 짚었다.
 /// 그때까지는 지금 위에 온 화살표를 글로 적어 둔다.
 /// </remarks>
-internal sealed class CubePuzzleDialog : Window
+internal sealed class CubePuzzleDialog : GameWindow
 {
     private const int SceneWidth = 512, SceneHeight = 352;
 

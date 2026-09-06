@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -39,7 +39,7 @@ public static class MoviePlayer
             Stretch = Stretch.Uniform,
         };
 
-        var screen = new Window
+        var screen = new GameWindow
         {
             Owner = owner,
             WindowStyle = WindowStyle.None,

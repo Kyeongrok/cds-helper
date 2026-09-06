@@ -21,7 +21,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 의 "판의 크기와 좌표계", "한 턴의 차례 정하기와 배 움직임" 이 남은 숙제다. 지금은
 /// 배를 눌러 고르고 빈 칸을 눌러 옮기는 것까지만 된다.
 /// </remarks>
-public sealed class SeaCombatDialog : Window
+public sealed class SeaCombatDialog : GameWindow
 {
     /// <summary>판의 칸 수. 게임 칸 수를 아직 못 짚어 바다 크기에서 나눈 값이다.</summary>
     private const int Cols = CombatArt.SeaWidth / CombatArt.Cell;

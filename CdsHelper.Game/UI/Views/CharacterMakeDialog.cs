@@ -46,7 +46,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그래서 EXE 의 <b>후원자 이름 여든하나</b>(<see cref="SponsorTable"/>)를 가운뎃점에서
 /// 갈라 명·성 목록으로 쓴다 — 같은 시대의 진짜 이름들이다.
 /// </remarks>
-internal sealed class CharacterMakeDialog : Window
+internal sealed class CharacterMakeDialog : GameWindow
 {
     // ── 화면에서 잰 자리 ──────────────────────────────────────────────────────
 

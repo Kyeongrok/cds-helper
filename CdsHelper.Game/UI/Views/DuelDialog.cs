@@ -27,7 +27,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 상대가 하는 말은 게임 표(<c>0x005729E0</c> 부터 여섯씩 넉 줄)를 그대로 옮겼다.
 /// </remarks>
-public sealed class DuelDialog : Window
+public sealed class DuelDialog : GameWindow
 {
     /// <summary>고른 손 라벨과 부위 막대의 바탕 — 눈금판의 검은 홈이다.</summary>
     private static readonly Brush Slot = Frozen(Color.FromRgb(0x0A, 0x08, 0x08));

@@ -27,7 +27,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 줄을 고르고 결정을 누르면 그 아이템 창이 뜬다(<see cref="ItemInfoDialog"/>) —
 /// 시장에서 고른 뒤에 뜨는 것과 같은 창이다.
 /// </remarks>
-public sealed class BelongingsDialog : Window
+public sealed class BelongingsDialog : GameWindow
 {
     /// <summary>고른 줄에 씌우는 남색. 시장 목록과 같은 색이다.</summary>
     private static readonly Brush Picked = Freeze(Color.FromRgb(0x3A, 0x5A, 0x9A));

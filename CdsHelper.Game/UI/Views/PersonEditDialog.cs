@@ -26,7 +26,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 굴려 목적지를 뽑으며, <b>201~280</b> 은 이벤트 인물·괴물·누적 캐릭터라 안 움직인다.
 /// 그 경계를 목록의 <c>구분</c> 칸으로 세워 둔다.
 /// </remarks>
-public sealed class PersonEditDialog : Window
+public sealed class PersonEditDialog : GameWindow
 {
     private readonly DataGrid _grid = new()
     {

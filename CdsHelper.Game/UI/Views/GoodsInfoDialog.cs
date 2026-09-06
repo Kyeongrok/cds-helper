@@ -21,7 +21,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그림은 아이템과 한 파일에 있다(<see cref="ItemArt"/>) — 교역품 70가지가 134~203 에
 /// 이름 차례 그대로 놓여 있다.
 /// </remarks>
-public sealed class GoodsInfoDialog : Window
+public sealed class GoodsInfoDialog : GameWindow
 {
     /// <summary>게임 화면에서 뽑은 남회색 바탕. 아이템 창과 같다.</summary>
     private static readonly Brush Back = GameUi.InfoBack;

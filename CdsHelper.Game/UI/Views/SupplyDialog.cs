@@ -47,7 +47,7 @@ namespace CdsHelper.Game.UI.Views;
 /// <see cref="Player.Tonnage"/> — 배마다의 적재량·톤수를 더한 것). 게임은 여기에 실어 둔
 /// 교역품까지 같이 세는데, 우리 쪽은 아직 보급품만 센다.
 /// </remarks>
-public sealed class SupplyDialog : Window
+public sealed class SupplyDialog : GameWindow
 {
     /// <summary>화면 바탕. 게임 화면에서 뽑았다.</summary>
     private static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));

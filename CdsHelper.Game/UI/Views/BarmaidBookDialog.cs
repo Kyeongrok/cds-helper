@@ -18,7 +18,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// <b>한잔 산 사람만 나온다</b> — 친밀도가 0 이면 아직 이름도 모르는 사이다.
 /// </remarks>
-public sealed class BarmaidBookDialog : Window
+public sealed class BarmaidBookDialog : GameWindow
 {
     private BarmaidBookDialog(Player player, BarmaidTable table, Portraits? faces,
                               CityTable cities)

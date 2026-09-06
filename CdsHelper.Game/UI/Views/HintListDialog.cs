@@ -15,7 +15,7 @@ namespace CdsHelper.Game.UI.Views;
 /// <c>0x004769A0</c> 이 하는 일 그대로다 — 목록을 띄우고 고른 힌트 번호를 내며,
 /// 중단하면 -1 이다. 힌트는 책을 읽으면 는다(볼트 <c>20.분석-도서관 책과 책등 색</c>).
 /// </remarks>
-public sealed class HintListDialog : Window
+public sealed class HintListDialog : GameWindow
 {
     /// <summary>목록 칸의 폭과 가장 높은 자리. 게임 갈무리에서 잰 값이다.</summary>
     /// <remarks>

@@ -17,7 +17,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 줄은 게임 <b>비트맵 글꼴</b>로 찍고 아래 두 단추는 <b>베이지 띠</b>다
 /// (<see cref="BandStyle.Button"/>) — 힌트 일람과 같은 벌이다.
 /// </remarks>
-public sealed class SkillLearnDialog : Window
+public sealed class SkillLearnDialog : GameWindow
 {
     /// <summary>줄 속 칸 — "이름 ( LVn )" 하나다. 게임은 오른쪽맞춤으로 낸다.</summary>
     private static readonly GameListColumn[] Columns =

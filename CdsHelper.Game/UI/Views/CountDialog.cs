@@ -32,7 +32,7 @@ namespace CdsHelper.Game.UI.Views;
 /// </list>
 /// 키보드 ↑↓ 는 안 보이는 채로 남겨 둔다 — 화면 모양을 건드리지 않는 덤이다.
 /// </remarks>
-public sealed class CountDialog : Window
+public sealed class CountDialog : GameWindow
 {
     /// <summary>화면 바탕. 보급·계약 화면과 같은 밤색 판이다.</summary>
     private static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));

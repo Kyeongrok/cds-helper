@@ -29,7 +29,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 저장은 고친 파트만 <b>압축 없이</b> 써 넣고 옆에 시각을 붙인 백업을 남긴다
 /// (<see cref="DisevArchive.Save"/>).
 /// </remarks>
-public sealed class DisevEditorDialog : Window
+public sealed class DisevEditorDialog : GameWindow
 {
     private readonly ListBox _discoveries = new() { Margin = new Thickness(0, 4, 0, 0) };
 

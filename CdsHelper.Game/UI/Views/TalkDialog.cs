@@ -19,7 +19,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 물어보는 창(승낙/교섭 따위)으로도 쓸 수 있다. <paramref name="choices"/> 를 주면
 /// 그 단추들이 서고, 고른 자리를 낸다.
 /// </remarks>
-public sealed class TalkDialog : Window
+public sealed class TalkDialog : GameWindow
 {
     /// <summary>
     /// 게임 대사 창을 재어 맞춘 자리들(그림 점). 얼굴은 <b>1배</b>로 놓는다 —

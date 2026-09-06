@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -23,7 +23,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 고친 것은 <see cref="LandFormationEdits"/> 가 적어 두고 놀이도 그대로 쓴다.
 /// </remarks>
-public sealed class LandFormationDialog : Window
+public sealed class LandFormationDialog : GameWindow
 {
     private readonly ListBox _nations = new()
     {

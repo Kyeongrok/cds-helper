@@ -19,7 +19,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 게임에 없는 화면이라 밤색 판이 아니라 <b>여느 개발 창</b>의 꼴로 짓는다 —
 /// 부대 편성 창(<see cref="LandFormationDialog"/>)과 같은 결이다.
 /// </remarks>
-internal sealed class LandSparDialog : Window
+internal sealed class LandSparDialog : GameWindow
 {
     /// <summary>한 쪽이 세울 수 있는 자리 수.</summary>
     private const int Slots = LandBattle.PerSide;

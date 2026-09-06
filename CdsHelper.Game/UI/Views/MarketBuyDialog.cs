@@ -26,7 +26,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그렇게 한다(구입 본체 <c>0x004B3AAD</c> 에서 소지금과 값을 견준다). 살 돈이 없는 줄도
 /// 고를 수 있고 값도 알려 준다.
 /// </remarks>
-public sealed class MarketBuyDialog : Window
+public sealed class MarketBuyDialog : GameWindow
 {
     /// <summary>
     /// 줄 속 칸 — 값 · (갈래) · 이름. 오른쪽 것을 먼저 줘야 바깥에 선다.

@@ -20,7 +20,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 여기서 날짜를 늦추면 그만큼 내가 갈 시간이 는다. 희망봉이 1488년 1월, 마젤란해협이
 /// 1520년 10월이다.
 /// </remarks>
-public sealed class VoyagerEditDialog : Window
+public sealed class VoyagerEditDialog : GameWindow
 {
     private readonly DataGrid _grid = new()
     {

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -17,7 +17,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 게임에는 없는 창이라 게임 꼴을 흉내내지 않는다 — 게임데이터 창과 같은 결이다.
 /// </remarks>
-public sealed class PlayerInfoDialog : Window
+public sealed class PlayerInfoDialog : GameWindow
 {
     private readonly TextBox _body = new()
     {

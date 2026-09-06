@@ -28,7 +28,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 바꾼 것은 <b>결정을 눌러야</b> 들어간다. 중단하면 들어올 때 그대로 되돌린다 —
 /// 게임도 두 단추를 그렇게 가른다.
 /// </remarks>
-public sealed class MateRosterDialog : Window
+public sealed class MateRosterDialog : GameWindow
 {
     /// <summary>줄 속 칸 — 자리 이름 · 콜론 · 사람. 자리 이름은 폭을 맞춰 콜론을 세로로 세운다.</summary>
     private static readonly GameListColumn[] Columns =

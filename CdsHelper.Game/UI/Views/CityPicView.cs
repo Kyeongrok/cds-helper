@@ -32,7 +32,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그대로 온다. 표에 항구가 없는 도시라면 그림 아무 데나 눌러도 항구 명령 창이 열리게 해
 /// 두었다 — 출항할 길은 어디서나 있어야 한다.
 /// </remarks>
-public sealed class CityPicView : Window, ITownScreen
+public sealed class CityPicView : GameWindow, ITownScreen
 {
     /// <summary>건물 이름표와 명령 창을 얹는 자리. 그림과 같은 격자 칸에 둔다.</summary>
     private readonly Canvas _layer = new();

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -20,7 +20,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 줄은 네 칸이다 — 선명 · 선체타입 · 선수상 · 견적가격. 게임 글꼴이 칸을 고르게 먹으므로
 /// 한 줄을 통째로 채워 세로줄을 맞춘다.
 /// </remarks>
-internal sealed class ShipSellDialog : Window
+internal sealed class ShipSellDialog : GameWindow
 {
     /// <summary>고른 줄의 바탕과 테. 힌트 일람과 같은 파랑이다.</summary>
     private static readonly Brush PickFill = Frozen(Color.FromRgb(0x4A, 0x64, 0x9E));

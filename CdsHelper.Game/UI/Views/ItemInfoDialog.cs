@@ -25,7 +25,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 그림이 없는 아이템이 99개나 된다(<see cref="ItemTable.Record.HasPic"/>). 그럴 때는
 /// 액자만 비워 두고 설명은 그대로 낸다 — 게임도 그림 자리를 비운다.
 /// </remarks>
-public sealed class ItemInfoDialog : Window
+public sealed class ItemInfoDialog : GameWindow
 {
     /// <summary>게임 화면에서 뽑은 남회색 바탕.</summary>
     private static readonly Brush Back = GameUi.InfoBack;

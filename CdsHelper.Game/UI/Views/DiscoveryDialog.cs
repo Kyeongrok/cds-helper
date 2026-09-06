@@ -21,7 +21,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 아래 칸은 게임 알림창과 같은 꼴이다(<see cref="ConfirmDialog"/> 와 같은 자리값).
 /// </remarks>
-public sealed class DiscoveryDialog : Window
+public sealed class DiscoveryDialog : GameWindow
 {
     /// <summary>글 칸의 여백과 단추 자리. 게임 알림창에서 그대로 가져왔다.</summary>
     private const double SidePad = 7, TopPad = 7, BottomPad = 15;
@@ -76,7 +76,7 @@ public sealed class DiscoveryDialog : Window
     /// 게임은 그림과 알림을 <b>따로</b> 띄운다 — 알림만 끌 수 있고 그림은 제자리에
     /// 남는다. 예전에는 둘을 한 창에 붙여 두어 같이 움직였다.
     /// </remarks>
-    private sealed class Still : Window
+    private sealed class Still : GameWindow
     {
         public Still(UIElement art, double width)
         {
