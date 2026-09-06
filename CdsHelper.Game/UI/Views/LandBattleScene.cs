@@ -235,64 +235,181 @@ internal sealed class LandBattleScene : GameWindow
         return DuelDialog.Show(this, duel, dice, null);
     }
 
-    /// <summary>한 턴에 일어난 일을 보여 주고 판을 다시 그린다.</summary>
+    /// <summary>
+    /// 한 턴에 일어난 일을 보여 주고 판을 다시 그린다.
+    /// </summary>
+    /// <remarks>
+    /// <b>부대 하나가 한 차례에 한 일을 묶어서</b> 보인다 — 총병·포병은 맞은편 앞열을
+    /// 통째로 치므로 줄이 여럿인데, 게임은 <b>다 쏘고 나서</b> 피해를 한꺼번에 띄운다.
+    /// 한 발 쏘고 숫자 띄우고를 되풀이하지 않는다.
+    ///
+    /// 그 한 묶음의 차례가 셋이다 — <b>나가서 (여러 번) 치고</b>, 나간 그 자리에 선 채로
+    /// <b>숫자가 떴다 지고</b>, 그러고 나서 <b>돌아온다</b>.
+    /// </remarks>
     private void Play(IReadOnlyList<LandFight.Line> lines)
     {
-        var sfx = _game?.Sfx;
-        foreach (var line in lines)
+        for (int at = 0; at < lines.Count; )
         {
-            if (line.Sound >= 0) sfx?.Play(line.Sound);
-            if (!_quick) Swing(line);
+            int actor = lines[at].Actor;
+            int end = at + 1;
+            while (actor >= 0 && end < lines.Count && lines[end].Actor == actor) end++;
 
-            // 깎인 병사수는 <b>맞은 부대 위에 흰 숫자</b>로 잠깐 떴다 사라진다 —
-            // 물음창으로 내지 않는다. 예전에는 "…의 공격 — … 50명" 을 창으로 냈다.
-            if (line.Damage > 0)
+            var bout = new List<LandFight.Line>();
+            for (int k = at; k < end; k++) bout.Add(lines[k]);
+            at = end;
+
+            if (_quick)
             {
-                if (!_quick) Flash(line.Target, line.Damage);
+                foreach (var line in bout)
+                    if (line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
                 continue;
             }
 
-            if (line.Text.Length == 0 || _quick) continue;
-            Redraw();
-            NoticeDialog.Show(this, line.Text, "");
+            Swing(bout);
+            Flash(bout);
+            Home();
+
+            // 깎인 병사수는 창으로 안 낸다. 남은 말은 <b>부대 곁에 말풍선</b>으로 낸다 —
+            // 어느 부대가 한 말인지 모르는 것(묘책 같은 것)만 창으로 낸다.
+            foreach (var line in bout)
+            {
+                if (line.Damage > 0 || line.Text.Length == 0) continue;
+                if (line.Actor >= 0) { Balloon(line.Actor, line.Text); continue; }
+                Redraw();
+                NoticeDialog.Show(this, line.Text, "");
+            }
         }
         Redraw();
     }
 
     /// <summary>
-    /// 맞은 부대 위에 <b>깎인 병사수</b>를 잠깐 띄웠다 지운다.
+    /// 맞은 부대들 위에 <b>깎인 병사수</b>를 <b>한꺼번에</b> 띄웠다 지운다.
     /// </summary>
     /// <remarks>
     /// 게임 화면에서 보이는 그 큰 흰 숫자다 — 부대배치 판이 쓰는 것과 같은 조각
-    /// (LANDDATA 파트 52, 24x24 열 자)이다.
+    /// (LANDDATA 파트 52, 24x24 열 자)이다. 총병이 앞열 셋을 쏘면 <b>셋이 같이</b> 뜬다.
     /// </remarks>
-    private void Flash(int slot, int damage)
+    private void Flash(IReadOnlyList<LandFight.Line> bout)
     {
-        if (slot < 0 || slot >= StandAt.Length) return;
-
-        var (x, y) = StandAt[slot];
-        string men = damage.ToString();
-        int left = x + (LandArt.DeployWidth - men.Length * Digit) / 2;
-        int top = y + (LandArt.DeployWidth - Digit) / 2;
-
         var shown = new List<UIElement>();
-        foreach (char c in men)
+        foreach (var line in bout)
         {
-            if (Number(c - '0') is { } glyph)
+            if (line.Damage <= 0) continue;
+            if (line.Target < 0 || line.Target >= StandAt.Length) continue;
+
+            var (x, y) = StandAt[line.Target];
+            string men = line.Damage.ToString();
+            int left = x + (LandArt.DeployWidth - men.Length * Digit) / 2;
+            int top = y + (LandArt.DeployWidth - Digit) / 2;
+
+            foreach (char c in men)
             {
-                Panel.SetZIndex(glyph, FlashDepth);
-                _board.Children.Add(At(glyph, left, top));
-                shown.Add(glyph);
+                if (Number(c - '0') is { } glyph)
+                {
+                    Panel.SetZIndex(glyph, FlashDepth);
+                    _board.Children.Add(At(glyph, left, top));
+                    shown.Add(glyph);
+                }
+                left += Digit;
             }
-            left += Digit;
         }
 
+        if (shown.Count == 0) return;
         Rest(FlashMs);
         foreach (var glyph in shown) _board.Children.Remove(glyph);
     }
 
     /// <summary>피해 숫자가 머무는 밀리초와 그것을 얹는 높이.</summary>
     private const int FlashMs = 420, FlashDepth = DigitDepth + 10;
+
+    // ── 말풍선 — 0x00445B20 ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// 부대 곁에 <b>말풍선</b>을 띄웠다 지운다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 싸움 중의 말을 창으로 안 내고 판 위에 말풍선으로 낸다(<c>0x00445B20</c>).
+    /// 둥근 상자의 <b>네 귀</b>를 조각으로 놓고 사이를 흰 칸으로 메운다 — 조각은
+    /// <see cref="LandArt.TryGetBubble"/> 를 본다.
+    ///
+    /// <b>자리</b>도 그 자리에서 읽었다. 글자 수(CP949 바이트의 절반)를 <c>n</c> 이라 하면
+    /// <code>
+    ///   0x00445B70  적이 말하면   x 어긋남 = −(n + 1) * 16   ; 부대 왼쪽에 편다
+    ///   0x00445B80  아군이 말하면 x 어긋남 = 96              ; 부대 오른쪽에 편다
+    ///   0x00445B8B  y 어긋남 = 0                             ; 부대 칸 꼭대기에 맞춘다
+    /// </code>
+    /// 곧 풍선은 <b>말하는 부대 바깥쪽</b>으로 펴지고 꼬리가 그 부대를 가리킨다.
+    ///
+    /// 머무는 시간은 아직 게임에서 못 찾았다 — 읽을 만큼으로 잡아 두었다.
+    /// </remarks>
+    private void Balloon(int slot, string text)
+    {
+        if (_art == null || slot < 0 || slot >= StandAt.Length) return;
+
+        int cells = Cells(text);
+        int side = LandArt.BubbleSide;
+        int wide = (cells + 2) * side;
+        bool mine = slot < LandBattle.FirstFoe;
+
+        var (ux, uy) = StandAt[slot];
+        int x = mine ? ux + LandArt.DeployWidth : ux - (cells + 1) * side;
+        int y = uy;
+        x = Math.Clamp(x, 0, Math.Max(0, LandArt.FieldWidth - wide));
+
+        var put = new List<UIElement>();
+        void Lay(UIElement what, int at, int top)
+        {
+            Panel.SetZIndex(what, BubbleDepth);
+            _board.Children.Add(At((FrameworkElement)what, at, top));
+            put.Add(what);
+        }
+
+        // 가운데는 흰 칸으로 메우고 네 귀에 조각을 놓는다.
+        Lay(new Border
+        {
+            Width = cells * side,
+            Height = side * 2,
+            Background = Brushes.White,
+        }, x + side, y);
+
+        Corner(LandArt.BubbleTopLeft, x, y, Lay);
+        Corner(LandArt.BubbleTopRight, x + wide - side, y, Lay);
+        Corner(mine ? LandArt.BubbleMineLeft : LandArt.BubbleFoeLeft, x, y + side, Lay);
+        Corner(mine ? LandArt.BubbleMineRight : LandArt.BubbleFoeRight,
+               x + wide - side, y + side, Lay);
+
+        // 글은 흰 바탕에 검은 벌로, 풍선 가운데에 놓는다.
+        var words = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
+        {
+            Text = text,
+            Bold = true,
+            FallbackBrush = Brushes.Black,
+        };
+        Lay(words, x + side, y + (side * 2 - GameUi.ItemTextHeight) / 2);
+
+        Rest(BubbleMs);
+        foreach (var what in put) _board.Children.Remove(what);
+    }
+
+    /// <summary>말풍선 귀 한 장을 놓는다. 조각을 못 읽으면 그냥 넘어간다.</summary>
+    private void Corner(int piece, int x, int y, Action<UIElement, int, int> lay)
+    {
+        if (_art?.TryGetBubble(piece) is not { } bgra) return;
+        lay(Picture(bgra, LandArt.BubbleSide, LandArt.BubbleSide), x, y);
+    }
+
+    /// <summary>
+    /// 그 말이 먹는 <b>칸 수</b>. 게임은 CP949 바이트를 반으로 나눠 센다 — 한글 한 자가
+    /// 한 칸(16점)이고 로마자는 반 칸이다.
+    /// </summary>
+    private static int Cells(string text)
+    {
+        double wide = text.Sum(c => c < 0x80 ? 0.5 : 1.0);
+        return Math.Max(1, (int)Math.Ceiling(wide));
+    }
+
+    /// <summary>말풍선이 머무는 밀리초와 그것을 얹는 높이.</summary>
+    private const int BubbleMs = 900, BubbleDepth = FlashDepth + 10;
 
     // ── 치는 몸짓 ──────────────────────────────────────────────────────────────
 
@@ -306,69 +423,110 @@ internal sealed class LandBattleScene : GameWindow
     private const int SwingMs = 70;
 
     /// <summary>
-    /// 맞붙는 부대가 <b>목표 앞에서 멈추는</b> 거리.
+    /// 맞붙는 부대가 목표 쪽으로 나가는 몫 — 둘 사이 거리의 이만큼이다.
     /// </summary>
     /// <remarks>
-    /// 게임은 반쯤 다가가다 마는 것이 아니라 <b>칠 부대 바로 앞까지 걸어가서</b> 친다.
-    /// 자리 사이가 가로로 64 점이니 그만큼 앞에 서면 딱 맞붙은 꼴이 된다. 목표가 이미
-    /// 이보다 가까우면 제자리에서 친다.
+    /// 게임 화면 두 장을 640x480 으로 되돌려 재어 뽑았다. 판이 640 폭이므로 화면 폭
+    /// 1108 을 1.731 로 나누어 보면 나간 자리가 이렇다.
+    /// <code>
+    ///   아군 제독  뒷줄 가운데(112, 304) → (237, 208)   목표 (368, 112)   158 / 320 = 0.49
+    ///   적  제독   뒷줄 가운데(368,  16) → (358, 191)   목표 (240, 304)   175 / 315 = 0.56
+    /// </code>
+    /// 곧 <b>반쯤</b>이다 — 목표에 딱 붙는 것이 아니라 판 가운데에서 맞선다.
     /// </remarks>
-    private const double StandOff = 64;
+    private const double StepIn = 0.5;
+
+    /// <summary>목표 앞까지 걸어 나가는 걸음 수. 돌아올 때도 같다.</summary>
+    private const int Strides = 3;
 
     /// <summary>
-    /// 한 줄을 몸짓으로 보인다 — <b>여덟 장을 차례로</b> 돌린다.
+    /// 한 줄을 몸짓으로 보인다 — <b>나가서 치는 데까지</b>다.
     /// </summary>
     /// <remarks>
-    /// 부대 조각 한 벌이 96x48 여덟 장(2열 4행)인데 우리는 첫 장만 쓰고 있었다. 여덟 장이
-    /// 곧 치는 몸짓이라 차례로 갈아 끼우면 된다.
+    /// 부대 조각 한 벌이 96x48 여덟 장(2열 4행)이고 그 여덟 장이 곧 치는 몸짓이다.
     ///
     /// <b>맞붙는 병종</b>(기병·제독·장군처럼 손에 무기를 든 것 —
-    /// <see cref="LandUnits.Kind.Melee"/>)은 몸짓만 짓지 않고 <b>상대 쪽으로 나갔다
-    /// 돌아온다</b>. 총·포는 제자리에서 쏜다.
+    /// <see cref="LandUnits.Kind.Melee"/>)은 <b>칠 부대 바로 앞까지 걸어 나가</b> 거기서
+    /// 친다. 총·포는 제자리에서 쏜다.
+    ///
+    /// <b>돌아오는 것은 여기서 안 한다</b> — 게임은 나간 그 자리에 선 채로 피해 숫자를
+    /// 보이고, 그것이 진 뒤에 돌아온다(<see cref="Home"/>).
     /// </remarks>
-    private void Swing(LandFight.Line line)
+    private void Swing(IReadOnlyList<LandFight.Line> bout)
     {
-        int slot = line.Actor;
+        int slot = bout[0].Actor;
         if (slot < 0 || slot >= StandAt.Length) return;
         if (!_battle.Units[slot].Standing) return;
 
-        // 맞붙는 병종이면 <b>칠 부대 바로 앞까지</b> 나갔다 온다.
-        int dx = 0, dy = 0;
-        if (LandUnits.KindOf(_battle.Units[slot].Kind) == LandUnits.Kind.Melee
-            && line.Target >= 0 && line.Target < StandAt.Length)
+        // 노린 데가 없는 말뿐인 줄(「비에 젖어…」)은 몸짓이 없다.
+        var blows = bout.Where(line => line.Target >= 0).ToList();
+        if (blows.Count == 0) return;
+
+        var (dx, dy) = StepOut(slot, blows[0].Target);
+        _acting = slot;
+        _actFrame = 0;
+        _actDx = _actDy = 0;
+
+        int frames = LandArt.FrameCols * LandArt.FrameRows;
+
+        // ① 목표 쪽으로 걸어 나간다.
+        for (int i = 1; i <= Strides && (dx != 0 || dy != 0); i++)
         {
-            var (fx, fy) = StandAt[slot];
-            var (tx, ty) = StandAt[line.Target];
-            double span = Math.Sqrt((double)(tx - fx) * (tx - fx) + (double)(ty - fy) * (ty - fy));
-            double gone = span > StandOff ? (span - StandOff) / span : 0;
-            dx = (int)((tx - fx) * gone);
-            dy = (int)((ty - fy) * gone);
+            _actFrame = i % frames;
+            _actDx = dx * i / Strides;
+            _actDy = dy * i / Strides;
+            Redraw();
+            Rest(SwingMs);
         }
 
-        _acting = slot;
-        try
+        // ② 그 자리에서 <b>친 수만큼</b> 몸짓을 돌린다 — 총병은 앞열 수만큼 쏜다.
+        foreach (var line in blows)
         {
-            int frames = LandArt.FrameCols * LandArt.FrameRows;
+            if (line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
             for (int f = 0; f < frames; f++)
             {
                 _actFrame = f;
-
-                // 앞 절반에 나가고 뒤 절반에 돌아온다.
-                double gone = f < frames / 2 ? (f + 1) / (frames / 2.0)
-                                             : (frames - 1 - f) / (frames / 2.0);
-                _actDx = (int)(dx * gone);
-                _actDy = (int)(dy * gone);
-
                 Redraw();
                 Rest(SwingMs);
             }
         }
-        finally
+    }
+
+    /// <summary>
+    /// 나갔던 부대가 <b>제자리로 돌아온다</b>. 피해 숫자가 진 뒤에 부른다.
+    /// </summary>
+    private void Home()
+    {
+        if (_acting < 0) return;
+
+        int frames = LandArt.FrameCols * LandArt.FrameRows;
+        int dx = _actDx, dy = _actDy;
+        for (int i = Strides - 1; i >= 0 && (dx != 0 || dy != 0); i--)
         {
-            _acting = -1;
-            _actFrame = 0;
-            _actDx = _actDy = 0;
+            _actFrame = i % frames;
+            _actDx = dx * i / Strides;
+            _actDy = dy * i / Strides;
+            Redraw();
+            Rest(SwingMs);
         }
+
+        _acting = -1;
+        _actFrame = 0;
+        _actDx = _actDy = 0;
+        Redraw();
+    }
+
+    /// <summary>
+    /// 그 자리에서 목표 앞까지 나가는 만큼. 맞붙는 병종이 아니면 둘 다 0 이다.
+    /// </summary>
+    private (int Dx, int Dy) StepOut(int slot, int target)
+    {
+        if (LandUnits.KindOf(_battle.Units[slot].Kind) != LandUnits.Kind.Melee) return (0, 0);
+        if (target < 0 || target >= StandAt.Length) return (0, 0);
+
+        var (fx, fy) = StandAt[slot];
+        var (tx, ty) = StandAt[target];
+        return ((int)((tx - fx) * StepIn), (int)((ty - fy) * StepIn));
     }
 
     /// <summary>
