@@ -243,12 +243,56 @@ internal sealed class LandBattleScene : GameWindow
         {
             if (line.Sound >= 0) sfx?.Play(line.Sound);
             if (!_quick) Swing(line);
+
+            // 깎인 병사수는 <b>맞은 부대 위에 흰 숫자</b>로 잠깐 떴다 사라진다 —
+            // 물음창으로 내지 않는다. 예전에는 "…의 공격 — … 50명" 을 창으로 냈다.
+            if (line.Damage > 0)
+            {
+                if (!_quick) Flash(line.Target, line.Damage);
+                continue;
+            }
+
             if (line.Text.Length == 0 || _quick) continue;
             Redraw();
             NoticeDialog.Show(this, line.Text, "");
         }
         Redraw();
     }
+
+    /// <summary>
+    /// 맞은 부대 위에 <b>깎인 병사수</b>를 잠깐 띄웠다 지운다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 화면에서 보이는 그 큰 흰 숫자다 — 부대배치 판이 쓰는 것과 같은 조각
+    /// (LANDDATA 파트 52, 24x24 열 자)이다.
+    /// </remarks>
+    private void Flash(int slot, int damage)
+    {
+        if (slot < 0 || slot >= StandAt.Length) return;
+
+        var (x, y) = StandAt[slot];
+        string men = damage.ToString();
+        int left = x + (LandArt.DeployWidth - men.Length * Digit) / 2;
+        int top = y + (LandArt.DeployWidth - Digit) / 2;
+
+        var shown = new List<UIElement>();
+        foreach (char c in men)
+        {
+            if (Number(c - '0') is { } glyph)
+            {
+                Panel.SetZIndex(glyph, FlashDepth);
+                _board.Children.Add(At(glyph, left, top));
+                shown.Add(glyph);
+            }
+            left += Digit;
+        }
+
+        Rest(FlashMs);
+        foreach (var glyph in shown) _board.Children.Remove(glyph);
+    }
+
+    /// <summary>피해 숫자가 머무는 밀리초와 그것을 얹는 높이.</summary>
+    private const int FlashMs = 420, FlashDepth = DigitDepth + 10;
 
     // ── 치는 몸짓 ──────────────────────────────────────────────────────────────
 
@@ -261,8 +305,15 @@ internal sealed class LandBattleScene : GameWindow
     /// <summary>몸짓 한 장이 머무는 밀리초.</summary>
     private const int SwingMs = 70;
 
-    /// <summary>맞붙는 부대가 상대 쪽으로 나가는 몫 — 둘 사이 거리의 이만큼이다.</summary>
-    private const double StepIn = 0.45;
+    /// <summary>
+    /// 맞붙는 부대가 <b>목표 앞에서 멈추는</b> 거리.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 반쯤 다가가다 마는 것이 아니라 <b>칠 부대 바로 앞까지 걸어가서</b> 친다.
+    /// 자리 사이가 가로로 64 점이니 그만큼 앞에 서면 딱 맞붙은 꼴이 된다. 목표가 이미
+    /// 이보다 가까우면 제자리에서 친다.
+    /// </remarks>
+    private const double StandOff = 64;
 
     /// <summary>
     /// 한 줄을 몸짓으로 보인다 — <b>여덟 장을 차례로</b> 돌린다.
@@ -281,15 +332,17 @@ internal sealed class LandBattleScene : GameWindow
         if (slot < 0 || slot >= StandAt.Length) return;
         if (!_battle.Units[slot].Standing) return;
 
-        // 맞붙는 병종이면 상대 쪽으로 나갔다 온다.
+        // 맞붙는 병종이면 <b>칠 부대 바로 앞까지</b> 나갔다 온다.
         int dx = 0, dy = 0;
         if (LandUnits.KindOf(_battle.Units[slot].Kind) == LandUnits.Kind.Melee
             && line.Target >= 0 && line.Target < StandAt.Length)
         {
             var (fx, fy) = StandAt[slot];
             var (tx, ty) = StandAt[line.Target];
-            dx = (int)((tx - fx) * StepIn);
-            dy = (int)((ty - fy) * StepIn);
+            double span = Math.Sqrt((double)(tx - fx) * (tx - fx) + (double)(ty - fy) * (ty - fy));
+            double gone = span > StandOff ? (span - StandOff) / span : 0;
+            dx = (int)((tx - fx) * gone);
+            dy = (int)((ty - fy) * gone);
         }
 
         _acting = slot;
@@ -343,6 +396,9 @@ internal sealed class LandBattleScene : GameWindow
                 _board.Children.RemoveAt(i);
         Stand();
     }
+
+    /// <summary>치러 나간 부대를 얹는 높이. 숫자보다는 아래다.</summary>
+    private const int ActDepth = DigitDepth - 1;
 
     /// <summary>부대와 숫자에 붙이는 표 — 다시 그릴 때 이것만 걷는다.</summary>
     private const string UnitLayer = "unit";
@@ -417,7 +473,12 @@ internal sealed class LandBattleScene : GameWindow
             }
 
             if (Sprite(unit.Kind, friend: i < LandBattle.FirstFoe, frame) is { } art)
+            {
+                // 나가서 치는 부대는 남의 자리에 서므로 <b>맨 앞으로</b> 올린다 —
+                // 안 그러면 치러 간 부대가 맞는 부대 뒤에 깔린다.
+                if (i == _acting) Panel.SetZIndex(art, ActDepth);
                 _board.Children.Add(Mark(At(art, x, y)));
+            }
 
             // 병사수는 칸 위쪽에 넉 자리 폭으로 가운데를 맞춰 찍는다.
             //
