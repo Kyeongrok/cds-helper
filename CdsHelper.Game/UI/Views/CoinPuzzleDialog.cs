@@ -96,7 +96,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// 평평한 접시(<c>coin-pan-1</c>)가 <c>y 85</c> 에서 가장 넓고 금화가 <c>79</c> 에
     /// 놓이는 것을 기준으로 삼았다. 기운 벌도 같은 규칙으로 쟀다.
     /// </remarks>
-    private static readonly (int X, int Y) LevelLeftPile = (43, 144), LevelRightPile = (179, 144);
+    private static readonly (int X, int Y) LevelLeftPile = (39, 142), LevelRightPile = (175, 142);
 
     /// <summary>기운 벌에서 금화가 쌓이는 자리 — <c>[기움][0]</c> 왼쪽 · <c>[기움][1]</c> 오른쪽.</summary>
     private static readonly (int X, int Y)[][] WoodPile =
@@ -105,8 +105,15 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         [(46, 130), (172, 163)],   // 오른쪽이 내려갔다
     ];
 
-    /// <summary>금화 한 닢을 더 얹을 때마다 올라가는 높이.</summary>
-    private const int StackRise = 4;
+    /// <summary>
+    /// 금화 한 닢을 더 얹을 때마다 올라가는 높이.
+    /// </summary>
+    /// <remarks>
+    /// 게임 화면에서 두 닢 쌓인 것을 재면 높이가 스물여섯쯤이다 — 납작 금화 한 장의
+    /// 잉크가 열여섯이니 한 닢에 <b>아홉</b>씩 올라간다. 넷으로 두었더니 두 닢이 거의
+    /// 겹쳐 한 닢처럼 보였다.
+    /// </remarks>
+    private const int StackRise = 9;
 
 
     /// <summary>
@@ -437,8 +444,10 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         if (tilt == CoinPuzzle.Tilt.Level)
         {
             Arm("coin-beam.png", BeamAt, 176, 16);
-            Arm("coin-pan-1.png", LeftPanAt, 80, 144);
-            Arm("coin-pan-0.png", RightPanAt, 80, 144);
+            // 접시 두 벌은 <b>왼쪽이 0</b> 이다 — 게임 화면에 맞춰 보면 왼 접시는 밝고
+            // 오른 접시는 어둡다. 거꾸로 걸어 두었었다.
+            Arm("coin-pan-0.png", LeftPanAt, 80, 144);
+            Arm("coin-pan-1.png", RightPanAt, 80, 144);
             (leftPile, rightPile) = (LevelLeftPile, LevelRightPile);
         }
         else
