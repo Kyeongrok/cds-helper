@@ -394,18 +394,37 @@ internal sealed class CharacterMakeDialog : Window
     }
 
     /// <summary>
-    /// 초상화를 하나 옆으로 넘긴다. <b>들어 있는 얼굴을 다</b> 넘긴다.
+    /// 주인공이 고를 수 있는 얼굴들.
     /// </summary>
     /// <remarks>
-    /// 게임은 앞의 열여섯(<see cref="GameFaceChoices"/>)만 고르게 하는데, 그것은 뒤
-    /// 열여섯이 그 중년 얼굴이라 짝이 어긋나면 안 되기 때문이다. 우리는 짝을 따로
-    /// 들고 있으므로(<see cref="PortraitAges"/>) 더 넣은 얼굴도 고르게 한다.
+    /// 게임은 <b>앞의 열여섯</b>(<see cref="GameFaceChoices"/>)만 내준다 — 뒤 열여섯이
+    /// 그 중년 얼굴이라 짝이 어긋나면 안 되기 때문이다. 나머지 사백 남짓은 인물표가
+    /// 쓰는 남의 얼굴이라 주인공이 쓸 것이 아니다.
+    ///
+    /// 다만 <b>우리가 더 넣은 얼굴</b>(<see cref="Portraits.GameMaleCount"/> 뒤)은 함께
+    /// 낸다 — 초상화 넣기로 제 얼굴을 넣은 사람이 그것을 못 고르면 넣을 까닭이 없다.
+    /// 중년 짝은 <see cref="PortraitAges"/> 가 따로 들고 있어 어긋날 일이 없다.
     /// </remarks>
-    private void Turn(int by)
+    private int[] Choices()
     {
         int count = _faces?.MaleCount ?? 0;
-        if (count <= 0) return;
-        _face = (_face + by % count + count) % count;
+        var made = new List<int>();
+
+        for (int i = 0; i < GameFaceChoices && i < count; i++) made.Add(i);
+        for (int i = Portraits.GameMaleCount; i < count; i++) made.Add(i);
+        return [.. made];
+    }
+
+    /// <summary>초상화를 하나 옆으로 넘긴다.</summary>
+    private void Turn(int by)
+    {
+        var choices = Choices();
+        if (choices.Length == 0) return;
+
+        int at = Array.IndexOf(choices, _face);
+        if (at < 0) at = 0;
+
+        _face = choices[(at + by % choices.Length + choices.Length) % choices.Length];
         ShowFace();
     }
 

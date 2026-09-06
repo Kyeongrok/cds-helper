@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Support.Local.Models;
 
@@ -32,8 +32,8 @@ internal static class PersonInfoMenu
     /// 누구의 인물정보를 볼지 고르는 창 — 제독과 부하 네 자리다.
     /// </summary>
     /// <remarks>
-    /// 자리는 늘 넷 다 낸다(게임 화면이 그렇다). <b>빈 자리는 흐려 두고 안 먹는다</b> —
-    /// 앉은 사람이 없으면 낼 판도 없기 때문이다.
+    /// <b>사람이 앉은 자리만 낸다.</b> 예전에는 넷을 다 내고 빈 자리를 흐려 두었는데,
+    /// 없는 자리를 굳이 보일 까닭이 없다.
     /// </remarks>
     private static GameMenu Build(Window owner, Engine.Game game, GameMenuHost menu)
     {
@@ -50,8 +50,8 @@ internal static class PersonInfoMenu
         {
             int slot = i;
             string name = game.Player.MateAt(slot);
-            rows.Add((Player.MateRoles[slot],
-                      name.Length == 0 ? null : () => ShowMate(owner, game, menu, slot)));
+            if (name.Length == 0) continue;
+            rows.Add((Player.MateRoles[slot], () => ShowMate(owner, game, menu, slot)));
         }
 
         rows.Add(("취소", menu.Close));
