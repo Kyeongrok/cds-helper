@@ -49,10 +49,15 @@ internal sealed class LandDeployDialog : Window
     private const int Tile = LandArt.DeploySide;
 
     /// <summary>
-    /// 그림을 칸 안에서 아래로 붙이는 만큼 — 몸짓 한 장이 48점이라 칸의 아랫절반이다.
+    /// 부대 그림은 <b>세로로 두 배 늘려</b> 칸을 꽉 채운다.
     /// </summary>
-    /// <remarks>병사수 숫자가 칸 위쪽에 찍히므로 그림이 아래로 내려가야 안 겹친다.</remarks>
-    private const int ArtDrop = Tile - LandArt.DeployHeight;
+    /// <remarks>
+    /// 조각은 96x48 이 맞다 — LANDDATA 파트 8~50 이 192x192 에 2열 4행으로 여덟 장씩
+    /// 들어 있고 한 칸이 96x48 이다. 그런데 <b>게임은 그걸 96x96 으로 늘려 찍는다</b>
+    /// (<c>0x004B6963(0x60, 0x60)</c>). 실제 화면에서 말 세 마리 무리를 재면 121x120 으로
+    /// <b>거의 정사각</b>인데, 조각 그대로 찍으면 2:1 로 납작해진다.
+    /// </remarks>
+    private const int ArtZoomY = Tile / LandArt.DeployHeight;
 
     /// <summary>숫자 한 자의 한 변.</summary>
     private const int Digit = LandArt.DigitSide;
@@ -99,10 +104,19 @@ internal sealed class LandDeployDialog : Window
         Height = LandArt.BoardHeight,
     };
 
+    /// <summary>
+    /// 부대 그림과 병사수를 얹는 층. <b>손을 안 받는다.</b>
+    /// </summary>
+    /// <remarks>
+    /// 이 층은 누르는 네모(<see cref="Spot"/>)보다 <b>위</b>에 얹힌다. 손을 받게 두면
+    /// 그림이 깔린 칸에서 누름이 그림에 먹혀 <see cref="Grab"/> 이 안 불린다 — 부대
+    /// 그림을 칸만 하게 늘리고 나서 끌어다 놓기가 죽은 것이 이 때문이었다.
+    /// </remarks>
     private readonly Canvas _layer = new()
     {
         Width = LandArt.BoardWidth,
         Height = LandArt.BoardHeight,
+        IsHitTestVisible = false,
     };
 
     private LandDeployDialog(Engine.Game game, string cityName, LandRoster roster, double scale)
@@ -245,12 +259,20 @@ internal sealed class LandDeployDialog : Window
         return Put(bgra, LandArt.BoardWidth, LandArt.BoardHeight);
     }
 
-    private static Image Put(uint[] bgra, int w, int h)
+    /// <param name="drawW">화면에 걸 너비. 안 주면 그림 그대로다.</param>
+    /// <param name="drawH">화면에 걸 높이. 부대 그림은 두 배로 늘려 건다.</param>
+    private static Image Put(uint[] bgra, int w, int h, int drawW = 0, int drawH = 0)
     {
         var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
         bmp.Freeze();
 
-        var image = new Image { Source = bmp, Width = w, Height = h, Stretch = Stretch.Fill };
+        var image = new Image
+        {
+            Source = bmp,
+            Width = drawW > 0 ? drawW : w,
+            Height = drawH > 0 ? drawH : h,
+            Stretch = Stretch.Fill,
+        };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
@@ -269,7 +291,7 @@ internal sealed class LandDeployDialog : Window
             var (x, y) = SlotAt[i];
 
             if (Unit(_roster.KindAt(_picked[i])) is { } art)
-                _layer.Children.Add(Place(art, x, y + ArtDrop));
+                _layer.Children.Add(Place(art, x, y));
 
             // 병사수는 넉 자리 폭에 가운데로 몬다(0x0049FD14).
             string men = _men[i].ToString();
@@ -291,7 +313,7 @@ internal sealed class LandDeployDialog : Window
         {
             var (x, y) = PickAt[choice];
             if (Unit(_roster.KindAt(choice)) is { } art)
-                _layer.Children.Add(Place(art, x, y + ArtDrop));
+                _layer.Children.Add(Place(art, x, y));
 
 
             int left = Remaining(choice);
@@ -307,7 +329,7 @@ internal sealed class LandDeployDialog : Window
         if (_art == null) return null;
 
         var bgra = _art.TryGetDeployUnit(kind, out int w, out int h);
-        return bgra == null ? null : Put(bgra, w, h);
+        return bgra == null ? null : Put(bgra, w, h, w, h * ArtZoomY);
     }
 
     /// <summary>숫자 한 자. 못 구하면 게임 글꼴로 물러선다.</summary>
@@ -365,11 +387,17 @@ internal sealed class LandDeployDialog : Window
     private Point _grabbed;
 
     /// <summary>끌고 다니는 그림.</summary>
+    /// <summary>끌고 다니는 동안 손끝에 붙어 다니는 부대 그림.</summary>
+    /// <remarks>
+    /// <b>늘려 채운다.</b> 조각이 96x48 인데 칸은 96x96 이라, 기본값(<c>Uniform</c>)으로
+    /// 두면 96x48 그대로 가운데에 놓여 놓기 전과 놓은 뒤의 크기가 달라 보인다.
+    /// </remarks>
     private readonly Image _ghost = new()
     {
         IsHitTestVisible = false,
         Opacity = 0.85,
         Visibility = Visibility.Collapsed,
+        Stretch = Stretch.Fill,
     };
 
     /// <summary>이만큼 넘게 끌어야 끈 것으로 본다.</summary>
@@ -406,11 +434,11 @@ internal sealed class LandDeployDialog : Window
             _ghostOf = choice;
             _ghost.Source = Unit(_roster.KindAt(choice))?.Source;
             _ghost.Width = LandArt.DeployWidth;
-            _ghost.Height = LandArt.DeployHeight;
+            _ghost.Height = LandArt.DeployHeight * ArtZoomY;
         }
         _ghost.Visibility = Visibility.Visible;
         Canvas.SetLeft(_ghost, now.X - LandArt.DeployWidth / 2.0);
-        Canvas.SetTop(_ghost, now.Y - LandArt.DeployHeight / 2.0);
+        Canvas.SetTop(_ghost, now.Y - LandArt.DeployHeight * ArtZoomY / 2.0);
     }
 
     private int _ghostOf = -1;

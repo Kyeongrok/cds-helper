@@ -129,9 +129,46 @@ public sealed class UiSprites
     /// </summary>
     private readonly uint[]? _digitsBgra;
 
-    private UiSprites(byte[]? band, uint[][]? bandPieces,
-                      byte[]? icons, uint[]? iconsBgra, byte[]? digits, uint[]? digitsBgra)
+    /// <summary>
+    /// 계산기 글쇠 열일곱 장(32x24). <c>asset/ui/misc-06.png</c> 의 <b>y 1080</b> 부터
+    /// 스물넷씩 이어 붙어 있다.
+    /// </summary>
+    /// <remarks>
+    /// 차례는 <c>0 1 2 3 4 5 6 7 8 9 00 000 AC DEL MAX MIN CAN-CEL</c> 이다. 그림에서
+    /// 글쇠 얼굴(밝은 베이지)이 뜨는 줄을 재면 <c>1084 · 1108 · 1132 …</c> 로 스물넷씩
+    /// 고르게 떨어져 그 앞 넉 점을 테두리로 두고 잘랐다. <b>ENTER 는 이 벌에 없다</b> —
+    /// 가로로 긴 글쇠라 띠 단추로 그린다.
+    /// </remarks>
+    private readonly uint[]? _padBgra;
+
+    /// <summary>계산기 글쇠 한 장의 크기와 장수.</summary>
+    public const int PadWidth = 32, PadHeight = 24, PadCount = 17;
+
+    /// <summary>글쇠가 시작하는 줄과 그 그림의 온 높이. <c>misc-06.png</c> 안의 자리다.</summary>
+    private const int PadTop = 1080, PadStripHeight = 1566;
+
+    /// <summary>글쇠 차례에서의 번호.</summary>
+    public const int PadDoubleZero = 10, PadTripleZero = 11, PadClear = 12,
+                     PadBack = 13, PadMost = 14, PadLeast = 15, PadCancel = 16;
+
+    /// <summary>계산기 글쇠 그림이 있는지.</summary>
+    public bool HasPad => _padBgra != null;
+
+    /// <summary>글쇠 한 장을 BGRA 로. 없거나 번호가 밖이면 null.</summary>
+    public uint[]? Pad(int at)
     {
+        if (_padBgra == null || at < 0 || at >= PadCount) return null;
+
+        var made = new uint[PadWidth * PadHeight];
+        Array.Copy(_padBgra, at * made.Length, made, 0, made.Length);
+        return made;
+    }
+
+    private UiSprites(byte[]? band, uint[][]? bandPieces,
+                      byte[]? icons, uint[]? iconsBgra, byte[]? digits, uint[]? digitsBgra,
+                      uint[]? padBgra = null)
+    {
+        _padBgra = padBgra;
         _band = band;
         _bandPieces = bandPieces;
         _icons = icons;
@@ -193,6 +230,7 @@ public sealed class UiSprites
         var bandPieces = LoadBandAsset();
         var iconsBgra = LoadPiecePng(AssetPath("misc-03.png"), IconWidth, IconHeight * IconCount);
         var digitsBgra = LoadDigitAsset();
+        var padBgra = LoadPadAsset();
 
         byte[]? cdsBand = null;
         byte[]? icons = null;
@@ -233,7 +271,7 @@ public sealed class UiSprites
             return null;
         }
 
-        return new UiSprites(cdsBand, bandPieces, icons, iconsBgra, digits, digitsBgra);
+        return new UiSprites(cdsBand, bandPieces, icons, iconsBgra, digits, digitsBgra, padBgra);
     }
 
     /// <summary><c>asset/ui</c> 밑의 파일 자리.</summary>
@@ -246,6 +284,24 @@ public sealed class UiSprites
     /// 진다 — CDS 경로가 색인 <see cref="DigitClear"/> 를 건너뛰는 것과 같은 뜻으로,
     /// 그 색과 정확히 같은 픽셀만 지운다.
     /// </summary>
+    /// <summary>
+    /// <c>asset/ui/misc-06.png</c> 에서 계산기 글쇠 열일곱 장을 오려 이어 붙인다.
+    /// </summary>
+    /// <remarks>
+    /// 그 그림은 세로로 긴 띠(32 x 1566)라 통째로 읽고 <see cref="PadTop"/> 부터
+    /// 잘라 쓴다. 짧거나 없으면 null 이고, 그때는 계산기가 띠 단추로 물러선다.
+    /// </remarks>
+    private static uint[]? LoadPadAsset()
+    {
+        // 띠 전체 높이는 그림에 딸린 값이라 여기 못 박는다 — 크기가 안 맞으면 안 쓴다.
+        var whole = LoadPiecePng(AssetPath("misc-06.png"), PadWidth, PadStripHeight);
+        if (whole == null) return null;
+
+        var made = new uint[PadWidth * PadHeight * PadCount];
+        Array.Copy(whole, PadTop * PadWidth, made, 0, made.Length);
+        return made;
+    }
+
     private static uint[]? LoadDigitAsset()
     {
         var pixels = LoadPiecePng(AssetPath("misc-07.png"), DigitWidth, DigitHeight * DigitCount);

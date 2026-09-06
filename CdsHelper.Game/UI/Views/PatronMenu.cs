@@ -856,7 +856,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         // 고르면 상세를 띄우고 닫으면 목록으로 돌아온다 — 게임도 그렇다(0x0049348E 가
         // 목록 짓는 데로 되돌아간다).
-        var owner = _cityMenu.Window ?? _view;
+        // <b>도시 그림 창에 얹는다.</b> 부르는 쪽(CityPicView)이 도시 명령 창을 먼저
+        // 닫는데, 그 창은 점으로 오므라드는 동안 <b>아직 살아 있고 보이기까지 한다</b>
+        // (GameMenuHost.Close → CloseZoomed). 그 창을 주인으로 잡으면 오므라들기가
+        // 끝나는 순간 우리 물음창까지 딸려 닫혀 판이 멎은 것처럼 보인다.
+        var owner = _view;
         while (true)
         {
             int row = HintListDialog.Pick(owner, names, "스폰서 일람",
@@ -865,7 +869,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
             var (patron, sponsor) = mine[row];
             PatronInfoDialog.Show(owner, patron, sponsor?.Name, sponsor?.Job,
-                                  _player.ClosenessOf(patron.Name));
+                                  _player.ClosenessOf(patron.Name),
+                                  sponsor?.Face ?? -1, sponsor?.IsFemale ?? false,
+                                  _game.Directory);
         }
     }
 }

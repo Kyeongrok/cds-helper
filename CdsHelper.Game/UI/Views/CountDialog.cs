@@ -87,8 +87,12 @@ public sealed class CountDialog : Window
 
         _count = Label("");
 
+        // 이름 길이가 제각각이라 값 칸이 세로로 안 맞았다 — 가장 긴 것에 맞춰 채운다.
+        int names = Cells(label);
+        foreach (var line in lines) names = Math.Max(names, Cells(line.Name));
+
         var pick = new StackPanel { Orientation = Orientation.Horizontal };
-        pick.Children.Add(Label(label));
+        pick.Children.Add(Label(GameUi.Pad(label, names)));
         pick.Children.Add(Cell(_count));
         // 값은 계산기로만 넣는다 — 게임도 칸 옆에 계산기 하나만 달아 두었다.
         pick.Children.Add(Pad());
@@ -104,7 +108,7 @@ public sealed class CountDialog : Window
                 Margin = new Thickness(0, 2, 0, 0),
             };
             // 눈금 줄에도 단위가 붙는다 — 화면은 "0명" · "12명" 이다.
-            row.Children.Add(Label(line.Name));
+            row.Children.Add(Label(GameUi.Pad(line.Name, names)));
             row.Children.Add(Cell(Label($"{line.Value}{unit}")));
             rows.Children.Add(row);
         }
@@ -168,6 +172,14 @@ public sealed class CountDialog : Window
         if (_at <= 0) return;
         _picked = _at;
         Close();
+    }
+
+    /// <summary>글이 차지하는 칸 수. 한글은 두 칸이다.</summary>
+    private static int Cells(string text)
+    {
+        int n = 0;
+        foreach (char c in text) n += c < 0x80 ? 1 : 2;
+        return n;
     }
 
     /// <summary>밤색 판 위에 얹는 밝은 글씨.</summary>

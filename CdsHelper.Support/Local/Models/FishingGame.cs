@@ -304,22 +304,40 @@ public sealed class FishingGame
         }
     }
 
+    /// <summary>
+    /// 옆으로 가겠다고 한다. <b>그 자리에서 바로 꺾지 않는다.</b>
+    /// </summary>
+    /// <remarks>
+    /// 바늘은 사다리 위로만 다니므로 가로줄을 타려면 <b>꼭짓점</b>, 곧 줄과 줄이 만나는
+    /// 데까지 가야 한다. 그래서 여기서는 <see cref="Wish"/> 에 적어만 두고, 줄이 바뀌는
+    /// 자리에서 <see cref="Step"/> 이 그것을 <see cref="Lean"/> 으로 올린다.
+    ///
+    /// 줄 첫머리(<c>Tick == 0</c>)에 누르면 바로 그 자리가 꼭짓점이라 그 줄에서 곧장
+    /// 건넌다 — 기다림이 없다.
+    /// </remarks>
     public void Steer(int way)
     {
         if (Got != Catch.None || !Started) return;
 
-        int was = Lean;
-        if (way > 0 && Column < Columns - 1) Lean = 1;
-        else if (way < 0 && Column > 0) Lean = -1;
-        else Lean = 0;
+        int wish = way > 0 && Column + Wish < Columns - 1 ? 1
+                 : way < 0 && Column + Wish > 0 ? -1 : 0;
 
-        // 옆으로 가겠다고 한 틱은 안 내려간다 — 게임도 [0x1F8] 을 세운다.
-        if (Lean == was) return;
-
-        _hold = true;
-        _leanAt = Tick;                  // 여기서부터 가로줄을 건넌다
-        _leanY = Y;
+        if (Tick == 0 && Lean == 0)
+        {
+            // 지금이 꼭짓점이다 — 곧장 건넌다.
+            if (wish == 0) return;
+            Lean = wish;
+            Wish = 0;
+            _hold = true;
+            _leanAt = 0;
+            _leanY = Y;
+            return;
+        }
+        Wish = wish;
     }
+
+    /// <summary>다음 꼭짓점에서 꺾을 쪽. 0 이면 곧장 내려간다.</summary>
+    public int Wish { get; private set; }
 
     /// <summary>
     /// 한 틱. 게임은 <c>0x0047AAA0</c> 이 화면을 새로 그릴 때마다 이걸 한다.
@@ -349,7 +367,14 @@ public sealed class FishingGame
         {
             Tick = 0;
             At += Lean > 0 ? Columns + 1 : Lean < 0 ? Columns - 1 : Columns;
-            Lean = 0;
+
+            // 여기가 꼭짓점이다 — 적어 둔 쪽으로 이 줄에서 건넌다.
+            Lean = Wish;
+            Wish = 0;
+            _leanAt = 0;
+            _leanY = Y;
+            if (Lean != 0) _hold = true;
+
             Swim();
         }
         else if ((Tick == MeetRight || Tick == MeetLeft) && At >= 0 && At < Cells

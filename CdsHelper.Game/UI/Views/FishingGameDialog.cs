@@ -304,7 +304,9 @@ internal sealed class FishingGameDialog : InfoDialog
     {
         // 다음에 어느 쪽으로 꺾는지만 알린다 — 깊이는 화면에 그대로 보이고, 조작 안내는
         // 오른쪽 차림표가 맡는다. 게임 화면에 없는 것을 덧대지 않는다.
-        string way = _game.Lean > 0 ? "오른쪽으로" : _game.Lean < 0 ? "왼쪽으로" : "곧장 아래로";
+        // 지금 건너는 중이면 그쪽, 아니면 <b>다음 꼭짓점에서</b> 꺾겠다고 적어 둔 쪽이다.
+        int turn = _game.Lean != 0 ? _game.Lean : _game.Wish;
+        string way = turn > 0 ? "오른쪽으로" : turn < 0 ? "왼쪽으로" : "곧장 아래로";
         _line.Text = _game.Started ? $"  다음 교차점에서 {way}" : "";
 
         // 바늘은 <b>사다리 위에서만</b> 간다 — 가로줄을 건널 때는 높이가 멎고,
