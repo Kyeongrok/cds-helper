@@ -362,6 +362,25 @@ public sealed class Game
     /// </remarks>
     /// <param name="buildingCode">건물 코드(항구 0 · 조선소 6 · 도서관 8 …).</param>
     /// <param name="culture">그 마을 문화권 번호.</param>
+    /// <summary>
+    /// <b>부관</b>(부하 첫 자리)의 얼굴. 자리가 비었거나 신상을 못 찾으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 대원이 대신 말하는 자리는 죄다 이 얼굴을 쓴다 — 성문에서 문지기 말을 못 알아들어
+    /// 한 마디 덧붙일 때, 쳐들어가기 전에 되물을 때가 그렇다.
+    /// </remarks>
+    public uint[]? AideFace
+    {
+        get
+        {
+            string mate = Player.MateAt(0);
+            if (mate.Length == 0) return null;
+
+            return MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
+                ? Faces?.TryGetBgra(who.Face, female: false) : null;
+        }
+    }
+
     public uint[]? SpeakerFace(int buildingCode, int culture)
     {
         if (Speakers is not { } speakers) return null;

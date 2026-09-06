@@ -1,4 +1,4 @@
-using CdsHelper.Support.Local.Models;
+﻿using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Land;
 
@@ -97,6 +97,66 @@ public sealed class LandBattle
         FoeRoom = FoeUnits > 0 ? FoeFirst / FoeUnits : FoeFirst;
         MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
     }
+
+    /// <summary>
+    /// <b>모의전</b> 판을 세운다 — 양쪽 병종과 병력수를 그대로 받는다.
+    /// </summary>
+    /// <remarks>
+    /// 도시도 나라도 없이 싸움만 돌려 보는 자리다. 그래서 적을 문화권으로 지어내지
+    /// 않고(<c>Muster</c>) 받은 대로 세우고, 작렬탄도 안 준다. 적 대장의 능력만
+    /// <paramref name="scale"/> 로 굴린다 — 싸움 셈이 그것을 본다.
+    /// </remarks>
+    /// <param name="mine">아군 여섯 자리의 병종. −1 이면 빈 자리다.</param>
+    /// <param name="theirs">적 여섯 자리의 병종.</param>
+    /// <param name="myMen">아군 병력 합.</param>
+    /// <param name="foeMen">적 병력 합.</param>
+    public LandBattle(IReadOnlyList<int> mine, IReadOnlyList<int> theirs,
+                      int myMen, int foeMen, Player player, Player.MateInfo? aide,
+                      int culture, int terrain, GameRandom dice)
+    {
+        Nation = -1;
+        Culture = culture;
+        Terrain = Math.Clamp(terrain, 0, 3);
+        Scale = 3;
+        _me = player;
+        _aide = aide;
+        _mock = true;
+
+        MyFirst = Math.Max(1, myMen);
+        Split(mine, MyFirst);
+        Fill(theirs, Math.Max(1, foeMen));
+
+        FoeMight = dice.Next(10) + 75 - 1;
+        FoeMind = dice.Next(10) + 70 - 1;
+        FoeLuck = dice.Next(10) + 65 - 1;
+        FoeBody = dice.Next(10) + 85 - 1;
+
+        for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
+        FoeRoom = FoeUnits > 0 ? FoeFirst / FoeUnits : FoeFirst;
+        MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
+    }
+
+    /// <summary>적 여섯 자리를 받은 대로 세우고 병력을 고르게 나눈다.</summary>
+    private void Fill(IReadOnlyList<int> theirs, int men)
+    {
+        int units = 0;
+        for (int i = 0; i < PerSide && i < theirs.Count; i++) if (theirs[i] >= 0) units++;
+        if (units == 0) return;
+
+        int each = Math.Max(1, men / units), over = men % units;
+        bool first = true;
+        for (int i = 0; i < PerSide && i < theirs.Count; i++)
+        {
+            if (theirs[i] < 0) continue;
+            _units[FirstFoe + i] = new Unit(theirs[i], each + (first ? over : 0));
+            first = false;
+        }
+    }
+
+    /// <summary>모의전인지 — 이기고 져도 값을 안 치른다.</summary>
+    public bool IsMock => _mock;
+
+    private readonly bool _mock;
 
     private readonly Player _me;
     private readonly Player.MateInfo? _aide;

@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Land;
 using CdsHelper.Game.Engine.Town;
@@ -239,11 +240,97 @@ internal sealed class LandBattleScene : Window
         foreach (var line in lines)
         {
             if (line.Sound >= 0) sfx?.Play(line.Sound);
+            if (!_quick) Swing(line);
             if (line.Text.Length == 0 || _quick) continue;
             Redraw();
             NoticeDialog.Show(this, line.Text, "");
         }
         Redraw();
+    }
+
+    // ── 치는 몸짓 ──────────────────────────────────────────────────────────────
+
+    /// <summary>지금 치고 있는 자리와 그 몸짓. −1 이면 아무도 안 친다.</summary>
+    private int _acting = -1, _actFrame;
+
+    /// <summary>친 부대가 제자리에서 나가 있는 만큼.</summary>
+    private int _actDx, _actDy;
+
+    /// <summary>몸짓 한 장이 머무는 밀리초.</summary>
+    private const int SwingMs = 70;
+
+    /// <summary>맞붙는 부대가 상대 쪽으로 나가는 몫 — 둘 사이 거리의 이만큼이다.</summary>
+    private const double StepIn = 0.45;
+
+    /// <summary>
+    /// 한 줄을 몸짓으로 보인다 — <b>여덟 장을 차례로</b> 돌린다.
+    /// </summary>
+    /// <remarks>
+    /// 부대 조각 한 벌이 96x48 여덟 장(2열 4행)인데 우리는 첫 장만 쓰고 있었다. 여덟 장이
+    /// 곧 치는 몸짓이라 차례로 갈아 끼우면 된다.
+    ///
+    /// <b>맞붙는 병종</b>(기병·제독·장군처럼 손에 무기를 든 것 —
+    /// <see cref="LandUnits.Kind.Melee"/>)은 몸짓만 짓지 않고 <b>상대 쪽으로 나갔다
+    /// 돌아온다</b>. 총·포는 제자리에서 쏜다.
+    /// </remarks>
+    private void Swing(LandFight.Line line)
+    {
+        int slot = line.Actor;
+        if (slot < 0 || slot >= StandAt.Length) return;
+        if (!_battle.Units[slot].Standing) return;
+
+        // 맞붙는 병종이면 상대 쪽으로 나갔다 온다.
+        int dx = 0, dy = 0;
+        if (LandUnits.KindOf(_battle.Units[slot].Kind) == LandUnits.Kind.Melee
+            && line.Target >= 0 && line.Target < StandAt.Length)
+        {
+            var (fx, fy) = StandAt[slot];
+            var (tx, ty) = StandAt[line.Target];
+            dx = (int)((tx - fx) * StepIn);
+            dy = (int)((ty - fy) * StepIn);
+        }
+
+        _acting = slot;
+        try
+        {
+            int frames = LandArt.FrameCols * LandArt.FrameRows;
+            for (int f = 0; f < frames; f++)
+            {
+                _actFrame = f;
+
+                // 앞 절반에 나가고 뒤 절반에 돌아온다.
+                double gone = f < frames / 2 ? (f + 1) / (frames / 2.0)
+                                             : (frames - 1 - f) / (frames / 2.0);
+                _actDx = (int)(dx * gone);
+                _actDy = (int)(dy * gone);
+
+                Redraw();
+                Rest(SwingMs);
+            }
+        }
+        finally
+        {
+            _acting = -1;
+            _actFrame = 0;
+            _actDx = _actDy = 0;
+        }
+    }
+
+    /// <summary>
+    /// 그만큼 쉬면서 화면은 그리게 둔다.
+    /// </summary>
+    /// <remarks>
+    /// 싸움 한 턴이 <c>Fight</c> 안에서 곧게 돌아가므로(물음창도 그 안에서 뜬다) 여기서
+    /// 실을 재우면 화면이 멎는다. 물음창이 하는 것과 같이 <b>속 고리를 하나 돌린다</b>.
+    /// </remarks>
+    private void Rest(int ms)
+    {
+        var frame = new DispatcherFrame();
+        var clock = new DispatcherTimer(TimeSpan.FromMilliseconds(ms), DispatcherPriority.Render,
+                                        (_, _) => frame.Continue = false, Dispatcher);
+        clock.Start();
+        Dispatcher.PushFrame(frame);
+        clock.Stop();
     }
 
     /// <summary>부대와 병사수를 다시 그린다.</summary>
@@ -269,6 +356,15 @@ internal sealed class LandBattleScene : Window
     private void Settle(bool won, bool retreated, GameRandom dice)
     {
         if (_game is not { } game) return;
+
+        // 모의전은 <b>값을 안 치른다</b> — 선원도 돈도 명성도 그대로 둔다.
+        // 미니 게임에서 셈만 돌려 보는 자리이기 때문이다.
+        if (_battle.IsMock)
+        {
+            NoticeDialog.Show(this, won ? "모의전에서 이겼다" : retreated ? "모의전을 물렸다"
+                                                                          : "모의전에서 졌다", "");
+            return;
+        }
 
         var spoils = _battle.Finish(won, dice);
         var player = game.Player;
@@ -309,7 +405,16 @@ internal sealed class LandBattleScene : Window
             if (!unit.Standing) continue;
 
             var (x, y) = StandAt[i];
-            if (Sprite(unit.Kind, friend: i < LandBattle.FirstFoe) is { } art)
+
+            // 치고 있는 부대는 몸짓을 갈아 끼우고, 맞붙는 병종이면 앞으로 나가 있다.
+            int frame = 0;
+            if (i == _acting)
+            {
+                frame = _actFrame;
+                (x, y) = (x + _actDx, y + _actDy);
+            }
+
+            if (Sprite(unit.Kind, friend: i < LandBattle.FirstFoe, frame) is { } art)
                 _board.Children.Add(Mark(At(art, x, y)));
 
             // 병사수는 칸 위쪽에 넉 자리 폭으로 가운데를 맞춰 찍는다.
@@ -330,12 +435,12 @@ internal sealed class LandBattleScene : Window
         }
     }
 
-    /// <summary>그 병종의 첫 몸짓. 못 구하면 null.</summary>
-    private Image? Sprite(int kind, bool friend)
+    /// <summary>그 병종의 몸짓 한 장. 못 구하면 null.</summary>
+    private Image? Sprite(int kind, bool friend, int frame = 0)
     {
         if (_art == null) return null;
 
-        var bgra = _art.TryGetUnit(kind, friend, _battle.Culture, frame: 0, out int w, out int h);
+        var bgra = _art.TryGetUnit(kind, friend, _battle.Culture, frame, out int w, out int h);
         return bgra == null ? null : Picture(bgra, w, h, w, h * UnitZoomY);
     }
 
