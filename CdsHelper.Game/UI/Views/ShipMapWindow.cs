@@ -947,9 +947,6 @@ public sealed class ShipMapWindow : Window
                 StartMap(fresh: false);
         }));
         items.Children.Add(TitleMenuItem("MINI GAME", MiniGames));
-        // 해전은 원본 메인메뉴에 없다 — 판을 손보는 동안 곧바로 열어 보려고 붙여 둔다.
-        items.Children.Add(TitleMenuItem("SEA BATTLE",
-            () => SeaCombatDialog.Play(this, _game.Player, _game.Random)));
         items.Children.Add(TitleMenuItem("END GAME", Close));
 
         var box = new Border
@@ -1182,8 +1179,10 @@ public sealed class ShipMapWindow : Window
             "성배 퍼즐", "스핑크스 퀴즈", "미궁 64 퍼즐", "낚시 게임",
             "코인 게임", "발라몬의 탑 퍼즐", "화살표 입방체 퍼즐",
             "일기토",
-            // 게임에 없는 줄이다 — 육상전 셈을 도시 없이 돌려 보려고 뒤에 붙였다.
-            "육상전 모의전",
+            // 여기 아래 둘은 게임에 없는 줄이다 — 싸움 셈을 도시 없이 돌려 보려고
+            // 뒤에 붙였다. 해전은 메인메뉴에 두었던 것을 이리로 옮겼다(원본 메인메뉴에
+            // 없는 줄이라 거기 서 있으면 그만큼 게임이 아니게 된다).
+            "육상전 모의전", "해전 모의전",
         ];
 
         int pick = MapPointDialog.Ask(this, names, "미니 게임", MapPointDialog.MenuWidth);
@@ -1206,6 +1205,7 @@ public sealed class ShipMapWindow : Window
                 else DuelGame(this, _game.Random);
                 break;
             case 8: LandSparDialog.Play(this, _game); break;
+            case 9: SeaCombatDialog.Play(this, _game.Player, _game.Random); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
     }
