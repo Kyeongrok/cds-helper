@@ -118,16 +118,14 @@ internal sealed class LandBattleScene : GameWindow
         // 판이 열릴 때 한 번 — 아이템을 지녔으면 작렬탄을 받는다(0x00448DD0).
         if (_battle.ShellWord.Length > 0) NoticeDialog.Show(this, _battle.ShellWord, "");
 
-        // 첫 턴에만 일기토를 걸 수 있다(0x0044A604 가 +0x54 를 4 로 두고, 한 번
-        // 싸우고 나면 0x00449BC5 어름이 끈다).
-        bool first = true;
-
         while (true)
         {
             NoticeDialog.Show(this, _battle.TurnWord, "");
 
+            // 일기토는 <b>차림표를 열 때마다 굴린다</b> — 적 대장이 나보다 셀수록 열린다
+            // (0x00447930). 예전에는 첫 턴이면 늘 열어 두었다.
             int order = ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
-                                          _battle.OrderRows(canDuel: first,
+                                          _battle.OrderRows(canDuel: _battle.DuelOffered(dice),
                                                             canRuse: _battle.AnyRuseLeft));
             if (order < 0) continue;                 // 물러도 차림표가 다시 뜬다
 
@@ -158,8 +156,6 @@ internal sealed class LandBattleScene : GameWindow
                 continue;
             }
 
-            first = false;
-
             Play(fight.Turn(order, _battle.FoeOrder(dice)));
 
             if (fight.Over is { } won)
@@ -170,7 +166,6 @@ internal sealed class LandBattleScene : GameWindow
                     NoticeDialog.Show(this, LandBattle.ReinforceWord, "");
                     fight = new LandFight(_battle, dice);
                     Redraw();
-                    first = true;
                     continue;
                 }
                 Settle(won, retreated: false, dice);
