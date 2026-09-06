@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
@@ -62,7 +63,11 @@ public sealed class PatronInfoDialog : Window
     private static readonly string[] Categories =
         ["지리", "역사", "보물", "종교", "교역품", "미신", "생물", "민족"];
 
-    private PatronInfoDialog(Patron patron, string name, string job, int closeness)
+    /// <summary>초상화가 놓이는 자리. 글줄이 <see cref="LineX"/> 에서 시작하니 그 앞이다.</summary>
+    private const double FaceX = 8, FaceY = 8;
+
+    private PatronInfoDialog(Patron patron, string name, string job, int closeness,
+                             int face, bool female, string gameDirectory)
     {
         Title = "후원자 정보";
         WindowStyle = WindowStyle.None;
@@ -73,6 +78,13 @@ public sealed class PatronInfoDialog : Window
         Background = Back;
 
         var board = new Canvas { Width = BoardWidth, Height = BoardHeight };
+
+        if (Portrait(face, female, gameDirectory) is { } portrait)
+        {
+            Canvas.SetLeft(portrait, FaceX);
+            Canvas.SetTop(portrait, FaceY);
+            board.Children.Add(portrait);
+        }
 
         Put(board, LineX, LineTop + LineGap * 0, $"이름  {name}");
         Put(board, LineX, LineTop + LineGap * 1, $"국적  {patron.Nationality}");
@@ -100,6 +112,34 @@ public sealed class PatronInfoDialog : Window
         MouseRightButtonUp += (_, _) => Close();
     }
 
+    /// <summary>
+    /// 왼쪽 초상화. 얼굴 번호가 없거나 그림을 못 읽으면 안 세운다.
+    /// </summary>
+    /// <remarks>
+    /// 얼굴 번호는 후원자 표 <c>+0x04</c> 다(<see cref="SponsorTable.Sponsor.Face"/>).
+    /// 여자 후원자는 <c>FEMALE.CDS</c> 를 본다.
+    /// </remarks>
+    private static UIElement? Portrait(int face, bool female, string gameDirectory)
+    {
+        if (face < 0) return null;
+        if (Portraits.Open(gameDirectory)?.TryGetBgra(face, female) is not { } px) return null;
+
+        var bmp = BitmapSource.Create(Portraits.Width, Portraits.Height, 96, 96,
+                                      PixelFormats.Bgra32, null, px, Portraits.Width * 4);
+        bmp.Freeze();
+
+        var image = new Image { Source = bmp, Width = Portraits.Width, Height = Portraits.Height };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+
+        return new Border
+        {
+            BorderBrush = Line,
+            BorderThickness = new Thickness(2),
+            Child = image,
+        };
+    }
+
     /// <summary>게임의 <c>%-10s</c> 처럼 바이트로 세어 채운다.</summary>
     private static string Pad(string text, int width) => GameUi.Pad(text, width);
 
@@ -125,11 +165,15 @@ public sealed class PatronInfoDialog : Window
     /// 발견물을 보고할 때마다 움직인다(<c>0x004111D0</c>,
     /// <see cref="Engine.Town.Palace.ClosenessFor"/>).
     /// </param>
+    /// <param name="face">얼굴 번호. 모르면 −1 이고 그때는 초상화를 안 세운다.</param>
+    /// <param name="female">여자 후원자인지 — 얼굴 벌이 갈린다.</param>
+    /// <param name="gameDirectory">얼굴을 못 찾았을 때 물러설 게임 폴더.</param>
     public static void Show(Window owner, Patron patron, string? name = null, string? job = null,
-                            int closeness = 0) =>
+                            int closeness = 0, int face = -1, bool female = false,
+                            string gameDirectory = "") =>
         new PatronInfoDialog(patron,
                              string.IsNullOrEmpty(name) ? patron.Name : name,
                              string.IsNullOrEmpty(job) ? patron.Occupation : job,
-                             closeness)
+                             closeness, face, female, gameDirectory)
         { Owner = owner }.ShowDialog();
 }

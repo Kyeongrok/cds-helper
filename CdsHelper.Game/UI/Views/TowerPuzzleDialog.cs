@@ -51,8 +51,30 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     private static readonly int[] PegX = [86, 360, 226];
     private static readonly int[] PegY = [352, 352, 210];
 
-    /// <summary>판자 한 장이 쌓일 때마다 이만큼 올라간다.</summary>
-    private const int Rise = 18;
+    /// <summary>
+    /// 판자마다의 <b>잉크 위·아래</b>. 160x80 칸 안에서 그림이 실제로 그려진 자리다.
+    /// </summary>
+    /// <remarks>
+    /// 판자가 커질수록 두껍다 — 가장 작은 것이 서른 점, 가장 큰 것이 예순 점이다.
+    /// 칸 기준으로 일정하게 올리면(예전 <c>Rise = 18</c>) 큰 판자가 작은 것을 거의 다
+    /// 삼켜 <b>단이 안 보이고 원뿔처럼</b> 된다. 그래서 <b>잉크를 기준으로</b> 쌓는다 —
+    /// 아래 판자의 윗면에 위 판자의 밑을 얹는다.
+    /// </remarks>
+    private static readonly (int Top, int Bottom)[] PlankInk =
+    [
+        (20, 49), (22, 53), (19, 54), (18, 57), (16, 59), (12, 61), (10, 63), (8, 67),
+    ];
+
+    /// <summary>
+    /// 위 판자가 아래 판자 윗면에 파묻히는 깊이.
+    /// </summary>
+    /// <remarks>
+    /// 작을수록 단이 또렷해지고 클수록 원뿔이 된다. <b>스물</b>이 단이 보이면서도
+    /// 여덟 장을 다 쌓았을 때 판을 안 넘는 값이다 — 가운데 위 받침(<c>y 210</c>)에
+    /// 여덟 장을 쌓으면 꼭대기가 <c>y 12</c> 로 아슬아슬하게 든다. 열넷이면 −30 으로
+    /// 판 밖으로 나간다.
+    /// </remarks>
+    private const int Sink = 20;
 
     private static readonly Brush Ring = Frozen(Colors.White);
 
@@ -287,8 +309,15 @@ internal sealed class TowerPuzzleDialog : InfoDialog
         for (int peg = 0; peg < TowerPuzzle.Pegs; peg++)
         {
             var stack = _game.Stack(peg);
+            // 아래에서부터 잉크를 맞대어 쌓는다.
+            int foot = PegY[peg];
             for (int i = 0; i < stack.Count; i++)
-                Plank(stack[i], i, PegX[peg], PegY[peg] - i * Rise);
+            {
+                int plank = stack[i];
+                Plank(plank, i, PegX[peg], foot);
+                var (top, bottom) = InkOf(plank);
+                foot -= bottom - top - Sink;      // 다음 판자는 이 판자 윗면에 앉는다
+            }
 
             _spot[peg].BorderBrush = peg == _game.HeldFrom ? Ring : Brushes.Transparent;
         }
@@ -299,7 +328,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
             _held.Source = Picture($"tower-plank-{_game.Held - 1}.png");
             _held.Visibility = Visibility.Visible;
             Canvas.SetLeft(_held, PegX[_game.HeldFrom] - PlankW / 2);
-            Canvas.SetTop(_held, PegY[_game.HeldFrom] - 110 - PlankH / 2);
+            Canvas.SetTop(_held, PegY[_game.HeldFrom] - 110 - InkOf(_game.Held).Bottom);
         }
         else
         {
@@ -308,7 +337,15 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     }
 
     /// <summary>판자 한 장. 조각 번호는 <c>판자번호 - 1</c> 이다.</summary>
+    /// <summary>그 판자의 잉크 자리. 표 밖이면 가운데쯤으로 친다.</summary>
+    private static (int Top, int Bottom) InkOf(int plank)
+    {
+        int at = plank - 1;
+        return at >= 0 && at < PlankInk.Length ? PlankInk[at] : (20, 60);
+    }
+
     /// <param name="level">아래에서 몇째로 쌓였는지. 앞뒤를 이것으로 가른다.</param>
+    /// <param name="bottom">판자 <b>잉크의 밑</b>이 놓일 자리.</param>
     private void Plank(int plank, int level, int centre, int bottom)
     {
         var image = new Image
@@ -323,7 +360,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
         // 위에 얹은 작은 판자가 뒤로 숨는다.
         Panel.SetZIndex(image, 10 + level);
         Canvas.SetLeft(image, centre - PlankW / 2);
-        Canvas.SetTop(image, bottom - PlankH / 2);
+        Canvas.SetTop(image, bottom - InkOf(plank).Bottom);
         _scene.Children.Add(image);
         _planks.Add(image);
     }

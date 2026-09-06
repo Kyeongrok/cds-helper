@@ -313,11 +313,18 @@ internal sealed class LandBattleScene : Window
                 _board.Children.Add(Mark(At(art, x, y)));
 
             // 병사수는 칸 위쪽에 넉 자리 폭으로 가운데를 맞춰 찍는다.
+            //
+            // <b>숫자는 늘 맨 앞이다.</b> 부대를 차례대로 놓으므로 뒤에 놓인 부대 그림이
+            // 앞서 찍은 숫자를 덮는다 — 그림이 칸을 꽉 채우게 되면서 도드라졌다.
             string men = unit.Men.ToString();
             int left = x + (DigitSlots - men.Length) * Digit / 2;
             foreach (char c in men)
             {
-                if (Number(c - '0') is { } glyph) _board.Children.Add(Mark(At(glyph, left, y)));
+                if (Number(c - '0') is { } glyph)
+                {
+                    Panel.SetZIndex(glyph, DigitDepth);
+                    _board.Children.Add(Mark(At(glyph, left, y)));
+                }
                 left += Digit;
             }
         }
@@ -329,7 +336,7 @@ internal sealed class LandBattleScene : Window
         if (_art == null) return null;
 
         var bgra = _art.TryGetUnit(kind, friend, _battle.Culture, frame: 0, out int w, out int h);
-        return bgra == null ? null : Picture(bgra, w, h);
+        return bgra == null ? null : Picture(bgra, w, h, w, h * UnitZoomY);
     }
 
     /// <summary>숫자 한 자. 조각을 못 구하면 게임 글꼴로 물러선다.</summary>
@@ -340,12 +347,34 @@ internal sealed class LandBattleScene : Window
                                     GameUi.ItemTextHeight);
     }
 
-    private static Image Picture(uint[] bgra, int w, int h)
+    /// <summary>
+    /// 부대 그림을 세로로 늘리는 배수.
+    /// </summary>
+    /// <remarks>
+    /// LANDDATA 의 부대 조각은 96x48 인데 게임은 <b>96x96 으로 늘려</b> 찍는다
+    /// (<c>0x004B6963(0x60, 0x60)</c>). 배치 화면에서 말 세 마리 무리를 재면 원본이
+    /// 121x120 으로 거의 정사각인데 조각 그대로 찍으면 2:1 로 납작해진다 —
+    /// 싸움터도 같은 조각이라 같이 늘린다.
+    /// </remarks>
+    private const int UnitZoomY = 2;
+
+    /// <summary>병사수 숫자가 앉는 층. 부대 그림(0)보다 위다.</summary>
+    private const int DigitDepth = 50;
+
+    /// <param name="drawW">화면에 걸 너비. 안 주면 그림 그대로다.</param>
+    /// <param name="drawH">화면에 걸 높이. 부대 그림만 두 배로 늘려 건다.</param>
+    private static Image Picture(uint[] bgra, int w, int h, int drawW = 0, int drawH = 0)
     {
         var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
         bmp.Freeze();
 
-        var image = new Image { Source = bmp, Width = w, Height = h, Stretch = Stretch.Fill };
+        var image = new Image
+        {
+            Source = bmp,
+            Width = drawW > 0 ? drawW : w,
+            Height = drawH > 0 ? drawH : h,
+            Stretch = Stretch.Fill,
+        };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
