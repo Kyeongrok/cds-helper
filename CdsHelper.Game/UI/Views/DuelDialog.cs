@@ -223,6 +223,20 @@ public sealed class DuelDialog : GameWindow
 
         Refresh();
         Rebuild();
+
+        // 들머리 — 둘이 벽에서 가운데로 걸어 나온 <b>뒤에야</b> 명령 창이 뜬다
+        // (갈무리 「일기토의 초기화」). 그림이 없는 판은 걸을 것도 없다.
+        if (_stage is { } stage)
+        {
+            _keyBox.Visibility = Visibility.Hidden;
+            bool walked = false;
+            Loaded += (_, _) =>
+            {
+                if (walked) return;
+                walked = true;
+                stage.WalkIn(() => _keyBox.Visibility = Visibility.Visible);
+            };
+        }
     }
 
     /// <summary>칸 하나를 판 위 그 자리에 앉힌다.</summary>
@@ -393,21 +407,18 @@ public sealed class DuelDialog : GameWindow
         var names = _duel.Choices();
         var focus = new GameUi.FocusGroup();
 
-        // 필살은 아랫줄로 내린다 — 게임도 여섯 칸을 두 줄로 낸다.
-        var top = new StackPanel { Orientation = Orientation.Horizontal };
-        var bottom = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-
+        // 게임은 손을 <b>세로로 쌓아</b> 낸다 — 갈무리의 상단·중단·하단 공격이 한 줄씩이다.
+        var column = new StackPanel();
         for (int i = 0; i < names.Length; i++)
         {
             int pick = i;
             var key = focus.Add(names[i], () => Step(pick), 96);
             key.Height = UiSprites.BandHeight;
-            key.Margin = new Thickness(0, 0, 4, 0);
-            (i < Duel.Lines ? top : bottom).Children.Add(key);
+            key.Margin = new Thickness(0, 0, 0, 2);
+            column.Children.Add(key);
         }
 
-        _keys.Children.Add(top);
-        if (bottom.Children.Count > 0) _keys.Children.Add(bottom);
+        _keys.Children.Add(column);
         _keyBox.Visibility = Visibility.Visible;
 
         KeyDown -= OnKey;
