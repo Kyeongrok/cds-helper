@@ -136,6 +136,75 @@ public static class LandUnits
         return 2;
     }
 
+    /// <summary>
+    /// 육상전이 내는 효과음 — <b>WAVES.CDS 파트</b>다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x004225A0(사운드 ID, 0)</c> 으로 낸다. 사운드 ID 0~27 은 CD 트랙이고
+    /// 28~77 이 WAVE 파트라 <b>파트 = ID − 28</b> 이다
+    /// (<c>WaveBank.FirstSoundId</c>).
+    /// </remarks>
+    public static class Sound
+    {
+        /// <summary>총(화승총·머스켓) — ID 0x1E.</summary>
+        public const int Gun = 2;
+
+        /// <summary>포 — ID 0x1F.</summary>
+        public const int Cannon = 3;
+
+        /// <summary>맞붙어 치기 — ID 0x20.</summary>
+        public const int Melee = 4;
+
+        /// <summary>「돌격」을 고른 턴의 첫머리 — ID 0x21 (<c>0x0044932E</c>).</summary>
+        public const int Charge = 5;
+
+        /// <summary>활 — ID 0x22.</summary>
+        public const int Bow = 6;
+
+        /// <summary>코끼리병 — ID 0x23.</summary>
+        public const int Elephant = 7;
+
+        /// <summary>고승의 회복 — ID 0x24 (<c>0x00446510</c>).</summary>
+        public const int Heal = 8;
+
+        /// <summary>표범의 춤 — ID 0x25 (<c>0x00448DAD</c>).</summary>
+        public const int Dance = 9;
+
+        /// <summary>닌자의 변신술 — ID 0x26 (<c>0x004492E1</c>).</summary>
+        public const int Ninja = 10;
+
+        /// <summary>묘책이 먹혔을 때 — ID 0x27 (<c>0x004490A9</c>).</summary>
+        public const int RuseWon = 11;
+
+        /// <summary>묘책이 어그러졌을 때 — ID 0x28 (<c>0x004490BC</c>).</summary>
+        public const int RuseLost = 12;
+
+        /// <summary>주술사가 부른 비 — ID 0x3F (<c>0x004459D9</c>).</summary>
+        public const int Rain = 35;
+
+        /// <summary>물러날 때 — ID 0x4A (<c>0x004499FF</c>).</summary>
+        public const int Retreat = 46;
+
+        /// <summary>이겼을 때 — ID 0x4D (<c>0x004499B5</c>).</summary>
+        public const int Won = 49;
+    }
+
+    /// <summary>
+    /// 그 병종이 <b>칠 때</b> 나는 효과음 파트(<c>0x00446B60</c>). 소리가 없으면 −1 이다.
+    /// </summary>
+    /// <remarks>
+    /// 갈래로 가르되 코끼리병과 궁병만 제 소리를 따로 쓴다. <b>비가 오면 총·포는 불발</b>
+    /// 이라 소리도 안 난다 — 궁병은 갈래가 사격이라도 비를 안 탄다. 지원 갈래는 치는
+    /// 소리가 없고 저마다 제 소리를 낸다(<see cref="Sound.Rain"/> 따위).
+    /// </remarks>
+    public static int SoundOf(int unit, bool raining) => KindOf(unit) switch
+    {
+        Kind.Melee => unit == Elephant ? Sound.Elephant : Sound.Melee,
+        Kind.Shot => unit == Bow ? Sound.Bow : raining ? -1 : Sound.Gun,
+        Kind.Cannon => raining ? -1 : Sound.Cannon,
+        _ => -1,
+    };
+
     /// <summary>부대 자리 여섯의 이름(<c>0x00559444</c> 부터 열여섯 바이트씩).</summary>
     public static readonly string[] Places =
     [
