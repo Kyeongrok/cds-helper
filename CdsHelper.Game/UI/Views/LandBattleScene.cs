@@ -361,23 +361,50 @@ internal sealed class LandBattleScene : GameWindow
     /// 게임 화면에서 보이는 그 큰 흰 숫자다 — 부대배치 판이 쓰는 것과 같은 조각
     /// (LANDDATA 파트 52, 24x24 열 자)이다. 총병이 앞열 셋을 쏘면 <b>셋이 같이</b> 뜬다.
     ///
-    /// 숫자는 <b>넉 장</b> 동안 떠 있고(<c>0x004462A0</c> 의 <c>ebx = 4</c>), 그동안 맞은
-    /// 부대가 <b>좌우로 흔들린다</b> — 흔드는 값이 표 <c>0x00549C08</c> 의 −8·8·8·−8 이다
-    /// (<c>0x00449250</c> 이 맞은 칸의 <c>+0x1C</c> 에 0x80 을 세우고 <c>0x00448640</c> 이
-    /// 지운다). 다 흔들고 나서 다섯 눈금을 더 쉰다(<c>0x00428000(5, 0)</c>).
+    /// 흔들림과 숫자는 <b>딴 마당이다</b>. 치는 몸짓이 끝나면 맞은 부대가 먼저 좌우로
+    /// 흔들리고(표 <c>0x00549C08</c> 의 −8·8·8·−8 을 넉 장 — <c>0x00449250</c> 이 맞은 칸의
+    /// <c>+0x1C</c> 에 0x80 을 세우고 <c>0x00448640</c> 이 지운다), <b>그것이 멎고 나서야</b>
+    /// 숫자가 떠오른다(<c>0x004462A0</c> 의 <c>ebx = 4</c>). 다 뜨고 나서 다섯 눈금을 더
+    /// 쉰다(<c>0x00428000(5, 0)</c>).
+    ///
+    /// 갈무리에서도 숫자가 오르는 넉 장 동안 부대 그림은 <b>한 점도 안 움직인다</b> —
+    /// 그 넉 장을 겹쳐 재면 어긋남이 0 이다. 둘을 한 고리에서 같이 돌리면 안 된다.
     /// </remarks>
     private void Flash(IReadOnlyList<LandFight.Line> bout)
     {
-        var shown = new List<(FrameworkElement Glyph, int Left, int Top)>();
         var hurt = new List<int>();
+        var hits = new List<(int Slot, string Men)>();
         foreach (var line in bout)
         {
             if (line.Damage <= 0) continue;
             if (line.Target < 0 || line.Target >= StandAt.Length) continue;
             if (!hurt.Contains(line.Target)) hurt.Add(line.Target);
+            hits.Add((line.Target, line.Damage.ToString()));
+        }
 
-            var (x, y) = StandAt[line.Target];
-            string men = line.Damage.ToString();
+        if (hits.Count == 0) return;
+
+        // ① 치는 몸짓이 끝나면 <b>한 장 멎었다가</b> 맞은 부대가 좌우로 흔들린다.
+        //    이 동안 숫자는 아직 안 뜬다.
+        Rest(SwingMs);
+
+        int drift = 0;
+        foreach (int step in Shakes)
+        {
+            // 표는 <b>자리가 아니라 걸음</b>이다 — 더해 가야 0·−8·0·+8·0 이 된다.
+            drift += step;
+            foreach (int slot in hurt) _shake[slot] = drift;
+            Redraw();
+            Rest(SwingMs);
+        }
+        foreach (int slot in hurt) _shake[slot] = 0;
+        Redraw();
+
+        // ② 흔들림이 멎고 나서 숫자가 뜬다.
+        var shown = new List<(FrameworkElement Glyph, int Left, int Top)>();
+        foreach (var (slot, men) in hits)
+        {
+            var (x, y) = StandAt[slot];
             int left = x + (LandArt.DeployWidth - men.Length * Digit) / 2;
             int top = y + (LandArt.DeployWidth - Digit) / 2;
 
@@ -393,20 +420,14 @@ internal sealed class LandBattleScene : GameWindow
             }
         }
 
-        if (shown.Count == 0) return;
+        if (shown.Count == 0) { Rest(RestMs); return; }
 
-        // 숫자가 뜬 채로 넉 장 — 숫자는 장마다 <b>왼위로 떠오르고</b> 맞은 부대는 좌우로
-        // 흔들린다. 마지막 자리에 선 채로 다섯 눈금을 더 쉬고 나서 걷힌다.
-        for (int f = 0; f < Shakes.Length; f++)
+        // ③ 넉 장에 걸쳐 왼위로 떠오른다. 마지막 자리에 선 채로 다섯 눈금을 더 쉰다.
+        foreach (var (dx, dy) in Rises)
         {
-            var (dx, dy) = Rises[f];
             foreach (var (glyph, left, top) in shown) At(glyph, left + dx, top + dy);
-            foreach (int slot in hurt) _shake[slot] = Shakes[f];
-            Redraw();
             Rest(SwingMs);
         }
-        foreach (int slot in hurt) _shake[slot] = 0;
-        Redraw();
         Rest(RestMs);
 
         foreach (var (glyph, _, _) in shown) _board.Children.Remove(glyph);
@@ -543,7 +564,18 @@ internal sealed class LandBattleScene : GameWindow
     /// <summary>소리는 <b>셋째 장</b>에서 난다(<c>0x0044623B</c> 의 <c>ebp == 2</c>).</summary>
     private const int SoundFrame = 2;
 
-    /// <summary>맞은 부대를 좌우로 흔드는 값(표 <c>0x00549C08</c>).</summary>
+    /// <summary>
+    /// 맞은 부대를 좌우로 흔드는 값(표 <c>0x00549C08</c>).
+    /// </summary>
+    /// <remarks>
+    /// <b>자리가 아니라 걸음이다.</b> 더해 가야 −8 · 0 · +8 · 0 이 되어 왼쪽으로 한 번,
+    /// 가운데로, 오른쪽으로 한 번, 다시 가운데로 돌아온다. 자리로 박으면 −8·+8·+8·−8 이라
+    /// 가운데를 안 거치고 좌우로 튄다.
+    ///
+    /// 갈무리로 확인했다 — 다섯 장을 겹쳐 재면 어긋남이 0 · −14 · 0 · +14 · 0 이고
+    /// 셋째·다섯째 장은 첫 장과 <b>점 하나까지 같다</b>. 배수 1.71 로 나누면 판 점 8 이라
+    /// 표의 값과 맞아떨어진다.
+    /// </remarks>
     private static readonly int[] Shakes = [-8, 8, 8, -8];
 
     /// <summary>
@@ -554,8 +586,8 @@ internal sealed class LandBattleScene : GameWindow
     /// 41점으로 찍힌 판이라 배수가 1.71 이고, 장마다 14점씩 움직인 것이 판 점으로 8 이다.
     /// 세로는 넉 장 내내 한 걸음씩이고 가로는 <b>한 장 늦게</b> 따라붙는다.
     ///
-    /// 숫자는 뜬 자리에 붙박이가 아니라 이렇게 떠올라야 <b>어느 부대가 맞았는지</b>가
-    /// 부대 그림에 안 묻힌다 — 맞은 칸이 그동안 좌우로 흔들리므로 더욱 그렇다.
+    /// 이 넉 장은 <b>흔들림이 다 끝난 뒤</b>다(<see cref="Flash"/>). 그래서 첫 자리가
+    /// (0, 0) 이다 — 맞은 자리에 한 장 떠 있다가 오르기 시작한다.
     /// </remarks>
     private static readonly (int Dx, int Dy)[] Rises = [(0, 0), (0, -8), (-8, -16), (-16, -24)];
 
@@ -827,7 +859,27 @@ internal sealed class LandBattleScene : GameWindow
         if (_art == null) return null;
 
         var bgra = _art.TryGetUnit(kind, friend, _battle.Culture, frame, out int w, out int h);
-        return bgra == null ? null : Picture(bgra, w, h, w, h * UnitZoomY);
+        return bgra == null ? null : Picture(Taller(bgra, w, h), w, h * UnitZoomY);
+    }
+
+    /// <summary>
+    /// 줄을 하나씩 겹쳐 <b>조각 자체를</b> 세로로 늘린다.
+    /// </summary>
+    /// <remarks>
+    /// 늘리는 일을 <see cref="Image"/> 크기에 맡기면(<c>Height = h * 2</c>) 보간이 세로로만
+    /// 두 배 더 먹어 가로보다 세로가 더 뭉갠다 — 결이 한쪽으로 쏠려 계단이 더 도드라진다.
+    /// 여기서 미리 겹쳐 두면 <b>점이 정사각</b>이 되어, 보간은 판 배율만큼만 고르게 든다.
+    ///
+    /// 없는 줄을 지어내는 것은 아니다. 조각이 48줄뿐이라 한 점짜리 가는 선(총열이 그렇다)은
+    /// 어차피 두 줄로 굵어진다 — 그 계단은 어떤 보간으로도 못 없앤다.
+    /// </remarks>
+    private static uint[] Taller(uint[] bgra, int w, int h)
+    {
+        var tall = new uint[w * h * UnitZoomY];
+        for (int y = 0; y < h; y++)
+            for (int again = 0; again < UnitZoomY; again++)
+                Array.Copy(bgra, y * w, tall, (y * UnitZoomY + again) * w, w);
+        return tall;
     }
 
     /// <summary>
@@ -907,11 +959,26 @@ internal sealed class LandBattleScene : GameWindow
     /// <summary>병사수 숫자가 앉는 층. 부대 그림(0)보다 위다.</summary>
     private const int DigitDepth = 50;
 
+    /// <summary>
+    /// 조각 한 장을 <b>보간해서</b> 건다.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 점을 안 뭉개려고 <c>NearestNeighbor</c> 에 <c>EdgeMode.Aliased</c> 였다.
+    /// 그런데 부대 조각은 세로로 두 배 늘려 걸므로(<see cref="UnitZoomY"/>) 점이 정사각이
+    /// 아니고, 거기에 판 배율이 다시 곱해져 <b>단이 가로보다 세로로 긴 계단</b>이 진다.
+    /// 원본 갈무리를 재면 이음의 94%가 한 점이고 가로·세로 결이 5.32 대 5.47 로 같다 —
+    /// 보간이 들어간 그림의 모양이다. 그래서 이쪽도 <c>Fant</c> 로 맞춘다.
+    ///
+    /// <b>색자리는 <c>Pbgra32</c> 여야 한다.</b> 곧은 알파(<c>Bgra32</c>)로 두고 보간하면
+    /// 비치는 자리의 색이 검정(0,0,0,0)이라 부대 둘레에 어두운 테가 낀다. 조각을 푸는 쪽이
+    /// 비침을 0 으로, 나머지를 알파 255 로 적으므로 그 값이 <b>곱해 둔 알파로 이미 맞다</b> —
+    /// 이름표만 바꿔 주면 된다.
+    /// </remarks>
     /// <param name="drawW">화면에 걸 너비. 안 주면 그림 그대로다.</param>
     /// <param name="drawH">화면에 걸 높이. 부대 그림만 두 배로 늘려 건다.</param>
     private static Image Picture(uint[] bgra, int w, int h, int drawW = 0, int drawH = 0)
     {
-        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
+        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Pbgra32, null, bgra, w * 4);
         bmp.Freeze();
 
         var image = new Image
@@ -921,8 +988,7 @@ internal sealed class LandBattleScene : GameWindow
             Height = drawH > 0 ? drawH : h,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
-        RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Fant);
         return image;
     }
 
