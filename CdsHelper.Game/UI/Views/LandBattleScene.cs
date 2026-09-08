@@ -709,9 +709,16 @@ internal sealed class LandBattleScene : GameWindow
             }
         }
 
-        // ② 그 자리에서 <b>친 수만큼</b> 몸짓 넉 장을 돌린다 — 총병은 앞열 수만큼 쏜다.
-        //    소리는 장마다가 아니라 <b>셋째 장</b>에서 한 번 난다.
-        foreach (var line in blows)
+        // ② 그 자리에서 <b>친 수만큼</b> 몸짓을 돌린다 — 총병은 앞열 수만큼 쏜다.
+        //    소리는 장마다가 아니라 정해진 장에서 한 번 난다.
+        //
+        //    <b>포는 한 번 펑 하고 만다.</b> 한 번에 전부대를 치므로 줄은 여럿이지만 쏘는
+        //    것은 한 번이다 — 갈무리(「캐논포병 공격2」)도 겨눔 · 웅크림 · 불꽃 · 연기 ·
+        //    제자리 다섯 장에 불꽃이 <b>한 번</b>뿐이다. 줄마다 돌리면 세 번 쏜다.
+        var swings = LandUnits.KindOf(_battle.Units[slot].Kind) == LandUnits.Kind.Cannon
+            ? blows.Take(1).ToList() : blows;
+
+        foreach (var line in swings)
             for (int r = 0; r < rounds; r++)
                 for (int f = 1; f <= SwingFrames; f++)
                 {

@@ -1200,10 +1200,7 @@ public sealed class ShipMapWindow : Window
             case 4: CoinPuzzleDialog.Play(this, _game.Random); break;
             case 5: TowerPuzzleDialog.Play(this, _game.Random); break;
             case 6: CubePuzzleDialog.Play(this, _game.Player, _game.Random); break;
-            case 7:
-                if (DuelGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
-                else DuelGame(this, _game.Random);
-                break;
+            case 7: PlayDuel(); break;
             case 8: LandSparDialog.Play(this, _game); break;
             case 9: SeaCombatDialog.Play(this, _game.Player, _game.Random); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
@@ -2829,6 +2826,51 @@ public sealed class ShipMapWindow : Window
     private const int MutinyStill = 0;
 
     /// <summary>일기토에 선 내 몫. 술집 것과 같다.</summary>
+    /// <summary>
+    /// 미니 게임의 일기토 — <b>인물표에서 상대를 골라</b> 붙는다.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 <c>CdsHelper.Duel</c> 의 옛 판을 걸어 두고 손으로 지은 넷 가운데 골랐다.
+    /// 그쪽은 몸짓 그림을 아직 안 옮긴 판이라 <b>화면이 딴판</b>이었다 — 마당도 384x136 로
+    /// 좁고 사람이 안 움직인다. 여기서는 반란·해전이 쓰는 그 판(<see cref="DuelDialog"/>)을
+    /// 그대로 쓴다.
+    ///
+    /// 상대의 무기·갑옷은 <b>0</b> 이다. 인물표에 지닌 것이 안 적혀 있어 지어낼 수가 없다 —
+    /// 대원 대표(<see cref="MutinyLeader"/>)와 같은 결로 둔다. 값은 그 사람의 체력·무력·
+    /// 검술·운이 그대로 판을 가른다.
+    /// </remarks>
+    private void PlayDuel()
+    {
+        if (DuelFoeDialog.Ask(this, _game.Faces) is not var (who, arena))
+        {
+            if (Local.Helpers.PersonTable.Open() == null)
+                NoticeDialog.Show(this, "인물 표를 읽지 못했습니다", "일기토");
+            return;
+        }
+
+        var dice = new GameRandom(Environment.TickCount);
+        var foe = new Engine.Town.Duel.Fighter(
+            who.Name,
+            Body: who.Stats.Length > 0 ? who.Stats[0] : 50,
+            Might: who.Stats.Length > 2 ? who.Stats[2] : 50,
+            Sword: who.Skills.Length > Skill.Sword ? who.Skills[Skill.Sword] : 0,
+            Luck: who.Stats.Length > 4 ? who.Stats[4] : 50,
+            Weapon: 0, Armor: 0);
+
+        var duel = new Engine.Town.Duel(MyFighter(), foe,
+                                        _game.Player.Items.Contains(Engine.Town.Duel.EdithShieldId),
+                                        Environment.TickCount);
+
+        DuelDialog.Show(this, duel, dice,
+                        _game.Faces?.TryGetBgra(who.Face, female: false),
+                        _game.Fighters, foeSet: 1,
+                        myFace: _game.Faces?.TryGetBgra(
+                            PortraitAges.At(_game.Player.Face, _game.Player.Age,
+                                            false, _game.Faces),
+                            female: false),
+                        arena: arena);
+    }
+
     private Engine.Town.Duel.Fighter MyFighter()
     {
         var me = _game.Player;

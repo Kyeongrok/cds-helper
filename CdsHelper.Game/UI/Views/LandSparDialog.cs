@@ -132,9 +132,9 @@ internal sealed class LandSparDialog : GameWindow
         _culture.SelectedIndex = 0;
 
         var sides = new StackPanel { Orientation = Orientation.Horizontal };
-        sides.Children.Add(Side("아군", _mine, _myMen));
+        sides.Children.Add(Side("아군", _mine, _myMen, friend: true));
         sides.Children.Add(new Border { Width = 20 });
-        sides.Children.Add(Side("적군", _theirs, _foeMen));
+        sides.Children.Add(Side("적군", _theirs, _foeMen, friend: false));
         page.Children.Add(sides);
 
         var buttons = new StackPanel
@@ -165,8 +165,8 @@ internal sealed class LandSparDialog : GameWindow
     {
         for (int i = 0; i < Slots; i++)
         {
-            _mine[i].SelectedIndex = Row(was.Mine, i);
-            _theirs[i].SelectedIndex = Row(was.Theirs, i);
+            _mine[i].SelectedIndex = Row(was.Mine, i, friend: true);
+            _theirs[i].SelectedIndex = Row(was.Theirs, i, friend: false);
         }
 
         _myMen.Text = Sane(was.MyMen).ToString();
@@ -176,11 +176,18 @@ internal sealed class LandSparDialog : GameWindow
         _sort.SelectedIndex = Math.Max(0, Array.FindIndex(Sorts, s => s.Value == was.Sort));
     }
 
-    /// <summary>그 자리의 병종을 고르는 칸 번호로 — 표 밖이면 「빈 자리」(0)다.</summary>
-    private static int Row(int[] kinds, int at)
+    /// <summary>
+    /// 그 자리의 병종을 고르는 칸 번호로 — 표 밖이면 「빈 자리」(0)다.
+    /// </summary>
+    /// <remarks>
+    /// 아군 자리에 못 세우는 병종이 적혀 있으면 빈 자리로 돌린다 — 막기 전에 적어 둔
+    /// 짜임이 설정 파일에 남아 있을 수 있다.
+    /// </remarks>
+    private static int Row(int[] kinds, int at, bool friend)
     {
         int kind = at < kinds.Length ? kinds[at] : -1;
-        return kind >= 0 && kind < LandUnits.Count ? kind + 1 : 0;
+        if (kind < 0 || kind >= LandUnits.Count) return 0;
+        return friend && !CanBeMine(kind) ? 0 : kind + 1;
     }
 
     /// <summary>문화권 이름 열하나. 적 그림과 진형이 이것으로 갈린다.</summary>
@@ -190,8 +197,25 @@ internal sealed class LandSparDialog : GameWindow
         "동아시아", "일본", "아프리카", "중남미", "오세아니아",
     ];
 
+    /// <summary>
+    /// 아군으로 세울 수 있는 병종인지 — <b>여덟뿐</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임이 배치 화면에 미리 읽어 두는 부대 그림이 파트 8~15 여덟 장이고
+    /// (<c>0x004A020B</c>), <see cref="LandUnitArt.DeploySheet"/> 가 그 자리를 낸다 —
+    /// 기병 · 중장기병 · 화승총대 · 머스켓총대 · 포병 · 캐논포병 · 제독 · 무적제독이다.
+    /// 곧 <b>플레이어가 낼 수 있는 병종은 그 여덟이 전부</b>다.
+    ///
+    /// 나머지 열여섯은 <see cref="LandUnitArt.PartOf"/> 가 아군·적에 <b>같은 파트</b>를
+    /// 내주는데, 그 그림이 적 자리에서 보는 쪽을 향해 있다 — 창병 · 인디오 · 영주는 물론
+    /// 사무라이 · 코끼리병도 그렇다. 아군 자리에 세우면 <b>아래를 보고 서서</b> 등을 돌린 채
+    /// 싸운다. 모의전은 시험 자리라 아예 못 고르게 막는다.
+    /// </remarks>
+    private static bool CanBeMine(int kind) => LandUnitArt.DeploySheet(kind) >= 0;
+
     /// <summary>한 쪽의 여섯 자리와 병력 칸.</summary>
-    private UIElement Side(string title, ComboBox[] slots, TextBox men)
+    /// <param name="friend">아군 쪽인지 — 그러면 <see cref="FoeOnly"/> 가 흐리다.</param>
+    private UIElement Side(string title, ComboBox[] slots, TextBox men, bool friend)
     {
         var box = new StackPanel { Width = 290 };
         box.Children.Add(new TextBlock
@@ -203,9 +227,15 @@ internal sealed class LandSparDialog : GameWindow
 
         for (int i = 0; i < Slots; i++)
         {
+            // 칸 번호가 곧 병종 번호 + 1 이므로 <b>줄을 빼지 않고 흐리게</b>만 한다.
             var pick = new ComboBox { Width = PickWidth, Margin = new Thickness(0, 0, 0, 3) };
-            pick.Items.Add("— 빈 자리 —");
-            foreach (string name in LandUnits.Names) pick.Items.Add(name);
+            pick.Items.Add(new ComboBoxItem { Content = "— 빈 자리 —" });
+            for (int kind = 0; kind < LandUnits.Names.Length; kind++)
+                pick.Items.Add(new ComboBoxItem
+                {
+                    Content = LandUnits.Names[kind],
+                    IsEnabled = !friend || CanBeMine(kind),
+                });
 
             // 처음에는 아군 셋 · 적 셋을 세워 둔다 — 열자마자 싸울 수 있게.
             pick.SelectedIndex = i < 3 ? Opening[i] + 1 : 0;
