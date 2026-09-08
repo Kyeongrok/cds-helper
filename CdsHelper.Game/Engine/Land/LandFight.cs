@@ -21,10 +21,68 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     /// <param name="Target">맞은 부대. 없으면 −1.</param>
     /// <param name="Damage">깎인 병사수.</param>
     /// <param name="Sound">낼 효과음 파트. −1 이면 없다.</param>
+    /// <summary>
+    /// 한 턴에 일어난 일 하나.
+    /// </summary>
+    /// <param name="Men">
+    /// <b>그 일이 일어난 바로 뒤</b>의 병사수 열둘. 창은 이것으로 판을 그린다 —
+    /// 한 턴을 통째로 굴려 놓고 나서 그림을 돌리므로, 이것이 없으면 그 턴에 죽을 부대가
+    /// 그림이 시작될 때 이미 사라져 있다.
+    /// </param>
+    /// <param name="Felled">이 일로 <b>쓰러진</b> 부대. 없으면 −1 이다.</param>
+    /// <param name="Fell">쓰러지며 남기는 말(<c>0x00446C00</c>). 없으면 빈 글이다.</param>
     public readonly record struct Line(string Text, int Actor = -1, int Target = -1,
-                                       int Damage = 0, int Sound = -1);
+                                       int Damage = 0, int Sound = -1,
+                                       IReadOnlyList<int>? Men = null,
+                                       int Felled = -1, string Fell = "");
 
     private readonly List<Line> _log = [];
+
+    /// <summary>턴이 열릴 때의 병사수 열둘 — 그림은 여기서 시작한다.</summary>
+    public IReadOnlyList<int> Opening { get; private set; } = [];
+
+    /// <summary>지금 병사수 열둘을 떠 둔다.</summary>
+    private int[] Snapshot()
+    {
+        var men = new int[LandBattle.Slots];
+        for (int i = 0; i < men.Length; i++) men[i] = battle.Units[i].Men;
+        return men;
+    }
+
+    /// <summary>줄 하나를 적는다 — 적는 그 시점의 병사수를 같이 담는다.</summary>
+    private void Log(Line line) => _log.Add(line with { Men = Snapshot() });
+
+    /// <summary>
+    /// 쓰러지며 남기는 말을 고른다(<c>0x00446C00</c>).
+    /// </summary>
+    /// <remarks>
+    /// 문화권마다 제 말이 있고, 안 걸리면 <b>짧은 비명 열하나</b>(표 <c>0x00549C18</c>)에서
+    /// 하나를 굴린다. 말이 아예 안 나오는 낯도 있다.
+    /// </remarks>
+    private string FellWord()
+    {
+        string? said = battle.Culture switch
+        {
+            0 or 1 or 2 => dice.Next(10) < 4 ? "오오, 신이여···"
+                         : dice.Next(10) < 4 ? "아니, 이럴 수가!!" : null,
+            6 => dice.Next(10) < 2 ? "으아~!" : null,
+            9 => dice.Next(9) < 3 ? "분하다!"
+               : dice.Next(9) < 3 ? "이놈 남만인!"
+               : dice.Next(9) < 3 ? "이것이 무인의 죽음이다." : null,
+            10 => dice.Next(10) < 3 ? "침략자놈···" : null,
+            _ => null,
+        };
+        if (said != null) return said;
+        if (dice.Next(100) < 5) return "엄마아!";
+        return Cries[dice.Next(Cries.Length)];
+    }
+
+    /// <summary>짧은 비명 열하나(<c>0x00549C18</c>).</summary>
+    private static readonly string[] Cries =
+    [
+        "윽!", "우악!", "꺅!", "아···", "죽고 싶지 않아···", "으윽!", "끄윽!",
+        "이럴 수가···", "끝장인가···", "오늘은 이 정도로 용서해 주마.", "두고 보자.",
+    ];
 
     /// <summary>비가 오는지 — 주술사가 부르면 총·포가 죽는다(<c>+0x3C</c> 의 <c>0x20</c>).</summary>
     public bool Raining { get; private set; }
@@ -43,6 +101,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     public IReadOnlyList<Line> Turn(int mine, int theirs)
     {
         _log.Clear();
+        Opening = Snapshot();
         (_myOrder, _foeOrder) = (mine, theirs);
 
         // 차례는 행동속도가 빠른 쪽부터다(0x00447C20 → 0x004493BE 의 순서표).
@@ -324,14 +383,18 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         // 닌자의 변신술 — 비가 아닐 때 40%로 피해가 없다.
         if (battle.Units[to].Kind == LandUnits.Ninja && !Raining && dice.Next(100) < 40)
         {
-            _log.Add(new Line("둔갑술의 하나, 변신술!", from, to, 0, Sound: 10));
+            Log(new Line("둔갑술의 하나, 변신술!", from, to, 0, Sound: 10));
             return;
         }
 
         hurt = Math.Min(hurt, battle.Units[to].Men);
         battle.SetMen(to, battle.Units[to].Men - hurt);
 
-        _log.Add(new Line($"{Name(from)}의 공격 — {Name(to)} {hurt}명", from, to, hurt));
+        // 쓰러졌으면 그 자리에서 말을 고른다 — 게임도 피해 숫자를 보인 <b>다음에</b>
+        // 말풍선을 띄우고 그러고 나서 부대를 지운다(0x00447F50).
+        bool felled = battle.Units[to].Men <= 0;
+        Log(new Line($"{Name(from)}의 공격 — {Name(to)} {hurt}명", from, to, hurt,
+                     Felled: felled ? to : -1, Fell: felled ? FellWord() : ""));
         Done();
     }
 
@@ -445,12 +508,36 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     private string Name(int slot) =>
         $"{(slot < LandBattle.FirstFoe ? "아군" : "적")} {battle.Units[slot].Name}";
 
-    private void Say(int slot, string text) => _log.Add(new Line(text, slot));
+    private void Say(int slot, string text) => Log(new Line(text, slot));
 
-    /// <summary>한 쪽이 다 쓰러졌는지 본다.</summary>
+    /// <summary>
+    /// 싸움이 끝났는지 본다 — <b>대장 부대가 쓰러졌거나</b> 한 쪽이 다 쓰러졌을 때다.
+    /// </summary>
+    /// <remarks>
+    /// 부대 하나를 전멸시키는 <c>0x00447F50</c> 이 첫머리에서 이렇게 한다.
+    /// <code>
+    ///   00447f62  cmp [부대+0x18], 1        ; 총대장 부대인가
+    ///   00447f70  eax = (칸 &lt; 6) ? 4 : 0   ; 아군 대장이면 4(짐) · 적 대장이면 0(이김)
+    ///   00447f7b  [+0x3C] = eax             ; 그 자리에서 판이 끝난다
+    /// </code>
+    /// 곧 <b>제독 부대가 쓰러지면 남은 부대가 성해도 그대로 진다.</b> 돌격은 방어가
+    /// 0.7 배라(<c>0x00448180</c>) 대장 부대로 지르면 이 문에 잘 걸린다.
+    ///
+    /// <b>이 자리에서는 아무 말도 안 낸다</b> — 위 세 줄이 하는 일의 전부이고, 게임은
+    /// 「대장이 쓰러졌다」 따위를 따로 알리지 않는다. 쓰러지며 남기는 말은 부대를
+    /// 전멸시키는 쪽(<c>0x00446C00</c>)에서 이미 나온 뒤다.
+    /// </remarks>
     private void Done()
     {
         if (Over != null) return;
+
+        for (int i = 0; i < LandBattle.Slots; i++)
+        {
+            var leader = battle.Units[i];
+            if (!leader.IsLeader || leader.Standing) continue;
+            Over = i >= LandBattle.FirstFoe;
+            return;
+        }
 
         bool mine = false, theirs = false;
         for (int i = 0; i < LandBattle.Slots; i++)

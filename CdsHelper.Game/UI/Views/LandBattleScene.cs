@@ -47,6 +47,9 @@ internal sealed class LandBattleScene : GameWindow
 
     private readonly LandArt? _art;
     private readonly LandBattle _battle;
+
+    /// <summary>판을 늘려 건 배수 — 차림표를 판 구석에 붙일 때 여백을 이만큼 곱한다.</summary>
+    private readonly double _scale;
     private readonly Canvas _board = new()
     {
         Width = LandArt.FieldWidth,
@@ -56,6 +59,7 @@ internal sealed class LandBattleScene : GameWindow
     private LandBattleScene(Engine.Game game, LandBattle battle, double scale)
     {
         _battle = battle;
+        _scale = scale;
         _art = game.Directory.Length > 0 ? LandArt.Open(game.Directory) : null;
 
         WindowStyle = WindowStyle.None;
@@ -120,13 +124,7 @@ internal sealed class LandBattleScene : GameWindow
 
         while (true)
         {
-            NoticeDialog.Show(this, _battle.TurnWord, "");
-
-            // 일기토는 <b>차림표를 열 때마다 굴린다</b> — 적 대장이 나보다 셀수록 열린다
-            // (0x00447930). 예전에는 첫 턴이면 늘 열어 두었다.
-            int order = ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
-                                          _battle.OrderRows(canDuel: _battle.DuelOffered(dice),
-                                                            canRuse: _battle.AnyRuseLeft));
+            int order = Ask(dice);
             if (order < 0) continue;                 // 물러도 차림표가 다시 뜬다
 
             if (order == LandBattle.Retreat)
@@ -156,7 +154,8 @@ internal sealed class LandBattleScene : GameWindow
                 continue;
             }
 
-            Play(fight.Turn(order, _battle.FoeOrder(dice)));
+            var lines = fight.Turn(order, _battle.FoeOrder(dice));
+            Play(lines, fight.Opening);
 
             if (fight.Over is { } won)
             {
@@ -185,6 +184,55 @@ internal sealed class LandBattleScene : GameWindow
     private bool _quick;
 
     /// <summary>
+    /// 병사수를 찍을 때인지 — <b>차림표가 떠 있는 동안만</b> 참이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>+0x3C</c> 의 0x80 비트로 이것을 가른다. <c>0x00449CE8</c> 이 「제N턴」을
+    /// 내걸기 직전에 세우고 <c>0x00449D82</c> 가 명령을 받자마자 지운다. 묘책 차림표도
+    /// 같다(<c>0x00449B26</c> · <c>0x00449B5D</c>).
+    /// </remarks>
+    private bool _showMen;
+
+    /// <summary>
+    /// 「제N턴」을 내걸고 공격명령을 묻는다 — <b>이 동안만 병사수가 보인다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 일기토 칸은 <b>차림표를 열 때마다 굴린다</b> — 적 대장이 나보다 셀수록 열린다
+    /// (<c>0x00447930</c>). 예전에는 첫 턴이면 늘 열어 두었다.
+    /// </remarks>
+    private int Ask(GameRandom dice)
+    {
+        _showMen = true;
+        Redraw();
+        try
+        {
+            NoticeDialog.Show(this, _battle.TurnWord, "");
+            return ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
+                                     _battle.OrderRows(canDuel: _battle.DuelOffered(dice),
+                                                       canRuse: _battle.AnyRuseLeft),
+                                     Corner);
+        }
+        finally
+        {
+            _showMen = false;
+            Redraw();
+        }
+    }
+
+    /// <summary>
+    /// 싸움 차림표를 <b>판 오른아래</b>에 붙인다.
+    /// </summary>
+    /// <remarks>
+    /// 가운데에 세우면 창이 판 한복판을 가려 어느 부대가 어디 섰는지가 안 보인다. 게임도
+    /// 공격명령·묘책 차림표를 판 오른아래에 낸다. 여백은 <b>판 점</b>으로 잡고 늘려 건
+    /// 배수를 곱한다 — 그래야 창을 키워도 구석에서 떨어진 만큼이 같아 보인다.
+    /// </remarks>
+    private void Corner(Window box) => GameUi.PlaceAtCorner(box, this, MenuPad * _scale);
+
+    /// <summary>차림표를 판 구석에서 띄우는 만큼(판 점).</summary>
+    private const double MenuPad = 16;
+
+    /// <summary>
     /// 「묘책」 — 기습·함정·암살자 가운데 하나를 건다(<c>0x004490D0</c>).
     /// </summary>
     /// <remarks>
@@ -193,7 +241,12 @@ internal sealed class LandBattleScene : GameWindow
     /// </remarks>
     private void Wile(LandFight fight, GameRandom dice)
     {
-        int pick = ChoiceDialog.Pick(this, $" {LandBattle.RuseTitle} ", _battle.RuseRows());
+        int pick;
+        _showMen = true;
+        Redraw();
+        try { pick = ChoiceDialog.Pick(this, $" {LandBattle.RuseTitle} ", _battle.RuseRows(), Corner); }
+        finally { _showMen = false; Redraw(); }
+
         if (pick < 0 || pick == LandBattle.Judgement) return;
 
         var said = fight.Ruse(pick, dice, out bool asked);
@@ -246,8 +299,12 @@ internal sealed class LandBattleScene : GameWindow
     /// 그 한 묶음의 차례가 셋이다 — <b>나가서 (여러 번) 치고</b>, 나간 그 자리에 선 채로
     /// <b>숫자가 떴다 지고</b>, 그러고 나서 <b>돌아온다</b>.
     /// </remarks>
-    private void Play(IReadOnlyList<LandFight.Line> lines)
+    private void Play(IReadOnlyList<LandFight.Line> lines, IReadOnlyList<int> opening)
     {
+        // 한 턴은 이미 다 굴려 놓은 것이라 판은 <b>끝난 뒤</b>의 병사수를 들고 있다.
+        // 그림을 도는 동안에는 줄이 담아 온 그때그때의 병사수로 그린다.
+        _menNow = opening;
+
         for (int at = 0; at < lines.Count; )
         {
             int actor = lines[at].Actor;
@@ -267,6 +324,14 @@ internal sealed class LandBattleScene : GameWindow
 
             Swing(bout);
             Flash(bout);
+
+            // 피해 숫자가 진 <b>다음에</b> 쓰러진 부대가 말을 남기고, 그러고 나서 사라진다
+            // (0x00447F50 이 0x00446C00 으로 말을 골라 말풍선을 띄우고 칸을 비운다).
+            foreach (var line in bout)
+                if (line.Felled >= 0 && line.Fell.Length > 0) Balloon(line.Felled, line.Fell);
+
+            _menNow = bout[^1].Men ?? _menNow;
+            Redraw();
             Home();
 
             // 깎인 병사수는 창으로 안 낸다. 남은 말은 <b>부대 곁에 말풍선</b>으로 낸다 —
@@ -279,8 +344,15 @@ internal sealed class LandBattleScene : GameWindow
                 NoticeDialog.Show(this, line.Text, "");
             }
         }
+
+        _menNow = null;
         Redraw();
     }
+
+    /// <summary>
+    /// 그림을 도는 동안 쓸 병사수 열둘. null 이면 판이 든 지금 값을 그대로 쓴다.
+    /// </summary>
+    private IReadOnlyList<int>? _menNow;
 
     /// <summary>
     /// 맞은 부대들 위에 <b>깎인 병사수</b>를 <b>한꺼번에</b> 띄웠다 지운다.
@@ -288,14 +360,21 @@ internal sealed class LandBattleScene : GameWindow
     /// <remarks>
     /// 게임 화면에서 보이는 그 큰 흰 숫자다 — 부대배치 판이 쓰는 것과 같은 조각
     /// (LANDDATA 파트 52, 24x24 열 자)이다. 총병이 앞열 셋을 쏘면 <b>셋이 같이</b> 뜬다.
+    ///
+    /// 숫자는 <b>넉 장</b> 동안 떠 있고(<c>0x004462A0</c> 의 <c>ebx = 4</c>), 그동안 맞은
+    /// 부대가 <b>좌우로 흔들린다</b> — 흔드는 값이 표 <c>0x00549C08</c> 의 −8·8·8·−8 이다
+    /// (<c>0x00449250</c> 이 맞은 칸의 <c>+0x1C</c> 에 0x80 을 세우고 <c>0x00448640</c> 이
+    /// 지운다). 다 흔들고 나서 다섯 눈금을 더 쉰다(<c>0x00428000(5, 0)</c>).
     /// </remarks>
     private void Flash(IReadOnlyList<LandFight.Line> bout)
     {
-        var shown = new List<UIElement>();
+        var shown = new List<(FrameworkElement Glyph, int Left, int Top)>();
+        var hurt = new List<int>();
         foreach (var line in bout)
         {
             if (line.Damage <= 0) continue;
             if (line.Target < 0 || line.Target >= StandAt.Length) continue;
+            if (!hurt.Contains(line.Target)) hurt.Add(line.Target);
 
             var (x, y) = StandAt[line.Target];
             string men = line.Damage.ToString();
@@ -307,20 +386,34 @@ internal sealed class LandBattleScene : GameWindow
                 if (Number(c - '0') is { } glyph)
                 {
                     Panel.SetZIndex(glyph, FlashDepth);
-                    _board.Children.Add(At(glyph, left, top));
-                    shown.Add(glyph);
+                    _board.Children.Add(At(glyph, left - Outline, top - Outline));
+                    shown.Add((glyph, left - Outline, top - Outline));
                 }
                 left += Digit;
             }
         }
 
         if (shown.Count == 0) return;
-        Rest(FlashMs);
-        foreach (var glyph in shown) _board.Children.Remove(glyph);
+
+        // 숫자가 뜬 채로 넉 장 — 숫자는 장마다 <b>왼위로 떠오르고</b> 맞은 부대는 좌우로
+        // 흔들린다. 마지막 자리에 선 채로 다섯 눈금을 더 쉬고 나서 걷힌다.
+        for (int f = 0; f < Shakes.Length; f++)
+        {
+            var (dx, dy) = Rises[f];
+            foreach (var (glyph, left, top) in shown) At(glyph, left + dx, top + dy);
+            foreach (int slot in hurt) _shake[slot] = Shakes[f];
+            Redraw();
+            Rest(SwingMs);
+        }
+        foreach (int slot in hurt) _shake[slot] = 0;
+        Redraw();
+        Rest(RestMs);
+
+        foreach (var (glyph, _, _) in shown) _board.Children.Remove(glyph);
     }
 
-    /// <summary>피해 숫자가 머무는 밀리초와 그것을 얹는 높이.</summary>
-    private const int FlashMs = 420, FlashDepth = DigitDepth + 10;
+    /// <summary>피해 숫자를 얹는 높이.</summary>
+    private const int FlashDepth = DigitDepth + 10;
 
     // ── 말풍선 — 0x00445B20 ───────────────────────────────────────────────────
 
@@ -419,35 +512,88 @@ internal sealed class LandBattleScene : GameWindow
     /// <summary>친 부대가 제자리에서 나가 있는 만큼.</summary>
     private int _actDx, _actDy;
 
-    /// <summary>몸짓 한 장이 머무는 밀리초.</summary>
-    private const int SwingMs = 70;
+    /// <summary>맞은 부대가 흔들린 만큼. 안 맞았으면 0 이다.</summary>
+    private readonly int[] _shake = new int[LandBattle.Slots];
 
     /// <summary>
-    /// 맞붙는 부대가 목표 쪽으로 나가는 몫 — 둘 사이 거리의 이만큼이다.
+    /// 눈금 하나 — <b>50밀리초</b>다.
     /// </summary>
     /// <remarks>
-    /// 게임 화면 두 장을 640x480 으로 되돌려 재어 뽑았다. 판이 640 폭이므로 화면 폭
-    /// 1108 을 1.731 로 나누어 보면 나간 자리가 이렇다.
-    /// <code>
-    ///   아군 제독  뒷줄 가운데(112, 304) → (237, 208)   목표 (368, 112)   158 / 320 = 0.49
-    ///   적  제독   뒷줄 가운데(368,  16) → (358, 191)   목표 (240, 304)   175 / 315 = 0.56
-    /// </code>
-    /// 곧 <b>반쯤</b>이다 — 목표에 딱 붙는 것이 아니라 판 가운데에서 맞선다.
+    /// 게임의 시계 <c>0x004BA4BB</c> 가 <c>GetTickCount() / 50</c> 을 낸다. 몸짓을 돌리는
+    /// 자리는 죄다 <c>0x00428000(2, 0)</c> 으로 <b>두 눈금</b>을 쉬므로 한 장이 100밀리초다.
     /// </remarks>
-    private const double StepIn = 0.5;
+    private const int Tick = 50;
 
-    /// <summary>목표 앞까지 걸어 나가는 걸음 수. 돌아올 때도 같다.</summary>
-    private const int Strides = 3;
+    /// <summary>몸짓 한 장이 머무는 밀리초 — 두 눈금이다.</summary>
+    private const int SwingMs = Tick * 2;
+
+    /// <summary>피해 숫자를 다 보이고 더 쉬는 밀리초 — 다섯 눈금(<c>0x00448700</c>).</summary>
+    private const int RestMs = Tick * 5;
+
+    /// <summary>
+    /// 치는 몸짓은 <b>넉 장</b>이다(<c>0x00446210</c>).
+    /// </summary>
+    /// <remarks>
+    /// 조각 한 벌에 몸짓이 여덟 들어 있지만 싸움터가 쓰는 것은 앞 넉 장뿐이다 —
+    /// <c>0x00446210</c> 이 <c>+0x114</c> 를 0 부터 3 까지만 올린다. 제독 조각(파트 14)을
+    /// 떠 보면 0·1 이 선 자세, 2·3 이 찌르는 자세다.
+    /// </remarks>
+    private const int SwingFrames = 4;
+
+    /// <summary>소리는 <b>셋째 장</b>에서 난다(<c>0x0044623B</c> 의 <c>ebp == 2</c>).</summary>
+    private const int SoundFrame = 2;
+
+    /// <summary>맞은 부대를 좌우로 흔드는 값(표 <c>0x00549C08</c>).</summary>
+    private static readonly int[] Shakes = [-8, 8, 8, -8];
+
+    /// <summary>
+    /// 피해 숫자가 넉 장 동안 <b>왼위로 떠오르는</b> 자리(판 점).
+    /// </summary>
+    /// <remarks>
+    /// 이 값만은 <b>게임 코드가 아니라 갈무리에서 쟀다</b> — 숫자 조각 두 자의 자리 사이가
+    /// 41점으로 찍힌 판이라 배수가 1.71 이고, 장마다 14점씩 움직인 것이 판 점으로 8 이다.
+    /// 세로는 넉 장 내내 한 걸음씩이고 가로는 <b>한 장 늦게</b> 따라붙는다.
+    ///
+    /// 숫자는 뜬 자리에 붙박이가 아니라 이렇게 떠올라야 <b>어느 부대가 맞았는지</b>가
+    /// 부대 그림에 안 묻힌다 — 맞은 칸이 그동안 좌우로 흔들리므로 더욱 그렇다.
+    /// </remarks>
+    private static readonly (int Dx, int Dy)[] Rises = [(0, 0), (0, -8), (-8, -16), (-16, -24)];
+
+    /// <summary>
+    /// 한 걸음에 나아가는 만큼 — <b>한 칸의 반</b>이다.
+    /// </summary>
+    /// <remarks>자리 여섯이 (64, 48) 씩 어긋나 있으니 두 걸음이 딱 한 칸이다.</remarks>
+    private const int StrideX = 32, StrideY = 24;
+
+    /// <summary>
+    /// 목표 앞까지 걸어 나가는 걸음 수 — <b>앞열은 둘, 후열은 넷</b>이다. 돌아올 때도 같다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x00446310</c> 은 목표를 아예 안 본다. 부대 <c>+0x08</c>(후열 표시)만 보고
+    /// 되풀이 수를 정한다.
+    /// <code>
+    ///   0044633e  cmp [부대+0x08], 1        ; 앞열이면 0
+    ///   00446351  edi = 후열 ? 4 : 2        ; 그만큼 되풀이하며 +0x114 를 올린다
+    /// </code>
+    /// 그래서 <b>어느 자리에서 나가든 서는 데가 같다</b> — 제 세로줄 바로 앞칸이다.
+    /// <code>
+    ///   아군  (176,160) (240,208) (304,256)      적  (368,208) (304,160) (240,112)
+    /// </code>
+    /// 예전에 화면 두 장을 재어 「목표까지 거리의 반쯤」으로 두었던 것은, 후열 부대가
+    /// 넉 걸음 나간 것을 잰 것이었다.
+    /// </remarks>
+    private static int StridesOf(int slot) => LandUnits.IsFront(slot) ? 2 : 4;
 
     /// <summary>
     /// 한 줄을 몸짓으로 보인다 — <b>나가서 치는 데까지</b>다.
     /// </summary>
     /// <remarks>
-    /// 부대 조각 한 벌이 96x48 여덟 장(2열 4행)이고 그 여덟 장이 곧 치는 몸짓이다.
+    /// 부대 조각 한 벌이 96x48 여덟 장(2열 4행)인데 <b>싸움터가 쓰는 것은 앞 넉 장</b>이다.
     ///
     /// <b>맞붙는 병종</b>(기병·제독·장군처럼 손에 무기를 든 것 —
-    /// <see cref="LandUnits.Kind.Melee"/>)은 <b>칠 부대 바로 앞까지 걸어 나가</b> 거기서
-    /// 친다. 총·포는 제자리에서 쏜다.
+    /// <see cref="LandUnits.Kind.Melee"/>)은 <b>제 세로줄 앞칸까지 걸어 나가</b> 거기서
+    /// 친다. 총·포·지원은 제자리에서 몸짓만 돌린다(<c>0x00448A5E</c> 가 <c>+0x1C</c> 에
+    /// 0x100 을 세운다).
     ///
     /// <b>돌아오는 것은 여기서 안 한다</b> — 게임은 나간 그 자리에 선 채로 피해 숫자를
     /// 보이고, 그것이 진 뒤에 돌아온다(<see cref="Home"/>).
@@ -462,34 +608,36 @@ internal sealed class LandBattleScene : GameWindow
         var blows = bout.Where(line => line.Target >= 0).ToList();
         if (blows.Count == 0) return;
 
-        var (dx, dy) = StepOut(slot, blows[0].Target);
+        var (dx, dy) = StepOut(slot);
         _acting = slot;
         _actFrame = 0;
         _actDx = _actDy = 0;
 
-        int frames = LandArt.FrameCols * LandArt.FrameRows;
-
-        // ① 목표 쪽으로 걸어 나간다.
-        for (int i = 1; i <= Strides && (dx != 0 || dy != 0); i++)
+        // ① 제 세로줄 앞칸까지 걸어 나간다 — 걸음마다 몸짓이 한 장씩 넘어간다
+        //    (0x00446310 이 +0x114 를 1 부터 올리고 넉 장을 넘으면 붙든다).
+        if (dx != 0 || dy != 0)
         {
-            _actFrame = i % frames;
-            _actDx = dx * i / Strides;
-            _actDy = dy * i / Strides;
-            Redraw();
-            Rest(SwingMs);
-        }
-
-        // ② 그 자리에서 <b>친 수만큼</b> 몸짓을 돌린다 — 총병은 앞열 수만큼 쏜다.
-        foreach (var line in blows)
-        {
-            if (line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
-            for (int f = 0; f < frames; f++)
+            int strides = StridesOf(slot);
+            for (int i = 1; i <= strides; i++)
             {
-                _actFrame = f;
+                _actFrame = Math.Min(i, SwingFrames - 1);
+                _actDx = dx * i;
+                _actDy = dy * i;
                 Redraw();
                 Rest(SwingMs);
             }
         }
+
+        // ② 그 자리에서 <b>친 수만큼</b> 몸짓 넉 장을 돌린다 — 총병은 앞열 수만큼 쏜다.
+        //    소리는 장마다가 아니라 <b>셋째 장</b>에서 한 번 난다.
+        foreach (var line in blows)
+            for (int f = 0; f < SwingFrames; f++)
+            {
+                if (f == SoundFrame && line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
+                _actFrame = f;
+                Redraw();
+                Rest(SwingMs);
+            }
     }
 
     /// <summary>
@@ -499,15 +647,18 @@ internal sealed class LandBattleScene : GameWindow
     {
         if (_acting < 0) return;
 
-        int frames = LandArt.FrameCols * LandArt.FrameRows;
         int dx = _actDx, dy = _actDy;
-        for (int i = Strides - 1; i >= 0 && (dx != 0 || dy != 0); i--)
+        if (dx != 0 || dy != 0)
         {
-            _actFrame = i % frames;
-            _actDx = dx * i / Strides;
-            _actDy = dy * i / Strides;
-            Redraw();
-            Rest(SwingMs);
+            int strides = StridesOf(_acting);
+            for (int i = strides - 1; i >= 0; i--)
+            {
+                _actFrame = Math.Min(Math.Max(i, 1), SwingFrames - 1);
+                _actDx = dx * i / strides;
+                _actDy = dy * i / strides;
+                Redraw();
+                Rest(SwingMs);
+            }
         }
 
         _acting = -1;
@@ -517,16 +668,18 @@ internal sealed class LandBattleScene : GameWindow
     }
 
     /// <summary>
-    /// 그 자리에서 목표 앞까지 나가는 만큼. 맞붙는 병종이 아니면 둘 다 0 이다.
+    /// 한 걸음에 나아가는 만큼. 맞붙는 병종이 아니면 둘 다 0 이다.
     /// </summary>
-    private (int Dx, int Dy) StepOut(int slot, int target)
+    /// <remarks>
+    /// 나가고 돌아오는 것은 <b>근접 갈래만</b> 한다 — <c>0x00448760</c>·<c>0x00448790</c>
+    /// 을 부르는 데가 창병(<c>0x004487C0</c>)과 여느 근접(<c>0x00448900</c>) 둘뿐이고,
+    /// <c>0x00446310</c> 도 부대 <c>+0x00</c>(갈래)이 0 이 아니면 그냥 돌아간다.
+    /// 아군은 오른위로, 적은 왼아래로 간다.
+    /// </remarks>
+    private (int Dx, int Dy) StepOut(int slot)
     {
         if (LandUnits.KindOf(_battle.Units[slot].Kind) != LandUnits.Kind.Melee) return (0, 0);
-        if (target < 0 || target >= StandAt.Length) return (0, 0);
-
-        var (fx, fy) = StandAt[slot];
-        var (tx, ty) = StandAt[target];
-        return ((int)((tx - fx) * StepIn), (int)((ty - fy) * StepIn));
+        return slot < LandBattle.FirstFoe ? (StrideX, -StrideY) : (-StrideX, StrideY);
     }
 
     /// <summary>
@@ -618,7 +771,11 @@ internal sealed class LandBattleScene : GameWindow
         for (int i = 0; i < LandBattle.Slots && i < StandAt.Length; i++)
         {
             var unit = _battle.Units[i];
-            if (!unit.Standing) continue;
+
+            // 그림을 도는 동안에는 그때그때의 병사수로 본다 — 그래야 쓰러진 부대가
+            // 명령을 누르자마자가 아니라 <b>제 차례에</b> 사라진다.
+            int men = _menNow is { } snap && i < snap.Count ? snap[i] : unit.Men;
+            if (unit.Kind < 0 || men <= 0) continue;
 
             var (x, y) = StandAt[i];
 
@@ -630,6 +787,9 @@ internal sealed class LandBattleScene : GameWindow
                 (x, y) = (x + _actDx, y + _actDy);
             }
 
+            // 맞은 부대는 숫자가 뜨는 동안 좌우로 흔들린다(0x00549C08).
+            x += _shake[i];
+
             if (Sprite(unit.Kind, friend: i < LandBattle.FirstFoe, frame) is { } art)
             {
                 // 나가서 치는 부대는 남의 자리에 서므로 <b>맨 앞으로</b> 올린다 —
@@ -638,18 +798,23 @@ internal sealed class LandBattleScene : GameWindow
                 _board.Children.Add(Mark(At(art, x, y)));
             }
 
+            // 병사수는 <b>차림표가 떠 있는 동안만</b> 찍는다. 게임은 0x00449CE8 이
+            // 차림표를 열기 직전에 +0x3C 에 0x80 을 세우고 0x00449D82 가 닫자마자
+            // 지운다 — 그래서 몸짓이 도는 동안에는 숫자가 하나도 안 보인다.
+            if (!_showMen) continue;
+
             // 병사수는 칸 위쪽에 넉 자리 폭으로 가운데를 맞춰 찍는다.
             //
             // <b>숫자는 늘 맨 앞이다.</b> 부대를 차례대로 놓으므로 뒤에 놓인 부대 그림이
             // 앞서 찍은 숫자를 덮는다 — 그림이 칸을 꽉 채우게 되면서 도드라졌다.
-            string men = unit.Men.ToString();
-            int left = x + (DigitSlots - men.Length) * Digit / 2;
-            foreach (char c in men)
+            string count = men.ToString();
+            int left = x + (DigitSlots - count.Length) * Digit / 2;
+            foreach (char c in count)
             {
                 if (Number(c - '0') is { } glyph)
                 {
                     Panel.SetZIndex(glyph, DigitDepth);
-                    _board.Children.Add(Mark(At(glyph, left, y)));
+                    _board.Children.Add(Mark(At(glyph, left - Outline, y - Outline)));
                 }
                 left += Digit;
             }
@@ -665,13 +830,68 @@ internal sealed class LandBattleScene : GameWindow
         return bgra == null ? null : Picture(bgra, w, h, w, h * UnitZoomY);
     }
 
-    /// <summary>숫자 한 자. 조각을 못 구하면 게임 글꼴로 물러선다.</summary>
+    /// <summary>
+    /// 숫자 한 자 — 조각에 <b>검은 테를 한 겹 둘러</b> 낸다. 조각을 못 구하면 게임 글꼴로
+    /// 물러선다.
+    /// </summary>
+    /// <remarks>
+    /// 조각에도 어두운 테가 한 점 있기는 하나, 싸움터가 밝은 돌바닥이거나 숫자가 부대
+    /// 그림에 겹치면 흰 획이 바탕에 묻혀 읽기 어렵다. 그래서 <b>안 비치는 점의 둘레 여덟
+    /// 칸</b>을 까맣게 깔고 그 위에 조각을 그대로 얹는다 — 획은 손대지 않고 테만 두꺼워진다.
+    ///
+    /// 테를 두른 만큼 조각이 <see cref="DigitBox"/> 로 커지므로, 놓는 자리도 두께만큼
+    /// 당겨야 숫자가 있던 데에 그대로 선다.
+    /// </remarks>
     private FrameworkElement? Number(int digit)
     {
-        if (_art?.TryGetDigit(digit) is { } bgra) return Picture(bgra, Digit, Digit);
+        if (digit is >= 0 and <= 9 && Glyph(digit) is { } bgra)
+            return Picture(bgra, DigitBox, DigitBox);
         return GameUi.GameFontLabel(digit.ToString(), GameFont.ButtonColor, 1,
                                     GameUi.ItemTextHeight);
     }
+
+    /// <summary>
+    /// 테를 두른 숫자 조각. 한 번 지어 두고 다시 쓴다 — 한 턴에 수십 번 부른다.
+    /// </summary>
+    /// <remarks>못 구한 자리는 빈 배열로 적어 둔다. 그래야 파트를 되풀이해 풀지 않는다.</remarks>
+    private uint[]? Glyph(int digit)
+    {
+        _glyphs[digit] ??= _art?.TryGetDigit(digit) is { } bgra ? Outlined(bgra) : [];
+        return _glyphs[digit] is { Length: > 0 } made ? made : null;
+    }
+
+    /// <summary>테를 두른 숫자 열 자 — 처음 쓸 때 하나씩 짓는다.</summary>
+    private readonly uint[]?[] _glyphs = new uint[]?[10];
+
+    /// <summary>조각 둘레에 까만 테를 한 겹 두른다.</summary>
+    private static uint[] Outlined(uint[] glyph)
+    {
+        var box = new uint[DigitBox * DigitBox];
+
+        // ① 안 비치는 점마다 그 둘레 여덟 칸까지 까맣게 깐다.
+        for (int y = 0; y < Digit; y++)
+            for (int x = 0; x < Digit; x++)
+            {
+                if (glyph[y * Digit + x] >> 24 == 0) continue;
+                for (int dy = 0; dy <= Outline * 2; dy++)
+                    for (int dx = 0; dx <= Outline * 2; dx++)
+                        box[(y + dy) * DigitBox + x + dx] = Ink;
+            }
+
+        // ② 그 위에 조각을 그대로 얹는다 — 획은 조각이 가진 색 그대로다.
+        for (int y = 0; y < Digit; y++)
+            for (int x = 0; x < Digit; x++)
+                if (glyph[y * Digit + x] >> 24 != 0)
+                    box[(y + Outline) * DigitBox + x + Outline] = glyph[y * Digit + x];
+
+        return box;
+    }
+
+    /// <summary>숫자에 두르는 테의 두께와, 그만큼 커진 조각의 한 변.</summary>
+    private const int Outline = 1, DigitBox = Digit + Outline * 2;
+
+    /// <summary>테 색 — 아주 검다(BGRA).</summary>
+    private const uint Ink = 0xFF000000;
 
     /// <summary>
     /// 부대 그림을 세로로 늘리는 배수.

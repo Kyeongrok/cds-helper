@@ -5,6 +5,7 @@ using System.Windows.Media;
 using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Land;
 using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Game.Local.Settings;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -36,6 +37,38 @@ internal sealed class LandSparDialog : GameWindow
 
     /// <summary>고르고 나면 그 짜임. 물렀으면 null.</summary>
     private Setup? _made;
+
+    /// <summary>
+    /// <b>지난번에 차렸던 짜임</b> — 창을 다시 열면 이대로 되편다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 부대배치 화면에도 「전회」 단추가 있어 지난번 배치(<c>0x0056EAB8</c> 여섯 칸)를
+    /// 그대로 되편다(<see cref="LandDeployDialog"/>). 모의전은 게임에 없는 화면이지만 같은
+    /// 결로 둔다 — 같은 짜임으로 여러 판을 굴려 보는 자리이기 때문이다.
+    ///
+    /// 게임의 그 여섯 칸은 세이브에 안 적혀 놀이를 새로 열면 죄다 −1 이지만, 이쪽은
+    /// <b>앱을 껐다 켜도 남긴다</b>(<c>game-settings.json</c>). 놀이 안의 배치가 아니라
+    /// 같은 짜임으로 여러 판을 굴려 보는 <b>시험 자리</b>라, 켤 때마다 여섯 칸을 손으로
+    /// 다시 고르게 할 까닭이 없다.
+    /// </remarks>
+    private static Setup? Last
+    {
+        get => GameSettings.LandSpar is { } saved
+            ? new Setup(saved.Mine ?? [], saved.Theirs ?? [], saved.MyMen, saved.FoeMen,
+                        saved.Culture, saved.Terrain)
+            : null;
+        set => GameSettings.LandSpar = value is { } made
+            ? new LandSparData
+            {
+                Mine = made.Mine,
+                Theirs = made.Theirs,
+                MyMen = made.MyMen,
+                FoeMen = made.FoeMen,
+                Culture = made.Culture,
+                Terrain = made.Terrain,
+            }
+            : null;
+    }
 
     /// <summary>모의전 한 판의 짜임.</summary>
     /// <param name="Mine">아군 여섯 자리의 병종. −1 이면 빈 자리다.</param>
@@ -96,6 +129,31 @@ internal sealed class LandSparDialog : GameWindow
         page.Children.Add(buttons);
 
         Content = page;
+
+        // 지난번에 차렸던 것이 있으면 그대로 되편다.
+        if (Last is { } was) Restore(was);
+    }
+
+    /// <summary>지난번 짜임을 칸에 되편다.</summary>
+    private void Restore(Setup was)
+    {
+        for (int i = 0; i < Slots; i++)
+        {
+            _mine[i].SelectedIndex = Row(was.Mine, i);
+            _theirs[i].SelectedIndex = Row(was.Theirs, i);
+        }
+
+        _myMen.Text = Sane(was.MyMen).ToString();
+        _foeMen.Text = Sane(was.FoeMen).ToString();
+        _culture.SelectedIndex = Math.Clamp(was.Culture, 0, CultureNames.Length - 1);
+        _terrain.SelectedIndex = Math.Clamp(was.Terrain, 0, Fields.Length - 1);
+    }
+
+    /// <summary>그 자리의 병종을 고르는 칸 번호로 — 표 밖이면 「빈 자리」(0)다.</summary>
+    private static int Row(int[] kinds, int at)
+    {
+        int kind = at < kinds.Length ? kinds[at] : -1;
+        return kind >= 0 && kind < LandUnits.Count ? kind + 1 : 0;
     }
 
     /// <summary>문화권 이름 열하나. 적 그림과 진형이 이것으로 갈린다.</summary>
@@ -173,6 +231,7 @@ internal sealed class LandSparDialog : GameWindow
 
         _made = new Setup(mine, theirs, Men(_myMen), Men(_foeMen),
                           _culture.SelectedIndex, _terrain.SelectedIndex);
+        Last = _made;                            // 다음에 열 때 이대로 되편다
         Close();
     }
 
@@ -181,8 +240,10 @@ internal sealed class LandSparDialog : GameWindow
         [.. slots.Select(s => s.SelectedIndex - 1)];
 
     /// <summary>병력 칸. 숫자가 아니거나 0 이하면 백으로 친다.</summary>
-    private static int Men(TextBox box) =>
-        int.TryParse(box.Text, out int n) && n > 0 ? Math.Min(n, 9999) : 100;
+    private static int Men(TextBox box) => Sane(int.TryParse(box.Text, out int n) ? n : 0);
+
+    /// <summary>병력 한 값을 쓸 만한 사이로 민다 — 손으로 고친 설정 파일이 들어와도 버틴다.</summary>
+    private static int Sane(int men) => men > 0 ? Math.Min(men, 9999) : 100;
 
     /// <summary>
     /// 모의전을 차리고 그대로 싸운다.
