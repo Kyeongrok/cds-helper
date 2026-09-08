@@ -74,7 +74,7 @@ public sealed class DuelStage : Canvas
 
     /// <summary>한 판의 틱 수와 틱 하나의 길이.</summary>
     public const int Ticks = 17;
-    private const int PoseTick = 9, HurtTick = 11, SayTick = 8;
+    private const int PoseTick = 8, HurtTick = 11, SayTick = 8;
 
     /// <summary>
     /// 내지르고 나서 <b>여느 자세로 돌아오는</b> 눈금.
@@ -224,6 +224,25 @@ public sealed class DuelStage : Canvas
         clock.Start();
     }
 
+    /// <summary>
+    /// 맞은 쪽이 <b>한 걸음 밀린다</b> — 친 쪽은 그만큼 앞으로 나아간 셈이다.
+    /// </summary>
+    /// <remarks>
+    /// 갈무리(「일기토 전체 2」)에서 제독이 선 자리가 판마다 <b>150 → 189 → 228</b> 로
+    /// 39점씩 물러난다. 맞을 때마다 그만큼 밀리는 것이고, 그 폭이 다가서는 거리와
+    /// 같으므로 <see cref="Approach"/> 를 그대로 쓴다 — 다가섰다가 <b>맞은 쪽만 안
+    /// 돌아오는</b> 셈이다.
+    ///
+    /// 벽까지만 밀린다. 들머리에 서던 자리(<see cref="MyStart"/> · <see cref="FoeStart"/>)가
+    /// 그 끝이다.
+    /// </remarks>
+    public void PushBack(bool mine)
+    {
+        if (mine) _myLeft = Math.Min(MyStart, _myLeft + Approach);
+        else _foeLeft = Math.Max(FoeStart, _foeLeft - Approach);
+        Draw();
+    }
+
     /// <summary>쓰러지는 모습으로 멈춘다.</summary>
     public void Fall(bool mine)
     {
@@ -253,7 +272,11 @@ public sealed class DuelStage : Canvas
     private static int StepOf(FighterSprites.Move move, int tick)
     {
         int length = FighterSprites.Lengths[(int)move];
-        if (length <= 3) return tick < PoseTick ? 0 : tick < PoseTick + 1 ? 1 : 2;
+        // 베는 장 셋을 <b>다</b> 보인다 — 첫 장 · 둘째 장 한 눈금씩, 셋째 장은 머문다.
+        // 예전에는 베기가 9 눈금에 시작하는데 그 눈금부터 둘째 장을 내어 <b>첫 장이
+        // 아예 안 나왔다</b>. 갈무리(「적 중단 주인공 상단」)는 8·9 눈금에 상단0·상단1 이고
+        // 10~12 눈금이 상단2 다.
+        if (length <= 3) return tick <= PoseTick ? 0 : tick <= PoseTick + 1 ? 1 : 2;
         return Math.Min(length - 1, tick * length / Ticks);
     }
 
