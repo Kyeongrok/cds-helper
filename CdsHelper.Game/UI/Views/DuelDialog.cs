@@ -454,7 +454,15 @@ public sealed class DuelDialog : GameWindow
         _stage.Play(mine, theirs, myLunge, foeLunge,
                     onSay: null,
                     onHurt: Refresh,
-                    onDone: () => Settle(turn));
+                    onDone: () =>
+                    {
+                        // 친 쪽은 나아가고 맞은 쪽은 물러난다 — 막았으면 둘 다 제자리다.
+                        if (turn.Blow is Duel.Blow.MeHit or Duel.Blow.MeGrazed)
+                            _stage.PushBack(mine: true);
+                        else if (turn.Blow is Duel.Blow.FoeHit or Duel.Blow.FoeGrazed)
+                            _stage.PushBack(mine: false);
+                        Settle(turn);
+                    });
     }
 
     /// <summary>이번 판에 두 사람이 지을 몸짓.</summary>
