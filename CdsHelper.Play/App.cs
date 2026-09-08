@@ -51,9 +51,9 @@ internal sealed class App : Application
 
         if (!EnsureGameFolder()) { Shutdown(); return; }
 
-        // 미궁·일기토는 딴 어셈블리에 있어 놀이 쪽에서 곧장 못 부른다 — 여기서 걸어 준다.
+        // 미궁은 딴 어셈블리에 있어 놀이 쪽에서 곧장 못 부른다 — 여기서 걸어 준다.
+        // 일기토는 이제 놀이 쪽(ShipMapWindow.PlayDuel)이 제 판을 곧장 부른다.
         ShipMapWindow.MazeGame = Maze.MazeGame.Play;
-        ShipMapWindow.DuelGame = Duel.DuelGame.Play;
 
         // 놀이 창은 주인이 없다. 창이 <c>CenterOwner</c> 로 서 있어 주인이 없으면
         // 자리가 어정쩡하게 잡힌다 — 여기서는 화면 한가운데로 못 박는다.

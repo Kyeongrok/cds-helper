@@ -1144,11 +1144,8 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     public static Action<Window, Random>? MazeGame { get; set; }
 
-    /// <summary>
-    /// 일기토를 여는 자리. <b>그 놀이는 CdsHelper.Duel 에 따로 있다</b> — 미궁과
-    /// 같은 까닭으로 반대로는 못 부른다.
-    /// </summary>
-    public static Action<Window, Random>? DuelGame { get; set; }
+    // 일기토를 밖에서 걸어 주던 자리(DuelGame)는 걷었다 — 이제 PlayDuel 이 반란·해전이
+    // 쓰는 그 판을 곧장 부른다. CdsHelper.Duel 의 옛 판은 아무도 안 부른다.
 
     /// <summary>
     /// MINI GAME — 일곱 줄을 늘어놓는다(<c>0x0045F957</c> 벌).

@@ -70,15 +70,18 @@ public sealed class DuelArt
     public const string Field = "duel-field", Deck = "duel-deck";
 
     /// <summary>
-    /// 그 마당에 딸린 눈금판.
+    /// 눈금판 — <b>마당을 안 탄다</b>. 어느 마당이든 같은 한 장이다.
     /// </summary>
     /// <remarks>
-    /// <b>눈금판은 제 팔레트가 없어 마당 것을 같이 쓴다.</b> 그래서 마당마다 빛깔이
-    /// 다르다 — 예전에는 갑판 것 하나만 뽑아 두어 초원 판에 갑판 빛깔이 얹혀 판이
-    /// 보랏빛으로 물들었다. 이제 마당마다 한 장씩 있다.
+    /// 예전에는 「눈금판은 제 팔레트가 없어 마당 것을 같이 쓴다」고 보고 마당마다 한 장씩
+    /// 뽑았다. <b>틀렸다</b> — 눈금판 색인이 11~73 이라 죄다 74 밑이고, 게임은 74 부터
+    /// 그림마다의 팔레트를 얹으므로(<see cref="GamePalette.OwnPaletteBase"/>) 그 아래는
+    /// <b>공용 색표</b>를 본다.
+    ///
+    /// 마당 팔레트를 씌운 탓에 나무빛이 분홍으로 뭉개지고 막대 자리와 H·M·L 글자가
+    /// 바탕에 묻혀 있었다. 공용 색표로 뽑으니 원본과 같아진다.
     /// </remarks>
-    public static string PanelFor(string arena) =>
-        "duel-panel-" + (arena.StartsWith("duel-") ? arena[5..] : arena);
+    public static string PanelFor(string arena) => "duel-panel";
 
     private readonly string _dir;
 
