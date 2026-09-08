@@ -34,6 +34,7 @@ internal sealed class LandSparDialog : GameWindow
     private readonly TextBox _foeMen = new() { Width = MenWidth, Text = "300" };
     private readonly ComboBox _terrain = new() { Width = PickWidth };
     private readonly ComboBox _culture = new() { Width = PickWidth };
+    private readonly ComboBox _sort = new() { Width = PickWidth };
 
     /// <summary>고르고 나면 그 짜임. 물렀으면 null.</summary>
     private Setup? _made;
@@ -74,7 +75,17 @@ internal sealed class LandSparDialog : GameWindow
     /// <param name="Mine">아군 여섯 자리의 병종. −1 이면 빈 자리다.</param>
     /// <param name="Theirs">적 여섯 자리.</param>
     internal readonly record struct Setup(int[] Mine, int[] Theirs, int MyMen, int FoeMen,
-                                          int Culture, int Terrain);
+                                          int Culture, int Terrain, int Sort = LandBattle.Town);
+
+    /// <summary>
+    /// 싸움 갈래 둘 — 차례가 <see cref="Sorts"/> 다.
+    /// </summary>
+    /// <remarks>
+    /// 열 턴을 넘겼을 때가 갈린다 — 마을 공략은 이길 길이 없이 물러나고, 들싸움은
+    /// 버텨 내면 적이 물러간다(<c>0x00449420</c>).
+    /// </remarks>
+    private static readonly (string Name, int Value)[] Sorts =
+        [("마을 공략", LandBattle.Town), ("들에서 마주침", LandBattle.Field)];
 
     /// <summary>싸움터 그림 넷 — <see cref="LandBattle.Terrain"/> 차례다.</summary>
     private static readonly string[] Fields = ["도시", "초지", "숲", "황무지"];
@@ -97,6 +108,21 @@ internal sealed class LandSparDialog : GameWindow
         top.Children.Add(Label("문화권", 60));
         top.Children.Add(_culture);
         page.Children.Add(top);
+
+        var next = new StackPanel { Orientation = Orientation.Horizontal,
+                                    Margin = new Thickness(0, 0, 0, 6) };
+        next.Children.Add(Label("갈래", 52));
+        next.Children.Add(_sort);
+        next.Children.Add(new TextBlock
+        {
+            Text = "  들싸움은 열 턴을 버티면 이긴다",
+            Foreground = Brushes.DimGray,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        page.Children.Add(next);
+
+        foreach (var (name, _) in Sorts) _sort.Items.Add(name);
+        _sort.SelectedIndex = 0;
 
         foreach (string field in Fields) _terrain.Items.Add(field);
         _terrain.SelectedIndex = 0;
@@ -147,6 +173,7 @@ internal sealed class LandSparDialog : GameWindow
         _foeMen.Text = Sane(was.FoeMen).ToString();
         _culture.SelectedIndex = Math.Clamp(was.Culture, 0, CultureNames.Length - 1);
         _terrain.SelectedIndex = Math.Clamp(was.Terrain, 0, Fields.Length - 1);
+        _sort.SelectedIndex = Math.Max(0, Array.FindIndex(Sorts, s => s.Value == was.Sort));
     }
 
     /// <summary>그 자리의 병종을 고르는 칸 번호로 — 표 밖이면 「빈 자리」(0)다.</summary>
@@ -230,7 +257,8 @@ internal sealed class LandSparDialog : GameWindow
         }
 
         _made = new Setup(mine, theirs, Men(_myMen), Men(_foeMen),
-                          _culture.SelectedIndex, _terrain.SelectedIndex);
+                          _culture.SelectedIndex, _terrain.SelectedIndex,
+                          Sorts[Math.Max(0, _sort.SelectedIndex)].Value);
         Last = _made;                            // 다음에 열 때 이대로 되편다
         Close();
     }
@@ -262,7 +290,7 @@ internal sealed class LandSparDialog : GameWindow
             ? player.MateInfoOf(player.Mates[0]) : null;
 
         var field = new LandBattle(made.Mine, made.Theirs, made.MyMen, made.FoeMen,
-                                   player, aide, made.Culture, made.Terrain, dice);
+                                   player, aide, made.Culture, made.Terrain, dice, made.Sort);
         LandBattleScene.Run(owner, game, field, dice);
     }
 }

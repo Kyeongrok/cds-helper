@@ -27,7 +27,7 @@ internal sealed class ChoiceDialog : GameWindow
 {
     private int _picked = -1;
 
-    private ChoiceDialog(string title, IReadOnlyList<(string Text, bool On)> rows)
+    private ChoiceDialog(string title, IReadOnlyList<(string Text, bool On)> rows, bool exitRow)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -42,8 +42,12 @@ internal sealed class ChoiceDialog : GameWindow
             int pick = i;
             // 꺼진 줄은 <b>자리를 지킨 채</b> 죽는다 — 할 일을 안 주면 GameMenu 가 흐린
             // 단추로 낸다. 게임도 넉 줄을 먼저 깔고 그 뒤에 켜고 끈다(0x004A5726).
+            // 나가기 줄이 없는 창은 <b>마지막 줄도 단추</b>다 — 안 그러면 GameMenu 가 끝 줄을
+            // 회녹색 나가기 띠로 낸다. 싸움의 공격명령(끝이 「애니메이션」)과 묘책(끝이
+            // 「심판」)이 그런 창이라, 그 줄들은 나가기가 아니라 여느 명령이다.
             items.Add(new GameMenuRow(rows[i].Text,
-                                      rows[i].On ? () => { _picked = pick; Close(); } : null));
+                                      rows[i].On ? () => { _picked = pick; Close(); } : null,
+                                      exitRow ? null : BandStyle.Button));
         }
 
         var box = new GameMenu(title, items);
@@ -127,10 +131,14 @@ internal sealed class ChoiceDialog : GameWindow
     /// 자리를 손으로 잡을 때 부른다 — 안 주면 여느 때처럼 주인 창 가운데다. 싸움터가
     /// 가리면 안 되는 자리(<see cref="GameUi.PlaceAtCorner"/>)에 쓴다.
     /// </param>
+    /// <param name="exitRow">
+    /// 마지막 줄을 <b>나가기 띠</b>로 낼지. 싸움 차림표처럼 끝 줄도 여느 명령인 창은
+    /// 거짓으로 준다.
+    /// </param>
     public static int Pick(Window owner, string title, IReadOnlyList<(string Text, bool On)> rows,
-                           Action<Window>? place = null)
+                           Action<Window>? place = null, bool exitRow = true)
     {
-        var dialog = new ChoiceDialog(title, rows) { Owner = owner };
+        var dialog = new ChoiceDialog(title, rows, exitRow) { Owner = owner };
         place?.Invoke(dialog);
         dialog.ShowDialog();
         return dialog._picked;

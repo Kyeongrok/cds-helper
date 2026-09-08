@@ -112,8 +112,9 @@ public sealed class LandBattle
     /// <param name="foeMen">적 병력 합.</param>
     public LandBattle(IReadOnlyList<int> mine, IReadOnlyList<int> theirs,
                       int myMen, int foeMen, Player player, Player.MateInfo? aide,
-                      int culture, int terrain, GameRandom dice)
+                      int culture, int terrain, GameRandom dice, int sort = Town)
     {
+        Sort = sort == Field ? Field : Town;
         Nation = -1;
         Culture = culture;
         Terrain = Math.Clamp(terrain, 0, 3);
@@ -409,6 +410,39 @@ public sealed class LandBattle
     public bool NextTurn() => ++Turn <= LastTurn;
 
     /// <summary>
+    /// 열 턴을 넘겼을 때 <b>이긴 것으로 치는가</b>(<c>0x00449420</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>0x00449432</c> 가 갈래(<c>+0x34</c>)를 1 과 견주어, 들에서 마주친 부대면
+    /// <c>+0x3C</c> 에 1(이김)을, 그 밖이면 2(물러남)를 적는다. 곧 <b>마을 공략은 열 턴
+    /// 안에 못 끝내면 이길 길이 없고</b>, 들싸움은 열 턴을 버티면 적이 물러간다.
+    /// </remarks>
+    public bool TimeUpWon => Sort == Field;
+
+    /// <summary><b>열 턴을 넘겼을 때</b> 부관이 하는 말(<c>0x00449420</c>).</summary>
+    public string TimeUpWord(GameRandom dice)
+    {
+        var words = TimeUpWon ? HeldOutWords : TimeUpWords;
+        return words[dice.Next(words.Length)];
+    }
+
+    /// <summary>열 턴을 넘겨 물러날 때 나오는 셋(<c>0x00549D08</c>).</summary>
+    private static readonly string[] TimeUpWords =
+    [
+        "사기가 떨어지고 있습니다. 일단 퇴각합시다.",
+        "제독, 더 이상 싸워도 소용없습니다. 퇴각합시다.",
+        "싸움을 너무 오래 끈 것 같습니다. 포기하고 퇴각합시다.",
+    ];
+
+    /// <summary>들싸움에서 열 턴을 버텨 냈을 때 나오는 셋(<c>0x00549CF8</c>).</summary>
+    private static readonly string[] HeldOutWords =
+    [
+        "적이 도망가고 있습니다. 분투한 결과입니다.",
+        "저희들의 실력에 겁먹었는지 퇴각해 버렸습니다.",
+        "적은 포기한 것 같습니다. 퇴각해 버렸습니다.",
+    ];
+
+    /// <summary>
     /// 다 빈치의 작렬탄(<c>0x00448DD0</c>) — 판이 열릴 때 한 번 굴린다.
     /// </summary>
     /// <remarks>
@@ -416,6 +450,20 @@ public sealed class LandBattle
     /// 가 뜨고 그 뒤로 <b>포가 비를 안 탄다</b>. 그 아이템은 그 자리에서 없어진다.
     /// </remarks>
     public const int ShellItem = 2, ShellOdds = 40;
+
+    /// <summary>
+    /// 전투 갈래(<c>+0x34</c>) — <b>2 마을 공략 · 1 들에서 마주친 부대</b>다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x0044AA30</c> 을 부르는 데가 넷이고 그 첫 인자가 이것이다. 갈래마다 갈리는
+    /// 것이 여럿인데, 우리 판이 보는 것은 <b>열 턴을 넘겼을 때</b>다
+    /// (<see cref="TimeUpWon"/>). 그 밖에 게임은 일기토 문(<c>0x004479B0</c>)과 증원
+    /// (<c>0x00449930</c>)도 갈래로 가른다.
+    /// </remarks>
+    public int Sort { get; } = Town;
+
+    /// <summary>전투 갈래 둘 — 마을 공략과 들에서 마주친 부대다.</summary>
+    public const int Field = 1, Town = 2;
 
     /// <summary>작렬탄을 받았는지. 서 있으면 포가 비를 안 탄다.</summary>
     public bool Shells { get; private set; }

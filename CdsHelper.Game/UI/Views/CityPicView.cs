@@ -1245,6 +1245,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     bool ITownScreen.CanSellGoods => Market != null && _game.Items != null;
     bool ITownScreen.CanFormFleet => Port.CanFormFleet;
     bool ITownScreen.CanRepairShip => Yard.CanRepair;
+    bool ITownScreen.CanSellShip => _player.Ships.Count > 1;
     bool ITownScreen.CanRead => Books.CanRead;
     bool ITownScreen.CanLeaveHeir => Home.CanLeaveHeir(_player);
 
