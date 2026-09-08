@@ -189,6 +189,13 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 break;
         }
 
+        // 성사·어그러짐 소리는 굴리는 그 자리에서 한 번 난다(0x00449080).
+        if (said.Count > 0)
+            said[0] = said[0] with
+            {
+                Sound = won ? LandUnits.Sound.RuseWon : LandUnits.Sound.RuseLost,
+            };
+
         _log.Clear();
         _log.AddRange(said);
         return said;
@@ -330,7 +337,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
             case LandUnits.Shaman:
                 if (Raining) return;                 // 이미 오면 아무것도 안 한다
                 Raining = true;
-                Say(slot, "주술사가 비를 부른다!");
+                Say(slot, "주술사가 비를 부른다!", LandUnits.Sound.Rain);
                 break;
 
             case LandUnits.Monk:
@@ -346,12 +353,13 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                     battle.SetMen(i, now);
                     healed += now - was;
                 }
-                if (healed > 0) Say(slot, $"고승의 기도로 {healed}명이 되살아났다!");
+                if (healed > 0)
+                    Say(slot, $"고승의 기도로 {healed}명이 되살아났다!", LandUnits.Sound.Heal);
                 break;
 
             case LandUnits.Leopard:
                 Dances++;
-                Say(slot, "표범이 춤을 춘다!");
+                Say(slot, "표범이 춤을 춘다!", LandUnits.Sound.Dance);
                 break;
         }
     }
@@ -362,6 +370,8 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     {
         if (!Alive(from) || !Alive(to)) return;
 
+        // 치는 소리는 <b>치는 쪽 병종</b>의 것이다 — 되받아쳐 편이 뒤바뀌어도 그대로다.
+        int sound = LandUnits.SoundOf(battle.Units[from].Kind, Raining);
         int hurt = Worth(from, to);
 
         // 되받아치기 — 사무라이 15 · 하타모토 20 · 영주 25 (0x004481E0).
@@ -383,7 +393,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         // 닌자의 변신술 — 비가 아닐 때 40%로 피해가 없다.
         if (battle.Units[to].Kind == LandUnits.Ninja && !Raining && dice.Next(100) < 40)
         {
-            Log(new Line("둔갑술의 하나, 변신술!", from, to, 0, Sound: 10));
+            Log(new Line("둔갑술의 하나, 변신술!", from, to, 0, LandUnits.Sound.Ninja));
             return;
         }
 
@@ -393,7 +403,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         // 쓰러졌으면 그 자리에서 말을 고른다 — 게임도 피해 숫자를 보인 <b>다음에</b>
         // 말풍선을 띄우고 그러고 나서 부대를 지운다(0x00447F50).
         bool felled = battle.Units[to].Men <= 0;
-        Log(new Line($"{Name(from)}의 공격 — {Name(to)} {hurt}명", from, to, hurt,
+        Log(new Line($"{Name(from)}의 공격 — {Name(to)} {hurt}명", from, to, hurt, sound,
                      Felled: felled ? to : -1, Fell: felled ? FellWord() : ""));
         Done();
     }
@@ -508,7 +518,8 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     private string Name(int slot) =>
         $"{(slot < LandBattle.FirstFoe ? "아군" : "적")} {battle.Units[slot].Name}";
 
-    private void Say(int slot, string text) => Log(new Line(text, slot));
+    private void Say(int slot, string text, int sound = -1) =>
+        Log(new Line(text, slot, Sound: sound));
 
     /// <summary>
     /// 싸움이 끝났는지 본다 — <b>대장 부대가 쓰러졌거나</b> 한 쪽이 다 쓰러졌을 때다.

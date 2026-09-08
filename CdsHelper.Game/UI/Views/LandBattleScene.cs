@@ -154,6 +154,9 @@ internal sealed class LandBattleScene : GameWindow
                 continue;
             }
 
+            // 「돌격」은 턴 첫머리에 한 번 소리를 낸다(0x0044932E).
+            if (order == LandBattle.Charge) _game?.Sfx?.Play(LandUnits.Sound.Charge);
+
             var lines = fight.Turn(order, _battle.FoeOrder(dice));
             Play(lines, fight.Opening);
 
@@ -252,6 +255,7 @@ internal sealed class LandBattleScene : GameWindow
         var said = fight.Ruse(pick, dice, out bool asked);
         foreach (var line in said)
         {
+            if (line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
             if (line.Text.Length == 0) continue;
             // 기습이 먹히면 그대로 물음이 된다("선제 공격을 가하겠습니까?").
             if (asked) ConfirmDialog.Ask(this, line.Text);
@@ -636,9 +640,20 @@ internal sealed class LandBattleScene : GameWindow
         if (slot < 0 || slot >= StandAt.Length) return;
         if (!_battle.Units[slot].Standing) return;
 
-        // 노린 데가 없는 말뿐인 줄(「비에 젖어…」)은 몸짓이 없다.
+        // 노린 데가 있는 줄 하나가 몸짓 한 바퀴다.
         var blows = bout.Where(line => line.Target >= 0).ToList();
-        if (blows.Count == 0) return;
+
+        // <b>지원 갈래는 노린 데가 없어도 제자리에서 돈다</b> — 비·회복·춤이 그것이다.
+        // 게임도 0x004485A0 을 그대로 부르고, 지원(21~23)만 <b>두 바퀴</b>를 돌린다
+        // (0x004485E7 어름의 <c>eax = 2</c>). 소리도 바퀴마다 한 번씩 난다.
+        int rounds = 1;
+        if (blows.Count == 0)
+        {
+            bool support = LandUnits.KindOf(_battle.Units[slot].Kind) == LandUnits.Kind.Support;
+            if (!support || bout[0].Text.Length == 0) return;   // 「비에 젖어…」 같은 말뿐인 줄
+            blows = [bout[0]];
+            rounds = 2;
+        }
 
         var (dx, dy) = StepOut(slot);
         _acting = slot;
@@ -663,13 +678,14 @@ internal sealed class LandBattleScene : GameWindow
         // ② 그 자리에서 <b>친 수만큼</b> 몸짓 넉 장을 돌린다 — 총병은 앞열 수만큼 쏜다.
         //    소리는 장마다가 아니라 <b>셋째 장</b>에서 한 번 난다.
         foreach (var line in blows)
-            for (int f = 0; f < SwingFrames; f++)
-            {
-                if (f == SoundFrame && line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
-                _actFrame = f;
-                Redraw();
-                Rest(SwingMs);
-            }
+            for (int r = 0; r < rounds; r++)
+                for (int f = 0; f < SwingFrames; f++)
+                {
+                    if (f == SoundFrame && line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
+                    _actFrame = f;
+                    Redraw();
+                    Rest(SwingMs);
+                }
     }
 
     /// <summary>
@@ -766,6 +782,11 @@ internal sealed class LandBattleScene : GameWindow
                                                                           : "모의전에서 졌다", "");
             return;
         }
+
+        // 끝맺음 소리 — <b>이김과 물러남에만</b> 있다. 진 자리(+0x3C 가 4)는 0x00449890
+        // 으로 빠져 소리가 없다(0x004499B5 · 0x004499FF).
+        if (won) _game?.Sfx?.Play(LandUnits.Sound.Won);
+        else if (retreated) _game?.Sfx?.Play(LandUnits.Sound.Retreat);
 
         var spoils = _battle.Finish(won, dice);
         var player = game.Player;
