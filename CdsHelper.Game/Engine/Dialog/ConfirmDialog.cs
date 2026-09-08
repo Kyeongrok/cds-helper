@@ -136,7 +136,7 @@ public sealed class ConfirmDialog : GameWindow
         stack.Children.Add(body);
         stack.Children.Add(buttons);
 
-        Content = new Border
+        var frame = new Border
         {
             Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
@@ -144,6 +144,7 @@ public sealed class ConfirmDialog : GameWindow
             Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
             Child = stack,
         };
+        Content = frame;
 
         KeyDown += (_, e) =>
         {
@@ -151,7 +152,10 @@ public sealed class ConfirmDialog : GameWindow
             // 방향키로 옮기고 엔터로 고른다 — 어느 단추에 초점이 가 있는지는 깜빡임이 알린다.
             if (_focus.HandleKey(e.Key)) e.Handled = true;
         };
-        GameUi.EnableDrag(this, stack);
+        // 끌기는 <b>바탕을 든 테</b>에 건다. 안쪽 StackPanel 에 걸면 바탕이 없어 빈 칸이
+        // 마우스에 안 잡히고, 글자 위를 정확히 눌렀을 때만 끌린다 — 이 창은 여백이 넓어
+        // 그러면 사실상 못 옮긴다. 단추는 제 눌림을 막으므로(GameButton) 여기까지 안 온다.
+        GameUi.EnableDrag(this, frame);
     }
 
     /// <summary>

@@ -21,6 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Folder Include="Engine\Battle\" />
       <Folder Include="Engine\Menu\" />
     </ItemGroup>
 

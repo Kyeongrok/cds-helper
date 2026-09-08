@@ -123,9 +123,15 @@ internal sealed class ChoiceDialog : GameWindow
     /// 자리를 안 비우므로 <b>고른 값이 곧 붙박이 번호</b>다. 마지막 줄은 <see cref="GameMenu"/>
     /// 가 알아서 회녹색 나가기 띠로 낸다(적대 차림표의 「떠난다」가 그 자리다).
     /// </remarks>
-    public static int Pick(Window owner, string title, IReadOnlyList<(string Text, bool On)> rows)
+    /// <param name="place">
+    /// 자리를 손으로 잡을 때 부른다 — 안 주면 여느 때처럼 주인 창 가운데다. 싸움터가
+    /// 가리면 안 되는 자리(<see cref="GameUi.PlaceAtCorner"/>)에 쓴다.
+    /// </param>
+    public static int Pick(Window owner, string title, IReadOnlyList<(string Text, bool On)> rows,
+                           Action<Window>? place = null)
     {
         var dialog = new ChoiceDialog(title, rows) { Owner = owner };
+        place?.Invoke(dialog);
         dialog.ShowDialog();
         return dialog._picked;
     }

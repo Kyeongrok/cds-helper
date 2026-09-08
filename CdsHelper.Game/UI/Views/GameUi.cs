@@ -448,6 +448,28 @@ internal static class GameUi
         };
     }
 
+    /// <summary>
+    /// 그 창의 <b>오른아래 구석</b>에 붙여 세운다.
+    /// </summary>
+    /// <remarks>
+    /// 싸움터처럼 <b>판이 다 보여야</b> 하는 자리에 쓴다 — 가운데에 세우면 창이 판 한복판을
+    /// 가려 어느 부대가 어디 섰는지가 안 보인다. 게임도 육상전 공격명령 차림표를 판
+    /// 오른아래에 붙여 낸다.
+    /// </remarks>
+    /// <param name="pad">구석에서 띄우는 만큼. 판을 늘려 걸었으면 그 배수를 곱해 넘긴다.</param>
+    public static void PlaceAtCorner(Window box, Window stage, double pad = 12)
+    {
+        box.WindowStartupLocation = WindowStartupLocation.Manual;
+        box.Loaded += (_, _) =>
+        {
+            var room = SystemParameters.WorkArea;
+            box.Left = Fit(stage.Left + stage.ActualWidth - box.ActualWidth - pad,
+                           box.ActualWidth, room.Left, room.Right);
+            box.Top = Fit(stage.Top + stage.ActualHeight - box.ActualHeight - pad,
+                          box.ActualHeight, room.Top, room.Bottom);
+        };
+    }
+
     /// <summary>그 길이짜리를 두 끝 안에 밀어 넣는다.</summary>
     private static double Fit(double at, double size, double first, double last) =>
         Math.Clamp(at, first, Math.Max(first, last - size));

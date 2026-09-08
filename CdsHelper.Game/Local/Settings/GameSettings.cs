@@ -45,6 +45,30 @@ public sealed class GameSettingsData
 
     /// <summary>지도 위에 바람·해류 화살표를 얹을지.</summary>
     public bool ShowFlowArrows { get; set; }
+
+    /// <summary>육상전 모의전 창이 지난번에 차렸던 짜임. 한 번도 안 차렸으면 null.</summary>
+    public LandSparData? LandSpar { get; set; }
+}
+
+/// <summary>
+/// 육상전 모의전 창(<c>LandSparDialog</c>)이 지난번에 차렸던 짜임.
+/// </summary>
+/// <remarks>
+/// 같은 짜임으로 여러 판을 굴려 보는 자리라 <b>앱을 껐다 켜도</b> 남긴다. 손으로 고친
+/// 파일이 들어와도 놀이는 굴러가야 하므로, 읽는 쪽이 칸 수와 범위를 다시 본다.
+/// </remarks>
+public sealed class LandSparData
+{
+    /// <summary>아군 여섯 자리의 병종. −1 이면 빈 자리다.</summary>
+    public int[]? Mine { get; set; }
+
+    /// <summary>적 여섯 자리.</summary>
+    public int[]? Theirs { get; set; }
+
+    public int MyMen { get; set; }
+    public int FoeMen { get; set; }
+    public int Culture { get; set; }
+    public int Terrain { get; set; }
 }
 
 /// <summary>
@@ -343,5 +367,18 @@ public static class GameSettings
     {
         get => Get(d => d.ShowFlowArrows);
         set => Set(d => d.ShowFlowArrows = value);
+    }
+
+    /// <summary>
+    /// 육상전 모의전 창이 지난번에 차렸던 짜임. 한 번도 안 차렸으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 「싸운다」를 누를 때 적히고, 창을 열 때 되편다. 그 창은 놀이가 아니라 시험 삼아
+    /// 굴려 보는 자리라 앱을 껐다 켜도 남긴다.
+    /// </remarks>
+    public static LandSparData? LandSpar
+    {
+        get => Get(d => d.LandSpar);
+        set => Set(d => d.LandSpar = value);
     }
 }
