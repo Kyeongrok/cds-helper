@@ -90,8 +90,7 @@ internal sealed class LandBattleScene : GameWindow
     public static bool Run(Window? owner, Engine.Game game, LandBattle battle, GameRandom dice)
     {
         // 배치 판과 같은 셈이다 — 화면 점에 딱 떨어져야 점이 안 뭉갠다.
-        int zoom = GameUi.PixelFit(owner, LandArt.FieldWidth, LandArt.FieldHeight);
-        double scale = GameUi.PixelZoom(owner, zoom);
+        double scale = GameUi.PixelFitDip(owner, LandArt.FieldWidth, LandArt.FieldHeight);
 
         var scene = new LandBattleScene(game, battle, scale) { _game = game, _dice = dice };
         if (owner != null) scene.Owner = owner;
@@ -175,10 +174,12 @@ internal sealed class LandBattleScene : GameWindow
             }
             if (!_battle.NextTurn())
             {
-                // 열 턴이 다하면 물러난 것으로 친다(0x00449420).
-                NoticeDialog.Show(this, "날이 저물었다. 이번에는 물러선다.", "");
-                Settle(won: false, retreated: true, dice);
-                return false;
+                // 열 턴이 끝이다(0x00449420). <b>마을 공략은 이길 길이 없이 물러나고</b>,
+                // 들에서 마주친 부대(갈래 1)는 열 턴을 버티면 적이 물러가 이긴 것이 된다.
+                bool held = _battle.TimeUpWon;
+                NoticeDialog.Show(this, _battle.TimeUpWord(dice), "");
+                Settle(held, retreated: !held, dice);
+                return held;
             }
         }
     }
@@ -213,7 +214,7 @@ internal sealed class LandBattleScene : GameWindow
             return ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
                                      _battle.OrderRows(canDuel: _battle.DuelOffered(dice),
                                                        canRuse: _battle.AnyRuseLeft),
-                                     Corner);
+                                     Corner, exitRow: false);
         }
         finally
         {
@@ -247,7 +248,8 @@ internal sealed class LandBattleScene : GameWindow
         int pick;
         _showMen = true;
         Redraw();
-        try { pick = ChoiceDialog.Pick(this, $" {LandBattle.RuseTitle} ", _battle.RuseRows(), Corner); }
+        try { pick = ChoiceDialog.Pick(this, $" {LandBattle.RuseTitle} ", _battle.RuseRows(),
+                                       Corner, exitRow: false); }
         finally { _showMen = false; Redraw(); }
 
         if (pick < 0 || pick == LandBattle.Judgement) return;
@@ -563,10 +565,42 @@ internal sealed class LandBattleScene : GameWindow
     /// <c>0x00446210</c> 이 <c>+0x114</c> 를 0 부터 3 까지만 올린다. 제독 조각(파트 14)을
     /// 떠 보면 0·1 이 선 자세, 2·3 이 찌르는 자세다.
     /// </remarks>
-    private const int SwingFrames = 4;
+    /// <summary>
+    /// 치는 몸짓은 부대 조각 <b>여덟 장을 다 돌린다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 앞 넉 장만 돌렸다. 그러면 <b>치는 자세가 아예 안 나온다</b> — 총병은
+    /// 총구 불꽃(4·5장)도 연기(6·7장)도 판에 있는데 화면에 뜨질 않아 쏘는 티가 안 났고,
+    /// 중장기병은 창을 치켜들다 말았다.
+    ///
+    /// 갈무리(「중장기병 공격 모션」, 0.1초 간격 열여섯 장)에서 치는 동안의 자세가
+    /// 치켜듦(2장) → 왼쪽 찌름(4장) → 오른아래 뻗음(6장) → 제자리(0장) 로 <b>한 장씩
+    /// 건너뛰어</b> 보인다. 곧 게임은 여덟 장을 <b>한 눈금씩</b> 넘기고, 0.1초로 뜬 갈무리가
+    /// 그 가운데 하나씩만 잡은 것이다. 도는 시간은 400밀리초로 예전과 같다.
+    ///
+    /// <b>차례는 1 부터 돌아 0 으로 닫는다</b>(1·2·3·4·5·6·7·0). 갈무리에 잡힌 넷이
+    /// 2·4·6·0 인 것이 곧 그 차례를 하나씩 건너뛴 것이다. 끝을 7 로 두면 창을 뻗은 채
+    /// 굳어 버려 <b>휘두른 느낌이 안 난다</b> — 피해 숫자가 뜨는 동안 그 자세로 서 있게 된다.
+    /// </remarks>
+    private const int SwingFrames = 8;
 
-    /// <summary>소리는 <b>셋째 장</b>에서 난다(<c>0x0044623B</c> 의 <c>ebp == 2</c>).</summary>
-    private const int SoundFrame = 2;
+    /// <summary>치는 몸짓 한 장이 머무는 밀리초 — <b>한 눈금</b>이다.</summary>
+    private const int BlowMs = Tick;
+
+    /// <summary>
+    /// 걸어 나갈 때 쓰는 몸짓 수 — 넉 장을 넘으면 붙든다(<c>0x00446310</c>).
+    /// </summary>
+    /// <remarks>걷는 것은 <b>여전히 앞 넉 장</b>이다. 뒷 넉 장은 치는 자세라 걸음에 안 쓴다.</remarks>
+    private const int WalkFrames = 4;
+
+    /// <summary>
+    /// 소리가 나는 장(<c>0x0044623B</c> 의 <c>ebp == 2</c>).
+    /// </summary>
+    /// <remarks>
+    /// 넉 장을 돌리던 때의 <b>셋째 장</b>과 같은 순간이라 여덟 장에서는 다섯째다. 총병의
+    /// 총구 불꽃이 서는 자리(4장)와도 맞아떨어진다.
+    /// </remarks>
+    private const int SoundFrame = 4;
 
     /// <summary>
     /// 맞은 부대를 좌우로 흔드는 값(표 <c>0x00549C08</c>).
@@ -667,7 +701,7 @@ internal sealed class LandBattleScene : GameWindow
             int strides = StridesOf(slot);
             for (int i = 1; i <= strides; i++)
             {
-                _actFrame = Math.Min(i, SwingFrames - 1);
+                _actFrame = Math.Min(i, WalkFrames - 1);
                 _actDx = dx * i;
                 _actDy = dy * i;
                 Redraw();
@@ -679,12 +713,14 @@ internal sealed class LandBattleScene : GameWindow
         //    소리는 장마다가 아니라 <b>셋째 장</b>에서 한 번 난다.
         foreach (var line in blows)
             for (int r = 0; r < rounds; r++)
-                for (int f = 0; f < SwingFrames; f++)
+                for (int f = 1; f <= SwingFrames; f++)
                 {
+                    // 한 바퀴를 <b>다음 장부터</b> 돌아 제자리 자세(0)로 닫는다.
+                    int pose = f % SwingFrames;
                     if (f == SoundFrame && line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
-                    _actFrame = f;
+                    _actFrame = pose;
                     Redraw();
-                    Rest(SwingMs);
+                    Rest(BlowMs);
                 }
     }
 
@@ -701,7 +737,7 @@ internal sealed class LandBattleScene : GameWindow
             int strides = StridesOf(_acting);
             for (int i = strides - 1; i >= 0; i--)
             {
-                _actFrame = Math.Min(Math.Max(i, 1), SwingFrames - 1);
+                _actFrame = Math.Min(Math.Max(i, 1), WalkFrames - 1);
                 _actDx = dx * i / strides;
                 _actDy = dy * i / strides;
                 Redraw();

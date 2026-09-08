@@ -12,7 +12,7 @@ namespace CdsHelper.Support.Local.Models;
 /// <param name="Tonnage">적재중량.</param>
 /// <param name="Crew">필요승인.</param>
 /// <param name="Guns">대포수.</param>
-/// <param name="Price">값(닢).</param>
+/// <param name="Price">값(닢). 선체 표 <c>+0x38</c> 계수의 1000배다.</param>
 /// <param name="Skin">
 /// 배 그림 벌(0~3). <c>asset/ship-g0</c> ~ <c>ship-g3</c> 와 짝이고, 큰 배일수록 큰 번호다.
 /// <see cref="SpriteFolder"/> 를 준 배는 이 값을 안 본다.
@@ -41,8 +41,19 @@ public sealed record Hull(
 
     /// <summary>
     /// 살 수 있는 다섯 종류. 게임 표에 나오는 차례 그대로다(위가 큰 배).
-    /// 값은 아래에서부터 100닢씩 올라간다.
     /// </summary>
+    /// <remarks>
+    /// <b>값은 선체 표에서 읽어 왔다.</b> 예전에는 아래에서부터 100닢씩 올려 어림으로
+    /// 넣어 두었는데(카라벨 100닢), 게임 값과 자릿수가 달랐다. 표
+    /// (<c>0x004FC1E0</c>, 64바이트 x 8)의 <c>+0x38</c> 이 계수이고 구입값이 그 <b>1000배</b>다 —
+    /// <c>0x0044B450</c> 이 <c>[표+0x38]</c> 을 읽어 <c>5c → 25c → 125c → shl 3</c> 으로 민다.
+    /// <code>
+    ///   코구 7  카라벨 10  대형카라벨 40  카락 50  대형카락 100  중카락 180  갤리온 250  다우 60
+    /// </code>
+    /// 나머지 값도 같은 표에서 왔다 — 내구 <c>+0x14</c> · 추진 <c>+0x0C</c> · 용량 <c>+0x24</c> ·
+    /// 중량 <c>+0x1C</c> · 대포 <c>+0x2C</c> 는 <b>아래값</b>이고(윗값이 그 옆 칸이다),
+    /// 필요승인은 <c>+0x34</c> 에 10 을 더한 것이다.
+    /// </remarks>
     /// <remarks>
     /// <see cref="Skin"/> 은 게임의 선체→그림 표(<c>0x005695D8</c>)를 그대로 옮긴 것이다.
     /// 배 아틀라스(<c>0x005D68C8</c>, 48x48 x 8방향 x 넉 벌)에서 어느 벌을 뜨는지가 이 값이다
@@ -60,11 +71,11 @@ public sealed record Hull(
     /// </remarks>
     public static readonly Hull[] Builtin =
     [
-        new("갤리온",     70, 55, 375, 3500, 40, 24, 500, 3),
-        new("중카락",     60, 35, 400, 4000, 45, 24, 400, 2),
-        new("카락",       30, 60, 200, 1750, 20,  6, 300, 2),
-        new("대형카라벨", 35, 50, 250, 2000, 30,  8, 200, 1, CanChangeSail: false),
-        new("카라벨",     20, 80, 125, 1250, 15,  2, 100, 1, MaxMasts: 2, CanChangeSail: false),
+        new("갤리온",     70, 55, 375, 3500, 40, 24, 250000, 3),
+        new("중카락",     60, 35, 400, 4000, 45, 24, 180000, 2),
+        new("카락",       30, 60, 200, 1750, 20,  6,  50000, 2),
+        new("대형카라벨", 35, 50, 250, 2000, 30,  8,  40000, 1, CanChangeSail: false),
+        new("카라벨",     20, 80, 125, 1250, 15,  2,  10000, 1, MaxMasts: 2, CanChangeSail: false),
     ];
 
     private static Hull[]? _all;

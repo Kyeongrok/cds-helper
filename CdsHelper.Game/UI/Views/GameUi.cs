@@ -409,6 +409,27 @@ internal static class GameUi
         return zoom;
     }
 
+    /// <summary>
+    /// <b>DIP 기준</b> 곱 — 원본과 같은 크기로 걸 때 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PixelFit"/> 는 화면 점에서 정수배가 되도록 곱을 한 번 더 올린다. 점을
+    /// 안 뭉개고 걸려던 것인데, <b>보간해서 거는 판</b>(육상전·부대배치)은 그럴 까닭이 없고
+    /// 정수배로 올리면 원본보다 창이 커진다.
+    ///
+    /// 배율 175% 짜리 화면에서 원본 창을 재면 640점짜리 판이 1115점으로 뜬다
+    /// (1115 ÷ 640 = 1.74 = 그 배율). 곧 원본은 <b>1배(DIP)</b> 그대로다. 우리도 그렇게 건다 —
+    /// <see cref="PixelFit"/> 로 두면 2배가 잡혀 1280점이 되어 14% 크다.
+    /// </remarks>
+    public static int PixelFitDip(Visual? owner, int w, int h, int most = 3)
+    {
+        if (w <= 0 || h <= 0) return 1;
+
+        double roomW = (owner as FrameworkElement)?.ActualWidth ?? w;
+        double roomH = (owner as FrameworkElement)?.ActualHeight ?? h;
+        return Math.Clamp((int)Math.Min(roomW * FitMargin / w, roomH * FitMargin / h), 1, most);
+    }
+
     /// <summary>창을 꽉 채우지 않고 남기는 몫.</summary>
     private const double FitMargin = 0.95;
 

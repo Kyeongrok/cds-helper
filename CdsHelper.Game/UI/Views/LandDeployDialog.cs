@@ -152,8 +152,7 @@ internal sealed class LandDeployDialog : GameWindow
         // 판을 <b>화면 점</b>에 딱 떨어지게 앉힌다 — 배율이 175%인 화면에서 그냥
         // DIP 로 재면 곱이 1 로 깎이고, 그 1배 그림을 창이 다시 1.75배로 늘리면서
         // 점이 고르지 않게 겹쳐 그림이 찌그러진다.
-        int zoom = GameUi.PixelFit(owner, LandArt.BoardWidth, LandArt.BoardHeight);
-        double scale = GameUi.PixelZoom(owner, zoom);
+        double scale = GameUi.PixelFitDip(owner, LandArt.BoardWidth, LandArt.BoardHeight);
 
         var window = new LandDeployDialog(game, cityName, roster, scale);
         if (owner != null) window.Owner = owner;
@@ -195,7 +194,7 @@ internal sealed class LandDeployDialog : GameWindow
         Canvas.SetLeft(_layer, 0);
         Canvas.SetTop(_layer, 0);
 
-        RenderOptions.SetBitmapScalingMode(_ghost, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_ghost, BitmapScalingMode.Fant);
         Panel.SetZIndex(_ghost, 100);
         _board.Children.Add(_ghost);
 
@@ -263,7 +262,8 @@ internal sealed class LandDeployDialog : GameWindow
     /// <param name="drawH">화면에 걸 높이. 부대 그림은 두 배로 늘려 건다.</param>
     private static Image Put(uint[] bgra, int w, int h, int drawW = 0, int drawH = 0)
     {
-        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
+        // 곧은 알파로 두고 보간하면 비치는 자리의 검정이 배어 나와 둘레에 어두운 테가 낀다.
+        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Pbgra32, null, bgra, w * 4);
         bmp.Freeze();
 
         var image = new Image
@@ -273,7 +273,7 @@ internal sealed class LandDeployDialog : GameWindow
             Height = drawH > 0 ? drawH : h,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Fant);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }
@@ -339,8 +339,15 @@ internal sealed class LandDeployDialog : GameWindow
         return Word(digit.ToString());
     }
 
+    /// <summary>
+    /// 게임 글꼴 한 마디 — <b>흰 글씨에 그림자 없이</b> 찍는다.
+    /// </summary>
+    /// <remarks>
+    /// 배치 판은 돌빛 바탕이라 단추색(17)으로 두면 글자가 바탕에 어둡게 묻힌다. 게임도
+    /// 이 자리는 흰 글씨를 그림자 없이 얹는다.
+    /// </remarks>
     private static FrameworkElement? Word(string text) =>
-        GameUi.GameFontLabel(text, GameFont.ButtonColor, 1, GameUi.ItemTextHeight);
+        GameUi.GameFontLabel(text, GameFont.WhiteColor, 1, GameUi.ItemTextHeight, shadow: false);
 
     /// <summary>게임이 이름 길이를 재는 방식 — 바이트 수다(<c>0x0049FDC3</c>).</summary>
     private static int Bytes(string text) =>

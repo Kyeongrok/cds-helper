@@ -40,6 +40,12 @@ internal interface ITownScreen
     /// <summary>고칠 배가 있는지(<c>0x0044BD40</c>).</summary>
     bool CanRepairShip { get; }
 
+    /// <summary>
+    /// 팔 배가 있는지 — <b>두 척은 있어야</b> 한다(<c>0x0044B863</c> 의 <c>cmp esi,1 / jle</c>).
+    /// </summary>
+    /// <remarks>기함은 못 팔므로 한 척뿐이면 고를 것이 없다.</remarks>
+    bool CanSellShip { get; }
+
     /// <summary>서가를 열 수 있는지 — 책 표를 읽었어야 한다.</summary>
     bool CanRead { get; }
 
