@@ -456,11 +456,15 @@ public sealed class DuelDialog : GameWindow
                     onHurt: Refresh,
                     onDone: () =>
                     {
-                        // 친 쪽은 나아가고 맞은 쪽은 물러난다 — 막았으면 둘 다 제자리다.
-                        if (turn.Blow is Duel.Blow.MeHit or Duel.Blow.MeGrazed)
-                            _stage.PushBack(mine: true);
-                        else if (turn.Blow is Duel.Blow.FoeHit or Duel.Blow.FoeGrazed)
-                            _stage.PushBack(mine: false);
+                        // 판 갈래대로 두 사람이 통째로 마흔 점 옮겨 간다(0x004A6EE5) —
+                        // 내가 몰아붙이면 상대 쪽으로, 막기만 하면 내 쪽으로다.
+                        // 맞부딪힘은 제자리다. 맞았는지는 안 본다.
+                        _stage.Drift(turn.Was switch
+                        {
+                            Duel.Phase.Attack => -1,
+                            Duel.Phase.Guard => +1,
+                            _ => 0,
+                        });
                         Settle(turn);
                     });
     }

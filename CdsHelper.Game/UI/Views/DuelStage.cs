@@ -72,8 +72,23 @@ public sealed class DuelStage : Canvas
     /// <summary>지금 두 사람이 선 자리. 들머리에는 벽에 붙어 있다.</summary>
     private double _foeLeft = FoeStart, _myLeft = MyStart;
 
-    /// <summary>한 판의 틱 수와 틱 하나의 길이.</summary>
-    public const int Ticks = 17;
+    /// <summary>
+    /// 한 판의 틱 수 — <b>서른셋</b>이다(<c>0x00572A84</c>).
+    /// </summary>
+    /// <remarks>
+    /// 열일곱으로 두었던 것은 <b>단계 0(다가서기)</b> 하나를 잰 것이었다. 게임의 한 판은
+    /// 단계 넷(<c>+0xE0</c>)이고 주고받는 단계 2 가 <b>틱 33</b> 에서 끝난다
+    /// (<c>0x004A6FDA</c>). 갈무리에서 「열일곱 장을 돌고 1.15초를 멈춘다」고 보였던 그
+    /// 멈춤이 곧 남은 열여섯 틱이다(16 x 67밀리초 = 1.07초).
+    ///
+    /// 그래서 <b>칼을 뻗은 채 굳지 않는다</b> — 벤 뒤로 스무 틱 남짓을 여느 자세로 서
+    /// 있다가 판이 닫힌다.
+    /// </remarks>
+    public const int Ticks = 33;
+
+    /// <summary>몸짓과 자리가 제자리로 다 돌아오는 틱 — 그 뒤는 서 있기만 한다.</summary>
+    private const int HomeTick = 16;
+
     private const int PoseTick = 8, HurtTick = 11, SayTick = 8;
 
     /// <summary>
@@ -225,23 +240,35 @@ public sealed class DuelStage : Canvas
     }
 
     /// <summary>
-    /// 맞은 쪽이 <b>한 걸음 밀린다</b> — 친 쪽은 그만큼 앞으로 나아간 셈이다.
+    /// 판이 끝나고 <b>두 사람이 통째로 마흔 점 옮겨 간다</b>(<c>0x004A6EE5</c>).
     /// </summary>
+    /// <param name="way">−1 내가 몰아붙임 · +1 내가 밀림 · 0 그대로.</param>
     /// <remarks>
-    /// 갈무리(「일기토 전체 2」)에서 제독이 선 자리가 판마다 <b>150 → 189 → 228</b> 로
-    /// 39점씩 물러난다. 맞을 때마다 그만큼 밀리는 것이고, 그 폭이 다가서는 거리와
-    /// 같으므로 <see cref="Approach"/> 를 그대로 쓴다 — 다가섰다가 <b>맞은 쪽만 안
-    /// 돌아오는</b> 셈이다.
-    ///
-    /// 벽까지만 밀린다. 들머리에 서던 자리(<see cref="MyStart"/> · <see cref="FoeStart"/>)가
-    /// 그 끝이다.
+    /// 게임은 판 갈래로 방향을 정해 <c>+0x144</c> 에 담아 두고, 다음 판 다가서기의 여덟째
+    /// 눈금에 <b>두 x 를 같은 만큼</b> 옮긴다.
+    /// <code>
+    ///   004a6ef0  갈래 1(내가 친다)  이고 상대 x &gt;= 40  이면  +0x144 = −1
+    ///   004a6f0a  갈래 2(내가 막는다) 이고 내 x &lt;= 200 이면  +0x144 = +1
+    ///   004a6f22  맞부딪힘이면                                  +0x144 =  0
+    ///   004a6d9a  eax = [+0x144] * 40 ; [+0x14C] += eax ; [+0x150] += eax
+    /// </code>
+    /// 곧 <b>사이는 그대로 두고 둘이 함께 미끄러진다</b>. 갈무리에서 제독 자리가 판마다
+    /// 39점씩 물러나 보였던 것이 이것인데, 예전에는 <b>맞은 쪽만</b> 밀리는 것으로 읽어
+    /// 한 사람만 옮겼다 — 그래서 판을 거듭할수록 둘 사이가 벌어졌다.
     /// </remarks>
-    public void PushBack(bool mine)
+    public void Drift(int way)
     {
-        if (mine) _myLeft = Math.Min(MyStart, _myLeft + Approach);
-        else _foeLeft = Math.Max(FoeStart, _foeLeft - Approach);
+        if (way < 0 && _foeLeft < WallNear) return;    // 상대가 벽에 닿았다
+        if (way > 0 && _myLeft > WallFar) return;      // 내가 벽에 닿았다
+        if (way == 0) return;
+
+        _myLeft += way * Approach;
+        _foeLeft += way * Approach;
         Draw();
     }
+
+    /// <summary>자리 한계 — 상대는 40 아래로, 나는 200 위로 안 간다(<c>0x004A6EF0</c>).</summary>
+    private const double WallNear = 40, WallFar = 200;
 
     /// <summary>쓰러지는 모습으로 멈춘다.</summary>
     public void Fall(bool mine)
@@ -277,7 +304,7 @@ public sealed class DuelStage : Canvas
         // 아예 안 나왔다</b>. 갈무리(「적 중단 주인공 상단」)는 8·9 눈금에 상단0·상단1 이고
         // 10~12 눈금이 상단2 다.
         if (length <= 3) return tick <= PoseTick ? 0 : tick <= PoseTick + 1 ? 1 : 2;
-        return Math.Min(length - 1, tick * length / Ticks);
+        return Math.Min(length - 1, tick * length / (HomeTick + 1));
     }
 
     /// <summary>베는 자세를 보일 눈금인지 — 그 앞뒤는 여느 자세로 오간다.</summary>
@@ -289,7 +316,7 @@ public sealed class DuelStage : Canvas
         if (_tick <= StepInTick) return 0;
         if (_tick < PoseTick) return Approach * (_tick - StepInTick) / (PoseTick - StepInTick);
         if (_tick < RestTick) return Approach + (lunge ? Lunge : 0);
-        return Approach * Math.Max(0, Ticks - 1 - _tick) / (double)(Ticks - 1 - RestTick);
+        return Approach * Math.Max(0, HomeTick - _tick) / (double)(HomeTick - RestTick);
     }
 
     private void Draw()
