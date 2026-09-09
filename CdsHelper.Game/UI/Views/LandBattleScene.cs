@@ -153,6 +153,16 @@ internal sealed class LandBattleScene : GameWindow
                 continue;
             }
 
+            // 적이 일기토를 걸어오면 그 턴은 통째로 일대일이 된다(0x004479D0 →
+            // 0x0044938E). 물리면 여느 턴으로 돌아간다.
+            if (_battle.FoeDuelOffered(dice) && ConfirmDialog.Ask(this, LandBattle.FoeDuelWord))
+            {
+                bool met = Fought(dice);
+                fight.End(met);
+                Settle(met, retreated: false, dice);
+                return met;
+            }
+
             // 「돌격」은 턴 첫머리에 한 번 소리를 낸다(0x0044932E).
             if (order == LandBattle.Charge) _game?.Sfx?.Play(LandUnits.Sound.Charge);
 

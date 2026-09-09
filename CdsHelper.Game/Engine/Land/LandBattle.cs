@@ -70,8 +70,14 @@ public sealed class LandBattle
     /// </summary>
     /// <param name="mine">아군 여섯 자리의 병종. −1 이면 빈 자리다.</param>
     /// <param name="scale">도시 규모(<c>도시 +0x08</c>). 적의 크기가 여기서 나온다.</param>
+    /// <param name="myMen">
+    /// 아군 병력. 0 이하면 <b>제독의 선원 + 1</b> 이다(<c>0x0044A7CB</c>).
+    /// 모의전에서만 따로 준다.
+    /// </param>
+    /// <param name="mock">모의전이면 참 — 값을 안 치른다.</param>
     public LandBattle(IReadOnlyList<int> mine, Player player, Player.MateInfo? aide,
-                      int scale, int nation, int culture, int terrain, GameRandom dice)
+                      int scale, int nation, int culture, int terrain, GameRandom dice,
+                      int myMen = 0, bool mock = false)
     {
         Nation = nation;
         Culture = culture;
@@ -79,8 +85,9 @@ public sealed class LandBattle
         Scale = Math.Max(0, scale);
         _me = player;
         _aide = aide;
+        _mock = mock;
 
-        int men = player.Crew + 1;
+        int men = myMen > 0 ? myMen : player.Crew + 1;
         MyFirst = men;
         Split(mine, men);
 
@@ -605,15 +612,48 @@ public sealed class LandBattle
     /// 곧 <b>적 대장이 나보다 셀수록</b> 열린다 — 내가 훨씬 세면 굳이 일대일로 겨룰
     /// 까닭이 없다는 셈이다. 운이 조금 거든다.
     ///
-    /// <b>갈래 문은 안 걸었다.</b> 우리 판은 다 마을 공략(갈래 2)이라 그대로 옮기면
-    /// 일기토가 아예 안 뜬다 — 게임에는 다른 갈래의 뭍싸움이 더 있지만 우리에게는
-    /// 아직 그 판이 없다.
+    /// <b>마을 공략에서는 아예 안 열린다</b>(<c>0x004479B0</c>) — 성을 치는 판에
+    /// 일대일이 낄 자리가 없다는 셈이다. 들에서 마주친 부대(갈래 1)에서만 열린다.
     /// </remarks>
     public bool DuelOffered(GameRandom dice)
     {
+        if (Sort != Field) return false;
+
         int odds = _me.AbilityOf(Ability.Luck) * 3 / 10
                  - _me.AbilityOf(Ability.Might) + FoeMight;
         return odds > 0 && dice.Next(100) <= odds;
+    }
+
+    /// <summary>적장이 하는 말(<c>0x0056D228</c>).</summary>
+    public const string FoeDuelWord = "남자라면 일대일로 싸워라! 어떠냐?";
+
+    /// <summary>
+    /// <b>적이</b> 일기토를 걸어오는지(<c>0x004479D0</c>) — 걸어오면 물어야 한다.
+    /// </summary>
+    /// <remarks>
+    /// 내가 거는 쪽(<see cref="DuelOffered"/>)과 잣대가 아주 다르다. 이쪽은
+    /// <b>병사수</b>만 보고 능력은 안 본다 — <b>적이 밀릴 때</b> 판을 뒤집으려 든다.
+    /// <code>
+    ///   004479d7  갈래가 2 나 4 면 안 건다
+    ///   004479e1  적 정원 x 4/10 &gt; 적 첫 칸 병사수 면 아래 문을 건너뛴다
+    ///   004479f7      아니면 적 부대 수가 넷 이상이면 안 건다
+    ///   00447a09  적 병사수 합 &gt;= 아군 병사수 합 이면 안 건다      ★
+    ///   00447a1d  rand(10) &lt;= 3 이면 안 건다                       ; 열에 여섯
+    ///   00447a2c  "남자라면 일대일로 싸워라! 어떠냐?" 로 묻는다
+    /// </code>
+    /// 곧 <b>적 병사수가 적고</b>, 그 위에 <b>적 부대가 셋 이하로 줄었거나 첫 칸이
+    /// 정원의 4할 밑으로 깎였어야</b> 한다.
+    /// </remarks>
+    public bool FoeDuelOffered(GameRandom dice)
+    {
+        if (Sort != Field) return false;
+
+        // 적 첫 칸이 아직 성하면 부대 수까지 본다.
+        if (_units[FirstFoe].Men >= RoomPerUnit(FirstFoe) * 4 / 10
+            && Standing(FirstFoe) > 3) return false;
+
+        if (MenOn(foe: true) >= MenOn(foe: false)) return false;
+        return dice.Next(10) > 3;
     }
 
     /// <summary>

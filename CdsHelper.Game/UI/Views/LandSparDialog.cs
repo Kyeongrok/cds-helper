@@ -35,6 +35,10 @@ internal sealed class LandSparDialog : GameWindow
     private readonly ComboBox _terrain = new() { Width = PickWidth };
     private readonly ComboBox _culture = new() { Width = PickWidth };
     private readonly ComboBox _sort = new() { Width = PickWidth };
+    private readonly ComboBox _target = new() { Width = 190 };
+
+    /// <summary>상대 칸에 늘어놓은 도시 번호 — 갈래가 마을 공략일 때 쓴다.</summary>
+    private readonly List<int> _cityIds = [];
 
     /// <summary>고르고 나면 그 짜임. 물렀으면 null.</summary>
     private Setup? _made;
@@ -74,8 +78,13 @@ internal sealed class LandSparDialog : GameWindow
     /// <summary>모의전 한 판의 짜임.</summary>
     /// <param name="Mine">아군 여섯 자리의 병종. −1 이면 빈 자리다.</param>
     /// <param name="Theirs">적 여섯 자리.</param>
+    /// <param name="Target">
+    /// 상대 — 마을 공략이면 <b>도시 번호</b>, 들싸움이면 <see cref="LandFieldFoes.All"/>
+    /// 의 자리다. −1 이면 안 골랐다.
+    /// </param>
     internal readonly record struct Setup(int[] Mine, int[] Theirs, int MyMen, int FoeMen,
-                                          int Culture, int Terrain, int Sort = LandBattle.Town);
+                                          int Culture, int Terrain, int Sort = LandBattle.Town,
+                                          int Target = -1);
 
     /// <summary>
     /// 싸움 갈래 둘 — 차례가 <see cref="Sorts"/> 다.
@@ -87,11 +96,18 @@ internal sealed class LandSparDialog : GameWindow
     private static readonly (string Name, int Value)[] Sorts =
         [("마을 공략", LandBattle.Town), ("들에서 마주침", LandBattle.Field)];
 
+    /// <summary>마을 공략의 싸움터는 늘 도시다(<c>0x0044A5B0</c> 의 다섯째 인자 7).</summary>
+    private const int TownField = 0;
+
     /// <summary>싸움터 그림 넷 — <see cref="LandBattle.Terrain"/> 차례다.</summary>
     private static readonly string[] Fields = ["도시", "초지", "숲", "황무지"];
 
-    private LandSparDialog()
+    /// <summary>「상대」 칸에 늘어놓을 도시들. 표를 못 열면 빈 목록이다.</summary>
+    private readonly IReadOnlyList<CityTable.Entry> _towns;
+
+    private LandSparDialog(IReadOnlyList<CityTable.Entry> towns)
     {
+        _towns = towns;
         Title = "육상전 모의전";
         Width = 640;
         SizeToContent = SizeToContent.Height;
@@ -122,7 +138,15 @@ internal sealed class LandSparDialog : GameWindow
         page.Children.Add(next);
 
         foreach (var (name, _) in Sorts) _sort.Items.Add(name);
+        _sort.SelectionChanged += (_, _) => FillTargets();
         _sort.SelectedIndex = 0;
+
+        var pick = new StackPanel { Orientation = Orientation.Horizontal,
+                                    Margin = new Thickness(0, 0, 0, 6) };
+        pick.Children.Add(Label("상대", 52));
+        pick.Children.Add(_target);
+        page.Children.Add(pick);
+        FillTargets();
 
         foreach (string field in Fields) _terrain.Items.Add(field);
         _terrain.SelectedIndex = 0;
@@ -174,6 +198,9 @@ internal sealed class LandSparDialog : GameWindow
         _culture.SelectedIndex = Math.Clamp(was.Culture, 0, CultureNames.Length - 1);
         _terrain.SelectedIndex = Math.Clamp(was.Terrain, 0, Fields.Length - 1);
         _sort.SelectedIndex = Math.Max(0, Array.FindIndex(Sorts, s => s.Value == was.Sort));
+        FillTargets();
+        int at = _cityIds.Count > 0 ? _cityIds.IndexOf(was.Target) : was.Target;
+        if (at >= 0 && at < _target.Items.Count) _target.SelectedIndex = at;
     }
 
     /// <summary>
@@ -212,6 +239,46 @@ internal sealed class LandSparDialog : GameWindow
     /// 싸운다. 모의전은 시험 자리라 아예 못 고르게 막는다.
     /// </remarks>
     private static bool CanBeMine(int kind) => LandUnitArt.DeploySheet(kind) >= 0;
+
+    /// <summary>
+    /// 갈래에 맞춰 「상대」 칸을 다시 채운다.
+    /// </summary>
+    /// <remarks>
+    /// 마을 공략이면 <b>도시</b>를 고른다 — 그 도시의 나라·문화권·규모로 판을 세우고
+    /// 적은 게임처럼 진형표에서 지어낸다. 들싸움이면 <b>뭍에서 마주치는 부대 열여섯</b>
+    /// (<see cref="LandFieldFoes"/>) 가운데 하나를 고르고, 그 벌의 병력을 굴려 넣는다.
+    /// </remarks>
+    private void FillTargets()
+    {
+        bool town = Sorts[Math.Max(0, _sort.SelectedIndex)].Value == LandBattle.Town;
+
+        _target.Items.Clear();
+        _cityIds.Clear();
+
+        if (town)
+        {
+            foreach (var city in _towns.OrderBy(c => c.Id))
+            {
+                _cityIds.Add(city.Id);
+                _target.Items.Add($"{city.Id,3} {city.Name}");
+            }
+        }
+        else
+        {
+            foreach (var party in LandFieldFoes.All)
+                _target.Items.Add($"{party.Name} ({party.Where})");
+        }
+
+        if (_target.Items.Count > 0) _target.SelectedIndex = 0;
+    }
+
+    /// <summary>고른 상대 — 마을 공략이면 도시 번호, 들싸움이면 부대 자리다.</summary>
+    private int PickedTarget()
+    {
+        int at = _target.SelectedIndex;
+        if (at < 0) return -1;
+        return _cityIds.Count > 0 ? (at < _cityIds.Count ? _cityIds[at] : -1) : at;
+    }
 
     /// <summary>한 쪽의 여섯 자리와 병력 칸.</summary>
     /// <param name="friend">아군 쪽인지 — 그러면 <see cref="FoeOnly"/> 가 흐리다.</param>
@@ -288,7 +355,7 @@ internal sealed class LandSparDialog : GameWindow
 
         _made = new Setup(mine, theirs, Men(_myMen), Men(_foeMen),
                           _culture.SelectedIndex, _terrain.SelectedIndex,
-                          Sorts[Math.Max(0, _sort.SelectedIndex)].Value);
+                          Sorts[Math.Max(0, _sort.SelectedIndex)].Value, PickedTarget());
         Last = _made;                            // 다음에 열 때 이대로 되편다
         Close();
     }
@@ -308,7 +375,7 @@ internal sealed class LandSparDialog : GameWindow
     /// </summary>
     public static void Play(Window owner, Engine.Game game)
     {
-        var setup = new LandSparDialog { Owner = owner };
+        var setup = new LandSparDialog(game.CityTable.Cities) { Owner = owner };
         setup.ShowDialog();
         if (setup._made is not { } made) return;
 
@@ -319,8 +386,28 @@ internal sealed class LandSparDialog : GameWindow
         var aide = player.Mates.Count > 0 && player.Mates[0].Length > 0
             ? player.MateInfoOf(player.Mates[0]) : null;
 
-        var field = new LandBattle(made.Mine, made.Theirs, made.MyMen, made.FoeMen,
-                                   player, aide, made.Culture, made.Terrain, dice, made.Sort);
+        // 마을 공략은 <b>그 도시로 진짜 판을 세운다</b> — 나라·문화권·규모를 도시에서
+        // 떠 오고 적은 진형표에서 지어낸다(0x004A1320). 모의전이라 값은 안 치른다.
+        LandBattle field;
+        if (made.Sort == LandBattle.Town && made.Target >= 0)
+        {
+            var rows = game.CityRows;
+            field = new LandBattle(made.Mine, player, aide,
+                                   rows?.ScaleOf(made.Target) ?? 3,
+                                   rows?.NationOf(made.Target) ?? -1,
+                                   rows?.CultureOf(made.Target) ?? made.Culture,
+                                   TownField, dice, made.MyMen, mock: true);
+        }
+        else
+        {
+            // 들싸움은 고른 부대의 병력을 굴려 넣는다(0x0048BF8B) — 편성은 창에서 고른 것이다.
+            int foeMen = made.Target >= 0 ? LandFieldFoes.MenOf(made.Target, dice) : made.FoeMen;
+            int culture = made.Target >= 0
+                ? LandFieldFoes.All[made.Target].Culture : made.Culture;
+            field = new LandBattle(made.Mine, made.Theirs, made.MyMen, foeMen,
+                                   player, aide, culture, made.Terrain, dice, made.Sort);
+        }
+
         LandBattleScene.Run(owner, game, field, dice);
     }
 }
