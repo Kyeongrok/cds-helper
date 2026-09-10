@@ -22,7 +22,8 @@ namespace CdsHelper.Game.UI.Views;
 ///   45d568      값 = 생일보정 + rand(나이) + 직업보정 + 나이보정 + 50, 20~100 으로 자른다
 ///   45d5d5      보너스 = 합으로 갈린다 — 잘 굴렸을수록 덜 준다
 /// </code>
-/// <b>직업을 바꿔도 다시 안 굴린다.</b> 굴리는 <c>0x0045D450</c> 을 부르는 데는
+/// <b>직업을 바꾸면 다시 굴린다</b> — 이 자리만은 게임과 다르다. 원본은 굴리는
+/// <c>0x0045D450</c> 을 부르는 데는
 /// <c>0x0045D022</c> 한 곳뿐인데, 그 자리는 <b>앞 걸음(신상)의 끝</b>이다 — 이 화면에
 /// 들어오기 전에 이미 굴려 놓는다는 뜻이다. 그래서 직업 보정표는 새 놀이에서는
 /// 늘 0번 줄(탐험가, 값이 다 0)로 걸리고, 표의 나머지 줄은 부하·NPC 쪽에서만 쓰인다.
@@ -77,12 +78,28 @@ internal sealed class AbilityMakeDialog : InfoDialog
     private int _left, _job;
     private bool _ok;
 
-    private AbilityMakeDialog(Player player, Random rng)
+    /// <summary>직업을 바꿀 때 다시 굴리려고 들고 있는 것들.</summary>
+    private readonly Random _rng;
+    private readonly int _birthMonth, _birthDay;
+
+    /// <param name="spare">
+    /// 0 이상이면 <b>다시 굴리지 않는다</b> — 앞서 손본 능력치를 그대로 이어받고 남은
+    /// 보너스도 이 값으로 둔다. 기술 화면에서 되돌아왔을 때가 그렇다.
+    /// </param>
+    private AbilityMakeDialog(Player player, Random rng, int spare)
     {
         _age = player.Age;
         _job = player.JobIndex;
-        _stats = Ability.Roll(Job.Of(_job), _age, player.BirthMonth, player.BirthDay, rng);
-        _left = Ability.BonusFor(_stats, rng);
+        _rng = rng;
+        _birthMonth = player.BirthMonth;
+        _birthDay = player.BirthDay;
+
+        // 되돌아온 걸음이면 굴리지 않는다 — 굴려 버리면 손본 것이 죄다 날아간다.
+        bool again = spare >= 0;
+        _stats = again
+            ? [.. player.Abilities]
+            : Ability.Roll(Job.Of(_job), _age, player.BirthMonth, player.BirthDay, rng);
+        _left = again ? spare : Ability.BonusFor(_stats, rng);
 
         var left = new StackPanel { Margin = new Thickness(6, 0, 0, 0) };
         for (int i = 0; i < Ability.Shown; i++)
@@ -264,12 +281,22 @@ internal sealed class AbilityMakeDialog : InfoDialog
     }
 
     /// <summary>
-    /// 직업을 고른다. 게임이 그렇듯 <b>능력치는 다시 안 굴린다</b> — 이 고름은 다음
-    /// 걸음의 기본 기술에만 걸린다.
+    /// 직업을 고른다 — <b>그 자리에서 능력치를 다시 굴린다</b>.
     /// </summary>
+    /// <remarks>
+    /// <b>게임과 다른 자리다.</b> 원본은 굴리는 <c>0x0045D450</c> 을 이 화면에 들어오기
+    /// 전에 한 번만 부르고, 직업을 바꿔도 다시 안 굴린다 — 직업 보정표
+    /// (<c>0x0051ACA0</c>)는 새 놀이에서 안 쓰이는 셈이다.
+    ///
+    /// 여기서는 <b>골라 가며 굴려 보라고</b> 다시 굴린다. 직업 보정이 값에 실제로
+    /// 얹히므로 탐험가·발굴자·사냥꾼·정복자가 서로 다르게 나온다. 손으로 올려 둔 것과
+    /// 남은 보너스도 함께 새로 잡힌다.
+    /// </remarks>
     private void ChooseJob(int pick)
     {
         _job = pick;
+        _stats = Ability.Roll(Job.Of(_job), _age, _birthMonth, _birthDay, _rng);
+        _left = Ability.BonusFor(_stats, _rng);
         Sync();
     }
 
@@ -300,9 +327,12 @@ internal sealed class AbilityMakeDialog : InfoDialog
     /// 능력치 화면을 띄운다. "다음" 을 누르면 <paramref name="player"/> 에 적고, 남은
     /// 보너스 포인트를 낸다(무른 것이면 -1).
     /// </summary>
-    public static int Show(Window owner, Player player, Random rng)
+    /// <param name="spare">
+    /// 앞서 남긴 보너스. 0 이상이면 능력치를 <b>다시 안 굴리고</b> 그 자리에서 잇는다.
+    /// </param>
+    public static int Show(Window owner, Player player, Random rng, int spare = -1)
     {
-        var dialog = new AbilityMakeDialog(player, rng) { Owner = owner };
+        var dialog = new AbilityMakeDialog(player, rng, spare) { Owner = owner };
         dialog.ShowDialog();
         if (!dialog._ok) return -1;
 

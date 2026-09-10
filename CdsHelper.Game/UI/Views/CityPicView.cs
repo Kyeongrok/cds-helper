@@ -992,7 +992,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 PatronRow: patron == null ? null : Patrons.PatronRow(patron),
                 Commented: Commented(code),
                 Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,
-                Contracted: _player.Contract != null),
+                Contracted: _player.Contract != null,
+                HasHeir: _player.Heirs.Count > 0,
+                Wed: Home.CanLeaveHeir(_player)),
             this);
     }
 
