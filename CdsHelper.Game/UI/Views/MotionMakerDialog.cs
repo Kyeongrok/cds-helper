@@ -1,6 +1,5 @@
 ﻿using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -155,8 +154,9 @@ public sealed class MotionMakerDialog : GameWindow
         Foreground = Brushes.Gray,
     };
 
-    /// <summary>적어 둔 모션 고르기.</summary>
-    private readonly ComboBox _motion = new() { Width = 160 };
+    /// <summary>쪽마다의 모션 고르기 — 고르면 그 차례가 곧바로 든다.</summary>
+    private readonly ComboBox _foeMotion = new() { Width = 150 };
+    private readonly ComboBox _myMotion = new() { Width = 150 };
 
     /// <summary>짝을 지을 때 보는 이름들 — 앞이 찌르기 셋, 뒤가 막기 셋이다.</summary>
     private static readonly string[] Lines =
@@ -427,8 +427,6 @@ public sealed class MotionMakerDialog : GameWindow
             Tell();
         }, 10);
 
-        var copy = Push("베끼기", Copy, 14);
-
         var bar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -456,7 +454,6 @@ public sealed class MotionMakerDialog : GameWindow
         bar.Children.Add(next);
         bar.Children.Add(_loop);
         bar.Children.Add(all);
-        bar.Children.Add(copy);
 
         var rows = new StackPanel();
         rows.Children.Add(bar);
@@ -467,17 +464,21 @@ public sealed class MotionMakerDialog : GameWindow
     /// <summary>적어 둔 모션을 골라 넣고, 고친 것을 되적는 줄.</summary>
     private UIElement MotionRow()
     {
-        foreach (var motion in DuelMotions.All) _motion.Items.Add(motion.Name);
-        _motion.SelectedIndex = 1;                      // 상단 공격
+        foreach (var box in new[] { _foeMotion, _myMotion })
+        {
+            foreach (var motion in DuelMotions.All) box.Items.Add(motion.Name);
+            box.SelectedIndex = -1;                     // 그림을 읽고 나서 밑값을 넣는다
+        }
 
-        var toFoe = Push("적군에 넣기", () => Put(_foe), 10);
-        var toMine = Push("아군에 넣기", () => Put(_mine), 10);
+        // 고르는 그 자리에서 든다 — 「넣기」 단추가 따로 없다.
+        _foeMotion.SelectionChanged += (_, _) => Chose(_foe, _foeMotion);
+        _myMotion.SelectionChanged += (_, _) => Chose(_mine, _myMotion);
 
-        // 공격과 막기는 짝이라 한꺼번에 세워 보는 일이 잦다. 이름에 <b>어느 쪽에 드는지</b>를
-        // 적어 둔다 — 「맞세우기」만으로는 고른 것이 아군에 드는지 적군에 드는지 알 수 없다.
-        var pair = Push("아군에 넣고 맞세우기", Face, 10);
-        pair.ToolTip = "고른 것을 아군에 넣고, 적군에는 그것을 받는 몸짓을 세운다"
-                     + " — 상단 공격이면 적군은 웅크린다, 뛴다면 적군은 하단 공격이다";
+        // 공격과 막기는 짝이라 한꺼번에 세워 보는 일이 잦다. 아군 것을 고른 뒤 누르면
+        // 적군에 그것을 받는 몸짓이 선다.
+        var pair = Push("맞세우기", Face, 10);
+        pair.ToolTip = "아군 것에 맞춰 적군을 세운다"
+                     + " — 아군이 상단 공격이면 적군은 웅크린다, 뛴다면 적군은 하단 공격이다";
 
         // 고친 차례를 그 모션으로 되적는다 — 놀이가 이 파일을 읽는다.
         var keep = Push("저장", Keep, 14);
@@ -487,12 +488,18 @@ public sealed class MotionMakerDialog : GameWindow
         var back = Push("되돌리기", Undo, 10);
         back.ToolTip = "적어 둔 파일을 지우고 게임 표에서 짚은 밑값으로 돌린다";
 
-        // 차례 전체의 점을 한꺼번에 민다 — 장마다 스피너를 굴리지 않아도 된다.
+        // 차례 전체의 점과 초를 한꺼번에 민다 — 장마다 스피너를 굴리지 않아도 된다.
         var less = Push("－", () => ShiftPush(-PushStep), 8);
         less.ToolTip = "이 차례의 점을 죄다 5 줄인다 (뒤로 민다)";
         var more = Push("＋", () => ShiftPush(+PushStep), 8);
         more.ToolTip = "이 차례의 점을 죄다 5 늘린다 (앞으로 민다)";
-        foreach (var one in new[] { less, more })
+
+        var slower = Push("－", () => ShiftSeconds(-SecondsStep), 8);
+        slower.ToolTip = "이 차례의 초를 죄다 0.01 줄인다 (빨라진다)";
+        var faster = Push("＋", () => ShiftSeconds(+SecondsStep), 8);
+        faster.ToolTip = "이 차례의 초를 죄다 0.01 늘린다 (느려진다)";
+
+        foreach (var one in new[] { less, more, slower, faster })
         {
             one.Width = 26;
             one.FontSize = 13;
@@ -503,11 +510,11 @@ public sealed class MotionMakerDialog : GameWindow
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(12, 0, 12, 8),
         };
-        row.Children.Add(Label("모션", 108));
-        row.Children.Add(_motion);
+        row.Children.Add(Label("적군 모션", 74));
+        row.Children.Add(_foeMotion);
+        row.Children.Add(Label("아군 모션", 74));
+        row.Children.Add(_myMotion);
         row.Children.Add(new TextBlock { Width = 8 });
-        row.Children.Add(toFoe);
-        row.Children.Add(toMine);
         row.Children.Add(pair);
         row.Children.Add(new TextBlock { Width = 8 });
         row.Children.Add(keep);
@@ -515,13 +522,18 @@ public sealed class MotionMakerDialog : GameWindow
         row.Children.Add(Label("점 모두", 62));
         row.Children.Add(less);
         row.Children.Add(more);
+        row.Children.Add(Label("초 모두", 62));
+        row.Children.Add(slower);
+        row.Children.Add(faster);
         return row;
     }
 
-    /// <summary>고른 모션을 그쪽 차례로 옮긴다.</summary>
-    private void Put(Lane lane)
+    /// <summary>그 상자에서 고른 모션을 그쪽 차례로 옮긴다.</summary>
+    private void Chose(Lane lane, ComboBox box)
     {
-        var motion = DuelMotions.All[Math.Max(0, _motion.SelectedIndex)];
+        if (box.SelectedIndex < 0 || box.SelectedIndex >= DuelMotions.All.Count) return;
+
+        var motion = DuelMotions.All[box.SelectedIndex];
         Fill(lane, motion);
         _status.Text = $"{lane.Name} 에 「{motion.Name}」 {motion.Steps.Length}장을 넣었습니다"
                      + $" — 모두 {motion.Length:0.00}초.";
@@ -538,6 +550,34 @@ public sealed class MotionMakerDialog : GameWindow
         lane.Picked = 0;
         _touched = lane;
         Sync(lane);
+    }
+
+    /// <summary>초를 한꺼번에 굴리는 폭 — 눈금이 0.067초라 잘게 잡는다.</summary>
+    private const double SecondsStep = 0.01;
+
+    /// <summary>
+    /// 마지막으로 만진 쪽 차례의 초를 <b>죄다</b> 그만큼 민다.
+    /// </summary>
+    /// <remarks>
+    /// 한 장씩 굴리는 스피너는 0.1 폭이라 눈금 값(0.07 · 0.13 …)을 손보기 뻑뻑하다.
+    /// 여기서는 0.01 씩 밀어 판 전체를 빠르게·느리게 한다.
+    /// </remarks>
+    private void ShiftSeconds(double way)
+    {
+        var lane = _touched ?? _mine;
+        if (lane.Steps.Count == 0)
+        {
+            _status.Text = $"{lane.Name} 차례가 비어 있습니다.";
+            return;
+        }
+
+        foreach (var step in lane.Steps)
+            step.Seconds = Math.Clamp(step.Seconds + way, MinSeconds, MaxSeconds);
+
+        FillStrip(lane);
+        Tell();
+        _status.Text = $"{lane.Name} 차례의 초를 죄다 {way:+0.00;-0.00} 했습니다"
+                     + $" — 모두 {lane.Steps.Sum(s => s.Seconds):0.00}초입니다.";
     }
 
     /// <summary>
@@ -584,8 +624,13 @@ public sealed class MotionMakerDialog : GameWindow
             return;
         }
 
-        int at = Math.Max(0, _motion.SelectedIndex);
-        var motion = DuelMotions.All[at];
+        var box = lane == _foe ? _foeMotion : _myMotion;
+        if (box.SelectedIndex < 0)
+        {
+            _status.Text = $"{lane.Name} 쪽에 고른 모션이 없습니다.";
+            return;
+        }
+        var motion = DuelMotions.All[box.SelectedIndex];
         var made = new DuelMotions.Motion(motion.Key, motion.Name,
             [.. lane.Steps.Select(s => new DuelMotions.Step(s.Frame, s.Seconds, s.Push))]);
 
@@ -596,9 +641,17 @@ public sealed class MotionMakerDialog : GameWindow
             return;
         }
 
+        // <b>꼬리를 잘못 두면 판마다 사이가 달라진다.</b> 마지막 장의 점이 곧 판이 끝날 때
+        // 담기는 거리라, 두 쪽이 짝을 이루지 않으면 판을 거듭할수록 붙거나 벌어진다.
+        double tail = made.Steps[^1].Push;
+        string warn = Math.Abs(tail) < 0.5 || Math.Abs(Math.Abs(tail) - DuelMotions.Drift) < 0.5
+            ? ""
+            : $"   ※ 마지막 장의 점이 {tail:0} 입니다 — 0 이나 ±{DuelMotions.Drift:0} 이라야"
+              + " 판마다 두 사람 사이가 그대로입니다.";
+
         _status.Text = $"{lane.Name} 차례를 「{made.Name}」 으로 적었습니다"
                      + $" ({made.Steps.Length}장 · {made.Length:0.00}초) — {DuelMotions.Path_()}."
-                     + "  놀이의 일기토가 이것을 읽습니다.";
+                     + "  놀이의 일기토가 이것을 읽습니다." + warn;
     }
 
     /// <summary>적어 둔 파일을 걷고 밑값으로 돌린다.</summary>
@@ -635,33 +688,30 @@ public sealed class MotionMakerDialog : GameWindow
     /// </remarks>
     private void Face()
     {
-        var motion = DuelMotions.All[Math.Max(0, _motion.SelectedIndex)];
+        if (_myMotion.SelectedIndex < 0 || _myMotion.SelectedIndex >= DuelMotions.All.Count) return;
+        var motion = DuelMotions.All[_myMotion.SelectedIndex];
 
         // 찌르기 셋과 막기 셋이 짝이다 — 공격 a 는 막기 2−a 가 막는다(Duel.cs).
         int line = Array.FindIndex(Lines, k => k == motion.Key);
         int guard = Array.FindIndex(Blocks, k => k == motion.Key);
 
-        DuelMotions.Motion? mine = null, foe = null;
-        if (line >= 0)
-        {
-            mine = motion;
-            foe = DuelMotions.Find(DuelMotions.GuardKey(2 - line % 3, -1));
-        }
-        else if (guard >= 0)
-        {
-            mine = motion;
-            foe = DuelMotions.Find(DuelMotions.ThrustKey(2 - guard, +1));
-        }
+        DuelMotions.Motion? foe = null;
+        if (line >= 0) foe = DuelMotions.Find(DuelMotions.GuardKey(2 - line % 3, -1));
+        else if (guard >= 0) foe = DuelMotions.Find(DuelMotions.ThrustKey(2 - guard, +1));
 
-        if (mine == null || foe == null)
+        if (foe == null)
         {
-            _status.Text = $"「{motion.Name}」 은 맞세울 짝이 없습니다 — 공격이나 막기를 고르십시오.";
+            _status.Text = $"「{motion.Name}」 은 맞세울 짝이 없습니다 — 아군에 공격이나 막기를 고르십시오.";
             return;
         }
 
-        Fill(_mine, mine);
-        Fill(_foe, foe);
-        _status.Text = $"아군 「{mine.Name}」 · 적군 「{foe.Name}」 을 맞세웠습니다."
+        // 상자를 옮기면 고르기 되울림으로 차례가 든다.
+        int at = 0;
+        for (int i = 0; i < DuelMotions.All.Count; i++)
+            if (DuelMotions.All[i].Key == foe.Key) { at = i; break; }
+        _foeMotion.SelectedIndex = at;
+
+        _status.Text = $"아군 「{motion.Name}」 · 적군 「{foe.Name}」 을 맞세웠습니다."
                      + "  재생을 누르면 두 쪽이 함께 돕니다.";
     }
 
@@ -957,6 +1007,14 @@ public sealed class MotionMakerDialog : GameWindow
             Draw(lane);
         }
         Tell();
+
+        // 밑값은 <b>다가오기</b>다 — 창을 열면 두 사람이 걸어 나오는 것부터 보인다.
+        int walk = 0;
+        for (int i = 0; i < DuelMotions.All.Count; i++)
+            if (DuelMotions.All[i].Key == DuelMotions.Walk) { walk = i; break; }
+
+        _foeMotion.SelectedIndex = walk;
+        _myMotion.SelectedIndex = walk;
     }
 
     /// <summary>고른 배경 그림을 판 밑에 깐다. 못 찾으면 까만 판이다.</summary>
@@ -1443,7 +1501,7 @@ public sealed class MotionMakerDialog : GameWindow
         lane.Clock.Interval = TimeSpan.FromSeconds(lane.Steps[lane.At].Seconds);
     }
 
-    // ── 알림 · 베끼기 ───────────────────────────────────────────────────────
+    // ── 알림 ────────────────────────────────────────────────────────────────
 
     /// <summary>쪽마다 몇 장에 몇 초인지 적는다.</summary>
     private void Tell()
@@ -1463,22 +1521,4 @@ public sealed class MotionMakerDialog : GameWindow
     /// <summary>어느 스프라이트셋을 세워 두었는지 — 「(유럽 스프라이트셋 1)」 꼴로.</summary>
     private string Which(Lane lane) =>
         lane == _foe ? $" ({FoeSetNames[lane.Set - 1]} 스프라이트셋 {lane.Set})" : " (제독 스프라이트셋 0)";
-
-    /// <summary>지금 차례를 코드에 옮겨 적을 꼴로 클립보드에 담는다.</summary>
-    private void Copy()
-    {
-        var text = new StringBuilder();
-        foreach (var lane in Lanes())
-        {
-            text.Append("// ").Append(lane.Name).Append(Which(lane)).AppendLine();
-            // (장 번호, 밀리초, 앞으로 나간 점) 셋으로 적는다.
-            text.AppendLine(lane.Steps.Count == 0
-                ? "[]"
-                : "[" + string.Join(", ", lane.Steps.Select(
-                    s => $"({s.Frame}, {(int)Math.Round(s.Seconds * 1000)}, {(int)Math.Round(s.Push)})")) + "]");
-        }
-
-        Clipboard.SetText(text.ToString());
-        _status.Text = "차례를 클립보드에 담았습니다 — (장 번호, 밀리초, 앞으로 나간 점) 꼴입니다.";
-    }
 }

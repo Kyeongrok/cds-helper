@@ -77,13 +77,24 @@ def png(path, width, height, rows):
                 + chunk(b"IEND", b""))
 
 
-def paint(pixels, palette, width, height, base, skip=0):
+def paint(pixels, palette, width, height, base, skip=0, rgb=False):
+    """색인 그림에 색표를 얹는다.
+
+    <b>칸 차례가 색표마다 다르다.</b> 파일에 든 팔레트 파트는 (파랑, 빨강, 초록)이고,
+    공용 색표(COMMON, game_palette.h 를 옮긴 것)는 (빨강, 초록, 파랑)이다. 이것을 안
+    가리고 파일 차례로 읽으면 색이 한 칸씩 돌아가 <b>나무빛이 보랏빛으로</b> 나온다 —
+    눈금판이 그렇게 어긋나 있었다.
+    """
     rows = []
     for y in range(height):
         row = bytearray()
         for x in range(width):
             slot = (pixels[skip + y * width + x] - base) & 0xFF
-            blue, red, green = palette[slot * 3:slot * 3 + 3]
+            three = palette[slot * 3:slot * 3 + 3]
+            if rgb:
+                red, green, blue = three
+            else:
+                blue, red, green = three
             row += bytes((red, green, blue))
         rows.append(bytes(row))
     return rows
@@ -120,6 +131,37 @@ def fighters(cds):
               % (kit, FIGHTER_W, FIGHTER_H, len(FIGHTER_KEEP)))
 
 
+#: 체력 막대 조각이 앉은 자리 — 눈금판 파트의 <b>앞 16바이트</b>다.
+#:
+#: 게임은 이 조각을 1점 폭 x 8점 높이로 72번까지 찍어 막대를 지우고 칠한다.
+#:   0x004A7279  push 0   ; 자리 0  → 빨강 (이번에 깎인 자리)
+#:   0x004A71D0  push 8   ; 자리 8  → 빈 칸 (나뭇결)
+#:   0x004A709B  push 16  ; 자리 16 → 눈금판 384x112
+#: 파랑(가득 찬 막대)만은 조각이 따로 없고 <b>눈금판 그림에 이미 그려져</b> 있어
+#: 막대 자리(112, 52)에서 한 칸 오려 낸다.
+BAR_H = 8
+BAR_HURT_AT, BAR_EMPTY_AT = 0, 8
+BAR_FULL_X, BAR_FULL_Y = 112, 52
+
+
+def bars(panel):
+    """체력 막대 조각 셋을 1x8 로 뽑는다 — 빨강 · 빈 칸 · 파랑."""
+    def one(name, rows, what):
+        png(os.path.join(OUT, "duel-bar-%s.png" % name), 1, BAR_H, rows)
+        print("duel-bar-%s.png  %s" % (name, what))
+
+    for name, at, what in (("hurt", BAR_HURT_AT, "맞은 자리(빨강)"),
+                           ("empty", BAR_EMPTY_AT, "빈 칸(나뭇결)")):
+        one(name, paint(panel[at:at + BAR_H], COMMON, 1, BAR_H, 0, rgb=True), what)
+
+    full = []
+    for dy in range(BAR_H):
+        slot = panel[PANEL_SKIP + (BAR_FULL_Y + dy) * PANEL_W + BAR_FULL_X]
+        red, green, blue = COMMON[slot * 3:slot * 3 + 3]
+        full.append(bytes((red, green, blue)))
+    one("full", full, "가득 찬 자리(파랑)")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     cds = ls12.Ls12.open(os.path.join(GAME, "FIGHTER.CDS"))
@@ -127,9 +169,11 @@ def main():
 
     fighters(cds)
 
+    bars(panel)
+
     # 눈금판은 마당마다가 아니라 <b>한 장</b>이다 — 공용 색표를 쓰므로 마당을 안 탄다.
     png(os.path.join(OUT, "duel-panel.png"), PANEL_W, PANEL_H,
-        paint(panel, COMMON, PANEL_W, PANEL_H, 0, PANEL_SKIP))
+        paint(panel, COMMON, PANEL_W, PANEL_H, 0, PANEL_SKIP, rgb=True))
     print("duel-panel.png  눈금판(공용 색표)")
 
     for part, name, what in ARENAS:
