@@ -27,11 +27,40 @@ public static class DuelMotions
     /// <summary>눈금 하나의 길이. 게임이 1/15초로 돈다.</summary>
     public const double Tick = 0.067;
 
+    /// <summary>
+    /// 밑값 몸짓에서 <b>장마다 덜어 내는 시간</b>.
+    /// </summary>
+    /// <remarks>
+    /// 갈무리로 잰 눈금은 0.067초인데, 화면에 맞대어 보면 그대로 돌리면 <b>느리다</b>.
+    /// 장마다 0.01초씩 덜어 내면 맞는다 — 한 눈금짜리 장은 0.07 에서 0.06 으로,
+    /// 넉 눈금짜리는 0.27 에서 0.26 으로 준다.
+    ///
+    /// 눈금 길이 자체를 줄이지 않은 까닭은, 그 값이 갈무리에서 <b>잰 값</b>이라서다.
+    /// 여기서 덜어 내면 「어디까지가 잰 것이고 어디부터가 맞춘 것인지」가 갈린다.
+    /// </remarks>
+    public const double Trim = 0.01;
+
+    /// <summary>눈금 <paramref name="ticks"/> 개짜리 장이 머무는 시간.</summary>
+    private static double Span(double ticks) => Math.Max(0.01, Tick * ticks - Trim);
+
     /// <summary>한 눈금에 옮기는 거리와, 한 판에 다가서거나 물러나는 거리.</summary>
     public const double StepWay = 5, Drift = 40;
 
     /// <summary>찌를 때 더 나가는 거리(<c>0x004A794A</c> 의 <c>sub eax,0x1E</c>).</summary>
     public const double LungeWay = 30;
+
+    /// <summary>
+    /// 주고받는 동안 <b>한 쪽이 더 붙는 거리</b>.
+    /// </summary>
+    /// <remarks>
+    /// 표에서 짚은 값(다가섬 40 · 내지름 30)만으로 돌리면 맞는 눈금에 두 사람 발 사이가
+    /// 88점이라 화면보다 멀다. 두 쪽이 열 점씩 더 붙어 <b>68점</b>이라야 눈에 맞는다.
+    ///
+    /// <b>코드에서 나온 값이 아니라 화면에 맞대어 잡은 값이다.</b> 주고받는 세 장에만
+    /// 얹고 꼬리에는 안 얹는다 — 꼬리에까지 얹으면 판이 끝날 때 담기는 거리가 늘어
+    /// 판을 거듭할수록 둘이 붙어 버린다.
+    /// </remarks>
+    public const double Close = 10;
 
     /// <summary>적어 둔 파일이 앉는 곳.</summary>
     public const string FileName = "motion.json";
@@ -104,7 +133,7 @@ public static class DuelMotions
     private static IEnumerable<Step> Opening(int way)
     {
         for (int tick = 0; tick < 8; tick++)
-            yield return new Step(IdleFrame(tick), Tick, way * tick * StepWay);
+            yield return new Step(IdleFrame(tick), Span(1), way * tick * StepWay);
     }
 
     /// <summary>그 눈금에 설 여느 장 — 짝수면 30, 넷으로 나눠 1 이면 31, 3 이면 32 다.</summary>
@@ -115,29 +144,29 @@ public static class DuelMotions
     private static Motion Thrust(string key, string name, int first, int way) => new(key, name,
     [
         .. Opening(way),
-        new Step(first, Tick * 2, way * Drift),
-        new Step(first + 1, Tick, way * Drift),
-        new Step(first + 2, Tick * 4, way * Drift + LungeWay),
-        new Step(30, Tick * 18, way * Drift),
+        new Step(first, Span(2), way * Drift + Close),
+        new Step(first + 1, Span(1), way * Drift + Close),
+        new Step(first + 2, Span(4), way * Drift + LungeWay + Close),
+        new Step(30, Span(18), way * Drift),
     ]);
 
     /// <summary>막는 한 판. <paramref name="way"/> 가 0 이면 제자리에서 막는다.</summary>
     private static Motion Block(string key, string name, int first, int way) => new(key, name,
     [
         .. Opening(way),
-        new Step(first, Tick * 2, way * Drift),
-        new Step(first + 1, Tick, way * Drift),
-        new Step(first + 2, Tick * 4, way * Drift),
-        new Step(30, Tick * 18, way * Drift),
+        new Step(first, Span(2), way * Drift + Close),
+        new Step(first + 1, Span(1), way * Drift + Close),
+        new Step(first + 2, Span(4), way * Drift + Close),
+        new Step(30, Span(18), way * Drift),
     ]);
 
     /// <summary>여섯 장짜리 — 두 눈금에 한 장, 끝 두 장을 번갈아 낸다(<c>0x004A8155</c>).</summary>
     private static Motion Six(string key, string name, int first) => new(key, name,
     [
-        new Step(first, Tick * 2, 0), new Step(first + 1, Tick * 2, 0),
-        new Step(first + 2, Tick * 2, 0), new Step(first + 3, Tick * 2, 0),
-        new Step(first + 4, Tick * 2, 0), new Step(first + 5, Tick * 2, 0),
-        new Step(first + 4, Tick * 2, 0), new Step(first + 5, Tick * 2, 0),
+        new Step(first, Span(2), 0), new Step(first + 1, Span(2), 0),
+        new Step(first + 2, Span(2), 0), new Step(first + 3, Span(2), 0),
+        new Step(first + 4, Span(2), 0), new Step(first + 5, Span(2), 0),
+        new Step(first + 4, Span(2), 0), new Step(first + 5, Span(2), 0),
     ]);
 
     /// <summary>
@@ -155,7 +184,7 @@ public static class DuelMotions
     {
         var steps = new List<Step>();
         for (int tick = 0; tick <= 16; tick++)
-            steps.Add(new Step(IdleFrame(tick), Tick, -(16 - tick) * StepWay + WalkEnd));
+            steps.Add(new Step(IdleFrame(tick), Span(1), -(16 - tick) * StepWay + WalkEnd));
         return new Motion(Walk, "다가오기", [.. steps]);
     }
 
@@ -179,8 +208,8 @@ public static class DuelMotions
         Six(Fall, "쓰러짐", 24),
         new(Idle, "가만히 서기",
         [
-            new Step(30, Tick * 4, 0), new Step(31, Tick, 0),
-            new Step(30, Tick * 2, 0), new Step(32, Tick, 0),
+            new Step(30, Span(4), 0), new Step(31, Span(1), 0),
+            new Step(30, Span(2), 0), new Step(32, Span(1), 0),
         ]),
     ];
 

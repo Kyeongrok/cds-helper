@@ -59,6 +59,25 @@ public sealed class DuelStage : Canvas
     /// <summary>한 판의 눈금 수 — <b>서른셋</b>이다(<c>0x00572A84</c>).</summary>
     public const int Ticks = 33;
 
+    /// <summary>
+    /// 꼬리를 걷은 판의 눈금 수 — 찌르기가 끝나는 자리까지다(<c>0x00572A78</c>).
+    /// </summary>
+    /// <remarks>
+    /// 눈금 15 부터 32 까지는 여느 자세로 서 있기만 한다. 아무도 안 맞은 판은 그 열여덟
+    /// 눈금(1.2초)을 기다릴 것 없이 여기서 끊는다.
+    /// </remarks>
+    public const int ShortTicks = 15;
+
+    /// <summary>
+    /// 맞은 판의 눈금 수 — <b>빨강이 다 찬 뒤 한 박자</b>까지다.
+    /// </summary>
+    /// <remarks>
+    /// 부위 체력이 깎이는 눈금이 11 이고 빨강이 다섯 눈금에 걸쳐 차므로 16 이면 다 찬다.
+    /// 거기에 한 박자만 두고 끊는다 — 서른셋까지 다 돌리면 볼 것 없는 열일곱 눈금
+    /// (1.1초)을 더 서 있게 된다.
+    /// </remarks>
+    public const int HitTicks = 18;
+
     /// <summary>고른 명령 이름이 뜨는 눈금과 부위 체력이 깎이는 눈금.</summary>
     private const int SayTick = 8, HurtTick = 11;
 
@@ -95,6 +114,10 @@ public sealed class DuelStage : Canvas
     private int _walkTick;
 
     private int _tick;
+
+    /// <summary>이번 판을 몇 눈금까지 돌릴지. 막힌 판은 꼬리를 걷는다.</summary>
+    private int _ticks = Ticks;
+
     private Action? _onSay, _onHurt, _onDone;
 
     /// <summary>푼 장을 담아 둔다 — 눈금마다 다시 짜면 그만큼 늦어진다.</summary>
@@ -153,14 +176,19 @@ public sealed class DuelStage : Canvas
     /// 이 판에 두 사람이 <b>함께</b> 옮겨 갈 쪽 — <c>−1</c> 내가 몰아붙임(앞으로) ·
     /// <c>+1</c> 내가 물러남 · <c>0</c> 맞부딪힘이라 제자리.
     /// </param>
+    /// <param name="ticks">
+    /// 몇 눈금까지 돌릴지. 여느 판은 <see cref="Ticks"/>, 아무도 안 맞은 판은
+    /// <see cref="ShortTicks"/> 로 꼬리를 걷는다.
+    /// </param>
     /// <remarks>
     /// 다가서고 물러나는 것은 <b>몸짓 안에 들어 있다</b> — 공격 몸짓은 다가서는 자리를,
     /// 막는 몸짓은 물러나는 자리를 제 표에 적어 두고 있다. 그래서 여기서는 맞부딪힘인지만
     /// 가리면 된다.
     /// </remarks>
-    public void Play(FighterSprites.Move mine, FighterSprites.Move theirs, int way,
+    public void Play(FighterSprites.Move mine, FighterSprites.Move theirs, int way, int ticks,
                      Action? onSay, Action? onHurt, Action onDone)
     {
+        _ticks = Math.Clamp(ticks, 1, Ticks);
         // 벽에 닿았으면 이 판에는 안 옮긴다 — 게임도 <b>판 갈래를 정할 때</b> 지금 자리를
         // 보고 가린다(0x004A6EF0: 상대 x >= 40 이라야 몰아붙이고, 내 x <= 200 이라야 물러난다).
         // 옮긴 <b>뒤</b> 자리로 가리면, 몸짓은 이미 나아갔는데 자리를 안 담아 되돌아간다.
@@ -257,7 +285,7 @@ public sealed class DuelStage : Canvas
         if (_tick == SayTick) _onSay?.Invoke();
         if (_tick == HurtTick) _onHurt?.Invoke();
         Draw();
-        if (_tick < Ticks) return;
+        if (_tick < _ticks) return;
 
         _timer.Stop();
         Settle();

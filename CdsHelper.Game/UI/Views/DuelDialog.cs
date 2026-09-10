@@ -2,6 +2,8 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Engine;
 using CdsHelper.Game.Engine.Town;
@@ -32,9 +34,44 @@ public sealed class DuelDialog : GameWindow
     /// <summary>고른 명령 라벨과 부위 막대의 바탕 — 눈금판의 검은 홈이다.</summary>
     private static readonly Brush Slot = Frozen(Color.FromRgb(0x0A, 0x08, 0x08));
 
-    /// <summary>남은 것 · 이번에 깎인 것.</summary>
-    private static readonly Brush Left_ = Frozen(Color.FromRgb(0x4C, 0x8C, 0xC4));
-    private static readonly Brush Hurt = Frozen(Color.FromRgb(0xC4, 0x30, 0x28));
+    /// <summary>
+    /// 부위 막대를 칠하는 붓 셋 — <b>게임 조각을 그대로</b> 깐다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 1점 폭 x 8점 높이 조각을 72번까지 찍어 막대를 그린다. 그 조각들이
+    /// 눈금판 파트(<c>FIGHTER.CDS</c> 32)의 <b>앞 16바이트</b>에 들어 있어
+    /// <c>asset/duel/duel-bar-*.png</c> 로 뽑아 두었다(<c>tools/extract_duel_art.py</c>).
+    /// <code>
+    ///   duel-bar-full   가득 찬 자리(파랑)   — 눈금판 그림에서 오려 낸 것
+    ///   duel-bar-hurt   맞은 자리(빨강)      — 자리 0   (0x004A7279)
+    ///   duel-bar-empty  빈 칸(나뭇결)        — 자리 8   (0x004A71D0)
+    /// </code>
+    /// 손으로 고른 빛깔 하나로 칠하던 것과 달리 여덟 줄의 결(검정 · 어둠 · 밝음 · 중간 …)이
+    /// 그대로 살아난다.
+    /// </remarks>
+    private static readonly Brush Left_ = Tile("duel-bar-full", Color.FromRgb(0x4C, 0x8C, 0xC4));
+    private static readonly Brush Hurt = Tile("duel-bar-hurt", Color.FromRgb(0xC4, 0x30, 0x28));
+    private static readonly Brush Empty_ = Tile("duel-bar-empty", Color.FromRgb(0x0A, 0x08, 0x08));
+
+    /// <summary>
+    /// 1점 폭 조각을 가로로 이어 까는 붓. 그림이 없으면 그 빛깔로 물러선다.
+    /// </summary>
+    private static Brush Tile(string name, Color fallback)
+    {
+        string? path = DuelArt.Open()?.Path_(name);
+        if (path == null) return Frozen(fallback);
+
+        var brush = new ImageBrush(new BitmapImage(new Uri(path, UriKind.RelativeOrAbsolute)))
+        {
+            TileMode = TileMode.Tile,
+            Viewport = new Rect(0, 0, 1, DuelArt.Slots.BarH),
+            ViewportUnits = BrushMappingMode.Absolute,
+            Stretch = Stretch.Fill,
+        };
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        brush.Freeze();
+        return brush;
+    }
 
     private static SolidColorBrush Frozen(Color c)
     {
@@ -92,10 +129,29 @@ public sealed class DuelDialog : GameWindow
     private readonly StackPanel _keys = new();
 
     /// <summary>부위 막대 여섯 — 남은 것과 이번에 깎인 것을 겹쳐 그린다.</summary>
-    private readonly Border[] _mine = new Border[Duel.Lines];
-    private readonly Border[] _theirs = new Border[Duel.Lines];
-    private readonly Border[] _mineHurt = new Border[Duel.Lines];
-    private readonly Border[] _theirsHurt = new Border[Duel.Lines];
+    /// <summary>
+    /// 부위 막대 한 칸 — 조각 넷을 겹쳐 짓는다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   남은 것        파랑        [0 .. 지금]
+    ///   이번에 깎인 것 나무색      [지금 .. 앞판]   ← 맞는 순간 잠깐 스치는 빛깔
+    ///   그 위로        빨강        같은 자리로 다섯 눈금에 걸쳐 차오른다
+    ///   지난 판까지    빨강        [앞판 .. 끝]
+    /// </code>
+    /// 곧 <b>잃은 만큼은 빨강으로 남는다</b>. 나무색은 맞는 그 순간에만 보인다 —
+    /// 나무색으로 남겨 두었던 것은 틀렸다.
+    /// </remarks>
+    private sealed class BarView
+    {
+        public Border Keep = null!;    // 남은 것(파랑)
+        public Border Fresh = null!;   // 이번에 깎인 자리(나무색)
+        public Border Flash = null!;   // 그 위로 차오르는 빨강
+        public Border Lost = null!;    // 지난 판까지 깎인 것(빨강)
+    }
+
+    private readonly BarView[] _mine = new BarView[Duel.Lines];
+    private readonly BarView[] _theirs = new BarView[Duel.Lines];
 
     /// <summary>가운데 라벨 둘 — 이번에 고른 명령.</summary>
     private readonly GameUi.GameLabel _myMove = MoveLabel();
@@ -105,11 +161,21 @@ public sealed class DuelDialog : GameWindow
     private readonly int[] _wasMine = new int[Duel.Lines];
     private readonly int[] _wasFoe = new int[Duel.Lines];
 
-    /// <summary>명령 창이 앉는 자리 — 배경 한가운데다.</summary>
+    /// <summary>명령 창이 앉는 자리 — 판 오른쪽 아래다.</summary>
     private readonly Border _keyBox = new();
 
-    /// <summary>명령 창이 배경 위에서 내려앉는 깊이(점).</summary>
-    private const double KeyBoxTop = 28;
+    /// <summary>
+    /// 명령 창이 앉는 자리 — 판 <b>오른쪽 아래</b>, 눈금판 위에 걸친다.
+    /// </summary>
+    /// <remarks>
+    /// 배경 한가운데에 두었더니 싸우는 두 사람을 가렸다. 게임 화면을 재어 보면 창이
+    /// 눈금판 위쪽에 걸쳐 오른쪽으로 붙어 있다 — 내 초상 자리를 덮는 대신 마당을
+    /// 비워 두는 것이다.
+    ///
+    /// <b>아래를 붙박고 위로 자라게 둔다.</b> 위를 붙박으면 필살이 붙어 여섯 줄이 되는
+    /// 공격 판에서 창이 판 밑으로 잘려 나간다.
+    /// </remarks>
+    private const double KeyBoxRight = 20, KeyBoxBottom = 25;
 
     /// <summary>
     /// 말풍선 자리 — 두 초상 사이다. 화면에서 재어 맞췄다.
@@ -178,10 +244,10 @@ public sealed class DuelDialog : GameWindow
 
         for (int i = 0; i < Duel.Lines; i++)
         {
-            Put(canvas, Bar(out _theirs[i], out _theirsHurt[i]),
+            Put(canvas, Bar(out _theirs[i], mirror: true),
                 DuelArt.Slots.FoeBarX, Top + DuelArt.Slots.BarY[i],
                 DuelArt.Slots.BarW, DuelArt.Slots.BarH);
-            Put(canvas, Bar(out _mine[i], out _mineHurt[i]),
+            Put(canvas, Bar(out _mine[i], mirror: false),
                 DuelArt.Slots.MyBarX, Top + DuelArt.Slots.BarY[i],
                 DuelArt.Slots.BarW, DuelArt.Slots.BarH);
         }
@@ -192,15 +258,15 @@ public sealed class DuelDialog : GameWindow
         // 판 밑에는 아무것도 안 붙인다. 게임 판은 384x248 이 전부이고, 상대의 말은
         // 제목 「일기토」가 붙은 <b>제 창</b>으로 따로 난다. 어느 판인지(맞부딪힘·공격·
         // 방어)는 명령 창의 줄 이름이 그대로 일러 준다.
-        // 명령을 고를 때만 뜨는 작은 명령 창. 배경 <b>한가운데</b>에 뜬다(게임도 그 자리다).
+        // 명령을 고를 때만 뜨는 작은 명령 창. <b>오른쪽 아래</b>에 뜬다 — 게임도 그 자리다.
         _keyBox.Background = GameUi.MenuBack;
         _keyBox.BorderBrush = GameUi.Edge;
         _keyBox.BorderThickness = new Thickness(1);
         _keyBox.Padding = new Thickness(3);
         _keyBox.Child = _keys;
-        _keyBox.HorizontalAlignment = HorizontalAlignment.Center;
-        _keyBox.VerticalAlignment = VerticalAlignment.Top;
-        _keyBox.Margin = new Thickness(0, KeyBoxTop, 0, 0);
+        _keyBox.HorizontalAlignment = HorizontalAlignment.Right;
+        _keyBox.VerticalAlignment = VerticalAlignment.Bottom;
+        _keyBox.Margin = new Thickness(0, 0, KeyBoxRight, KeyBoxBottom);
 
         // 판 위에 겹쳐 놓아야 판 밖으로 삐져나가지 않는다 — 예전에는 자리를 못 박아
         // 오른쪽으로 벗어났다.
@@ -301,10 +367,20 @@ public sealed class DuelDialog : GameWindow
     /// </remarks>
     private static GameUi.GameLabel MoveLabel() => new(GameFont.WhiteColor)
     {
-        Bold = true,
+        // <b>굵게 찍지 않는다.</b> 굵게 하면 한 점 겹쳐 찍느라 획이 두꺼워지고 오른쪽
+        // 아래로 그림자가 진 것처럼 보인다. 원본의 고른 명령 글씨는 그림자가 없다.
+        Bold = false,
         FallbackBrush = Brushes.White,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    /// <summary>상대 쪽에서 본 판 갈래 — 내가 치면 상대는 막고, 내가 막으면 상대가 친다.</summary>
+    private static Duel.Phase Flip(Duel.Phase was) => was switch
+    {
+        Duel.Phase.Attack => Duel.Phase.Guard,
+        Duel.Phase.Guard => Duel.Phase.Attack,
+        _ => was,                                   // 맞부딪힘은 둘 다 친다
     };
 
     private static Border Framed(UIElement inner) => new() { Background = Slot, Child = inner };
@@ -353,29 +429,55 @@ public sealed class DuelDialog : GameWindow
     /// <summary>
     /// 부위 막대 한 칸 — 검은 홈에 남은 것(파랑)과 이번에 깎인 것(빨강)을 겹친다.
     /// </summary>
-    private static Border Bar(out Border left, out Border hurt)
+    private static Border Bar(out BarView view, bool mirror)
     {
-        // 남은 것은 왼쪽에서 자라고, 깎인 것은 <b>오른쪽 끝에서</b> 자란다.
-        // 화면을 보면 파란 막대가 줄어든 만큼 그 오른쪽이 빨개진다.
-        left = new Border { Background = Left_, HorizontalAlignment = HorizontalAlignment.Left };
-        hurt = new Border { Background = Hurt, HorizontalAlignment = HorizontalAlignment.Right };
+        // <b>두 쪽이 서로 거울이다.</b> 아군 막대는 왼쪽에 파랑이 붙어 오른쪽에서 빨개지고,
+        // 적군 막대는 오른쪽에 파랑이 붙어 <b>왼쪽에서</b> 빨개진다. 게임도 그렇다 —
+        // 적군 쪽 셈만 0x004A7202 에서 <c>neg</c> 로 뒤집어 72 에서 빼며 센다.
+        var side = mirror ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+
+        view = new BarView
+        {
+            Keep = new Border { Background = Left_, HorizontalAlignment = side },
+            Fresh = new Border { Background = Empty_, HorizontalAlignment = side },
+            Lost = new Border { Background = Hurt, HorizontalAlignment = side },
+        };
+        // 빨강은 <b>조각 쪽에서 반대로</b> 차오른다 — 아군은 오른쪽에서 파랑 쪽으로,
+        // 적군은 왼쪽에서 파랑 쪽으로 들어온다.
+        view.Flash = new Border
+        {
+            Background = Hurt,
+            HorizontalAlignment = mirror ? HorizontalAlignment.Left : HorizontalAlignment.Right,
+        };
+        view.Fresh.Child = view.Flash;
 
         var stack = new Grid();
-        stack.Children.Add(left);
-        stack.Children.Add(hurt);
+        stack.Children.Add(view.Lost);      // 아래에 깔고
+        stack.Children.Add(view.Fresh);     //   그 위에 이번 것
+        stack.Children.Add(view.Keep);      //   맨 위에 남은 것
 
         return new Border { Background = Slot, Child = stack };
     }
 
+    /// <summary>
+    /// 깎인 자리가 빨갛게 <b>차는 데 걸리는 눈금</b>.
+    /// </summary>
+    /// <remarks>
+    /// 화면을 보면 맞은 자리가 대뜸 빨개지지 않고 <b>다섯 눈금에 걸쳐</b> 왼쪽에서
+    /// 빨갛게 차 온다. 한 눈금이 0.067초이니 0.34초다.
+    /// </remarks>
+    private const int HurtSteps = 5;
+
     /// <summary>막대와 라벨을 다시 그린다.</summary>
-    private void Refresh()
+    /// <param name="flash">맞은 눈금이면 참 — 빨강이 다섯 눈금에 걸쳐 찬다.</param>
+    private void Refresh(bool flash = false)
     {
         double full = DuelArt.Slots.BarW;
 
         for (int i = 0; i < Duel.Lines; i++)
         {
-            Paint(_mine[i], _mineHurt[i], _duel.MyParts[i], _wasMine[i], _duel.MyFull, full);
-            Paint(_theirs[i], _theirsHurt[i], _duel.FoeParts[i], _wasFoe[i], _duel.FoeFull, full);
+            Paint(_mine[i], _duel.MyParts[i], _wasMine[i], _duel.MyFull, full, flash, mirror: false);
+            Paint(_theirs[i], _duel.FoeParts[i], _wasFoe[i], _duel.FoeFull, full, flash, mirror: true);
         }
     }
 
@@ -386,12 +488,43 @@ public sealed class DuelDialog : GameWindow
     /// 파랑은 왼쪽에서 남은 만큼, 빨강은 오른쪽 끝에서 <b>이번에 잃은 만큼</b>이다.
     /// 둘 사이가 검게 남으면 그것은 <b>지난 판까지 잃은 것</b>이다.
     /// </remarks>
-    private static void Paint(Border left, Border hurt, int now, int was, int full, double width)
+    private static void Paint(BarView view, int now, int was, int full,
+                             double width, bool flash, bool mirror)
     {
         int cap = Math.Max(1, full);
-        left.Width = width * Math.Clamp(now, 0, cap) / cap;
-        hurt.Width = width * Math.Clamp(was - now, 0, cap) / cap;
+        double keep = width * Math.Clamp(now, 0, cap) / cap;
+        double fresh = width * Math.Clamp(was - now, 0, cap) / cap;
+        double lost = width * Math.Clamp(cap - was, 0, cap) / cap;
+
+        view.Keep.Width = keep;
+        view.Fresh.Width = fresh;
+        view.Lost.Width = lost;
+
+        // 자리는 파랑 <b>바로 옆</b>이다. 적군 쪽은 거울이라 오른쪽에서 물려 놓는다.
+        Place(view.Fresh, keep, mirror);
+        Place(view.Lost, keep + fresh, mirror);
+
+        if (!flash || fresh <= 0)
+        {
+            // 짓시늉을 걷어야 폭을 다시 박을 수 있다 — 걸린 채로는 값이 안 든다.
+            view.Flash.BeginAnimation(FrameworkElement.WidthProperty, null);
+            view.Flash.Width = fresh;          // 다 지나간 자리는 <b>빨강</b>으로 남는다
+            return;
+        }
+
+        // 맞는 순간에만 나무색이 스친다 — 그 위로 빨강이 다섯 눈금에 걸쳐 차오른다.
+        var fill = new DoubleAnimationUsingKeyFrames();
+        for (int step = 1; step <= HurtSteps; step++)
+            fill.KeyFrames.Add(new DiscreteDoubleKeyFrame(
+                fresh * step / HurtSteps,
+                KeyTime.FromTimeSpan(TimeSpan.FromSeconds(DuelMotions.Tick * step))));
+
+        view.Flash.BeginAnimation(FrameworkElement.WidthProperty, fill);
     }
+
+    /// <summary>막대 조각을 그만큼 물려 놓는다 — 거울인 쪽은 오른쪽에서 잰다.</summary>
+    private static void Place(Border what, double at, bool mirror) =>
+        what.Margin = mirror ? new Thickness(0, 0, at, 0) : new Thickness(at, 0, 0, 0);
 
     /// <summary>이번 판이 끝나면 부위 값을 갈무리한다 — 다음 판의 빨강 기준이다.</summary>
     private void Keep()
@@ -465,8 +598,11 @@ public sealed class DuelDialog : GameWindow
         _focus = null;
 
         // 두 사람이 고른 명령을 가운데 홈에 적는다.
+        // 갈래는 <b>내 쪽에서 본 것</b>이라 상대는 뒤집어 읽어야 한다 — 내가 치는 판이면
+        // 상대는 막는 것이고, 내가 막는 판이면 상대가 친다. 안 뒤집었더니 상대가 웅크렸는데
+        // 「하단공격」이라고 떴다.
         _myMove.Text = MoveName(turn.Was, turn.MyMove);
-        _foeMove.Text = MoveName(turn.Was, turn.FoeMove);
+        _foeMove.Text = MoveName(Flip(turn.Was), turn.FoeMove);
 
         // 판 갈래대로 두 사람이 통째로 마흔 점 옮겨 간다(0x004A6EE5) — 내가 몰아붙이면
         // 상대 쪽으로, 막기만 하면 내 쪽으로다. 맞부딪힘은 제자리다. 맞았는지는 안 본다.
@@ -479,9 +615,14 @@ public sealed class DuelDialog : GameWindow
             Duel.Phase.Guard => +1,
             _ => 0,
         };
-        _stage.Play(mine, theirs, way,
+        // <b>꼬리를 걷는다.</b> 한 판이 서른세 눈금이지만 볼 것은 그 앞쪽에서 끝난다 —
+        // 찌르기는 눈금 15 에, 빨강은 눈금 16 에 다 찬다. 남은 눈금은 여느 자세로 서
+        // 있기만 하므로 기다릴 까닭이 없다.
+        int ticks = turn.Blow == Duel.Blow.Blocked ? DuelStage.ShortTicks : DuelStage.HitTicks;
+
+        _stage.Play(mine, theirs, way, ticks,
                     onSay: null,
-                    onHurt: Refresh,
+                    onHurt: () => Refresh(flash: true),
                     onDone: () => Settle(turn));
     }
 
@@ -534,8 +675,27 @@ public sealed class DuelDialog : GameWindow
         }
 
         _stage?.Rest();
-        Rebuild();
+
+        // 말풍선과 명령 창은 <b>같이 서 있지 않는다</b> — 말이 잠깐 떴다 사라지고 나서야
+        // 명령 창이 뜬다. 할 말이 없는 판(맞부딪힘)은 곧바로 낸다.
+        if (Taunt(turn).Length == 0) { Rebuild(); return; }
+
+        _keyBox.Visibility = Visibility.Collapsed;
+        var wait = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromSeconds(DuelMotions.Tick * TauntTicks),
+        };
+        wait.Tick += (_, _) =>
+        {
+            wait.Stop();
+            Speak("");
+            Rebuild();
+        };
+        wait.Start();
     }
+
+    /// <summary>상대의 말이 떠 있는 눈금 — 이만큼 지나면 걷고 명령 창을 낸다.</summary>
+    private const int TauntTicks = 15;
 
     // 「이번 판에 무엇이 오갔는지」를 한 줄로 적던 줄은 걷었다. 게임은 그런 줄을 안
     // 낸다 — 오간 명령은 눈금판 가운데 라벨 둘이, 맞고 안 맞고는 그림과 체력 막대가
