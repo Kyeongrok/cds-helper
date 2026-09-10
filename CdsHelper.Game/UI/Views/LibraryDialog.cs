@@ -89,7 +89,7 @@ public sealed class LibraryDialog : GameWindow
             Height = BookShelf.ShelfHeight * scale,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(shelf, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(shelf, GameUi.SpriteScaling);
 
         var box = new Grid
         {
@@ -138,13 +138,10 @@ public sealed class LibraryDialog : GameWindow
         Panel.SetZIndex(close, 30);
         _layer.Children.Add(close);
 
-        Content = new Border
-        {
-            Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
-            BorderThickness = new Thickness(2),
-            Child = box,
-        };
+        // 서가는 <b>테두리를 두르지 않는다</b> — 게임은 양피지 그림 그대로 띄운다.
+        // 여느 창처럼 밝은 줄(<see cref="GameUi.Edge"/>)을 두르면 그림 밖에 액자가 하나
+        // 더 생겨 원본과 다르게 보인다.
+        Content = new Border { Background = GameUi.Back, Child = box };
         GameUi.EnableDrag(this, box);
         Closed += (_, _) => _say?.Invoke("");
 
@@ -167,7 +164,7 @@ public sealed class LibraryDialog : GameWindow
             Height = BookShelf.SpineHeight * _scale,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, (FirstSlotX + column * SlotStep) * _scale);
         Canvas.SetTop(image, ShelfTops[shelfRow] * _scale);
         _layer.Children.Add(image);
@@ -189,7 +186,7 @@ public sealed class LibraryDialog : GameWindow
             Cursor = Cursors.Hand,
             Tag = book,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x * _scale);
         Canvas.SetTop(image, y * _scale);
 

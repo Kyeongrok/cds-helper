@@ -61,7 +61,7 @@ internal sealed class NumberPadDialog : GameWindow
         // 예전에는 WPF 글자를 기울여 계산기처럼 보이게 했었다.
         _screen = new GameUi.GameLabel(GameFont.BlackColor)
         {
-            Bold = true,
+            Bold = false,
             FallbackBrush = System.Windows.Media.Brushes.Black,
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(8, 2, 10, 2),
@@ -80,7 +80,7 @@ internal sealed class NumberPadDialog : GameWindow
         last.Children.Add(PadKey(UiSprites.PadCancel, _ => Close()));
         grid.Children.Add(last);
 
-        RenderOptions.SetBitmapScalingMode(_digits, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_digits, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(_digits, EdgeMode.Aliased);
 
         // 숫자 조각이 있으면 그림으로, 없으면 윈도 글꼴로 찍는다.
@@ -96,7 +96,7 @@ internal sealed class NumberPadDialog : GameWindow
             stack.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
             {
                 Text = prompt,
-                Bold = true,
+                Bold = false,
                 FallbackBrush = System.Windows.Media.Brushes.White,
                 Margin = new Thickness(8, 6, 8, 0),
             });
@@ -172,7 +172,7 @@ internal sealed class NumberPadDialog : GameWindow
             Height = UiSprites.PadHeight * KeyZoom,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
         var box = new Border

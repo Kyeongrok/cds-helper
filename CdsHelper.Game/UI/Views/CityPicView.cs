@@ -348,7 +348,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
             Stretch = Stretch.Fill,
         };
         // 도트 그림이라 늘릴 때 섞으면 뭉개진다 — 게임 화면처럼 각을 살린다.
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
 
         // 사건이 도는 동안 그림을 파랗게 덮는 막. 지도 쪽의 ShipMapHost.Shaded 와 같은 몫이다.
         _shade.Width = image.Width;
@@ -613,7 +613,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         double side = EffectAnim.Size * _scale;
         var image = new Image { Width = side, Height = side, Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         // 그림 한가운데에 놓는다. 예전에는 누른 건물 위에 놓았는데, 건물이 구석에 있으면
         // 애니메이션도 구석으로 밀려 났다 — 게임은 늘 화면 가운데에서 돈다.

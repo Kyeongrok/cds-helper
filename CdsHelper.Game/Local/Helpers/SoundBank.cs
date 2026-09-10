@@ -61,6 +61,16 @@ public sealed class SoundBank : IDisposable
     /// <remarks>닻을 올리고 내릴 때와 같은 소리다(<see cref="AnchorPart"/>).</remarks>
     public const int DeployLiftPart = 1;
 
+    /// <summary>
+    /// 일기토에서 명령을 고를 때 나는 칼 부딪히는 소리 — <b>사운드 ID 72</b>,
+    /// 곧 파트 44 다.
+    /// </summary>
+    /// <remarks>
+    /// 여기 상수는 죄다 파트 번호다. 사운드 ID 는 파트에 28 을 더한 값이라
+    /// (<see cref="WaveBank.FirstSoundId"/>) 72 - 28 = 44 로 적는다.
+    /// </remarks>
+    public const int ClashPart = 72 - WaveBank.FirstSoundId;
+
     private readonly WaveBank _bank;
     private readonly SoundPlayer _player = new();
 

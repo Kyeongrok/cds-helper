@@ -275,7 +275,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
             Height = ButtonH,
             Cursor = Cursors.Hand,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, ButtonX[at]);
         Canvas.SetTop(image, ButtonY);
         image.MouseLeftButtonDown += (_, e) => e.Handled = true;
@@ -294,7 +294,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
             Height = height,
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x);
         Canvas.SetTop(image, y);
         _scene.Children.Add(image);
@@ -351,7 +351,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
 
             _dragging = true;
             _ghost.Source = Face(_held);
-            RenderOptions.SetBitmapScalingMode(_ghost, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(_ghost, GameUi.SpriteScaling);
             _ghost.Visibility = Visibility.Visible;
         }
         Canvas.SetLeft(_ghost, now.X - 16);
@@ -608,7 +608,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
             Height = height,
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x);
         Canvas.SetTop(image, y);
         _scene.Children.Add(image);

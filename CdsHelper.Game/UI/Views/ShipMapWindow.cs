@@ -188,7 +188,14 @@ public sealed class ShipMapWindow : Window
 
     // 게임 커맨드 창에서 뽑은 색. 짙은 밤색 바탕에 밝은 테를 두르고, 항목만 양피지다.
     private static readonly Brush MenuBack = new SolidColorBrush(Color.FromRgb(0x4A, 0x2A, 0x22));
-    private static readonly Brush MenuEdge = new SolidColorBrush(Color.FromRgb(0xC8, 0xB4, 0x90));
+    // 창 테는 공용 것을 그대로 쓴다 — 같은 색을 두 군데 적어 두면 한쪽만 바뀐다.
+    private static readonly Brush MenuEdge = GameUi.Edge;
+
+    /// <summary>
+    /// 메인메뉴 상자의 테. 여느 창의 검은 테(<see cref="GameUi.Edge"/>)가 아니라
+    /// 바탕보다 조금 밝은 <c>C2AE95</c> 한 점이다 — 갈무리에서 집은 색이다.
+    /// </summary>
+    private static readonly Brush TitleBoxEdge = new SolidColorBrush(Color.FromRgb(0xC2, 0xAE, 0x95));
     private static readonly Brush MenuTitleFg = new SolidColorBrush(Color.FromRgb(0xEC, 0xDF, 0xC0));
 
     /// <summary>
@@ -332,7 +339,7 @@ public sealed class ShipMapWindow : Window
             Child = new Border
             {
                 Background = new SolidColorBrush(Color.FromArgb(0xB4, 0x10, 0x10, 0x10)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, 0xC8, 0xB4, 0x90)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, 0x0B, 0x05, 0x05)),
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(10, 6, 10, 6),
                 IsHitTestVisible = false,
@@ -352,7 +359,7 @@ public sealed class ShipMapWindow : Window
             Child = new Border
             {
                 Background = new SolidColorBrush(Color.FromArgb(0xB4, 0x10, 0x10, 0x10)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, 0xC8, 0xB4, 0x90)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, 0x0B, 0x05, 0x05)),
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(10, 6, 10, 6),
                 IsHitTestVisible = false,
@@ -430,6 +437,11 @@ public sealed class ShipMapWindow : Window
         // 그래서 겹치지 않고 통째로 갈아 끼운다. 타이틀이 떠 있는 동안은 자식 창 자체가 없다.
         _titleRoot = BuildTitleScreen();
         _screen.Content = _titleRoot;
+
+        // 「이웃 섞기」를 켜고 끄면 타이틀을 그 자리에서 다시 짓는다 — 늘이는 결은 시각물마다
+        // 지을 때 박히는 것이라, 값만 바꿔서는 떠 있는 메인메뉴가 그대로다.
+        GameUi.SpriteScalingChanged += OnSpriteScalingChanged;
+        Closed += (_, _) => GameUi.SpriteScalingChanged -= OnSpriteScalingChanged;
 
         // 윈도 제목 줄 대신 크롬처럼 우리가 그린 줄을 얹는다.
         // 왼쪽 위 햄버거에는 앱이 적어 둔 것을 들여다보는 줄을 단다.
@@ -907,7 +919,7 @@ public sealed class ShipMapWindow : Window
             Margin = new Thickness(1, 0, 1, 0),
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }
@@ -961,8 +973,8 @@ public sealed class ShipMapWindow : Window
         var box = new Border
         {
             Background = MenuBack,
-            BorderBrush = MenuEdge,
-            BorderThickness = new Thickness(3),
+            BorderBrush = TitleBoxEdge,
+            BorderThickness = new Thickness(1),
             Padding = new Thickness(6),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -1110,7 +1122,7 @@ public sealed class ShipMapWindow : Window
             bmp.CacheOption = BitmapCacheOption.OnLoad;   // 파일을 잡고 있지 않게 다 읽고 놓는다
             bmp.EndInit();
             bmp.Freeze();
-            return new ImageBrush(bmp)
+            var wall = new ImageBrush(bmp)
             {
                 TileMode = TileMode.Tile,
                 ViewportUnits = BrushMappingMode.Absolute,
@@ -1118,12 +1130,24 @@ public sealed class ShipMapWindow : Window
                 Viewport = new Rect(0, 0, bmp.PixelWidth * TilePack, bmp.PixelHeight * TilePack),
                 Stretch = Stretch.Fill,
             };
+            RenderOptions.SetBitmapScalingMode(wall, GameUi.SpriteScaling);
+            wall.Freeze();
+            return wall;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 타이틀 무늬 로드 실패: {ex.Message}");
             return BarFill;
         }
+    }
+
+    /// <summary>늘이는 결이 바뀌면 타이틀을 다시 짓는다. 지도가 떠 있으면 둘 것 없다.</summary>
+    private void OnSpriteScalingChanged()
+    {
+        if (_titleRoot == null || !ReferenceEquals(_screen.Content, _titleRoot)) return;
+
+        _titleRoot = BuildTitleScreen();
+        _screen.Content = _titleRoot;
     }
 
     /// <summary>타이틀 메뉴에서 초점이 오가는 줄 묶음. 화면을 다시 지을 때 새로 잡는다.</summary>

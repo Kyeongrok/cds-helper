@@ -19,7 +19,11 @@ namespace CdsHelper.Game.UI.Views;
 internal static class GameUi
 {
     public static readonly Brush Back = new SolidColorBrush(Color.FromRgb(0x3A, 0x24, 0x1E));
-    public static readonly Brush Edge = new SolidColorBrush(Color.FromRgb(0xC8, 0xB4, 0x90));
+    /// <summary>
+    /// 창 바깥 테. 게임은 창을 <b>거의 검정</b>으로 두른다 — 밝은 양피지색(<c>C8B490</c>)으로
+    /// 두었더니 창마다 액자가 하나 더 있는 꼴이었다.
+    /// </summary>
+    public static readonly Brush Edge = new SolidColorBrush(Color.FromRgb(0x0B, 0x05, 0x05));
     public static readonly Brush Text = new SolidColorBrush(Color.FromRgb(0xF2, 0xEA, 0xD6));
     public static readonly Brush MenuBack = new SolidColorBrush(Color.FromRgb(0x4A, 0x2A, 0x22));
     public static readonly Brush ItemFill = new SolidColorBrush(Color.FromRgb(0xD2, 0xCA, 0xAD));
@@ -589,6 +593,24 @@ internal static class GameUi
     public static BitmapScalingMode SpriteScaling =>
         GameSettings.SmoothSprites ? BitmapScalingMode.Linear : BitmapScalingMode.NearestNeighbor;
 
+    /// <summary>
+    /// 늘이는 결이 바뀌었을 때 울린다 — 이미 지어 둔 화면을 <b>다시 지으라</b>는 뜻이다.
+    /// </summary>
+    /// <remarks>
+    /// 결은 시각물(<see cref="Image"/>·<see cref="ImageBrush"/>)마다 지을 때 한 번 박히고,
+    /// 굳힌 붓(<c>Freeze</c>)은 나중에 고칠 수도 없다. 그래서 값만 바꿔서는 떠 있는 화면이
+    /// 안 바뀐다 — 듣는 쪽이 그 화면을 새로 지어야 한다.
+    /// </remarks>
+    public static event Action? SpriteScalingChanged;
+
+    /// <summary>결을 바꾸고 듣는 쪽에 알린다.</summary>
+    public static void SetSpriteSmoothing(bool on)
+    {
+        if (GameSettings.SmoothSprites == on) return;
+        GameSettings.SmoothSprites = on;
+        SpriteScalingChanged?.Invoke();
+    }
+
     public static double BandWidthFor(string text) =>
         Math.Max(UiSprites.WidthFor(1), GameSettings.BandPad * 2 + (Font?.TextWidth(text) ?? 0));
 
@@ -615,7 +637,7 @@ internal static class GameUi
     /// </remarks>
     public sealed class GameLabel : Border
     {
-        private readonly byte _color;
+        private byte _color;
         private readonly int _height;
         private readonly Image _image = new()
         {
@@ -644,14 +666,29 @@ internal static class GameUi
         /// 글자를 굵게 보이게 할지. 게임은 오른쪽 아래로 한 점 겹쳐 찍어 굵기를 낸다 —
         /// 상단 띠의 날짜·소지금 칸이 그렇다.
         /// </summary>
-        public bool Bold { get; init; }
+        /// <remarks>
+        /// 겹쳐 찍은 한 점은 어두운 바탕에서 <b>그림자처럼</b> 보인다. 고른 줄처럼 바탕이
+        /// 뒤집히는 자리에서는 꺼야 원본과 같다.
+        /// </remarks>
+        public bool Bold
+        {
+            get => _bold;
+            set
+            {
+                if (_bold == value) return;
+                _bold = value;
+                Redraw();
+            }
+        }
+
+        private bool _bold;
 
         public GameLabel(byte color = GameFont.ButtonColor, int height = ItemTextHeight)
         {
             _color = color;
             _height = height;
             _fallbackBrush = PaletteBrush(color);
-            RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(_image, SpriteScaling);
             RenderOptions.SetEdgeMode(_image, EdgeMode.Aliased);
             VerticalAlignment = VerticalAlignment.Center;
             lock (Living) Living.Add(new WeakReference<GameLabel>(this));
@@ -686,6 +723,21 @@ internal static class GameUi
             return brush;
         }
 
+        /// <summary>
+        /// 글씨색(공용 색표 색인). 고른 줄만 흰 글씨로 뒤집는 자리에서 쓴다.
+        /// </summary>
+        public byte TextColor
+        {
+            get => _color;
+            set
+            {
+                if (_color == value) return;
+                _color = value;
+                FallbackBrush = PaletteBrush(value);
+                Redraw();
+            }
+        }
+
         public string Text
         {
             get => _text;
@@ -704,7 +756,7 @@ internal static class GameUi
             var font = Font;
             if (font != null)
             {
-                var bgra = font.Render(_text, _color, Bold, _color, _height, out int w);
+                var bgra = font.Render(_text, _color, _bold, _color, _height, out int w);
                 if (bgra != null && w > 0)
                 {
                     var bmp = BitmapSource.Create(w, _height, 96, 96,
@@ -757,7 +809,7 @@ internal static class GameUi
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false,        // 제목 줄 끌기를 가리지 않게
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }
@@ -816,7 +868,7 @@ internal static class GameUi
             bmp.Freeze();
 
             var brush = new ImageBrush(bmp) { Stretch = Stretch.Fill };
-            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(brush, SpriteScaling);
             RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
             brush.Freeze();
             back.Background = brush;
@@ -937,7 +989,7 @@ internal static class GameUi
             Cursor = Cursors.Hand,
             ToolTip = "닫기",
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
         // 누름도 삼킨다 — 제목 줄 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
@@ -1060,7 +1112,7 @@ internal static class GameUi
                 AlignmentX = AlignmentX.Left,
                 AlignmentY = AlignmentY.Top,
             };
-            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(brush, SpriteScaling);
             RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
             brush.Freeze();
             back.Background = brush;
@@ -1216,7 +1268,7 @@ internal static class GameUi
             Width = UiSprites.IconWidth * scale,
             Height = UiSprites.IconHeight * scale,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }
@@ -1252,7 +1304,7 @@ internal static class GameUi
                 AlignmentX = AlignmentX.Left,
                 AlignmentY = AlignmentY.Top,
             };
-            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(brush, SpriteScaling);
             RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
             brush.Freeze();
             back.Background = brush;
@@ -1376,7 +1428,7 @@ internal static class GameUi
             Viewport = new Rect(0, 0, 2 * cell, 2 * cell),
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(brush, SpriteScaling);
         RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
         brush.Freeze();
         return brush;
@@ -1410,7 +1462,7 @@ internal static class GameUi
         bmp.Freeze();
 
         var brush = new ImageBrush(bmp) { Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(brush, SpriteScaling);
         RenderOptions.SetEdgeMode(brush, EdgeMode.Aliased);
         brush.Freeze();
 

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO;
 using System.Security.Cryptography;
 
@@ -197,4 +197,17 @@ public sealed class WaveInfo
           (FormatTag == 1 ? "" : $" tag{FormatTag}");
 
     public string DuplicateText => DuplicateOf >= 0 ? $"파트 {DuplicateOf} 와 같음" : "";
+
+    /// <summary>
+    /// 손으로 적어 두는 비고 — 어떤 자리에서 나는 소리인지 들어 보며 적는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 파일이 아니라 <see cref="WaveNotes"/> 가 따로 챙긴다. 값을 넣으면 바로 쓰므로
+    /// 표에서 고치고 창을 닫아도 남는다.
+    /// </remarks>
+    public string Note
+    {
+        get => WaveNotes.Of(Part);
+        set => WaveNotes.Put(Part, value);
+    }
 }

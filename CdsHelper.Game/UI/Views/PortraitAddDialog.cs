@@ -380,7 +380,7 @@ public sealed class PortraitAddDialog : GameWindow
             Height = Portraits.Height * Zoom,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }

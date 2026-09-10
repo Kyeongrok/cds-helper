@@ -110,7 +110,7 @@ internal sealed class DuelDialog : InfoDialog
 
     private readonly GameUi.GameLabel _step = new(GameFont.WhiteColor)
     {
-        Bold = true,
+        Bold = false,
         HorizontalAlignment = HorizontalAlignment.Left,
     };
 

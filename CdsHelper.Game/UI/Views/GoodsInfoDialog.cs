@@ -114,7 +114,7 @@ public sealed class GoodsInfoDialog : GameWindow
         new(GameFont.BlackColor)
         {
             Text = text,
-            Bold = true,
+            Bold = false,
             FallbackBrush = Ink,
             Width = width,
             HorizontalAlignment = HorizontalAlignment.Left,

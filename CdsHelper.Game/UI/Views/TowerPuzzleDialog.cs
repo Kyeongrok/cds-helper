@@ -107,7 +107,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
             _spot[peg] = box;
         }
 
-        RenderOptions.SetBitmapScalingMode(_held, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_held, GameUi.SpriteScaling);
         Panel.SetZIndex(_held, 90);
         _scene.Children.Add(_held);
 
@@ -163,7 +163,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
             Height = height,
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x);
         Canvas.SetTop(image, y);
         _scene.Children.Add(image);
@@ -344,7 +344,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
             Height = PlankH,
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         // 앞뒤는 <b>쌓인 차례</b>로 정한다 — 판자 번호로 정하면 큰 것이 늘 앞이라
         // 위에 얹은 작은 판자가 뒤로 숨는다.
         Panel.SetZIndex(image, 10 + level);

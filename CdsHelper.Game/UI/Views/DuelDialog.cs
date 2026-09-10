@@ -406,7 +406,7 @@ public sealed class DuelDialog : GameWindow
             _bubbleText.Children.Add(new GameUi.GameLabel(GameFont.BlackColor)
             {
                 Text = line,
-                Bold = true,
+                Bold = false,
                 FallbackBrush = System.Windows.Media.Brushes.Black,
                 HorizontalAlignment = HorizontalAlignment.Left,
             });
@@ -563,7 +563,8 @@ public sealed class DuelDialog : GameWindow
         for (int i = 0; i < names.Length; i++)
         {
             int pick = i;
-            var key = focus.Add(names[i], () => Step(pick), width);
+            // 명령을 누르면 칼 부딪히는 소리부터 낸다(사운드 ID 72).
+            var key = focus.Add(names[i], () => { Clang(); Step(pick); }, width);
             key.Height = UiSprites.BandHeight;
             key.Margin = new Thickness(0, 0, 0, 2);
             column.Children.Add(key);
@@ -578,6 +579,21 @@ public sealed class DuelDialog : GameWindow
     }
 
     private GameUi.FocusGroup? _focus;
+
+    /// <summary>
+    /// 명령을 고를 때 나는 칼 부딪히는 소리. 효과음을 못 열면 조용히 넘어간다.
+    /// </summary>
+    /// <remarks>
+    /// 효과음 묶음은 <see cref="SoundBank.Shared"/> 가 한 벌만 들고 있고, 게임 폴더는
+    /// 마지막으로 연 세이브 파일 자리에서 찾는다 — 이 창은 게임 판을 안 들고 있다.
+    /// </remarks>
+    private void Clang()
+    {
+        var dir = System.IO.Path.GetDirectoryName(
+            CdsHelper.Support.Local.Settings.AppSettings.LastSaveFilePath);
+        if (string.IsNullOrEmpty(dir)) return;
+        SoundBank.Shared(dir)?.Play(SoundBank.ClashPart);
+    }
 
     private void OnKey(object sender, KeyEventArgs e)
     {

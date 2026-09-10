@@ -37,7 +37,7 @@ public sealed class SeaChartDialog : GameWindow
             Width = chart.PixelWidth * Scale,
             Height = chart.PixelHeight * Scale,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
         var bar = GameUi.TitleBar(title, Close);

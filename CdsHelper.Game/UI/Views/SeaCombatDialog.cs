@@ -104,7 +104,7 @@ public sealed class SeaCombatDialog : GameWindow
     {
         hull.Art.Source = Bitmap(_art.Ship(hull.Fleet, hull.Way));
         hull.Art.Width = hull.Art.Height = CombatArt.ShipSize;
-        RenderOptions.SetBitmapScalingMode(hull.Art, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(hull.Art, GameUi.SpriteScaling);
         Panel.SetZIndex(hull.Art, 10);
         _board.Children.Add(hull.Art);
         _hulls.Add(hull);
@@ -169,7 +169,7 @@ public sealed class SeaCombatDialog : GameWindow
         if (Bitmap(path) is not { } source) return;
 
         var image = new Image { Source = source, Width = w, Height = h };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x);
         Canvas.SetTop(image, y);
         board.Children.Add(image);

@@ -277,7 +277,7 @@ internal sealed class DuelFoeDialog : GameWindow
         bmp.Freeze();
 
         var image = new Image { Source = bmp, Width = FaceWidth, Height = FaceHeight };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         box.Child = image;
         return box;

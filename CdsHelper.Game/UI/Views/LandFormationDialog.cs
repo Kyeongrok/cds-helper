@@ -285,7 +285,7 @@ public sealed class LandFormationDialog : GameWindow
             Stretch = Stretch.Fill,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         return image;
     }
 
