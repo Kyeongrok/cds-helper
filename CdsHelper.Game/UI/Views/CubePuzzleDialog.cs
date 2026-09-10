@@ -197,7 +197,7 @@ internal sealed class CubePuzzleDialog : GameWindow
             Tile(col, row);
 
         // 출구는 판 밖 한 칸 위라 어느 줄보다도 뒤에 놓인다.
-        RenderOptions.SetBitmapScalingMode(_door, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_door, GameUi.SpriteScaling);
         _door.Source = Picture("cube-mark.png");
         var door = Spot(_game.ExitX, CubePuzzle.ExitRow);
         Canvas.SetLeft(_door, door.X);
@@ -205,7 +205,7 @@ internal sealed class CubePuzzleDialog : GameWindow
         Panel.SetZIndex(_door, -10);
         _scene.Children.Add(_door);
 
-        RenderOptions.SetBitmapScalingMode(_gold, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_gold, GameUi.SpriteScaling);
         _gold.Source = Picture("cube-gold.png");
         var gold = Spot(_game.GoldX, _game.GoldY);
         Canvas.SetLeft(_gold, gold.X + GoldDx);
@@ -214,7 +214,7 @@ internal sealed class CubePuzzleDialog : GameWindow
         Panel.SetZIndex(_gold, Depth(_game.GoldX, _game.GoldY));
         _scene.Children.Add(_gold);
 
-        RenderOptions.SetBitmapScalingMode(_hero, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_hero, GameUi.SpriteScaling);
         _hero.Source = Picture("cube-hero.png");
         _scene.Children.Add(_hero);
 
@@ -334,7 +334,7 @@ internal sealed class CubePuzzleDialog : GameWindow
             Height = TileH,
             Cursor = Cursors.Hand,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, at.X);
         Canvas.SetTop(image, at.Y);
         Panel.SetZIndex(image, Depth(col, row));
@@ -352,7 +352,7 @@ internal sealed class CubePuzzleDialog : GameWindow
             Source = Picture($"cube-turn-{TurnArt[at]}.png"),
             Cursor = Cursors.Hand,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, TurnSpots[at].X);
         Canvas.SetTop(image, TurnSpots[at].Y);
         Panel.SetZIndex(image, 210);
@@ -380,7 +380,7 @@ internal sealed class CubePuzzleDialog : GameWindow
             Height = height,
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x);
         Canvas.SetTop(image, y);
         Panel.SetZIndex(image, zIndex);

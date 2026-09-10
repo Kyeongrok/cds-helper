@@ -134,7 +134,7 @@ public sealed class ItemInfoDialog : GameWindow
     private static GameUi.GameLabel Label(string text) => new(GameFont.BlackColor)
     {
         Text = text,
-        Bold = true,
+        Bold = false,
         FallbackBrush = Ink,
         HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center,

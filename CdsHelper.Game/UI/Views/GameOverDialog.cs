@@ -97,7 +97,7 @@ public sealed class GameOverDialog : GameWindow
         bmp.Freeze();
 
         var image = new Image { Source = bmp, Width = w, Height = h };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
         return new Border

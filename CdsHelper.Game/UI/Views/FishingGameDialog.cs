@@ -68,7 +68,7 @@ internal sealed class FishingGameDialog : InfoDialog
 
     /// <summary>헤엄쳐 다니는 것 열 마리.</summary>
     private readonly Image[] _swim = new Image[FishingGame.Swimmers];
-    private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = true };
+    private readonly GameUi.GameLabel _line = new(GameFont.WhiteColor) { Bold = false };
     private readonly DispatcherTimer _clock = new();
 
     private FishingGameDialog(Random rng)
@@ -103,7 +103,7 @@ internal sealed class FishingGameDialog : InfoDialog
         for (int k = 0; k < FishingGame.Swimmers; k++)
         {
             var image = new Image { Width = FishW, Height = FishH, IsHitTestVisible = false };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
             Panel.SetZIndex(image, 30);
             _scene.Children.Add(image);
             _swim[k] = image;
@@ -177,7 +177,7 @@ internal sealed class FishingGameDialog : InfoDialog
 
     private static void Ready(Image image, BitmapSource? art)
     {
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         image.Source = art;
     }
 
@@ -193,7 +193,7 @@ internal sealed class FishingGameDialog : InfoDialog
             Height = height,
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x);
         Canvas.SetTop(image, y);
         _scene.Children.Add(image);
@@ -356,7 +356,7 @@ internal sealed class FishingGameDialog : InfoDialog
             Height = FishH,
             IsHitTestVisible = false,
         };
-        RenderOptions.SetBitmapScalingMode(_catch, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_catch, GameUi.SpriteScaling);
         Panel.SetZIndex(_catch, 80);
         Canvas.SetLeft(_catch, GridX + _game.DrawX - FishW / 2.0);
         Canvas.SetTop(_catch, _game.DrawY - FishH / 2.0);

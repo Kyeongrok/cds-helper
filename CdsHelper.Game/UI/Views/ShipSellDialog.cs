@@ -155,7 +155,7 @@ internal sealed class ShipSellDialog : GameWindow
         new(GameFont.BlackColor, GameUi.ItemTextHeight)
         {
             Text = text,
-            Bold = true,
+            Bold = false,
             FallbackBrush = Brushes.Black,
             HorizontalAlignment = HorizontalAlignment.Left,
         };

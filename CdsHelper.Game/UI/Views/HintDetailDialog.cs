@@ -89,7 +89,7 @@ public sealed class HintDetailDialog : GameWindow
         new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
         {
             Text = line,
-            Bold = true,
+            Bold = false,
             FallbackBrush = Brushes.Black,
             HorizontalAlignment = HorizontalAlignment.Left,
         };

@@ -25,7 +25,11 @@ public sealed class HintListDialog : GameWindow
     private const double ListWidth = 264, ListMaxHeight = 280;
 
     /// <summary>고른 줄의 바탕. 게임 갈무리에서 집은 파랑이다.</summary>
-    private static readonly Brush PickFill = Frozen(Color.FromRgb(0x4A, 0x64, 0x9E));
+    private static readonly Brush PickFill = Frozen(Color.FromRgb(0x43, 0x56, 0x7A));
+
+    /// <summary>고른 줄의 테. 바탕보다 훨씬 짙은 남색이다.</summary>
+    private static readonly Brush PickEdge = Frozen(Color.FromRgb(0x05, 0x06, 0x09));
+
 
     private static Brush Frozen(Color c)
     {
@@ -36,6 +40,12 @@ public sealed class HintListDialog : GameWindow
 
     /// <summary>줄 좌우 여백. 게임은 종이 테에 바짝 붙여 찍는다.</summary>
     private const double RowPad = 3;
+
+    /// <summary>배경 판을 창 테에서 물려 놓는 만큼. 도시 명령 창과 같은 세 점이다.</summary>
+    private const double PanelInset = 3;
+
+    /// <summary>바깥 테와 그 안쪽 테 사이의 틈. 한 점 띄워야 줄이 둘로 보인다.</summary>
+    private const double EdgeGap = 1;
 
     /// <summary>
     /// 아래 단추 둘의 폭·높이와 사이. 게임 조각 단추다.
@@ -69,6 +79,8 @@ public sealed class HintListDialog : GameWindow
                 Background = Brushes.Transparent,
                 BorderBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(1),
+                // 테 <b>바깥</b>으로 한 점을 비운다 — 고른 줄의 테가 위아래 줄에 맞닿지 않게.
+                Margin = new Thickness(1),
                 Padding = new Thickness(RowPad, 0, RowPad, 0),
                 Cursor = choosing ? Cursors.Hand : Cursors.Arrow,
                 // 줄은 게임 비트맵 글꼴로 찍는다 — 종이 위라 검은 벌이다.
@@ -76,7 +88,9 @@ public sealed class HintListDialog : GameWindow
                 Child = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
                 {
                     Text = hints[i],
-                    Bold = true,
+                    // 줄은 <b>겹쳐 찍지 않는다</b> — 오른쪽 아래로 한 점 겹친 자국이
+                    // 그림자처럼 보인다. 게임 목록 글씨는 민 글씨다.
+                    Bold = false,
                     FallbackBrush = Brushes.Black,
                     HorizontalAlignment = HorizontalAlignment.Left,
                 },
@@ -135,12 +149,33 @@ public sealed class HintListDialog : GameWindow
         });
         stack.Children.Add(buttons);
 
+        // 창은 <b>세 겹</b>이다 — 갈무리를 보면 창 가장자리에 검은 줄이 둘 겹쳐 있고,
+        // 그 안쪽에 배경 판이 또 한 겹 있다.
+        // <code>
+        //   ┌ 검은 줄 ─────────────┐  바깥 테
+        //   │ ┌ 검은 줄 ─────────┐ │  한 점 띄우고 한 겹 더
+        //   │ │ ┌ 검은 줄 ────┐  │ │  배경 판(세 점 물림)
+        //   │ │ │ 제목·목록·단추
+        // </code>
         Content = new Border
         {
             Background = GameUi.Back,
             BorderBrush = GameUi.Edge,
             BorderThickness = new Thickness(1),
-            Child = stack,
+            Child = new Border
+            {
+                BorderBrush = GameUi.Edge,
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(EdgeGap),
+                Child = new Border
+                {
+                    Background = GameUi.MenuBack,
+                    BorderBrush = GameUi.Edge,
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(PanelInset),
+                    Child = stack,
+                },
+            },
         };
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Cancel(); };
@@ -151,11 +186,17 @@ public sealed class HintListDialog : GameWindow
     private void Select(int index)
     {
         _picked = index;
-        // 고른 줄은 파란 바탕에 까만 테다 — 게임도 그렇게 도드라지게 낸다.
+        // 고른 줄은 <b>남색 바탕에 흰 글씨</b>다 — 종이 위 검은 글씨를 그대로 두면
+        // 바탕에 묻힌다. 테는 바탕보다 훨씬 짙어 한 겹 파인 것처럼 보인다.
         for (int i = 0; i < _rows.Count; i++)
         {
-            _rows[i].Background = i == index ? PickFill : Brushes.Transparent;
-            _rows[i].BorderBrush = i == index ? Brushes.Black : Brushes.Transparent;
+            bool on = i == index;
+            _rows[i].Background = on ? PickFill : Brushes.Transparent;
+            _rows[i].BorderBrush = on ? PickEdge : Brushes.Transparent;
+            if (_rows[i].Child is GameUi.GameLabel label)
+            {   // 글씨색만 뒤집는다 — 겹쳐 찍기는 어느 줄에서도 안 한다.
+                label.TextColor = on ? GameFont.WhiteColor : GameFont.BlackColor;
+            }
         }
 
         _decide.On = true;

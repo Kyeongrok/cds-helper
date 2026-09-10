@@ -162,7 +162,7 @@ public sealed class CityInfoDialog : GameWindow
     private static GameUi.GameLabel Text(string text, double size) => new(GameFont.BlackColor)
     {
         Text = text,
-        Bold = true,
+        Bold = false,
         FallbackBrush = Ink,
         VerticalAlignment = VerticalAlignment.Center,
     };

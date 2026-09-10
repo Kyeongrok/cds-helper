@@ -108,7 +108,9 @@ public sealed class ConfirmDialog : GameWindow
             words.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, TextHeight)
             {
                 Text = line,
-                Bold = true,
+                // 본문은 <b>겹쳐 찍지 않는다</b> — 오른쪽 아래로 한 점 겹친 자국이
+                // 그림자처럼 보인다. 게임 물음창 본문은 민 글씨다.
+                Bold = false,
                 FallbackBrush = GameUi.Text,
                 HorizontalAlignment = face == null && lines.Count == 1
                     ? HorizontalAlignment.Center : HorizontalAlignment.Left,
@@ -139,7 +141,7 @@ public sealed class ConfirmDialog : GameWindow
         var frame = new Border
         {
             Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
+            BorderBrush = FrameEdge,
             BorderThickness = new Thickness(EdgeThickness),
             Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
             Child = stack,
@@ -196,6 +198,22 @@ public sealed class ConfirmDialog : GameWindow
     /// <summary>상자를 두르는 밝은 테. 게임 물음창에도 한 점 있다.</summary>
     private const double EdgeThickness = 1;
 
+    /// <summary>
+    /// 물음창 테 — 갈무리에서 집은 <c>9B8D7D</c> 다.
+    /// </summary>
+    /// <remarks>
+    /// 공용 테(<see cref="GameUi.Edge"/>)는 거의 검정(<c>0B0505</c>)인데 물음창만 밝다.
+    /// 공용을 쓰다가 함께 검어져서 여기에 따로 둔다.
+    /// </remarks>
+    private static readonly Brush FrameEdge = Frozen(Color.FromRgb(0x9B, 0x8D, 0x7D));
+
+    private static Brush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
     /// <summary>제목 띠의 높이. 게임도 제목이 붙으면 창이 이만큼 길어진다.</summary>
     private const double BarHeight = UiSprites.BandHeight;
 
@@ -235,7 +253,7 @@ public sealed class ConfirmDialog : GameWindow
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(FacePad, 0, 0, 0),
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }

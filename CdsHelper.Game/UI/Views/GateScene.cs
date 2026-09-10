@@ -73,7 +73,7 @@ internal sealed class GateScene : GameWindow
         }
 
         var art = new Image { Source = picture, Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(art, GameUi.SpriteScaling);
 
         // 그림 위에 애니메이션을 얹을 자리를 하나 깔아 둔다 — 교섭할 때 하트가 여기서 돈다.
         Content = new Grid { Children = { art, _layer } };
@@ -114,7 +114,7 @@ internal sealed class GateScene : GameWindow
 
         double side = EffectAnim.Size * _scale;
         var image = new Image { Width = side, Height = side, Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         Canvas.SetLeft(image, (CityPictures.Width * _scale - side) / 2);
         Canvas.SetTop(image, (CityPictures.Height * _scale - side) / 2);

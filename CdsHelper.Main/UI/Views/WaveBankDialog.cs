@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Media;
 using System.Windows;
 using System.Windows.Controls;
@@ -34,14 +34,25 @@ public sealed class WaveBankDialog : Window
         _grid = new DataGrid
         {
             AutoGenerateColumns = false,
-            IsReadOnly = true,
+            // 비고 한 칸만 고칠 수 있게 하고, 나머지 칸은 각각 읽기 전용으로 잠근다.
+            IsReadOnly = false,
             SelectionMode = DataGridSelectionMode.Extended,
             HeadersVisibility = DataGridHeadersVisibility.Column,
             AlternatingRowBackground = System.Windows.Media.Brushes.WhiteSmoke,
         };
         AddColumns();
-        // 줄을 두 번 찍으면 바로 들려준다.
-        _grid.MouseDoubleClick += (_, _) => PlaySelected();
+        // 줄을 두 번 찍으면 바로 들려준다 — 비고 칸을 고치는 중이면 건드리지 않는다.
+        _grid.MouseDoubleClick += (_, e) =>
+        {
+            if (!IsInNoteCell(e.OriginalSource as DependencyObject)) PlaySelected();
+        };
+
+        // 비고를 고치고 칸을 떠나면 바로 쓴다 — 창을 닫아도 남게.
+        _grid.CellEditEnding += (_, e) =>
+        {
+            if (e.EditAction != DataGridEditAction.Commit) return;
+            Dispatcher.BeginInvoke(NoteSaved);
+        };
 
         Content = BuildContent();
         Loaded += (_, _) => Load();
@@ -55,6 +66,7 @@ public sealed class WaveBankDialog : Window
             Header = header,
             Binding = new Binding(path),
             Width = new DataGridLength(width),
+            IsReadOnly = true,
         });
 
         Col("파트", nameof(WaveInfo.Part), 50);
@@ -64,12 +76,25 @@ public sealed class WaveBankDialog : Window
             Header = "길이(초)",
             Binding = new Binding(nameof(WaveInfo.Seconds)) { StringFormat = "F2" },
             Width = new DataGridLength(70),
+            IsReadOnly = true,
         });
         Col("형식", nameof(WaveInfo.FormatText), 160);
         Col("data 크기", nameof(WaveInfo.DataBytes), 80);
         Col("푼 크기", nameof(WaveInfo.RawSize), 80);
-        Col("비고", nameof(WaveInfo.DuplicateText), 120);
-        Col("문제", nameof(WaveInfo.Error), 100);
+        Col("겹침", nameof(WaveInfo.DuplicateText), 110);
+        Col("문제", nameof(WaveInfo.Error), 90);
+
+        // 비고 — 여기만 고칠 수 있다. 칸을 떠나는 즉시 파일에 쓴다.
+        _grid.Columns.Add(new DataGridTextColumn
+        {
+            Header = "비고 (편집 가능)",
+            Binding = new Binding(nameof(WaveInfo.Note))
+            {
+                Mode = BindingMode.TwoWay,
+                UpdateSourceTrigger = UpdateSourceTrigger.LostFocus,
+            },
+            Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+        });
     }
 
     private UIElement BuildContent()
@@ -81,7 +106,7 @@ public sealed class WaveBankDialog : Window
         bar.Children.Add(MakeButton("전체 내보내기…", ExportAll));
         bar.Children.Add(new TextBlock
         {
-            Text = "줄을 두 번 찍어도 들립니다",
+            Text = "줄을 두 번 찍어도 들립니다 · 비고 칸은 두 번 찍어 고칩니다",
             Foreground = System.Windows.Media.Brushes.Gray,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
@@ -133,6 +158,20 @@ public sealed class WaveBankDialog : Window
     }
 
     private WaveInfo? Selected => _grid.SelectedItem as WaveInfo;
+
+    /// <summary>비고 칸(마지막 칸) 안에서 벌어진 일인지.</summary>
+    private bool IsInNoteCell(DependencyObject? hit)
+    {
+        while (hit != null && hit is not DataGridCell)
+            hit = System.Windows.Media.VisualTreeHelper.GetParent(hit);
+        return hit is DataGridCell cell && cell.Column == _grid.Columns[^1];
+    }
+
+    /// <summary>비고를 쓴 뒤 한 줄 알린다 — 못 썼으면 까닭까지.</summary>
+    private void NoteSaved() =>
+        _status.Text = WaveNotes.LastError.Length == 0
+            ? "비고를 적어 두었습니다"
+            : $"비고를 쓰지 못했습니다 — {WaveNotes.LastError}";
 
     private void PlaySelected()
     {

@@ -267,7 +267,7 @@ public sealed class TextInputDialog : GameWindow
         new(GameFont.BlackColor)
         {
             Text = text,
-            Bold = true,
+            Bold = false,
             FallbackBrush = System.Windows.Media.Brushes.Black,
             HorizontalAlignment = center ? HorizontalAlignment.Center : HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,

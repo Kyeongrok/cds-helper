@@ -24,8 +24,12 @@ public sealed class OpenBookDialog : GameWindow
 {
     /// <summary>글이 앉는 자리(책 틀 안의 그림 점).</summary>
     private const double TextLeft = OpenBookArt.RightPageX + 24;
-    private const double TitleTop = OpenBookArt.PageY + 18;
-    private const double BodyTop = OpenBookArt.PageY + 56;
+    /// <remarks>
+    /// 원본은 <b>종이 위쪽 여백이 좁다</b> — 제목이 종이 끝에 바짝 붙는다. 18점을 두었더니
+    /// 한 줄 남짓 비어 우리 것만 아래로 밀려 보였다.
+    /// </remarks>
+    private const double TitleTop = OpenBookArt.PageY + 8;
+    private const double BodyTop = OpenBookArt.PageY + 44;
     private const double LineHeight = 20, TextWidth = 208;
 
     /// <summary>쪽 번호가 앉는 높이.</summary>
@@ -95,7 +99,7 @@ public sealed class OpenBookDialog : GameWindow
         bmp.Freeze();
 
         var image = new Image { Source = bmp, Width = w * scale, Height = h * scale };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         Canvas.SetLeft(image, x * scale);
         Canvas.SetTop(image, y * scale);
@@ -109,7 +113,7 @@ public sealed class OpenBookDialog : GameWindow
         var label = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight * scale)
         {
             Text = line,
-            Bold = true,
+            Bold = false,
             FallbackBrush = Brushes.Black,
         };
         Canvas.SetLeft(label, x * scale);

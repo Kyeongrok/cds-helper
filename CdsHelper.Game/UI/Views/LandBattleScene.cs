@@ -512,7 +512,7 @@ internal sealed class LandBattleScene : GameWindow
         var words = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
         {
             Text = text,
-            Bold = true,
+            Bold = false,
             FallbackBrush = Brushes.Black,
         };
         Lay(words, x + side, y + (side * 2 - GameUi.ItemTextHeight) / 2);

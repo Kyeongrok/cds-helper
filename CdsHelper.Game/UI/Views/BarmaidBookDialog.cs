@@ -83,7 +83,7 @@ public sealed class BarmaidBookDialog : GameWindow
                                           PixelFormats.Bgra32, null, px, Portraits.Width * 4);
             bmp.Freeze();
             var image = new Image { Source = bmp, Width = Portraits.Width, Height = Portraits.Height };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
             line.Children.Add(image);
         }
 

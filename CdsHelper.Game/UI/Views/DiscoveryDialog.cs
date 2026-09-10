@@ -111,7 +111,7 @@ public sealed class DiscoveryDialog : GameWindow
             words.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor, GameUi.ItemTextHeight)
             {
                 Text = line,
-                Bold = true,
+                Bold = false,
                 FallbackBrush = GameUi.Text,
                 HorizontalAlignment = lines.Count == 1 ? HorizontalAlignment.Center
                                                        : HorizontalAlignment.Left,
@@ -234,7 +234,7 @@ public sealed class DiscoveryDialog : GameWindow
         if (art == null) return null;
 
         var image = new Image { Source = art, Width = art.PixelWidth, Height = art.PixelHeight };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }

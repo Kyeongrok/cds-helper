@@ -145,7 +145,8 @@ public sealed class HullSelectDialog : GameWindow
             var tb = new GameUi.GameLabel(GameFont.BlackColor)
             {
                 Text = cells[c],
-                Bold = true,
+                // 겹쳐 찍지 않는다 — 오른쪽 아래로 한 점 겹친 자국이 그림자처럼 보인다.
+                Bold = false,
                 FallbackBrush = dim ? Brushes.Gray : Brushes.Black,
                 Opacity = dim ? 0.45 : 1.0,
                 Margin = new Thickness(3, 1, 3, 1),

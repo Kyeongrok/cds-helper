@@ -110,7 +110,7 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// 자리는 <b>화면 좌표</b>라 배경이 놓이는 (8, 8) 을 빼야 우리 판의 자리가 된다.
     /// 오른쪽 아래 「GIVE UP」 쪽지에는 숫자가 없어 배경 그림 그대로다.
     /// </remarks>
-    private readonly GameUi.GameLabel _undo = new(GameFont.BlackColor) { Bold = true };
+    private readonly GameUi.GameLabel _undo = new(GameFont.BlackColor) { Bold = false };
 
     /// <summary>지금 짚은 방향. 게임의 <c>[0x2FC]</c> 다.</summary>
     private int _point = -1;

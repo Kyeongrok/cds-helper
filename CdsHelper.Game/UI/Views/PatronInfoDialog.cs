@@ -129,7 +129,7 @@ public sealed class PatronInfoDialog : GameWindow
         bmp.Freeze();
 
         var image = new Image { Source = bmp, Width = Portraits.Width, Height = Portraits.Height };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
         return new Border

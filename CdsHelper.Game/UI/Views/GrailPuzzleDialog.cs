@@ -76,7 +76,7 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     private readonly Dictionary<int, Border> _spot = [];
     private readonly Dictionary<int, Image> _art = [];
     private readonly Dictionary<int, GameUi.GameLabel> _now = [];
-    private readonly GameUi.GameLabel _count = new(GameFont.WhiteColor) { Bold = true };
+    private readonly GameUi.GameLabel _count = new(GameFont.WhiteColor) { Bold = false };
 
     /// <summary>끌고 다니는 그림.</summary>
     private readonly Image _ghost = new() { Visibility = Visibility.Collapsed, IsHitTestVisible = false };
@@ -106,7 +106,7 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         for (int i = 0; i < GrailPuzzle.Grails; i++)
             Spot(GrailPuzzle.FirstGrail + i, GrailX[i], GrailY + 4, GrailW, GrailH - 8);
 
-        RenderOptions.SetBitmapScalingMode(_ghost, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_ghost, GameUi.SpriteScaling);
         Panel.SetZIndex(_ghost, 100);
         _scene.Children.Add(_ghost);
 
@@ -163,7 +163,7 @@ internal sealed class GrailPuzzleDialog : InfoDialog
         if (Picture("grail-bg.png") is not { } bmp) return null;
 
         var image = new Image { Source = bmp, Width = SceneWidth, Height = SceneHeight };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         return image;
     }
 
@@ -171,7 +171,7 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     private void Art(int slot, int x, int y, int width, int height)
     {
         var image = new Image { Width = width, Height = height, IsHitTestVisible = false };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x);
         Canvas.SetTop(image, y);
         _scene.Children.Add(image);
@@ -215,8 +215,8 @@ internal sealed class GrailPuzzleDialog : InfoDialog
 
         // 든 물 / 가로줄 / 용량. 게임도 이렇게 두 줄로 쌓아 적는다.
         bool grail = slot >= GrailPuzzle.FirstGrail;
-        var now = new GameUi.GameLabel(GameFont.WhiteColor) { Bold = true, FallbackBrush = Ring };
-        var cap = new GameUi.GameLabel(GameFont.WhiteColor) { Bold = true, FallbackBrush = Ring };
+        var now = new GameUi.GameLabel(GameFont.WhiteColor) { Bold = false, FallbackBrush = Ring };
+        var cap = new GameUi.GameLabel(GameFont.WhiteColor) { Bold = false, FallbackBrush = Ring };
         cap.Text = $"{_game.SizeAt(slot)}";
         _now[slot] = now;
 

@@ -142,7 +142,7 @@ internal sealed class PersonInfoDialog : InfoDialog
             Width = Portraits.Width * FaceScale,
             Height = Portraits.Height * FaceScale,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
 
         return new Border
         {

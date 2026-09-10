@@ -177,7 +177,7 @@ public sealed class ShipNameDialog : GameWindow
     private static GameUi.GameLabel Ink(string text) => new(GameFont.BlackColor)
     {
         Text = text,
-        Bold = true,
+        Bold = false,
         FallbackBrush = System.Windows.Media.Brushes.Black,
         HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center,

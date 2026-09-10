@@ -230,7 +230,7 @@ public sealed class PortraitBookDialog : GameWindow
             Width = Portraits.Width * _scale,
             Height = Portraits.Height * _scale,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
 
         var box = new StackPanel { Margin = new Thickness(CellPad), Tag = face };
         box.Children.Add(image);

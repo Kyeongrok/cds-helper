@@ -438,7 +438,7 @@ internal sealed class CharacterMakeDialog : GameWindow
         bmp.Freeze();
         _portrait.Source = bmp;
         _portrait.Stretch = Stretch.Fill;
-        RenderOptions.SetBitmapScalingMode(_portrait, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(_portrait, GameUi.SpriteScaling);
 
         // 그 얼굴에 중년 얼굴이 있는지 밑에 한 줄로 이른다 — 없으면 나이가 들어도
         // 얼굴이 안 바뀐다는 뜻이다.

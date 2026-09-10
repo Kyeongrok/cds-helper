@@ -80,9 +80,9 @@ public sealed class DevDialog : GameWindow
 
         // 점그림을 이웃과 섞어 늘일지. 화면을 키워 놓았을 때 계단을 갈아 준다.
         rows.Children.Add(Toggle("이웃 섞기", GameSettings.SmoothSprites,
-            v => GameSettings.SmoothSprites = v,
+            GameUi.SetSpriteSmoothing,
             "점그림을 이웃과 섞어 늘입니다(Linear). 끄면 점 그대로입니다(NearestNeighbor)."
-            + " 다음에 여는 창부터 듭니다."));
+            + " 메인메뉴와 지도는 바로 듭니다 — 나머지 창은 다시 열 때 듭니다."));
 
         // 게임 창 단추의 좌우 여백. 띠 마구리(양 끝 조각)가 앉을 자리다 — 크게 잡으면
         // 글자에서 멀어지고 작게 잡으면 글자가 마구리 위로 올라앉는다.

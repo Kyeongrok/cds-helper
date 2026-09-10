@@ -77,7 +77,7 @@ public sealed class EncyclopediaDialog : GameWindow
             Height = BookShelf.ShelfHeight * scale,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(shelf, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(shelf, GameUi.SpriteScaling);
 
         var box = new Grid
         {
@@ -130,7 +130,7 @@ public sealed class EncyclopediaDialog : GameWindow
             Stretch = Stretch.Fill,
             Cursor = Cursors.Hand,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x * _scale);
         Canvas.SetTop(image, ShelfTop * _scale);
 

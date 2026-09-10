@@ -371,7 +371,7 @@ public sealed class CityCultureDialog : GameWindow
                 Stretch = Stretch.Uniform,
                 MaxHeight = 96,
             };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
             box.Children.Add(image);
         }
 
@@ -403,7 +403,7 @@ public sealed class CityCultureDialog : GameWindow
             bmp.Freeze();
 
             var image = new Image { Source = bmp, Width = Portraits.Width, Height = Portraits.Height };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
             box.Children.Add(image);
         }
         else

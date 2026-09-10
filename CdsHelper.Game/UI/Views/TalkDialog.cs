@@ -90,7 +90,7 @@ public sealed class TalkDialog : GameWindow
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(Pad, 0, 0, 0),
             };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
             line.Children.Add(image);
             textLeft = Pad + Portraits.Width + FaceTextGap;
         }
@@ -158,7 +158,7 @@ public sealed class TalkDialog : GameWindow
         new(color)
         {
             Text = text,
-            Bold = true,
+            Bold = false,
             FallbackBrush = color == GameFont.TitleColor ? GameUi.Edge : GameUi.Text,
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(Math.Max(least, (BoxWidth - TextWidth(text)) / 2), 0, 0, 0),
