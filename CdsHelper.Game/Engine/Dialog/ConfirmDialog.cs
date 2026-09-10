@@ -249,10 +249,17 @@ public sealed class ConfirmDialog : GameWindow
     /// <summary>
     /// 물어보고 YES 를 골랐으면 true. <paramref name="title"/> 을 주면 제목 띠를 얹는다.
     /// </summary>
+    /// <param name="place">
+    /// 주면 창이 다 뜬 뒤에 불러 <b>자리를 다시 잡게</b> 한다. 안 주면 여느 때처럼 주인
+    /// 창 가운데다 — 게임오버 화면처럼 그림과 겹치면 안 되는 자리에서 쓴다.
+    /// </param>
     public static bool Ask(Window owner, string text, string? title = null,
-                           uint[]? face = null) =>
-        new ConfirmDialog(text, title, yesNo: true, face, 0) { Owner = owner }
-            .ShowDialog() == true;
+                           uint[]? face = null, Action<Window>? place = null)
+    {
+        var box = new ConfirmDialog(text, title, yesNo: true, face, 0) { Owner = owner };
+        if (place != null) box.Loaded += (_, _) => place(box);
+        return box.ShowDialog() == true;
+    }
 
     /// <summary>
     /// 한 마디 알리고 확인만 받는다 — 게임 물음창의 <b>종류 0</b> 이다.

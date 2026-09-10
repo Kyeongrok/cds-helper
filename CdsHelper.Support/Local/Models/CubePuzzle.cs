@@ -228,10 +228,11 @@ public sealed class CubePuzzle
         ExitX = door;
         ExitY = ExitRow;
 
-        // 금괴는 시작도 출구도 아닌 칸.
+        // 금괴는 <b>바닥이 있는</b> 칸이라야 한다 — 시작도 출구도 아니어야 하고, 구멍에
+        // 놓이면 밟을 수가 없어 얻을 길이 없다(구멍을 밟으면 그대로 떨어진다).
         int gx, gy;
         do { gx = rng.Next(Side); gy = rng.Next(Side); }
-        while ((gx == X && gy == Y) || (gx == ExitX && gy == ExitY));
+        while ((gx == X && gy == Y) || (gx == ExitX && gy == ExitY) || !_floor[gx, gy]);
         GoldX = gx;
         GoldY = gy;
     }

@@ -78,6 +78,12 @@ public sealed class DevDialog : GameWindow
         rows.Children.Add(Toggle("정보", options.PeopleOn(), options.SetPeople,
             "말을 걸어 본 여급의 친밀도·궁합과, 만난 인물 목록을 지도 위에 띄웁니다"));
 
+        // 점그림을 이웃과 섞어 늘일지. 화면을 키워 놓았을 때 계단을 갈아 준다.
+        rows.Children.Add(Toggle("이웃 섞기", GameSettings.SmoothSprites,
+            v => GameSettings.SmoothSprites = v,
+            "점그림을 이웃과 섞어 늘입니다(Linear). 끄면 점 그대로입니다(NearestNeighbor)."
+            + " 다음에 여는 창부터 듭니다."));
+
         // 게임 창 단추의 좌우 여백. 띠 마구리(양 끝 조각)가 앉을 자리다 — 크게 잡으면
         // 글자에서 멀어지고 작게 잡으면 글자가 마구리 위로 올라앉는다.
         rows.Children.Add(Tune("단추 여백", GameSettings.BandPad,

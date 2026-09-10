@@ -68,7 +68,7 @@ public sealed class DuelDialog : GameWindow
             ViewportUnits = BrushMappingMode.Absolute,
             Stretch = Stretch.Fill,
         };
-        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(brush, GameUi.SpriteScaling);
         brush.Freeze();
         return brush;
     }
@@ -326,7 +326,7 @@ public sealed class DuelDialog : GameWindow
         if (path == null) return null;
 
         var image = new Image { Source = new BitmapImage(new Uri(path, UriKind.RelativeOrAbsolute)) };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
         return image;
     }
@@ -346,7 +346,7 @@ public sealed class DuelDialog : GameWindow
             Width = Portraits.Width,
             Height = Portraits.Height,
         };
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
 
         // 자리(84x96)가 초상(80x96)보다 조금 넓다 — 가운데로 민다.

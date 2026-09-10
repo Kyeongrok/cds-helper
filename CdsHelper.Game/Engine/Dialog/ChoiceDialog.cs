@@ -59,7 +59,7 @@ internal sealed class ChoiceDialog : GameWindow
         MouseRightButtonUp += (_, _) => Close();
     }
 
-    private ChoiceDialog(string title, IReadOnlyList<string> rows, string? cancel)
+    private ChoiceDialog(string title, IReadOnlyList<string> rows, string? cancel, int dim)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -76,7 +76,8 @@ internal sealed class ChoiceDialog : GameWindow
             // 나가기 줄이 없는 창은 <b>마지막 줄도 단추</b>다 — 안 그러면 GameMenu 가
             // 끝 줄을 회녹색 나가기 띠로 낸다. 스폰서의 승낙/교섭이 그런 창이다.
             items.Add(new GameMenuRow(rows[i], () => { _picked = pick; Close(); },
-                                      cancel == null ? BandStyle.Button : null));
+                                      cancel == null ? BandStyle.Button : null,
+                                      Dim: i == dim));
         }
         if (cancel != null) items.Add(new GameMenuRow(cancel, Close));
 
@@ -96,10 +97,13 @@ internal sealed class ChoiceDialog : GameWindow
     /// <param name="title">제목 줄.</param>
     /// <param name="rows">고를 줄들.</param>
     /// <param name="cancel">마지막 나가기 줄의 글.</param>
+    /// <param name="dim">
+    /// 그 자리의 줄을 <b>죽은 줄</b>로 낸다 — 흐리게 깔고 못 고르게 한다. −1 이면 없다.
+    /// </param>
     public static int Ask(Window owner, string title, IReadOnlyList<string> rows,
-                          string cancel = "취소")
+                          string cancel = "취소", int dim = -1)
     {
-        var dialog = new ChoiceDialog(title, rows, cancel) { Owner = owner };
+        var dialog = new ChoiceDialog(title, rows, cancel, dim) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
     }
@@ -114,7 +118,7 @@ internal sealed class ChoiceDialog : GameWindow
     /// </remarks>
     public static int Pick(Window owner, string title, IReadOnlyList<string> rows)
     {
-        var dialog = new ChoiceDialog(title, rows, null) { Owner = owner };
+        var dialog = new ChoiceDialog(title, rows, null, dim: -1) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
     }

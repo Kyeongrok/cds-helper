@@ -137,7 +137,7 @@ public sealed class DuelStage : Canvas
         {
             image.Width = FighterSprites.Width;
             image.Height = FighterSprites.Height;
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
             RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
             SetTop(image, StageHeight - FighterSprites.Height);
             Children.Add(image);

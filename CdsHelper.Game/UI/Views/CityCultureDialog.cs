@@ -62,6 +62,18 @@ public sealed class CityCultureDialog : GameWindow
     };
 
     private readonly WrapPanel _faces = new() { Margin = new Thickness(8) };
+
+    /// <summary>그 문화권 술집에 서는 손님들.</summary>
+    private readonly WrapPanel _guestFaces = new() { Margin = new Thickness(8, 0, 8, 8) };
+
+    /// <summary>손님 줄 머리글 — 몇 명인지 함께 적는다.</summary>
+    private readonly TextBlock _guestHead = new()
+    {
+        Margin = new Thickness(10, 4, 8, 0),
+        FontWeight = FontWeights.Bold,
+    };
+
+    private TavernGuests? _guests;
     private readonly TextBlock _status = new() { Margin = new Thickness(10, 6, 10, 8) };
 
     private readonly ComboBox _nation = new()
@@ -153,10 +165,17 @@ public sealed class CityCultureDialog : GameWindow
         var right = new DockPanel();
         DockPanel.SetDock(bar, Dock.Top);
         right.Children.Add(bar);
+        // 시설 화자 얼굴 아래에 <b>그 문화권 술집 손님</b>을 이어 붙인다 — 같은 문화권이
+        // 부르는 얼굴이라 한자리에서 맞대어 보는 것이 낫다.
+        var stack = new StackPanel();
+        stack.Children.Add(_faces);
+        stack.Children.Add(_guestHead);
+        stack.Children.Add(_guestFaces);
+
         right.Children.Add(new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = _faces,
+            Content = stack,
         });
 
         var split = new DockPanel();
@@ -192,6 +211,7 @@ public sealed class CityCultureDialog : GameWindow
         _names = CityTable.Open();
         _rows = CityExeTable.Open(dir);
         _speakers = SpeakerFaceTable.Open(dir);
+        _guests = TavernGuests.Open(dir);
         _portraits = Portraits.Open(dir);
         _kingdoms = NationTable.Open(dir);
 
@@ -302,6 +322,66 @@ public sealed class CityCultureDialog : GameWindow
             int face = speakers.FaceOf(code, culture);
             _faces.Children.Add(Cell(name, code, face, speakers.IsFemale(code)));
         }
+
+        ShowGuests(CityCultureEdits.NameOf(culture));
+    }
+
+    /// <summary>그 문화권 술집에 서는 손님들을 죽 늘어놓는다.</summary>
+    private void ShowGuests(string culture)
+    {
+        _guestFaces.Children.Clear();
+
+        if (_guests is not { } book)
+        {
+            _guestHead.Text = $"술집 손님 — 그림을 못 읽었습니다 ({TavernGuests.LastError})";
+            return;
+        }
+
+        var seats = book.Of(culture);
+        _guestHead.Text = $"술집 손님 — {culture} 구간 {seats.Count}명"
+                        + "   (여급으로 설 수 있는 여자는 번호 옆에 ♀)";
+
+        foreach (var guest in seats) _guestFaces.Children.Add(GuestCell(book, guest));
+    }
+
+    /// <summary>
+    /// 손님 한 칸 — 서 있는 그림과 번호.
+    /// </summary>
+    /// <remarks>
+    /// 무명 손님의 <b>초상</b>은 여기 안 낸다. 한때 손님 그림 번호를 남자 얼굴 수로 나눈
+    /// 나머지로 골라 함께 냈는데, 그건 우리가 정한 규칙이라 얼굴이 갈리지 않고 죄다 같은
+    /// 것으로 나왔다. 원본이 무명 손님에게 어느 얼굴을 물리는지 짚은 뒤에 다시 볼 일이다.
+    /// </remarks>
+    private static UIElement GuestCell(TavernGuests book, TavernGuests.Guest guest)
+    {
+        var box = new StackPanel { Margin = new Thickness(6), Width = 88 };
+
+        var px = book.TryGetBgra(guest);
+        if (px != null && guest.Width > 0 && guest.Height > 0)
+        {
+            var bmp = BitmapSource.Create(guest.Width, guest.Height, 96, 96,
+                                          PixelFormats.Bgra32, null, px, guest.Width * 4);
+            bmp.Freeze();
+
+            var image = new Image
+            {
+                Source = bmp,
+                Width = guest.Width,
+                Height = guest.Height,
+                Stretch = Stretch.Uniform,
+                MaxHeight = 96,
+            };
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+            box.Children.Add(image);
+        }
+
+        box.Children.Add(new TextBlock
+        {
+            Text = $"{guest.Index}{(guest.Female ? " ♀" : "")}",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontSize = 11,
+        });
+        return box;
     }
 
     /// <summary>시설 한 칸 — 이름 · 얼굴 · 번호.</summary>

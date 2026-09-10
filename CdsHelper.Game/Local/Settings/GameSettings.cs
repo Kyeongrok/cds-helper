@@ -25,6 +25,9 @@ public sealed class GameSettingsData
     /// <summary>일기토에서 최근에 싸운 상대 이름 — 앞이 가장 최근이다.</summary>
     public List<string> RecentDuelFoes { get; set; } = [];
 
+    /// <summary>점그림을 이웃과 섞어 늘일지. 기본은 끔(점 그대로).</summary>
+    public bool SmoothSprites { get; set; }
+
     /// <summary>도시 창이 열릴 때 줄 효과. <see cref="Settings.CityOpenEffect"/> 의 이름이다.</summary>
     public string CityOpenEffect { get; set; } = "Expand";
 
@@ -289,6 +292,20 @@ public static class GameSettings
     /// 바깥에 비워 두므로, 16 이면 마구리가 통째로 글자 밖에 서고 그보다 작으면 글자가
     /// 마구리 위로 조금씩 올라앉는다. 바꾼 값은 <b>다음에 여는 창</b>부터 든다.
     /// </remarks>
+    /// <summary>
+    /// 점그림을 <b>이웃과 섞어</b> 늘일지 — 켜면 계단이 갈리고 끄면 원본 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 화면을 키워 놓으면 점 하나가 큰 네모가 되어 계단이 굵게 진다. 켜면 옆 점을 섞어
+    /// (<c>BitmapScalingMode.Linear</c>) 부드러워지는 대신 획이 조금 흐려진다.
+    /// <b>다음에 여는 창부터</b> 든다 — 이미 떠 있는 창은 그대로다.
+    /// </remarks>
+    public static bool SmoothSprites
+    {
+        get => Get(d => d.SmoothSprites);
+        set => Set(d => d.SmoothSprites = value);
+    }
+
     /// <summary>몇 사람까지 적어 둘지.</summary>
     public const int MaxRecentFoes = 5;
 

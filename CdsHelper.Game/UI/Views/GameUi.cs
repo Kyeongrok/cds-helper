@@ -583,6 +583,12 @@ internal static class GameUi
     /// 폭을 손으로 박아 두면 짧은 글자에 좌우가 휑하게 남는다. 여러 단추를 나란히 세울
     /// 때는 <b>가장 긴 글자로 잰 값</b>을 죄다 같이 쓰면 폭이 맞으면서도 헐렁하지 않다.
     /// </remarks>
+    /// <summary>
+    /// 점그림을 늘이는 결 — 설정을 그대로 따른다(<see cref="GameSettings.SmoothSprites"/>).
+    /// </summary>
+    public static BitmapScalingMode SpriteScaling =>
+        GameSettings.SmoothSprites ? BitmapScalingMode.Linear : BitmapScalingMode.NearestNeighbor;
+
     public static double BandWidthFor(string text) =>
         Math.Max(UiSprites.WidthFor(1), GameSettings.BandPad * 2 + (Font?.TextWidth(text) ?? 0));
 
