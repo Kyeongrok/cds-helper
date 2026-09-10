@@ -242,7 +242,7 @@
                                             ToolTip="도시마다의 문화권·왕국을 갈아 씌운다 — 시설 화자 얼굴도 따라 바뀐다" />
                                         <MenuItem
                                             x:Name="PART_NationEditMenu"
-                                            Header="나라 표"
+                                            Header="국가"
                                             ToolTip="나라 이름·쓰는 말·수도를 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
                                         <MenuItem
                                             x:Name="PART_DisevEditorMenu"
@@ -264,6 +264,10 @@
                                             x:Name="PART_FortuneMenu"
                                             Header="운명 자리"
                                             ToolTip="여급 127명의 궁합 코드를 보고 고친다 — 어느 운명 자리에 여급이 몇이나 있는지" />
+                                        <MenuItem
+                                            x:Name="PART_MenuDesignerMenu"
+                                            Header="메뉴 디자이너"
+                                            ToolTip="게임에 나는 명령 창·물음창·목록을 손잡이로 짜 보고 눈으로 맞댄다" />
                                         <MenuItem
                                             x:Name="PART_MotionMakerMenu"
                                             Header="모션 메이커"

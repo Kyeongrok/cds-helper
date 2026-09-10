@@ -48,13 +48,16 @@ public sealed class GameOverDialog : GameWindow
 
         var page = new Grid { Background = Wallpaper() };
 
+        // 그림을 <b>위쪽에</b> 세운다 — 물음창이 그 아래에 앉을 자리를 비워 두는 것이다.
         var stack = new StackPanel
         {
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, Gap, 0, 0),
         };
 
-        if (Picture(stills, picture) is { } art) stack.Children.Add(art);
+        double tall = 0;
+        if (Picture(stills, picture, out tall) is { } art) stack.Children.Add(art);
 
         page.Children.Add(stack);
         Content = page;
@@ -63,18 +66,32 @@ public sealed class GameOverDialog : GameWindow
         // 게임도 알림과 물음이 한 함수라(0x00469060) 여기만 딴 상자를 지을 까닭이 없다.
         Loaded += (_, _) =>
         {
-            _again = ConfirmDialog.Ask(this, "게임을 다시 시작하겠습니까?", "CONTINUE?");
+            // 물음창을 <b>그림 아래로</b> 내려 앉힌다. 가운데에 두면 그림 한가운데를 덮는다.
+            _again = ConfirmDialog.Ask(this, "게임을 다시 시작하겠습니까?", "CONTINUE?",
+                place: box =>
+                {
+                    double want = Top + Gap + tall + Gap;
+                    double most = Top + Height - box.ActualHeight - Gap;
+                    box.Top = Math.Min(want, Math.Max(Top + Gap, most));
+                });
             Close();
         };
     }
+
+    /// <summary>그림과 물음창 사이, 그리고 화면 가장자리에 두는 틈.</summary>
+    private const double Gap = 24;
 
     /// <summary>벽지 무늬 — 타이틀 화면 것을 그대로 깐다.</summary>
     private static Brush Wallpaper() => ShipMapWindow.TitleBackground();
 
     /// <summary>사건 스틸 한 장을 밤색 액자에 넣는다. 못 읽으면 null.</summary>
-    private static UIElement? Picture(DiscoveryStills? stills, int picture)
+    /// <param name="tall">액자까지 넣은 높이 — 물음창을 그 아래에 앉히는 데 쓴다.</param>
+    private static UIElement? Picture(DiscoveryStills? stills, int picture, out double tall)
     {
+        tall = 0;
         if (stills?.TryGetBgra(picture, out int w, out int h) is not { } bgra) return null;
+
+        tall = h + 14;                      // 테두리 1 + 안쪽 여백 6, 위아래로
 
         var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
         bmp.Freeze();

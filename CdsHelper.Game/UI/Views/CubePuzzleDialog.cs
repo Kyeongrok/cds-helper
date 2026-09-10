@@ -424,6 +424,9 @@ internal sealed class CubePuzzleDialog : GameWindow
         Close();
     }
 
+    /// <summary>금괴를 밟았을 때 부를 것 — 벌이와 알림은 <see cref="Play"/> 가 맡는다.</summary>
+    private Action? _onGold;
+
     private void Roll(int way)
     {
         if (_turning || _game.Over != null) return;
@@ -431,10 +434,15 @@ internal sealed class CubePuzzleDialog : GameWindow
         Spin(way, () =>
         {
             int fromX = _game.X, fromY = _game.Y;
+            bool had = _game.GotGold;
             _game.Roll(way);
             Slide(fromX, fromY, () =>
             {
                 Sync();
+
+                // 금괴는 <b>밟는 그 자리에서</b> 알린다 — 나가고 나서가 아니다.
+                if (!had && _game.GotGold) _onGold?.Invoke();
+
                 if (_game.Over != null) Close();
             });
         });
@@ -532,17 +540,20 @@ internal sealed class CubePuzzleDialog : GameWindow
         Explain(owner);
 
         var dialog = new CubePuzzleDialog(rng) { Owner = owner };
-        dialog.ShowDialog();
 
-        if (dialog._game.Over == true)
+        // <b>금괴를 밟는 그 자리에서</b> 벌고 알린다. 예전에는 판을 나간 뒤에야 알려
+        // 「얻은 것과 알림」이 한 박자 어긋났다. 글은 게임 것 그대로다(0x0056DDF8).
+        dialog._onGold = () =>
         {
             player.Earn(CubePuzzle.Prize);
-            // 글은 게임 것 그대로다(0x0056DDF8).
-            NoticeDialog.Show(owner,
+            NoticeDialog.Show(dialog,
                 $"금화로 따지면 {CubePuzzle.Prize} 닢에 상당되는 금괴를 손에 넣었다!",
                 "게임 클리어");
-        }
-        else if (dialog._game.Over == false)
+        };
+
+        dialog.ShowDialog();
+
+        if (dialog._game.Over == false)
         {
             NoticeDialog.Show(owner, "좌대가 판에서 떨어지고 말았다!", "게임 오버");
         }

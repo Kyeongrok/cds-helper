@@ -205,6 +205,23 @@ public sealed class TavernGuests
     /// 맨 앞에 여자를 세울지. <b>술집에만</b> 여급이 선다 — 여관에는 여급이 없어서
     /// 세워 봐야 한잔 사도 아무 일이 없다.
     /// </param>
+    /// <summary>
+    /// 그 문화권이 쓰는 손님 전부 — 술집에 설 수 있는 얼굴들이다.
+    /// </summary>
+    /// <remarks>
+    /// 자리에 앉히는 것(<see cref="Seat"/>)과 달리 굴리지 않고 구간을 그대로 낸다.
+    /// 문화권마다 어떤 얼굴이 있는지 맞대어 볼 때 쓴다.
+    /// </remarks>
+    public IReadOnlyList<Guest> Of(string? culture)
+    {
+        if (!Ranges.TryGetValue(culture ?? "", out var range)) range = Ranges["이베리아"];
+
+        var made = new List<Guest>(range.Count);
+        for (int i = 0; i < range.Count && range.Start + i < _guests.Length; i++)
+            made.Add(_guests[range.Start + i]);
+        return made;
+    }
+
     public IReadOnlyList<Slot> Seat(string? culture, int seed, IReadOnlyList<int> personKeys,
                                     bool withMaid = true)
     {

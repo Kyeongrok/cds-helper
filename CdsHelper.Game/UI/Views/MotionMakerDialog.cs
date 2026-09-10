@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using Line = System.Windows.Shapes.Line;
 using System.Windows.Threading;
@@ -229,6 +230,110 @@ public sealed class MotionMakerDialog : GameWindow
         Width = DuelArt.ArenaWidth,
         Height = DuelArt.ArenaHeight,
         IsHitTestVisible = false,
+    };
+
+    /// <summary>
+    /// 늘이는 결 — 켜면 점을 뭉개어 고르게 늘인다.
+    /// </summary>
+    /// <remarks>
+    /// 밑값은 <see cref="BitmapScalingMode.NearestNeighbor"/> 다. 점 하나가 네모로
+    /// 커져 원본 그대로 보이지만 계단이 굵게 진다. 켜면 <see cref="BitmapScalingMode.Fant"/>
+    /// 로 이웃 점을 섞어 부드럽게 늘인다 — 대신 획이 흐려진다.
+    /// </remarks>
+    private readonly ComboBox _smoothScale = new() { Width = 128, VerticalAlignment = VerticalAlignment.Center };
+
+    /// <summary>
+    /// 늘이는 결 — 목록 차례 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   점 그대로   NearestNeighbor  점 하나가 네모로 커진다 (밑값)
+    ///   이웃 섞기   Linear           바로 옆 넷을 섞는다 — 가볍고 조금 부드럽다
+    ///   곱게        Fant             넓게 섞는다 — 줄일 때 특히 곱다
+    ///   맡기기      Unspecified      WPF 가 알아서 고른다
+    /// </code>
+    /// </remarks>
+    private static readonly (string Name, BitmapScalingMode Mode)[] Scalings =
+    [
+        ("점 그대로", BitmapScalingMode.NearestNeighbor),
+        ("이웃 섞기", BitmapScalingMode.Linear),
+        ("곱게", BitmapScalingMode.Fant),
+        ("맡기기", BitmapScalingMode.Unspecified),
+    ];
+
+    /// <summary>
+    /// 가장자리 — 켜면 테두리 계단을 갈아 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 밑값은 <see cref="EdgeMode.Aliased"/> 라 테두리가 칼같이 진다. 켜면 WPF 가
+    /// 알아서 갈아 내(<see cref="EdgeMode.Unspecified"/>) 비침 테두리가 매끈해진다.
+    /// </remarks>
+    private readonly CheckBox _smoothEdge = new()
+    {
+        Content = "가장자리 갈기",
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(0, 0, 8, 0),
+        ToolTip = "테두리 계단을 갈아 낸다 — 끄면 칼같이 진다",
+    };
+
+    /// <summary>흐림 — 판 전체에 얹는다. 0 이면 안 얹는다.</summary>
+    private readonly NumericSpinner _blur = new()
+    {
+        Minimum = 0,
+        Maximum = 5,
+        Step = 0.2,
+        DecimalPlaces = 1,
+        Value = 0,
+        Width = 74,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    /// <summary>
+    /// 겹쳐 그리기 — 판을 그만큼 크게 그렸다가 줄여 앉힌다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="BitmapCache.RenderAtScale"/> 다. 2 로 두면 두 배 크기로 그린 뒤 절반으로
+    /// 줄이므로, 늘이는 결이 「곱게」일 때 계단이 한 번 더 갈린다. 1 이면 안 쓴다.
+    /// </remarks>
+    private readonly NumericSpinner _over = new()
+    {
+        Minimum = 1,
+        Maximum = 4,
+        Step = 0.5,
+        DecimalPlaces = 1,
+        Value = 1,
+        Width = 74,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    /// <summary>주사선 — 옛 브라운관처럼 한 줄 걸러 어둡게 깐다.</summary>
+    private readonly CheckBox _scan = new()
+    {
+        Content = "주사선",
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(8, 0, 4, 0),
+        ToolTip = "한 줄 걸러 어둡게 깔아 옛 화면처럼 보이게 한다",
+    };
+
+    /// <summary>주사선 진하기.</summary>
+    private readonly NumericSpinner _scanDeep = new()
+    {
+        Minimum = 0.1,
+        Maximum = 0.9,
+        Step = 0.1,
+        DecimalPlaces = 1,
+        Value = 0.3,
+        Width = 68,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    /// <summary>주사선을 깔아 두는 곳 — 판 위에 겹친다.</summary>
+    private readonly Canvas _scanLines = new()
+    {
+        Width = DuelArt.ArenaWidth,
+        Height = DuelArt.ArenaHeight,
+        IsHitTestVisible = false,
+        Visibility = Visibility.Collapsed,
     };
 
     /// <summary>격자를 켜고 끄는 상자.</summary>
@@ -458,7 +563,99 @@ public sealed class MotionMakerDialog : GameWindow
         var rows = new StackPanel();
         rows.Children.Add(bar);
         rows.Children.Add(MotionRow());
+        rows.Children.Add(SmoothRow());
         return rows;
+    }
+
+    /// <summary>
+    /// 판을 부드럽게 보는 줄 — 그림 자체는 안 건드리고 <b>보이는 결만</b> 바꾼다.
+    /// </summary>
+    /// <remarks>
+    /// 원본은 점그림이라 밑값은 죄다 꺼 둔다. 켜고 끄며 견주어 보라고 낸 손잡이다.
+    /// 저장하는 값(장 · 초 · 점)과는 아무 상관이 없다.
+    /// </remarks>
+    private UIElement SmoothRow()
+    {
+        foreach (var (name, _) in Scalings) _smoothScale.Items.Add(name);
+        _smoothScale.SelectedIndex = 0;
+        _smoothScale.SelectionChanged += (_, _) => Smooth();
+
+        _over.ValueChanged += (_, _) => Smooth();
+        _scan.Checked += (_, _) => Smooth();
+        _scan.Unchecked += (_, _) => Smooth();
+        _scanDeep.ValueChanged += (_, _) => Smooth();
+
+        _smoothEdge.Checked += (_, _) => Smooth();
+        _smoothEdge.Unchecked += (_, _) => Smooth();
+        _blur.ValueChanged += (_, _) => Smooth();
+
+        var plain = Push("원래대로", () =>
+        {
+            _smoothScale.SelectedIndex = 0;
+            _smoothEdge.IsChecked = false;
+            _blur.Value = 0;
+            _over.Value = 1;
+            _scan.IsChecked = false;
+            Smooth();
+        }, 10);
+        plain.ToolTip = "셋을 다 끄고 점그림 그대로 본다";
+
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(12, 0, 12, 8),
+        };
+        row.Children.Add(Label("늘이기", 62));
+        row.Children.Add(_smoothScale);
+        row.Children.Add(_smoothEdge);
+        row.Children.Add(Label("흐림", 40));
+        row.Children.Add(_blur);
+        row.Children.Add(Label("겹쳐", 40));
+        row.Children.Add(_over);
+        row.Children.Add(_scan);
+        row.Children.Add(_scanDeep);
+        row.Children.Add(new TextBlock { Width = 8 });
+        row.Children.Add(plain);
+        return row;
+    }
+
+    /// <summary>고른 결을 판에 얹는다.</summary>
+    private void Smooth()
+    {
+        var mode = Scalings[Math.Clamp(_smoothScale.SelectedIndex, 0, Scalings.Length - 1)].Mode;
+        var edge = _smoothEdge.IsChecked == true ? EdgeMode.Unspecified : EdgeMode.Aliased;
+
+        foreach (var image in new[] { _ground, _mine.View, _foe.View })
+        {
+            RenderOptions.SetBitmapScalingMode(image, mode);
+            RenderOptions.SetEdgeMode(image, edge);
+        }
+
+        // 흐림은 판 전체에 한 번만 얹는다 — 사람과 배경이 따로 놀면 어색하다.
+        _stage.Effect = _blur.Value > 0.05
+            ? new BlurEffect { Radius = _blur.Value, KernelType = KernelType.Gaussian }
+            : null;
+
+        // 겹쳐 그리기 — 크게 그렸다 줄여 앉힌다. 1 이면 안 쓴다.
+        _stage.CacheMode = _over.Value > 1.05
+            ? new BitmapCache { RenderAtScale = _over.Value, SnapsToDevicePixels = false }
+            : null;
+
+        _scanLines.Visibility = _scan.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        _scanLines.Opacity = _scanDeep.Value;
+    }
+
+    /// <summary>주사선을 한 번 깔아 둔다 — 켜고 끄는 것은 보임만 바꾼다.</summary>
+    private void BuildScanLines()
+    {
+        for (int y = 0; y < DuelArt.ArenaHeight; y += 2)
+            _scanLines.Children.Add(new Line
+            {
+                X1 = 0, X2 = DuelArt.ArenaWidth,
+                Y1 = y + 0.5, Y2 = y + 0.5,
+                Stroke = Brushes.Black,
+                StrokeThickness = 1,
+            });
     }
 
     /// <summary>적어 둔 모션을 골라 넣고, 고친 것을 되적는 줄.</summary>
@@ -757,6 +954,8 @@ public sealed class MotionMakerDialog : GameWindow
         }
 
         BuildGrid();
+        BuildScanLines();
+        _stage.Children.Add(_scanLines);
         _stage.Children.Add(_grid);
 
         _gridOn.Checked += (_, _) => _grid.Visibility = Visibility.Visible;

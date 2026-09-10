@@ -31,6 +31,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_PersonEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_FormationMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_FortuneMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_MenuDesignerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_MotionMakerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
@@ -57,6 +58,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_PersonEditMenu = "PART_PersonEditMenu";
     private const string PART_FormationMenu = "PART_FormationMenu";
     private const string PART_FortuneMenu = "PART_FortuneMenu";
+    private const string PART_MenuDesignerMenu = "PART_MenuDesignerMenu";
     private const string PART_MotionMakerMenu = "PART_MotionMakerMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
@@ -180,6 +182,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_FortuneMenu) is MenuItem fortuneMenu)
         {
             fortuneMenu.Click += OnFortuneMenuClick;
+        }
+
+        if (GetTemplateChild(PART_MenuDesignerMenu) is MenuItem menuDesignerMenu)
+        {
+            menuDesignerMenu.Click += OnMenuDesignerMenuClick;
         }
 
         if (GetTemplateChild(PART_MotionMakerMenu) is MenuItem motionMakerMenu)
@@ -379,6 +386,16 @@ public class CdsHelperWindow : CdsWindow
     // 아래 열여섯이 젊은 제독, 위 열여섯이 그 중년 몫이다.
     private void OnFortuneMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.FortuneDialog.Show(this);
+
+    // 게임 창들의 꼴을 손잡이로 짜 보는 창. 단추 여백만 놀이에 곧바로 든다.
+    private void OnMenuDesignerMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new CdsHelper.Game.UI.Views.MenuDesignerDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
 
     // 일기토 그림을 늘어놓고 번호를 적어 이어 돌려 보는 창. 몸짓 차례를 코드에 적기
     // 앞서 눈으로 맞춰 보는 데 쓴다.

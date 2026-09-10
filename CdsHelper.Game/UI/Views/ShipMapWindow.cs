@@ -1267,8 +1267,11 @@ public sealed class ShipMapWindow : Window
         bool made = false;
         try
         {
+            // EASY 는 아직 안 옮겼다 — 줄은 그대로 두되 <b>죽은 줄</b>로 낸다. 미리 만든
+            // 주인공 둘의 이야기(STORY0/1.CDS)를 안 읽어 이름만 있는 껍데기이기 때문이다.
             int at = ChoiceDialog.Ask(this, "NEW GAME",
-                ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"]);
+                ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"],
+                dim: 0);
             if (at < 0) return;
 
             if (at == 0)
