@@ -943,8 +943,13 @@ public sealed class ShipMapWindow : Window
         items.Children.Add(handle);
         _titleFocus = new GameUi.FocusGroup();
         items.Children.Add(TitleMenuItem("NEW GAME", NewGame));
+
+        // 적어 둔 판이 없으면 <b>죽은 줄</b>로 낸다 — 누를 것이 없는 줄을 성한 것처럼
+        // 내면 눌러 보고서야 빈 것을 알게 된다.
+        bool saved = System.IO.File.Exists(Engine.GameSave.Path);
+
         // 게임도 로드 전에 한 번 묻는다. 제목 줄은 안 단다 — 게임 물음창에는 없다.
-        items.Children.Add(TitleMenuItem("LOAD GAME", () =>
+        items.Children.Add(TitleMenuItem("LOAD GAME", !saved ? null : () =>
         {
             // 게임도 제목 띠를 얹는다 — 0x00571A78 "게임 로드" · 0x00571A88 본문.
             if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다", "게임 로드"))
@@ -1208,6 +1213,10 @@ public sealed class ShipMapWindow : Window
         }
     }
 
+    /// <remarks>
+    /// <paramref name="run"/> 이 null 이면 <b>죽은 줄</b>이다 — 띠는 그대로고 글씨만
+    /// 회색(색인 21)으로 찍힌다. 게임도 그렇게 낸다.
+    /// </remarks>
     private Border TitleMenuItem(string text, Action? run)
     {
         var item = run != null
@@ -1321,16 +1330,22 @@ public sealed class ShipMapWindow : Window
         var rng = new Random();
         int step = 0;
 
+        // 기술 화면에서 되돌아오면 능력치를 <b>그대로 잇는다</b>. −1 이면 새로 굴린다 —
+        // 첫 걸음(이름·초상)으로 돌아갔다 오는 것은 사람을 새로 짓는 것이라 굴린다.
+        int spare = -1;
+
         while (true)
             switch (step)
             {
                 case 0:
                     if (!CharacterMakeDialog.Show(this, _game.Player, _game.Directory)) return false;
                     step = 1;
+                    spare = -1;
                     break;
 
                 case 1:
-                    step = AbilityMakeDialog.Show(this, _game.Player, rng) < 0 ? 0 : 2;
+                    spare = AbilityMakeDialog.Show(this, _game.Player, rng, spare);
+                    step = spare < 0 ? 0 : 2;
                     break;
 
                 case 2:

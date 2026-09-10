@@ -13,8 +13,8 @@ namespace CdsHelper.Game.Engine.Menu;
 /// 띠 무늬. 안 주면 자리가 정한다 — <b>마지막 줄만</b> 회녹색이고 나머지는 베이지다.
 /// </param>
 /// <param name="Dim">
-/// 참이면 <b>죽은 줄</b>로 낸다 — 흐리게 깔고 손도 안 받는다. 아직 안 옮긴 자리를
-/// 목록에서 빼지 않고 그대로 두되 못 고르게 할 때 쓴다.
+/// 참이면 <b>죽은 줄</b>로 낸다 — 띠는 그대로고 글씨만 회색으로 찍히며 손을 안 받는다.
+/// 아직 안 옮긴 자리를 목록에서 빼지 않고 그대로 두되 못 고르게 할 때 쓴다.
 /// </param>
 internal sealed record GameMenuRow(string Text, Action? Run = null, BandStyle? Style = null,
                                    bool Dim = false);
@@ -50,9 +50,6 @@ internal sealed class GameMenu : Border
     /// <param name="title">제목 줄에 적을 글. 비우면 제목 줄 자체가 없다(기능 창이 그렇다).</param>
     /// <param name="rows">줄들.</param>
     /// <param name="onClose">제목 줄 오른쪽에 닫기(X)를 단다. null 이면 안 단다.</param>
-    /// <summary>죽은 줄의 흐리기.</summary>
-    private const double DimOpacity = 0.45;
-
     public GameMenu(string title, IReadOnlyList<GameMenuRow> rows, Action? onClose = null)
     {
         var stack = new StackPanel();
@@ -67,14 +64,9 @@ internal sealed class GameMenu : Border
             var style = row.Style
                         ?? (i == rows.Count - 1 ? BandStyle.Alt : BandStyle.Button);
             // 메뉴는 줄을 붙여 쌓으므로 단추끼리 벌리는 여백을 덮는다.
+            // 죽은 줄은 <b>손만 떼면</b> 된다 — 손이 없는 띠는 GameButton 이 글씨를
+            // 회색(색인 21)으로 찍는다. 게임도 띠는 그대로 두고 글씨만 흐리게 낸다.
             var button = new GameButton(row.Text, row.Dim ? null : row.Run, style) { Margin = default };
-
-            // 죽은 줄은 흐리게 깔고 손을 안 받는다.
-            if (row.Dim)
-            {
-                button.IsEnabled = false;
-                button.Opacity = DimOpacity;
-            }
 
             // 창이 뜨면 <b>첫 줄에 초점</b>이 가 있다 — 게임도 그 줄의 안쪽 테가 깜빡인다.
             if (row.Run != null && !row.Dim)

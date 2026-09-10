@@ -152,10 +152,19 @@ public static class TownWorks
     /// 이 건물이 발견물이고 <b>이미 발견했는지</b> — 그때만 "해설" 줄이 붙는다.
     /// </param>
     /// <param name="Contracted">계약을 맺고 있는지 — 술집의 「정보를 듣는다」가 그때 붙는다.</param>
+    /// <param name="HasHeir">
+    /// 아이가 있는지. 없으면 자택의 <b>교육 · 세대교체</b> 줄이 아예 안 붙는다 —
+    /// 가르칠 아이도, 물려줄 아이도 없기 때문이다.
+    /// </param>
+    /// <param name="Wed">
+    /// 아내가 있는지. 없으면 <b>후손을 남긴다</b> 줄이 안 붙는다 — 혼자서는 아이가
+    /// 생길 길이 없다(<see cref="Home.CanLeaveHeir"/>).
+    /// </param>
     public readonly record struct TownState(bool Teaches, bool Poor, bool CanAnnounce,
                                             string? PatronRow, bool Commented = false,
                                             IReadOnlyList<string>? Drinks = null,
-                                            bool Contracted = false);
+                                            bool Contracted = false, bool HasHeir = false,
+                                            bool Wed = false);
 
     /// <summary>
     /// 그 시설의 명령 창에 늘어놓을 줄들. 차례와 문구는 <see cref="Facility.Menu"/> 것이고,
@@ -185,6 +194,18 @@ public static class TownWorks
         // (게임도 0x00477974 가 0x00476DE0 의 값을 그 줄의 보임 칸에 넣는다).
         if (facility.Kind == FacilityKind.Harbor && !state.CanAnnounce)
             items.Remove(NameOf(TownWork.Announce));
+
+        // 아이가 없으면 교육·세대교체는 <b>줄에서 뺀다</b>. 가르칠 아이도 물려줄 아이도
+        // 없는데 줄만 서 있으면 눌러 보고서야 알게 된다.
+        if (facility.Kind == FacilityKind.Home && !state.HasHeir)
+        {
+            items.Remove(NameOf(TownWork.Educate));
+            items.Remove(NameOf(TownWork.Succeed));
+        }
+
+        // 아내가 없으면 후손을 남길 길도 없다.
+        if (facility.Kind == FacilityKind.Home && !state.Wed)
+            items.Remove(NameOf(TownWork.Heir));
 
         // 발견한 건물이면 "해설" 이 나가기 줄 바로 앞에 붙는다.
         if (state.Commented) items.Insert(Math.Max(0, items.Count - 1), NameOf(TownWork.Comment));
