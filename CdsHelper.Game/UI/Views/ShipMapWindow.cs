@@ -456,6 +456,10 @@ public sealed class ShipMapWindow : Window
         GameWindow.Cover(this, hamburger == null ? [_screen] : [_screen, hamburger]);
 
         PreviewKeyDown += OnTitleKey;   // 타이틀에서만 먹는다(그 안에서 화면을 본다)
+
+        // V 글쇠가 어느 창에서든 이 창을 찾을 수 있게 해 둔다.
+        Current = this;
+        Closed += (_, _) => { if (ReferenceEquals(Current, this)) Current = null; };
         input.MouseWheel += (_, e) => _host.Zoom(e.Delta > 0 ? 1 : -1, e.GetPosition(input));
         // 오른쪽 단추는 커맨드 창만 낸다. 예전에는 끌면 지도가 밀렸는데, 게임에 없는
         // 조작인 데다 커맨드를 내려다 손이 조금만 흔들려도 지도가 밀려 걷어냈다.
@@ -1490,6 +1494,28 @@ public sealed class ShipMapWindow : Window
     /// 게임도 그 자리에서 곧바로 불러온다(<c>0x004A2830</c>). 도시 창이며 명령 창이
     /// 떠 있으므로 먼저 걷는다 — 불러온 판은 세이브에 적힌 자리에서 다시 시작한다.
     /// </remarks>
+    /// <summary>
+    /// 지금 떠 있는 함대 창. <b>V 글쇠</b>가 어느 창에서 눌리든 이것을 찾아 저장한다.
+    /// </summary>
+    /// <remarks>
+    /// 시설 창·상자들은 저마다 딴 창이라 글쇠가 지도까지 올라오지 않는다. 그래서 창 쪽에서
+    /// 이 자리를 찾아 부른다. 헬퍼 앱에서는 놀이가 안 도니 늘 <c>null</c> 이다.
+    /// </remarks>
+    internal static ShipMapWindow? Current { get; private set; }
+
+    /// <summary>
+    /// V 글쇠로 저장한다 — 자택 「기능 → 저장」과 같은 차례다.
+    /// </summary>
+    /// <param name="owner">물음창을 얹을 창. 지금 손이 가 있는 창이다.</param>
+    /// <remarks>
+    /// 타이틀 화면에서는 적을 판이 없으므로 아무것도 안 한다.
+    /// </remarks>
+    internal void SaveByKey(Window owner)
+    {
+        if (!_started) return;
+        GameSystemMenu.Save(owner, _game);
+    }
+
     public void LoadGame()
     {
         foreach (var child in OwnedWindows.OfType<Window>().ToList()) child.Close();

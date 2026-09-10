@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Engine.Town;
+﻿namespace CdsHelper.Game.Engine.Town;
 
 /// <summary>
 /// 일기토 — 술집에서 이름난 항해자에게 칼을 겨루는 판.
@@ -10,7 +10,7 @@ namespace CdsHelper.Game.Engine.Town;
 ///   0x004A48A0  신청을 받은 뒤 — 도망 잡기, 그리고 판 열기
 ///   0x004A2D80  판 열기(상대 번호, 종류, -1) — 술집이면 무대가 문화권에 따라 4·5·6
 ///   0x004A8500  판 짓기 — 부위 체력·능력치·무기·방어구를 여기서 담는다
-///   0x004A9610  이번 판의 손을 고른다(내 것과 상대 것)
+///   0x004A9610  이번 판의 명령을 고른다(내 것과 상대 것)
 ///   0x004A98E0  맞았는지 막았는지 가리고 아픈 만큼 깎는다
 ///   0x004A6E9E  다음 판이 공격인지 방어인지 가른다
 ///   0x004A9E50  판이 끝난 뒤 — 도망·용서·죽음, 그리고 체력 깎기
@@ -19,7 +19,7 @@ namespace CdsHelper.Game.Engine.Town;
 /// <b>부위가 셋이다.</b> 상·중·하 각각이 <b>체력+1</b> 을 따로 가지고, <b>한 군데만
 /// 뚫려도 진다</b>. 그래서 같은 곳만 노리는 것이 빠르고, 상대도 제 약한 곳을 감싼다.
 ///
-/// 손은 공격 셋(상·중·하)과 막기 셋(뛴다·피한다·웅크린다)이다. <b>공격 a 는 막기
+/// 명령은 공격 셋(상·중·하)과 막기 셋(뛴다·피한다·웅크린다)이다. <b>공격 a 는 막기
 /// 2-a 가 막는다</b> — 머리를 노리면 웅크려 피하고, 발을 노리면 뛰어 피한다.
 /// </remarks>
 public sealed class Duel
@@ -112,8 +112,8 @@ public sealed class Duel
 
     /// <summary>한 판을 치른 자취. 화면이 이것을 읽어 말과 그림을 고른다.</summary>
     /// <param name="Line">이번에 오간 줄(공격 쪽 기준).</param>
-    /// <param name="MyMove">내가 고른 손. 공격 판이면 공격 줄, 방어 판이면 막기.</param>
-    /// <param name="FoeMove">상대의 손.</param>
+    /// <param name="MyMove">내가 고른 명령. 공격 판이면 공격 줄, 방어 판이면 막기.</param>
+    /// <param name="FoeMove">상대의 명령.</param>
     /// <param name="Finisher">필살이 나왔는지.</param>
     /// <param name="Critical">회심의 한 수였는지.</param>
     public readonly record struct Turn(Phase Was, Blow Blow, int Line, int MyMove, int FoeMove,
@@ -158,7 +158,7 @@ public sealed class Duel
         FoeParts = [FoeFull, FoeFull, FoeFull];
     }
 
-    /// <summary>이번 판에 고를 수 있는 손. 공격 판에서는 필살이 뒤에 셋 더 붙는다.</summary>
+    /// <summary>이번 판에 고를 수 있는 명령. 공격 판에서는 필살이 뒤에 셋 더 붙는다.</summary>
     public string[] Choices() => Now switch
     {
         Phase.Guard => Guards,
@@ -303,7 +303,7 @@ public sealed class Duel
     {
         int weak = Weakest(FoeParts);
         int off = Off();
-        // off 0 이면 그 부위를 제대로 막는 손이고, 1·2 는 옆으로 밀린다.
+        // off 0 이면 그 부위를 제대로 막는 명령이고, 1·2 는 옆으로 밀린다.
         return (GuardFor(weak) + off * 2) % Lines;
     }
 
@@ -332,7 +332,7 @@ public sealed class Duel
         return stray;
     }
 
-    /// <summary>손이 얼마나 어긋나는가 — 0 이 절반, 1 이 열에 넷, 2 가 열에 하나다.</summary>
+    /// <summary>명령이 얼마나 어긋나는가 — 0 이 절반, 1 이 열에 넷, 2 가 열에 하나다.</summary>
     private int Off()
     {
         int roll = _dice.Next(GuardDice);

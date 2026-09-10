@@ -22,6 +22,9 @@ public sealed class GameSettingsData
     /// <summary>게임 창 단추의 좌우 여백(점).</summary>
     public int BandPad { get; set; } = GameSettings.DefaultBandPad;
 
+    /// <summary>일기토에서 최근에 싸운 상대 이름 — 앞이 가장 최근이다.</summary>
+    public List<string> RecentDuelFoes { get; set; } = [];
+
     /// <summary>도시 창이 열릴 때 줄 효과. <see cref="Settings.CityOpenEffect"/> 의 이름이다.</summary>
     public string CityOpenEffect { get; set; } = "Expand";
 
@@ -286,6 +289,30 @@ public static class GameSettings
     /// 바깥에 비워 두므로, 16 이면 마구리가 통째로 글자 밖에 서고 그보다 작으면 글자가
     /// 마구리 위로 조금씩 올라앉는다. 바꾼 값은 <b>다음에 여는 창</b>부터 든다.
     /// </remarks>
+    /// <summary>몇 사람까지 적어 둘지.</summary>
+    public const int MaxRecentFoes = 5;
+
+    /// <summary>
+    /// 일기토에서 최근에 싸운 상대 — 앞이 가장 최근이다.
+    /// </summary>
+    public static IReadOnlyList<string> RecentDuelFoes => Get(d => (IReadOnlyList<string>)[.. d.RecentDuelFoes]);
+
+    /// <summary>
+    /// 그 사람을 맨 앞에 적어 둔다. 이미 있으면 앞으로 끌어 올린다.
+    /// </summary>
+    public static void RememberDuelFoe(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        Set(d =>
+        {
+            d.RecentDuelFoes.RemoveAll(one => one == name);
+            d.RecentDuelFoes.Insert(0, name);
+            if (d.RecentDuelFoes.Count > MaxRecentFoes)
+                d.RecentDuelFoes.RemoveRange(MaxRecentFoes, d.RecentDuelFoes.Count - MaxRecentFoes);
+        });
+    }
+
     public static int BandPad
     {
         get => Get(d => Math.Clamp(d.BandPad, MinBandPad, MaxBandPad));

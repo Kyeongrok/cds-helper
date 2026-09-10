@@ -17,19 +17,19 @@ namespace CdsHelper.Game.UI.Views;
 /// <b>384x248 두 층</b>이다(<c>0x004AA7BB</c> 의 <c>0x180 x 0x100</c>).
 /// <code>
 ///   위 384x136  배경 — 그림 바탕에 두 사람이 선다(asset/duel, FighterSprites)
-///   아래 384x112 눈금판 — 초상 둘 · 고른 손 둘 · 부위 막대 여섯
+///   아래 384x112 눈금판 — 초상 둘 · 고른 명령 둘 · 부위 막대 여섯
 /// </code>
 /// 눈금판 위의 자리는 <b>그림에 찍힌 자리표를 재어</b> 얻었다
 /// (<see cref="DuelArt.Slots"/>) — 눈으로 맞춘 값이 아니다.
 /// <b>왼쪽이 상대, 오른쪽이 나</b>다.
 ///
-/// 손을 고를 때만 오른쪽 초상 자리 위에 <b>작은 명령 창</b>이 뜬다 — 게임도 그 자리다.
+/// 명령을 고를 때만 오른쪽 초상 자리 위에 <b>작은 명령 창</b>이 뜬다 — 게임도 그 자리다.
 ///
 /// 상대가 하는 말은 게임 표(<c>0x005729E0</c> 부터 여섯씩 넉 줄)를 그대로 옮겼다.
 /// </remarks>
 public sealed class DuelDialog : GameWindow
 {
-    /// <summary>고른 손 라벨과 부위 막대의 바탕 — 눈금판의 검은 홈이다.</summary>
+    /// <summary>고른 명령 라벨과 부위 막대의 바탕 — 눈금판의 검은 홈이다.</summary>
     private static readonly Brush Slot = Frozen(Color.FromRgb(0x0A, 0x08, 0x08));
 
     /// <summary>남은 것 · 이번에 깎인 것.</summary>
@@ -97,7 +97,7 @@ public sealed class DuelDialog : GameWindow
     private readonly Border[] _mineHurt = new Border[Duel.Lines];
     private readonly Border[] _theirsHurt = new Border[Duel.Lines];
 
-    /// <summary>가운데 라벨 둘 — 이번에 고른 손.</summary>
+    /// <summary>가운데 라벨 둘 — 이번에 고른 명령.</summary>
     private readonly GameUi.GameLabel _myMove = MoveLabel();
     private readonly GameUi.GameLabel _foeMove = MoveLabel();
 
@@ -192,7 +192,7 @@ public sealed class DuelDialog : GameWindow
         // 판 밑에는 아무것도 안 붙인다. 게임 판은 384x248 이 전부이고, 상대의 말은
         // 제목 「일기토」가 붙은 <b>제 창</b>으로 따로 난다. 어느 판인지(맞부딪힘·공격·
         // 방어)는 명령 창의 줄 이름이 그대로 일러 준다.
-        // 손을 고를 때만 뜨는 작은 명령 창. 배경 <b>한가운데</b>에 뜬다(게임도 그 자리다).
+        // 명령을 고를 때만 뜨는 작은 명령 창. 배경 <b>한가운데</b>에 뜬다(게임도 그 자리다).
         _keyBox.Background = GameUi.MenuBack;
         _keyBox.BorderBrush = GameUi.Edge;
         _keyBox.BorderThickness = new Thickness(1);
@@ -293,7 +293,7 @@ public sealed class DuelDialog : GameWindow
     }
 
     /// <summary>
-    /// 고른 손이 적히는 검은 홈. <b>게임 글꼴</b>로 찍는다.
+    /// 고른 명령이 적히는 검은 홈. <b>게임 글꼴</b>로 찍는다.
     /// </summary>
     /// <remarks>
     /// 글꼴을 못 읽었을 때만 윈도 글꼴로 물러선다 — 검은 홈이라 그때 쓸 색을 흰빛으로
@@ -339,7 +339,7 @@ public sealed class DuelDialog : GameWindow
         _bubble.Visibility = Visibility.Visible;
     }
 
-    /// <summary>그 판에 고른 손의 이름 — 맞부딪힘·공격이면 치는 줄, 방어면 막는 손이다.</summary>
+    /// <summary>그 판에 고른 명령의 이름 — 맞부딪힘·공격이면 치는 줄, 방어면 막는 명령이다.</summary>
     private static string MoveName(Duel.Phase was, int move)
     {
         if (move < 0) return "";
@@ -403,6 +403,17 @@ public sealed class DuelDialog : GameWindow
         }
     }
 
+    /// <summary>
+    /// 명령 단추의 폭 — 명령 이름 가운데 가장 긴 것에 맞춘다.
+    /// </summary>
+    /// <remarks>
+    /// 명령은 죄다 넉 자 안쪽이다 — 공격과 필살이 「상단공격」·「상단필살」로 넉 자,
+    /// 막기가 「뛴다」 두 자에서 「웅크린다」 넉 자다. 가장 긴 것으로 한 번 재어 붙박아
+    /// 두면 어느 판에서나 창 폭이 같다.
+    /// </remarks>
+    private static double KeyWidth =>
+        Duel.Attacks.Concat(Duel.Finishers).Concat(Duel.Guards).Max(GameUi.BandWidthFor);
+
     /// <summary>이번 판에 고를 손으로 단추를 다시 짓는다.</summary>
     private void Rebuild()
     {
@@ -410,12 +421,16 @@ public sealed class DuelDialog : GameWindow
         var names = _duel.Choices();
         var focus = new GameUi.FocusGroup();
 
-        // 게임은 손을 <b>세로로 쌓아</b> 낸다 — 갈무리의 상단·중단·하단 공격이 한 줄씩이다.
+        // 게임은 명령을 <b>세로로 쌓아</b> 낸다 — 갈무리의 상단·중단·하단 공격이 한 줄씩이다.
+        // 폭은 <b>명령 이름 가운데 가장 긴 것</b>에 맞춰 붙박는다 — 96 으로 박아 두었더니
+        // 좌우가 휑했다.
+        double width = KeyWidth;
+
         var column = new StackPanel();
         for (int i = 0; i < names.Length; i++)
         {
             int pick = i;
-            var key = focus.Add(names[i], () => Step(pick), 96);
+            var key = focus.Add(names[i], () => Step(pick), width);
             key.Height = UiSprites.BandHeight;
             key.Margin = new Thickness(0, 0, 0, 2);
             column.Children.Add(key);
@@ -443,19 +458,19 @@ public sealed class DuelDialog : GameWindow
 
         if (_stage == null) { Settle(turn); return; }
 
-        // 손을 고르고 나면 단추를 걷는다 — 그림이 도는 동안은 아무것도 못 누른다.
+        // 명령을 고르고 나면 단추를 걷는다 — 그림이 도는 동안은 아무것도 못 누른다.
         _keys.Children.Clear();
         _keyBox.Visibility = Visibility.Collapsed;
         Speak("");                 // 새 판이 시작되면 앞 말은 걷는다
         _focus = null;
 
-        // 두 사람이 고른 손을 가운데 홈에 적는다.
+        // 두 사람이 고른 명령을 가운데 홈에 적는다.
         _myMove.Text = MoveName(turn.Was, turn.MyMove);
         _foeMove.Text = MoveName(turn.Was, turn.FoeMove);
 
         // 판 갈래대로 두 사람이 통째로 마흔 점 옮겨 간다(0x004A6EE5) — 내가 몰아붙이면
         // 상대 쪽으로, 막기만 하면 내 쪽으로다. 맞부딪힘은 제자리다. 맞았는지는 안 본다.
-        // 이 판이 시작할 때 미끄러지므로 <b>공격이면 나가면서 찌르고 방어면 물러나면서</b>
+        // 이 판이 시작할 때 옮겨 가므로 <b>공격이면 다가서며 찌르고 방어면 물러나면서</b>
         // 뛴다 — 앞 판에서 옮겨 두면 뛰는 판에 앞으로 나가는 꼴이 된다.
         var (mine, theirs) = Moves(turn);
         int way = turn.Was switch
@@ -496,7 +511,7 @@ public sealed class DuelDialog : GameWindow
         };
     }
 
-    /// <summary>판이 끝난 자리 — 말을 내고 다음 손을 묻는다.</summary>
+    /// <summary>판이 끝난 자리 — 말을 내고 다음 명령을 묻는다.</summary>
     private void Settle(in Duel.Turn turn)
     {
         Refresh();
@@ -522,8 +537,8 @@ public sealed class DuelDialog : GameWindow
         Rebuild();
     }
 
-    // 「이번 판에 무엇이 오갔는지」를 한 줄로 적던 손은 걷었다. 게임은 그런 줄을 안
-    // 낸다 — 오간 손은 눈금판 가운데 라벨 둘이, 맞고 안 맞고는 그림과 체력 막대가
+    // 「이번 판에 무엇이 오갔는지」를 한 줄로 적던 줄은 걷었다. 게임은 그런 줄을 안
+    // 낸다 — 오간 명령은 눈금판 가운데 라벨 둘이, 맞고 안 맞고는 그림과 체력 막대가
     // 일러 준다. 말풍선에는 상대의 <b>비아냥</b>만 뜬다.
 
     /// <summary>상대가 하는 말. 어느 줄에서 고를지는 게임과 같다(<c>0x004A6E77</c>).</summary>

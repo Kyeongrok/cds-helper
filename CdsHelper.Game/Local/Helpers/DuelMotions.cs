@@ -15,7 +15,7 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 밑값은 게임 표 <c>0x00572A40</c> 에서 짚은 그대로다.
 /// <code>
 ///   눈금 하나  0.067초(1/15초)
-///   눈금 0~7   여느 자세로 미끄러진다 — 한 눈금에 5점, 여덟 눈금에 40점
+///   눈금 0~7   여느 자세로 다가서거나 물러난다 — 한 눈금에 5점, 여덟 눈금에 40점
 ///   눈금 8·9   찌르는 첫 장          10  둘째 장       11~14  셋째 장(+30점)
 ///   눈금 15~   여느 첫 장 하나로 선다
 /// </code>
@@ -27,7 +27,7 @@ public static class DuelMotions
     /// <summary>눈금 하나의 길이. 게임이 1/15초로 돈다.</summary>
     public const double Tick = 0.067;
 
-    /// <summary>한 눈금에 미끄러지는 거리와, 한 판에 미끄러지는 거리.</summary>
+    /// <summary>한 눈금에 옮기는 거리와, 한 판에 다가서거나 물러나는 거리.</summary>
     public const double StepWay = 5, Drift = 40;
 
     /// <summary>찌를 때 더 나가는 거리(<c>0x004A794A</c> 의 <c>sub eax,0x1E</c>).</summary>
@@ -73,17 +73,21 @@ public static class DuelMotions
 
     public const string Walk = "walk", Idle = "idle", Victory = "victory", Fall = "fall";
 
-    /// <summary>찌르는 몸짓 이름 — 미끄러지는 갈래마다 따로다.</summary>
+    /// <summary>찌르는 몸짓 이름 — 다가서는 갈래마다 따로다.</summary>
     /// <param name="line">0 상단 · 1 중단 · 2 하단.</param>
     /// <param name="way">
-    /// <c>+1</c> 앞으로 미끄러지며 찌른다(공격 판) · <c>0</c> 제자리에서 찌른다(맞부딪힘).
+    /// <c>+1</c> 다가서며 찌른다(공격 판) · <c>0</c> 제자리에서 찌른다(맞부딪힘).
     /// </param>
     public static string ThrustKey(int line, int way) =>
         (way == 0 ? "clash-" : "attack-") + Lines[Math.Clamp(line, 0, 2)];
 
-    /// <summary>막는 몸짓 이름. 뒤로 물러나며 막는다.</summary>
+    /// <summary>막는 몸짓 이름 — 물러나는 갈래마다 따로다.</summary>
     /// <param name="guard">0 뛴다 · 1 피한다 · 2 웅크린다.</param>
-    public static string GuardKey(int guard) => "guard-" + Guards[Math.Clamp(guard, 0, 2)];
+    /// <param name="way">
+    /// <c>−1</c> 물러나며 막는다 · <c>0</c> 제자리에서 막는다(벽에 닿았거나 맞부딪힘).
+    /// </param>
+    public static string GuardKey(int guard, int way) =>
+        (way == 0 ? "hold-" : "guard-") + Guards[Math.Clamp(guard, 0, 2)];
 
     private static readonly string[] Lines = ["high", "mid", "low"];
     private static readonly string[] Guards = ["jump", "dodge", "crouch"];
@@ -91,7 +95,7 @@ public static class DuelMotions
     // ── 밑값 ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 판이 열리고 여덟 눈금 동안 여느 자세로 미끄러지는 앞머리.
+    /// 판이 열리고 여덟 눈금 동안 여느 자세로 다가서거나 물러나는 앞머리.
     /// </summary>
     /// <remarks>
     /// 여느 자세는 <c>0 · 1 · 0 · 2</c> 로 돌고(<c>0x004A7528</c>), 자리는 한 눈금에 다섯
@@ -117,14 +121,14 @@ public static class DuelMotions
         new Step(30, Tick * 18, way * Drift),
     ]);
 
-    /// <summary>막는 한 판 — 뒤로 물러나면서 뛰거나 피하거나 웅크린다.</summary>
-    private static Motion Block(string key, string name, int first) => new(key, name,
+    /// <summary>막는 한 판. <paramref name="way"/> 가 0 이면 제자리에서 막는다.</summary>
+    private static Motion Block(string key, string name, int first, int way) => new(key, name,
     [
-        .. Opening(-1),
-        new Step(first, Tick * 2, -Drift),
-        new Step(first + 1, Tick, -Drift),
-        new Step(first + 2, Tick * 4, -Drift),
-        new Step(30, Tick * 18, -Drift),
+        .. Opening(way),
+        new Step(first, Tick * 2, way * Drift),
+        new Step(first + 1, Tick, way * Drift),
+        new Step(first + 2, Tick * 4, way * Drift),
+        new Step(30, Tick * 18, way * Drift),
     ]);
 
     /// <summary>여섯 장짜리 — 두 눈금에 한 장, 끝 두 장을 번갈아 낸다(<c>0x004A8155</c>).</summary>
@@ -136,12 +140,22 @@ public static class DuelMotions
         new Step(first + 4, Tick * 2, 0), new Step(first + 5, Tick * 2, 0),
     ]);
 
-    /// <summary>다가오기 — 벽에서 여든 점을 열여섯 눈금에 걸어 나온다.</summary>
+    /// <summary>
+    /// 걸어 나오기를 마친 자리 — 선 자리 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 한때 −70 에서 시작하게 열 점 당겨 두었는데, 그것은 <b>서는 자리를 잘못 잡아</b>
+    /// 생긴 어긋남이었다. 참값(상대 80 · 내 152, <c>0x004A9465</c>)으로 고치고 나면
+    /// −80 에서 0 이 맞다 — 그래야 상대가 판 왼끝(80−80=0)에서 걸어 나온다.
+    /// </remarks>
+    public const double WalkEnd = 0;
+
+    /// <summary>다가오기 — 벽에서 열여섯 눈금에 걸어 나온다(−70 → +10).</summary>
     private static Motion WalkIn()
     {
         var steps = new List<Step>();
         for (int tick = 0; tick <= 16; tick++)
-            steps.Add(new Step(IdleFrame(tick), Tick, -(16 - tick) * StepWay));
+            steps.Add(new Step(IdleFrame(tick), Tick, -(16 - tick) * StepWay + WalkEnd));
         return new Motion(Walk, "다가오기", [.. steps]);
     }
 
@@ -155,9 +169,12 @@ public static class DuelMotions
         Thrust(ThrustKey(0, 0), "상단 맞부딪힘", 0, 0),
         Thrust(ThrustKey(1, 0), "중단 맞부딪힘", 3, 0),
         Thrust(ThrustKey(2, 0), "하단 맞부딪힘", 6, 0),
-        Block(GuardKey(0), "뛴다(막기)", 9),
-        Block(GuardKey(1), "피한다(막기)", 12),
-        Block(GuardKey(2), "웅크린다(막기)", 15),
+        Block(GuardKey(0, -1), "뛴다(막기)", 9, -1),
+        Block(GuardKey(1, -1), "피한다(막기)", 12, -1),
+        Block(GuardKey(2, -1), "웅크린다(막기)", 15, -1),
+        Block(GuardKey(0, 0), "뛴다(제자리)", 9, 0),
+        Block(GuardKey(1, 0), "피한다(제자리)", 12, 0),
+        Block(GuardKey(2, 0), "웅크린다(제자리)", 15, 0),
         Six(Victory, "승리", 18),
         Six(Fall, "쓰러짐", 24),
         new(Idle, "가만히 서기",

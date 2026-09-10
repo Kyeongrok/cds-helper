@@ -42,9 +42,18 @@ internal static class GameSystemMenu
     /// 게임의 <c>0x004A2800</c> 그대로다 — 물음(<c>0x00568CB8</c>) · 쓰기 · 알림(<c>0x00568CE0</c>).
     /// 물음에 YES 가 아니면 아무것도 쓰지 않고 그냥 돌아간다.
     /// </remarks>
-    public static void Save(Window view, Engine.Game game, GameMenuHost menu)
+    public static void Save(Window view, Engine.Game game, GameMenuHost menu) =>
+        Save(menu.Window ?? view, game);
+
+    /// <summary>
+    /// 시설 창 없이 저장한다 — 물음과 알림만 그 창 위에 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 자택 「기능 → 저장」이 밟는 차례와 같다. V 글쇠가 이 자리를 곧바로 부른다
+    /// (<see cref="ShipMapWindow.SaveByKey"/>).
+    /// </remarks>
+    public static void Save(Window owner, Engine.Game game)
     {
-        var owner = menu.Window ?? view;
         if (!ConfirmDialog.Ask(owner, "데이터를 겹쳐 쓰겠습니다. 좋습니까?")) return;
 
         string error = game.Save();
