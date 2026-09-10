@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Line = System.Windows.Shapes.Line;
 using System.Windows.Threading;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
@@ -58,7 +59,16 @@ public sealed class MotionMakerDialog : GameWindow
     private const double MaxPush = 150, PushStep = 5;
 
     /// <summary>두 사람이 서는 자리. <see cref="DuelStage"/> 의 <c>FoeStand</c> · <c>MyStand</c> 다.</summary>
-    private const double FoeStand = 60, MyStand = 173;
+    private const double FoeStand = 80, MyStand = 152;
+
+    /// <summary>
+    /// 조각 안에서 <b>발 가운데</b>가 앉은 자리 — 여느 첫 장(30)을 재어 잡았다.
+    /// </summary>
+    /// <remarks>
+    /// 조각이 144점 폭이고 사람은 그 안쪽에 그려져 있어, 조각 왼끝(<see cref="FoeStand"/> ·
+    /// <see cref="MyStand"/>)에 줄을 그으면 사람과 한참 어긋난다. 발 자리에 그어야 눈에 맞는다.
+    /// </remarks>
+    private const double FoeFeet = 76.0, MyFeet = 86.5;
 
     /// <summary>몸짓 이름 — <see cref="FighterSprites.Move"/> 차례 그대로다.</summary>
     private static readonly string[] MoveNames =
@@ -157,7 +167,7 @@ public sealed class MotionMakerDialog : GameWindow
 
     private static readonly string[] Blocks =
     [
-        DuelMotions.GuardKey(0), DuelMotions.GuardKey(1), DuelMotions.GuardKey(2),
+        DuelMotions.GuardKey(0, -1), DuelMotions.GuardKey(1, -1), DuelMotions.GuardKey(2, -1),
     ];
 
     /// <summary>마지막으로 만진 쪽 — 「저장」이 이 쪽 차례를 적는다.</summary>
@@ -206,6 +216,30 @@ public sealed class MotionMakerDialog : GameWindow
     };
 
     private readonly Image _ground = new();
+
+    /// <summary>
+    /// 판 위에 얹는 격자 — <b>열 점마다</b> 가는 줄, <b>쉰 점마다</b> 굵은 줄이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 자리를 그대로 재는 눈금이라 판 좌표(384x136)로 그린다 — 판을 키우고 줄여도
+    /// 같이 늘고 준다. 두 사람이 서는 자리(60 · 173)에는 빛깔 줄을 따로 세워 둔다.
+    /// </remarks>
+    private readonly Canvas _grid = new()
+    {
+        Width = DuelArt.ArenaWidth,
+        Height = DuelArt.ArenaHeight,
+        IsHitTestVisible = false,
+    };
+
+    /// <summary>격자를 켜고 끄는 상자.</summary>
+    private readonly CheckBox _gridOn = new()
+    {
+        Content = "격자",
+        IsChecked = true,
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(8, 0, 8, 0),
+        ToolTip = "열 점마다 눈금을 얹는다 — 쉰 점마다 굵고, 선 자리 둘은 빛깔 줄이다",
+    };
     private readonly ScaleTransform _stageScale = new(DefaultStageScale, DefaultStageScale);
 
     /// <summary>지금 그림 목록에 거는 배율. 제목 옆 ＋ － 로 굴린다.</summary>
@@ -408,6 +442,7 @@ public sealed class MotionMakerDialog : GameWindow
         bar.Children.Add(smaller);
         bar.Children.Add(_stageShown);
         bar.Children.Add(bigger);
+        bar.Children.Add(_gridOn);
         bar.Children.Add(Label("한 장", 48));
         bar.Children.Add(_every);
         bar.Children.Add(new TextBlock
@@ -438,9 +473,11 @@ public sealed class MotionMakerDialog : GameWindow
         var toFoe = Push("적군에 넣기", () => Put(_foe), 10);
         var toMine = Push("아군에 넣기", () => Put(_mine), 10);
 
-        // 공격과 막기는 짝이라 한꺼번에 세워 보는 일이 잦다.
-        var pair = Push("맞세우기", Face, 10);
-        pair.ToolTip = "고른 것이 공격이면 아군에 넣고 적군에는 막는 몸짓을 세운다 (그 반대도 같다)";
+        // 공격과 막기는 짝이라 한꺼번에 세워 보는 일이 잦다. 이름에 <b>어느 쪽에 드는지</b>를
+        // 적어 둔다 — 「맞세우기」만으로는 고른 것이 아군에 드는지 적군에 드는지 알 수 없다.
+        var pair = Push("아군에 넣고 맞세우기", Face, 10);
+        pair.ToolTip = "고른 것을 아군에 넣고, 적군에는 그것을 받는 몸짓을 세운다"
+                     + " — 상단 공격이면 적군은 웅크린다, 뛴다면 적군은 하단 공격이다";
 
         // 고친 차례를 그 모션으로 되적는다 — 놀이가 이 파일을 읽는다.
         var keep = Push("저장", Keep, 14);
@@ -449,6 +486,17 @@ public sealed class MotionMakerDialog : GameWindow
 
         var back = Push("되돌리기", Undo, 10);
         back.ToolTip = "적어 둔 파일을 지우고 게임 표에서 짚은 밑값으로 돌린다";
+
+        // 차례 전체의 점을 한꺼번에 민다 — 장마다 스피너를 굴리지 않아도 된다.
+        var less = Push("－", () => ShiftPush(-PushStep), 8);
+        less.ToolTip = "이 차례의 점을 죄다 5 줄인다 (뒤로 민다)";
+        var more = Push("＋", () => ShiftPush(+PushStep), 8);
+        more.ToolTip = "이 차례의 점을 죄다 5 늘린다 (앞으로 민다)";
+        foreach (var one in new[] { less, more })
+        {
+            one.Width = 26;
+            one.FontSize = 13;
+        }
 
         var row = new StackPanel
         {
@@ -464,6 +512,9 @@ public sealed class MotionMakerDialog : GameWindow
         row.Children.Add(new TextBlock { Width = 8 });
         row.Children.Add(keep);
         row.Children.Add(back);
+        row.Children.Add(Label("점 모두", 62));
+        row.Children.Add(less);
+        row.Children.Add(more);
         return row;
     }
 
@@ -487,6 +538,33 @@ public sealed class MotionMakerDialog : GameWindow
         lane.Picked = 0;
         _touched = lane;
         Sync(lane);
+    }
+
+    /// <summary>
+    /// 마지막으로 만진 쪽 차례의 점을 <b>죄다</b> 그만큼 민다.
+    /// </summary>
+    /// <remarks>
+    /// 다가오기처럼 열일곱 장이 죽 이어진 것은 장마다 스피너를 굴리기가 성가시다.
+    /// 통째로 밀면 걸음 폭은 그대로 두고 자리만 옮길 수 있다. 한계(±150)에 닿은 장은
+    /// 거기서 멎으므로, 끝까지 민 뒤에는 걸음 폭이 달라질 수 있다.
+    /// </remarks>
+    private void ShiftPush(double way)
+    {
+        var lane = _touched ?? _mine;
+        if (lane.Steps.Count == 0)
+        {
+            _status.Text = $"{lane.Name} 차례가 비어 있습니다.";
+            return;
+        }
+
+        foreach (var step in lane.Steps)
+            step.Push = Math.Clamp(step.Push + way, -MaxPush, MaxPush);
+
+        FillStrip(lane);
+        Draw(lane);
+        Tell();
+        _status.Text = $"{lane.Name} 차례의 점을 죄다 {way:+0;-0} 했습니다"
+                     + $" — 지금 {lane.Steps[0].Push:0} 에서 {lane.Steps[^1].Push:0} 까지입니다.";
     }
 
     /// <summary>
@@ -567,7 +645,7 @@ public sealed class MotionMakerDialog : GameWindow
         if (line >= 0)
         {
             mine = motion;
-            foe = DuelMotions.Find(DuelMotions.GuardKey(2 - line % 3));
+            foe = DuelMotions.Find(DuelMotions.GuardKey(2 - line % 3, -1));
         }
         else if (guard >= 0)
         {
@@ -628,6 +706,12 @@ public sealed class MotionMakerDialog : GameWindow
             _stage.Children.Add(view);
         }
 
+        BuildGrid();
+        _stage.Children.Add(_grid);
+
+        _gridOn.Checked += (_, _) => _grid.Visibility = Visibility.Visible;
+        _gridOn.Unchecked += (_, _) => _grid.Visibility = Visibility.Collapsed;
+
         _stage.LayoutTransform = _stageScale;
 
         var box = new Border
@@ -647,6 +731,85 @@ public sealed class MotionMakerDialog : GameWindow
             e.Handled = true;
         };
         return box;
+    }
+
+    /// <summary>
+    /// 격자를 한 번 짜 둔다 — 켜고 끄는 것은 보임만 바꾼다.
+    /// </summary>
+    private void BuildGrid()
+    {
+        for (int x = 0; x <= DuelArt.ArenaWidth; x += 10)
+        {
+            bool big = x % 50 == 0;
+            _grid.Children.Add(new Line
+            {
+                X1 = x, X2 = x, Y1 = 0, Y2 = DuelArt.ArenaHeight,
+                Stroke = Brushes.White,
+                StrokeThickness = big ? 0.7 : 0.3,
+                Opacity = big ? 0.55 : 0.25,
+            });
+
+            if (!big) continue;
+
+            var mark = new TextBlock
+            {
+                Text = x.ToString(),
+                FontSize = 7,
+                Foreground = Brushes.White,
+                Opacity = 0.7,
+            };
+            Canvas.SetLeft(mark, x + 1);
+            Canvas.SetTop(mark, 1);
+            _grid.Children.Add(mark);
+        }
+
+        // 판 한가운데.
+        _grid.Children.Add(new Line
+        {
+            X1 = DuelArt.ArenaWidth / 2.0, X2 = DuelArt.ArenaWidth / 2.0,
+            Y1 = 0, Y2 = DuelArt.ArenaHeight,
+            Stroke = Brushes.Lime,
+            StrokeThickness = 0.9,
+            Opacity = 0.85,
+        });
+
+        var middle = new TextBlock
+        {
+            Text = "192",
+            FontSize = 8,
+            FontWeight = FontWeights.Bold,
+            Foreground = Brushes.Lime,
+        };
+        Canvas.SetLeft(middle, DuelArt.ArenaWidth / 2.0 + 1);
+        Canvas.SetTop(middle, 10);
+        _grid.Children.Add(middle);
+
+        // 두 사람이 다 모여 섰을 때 <b>발이 닿는 자리</b>다 — 조각 왼끝이 아니라 발이라야
+        // 눈에 맞는다. 조각 안에서 발 가운데가 제독은 86.5, 상대는 76.0 이다(여느 첫 장을 재었다).
+        Stand(FoeStand + FoeFeet, Brushes.Aqua, "적");
+        Stand(MyStand + MyFeet, Brushes.Orange, "아");
+
+        void Stand(double at, Brush color, string name)
+        {
+            _grid.Children.Add(new Line
+            {
+                X1 = at, X2 = at, Y1 = 0, Y2 = DuelArt.ArenaHeight,
+                Stroke = color,
+                StrokeThickness = 0.8,
+                Opacity = 0.8,
+            });
+
+            var mark = new TextBlock
+            {
+                Text = name,
+                FontSize = 8,
+                FontWeight = FontWeights.Bold,
+                Foreground = color,
+            };
+            Canvas.SetLeft(mark, at + 1);
+            Canvas.SetTop(mark, DuelArt.ArenaHeight - 12);
+            _grid.Children.Add(mark);
+        }
     }
 
     /// <summary>차례 줄 — 적은 번호와 장마다의 시간이 여기 선다.</summary>

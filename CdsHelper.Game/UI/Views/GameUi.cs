@@ -575,6 +575,17 @@ internal static class GameUi
     /// 게임 폴더를 알기 전에 지어지는데, 값이 바뀔 때만 다시 찍게 두면 "설정" 처럼 한 번
     /// 적고 마는 칸이 윈도 글꼴로 남아 띠 안에서 글꼴이 섞였다.
     /// </remarks>
+    /// <summary>
+    /// 그 글자가 들어갈 만한 단추 폭 — 띠 마구리 자리(<see cref="GameSettings.BandPad"/>)를
+    /// 좌우로 더한 값이다.
+    /// </summary>
+    /// <remarks>
+    /// 폭을 손으로 박아 두면 짧은 글자에 좌우가 휑하게 남는다. 여러 단추를 나란히 세울
+    /// 때는 <b>가장 긴 글자로 잰 값</b>을 죄다 같이 쓰면 폭이 맞으면서도 헐렁하지 않다.
+    /// </remarks>
+    public static double BandWidthFor(string text) =>
+        Math.Max(UiSprites.WidthFor(1), GameSettings.BandPad * 2 + (Font?.TextWidth(text) ?? 0));
+
     public static GameFont? Font
     {
         get => _font;

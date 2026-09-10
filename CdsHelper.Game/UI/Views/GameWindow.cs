@@ -1,5 +1,8 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace CdsHelper.Game.UI.Views;
@@ -30,6 +33,33 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public class GameWindow : Window
 {
+    /// <summary>
+    /// 게임 창 <b>어디서나</b> V 를 들어 저장한다.
+    /// </summary>
+    /// <remarks>
+    /// 상자마다 제 창이라 글쇠가 지도까지 안 올라온다. 그래서 창 갈래 하나에 걸어 두고
+    /// 함대 창(<see cref="ShipMapWindow.Current"/>)을 찾아 부른다.
+    ///
+    /// <b>글자 칸에서는 안 먹는다</b> — 이름을 적다가 v 를 치면 저장을 물어 오면 곤란하다.
+    /// 고침 글쇠(Ctrl·Alt)를 짚은 것도 넘긴다.
+    /// </remarks>
+    static GameWindow()
+    {
+        EventManager.RegisterClassHandler(typeof(GameWindow), Keyboard.KeyDownEvent,
+                                          new KeyEventHandler(OnAnyKey));
+    }
+
+    private static void OnAnyKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.V || e.Handled) return;
+        if (Keyboard.Modifiers != ModifierKeys.None) return;
+        if (e.OriginalSource is TextBoxBase or PasswordBox) return;
+        if (sender is not Window window) return;
+
+        ShipMapWindow.Current?.SaveByKey(window);
+        e.Handled = true;
+    }
+
     private bool? _result;
 
     /// <summary>
