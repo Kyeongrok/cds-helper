@@ -14,7 +14,7 @@ namespace CdsHelper.Duel;
 /// 「일기토」 화면.
 /// </summary>
 /// <remarks>
-/// 게임의 그리는 자리는 <c>0x004A7050</c> 이다. 위에 마당 384x136, 아래에 눈금판
+/// 게임의 그리는 자리는 <c>0x004A7050</c> 이다. 위에 배경 384x136, 아래에 눈금판
 /// 384x112 를 깔고, 얼굴을 오른쪽(296, 144)·왼쪽(8, 144)에 얹는다.
 /// <b>오른쪽이 나, 왼쪽이 적</b>이다.
 ///
@@ -29,12 +29,12 @@ namespace CdsHelper.Duel;
 ///   나(오른쪽) x 200~271, 왼쪽에 붙어 오른쪽으로 자란다  ; 0xC7 + i
 ///   첫 줄 y = 188(창) = 52(눈금판), 줄마다 16, 높이 8   ; [0xBC]
 /// </code>
-/// 게임은 몸짓 그림 33장짜리 벌 아홉을 애니메이션으로 돌리는데, 여기서는 아직
+/// 게임은 몸짓 그림 33장짜리 스프라이트셋 아홉을 애니메이션으로 돌리는데, 여기서는 아직
 /// 안 옮겼다 — 한 수씩 눌러 주고받는 것만 한다.
 /// </remarks>
 internal sealed class DuelDialog : InfoDialog
 {
-    /// <summary>마당과 눈금판을 합친 크기.</summary>
+    /// <summary>배경과 눈금판을 합친 크기.</summary>
     private const int SceneWidth = 384, ArenaHeight = 136, PanelHeight = 112;
     private const int SceneHeight = ArenaHeight + PanelHeight;
 
@@ -59,7 +59,7 @@ internal sealed class DuelDialog : InfoDialog
     private static readonly Brush Foe = Frozen(Color.FromRgb(0x6C, 0xA8, 0xD8));
 
     /// <summary>
-    /// 싸움꾼 그림 — <c>FIGHTER.CDS</c> 의 몸짓 벌 아홉, 한 벌이 144x136 짜리 33장이다.
+    /// 싸움꾼 그림 — <c>FIGHTER.CDS</c> 의 몸짓 스프라이트셋 아홉, 한 스프라이트셋이 144x136 짜리 33장이다.
     /// </summary>
     /// <remarks>
     /// 색인에서 <b>160</b> 을 빼야 팔레트에 닿는다(다른 CDS 는 74 다). 마젠타가 바탕이다.
@@ -79,7 +79,7 @@ internal sealed class DuelDialog : InfoDialog
     /// <summary>겨루기 전에 서 있는 자세.</summary>
     private const int ReadyFrame = 0;
 
-    /// <summary>싸우는 마당. 그림과 눈금판이 이 이름으로 짝지어 있다.</summary>
+    /// <summary>싸우는 배경. 그림과 눈금판이 이 이름으로 짝지어 있다.</summary>
     private const string Arena = "deck";
 
     /// <summary>
@@ -127,7 +127,7 @@ internal sealed class DuelDialog : InfoDialog
     {
         _game = game;
 
-        // 마당과 눈금판은 <b>짝</b>이다 — 뽑을 때 duel-<마당>.png · duel-panel-<마당>.png 로 났다.
+        // 배경과 눈금판은 <b>짝</b>이다 — 뽑을 때 duel-<배경>.png · duel-panel-<배경>.png 로 났다.
         // 예전에는 "duel-panel.png" 를 찾아 그림이 없어 그냥 밤색 판만 보였다.
         Lay(Picture($"duel-{Arena}.png"), 0, 0, SceneWidth, ArenaHeight);
         Lay(Picture($"duel-panel-{Arena}.png"), 0, ArenaHeight, SceneWidth, PanelHeight);
@@ -385,7 +385,7 @@ internal sealed class DuelDialog : InfoDialog
     private static int Frame(int pose) =>
         pose >= 0 && pose < PoseFrame.Length ? PoseFrame[pose] : ReadyFrame;
 
-    /// <summary>싸움꾼이 서는 자리 — 마당 가운데를 두고 좌우로 갈린다.</summary>
+    /// <summary>싸움꾼이 서는 자리 — 배경 가운데를 두고 좌우로 갈린다.</summary>
     private const int TheirArtX = 24, MyArtX = SceneWidth - FighterW - 24;
 
     /// <summary>오른쪽 단추 차림표 — 칠 자리 셋과 필살 · 설명이다.</summary>

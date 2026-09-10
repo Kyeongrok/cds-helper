@@ -7,12 +7,12 @@ namespace CdsHelper.Game.Local.Helpers;
 /// </summary>
 /// <remarks>
 /// 게임의 일기토 판은 <c>0x180 x 0x100</c>(384x256)이고 두 층이다
-/// (<c>0x004AA7BB</c>). 위가 마당, 아래가 눈금판이다.
+/// (<c>0x004AA7BB</c>). 위가 배경, 아래가 눈금판이다.
 /// <code>
-///   duel-field · wood · sand · tavern · mosque · temple · deck   384x136  마당 일곱
-///   duel-panel-<마당>                                             384x112  눈금판 일곱
+///   duel-field · wood · sand · tavern · mosque · temple · deck   384x136  배경 일곱
+///   duel-panel-<배경>                                             384x112  눈금판 일곱
 /// </code>
-/// 사람 그림만은 <see cref="FighterSprites"/> 가 CDS 에서 그때그때 푼다 — 벌이 아홉에
+/// 사람 그림만은 <see cref="FighterSprites"/> 가 CDS 에서 그때그때 푼다 — 스프라이트셋이 아홉에
 /// 장이 서른셋이라 미리 뽑아 두면 파일이 삼백 장 가까이 된다.
 ///
 /// <b>눈금판의 자리는 그림에 이미 찍혀 있다.</b> 파란 회색(<c>144,156,181</c>) 네모가
@@ -24,13 +24,13 @@ public sealed class DuelArt
     /// <summary>뽑아 둔 그림이 든 곳.</summary>
     public const string ArtDirectory = "asset/duel";
 
-    /// <summary>마당 크기.</summary>
+    /// <summary>배경 크기.</summary>
     public const int ArenaWidth = 384, ArenaHeight = 136;
 
     /// <summary>눈금판 크기.</summary>
     public const int PanelWidth = 384, PanelHeight = 112;
 
-    /// <summary>판 전체 — 마당과 눈금판을 얹은 크기.</summary>
+    /// <summary>판 전체 — 배경과 눈금판을 얹은 크기.</summary>
     public const int BoardWidth = ArenaWidth, BoardHeight = ArenaHeight + PanelHeight;
 
     /// <summary>
@@ -61,24 +61,24 @@ public sealed class DuelArt
         public static readonly int[] BarY = [52, 68, 84];
     }
 
-    /// <summary>마당 이름 — <see cref="FighterSprites.SetForCulture"/> 와 짝이 아니다.</summary>
+    /// <summary>배경 이름 — <see cref="FighterSprites.SetForCulture"/> 와 짝이 아니다.</summary>
     /// <remarks>
     /// 배 위(<c>deck</c>)는 해전 일기토가 쓰고, 뭍에서는 고장에 따라 갈린다. 어느
-    /// 문화권이 어느 마당을 쓰는지는 아직 못 짚어 <b>초원</b>을 밑값으로 둔다 —
+    /// 문화권이 어느 배경을 쓰는지는 아직 못 짚어 <b>초원</b>을 밑값으로 둔다 —
     /// 화면에서 본 반란 판도 초원이었다.
     /// </remarks>
     public const string Field = "duel-field", Deck = "duel-deck";
 
     /// <summary>
-    /// 눈금판 — <b>마당을 안 탄다</b>. 어느 마당이든 같은 한 장이다.
+    /// 눈금판 — <b>배경을 안 탄다</b>. 어느 배경이든 같은 한 장이다.
     /// </summary>
     /// <remarks>
-    /// 예전에는 「눈금판은 제 팔레트가 없어 마당 것을 같이 쓴다」고 보고 마당마다 한 장씩
+    /// 예전에는 「눈금판은 제 팔레트가 없어 배경 것을 같이 쓴다」고 보고 배경마다 한 장씩
     /// 뽑았다. <b>틀렸다</b> — 눈금판 색인이 11~73 이라 죄다 74 밑이고, 게임은 74 부터
     /// 그림마다의 팔레트를 얹으므로(<see cref="GamePalette.OwnPaletteBase"/>) 그 아래는
     /// <b>공용 색표</b>를 본다.
     ///
-    /// 마당 팔레트를 씌운 탓에 나무빛이 분홍으로 뭉개지고 막대 자리와 H·M·L 글자가
+    /// 배경 팔레트를 씌운 탓에 나무빛이 분홍으로 뭉개지고 막대 자리와 H·M·L 글자가
     /// 바탕에 묻혀 있었다. 공용 색표로 뽑으니 원본과 같아진다.
     /// </remarks>
     public static string PanelFor(string arena) => "duel-panel";

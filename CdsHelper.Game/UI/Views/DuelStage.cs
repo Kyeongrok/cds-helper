@@ -1,9 +1,8 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -12,20 +11,24 @@ namespace CdsHelper.Game.UI.Views;
 /// 일기토 판 — 두 사람이 마주 서서 칼을 겨루는 그림판.
 /// </summary>
 /// <remarks>
-/// 게임 화면은 <c>0x004AA700</c> 이 짓는 <b>384x256</b> 칸이다. 그 위에 배경
-/// (<c>c:Landdata.cds</c>)을 깔고 사람 둘을 얹는데, 우리는 배경을 아직 안 읽어
-/// 어두운 판만 깐다.
+/// 게임 화면은 <c>0x004AA700</c> 이 짓는 <b>384x256</b> 칸이고 그 위층 384x136 이 여기다.
+/// 배경 그림은 뒤에 깔리고(<see cref="DuelArt"/>) 이 판에는 사람 둘만 얹는다.
 ///
-/// <b>한 판이 열일곱 틱</b>이다(<c>0x004A6E16</c> 이 <c>[0x00572A68]</c>=16 에서 끊는다).
-/// 그림은 세 장이 이렇게 갈린다(<c>0x004A78CC</c>).
+/// <b>몸짓은 여기서 셈하지 않는다.</b> 어느 눈금에 어느 장을 어디에 낼지는 죄다
+/// <see cref="DuelMotions"/> 의 표에 적혀 있고, 이 판은 그것을 눈금에 맞춰 읽어 그리기만
+/// 한다. 그래서 모션 메이커에서 고쳐 저장하면(<c>asset/duel/motion.json</c>) 다시 굽지
+/// 않아도 놀이에 그대로 든다.
+///
+/// 한 판이 <b>서른세 눈금</b>이고(<c>0x00572A84</c>) 눈금 하나가 0.067초(1/15초)다.
 /// <code>
-///   틱 0~9    첫 장          (겨눔)
-///   틱 10     둘째 장        (내지름)  — 치는 쪽이 서른 점 앞으로 나간다
-///   틱 11~16  셋째 장        (뻗음)
-///   틱 8      두 사람이 고른 손 이름이 뜬다   [0x00572A6C]
-///   틱 11     부위 체력이 깎이고 소리가 난다  [0x00572A74]
+///   눈금 0~7    여느 자세로 미끄러진다 — 한 눈금에 5점, 여덟 눈금에 40점
+///   눈금 8      고른 손 이름이 뜬다             [0x00572A6C]
+///   눈금 8·9    찌르는 첫 장
+///   눈금 10     둘째 장
+///   눈금 11     부위 체력이 깎이고 소리가 난다  [0x00572A74]
+///   눈금 11~14  셋째 장 — 서른 점 더 내지른 채
+///   눈금 15~32  여느 첫 장 하나로 선다
 /// </code>
-/// 필살과 쓰러짐만 여섯 장이라 그쪽은 틱을 여섯으로 나눠 돌린다.
 /// </remarks>
 public sealed class DuelStage : Canvas
 {
@@ -33,104 +36,32 @@ public sealed class DuelStage : Canvas
     public const int StageWidth = DuelArt.ArenaWidth, StageHeight = DuelArt.ArenaHeight;
 
     /// <summary>
-    /// 두 사람이 <b>다 모여 서는</b> 자리와 내지를 때 나가는 거리
-    /// (<c>0x004A794A</c> 의 <c>sub eax,0x1E</c>).
+    /// 두 사람이 <b>다 모여 서는</b> 자리.
     /// </summary>
     /// <remarks>
-    /// <b>상대가 왼쪽, 내가 오른쪽</b>이다. 그림이 그렇게 그려져 있다 — 제독 벌(0)은
-    /// <b>왼쪽을 보고</b> 상대 벌은 <b>오른쪽을 본다</b>. 예전에는 자리를 뒤바꿔 놓아
-    /// 둘이 등을 지고 서 있었다.
-    ///
-    /// 자리는 갈무리(「일기토의 초기화」)를 재어 잡았다. 조각 안에서 몸통이 선 자리가
-    /// 제독 벌은 106.5, 상대 벌은 46.0 이라 몸통 자리에서 그만큼 물리면 조각 왼끝이 나온다.
+    /// <b>상대가 왼쪽, 내가 오른쪽</b>이다. 그림이 그렇게 그려져 있다 — 제독
+    /// 스프라이트셋(0)은 <b>왼쪽을 보고</b> 상대 것은 <b>오른쪽을 본다</b>. 자리는
+    /// 갈무리를 재어 잡았다.
     /// </remarks>
-    private const double FoeStand = 60, MyStand = 173, Lunge = 30;
+    private const double FoeStand = 60, MyStand = 173;
 
-    /// <summary>들머리에 <b>벽에 붙어</b> 서는 자리 — 다가설 만큼 바깥이다.</summary>
-    private const double FoeStart = FoeStand - WalkWay, MyStart = MyStand + WalkWay;
+    /// <summary>자리 한계 — 상대는 40 아래로, 나는 200 위로 안 간다(<c>0x004A6EF0</c>).</summary>
+    private const double WallNear = 40, WallFar = 200;
 
-    /// <summary>서로 다가서는 거리와 한 걸음, 걸음 수.</summary>
-    private const double WalkWay = 70, WalkStep = 10;
-    private const int WalkSteps = 7;
-
-    /// <summary>
-    /// 걸을 때의 눈금 — <b>발은 한 눈금마다, 자리는 세 눈금마다</b> 움직인다.
-    /// </summary>
-    /// <remarks>
-    /// 갈무리는 <b>한 장이 0.067초</b>다(APNG 의 <c>fcTL</c> 을 읽었다 — 0.1초로 어림잡았던
-    /// 것이 1.5배 느렸다). 「일기토 초기화 4컷」에서 다리가 장마다 바뀌는데 <b>첫 장과 넷째
-    /// 장이 같으니</b> 세 장짜리 걸음을 <b>0.033초</b>마다 돌려야 0·2·1·0 으로 잡힌다.
-    ///
-    /// 자리는 열세 장짜리 갈무리에서 「두 장 걷고 한 장 쉬는」 결이라 <b>0.1초마다 10점</b>
-    /// 이다 — 세 눈금에 한 번이다. 일곱 걸음이니 다 모이는 데 0.7초다.
-    /// </remarks>
-    private const int WalkTickMs = 33, WalkEvery = 3, WalkPoses = 3;
-
-    /// <summary>걸을 때 보일 장. −1 이면 안 걷는 중이라 <see cref="StepOf"/> 가 정한다.</summary>
-    private int _walkStep = -1;
-
-    /// <summary>지금 두 사람이 선 자리. 들머리에는 벽에 붙어 있다.</summary>
-    private double _foeLeft = FoeStart, _myLeft = MyStart;
-
-    /// <summary>
-    /// 한 판의 틱 수 — <b>서른셋</b>이다(<c>0x00572A84</c>).
-    /// </summary>
-    /// <remarks>
-    /// 열일곱으로 두었던 것은 <b>단계 0(다가서기)</b> 하나를 잰 것이었다. 게임의 한 판은
-    /// 단계 넷(<c>+0xE0</c>)이고 주고받는 단계 2 가 <b>틱 33</b> 에서 끝난다
-    /// (<c>0x004A6FDA</c>). 갈무리에서 「열일곱 장을 돌고 1.15초를 멈춘다」고 보였던 그
-    /// 멈춤이 곧 남은 열여섯 틱이다(16 x 67밀리초 = 1.07초).
-    ///
-    /// 그래서 <b>칼을 뻗은 채 굳지 않는다</b> — 벤 뒤로 스무 틱 남짓을 여느 자세로 서
-    /// 있다가 판이 닫힌다.
-    /// </remarks>
+    /// <summary>한 판의 눈금 수 — <b>서른셋</b>이다(<c>0x00572A84</c>).</summary>
     public const int Ticks = 33;
 
-    /// <summary>몸짓과 자리가 제자리로 다 돌아오는 틱 — 그 뒤는 서 있기만 한다.</summary>
-    private const int HomeTick = 16;
+    /// <summary>고른 손 이름이 뜨는 눈금과 부위 체력이 깎이는 눈금.</summary>
+    private const int SayTick = 8, HurtTick = 11;
 
-    private const int PoseTick = 8, HurtTick = 11, SayTick = 8;
-
-    /// <summary>
-    /// 내지르고 나서 <b>여느 자세로 돌아오는</b> 눈금.
-    /// </summary>
-    /// <remarks>
-    /// 갈무리(「주인공 중단공격」) 열일곱 장을 조각에 맞춰 보면 이렇다 — 8·9 눈금에 베는
-    /// 자세 첫·둘째 장이 서고, 10~12 눈금에 셋째 장으로 <b>서른 점 내지른 채</b> 머물다가,
-    /// 13 눈금부터 여느 자세로 돌아와 판이 끝날 때까지 그대로다. 끝까지 벤 자세로 두면
-    /// 칼을 뻗은 채 굳어 다음 판이 어색하게 이어진다.
-    /// </remarks>
-    private const int RestTick = 13;
-
-    /// <summary>
-    /// 다가서기 시작하는 눈금과 그동안 나아가는 거리.
-    /// </summary>
-    /// <remarks>
-    /// 한 판에 쓰이는 조각이 <b>셋이 아니라 여섯</b>이다. 갈무리를 조각에 맞춰 보면 3~7
-    /// 눈금에 <b>여느 자세 세 장이 돌면서</b> 앞으로 나아가고, 그러고 나서 베는 장 셋이
-    /// 붙는다 — 걸음을 따로 그려 두지 않고 여느 자세를 돌려 쓰는 것이다.
-    /// <code>
-    ///   눈금  0~2   여느 0        제자리
-    ///         3~7   여느 1·2·0·1·2  279 → 244   ; 마흔 점쯤 다가선다
-    ///         8·9   베기 0·1      다가선 자리
-    ///        10~12  베기 2        + 서른 점 내지름
-    ///        13~    여느          제자리로
-    /// </code>
-    /// <b>끝에 제자리로 물러나는 것</b>도 갈무리로 확인했다 — 한 판을 통째로 뜬 것
-    /// (「일기토 전체」, 186장 39초)에서 가만 있을 때 자리가 <b>152 · 269 로 되풀이</b>된다.
-    /// 판을 거듭해도 둘이 가까워지는 흐름이 없다.
-    /// </remarks>
-    private const int StepInTick = 3;
-    private const double Approach = 40;
     /// <summary>
     /// 눈금 하나의 길이 — <b>67밀리초</b>(1/15초)다.
     /// </summary>
     /// <remarks>
-    /// 갈무리(「주인공 중단공격」)의 <c>fcTL</c> 을 읽으면 열일곱 장이 죄다 0.067초이고
-    /// 그 뒤에 1.15초를 멈춘다. 한 판이 <b>1.14초</b>라는 뜻이다 — 55밀리초로 두었던 것은
-    /// 어림값이라 0.94초로 그만큼 빨랐다.
+    /// 갈무리(「주인공 중단공격」)의 <c>fcTL</c> 을 읽으면 열일곱 장이 죄다 0.067초다.
+    /// 55밀리초로 두었던 것은 어림값이라 그만큼 빨랐다.
     /// </remarks>
-    private static readonly TimeSpan TickTime = TimeSpan.FromMilliseconds(67);
+    private static readonly TimeSpan TickTime = TimeSpan.FromSeconds(DuelMotions.Tick);
 
     private readonly FighterSprites _art;
     private readonly int _foeSet;
@@ -138,9 +69,15 @@ public sealed class DuelStage : Canvas
     private readonly Image _foe = new();
     private readonly DispatcherTimer _timer = new();
 
-    private FighterSprites.Move _myMove = FighterSprites.Move.Idle;
-    private FighterSprites.Move _foeMove = FighterSprites.Move.Idle;
-    private bool _myLunge, _foeLunge;
+    /// <summary>이 판에 두 사람이 짓는 몸짓.</summary>
+    private DuelMotions.Motion? _myMotion, _foeMotion;
+
+    /// <summary>지금 두 사람이 선 자리 — 판이 끝날 때마다 미끄러진 만큼 옮겨진다.</summary>
+    private double _foeLeft = FoeStand, _myLeft = MyStand;
+
+    /// <summary>다가오는 눈금. −1 이면 다 모여 판이 도는 중이다.</summary>
+    private int _walkTick;
+
     private int _tick;
     private Action? _onSay, _onHurt, _onDone;
 
@@ -150,7 +87,7 @@ public sealed class DuelStage : Canvas
         _foeSet = foeSet;
         Width = StageWidth;
         Height = StageHeight;
-        // 바탕은 비운다 — 뒤에 깔린 마당 그림(asset/duel)이 그대로 비쳐야 한다.
+        // 바탕은 비운다 — 뒤에 깔린 배경 그림(asset/duel)이 그대로 비쳐야 한다.
         Background = Brushes.Transparent;
         ClipToBounds = true;
 
@@ -169,117 +106,104 @@ public sealed class DuelStage : Canvas
         Rest();
     }
 
-    /// <summary>둘 다 기본 자세로 세운다.</summary>
+    /// <summary>둘 다 기본 자세로 세운다. 아직 벽 쪽에 서 있다.</summary>
     public void Rest()
     {
-        _myMove = _foeMove = FighterSprites.Move.Idle;
-        _myLunge = _foeLunge = false;
-        _tick = Ticks;
+        _myMotion = _foeMotion = DuelMotions.Find(DuelMotions.Idle);
+        _walkTick = 0;
+        _tick = 0;
         Draw();
     }
 
     /// <summary>
-    /// 한 판을 돌린다. <paramref name="onSay"/> 는 여덟째 틱, <paramref name="onHurt"/> 는
-    /// 열한째 틱, <paramref name="onDone"/> 은 끝난 뒤에 부른다.
+    /// 한 판을 돌린다. <paramref name="onSay"/> 는 여덟째 눈금, <paramref name="onHurt"/> 는
+    /// 열한째 눈금, <paramref name="onDone"/> 은 끝난 뒤에 부른다.
     /// </summary>
-    public void Play(FighterSprites.Move mine, FighterSprites.Move theirs,
-                     bool myLunge, bool foeLunge,
+    /// <param name="way">
+    /// 이 판에 두 사람이 <b>함께</b> 미끄러질 쪽 — <c>−1</c> 내가 몰아붙임(앞으로) ·
+    /// <c>+1</c> 내가 물러남 · <c>0</c> 맞부딪힘이라 제자리.
+    /// </param>
+    /// <remarks>
+    /// 미끄러짐은 <b>몸짓 안에 들어 있다</b> — 공격 몸짓은 앞으로, 막는 몸짓은 뒤로
+    /// 미끄러지는 자리를 제 표에 적어 두고 있다. 그래서 여기서는 맞부딪힘인지만 가리면 된다.
+    /// </remarks>
+    public void Play(FighterSprites.Move mine, FighterSprites.Move theirs, int way,
                      Action? onSay, Action? onHurt, Action onDone)
     {
-        _myMove = mine;
-        _foeMove = theirs;
-        _myLunge = myLunge;
-        _foeLunge = foeLunge;
+        bool clash = way == 0;
+        _myMotion = MotionFor(mine, clash);
+        _foeMotion = MotionFor(theirs, clash);
         _onSay = onSay;
         _onHurt = onHurt;
         _onDone = onDone;
         _tick = 0;
+        _walkTick = -1;
         Draw();
         _timer.Start();
     }
 
     /// <summary>
-    /// 들머리 — 둘이 <b>벽에서 가운데로</b> 걸어 나온다. 다 모이면 <paramref name="done"/>.
+    /// 다가오기 — 둘이 <b>벽에서 가운데로</b> 걸어 나온다. 다 모이면 <paramref name="done"/>.
     /// </summary>
     /// <remarks>
-    /// 갈무리(「일기토의 초기화」, 0.1초 간격 열세 장)를 재면 둘이 서로 <b>70점</b>씩
-    /// 다가선다. 걸음이 10점씩이고 <b>두 장 걷고 한 장 쉬는</b> 결로 잡히는데, 이는 걸음이
-    /// 0.1초보다 뜸하다는 뜻이라 <b>150밀리초마다 한 걸음</b>씩 일곱 걸음이다. 몸통 자리로
-    /// 재면 이렇다(판 좌표).
-    /// <code>
-    ///   상대  36 → 106      내 편  350 → 280      사이  314 → 173
-    /// </code>
-    /// 다 모이고 <b>나서야</b> 명령 창이 뜬다 — 갈무리도 마지막 장에서 뜬다.
-    ///
-    /// 걷는 동안에는 <b>발이 돈다</b>(<see cref="_walkStep"/>). 한 자세로 두면 미끄러지듯
-    /// 흘러가 유령처럼 보인다.
+    /// 단계 0 이 열여섯 눈금이고(<c>0x00572A68</c>) 그동안 한쪽이 여든 점씩 다가온다 —
+    /// 한 눈금에 다섯 점이다(<c>0x004A7593</c>). 다 모이고 <b>나서야</b> 명령 창이 뜬다.
     /// </remarks>
     public void WalkIn(Action done)
     {
-        int ticks = WalkSteps * WalkEvery;
-        int at = 0;
-        var clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(WalkTickMs) };
+        var walk = DuelMotions.Find(DuelMotions.Walk);
+        int ticks = walk == null ? 0 : (int)Math.Round(walk.Length / DuelMotions.Tick);
+
+        _walkTick = 0;
+        Draw();
+
+        var clock = new DispatcherTimer { Interval = TickTime };
         clock.Tick += (_, _) =>
         {
-            at++;
-            _walkStep = at % WalkPoses;
-            if (at % WalkEvery == 0)
-            {
-                _foeLeft += WalkStep;
-                _myLeft -= WalkStep;
-            }
+            _walkTick++;
             Draw();
-            if (at < ticks) return;
+            if (_walkTick < ticks) return;
 
             clock.Stop();
-            _walkStep = -1;                      // 다 왔으면 여느 자세로 돌린다
+            _walkTick = -1;                  // 다 왔으면 판 눈금으로 넘어간다
+            _tick = 0;
             Draw();
             done();
         };
         clock.Start();
     }
 
-    /// <summary>
-    /// 판이 끝나고 <b>두 사람이 통째로 마흔 점 옮겨 간다</b>(<c>0x004A6EE5</c>).
-    /// </summary>
-    /// <param name="way">−1 내가 몰아붙임 · +1 내가 밀림 · 0 그대로.</param>
-    /// <remarks>
-    /// 게임은 판 갈래로 방향을 정해 <c>+0x144</c> 에 담아 두고, 다음 판 다가서기의 여덟째
-    /// 눈금에 <b>두 x 를 같은 만큼</b> 옮긴다.
-    /// <code>
-    ///   004a6ef0  갈래 1(내가 친다)  이고 상대 x &gt;= 40  이면  +0x144 = −1
-    ///   004a6f0a  갈래 2(내가 막는다) 이고 내 x &lt;= 200 이면  +0x144 = +1
-    ///   004a6f22  맞부딪힘이면                                  +0x144 =  0
-    ///   004a6d9a  eax = [+0x144] * 40 ; [+0x14C] += eax ; [+0x150] += eax
-    /// </code>
-    /// 곧 <b>사이는 그대로 두고 둘이 함께 미끄러진다</b>. 갈무리에서 제독 자리가 판마다
-    /// 39점씩 물러나 보였던 것이 이것인데, 예전에는 <b>맞은 쪽만</b> 밀리는 것으로 읽어
-    /// 한 사람만 옮겼다 — 그래서 판을 거듭할수록 둘 사이가 벌어졌다.
-    /// </remarks>
-    public void Drift(int way)
-    {
-        if (way < 0 && _foeLeft < WallNear) return;    // 상대가 벽에 닿았다
-        if (way > 0 && _myLeft > WallFar) return;      // 내가 벽에 닿았다
-        if (way == 0) return;
-
-        _myLeft += way * Approach;
-        _foeLeft += way * Approach;
-        Draw();
-    }
-
-    /// <summary>자리 한계 — 상대는 40 아래로, 나는 200 위로 안 간다(<c>0x004A6EF0</c>).</summary>
-    private const double WallNear = 40, WallFar = 200;
-
     /// <summary>쓰러지는 모습으로 멈춘다.</summary>
     public void Fall(bool mine)
     {
         _timer.Stop();
-        if (mine) _myMove = FighterSprites.Move.Fall;
-        else _foeMove = FighterSprites.Move.Fall;
+        var fall = DuelMotions.Find(DuelMotions.Fall);
+        if (mine) _myMotion = fall;
+        else _foeMotion = fall;
+
+        _walkTick = -1;
         _tick = Ticks;
-        _myLunge = _foeLunge = false;
         Draw();
     }
+
+    /// <summary>그 몸짓을 적어 둔 표에서 찾는다.</summary>
+    /// <param name="clash">맞부딪힘이면 참 — 찌르되 앞으로 미끄러지지 않는다.</param>
+    private static DuelMotions.Motion? MotionFor(FighterSprites.Move move, bool clash) => move switch
+    {
+        FighterSprites.Move.HighThrust or
+        FighterSprites.Move.MidThrust or
+        FighterSprites.Move.LowThrust =>
+            DuelMotions.Find(DuelMotions.ThrustKey((int)move, clash ? 0 : 1)),
+
+        FighterSprites.Move.Jump or
+        FighterSprites.Move.Dodge or
+        FighterSprites.Move.Crouch =>
+            DuelMotions.Find(DuelMotions.GuardKey((int)move - 3)),
+
+        FighterSprites.Move.Victory => DuelMotions.Find(DuelMotions.Victory),
+        FighterSprites.Move.Fall => DuelMotions.Find(DuelMotions.Fall),
+        _ => DuelMotions.Find(DuelMotions.Idle),
+    };
 
     private void Advance()
     {
@@ -290,58 +214,59 @@ public sealed class DuelStage : Canvas
         if (_tick < Ticks) return;
 
         _timer.Stop();
+        Settle();
+
         var done = _onDone;
         _onDone = _onSay = _onHurt = null;
         done?.Invoke();
     }
 
-    /// <summary>이번 틱에 보일 장. 세 장짜리는 게임 자리대로, 여섯 장짜리는 고르게 나눈다.</summary>
-    private static int StepOf(FighterSprites.Move move, int tick)
+    /// <summary>
+    /// 판이 끝나면 <b>미끄러져 간 만큼을 선 자리에 담는다</b>(<c>0x004A6D9A</c>).
+    /// </summary>
+    /// <remarks>
+    /// 몸짓 끝자리의 점이 곧 이 판에 옮겨 간 거리다 — 공격이면 마흔, 막기면 −마흔,
+    /// 맞부딪힘이면 0 이다. 두 사람이 <b>같은 쪽으로</b> 가므로 사이는 그대로다.
+    /// 벽에 닿으면 아예 안 옮긴다.
+    /// </remarks>
+    private void Settle()
     {
-        int length = FighterSprites.Lengths[(int)move];
-        // 베는 장 셋을 <b>다</b> 보인다 — 첫 장 · 둘째 장 한 눈금씩, 셋째 장은 머문다.
-        // 예전에는 베기가 9 눈금에 시작하는데 그 눈금부터 둘째 장을 내어 <b>첫 장이
-        // 아예 안 나왔다</b>. 갈무리(「적 중단 주인공 상단」)는 8·9 눈금에 상단0·상단1 이고
-        // 10~12 눈금이 상단2 다.
-        if (length <= 3) return tick <= PoseTick ? 0 : tick <= PoseTick + 1 ? 1 : 2;
-        return Math.Min(length - 1, tick * length / (HomeTick + 1));
-    }
+        if (_myMotion is not { Steps.Length: > 0 } mine) return;
+        if (_foeMotion is not { Steps.Length: > 0 } foe) return;
 
-    /// <summary>베는 자세를 보일 눈금인지 — 그 앞뒤는 여느 자세로 오간다.</summary>
-    private bool Cutting => _tick >= PoseTick && _tick < RestTick;
+        double myPush = mine.Steps[^1].Push, foePush = foe.Steps[^1].Push;
+        if (myPush == 0 && foePush == 0) return;
 
-    /// <summary>이 눈금에 앞으로 나가 있는 만큼 — 다가선 것에 내지른 것을 더한다.</summary>
-    private double AdvanceAt(bool lunge)
-    {
-        if (_tick <= StepInTick) return 0;
-        if (_tick < PoseTick) return Approach * (_tick - StepInTick) / (PoseTick - StepInTick);
-        if (_tick < RestTick) return Approach + (lunge ? Lunge : 0);
-        return Approach * Math.Max(0, HomeTick - _tick) / (double)(HomeTick - RestTick);
+        double my = _myLeft - myPush;          // 나는 왼쪽이 앞이다
+        double their = _foeLeft + foePush;     // 상대는 오른쪽이 앞이다
+        if (their < WallNear || my > WallFar) return;
+
+        _myLeft = my;
+        _foeLeft = their;
     }
 
     private void Draw()
     {
-        // 베는 눈금이 아니면 여느 자세다 — 쓰러진 쪽만 그대로 둔다.
-        var mine = !Cutting && _myMove != FighterSprites.Move.Fall
-            ? FighterSprites.Move.Idle : _myMove;
-        var theirs = !Cutting && _foeMove != FighterSprites.Move.Fall
-            ? FighterSprites.Move.Idle : _foeMove;
+        if (_walkTick >= 0)
+        {
+            var walk = DuelMotions.Find(DuelMotions.Walk);
+            Put(_me, 0, walk, _walkTick, MyStand, forward: false);
+            Put(_foe, _foeSet, walk, _walkTick, FoeStand, forward: true);
+            return;
+        }
 
-        // 내지를 때 나아가는 쪽도 서로 반대다 — 나는 왼쪽으로, 상대는 오른쪽으로.
-        Put(_me, 0, mine, _myLeft, forward: false, _myLunge);
-        Put(_foe, _foeSet, theirs, _foeLeft, forward: true, _foeLunge);
+        Put(_me, 0, _myMotion, _tick, _myLeft, forward: false);
+        Put(_foe, _foeSet, _foeMotion, _tick, _foeLeft, forward: true);
     }
 
-    private void Put(Image image, int set, FighterSprites.Move move, double left,
-                     bool forward, bool lunge)
+    /// <summary>그 몸짓의 그 눈금을 판에 건다. 앞은 상대 쪽이다.</summary>
+    private void Put(Image image, int set, DuelMotions.Motion? motion, int tick,
+                     double stand, bool forward)
     {
-        // 걷는 동안에는 발이 도는 장을 그대로 쓴다 — 안 그러면 미끄러지듯 흘러간다.
-        // 다가서고 물러나는 눈금도 마찬가지로 여느 자세 세 장을 돌린다.
-        int step = _walkStep >= 0 ? _walkStep
-                 : !Cutting && move == FighterSprites.Move.Idle && _tick > StepInTick ? _tick % 3
-                 : StepOf(move, _tick);
-        step = Math.Min(step, FighterSprites.Lengths[(int)move] - 1);
-        var px = _art.TryGetBgra(set, FighterSprites.FrameOf(move, step));
+        if (motion == null) { image.Source = null; return; }
+
+        var (frame, push) = motion.At(tick);
+        var px = _art.TryGetBgra(set, frame);
         if (px == null) { image.Source = null; return; }
 
         var bmp = BitmapSource.Create(FighterSprites.Width, FighterSprites.Height, 96, 96,
@@ -349,7 +274,6 @@ public sealed class DuelStage : Canvas
         bmp.Freeze();
         image.Source = bmp;
 
-        double push = AdvanceAt(lunge);
-        SetLeft(image, forward ? left + push : left - push);
+        SetLeft(image, forward ? stand + push : stand - push);
     }
 }

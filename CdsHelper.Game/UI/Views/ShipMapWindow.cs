@@ -2776,7 +2776,7 @@ public sealed class ShipMapWindow : Window
             var duel = new Engine.Town.Duel(MyFighter(), MutinyLeader(dice),
                                             _game.Player.Items.Contains(Engine.Town.Duel.EdithShieldId),
                                             Environment.TickCount);
-            // 마당은 뭍이면 초원, 바다면 배 갑판이다.
+            // 배경은 뭍이면 초원, 바다면 배 갑판이다.
             // 대표 얼굴은 49 로 본다 — 게임이 [ebx+0x34] 에 0x31 을 못박는데(0x004752E3)
             // 그 자리가 능력 여섯의 끝(신앙심)인지 얼굴 번호인지 아직 못 갈랐다.
             // 화면의 대표가 수염 난 사람이라 얼굴 쪽으로 보고 그 번호를 쓴다.
@@ -2828,7 +2828,7 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     /// <remarks>
     /// 예전에는 <c>CdsHelper.Duel</c> 의 옛 판을 걸어 두고 손으로 지은 넷 가운데 골랐다.
-    /// 그쪽은 몸짓 그림을 아직 안 옮긴 판이라 <b>화면이 딴판</b>이었다 — 마당도 384x136 로
+    /// 그쪽은 몸짓 그림을 아직 안 옮긴 판이라 <b>화면이 딴판</b>이었다 — 배경도 384x136 로
     /// 좁고 사람이 안 움직인다. 여기서는 반란·해전이 쓰는 그 판(<see cref="DuelDialog"/>)을
     /// 그대로 쓴다.
     ///
