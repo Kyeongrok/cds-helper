@@ -264,6 +264,10 @@
                                             x:Name="PART_FortuneMenu"
                                             Header="운명 자리"
                                             ToolTip="여급 127명의 궁합 코드를 보고 고친다 — 어느 운명 자리에 여급이 몇이나 있는지" />
+                                        <MenuItem
+                                            x:Name="PART_MotionMakerMenu"
+                                            Header="모션 메이커"
+                                            ToolTip="일기토 그림 서른셋을 늘어놓고 번호를 적어 이어 돌려 본다 — 장마다 0.1초씩 맞춘다" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>

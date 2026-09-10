@@ -16,7 +16,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 셈은 <see cref="Duel"/> 이 다 하고 이 창은 보여 주기만 한다. 판은 게임과 같은
 /// <b>384x248 두 층</b>이다(<c>0x004AA7BB</c> 의 <c>0x180 x 0x100</c>).
 /// <code>
-///   위 384x136  마당 — 그림 바탕에 두 사람이 선다(asset/duel, FighterSprites)
+///   위 384x136  배경 — 그림 바탕에 두 사람이 선다(asset/duel, FighterSprites)
 ///   아래 384x112 눈금판 — 초상 둘 · 고른 손 둘 · 부위 막대 여섯
 /// </code>
 /// 눈금판 위의 자리는 <b>그림에 찍힌 자리표를 재어</b> 얻었다
@@ -105,10 +105,10 @@ public sealed class DuelDialog : GameWindow
     private readonly int[] _wasMine = new int[Duel.Lines];
     private readonly int[] _wasFoe = new int[Duel.Lines];
 
-    /// <summary>명령 창이 앉는 자리 — 마당 한가운데다.</summary>
+    /// <summary>명령 창이 앉는 자리 — 배경 한가운데다.</summary>
     private readonly Border _keyBox = new();
 
-    /// <summary>명령 창이 마당 위에서 내려앉는 깊이(점).</summary>
+    /// <summary>명령 창이 배경 위에서 내려앉는 깊이(점).</summary>
     private const double KeyBoxTop = 28;
 
     /// <summary>
@@ -138,6 +138,9 @@ public sealed class DuelDialog : GameWindow
         _duel = duel;
         _dice = dice;
         _face = face;
+        // 몸짓 표를 <b>판을 열 때마다</b> 다시 읽는다 — 모션 메이커에서 고쳐 저장한 것이
+        // 놀이를 다시 띄우지 않아도 다음 일기토부터 들게 하려는 것이다.
+        DuelMotions.Forget();
         if (art != null) _stage = new DuelStage(art, foeSet);
 
         WindowStyle = WindowStyle.None;
@@ -154,13 +157,13 @@ public sealed class DuelDialog : GameWindow
             Background = GameUi.Back,
         };
 
-        // ── 위층: 마당 그림과 두 사람 ─────────────────────────────────────
+        // ── 위층: 배경 그림과 두 사람 ─────────────────────────────────────
         Put(canvas, Picture(board?.Path_(arena)), 0, 0, DuelArt.ArenaWidth, DuelArt.ArenaHeight);
         if (_stage != null) Put(canvas, _stage, 0, 0);
 
         // ── 아래층: 눈금판 ────────────────────────────────────────────────
         const int Top = DuelArt.ArenaHeight;
-        // 눈금판은 마당 빛깔을 따라간다 — 초원이면 초원 것, 갑판이면 갑판 것.
+        // 눈금판은 배경 빛깔을 따라간다 — 초원이면 초원 것, 갑판이면 갑판 것.
         Put(canvas, Picture(board?.Path_(DuelArt.PanelFor(arena))), 0, Top,
             DuelArt.PanelWidth, DuelArt.PanelHeight);
 
@@ -189,7 +192,7 @@ public sealed class DuelDialog : GameWindow
         // 판 밑에는 아무것도 안 붙인다. 게임 판은 384x248 이 전부이고, 상대의 말은
         // 제목 「일기토」가 붙은 <b>제 창</b>으로 따로 난다. 어느 판인지(맞부딪힘·공격·
         // 방어)는 명령 창의 줄 이름이 그대로 일러 준다.
-        // 손을 고를 때만 뜨는 작은 명령 창. 마당 <b>한가운데</b>에 뜬다(게임도 그 자리다).
+        // 손을 고를 때만 뜨는 작은 명령 창. 배경 <b>한가운데</b>에 뜬다(게임도 그 자리다).
         _keyBox.Background = GameUi.MenuBack;
         _keyBox.BorderBrush = GameUi.Edge;
         _keyBox.BorderThickness = new Thickness(1);
@@ -224,7 +227,7 @@ public sealed class DuelDialog : GameWindow
         Refresh();
         Rebuild();
 
-        // 들머리 — 둘이 벽에서 가운데로 걸어 나온 <b>뒤에야</b> 명령 창이 뜬다
+        // 다가오기 — 둘이 벽에서 가운데로 걸어 나온 <b>뒤에야</b> 명령 창이 뜬다
         // (갈무리 「일기토의 초기화」). 그림이 없는 판은 걸을 것도 없다.
         if (_stage is { } stage)
         {
@@ -450,44 +453,46 @@ public sealed class DuelDialog : GameWindow
         _myMove.Text = MoveName(turn.Was, turn.MyMove);
         _foeMove.Text = MoveName(turn.Was, turn.FoeMove);
 
-        var (mine, theirs, myLunge, foeLunge) = Moves(turn);
-        _stage.Play(mine, theirs, myLunge, foeLunge,
+        // 판 갈래대로 두 사람이 통째로 마흔 점 옮겨 간다(0x004A6EE5) — 내가 몰아붙이면
+        // 상대 쪽으로, 막기만 하면 내 쪽으로다. 맞부딪힘은 제자리다. 맞았는지는 안 본다.
+        // 이 판이 시작할 때 미끄러지므로 <b>공격이면 나가면서 찌르고 방어면 물러나면서</b>
+        // 뛴다 — 앞 판에서 옮겨 두면 뛰는 판에 앞으로 나가는 꼴이 된다.
+        var (mine, theirs) = Moves(turn);
+        int way = turn.Was switch
+        {
+            Duel.Phase.Attack => -1,
+            Duel.Phase.Guard => +1,
+            _ => 0,
+        };
+        _stage.Play(mine, theirs, way,
                     onSay: null,
                     onHurt: Refresh,
-                    onDone: () =>
-                    {
-                        // 판 갈래대로 두 사람이 통째로 마흔 점 옮겨 간다(0x004A6EE5) —
-                        // 내가 몰아붙이면 상대 쪽으로, 막기만 하면 내 쪽으로다.
-                        // 맞부딪힘은 제자리다. 맞았는지는 안 본다.
-                        _stage.Drift(turn.Was switch
-                        {
-                            Duel.Phase.Attack => -1,
-                            Duel.Phase.Guard => +1,
-                            _ => 0,
-                        });
-                        Settle(turn);
-                    });
+                    onDone: () => Settle(turn));
     }
 
-    /// <summary>이번 판에 두 사람이 지을 몸짓.</summary>
-    private static (FighterSprites.Move Mine, FighterSprites.Move Theirs,
-                    bool MyLunge, bool FoeLunge) Moves(in Duel.Turn turn)
+    /// <summary>
+    /// 이번 판에 두 사람이 지을 몸짓.
+    /// </summary>
+    /// <remarks>
+    /// 앞으로 나가고 뒤로 물러나는 것은 <b>몸짓 표가 갖고 있다</b>(<see cref="DuelMotions"/>) —
+    /// 여기서는 누가 찌르고 누가 막는지만 고른다.
+    /// </remarks>
+    private static (FighterSprites.Move Mine, FighterSprites.Move Theirs) Moves(in Duel.Turn turn)
     {
-        static FighterSprites.Move Cut(int line) => (FighterSprites.Move)line;
+        static FighterSprites.Move Thrust(int line) => (FighterSprites.Move)line;
         static FighterSprites.Move Guard(int g) => (FighterSprites.Move)(3 + g);
 
         return turn.Was switch
         {
             // 맞부딪힘 — 둘이 한꺼번에 내지른다.
-            Duel.Phase.Clash => (Cut(turn.MyMove), Cut(turn.FoeMove), true, true),
+            Duel.Phase.Clash => (Thrust(turn.MyMove), Thrust(turn.FoeMove)),
 
-            // 내가 친다 — 상대는 막는 몸짓이다.
-            Duel.Phase.Attack => (turn.Finisher ? FighterSprites.Move.Finisher : Cut(turn.MyMove),
-                                  Guard(turn.FoeMove), true, false),
+            // 내가 친다 — 상대는 막는 몸짓이다. 필살도 <b>여느 찌르는 그림</b>을 쓴다.
+            // 스프라이트셋 6 은 이겼을 때의 몸짓이라 여기에 걸 것이 아니다(FighterSprites.Move.Victory).
+            Duel.Phase.Attack => (Thrust(turn.MyMove), Guard(turn.FoeMove)),
 
             // 내가 막는다.
-            _ => (Guard(turn.MyMove),
-                  turn.Finisher ? FighterSprites.Move.Finisher : Cut(turn.FoeMove), false, true),
+            _ => (Guard(turn.MyMove), Thrust(turn.FoeMove)),
         };
     }
 
@@ -537,7 +542,7 @@ public sealed class DuelDialog : GameWindow
 
     /// <summary>판을 연다. 이겼으면 true.</summary>
     /// <param name="art">싸움 그림. 없으면 막대와 글로만 낸다.</param>
-    /// <param name="foeSet">상대 그림벌(1~8).</param>
+    /// <param name="foeSet">상대 스프라이트셋(1~8).</param>
     public static bool Show(Window owner, Duel duel, GameRandom dice, uint[]? face,
                             FighterSprites? art = null, int foeSet = 1,
                             uint[]? myFace = null, string arena = DuelArt.Field)

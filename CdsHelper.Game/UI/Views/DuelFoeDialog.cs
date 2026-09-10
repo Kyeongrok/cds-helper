@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -24,11 +24,11 @@ internal sealed class DuelFoeDialog : GameWindow
     private const double FaceWidth = Portraits.Width, FaceHeight = Portraits.Height;
 
     /// <summary>
-    /// 고를 수 있는 마당 — <c>asset/duel</c> 에 뽑아 둔 것 그대로다.
+    /// 고를 수 있는 배경 — <c>asset/duel</c> 에 뽑아 둔 것 그대로다.
     /// </summary>
     /// <remarks>
-    /// 마당마다 눈금판이 한 장씩 딸려 있다(<see cref="DuelArt.PanelFor"/>) — 눈금판은
-    /// 제 팔레트가 없어 마당 것을 같이 쓰기 때문이다. 그래서 마당을 고르면 아래 판
+    /// 배경마다 눈금판이 한 장씩 딸려 있다(<see cref="DuelArt.PanelFor"/>) — 눈금판은
+    /// 제 팔레트가 없어 배경 것을 같이 쓰기 때문이다. 그래서 배경을 고르면 아래 판
     /// 빛깔도 같이 바뀐다.
     /// </remarks>
     private static readonly (string Key, string Name)[] Arenas =
@@ -57,7 +57,7 @@ internal sealed class DuelFoeDialog : GameWindow
         };
         top.Children.Add(new TextBlock
         {
-            Text = "마당",
+            Text = "배경",
             Width = 40,
             VerticalAlignment = VerticalAlignment.Center,
         });
