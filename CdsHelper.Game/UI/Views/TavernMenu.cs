@@ -1008,16 +1008,26 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         "중국", "중앙아시아", "동남아시아", "일본", "신대륙",
     ];
 
-    private static string Bearing(int culture) =>
+    private static string Bearing(int culture) => BearingName(culture);
+
+    /// <summary>
+    /// 그 문화권을 술집이 부르는 이름. 표 밖이면 「먼 바다」다.
+    /// </summary>
+    /// <remarks>술집 힌트 편집기가 같은 말을 미리 내 보이려고 함께 쓴다.</remarks>
+    public static string BearingName(int culture) =>
         culture >= 0 && culture < Bearings.Length ? Bearings[culture] : "먼 바다";
 
     /// <summary>
     /// 그 발견물이 앉은 도시. 사각형 안에 든 도시를 찾고, 없으면 가장 가까운 도시다.
     /// </summary>
-    private int? TargetCity(int discovery)
+    /// <param name="serial">
+    /// 힌트가 가리키는 발견물 <b>일련번호</b>(<see cref="HintTable.Hint.Discovery"/>).
+    /// </param>
+    private int? TargetCity(int serial)
     {
         if (_game.CityRows is not { } cities) return null;
-        if (_game.Discoveries?.Table.Find(discovery) is not { HasPlace: true } row) return null;
+        // 힌트가 든 것은 <b>일련번호</b>다 — 표에서 몇째 줄인지가 아니다.
+        if (_game.Discoveries?.Table.FindBySerial(serial) is not { HasPlace: true } row) return null;
 
         int cx = (row.X1 + row.X2) / 2, cy = (row.Y1 + row.Y2) / 2;
         int best = -1;

@@ -32,6 +32,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_FormationMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_FortuneMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_MenuDesignerMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_TavernHintMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_MotionMakerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
@@ -59,6 +60,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_FormationMenu = "PART_FormationMenu";
     private const string PART_FortuneMenu = "PART_FortuneMenu";
     private const string PART_MenuDesignerMenu = "PART_MenuDesignerMenu";
+    private const string PART_TavernHintMenu = "PART_TavernHintMenu";
     private const string PART_MotionMakerMenu = "PART_MotionMakerMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
@@ -187,6 +189,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_MenuDesignerMenu) is MenuItem menuDesignerMenu)
         {
             menuDesignerMenu.Click += OnMenuDesignerMenuClick;
+        }
+
+        if (GetTemplateChild(PART_TavernHintMenu) is MenuItem tavernHintMenu)
+        {
+            tavernHintMenu.Click += OnTavernHintMenuClick;
         }
 
         if (GetTemplateChild(PART_MotionMakerMenu) is MenuItem motionMakerMenu)
@@ -395,6 +402,13 @@ public class CdsHelperWindow : CdsWindow
             Owner = this
         };
         dialog.ShowDialog();
+    }
+
+    // 술집 힌트 186줄을 보고 고치는 창. 힌트가 가리키는 발견물과, 술집 주인이 어느 쪽으로
+    // 가라 이를지를 함께 내어 짝이 어긋난 줄을 눈으로 찾을 수 있게 한다.
+    private void OnTavernHintMenuClick(object sender, RoutedEventArgs e)
+    {
+        CdsHelper.Game.UI.Views.TavernHintEditDialog.Show(this);
     }
 
     // 일기토 그림을 늘어놓고 번호를 적어 이어 돌려 보는 창. 몸짓 차례를 코드에 적기
