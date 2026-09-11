@@ -156,6 +156,24 @@ public sealed class DiscoveryTable
     public string NameOf(int id) => Find(id)?.Name ?? $"발견물 {id}";
 
     /// <summary>
+    /// <b>일련번호</b>로 발견물을 찾는다 — 힌트가 가리키는 것을 찾을 때 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 힌트 줄의 <see cref="HintTable.Hint.Discovery"/> 는 표에서 <b>몇째 줄</b>인지가 아니라
+    /// <see cref="Record.Hint"/> 와 맞대어 볼 <b>일련번호</b>다(<c>0x004AACFD</c>). 줄 번호로
+    /// 알고 <see cref="Find"/> 에 넣으면 엉뚱한 발견물이 나온다 — 「카르낙 거석군」(힌트 20,
+    /// 일련번호 107)을 넣으면 표의 107째 줄인 「로제타석」이 나와, 술집이 브르타뉴가 아니라
+    /// 중근동으로 가라고 일렀다.
+    /// </remarks>
+    public Record? FindBySerial(int serial)
+    {
+        if (serial < 0) return null;
+        foreach (var row in _rows)
+            if (row.Hint == serial) return row;
+        return null;
+    }
+
+    /// <summary>
     /// 표를 연다. 적어 둔 JSON 이 있으면 그것을 읽고, 없거나 판이 갈렸으면 EXE 에서 읽어
     /// 적어 둔다. 둘 다 없을 때만 null 이다.
     /// </summary>

@@ -116,14 +116,11 @@ public sealed class HintTable
     public IReadOnlyList<string> CategoryNames { get; }
 
     /// <summary>표에 있는 힌트 전부.</summary>
-    public IReadOnlyList<Hint> Hints => _hints;
+    /// <remarks>사람이 고쳐 둔 것이 있으면 그것이 이긴다(<see cref="HintEdits"/>).</remarks>
+    public IReadOnlyList<Hint> Hints => [.. _hints.Select(HintEdits.Apply)];
 
-    /// <summary>그 번호의 힌트. 표 밖이면 null.</summary>
-    /// <remarks>
-    /// 186줄이 다 차 있어 자리와 번호가 늘 같지만, 옛 판의 JSON 이 남아 있을 수도 있으므로
-    /// 자리로 먼저 짚어 보고 번호가 다르면 훑는다.
-    /// </remarks>
-    public Hint? Find(int id)
+    /// <summary>고치기 전 게임 값. 되돌리거나 견줄 때 쓴다.</summary>
+    public Hint? Original(int id)
     {
         if (id < 0) return null;
         if (id < _hints.Count && _hints[id].Id == id) return _hints[id];
@@ -131,6 +128,13 @@ public sealed class HintTable
             if (h.Id == id) return h;
         return null;
     }
+
+    /// <summary>그 번호의 힌트. 표 밖이면 null.</summary>
+    /// <remarks>
+    /// 186줄이 다 차 있어 자리와 번호가 늘 같지만, 옛 판의 JSON 이 남아 있을 수도 있으므로
+    /// 자리로 먼저 짚어 보고 번호가 다르면 훑는다.
+    /// </remarks>
+    public Hint? Find(int id) => Original(id) is { } row ? HintEdits.Apply(row) : null;
 
     /// <summary>그 힌트의 이름. 표 밖이면 번호로 물러선다.</summary>
     public string NameOf(int id) => Find(id)?.Name ?? $"힌트 {id}";
