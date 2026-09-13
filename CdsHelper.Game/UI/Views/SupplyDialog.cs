@@ -99,6 +99,7 @@ public sealed class SupplyDialog : GameWindow
 
     private readonly GameUi.GameLabel[] _addLabels = new GameUi.GameLabel[Supply.Count];
     private readonly GameUi.GameLabel[] _costLabels = new GameUi.GameLabel[Supply.Count];
+    private readonly GameUi.GameLabel[] _signLabels = new GameUi.GameLabel[Supply.Count];
     private readonly GameUi.GameLabel _capacity = Label("");
     private readonly GameUi.GameLabel _weight = Label("");
     private readonly GameUi.GameLabel _gold = Label("");
@@ -211,14 +212,15 @@ public sealed class SupplyDialog : GameWindow
 
         _addLabels[index] = Label("");
         _costLabels[index] = Label("");
+        _signLabels[index] = Label("+");
 
-        // 보충량 칸은 "+ 000 ↑↓" 한 벌이다.
+        // 보충량 칸은 "+ 000 ↑↓" 한 벌이다. 덜어 내면 부호가 "-" 로 바뀐다.
         var spin = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
         };
-        spin.Children.Add(Label("+"));
+        spin.Children.Add(_signLabels[index]);
         spin.Children.Add(_addLabels[index]);
         spin.Children.Add(Arrow("↑", () => Bump(index, +1)));
         spin.Children.Add(Arrow("↓", () => Bump(index, -1)));
@@ -263,25 +265,32 @@ public sealed class SupplyDialog : GameWindow
         },
     };
 
-    /// <summary>↑·↓ 한 칸. 게임처럼 작은 네모 두 개다.</summary>
+    /// <summary>
+    /// ↑·↓ 한 칸. 게임 조각(<c>MISC.CDS</c> 파트 3, 16x16)을 그대로 건다 — 능력치·기술 화면과
+    /// 같은 화살표다. 조각을 못 읽었을 때만 글자 화살표로 물러선다.
+    /// </summary>
     private static UIElement Arrow(string mark, Action run)
     {
-        var box = new Border
-        {
-            Width = 15,
-            Background = GameUi.ItemFill,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(1, 0, 0, 0),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
+        bool up = mark == "↑";
+        FrameworkElement box = GameUi.GameIcon(up ? UiSprites.IconUp : UiSprites.IconDown)
+            ?? (FrameworkElement)new Border
             {
-                Text = mark,
-                Foreground = Brushes.Black,
-                FontSize = 11,
-                HorizontalAlignment = HorizontalAlignment.Center,
-            },
-        };
+                Width = UiSprites.IconWidth,
+                Height = UiSprites.IconHeight,
+                Background = GameUi.ItemFill,
+                BorderBrush = GameUi.ItemEdge,
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    Text = mark,
+                    Foreground = Brushes.Black,
+                    FontSize = 11,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            };
+        box.Margin = new Thickness(1, 0, 0, 0);
+        box.Cursor = Cursors.Hand;
+        box.VerticalAlignment = VerticalAlignment.Center;
         // 누름은 삼킨다 — 판 끌기가 먼저 걸리면 마우스를 잡아 버려 뗌이 안 온다.
         box.MouseLeftButtonDown += (_, e) => e.Handled = true;
         box.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
@@ -301,7 +310,8 @@ public sealed class SupplyDialog : GameWindow
     private int Weight => _player.LoadedWeight
                           + Supply.All.Sum(s => _add[(int)s.Kind] * s.UnitWeight);
 
-    private int Cost(int index) => _add[index] * Supply.All[index].PriceAt(_rate);
+    /// <summary>줄 값. 덜어 내는 것(음수)은 값을 쳐 주지 않는다 — 버리는 것이다.</summary>
+    private int Cost(int index) => Math.Max(0, _add[index]) * Supply.All[index].PriceAt(_rate);
 
     private int Total => Enumerable.Range(0, Supply.Count).Sum(Cost);
 
@@ -320,7 +330,8 @@ public sealed class SupplyDialog : GameWindow
         for (int i = 0; i < step; i++)
         {
             if (by > 0 && !CanAdd(index)) break;
-            if (by < 0 && _add[index] <= 0) break;
+            // 내리면 0 에서 멈추지 않고 실어 둔 것까지 덜어 낸다 — 현재량 밑으로는 못 간다.
+            if (by < 0 && _add[index] <= -_player.SupplyOf(Supply.All[index].Kind)) break;
             _add[index] += by > 0 ? 1 : -1;
         }
         Paint();
@@ -357,24 +368,25 @@ public sealed class SupplyDialog : GameWindow
     {
         for (int i = 0; i < Supply.Count; i++)
         {
-            _addLabels[i].Text = $"{_add[i],5}";
+            _signLabels[i].Text = _add[i] < 0 ? "-" : "+";
+            _addLabels[i].Text = $"{Math.Abs(_add[i]),5}";
             _costLabels[i].Text = $"{Cost(i)}닢";
         }
         _capacity.Text = $"{Barrels}/{_player.Capacity}";
         _weight.Text = $"{Weight}/{_player.Tonnage}";
         _gold.Text = $"{_player.Gold}닢";
         _total.Text = $"{Total}닢";
-        _decide.On = Total > 0;
+        _decide.On = _add.Any(a => a != 0);
     }
 
-    /// <summary>산 것을 싣고 값을 치른다.</summary>
+    /// <summary>산 것을 싣고 값을 치른다. 덜어 낸 것은 내린다(값은 안 돌려준다).</summary>
     private void Decide()
     {
         int total = Total;
-        if (total <= 0 || total > _player.Gold) return;
+        if (_add.All(a => a == 0) || total > _player.Gold) return;
 
         for (int i = 0; i < Supply.Count; i++)
-            if (_add[i] > 0) _player.AddSupply(Supply.All[i].Kind, _add[i]);
+            if (_add[i] != 0) _player.AddSupply(Supply.All[i].Kind, _add[i]);
         _player.SetGold(_player.Gold - total);
 
         // 알림 없이 그냥 닫는다 — 실은 것은 창이 닫히며 상단 띠에 그대로 비친다.

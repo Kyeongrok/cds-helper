@@ -75,13 +75,32 @@ public sealed class ContractDialog : GameWindow
     /// 비고 증거품 아래가 통째로 비었다. 글 줄에 맞춰 줄였다 — 제목·줄 다섯·틈 둘·목록 둘을
     /// 쌓으면 키가 256점쯤이다.
     /// </remarks>
-    private const double BoardWidth = 300, BoardHeight = 262;
+    /// <remarks>
+    /// <b>지금 값은 원본 코드에서 뽑았다.</b> 창은 폭 <c>0x180</c>(384, 테 포함 — <c>0x0047F55F</c>)이고
+    /// 갈무리로 재면 키가 368 이라, 테 8점을 뺀 속이 368x352 다. 자리는 모두 속에서 잰 값이다.
+    /// <code>
+    ///   0x0047F22A  제목(힌트 이름)        (0, 8)
+    ///   0x0047F29C  "스폰서  %s"           (16, 40)       이후 줄은 x 16 에 선다
+    ///   0x0047F2FB  "  마을  %s"           y +20 = 60
+    ///   0x0047F352  "계약금  %8ld닢"       y +24 = 84
+    ///   0x0047F37E  "  선금 …  계약 기한"  y +20 = 104
+    ///   0x0047F3BA  "  미불 …" + 기한      y +20 = 124
+    ///   0x0047F4B3  "발견물"               y +24 = 148    목록 (64,160) 304x60 — 0x0047F66E
+    ///   0x0047F4E5  "증거품"               y +84 = 232    목록 (64,244) 304x60
+    ///   취소 96x24 는 속 오른쪽 아래에서 8점 안쪽 (264,320) — 갈무리로 잼
+    /// </code>
+    /// 예전 300x262 는 글 줄에 맞춰 어림한 것이라 「스폰서」 이름과 「나머지 11개월」 끝이 잘렸다.
+    /// </remarks>
+    private const double BoardWidth = 368, BoardHeight = 352;
 
-    /// <summary>발견물·증거품 칸에 비워 두는 높이. 예전 84 를 같은 비율(1.75)로 줄였다.</summary>
-    private const double ListHeight = 48;
+    /// <summary>발견물·증거품 목록 상자(<c>0x0047F66E</c>: 0x130 x 0x3C).</summary>
+    private const double ListLeft = 64, ListWidth = 304, ListHeight = 60;
 
-    /// <summary>목록 상자가 왼쪽에서 들어가는 만큼. 게임도 라벨보다 안쪽에서 시작한다.</summary>
-    private const double ListIndent = 74;
+    /// <summary>줄이 서는 왼쪽 자리.</summary>
+    private const double RowLeft = 16;
+
+    /// <summary>취소 단추 — 속 오른쪽 아래에서 8점 안쪽이다.</summary>
+    private const double CancelWidth = 96, CancelHeight = 24, CancelInset = 8;
 
     private ContractDialog(Contract contract, DateTime today, string title, string sponsorShown,
                            IReadOnlyList<string> found, IReadOnlyList<string> evidence)
@@ -94,52 +113,31 @@ public sealed class ContractDialog : GameWindow
         ShowInTaskbar = false;
         Background = Back;
 
-        var rows = new StackPanel();
-        rows.Children.Add(Label($"   스폰서  {sponsorShown}"));
-        if (contract.City.Length > 0) rows.Children.Add(Label($"     마을  {contract.City}"));
+        // 원본 자리 그대로 캔버스에 놓는다(속 좌표). 줄 글은 게임 서식 그대로 — 앞 빈칸이
+        // "스폰서"와 "  마을", "계약금"과 "  선금" 의 오른쪽 끝을 맞춘다.
+        var board = new Canvas { Width = BoardWidth, Height = BoardHeight, ClipToBounds = true };
 
-        rows.Children.Add(Gap());
-        rows.Children.Add(Label($"   계약금  {contract.Amount,8}닢"));
-        rows.Children.Add(Label($"     선금  {contract.Advance,8}닢    계약 기한"));
-        rows.Children.Add(Label($"     미불  {contract.Unpaid,8}닢      {Deadline(contract, today)}"));
+        Put(board, Label(title), 0, 8);
 
-        rows.Children.Add(Gap());
-        rows.Children.Add(Label("   발견물"));
-        rows.Children.Add(List(found, ListHeight));
-        rows.Children.Add(Label("   증거품"));
-        rows.Children.Add(List(evidence, ListHeight));
-
-        var head = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 6) };
         var close = CloseBox();
-        DockPanel.SetDock(close, Dock.Right);
-        head.Children.Add(close);
-        head.Children.Add(Label(title));
+        Put(board, close, BoardWidth - 21, 3);
 
-        var board = new DockPanel
-        {
-            Width = BoardWidth,
-            Height = BoardHeight,
-            Margin = new Thickness(14, 10, 14, 2),
-            LastChildFill = false,
-        };
-        DockPanel.SetDock(head, Dock.Top);
-        board.Children.Add(head);
-        DockPanel.SetDock(rows, Dock.Top);
-        board.Children.Add(rows);
+        Put(board, Label($"스폰서  {sponsorShown}"), RowLeft, 40);
+        if (contract.City.Length > 0) Put(board, Label($"  마을  {contract.City}"), RowLeft, 60);
 
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(10, 0, 10, 10),
-        };
-        buttons.Children.Add(new GameButton("취소", Close));
+        Put(board, Label($"계약금  {contract.Amount,8}닢"), RowLeft, 84);
+        Put(board, Label($"  선금  {contract.Advance,8}닢    계약 기한"), RowLeft, 104);
+        Put(board, Label($"  미불  {contract.Unpaid,8}닢      {Deadline(contract, today)}"), RowLeft, 124);
 
-        var page = new StackPanel();
-        page.Children.Add(board);
-        page.Children.Add(buttons);
+        Put(board, Label("발견물"), RowLeft, 148);
+        Put(board, List(found), ListLeft, 160);
+        Put(board, Label("증거품"), RowLeft, 232);
+        Put(board, List(evidence), ListLeft, 244);
 
-        var frame = GameUi.InfoFrame(page, Back, Line);
+        Put(board, new GameButton("취소", Close, width: CancelWidth) { Margin = new Thickness(0) },
+            BoardWidth - CancelInset - CancelWidth, BoardHeight - CancelInset - CancelHeight);
+
+        var frame = GameUi.InfoFrame(board, Back, Line);
         GameUi.EnableDrag(this, frame);
         Content = frame;
 
@@ -191,8 +189,13 @@ public sealed class ContractDialog : GameWindow
         return box;
     }
 
-    /// <summary>줄 사이를 띄우는 빈 칸. 게임도 묶음 사이를 한 줄만큼 띄운다.</summary>
-    private static UIElement Gap() => new Border { Height = 10 };
+    /// <summary>속 좌표로 캔버스에 놓는다.</summary>
+    private static void Put(Canvas canvas, UIElement element, double x, double y)
+    {
+        Canvas.SetLeft(element, x);
+        Canvas.SetTop(element, y);
+        canvas.Children.Add(element);
+    }
 
     /// <summary>
     /// 이름을 죽 늘어놓는 칸. <b>담긴 것이 있으면 양피지 상자</b>가 깔리고, 비어 있으면
@@ -203,21 +206,17 @@ public sealed class ContractDialog : GameWindow
     /// 그때 발견물에는 든 것이 있었고 증거품은 비어 있었다. 곧 <b>빈 칸에는 상자를 안
     /// 깐다</b>. 상자는 라벨보다 안쪽에서 시작해 오른쪽 끝까지 간다.
     /// </remarks>
-    private static UIElement List(IReadOnlyList<string> names, double height)
+    private static UIElement List(IReadOnlyList<string> names)
     {
         var stack = new StackPanel { Margin = new Thickness(6, 2, 0, 0) };
         foreach (var name in names) stack.Children.Add(Ledger(name));
 
         var box = new Border
         {
-            Height = height,
-            Margin = new Thickness(ListIndent, 2, 0, 0),
-            Child = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                Content = stack,
-            },
+            Width = ListWidth,
+            Height = ListHeight,
+            // 넘치면 게임 굴림대로 굴린다 — 윈도 굴림대는 모양이 너무 다르다.
+            Child = GameUi.Scroller(stack, ListHeight),
         };
         if (names.Count == 0) return box;
 
