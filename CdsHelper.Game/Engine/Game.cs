@@ -77,6 +77,7 @@ public sealed class Game
         _effects = null; _effectsTried = false;
         _guests = null; _guestsTried = false;
         _templates = null; _templatesTried = false;
+        _cells = null; _cellsTried = false;
         _photos = null; _photosTried = false;
         _itemText = null; _itemTextTried = false;
         _itemArt = null;
@@ -233,6 +234,10 @@ public sealed class Game
         Once(ref _templates, ref _templatesTried, PersonTemplate.Open,
              () => PersonTemplate.LastError, "인물 밑표");
 
+    /// <summary>WORLD.CDS 칸. 지도 창 없이 뭍인지 볼 때 쓴다 — 인물 이동의 끝점을 잡는다.</summary>
+    public WorldCells? Cells =>
+        Once(ref _cells, ref _cellsTried, WorldCells.Open, () => WorldCells.LastError, "WORLD.CDS 칸");
+
     /// <summary>건물 사진(MPCG.CDS). 건물에 들어갈 때 뜨는 타원 사진이다.</summary>
     public BuildingPhoto? Photos =>
         Once(ref _photos, ref _photosTried, BuildingPhoto.Open,
@@ -354,7 +359,7 @@ public sealed class Game
             // 역사 항해자 열넷은 주사위가 아니라 제 대본대로 움직인다 — 대본을 물려준다.
             return _world = new PersonWorld(table, CityRows, Buildings,
                                             Support.Local.Models.Player.StartDate,
-                                            Voyagers, Discoveries?.Table);
+                                            Voyagers, Discoveries?.Table, Cells);
         }
     }
 
@@ -516,6 +521,8 @@ public sealed class Game
     private TavernGuests? _guests;
     private PersonTemplate? _templates;
     private bool _templatesTried;
+    private WorldCells? _cells;
+    private bool _cellsTried;
     private BuildingPhoto? _photos;
     private ItemDescriptions? _itemText;
     private ItemArt? _itemArt;

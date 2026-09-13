@@ -578,10 +578,11 @@ public sealed class ShipMapHost : HwndHost
     private bool _folkArtReady;
 
     /// <summary>
-    /// 남의 배 그림 넉 장을 한 번 올린다 — 북 · 서 · 남 · 동 차례다.
+    /// 남의 그림 여덟 장을 한 번 올린다 — 배 넉 장, 말 넉 장이고 각각 북 · 서 · 남 · 동 차례다.
     /// </summary>
     /// <remarks>
-    /// 내 배와 같은 <c>asset/ship</c> 벌을 쓴다. 게임도 남의 배를 따로 그리지 않는다.
+    /// 내 배·말과 같은 <c>asset/ship</c> 벌을 쓴다. 게임도 남의 배를 따로 그리지 않고 내 것과 같은
+    /// 그림 벌(바다 <c>0x00569FE4</c> · 뭍 <c>0x00569FE8</c>)을 쓴다.
     /// </remarks>
     private void UploadFolkSprites()
     {
@@ -590,10 +591,12 @@ public sealed class ShipMapHost : HwndHost
         int one = MapD3DRenderer.FolkSize * MapD3DRenderer.FolkSize;
         var atlas = new uint[one * MapD3DRenderer.FolkFrames];
 
-        // 16방위에서 북(0) · 서(4) · 남(8) · 동(12) 을 뽑는다.
+        // 16방위에서 북(0) · 서(4) · 남(8) · 동(12) 을 뽑는다. 앞 넉 장이 배, 뒤 넉 장이 말이다.
         for (int i = 0; i < MapD3DRenderer.FolkFrames; i++)
         {
-            var frame = ShipSprites.Frame(i * 4);
+            bool land = i >= MapD3DRenderer.FolkLandFrame;
+            int heading = (i % MapD3DRenderer.FolkLandFrame) * 4;
+            var frame = ShipSprites.Frame(heading, onLand: land);
             if (frame.Length != one) return;                 // 그림 벌이 아직 안 열렸다
             frame.CopyTo(atlas.AsSpan(i * one));
         }
@@ -646,10 +649,14 @@ public sealed class ShipMapHost : HwndHost
         for (int i = 0; i < _folk.Count; i++)
         {
             var one = _folk[i];
+            // 16방위 → 넉 장. 뭍 칸에 서 있으면 말 쪽 넉 장으로 내린다(0x0048A799).
+            int frame = (one.Heading & 0xF) >> 2;
+            if (FolkOnLand(one.X, one.Y)) frame += MapD3DRenderer.FolkLandFrame;
+
             var draw = new MapD3DRenderer.FolkDraw(
                 (float)((one.X - origin.X) / _cellsPerPixel - size / 2),
                 (float)((one.Y - origin.Y) / _cellsPerPixel - size / 2),
-                (one.Heading & 0xF) >> 2,                    // 16방위 → 넉 장
+                frame,
                 scale);
 
             if (!draw.Equals(_folkDraw[i])) moved = true;
@@ -663,6 +670,20 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>지난 프레임에 그린 남의 배 수.</summary>
     private int _folkShown;
+
+    /// <summary>
+    /// 그 사람이 뭍 칸에 서 있는지 — 게임은 부류가 2 이상이면 배 대신 말을 그린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0048A794</c> 가 자리를 열여섯으로 나눠 칸을 잡고 <c>0x00426710</c> 으로 부류를
+    /// 본 뒤 <c>cmp eax, 2 / jge</c> 로 가른다. 부류표를 못 열었으면 뱃길 판정으로 물러선다.
+    /// </remarks>
+    private bool FolkOnLand(double cellX, double cellY)
+    {
+        if (_terrain != null && _world != null)
+            return _terrain.ClassOfCell(CellValue(cellX, cellY)) >= 2;
+        return IsLand(cellX, cellY);
+    }
 
     /// <summary>화면 밖 몇 칸까지 그릴지 — 그림이 세 칸이라 그 반이면 넉넉하다.</summary>
     private const double FolkMargin = 3;

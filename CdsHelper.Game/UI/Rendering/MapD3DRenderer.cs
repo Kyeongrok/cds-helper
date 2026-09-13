@@ -234,8 +234,19 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     /// </summary>
     public const int MaxFolk = 16;
 
-    /// <summary>남의 배 그림 한 벌의 방향 수 — 북·서·남·동 넉 장이다.</summary>
-    public const int FolkFrames = 4;
+    /// <summary>
+    /// 남의 그림 장수 — 배 넉 장(북·서·남·동)에 말 넉 장을 이어 붙인 여덟 장이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 사람 자리의 부류가 2 이상(뭍)이면 배 대신 <b>말</b>을 그린다(<c>0x0048A799</c> 의
+    /// <c>cmp eax, 2 / jge</c> → 뭍 그림 벌 <c>0x00569FE8</c>). 곧은 길로 가다 뭍을 만나면 말로,
+    /// 다시 바다로 나오면 배로 바뀐다. 셰이더는 <c>Folk[k].z * 48</c> 로 줄을 내리므로 장수를
+    /// 모른다 — 여기 값만 맞추면 된다.
+    /// </remarks>
+    public const int FolkFrames = 8;
+
+    /// <summary>말 그림이 시작하는 장. 배 넉 장 다음이다.</summary>
+    public const int FolkLandFrame = 4;
 
     /// <summary>남의 배 그림 한 변. 내 배와 같은 48이다.</summary>
     public const int FolkSize = 48;

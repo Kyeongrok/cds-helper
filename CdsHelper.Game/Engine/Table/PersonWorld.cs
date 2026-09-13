@@ -68,6 +68,12 @@ public sealed class PersonWorld
     private readonly CityExeTable? _cities;
     private readonly bool[] _harbor;
 
+    /// <summary>뭍 비트를 볼 지도. 없으면 끝점을 도시 칸 그대로 쓴다.</summary>
+    private readonly WorldCells? _map;
+
+    /// <summary>도시마다 떠나고 닿는 칸. 한 번 재면 적어 둔다.</summary>
+    private readonly (int X, int Y)?[] _access = new (int X, int Y)?[PersonTable.CityCount];
+
     /// <summary>역사 항해자 열넷의 대본. 없으면 그들은 안 움직인다.</summary>
     private readonly HistoryVoyages? _script;
 
@@ -101,9 +107,12 @@ public sealed class PersonWorld
     /// <param name="places">
     /// 발견물 표. <c>3C 0B</c> 이 보내는 자리를 여기서 잰다 — 없으면 그 수는 건너뛴다.
     /// </param>
+    /// <param name="map">
+    /// WORLD.CDS 칸. 떠나고 닿는 칸을 도시 곁 바다·뭍 칸으로 잡는 데 쓴다 — 없으면 도시 칸 그대로다.
+    /// </param>
     public PersonWorld(PersonTable table, CityExeTable? cities, CityBuildingTable? buildings,
                        DateTime start, HistoryVoyages? script = null,
-                       DiscoveryTable? places = null)
+                       DiscoveryTable? places = null, WorldCells? map = null)
     {
         _table = table;
         _rows = [.. table.People];
@@ -111,6 +120,7 @@ public sealed class PersonWorld
         _harbor = Harbors(buildings);
         _script = script;
         _places = places;
+        _map = map;
         _asOf = start;
 
         // 구워 온 표에는 길 위에 있던 사람이 그대로 들어 있는데(1517년 판에 쉰 명쯤)
@@ -206,8 +216,9 @@ public sealed class PersonWorld
     /// </remarks>
     private (int Fx, int Fy, int Dx, int Dy)? Leg(PersonTable.Row row)
     {
-        if (_cities is not { } cities) return null;
-        if (!cities.TryCell(row.From, out int fx, out int fy, out _)) return null;
+        // 끝점은 도시 칸이 아니라 도시 곁의 바다·뭍 칸이다(Access).
+        if (Access(row.From) is not { } from) return null;
+        var (fx, fy) = from;
 
         int tx, ty;
         if (row.Dest == SpotDest)
@@ -215,7 +226,8 @@ public sealed class PersonWorld
             if (!_bound.TryGetValue(row.Id, out var to)) return null;
             (tx, ty) = to;
         }
-        else if (!cities.TryCell(row.Dest, out tx, out ty, out _)) return null;
+        else if (Access(row.Dest) is { } dest) (tx, ty) = dest;
+        else return null;
 
         int dx = tx - fx, dy = ty - fy;
         if (Math.Abs(dx) >= WorldWidth / 2) dx += dx > 0 ? -WorldWidth : WorldWidth;
@@ -228,12 +240,14 @@ public sealed class PersonWorld
     /// <remarks>
     /// 게임의 <c>0x00432470</c> 이다 — 하루하루 좌표를 옮겨 적지 않고 <b>물어볼 때 셈해
     /// 낸다</b>. 떠난 자리에서 목표 쪽으로 <c>날 셈 x 24 / 거리</c> 만큼 간 데다.
-    /// 게임은 칸을 열여섯으로 쪼개고 하루를 마흔여덟 눈금으로 다시 쪼개 그 안에서도
-    /// 부드럽게 움직이는데, 우리 셈은 하루가 가장 잘게 나눈 단위라 <b>날 단위</b>다.
+    /// 게임은 하루를 마흔여덟 눈금으로 쪼개 <c>(날 셈 x 48 + 눈금)</c> 으로 재므로
+    /// <b>하루 안에서도 부드럽게</b> 움직인다(<c>0x0043259A</c> 의 <c>[0x5A4D2C]</c>).
+    /// <paramref name="dayPart"/> 가 그 눈금 몫이다 — 안 주면 날 단위로 하루에 24칸씩 뛴다.
     ///
     /// 발견물 자리로 갔던 사람은 <b>닿은 뒤에도 그 자리에 서 있다</b> — 앉을 도시가 없다.
     /// </remarks>
-    public (double X, double Y)? CellOf(PersonTable.Row row)
+    /// <param name="dayPart">오늘 하루 가운데 지난 몫(0 이상 1 미만).</param>
+    public (double X, double Y)? CellOf(PersonTable.Row row, double dayPart = 0)
     {
         if (!Moving(row))
             return _bound.TryGetValue(row.Id, out var stood) ? (stood.X, stood.Y) : null;
@@ -241,7 +255,8 @@ public sealed class PersonWorld
         if (Leg(row) is not { } leg) return null;
 
         int far = (int)Math.Sqrt((double)leg.Dx * leg.Dx + (double)leg.Dy * leg.Dy);
-        double gone = far <= 0 ? 1 : Math.Clamp(row.Wait * (double)SpeedPerDay / far, 0, 1);
+        double days = row.Wait + Math.Clamp(dayPart, 0, 1);
+        double gone = far <= 0 ? 1 : Math.Clamp(days * SpeedPerDay / far, 0, 1);
 
         double x = leg.Fx + leg.Dx * gone, y = leg.Fy + leg.Dy * gone;
         if (x < 0) x += WorldWidth;
@@ -271,12 +286,13 @@ public sealed class PersonWorld
     /// 앞에서부터 열여섯 칸을 채운다. 번호로 거르지 않으므로 역사 항해자도 그대로
     /// 걸린다 — 바다에서 마주치는 것이 이 때문이다. 몇을 낼지는 부르는 쪽이 정한다.
     /// </remarks>
-    public IEnumerable<(PersonTable.Row Who, double X, double Y, int Heading)> Afloat()
+    /// <param name="dayPart">오늘 하루 가운데 지난 몫. <see cref="CellOf"/> 에 그대로 넘긴다.</param>
+    public IEnumerable<(PersonTable.Row Who, double X, double Y, int Heading)> Afloat(double dayPart = 0)
     {
         foreach (var row in _rows)
         {
             if (!Active(row) && row.Id >= PersonTable.VoyagerCount) continue;
-            if (CellOf(row) is not { } at) continue;
+            if (CellOf(row, dayPart) is not { } at) continue;
             yield return (row, at.X, at.Y, HeadingOf(row));
         }
     }
@@ -429,6 +445,114 @@ public sealed class PersonWorld
     /// </summary>
     private static int Seed(int id, DateTime when) =>
         (id * 10007) ^ (when.Year * 137 + when.Month * 11);
+
+    // ── 들여다보기 ─────────────────────────────────────────────────────────────
+
+    /// <summary>그 사람이 지금 돌아다닐 수 있는가 — 등장했고 열여덟에서 예순 사이다.</summary>
+    public bool IsActive(PersonTable.Row row) => Active(row);
+
+    /// <summary>
+    /// 목적지까지 남은 날. 길 위가 아니거나 자리를 못 재면 null.
+    /// </summary>
+    /// <remarks>
+    /// 닿는 셈이 <c>날 셈 x 24 ≥ 거리</c> 라(<c>0x00432587</c>) 거리를 24 로 올림 나눈 날에서
+    /// 이미 간 날을 뺀다.
+    /// </remarks>
+    public int? DaysLeft(PersonTable.Row row)
+    {
+        if (!Moving(row)) return null;
+        int far = Distance(row);
+        if (far < 0) return null;
+        int need = (far + SpeedPerDay - 1) / SpeedPerDay;
+        return Math.Max(0, need - row.Wait);
+    }
+
+    /// <summary>
+    /// 다음 굴림에서 고를 수 있는 도시들. 도시에 앉아 있지 않으면 빈 목록이다.
+    /// </summary>
+    /// <remarks>달 넘김(<c>0x004327F0</c>)이 모으는 후보 그대로다 — 갈래가 해역·문화권·나라를 가른다.</remarks>
+    public IReadOnlyList<int> CandidatesOf(PersonTable.Row row) => Candidates(row);
+
+    /// <summary>
+    /// 역사 항해자가 <paramref name="from"/> 부터 <paramref name="months"/> 달 안에 둘 대본 수들.
+    /// 대본이 없거나 역사 항해자가 아니면 빈 목록이다.
+    /// </summary>
+    public IEnumerable<HistoryVoyages.Move> ScriptAhead(PersonTable.Row row, DateTime from, int months)
+    {
+        if (_script is not { } script || row.Id >= PersonTable.VoyagerCount) yield break;
+
+        var month = new DateTime(from.Year, from.Month, 1);
+        for (int i = 0; i < months; i++, month = month.AddMonths(1))
+            foreach (var move in script.MovesOn(row.Id, month.Year, month.Month))
+                yield return move;
+    }
+
+    // ── 끝점 ───────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 사람이 그 도시를 떠나고 닿는 칸 — 도시 칸이 아니라 곁의 바다 칸(항구) 또는 뭍 칸이다.
+    /// 도시 자리를 모르면 null.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00425BE0</c>(항구 있음) · <c>0x00425D10</c>(없음)이다. 떠날 때는 떠나는 도시의
+    /// 항구로, 갈 때는 목적 도시의 항구로 가른다.
+    /// <code>
+    ///   도시 칸 (x, y) · r = 도시가 차지하는 칸 수(+0x0C, 2·3)
+    ///   dy·dx 를 각각 -1 ~ r 로 훑는다(가운데가 아니라 한 칸 앞에서 시작한다)
+    ///   항구면 뭍 비트(0x4000)가 꺼진 칸, 아니면 켜진 칸만 본다
+    ///   무게 = 표[dy + 4r] + 표[dx + 4r]   (뭍은 여덟 칸 뒤)
+    ///   무게가 0x20 보다 작은 칸 가운데 처음 나온 가장 가벼운 칸. 없으면 도시 칸 그대로
+    /// </code>
+    /// 리스본(1185,355)은 (1185,357), 오포르토(1189,338)는 (1188,338), 고아(1762,517)는
+    /// (1761,517)로 떨어진다. 내륙 마그데부르크는 무게 0 인 제 칸 그대로다.
+    /// </remarks>
+    private (int X, int Y)? Access(int city)
+    {
+        if (city < 0 || city >= _access.Length || _cities is not { } cities) return null;
+        if (_access[city] is { } known) return known;
+        if (!cities.TryCell(city, out int cx, out int cy, out int reach)) return null;
+
+        var best = (cx, cy);
+        if (_map is { } map)
+        {
+            bool sea = Harbor(city);
+            int shift = 4 * reach + (sea ? 0 : 8);
+            int least = 0x20;
+
+            for (int dy = -1; dy <= reach; dy++)
+            {
+                int y = cy + dy;
+                if (y < 0 || y >= WorldCells.Height) continue;
+
+                for (int dx = -1; dx <= reach; dx++)
+                {
+                    int x = cx + dx;
+                    if (map.IsLand(x, y) == sea) continue;
+
+                    int i = dy + shift, j = dx + shift;
+                    if (i < 0 || j < 0 || i >= Weights.Length || j >= Weights.Length) continue;
+
+                    int weight = Weights[i] + Weights[j];
+                    if (weight >= least) continue;
+                    least = weight;
+                    best = (((x % WorldCells.Width) + WorldCells.Width) % WorldCells.Width, y);
+                }
+            }
+        }
+
+        _access[city] = best;
+        return best;
+    }
+
+    /// <summary>
+    /// 끝점 무게표 <c>0x0053C34C</c>. 바다는 <c>[off + 4r]</c>, 뭍은 여덟 칸 뒤를 읽는다.
+    /// </summary>
+    /// <remarks>
+    /// 마지막 값은 표가 아니라 그 뒤에 붙은 포인터다 — 뭍 도시 중 r=3 인 곳의 가장자리가 거기까지
+    /// 읽어 절대 뽑히지 않는다. 게임이 그렇게 굴러가므로 그대로 옮겼다.
+    /// </remarks>
+    private static readonly int[] Weights =
+        [1, 4, 1, 1, 1, 5, 1, 1, 0, 1, 4, 1, 0, 0, 1, 1, 0, 1, 4, 1, 0, 0, 1, 5454144];
 
     // ── 항구 ───────────────────────────────────────────────────────────────────
 
