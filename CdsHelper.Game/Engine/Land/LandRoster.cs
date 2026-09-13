@@ -144,7 +144,11 @@ public sealed class LandRoster
     /// <summary>
     /// 제독과 부관 중 높은 쪽 기능으로 자리 넷을 짓는다(<c>0x00446F70</c>).
     /// </summary>
-    public static LandRoster For(Player player, Player.MateInfo? aide)
+    /// <param name="borrowedMen">
+    /// 발견 대본이 빌려 준 병력(<c>26 1C 02</c>). 주면 함대 선원 대신 이 수로 부대를 짓는다 —
+    /// 파르테논 신전은 70명을 준다. 안 주면(−1) 함대 선원이다.
+    /// </param>
+    public static LandRoster For(Player player, Player.MateInfo? aide, int borrowedMen = -1)
     {
         int Best(int slot, int mine) => Math.Max(mine, Mate(slot, aide));
 
@@ -152,7 +156,7 @@ public sealed class LandRoster
             Best(Skill.Sword, player.LevelOf(Skill.Names[Skill.Sword])),
             Best(Skill.Shooting, player.LevelOf(Skill.Names[Skill.Shooting])),
             Best(Skill.Gunnery, player.LevelOf(Skill.Names[Skill.Gunnery])),
-            player.Crew + 1);
+            (borrowedMen >= 0 ? borrowedMen : player.Crew) + 1);
     }
 
     private static int Mate(int slot, Player.MateInfo? aide) => aide is not { } who ? 0 : slot switch

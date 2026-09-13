@@ -795,10 +795,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     }
 
     /// <summary>부관 세기를 재는 잣대 — 무력을 스물로 나누고 검술에 열을 곱한다.</summary>
-    private const int MateEdge = 20, MateSwordWeight = 10;
+    internal const int MateEdge = 20, MateSwordWeight = 10;
 
     /// <summary>부관이 꺼릴 때 하는 말(<c>0x005341F8</c> 다섯).</summary>
-    private static readonly string[] MateShy =
+    internal static readonly string[] MateShy =
     [
         "옛, 저 말입니까? 제독이 더 강하지 않습니까?",
         "그다지 자신은 없지만, 해 보겠습니다.",
@@ -808,7 +808,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>부관이 나설 때 하는 말(<c>0x00534330</c> 다섯).</summary>
-    private static readonly string[] MateEager =
+    internal static readonly string[] MateEager =
     [
         "저에게 맡겨 주십시오! 기필코 이기겠습니다.",
         "저를 지명하리라고는, 역시 제독이십니다.",
@@ -827,7 +827,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         _game.Faces?.TryGetBgra(who.Face, female: false);
 
     /// <summary>이겼을 때 상대가 남기는 말(<c>0x005348A8</c> 다섯).</summary>
-    private static readonly string[] Beaten =
+    internal static readonly string[] Beaten =
     [
         "제길, 기억해 두어라.",
         "오늘은 여기까지 해 두지. 그럼.",
@@ -837,7 +837,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>졌는데 봐 줄 때 하는 말(<c>0x005346E8</c> 다섯).</summary>
-    private static readonly string[] Spared =
+    internal static readonly string[] Spared =
     [
         "칫, 병아린가. 용서해 주지.",
         "너 같은 녀석 죽여도 자랑할게 못된다.",
@@ -889,13 +889,13 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     }
 
     /// <summary>놓아 주면 오르는 명성(<c>0x004AA3E0</c>) · 뺏으면 오르는 악명(<c>0x004AA470</c> 알림 값).</summary>
-    private const int SpareFame = 10, RobInfamy = 100;
+    internal const int SpareFame = 10, RobInfamy = 100;
 
     /// <summary>뺏는 금화 — <c>rand(11) + 20</c>(<c>0x004AA486</c>).</summary>
-    private const int RobGoldRoll = 11, RobGoldBase = 20;
+    internal const int RobGoldRoll = 11, RobGoldBase = 20;
 
     /// <summary>처형당하기 전에 하는 말(<c>0x005347F8</c> 다섯).</summary>
-    private static readonly string[] Executed =
+    internal static readonly string[] Executed =
     [
         "죽어야 하나...? 내가...",
         "이자, 너무 강하다...",
@@ -905,7 +905,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>다 뺏길 때 하는 말(<c>0x00534978</c> 벌 — 끝의 둘이 같은 줄이다).</summary>
-    private static readonly string[] Robbed =
+    internal static readonly string[] Robbed =
     [
         "이런 야비한 녀석.",
         "무일푼이냐...",

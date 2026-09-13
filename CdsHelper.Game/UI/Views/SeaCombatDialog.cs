@@ -28,26 +28,48 @@ namespace CdsHelper.Game.UI.Views;
 /// 이동 지시 중에는 원본처럼 <b>이동력 안의 칸을 육각 테로</b> 깔고(cell-00), 커서가 놓인
 /// 후보 칸까지의 길을 <b>회색 칸</b>(cell-01)으로 칠한다.
 /// </remarks>
-public sealed class SeaCombatDialog : GameWindow
+public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
 {
-    /// <summary>해전이 어떻게 끝났는지.</summary>
+    /// <summary>
+    /// 해전이 어떻게 끝났는지 — 게임은 <b>기함(0 · 8)이 빠질 때</b> 판을 닫는다(<c>0x004350F0</c>).
+    /// </summary>
     public enum Outcome
     {
-        /// <summary>내 배가 모두 퇴각했거나 적이 모두 물러갔다.</summary>
+        /// <summary>내 기함이 퇴각했다(<c>+0x118 = 1</c>).</summary>
         Escaped,
 
-        /// <summary>항복했다(뒤처리는 다음 단계).</summary>
+        /// <summary>항복했다. 게임에는 없는 앱 차림표다 — 부르는 쪽이 도망처럼 다룬다.</summary>
         Surrendered,
 
-        /// <summary>적을 모두 물리쳤다(전리품·명성은 다음 단계).</summary>
+        /// <summary>적 기함을 가라앉혔다(<c>+0x118 = 0</c>).</summary>
         Won,
 
-        /// <summary>내 배가 모두 가라앉았다(뒤처리는 다음 단계).</summary>
+        /// <summary>내 기함이 가라앉았다(<c>+0x118 = 2</c> → GAME OVER).</summary>
         Defeated,
+
+        /// <summary>적 기함이 퇴각했다 — 게임은 승리 쪽(<c>+0x118 = 0</c>)으로 치고 전리품만 없다.</summary>
+        EnemyRetreated,
     }
+
+    /// <summary>판이 끝난 뒤 부르는 쪽이 값을 치르는 데 쓰는 알맹이.</summary>
+    /// <param name="EnemyDowned">가라앉힌 적 배(상태 1).</param>
+    /// <param name="EnemyCaptured">빼앗거나 승원을 없앤 적 배(상태 2). 전리품의 꺾음은 둘의 합이다.</param>
+    public sealed record Report(Outcome Outcome, int EnemyDowned, int EnemyCaptured);
 
     /// <summary>포격 소리 파트 — 사운드 ID 0x29 발사 · 0x2A 명중 · 0x2B 빗나감 · 0x2E 격침(ID − 28).</summary>
     private const int FirePart = 0x29 - 28, HitPart = 0x2A - 28, MissPart = 0x2B - 28, SinkPart = 0x2E - 28;
+
+    /// <summary>가까운 싸움 소리 — 0x2C 충돌 · 0x2D 백병전 · 0x30 불 · 0x1E 총격(WAVE 파트 = ID − 28).</summary>
+    private const int CrashPart = 0x2C - 28, MeleePart = 0x2D - 28, IgnitePart = 0x30 - 28, GunfightPart = 0x1E - 28;
+
+    /// <summary>원본 기다림 한 눈(<c>0x00428000(n, 끊기)</c> = n × 50ms).</summary>
+    private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>승리 기다림 100(5초) · 패배 기다림 180(9초) — 못 끊는다(볼트 95 의 12절).</summary>
+    private const int WinTicks = 100, LoseTicks = 180;
+
+    /// <summary>불 그림이 한 장 바뀌는 눈 — <c>[+0x8F0] % 48 / 16</c>.</summary>
+    private const int FlameTicks = 16;
 
     /// <summary>포격 연출의 한 장 참과 포탄이 날아가는 걸음 수(<c>0x004384E8</c>).</summary>
     private static readonly TimeSpan FxFrame = TimeSpan.FromMilliseconds(60);
@@ -94,14 +116,55 @@ public sealed class SeaCombatDialog : GameWindow
 
     public Outcome Result { get; private set; } = Outcome.Surrendered;
 
+    /// <summary>적장 얼굴 — 끝맺음에서 적장이 말할 때 쓴다(<c>0x00477AF0(1, id)</c>). 없으면 얼굴 없이.</summary>
+    private readonly uint[]? _foeFace;
+
+    /// <summary>판을 닫기 직전에 부르는 값 치르기 — 알림이 판 위에 뜨게 한다.</summary>
+    private readonly Action<Window, Report>? _settle;
+
+    /// <summary>승리·적 퇴각 소리 0x4D · 패배 소리 0x4A(파트 = ID − 28).</summary>
+    private const int WinPart = 0x4D - 28, LosePart = 0x4A - 28;
+
+    /// <summary>판을 연 제독. 모의해전 연습선만 띄웠으면 되쓸 배가 없다.</summary>
+    private readonly Player? _player;
+
+    /// <summary>판의 아군 칸과 함대 레코드의 짝 — 판 끝에 내구·승원·대포를 되쓴다.</summary>
+    private readonly IReadOnlyList<(SeaBattle.Ship Slot, Support.Local.Models.Ship Record)> _fleet;
+
+    /// <summary>결투 판을 여는 쪽(<c>0x004AA700</c>). 없으면 일기토가 안 열린다.</summary>
+    private readonly Func<Window, bool?>? _duel;
+
+    /// <summary>불붙은 배 위에 덮는 불꽃(blast-03~05).</summary>
+    private readonly Dictionary<int, Image> _flames = [];
+
+    /// <summary>불꽃 눈 — 원본 <c>[+0x8F0]</c>. 한 눈을 50ms 로 어림했다.</summary>
+    private int _fireTick;
+
+    private readonly DispatcherTimer _flameTimer;
+
     private SeaCombatDialog(SeaBattle battle, CombatArt art, in Enemy foe, uint[]? face, double zoom,
-                            SoundBank? sfx)
+                            SoundBank? sfx, uint[]? foeFace = null, Action<Window, Report>? settle = null,
+                            Player? player = null,
+                            IReadOnlyList<(SeaBattle.Ship, Support.Local.Models.Ship)>? fleet = null,
+                            Func<Window, bool?>? duel = null)
     {
         _battle = battle;
         _art = art;
         _foe = foe;
         _face = face;
         _sfx = sfx;
+        _foeFace = foeFace;
+        _settle = settle;
+        _player = player;
+        _fleet = fleet ?? [];
+        _duel = duel;
+        _flameTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = Tick };
+        _flameTimer.Tick += (_, _) =>
+        {
+            if (++_fireTick % FlameTicks == 0) UpdateFlames();
+        };
+        Loaded += (_, _) => _flameTimer.Start();
+        Closed += (_, _) => _flameTimer.Stop();
         Panel.SetZIndex(_fx, 25);
         _board.Children.Add(_fx);
 
@@ -157,6 +220,15 @@ public sealed class SeaCombatDialog : GameWindow
             Panel.SetZIndex(image, 10);
             _board.Children.Add(image);
             _shipArt[ship.Index] = image;
+
+            var flame = new Image
+            {
+                Width = 48, Height = 48, IsHitTestVisible = false, Visibility = Visibility.Collapsed,
+            };
+            RenderOptions.SetBitmapScalingMode(flame, GameUi.SpriteScaling);
+            Panel.SetZIndex(flame, 11);
+            _board.Children.Add(flame);
+            _flames[ship.Index] = flame;
         }
 
         _board.Background = Brushes.Transparent;
@@ -183,7 +255,9 @@ public sealed class SeaCombatDialog : GameWindow
         Loaded += (_, _) =>
         {
             Redraw();
-            // 들머리 — 이동 지시를 재촉한다(0x0043C4E0). 바람과 퇴각지점은 판이 뜨기 전에 이미 알렸다(Fight).
+            // 들머리 — <b>판이 펼쳐진 뒤에</b> 바람과 퇴각지점을 알리고 이동 지시를 재촉한다(0x0043C4E0).
+            // 판이 뜨기 전에 알렸더니 해전 화면 없이 바다 지도 위에 대사만 떴다.
+            Say(_battle.WindNotice());
             Say(_battle.OrderPrompt());
         };
     }
@@ -244,16 +318,13 @@ public sealed class SeaCombatDialog : GameWindow
             Put(_marks, _art.Path_("mark-09"), sx + 8, sy, 32, 32, z: 0);
         }
 
-        // 고른 배의 이동력 안 칸을 육각 테로 깐다.
+        // 고른 배가 <b>실제로 갈 수 있는 칸</b>을 육각 테로 깐다. 걸음 수로만 재어 깔았더니
+        // 선회 규칙(걸음마다 선회 하나 + 한 칸)으로는 못 닿는 옆·뒤 칸에도 테가 서서,
+        // 그 칸을 눌러도 아무 일이 없었다 — 테가 선 칸은 모두 누를 수 있어야 한다.
         if (_picked is { } picked)
         {
-            for (int x = 0; x < SeaBattle.Cols; x++)
-                for (int y = 0; y < SeaBattle.Rows; y++)
-                {
-                    if (!SeaBattle.OnBoard(x, y)) continue;
-                    if (SeaBattle.Distance(picked.X, picked.Y, x, y) > picked.Power) continue;
-                    Cell(_marks, x, y, lit: false);
-                }
+            foreach (var option in _options)
+                Cell(_marks, option.X, option.Y, lit: false);
 
             // 찍어 둔 길은 회색 칸으로 칠한다 — 누른 칸까지의 길이다.
             if (picked.Plan.Count > 0
@@ -278,12 +349,33 @@ public sealed class SeaCombatDialog : GameWindow
             var (sx, sy) = ScreenOf(ship.X, ship.Y);
 
             // 내 배 발밑 칸 — 지시를 마쳤으면(부딪혀 못 움직이는 배 포함) 회색, 아직이면 빈 테다.
-            if (ship.Mine) Cell(_marks, ship.X, ship.Y, lit: ship.Ordered || ship.Stuck);
+            // 턴이 도는(배가 움직이는) 동안은 칸 없이 배만 간다 — 게임 화면이 그렇다.
+            if (ship.Mine && !_running) Cell(_marks, ship.X, ship.Y, lit: ship.Ordered || ship.Stuck);
             Canvas.SetLeft(image, sx);
             Canvas.SetTop(image, sy - 12);
 
             // 배 옆 글자 — 아군 파란 A(dot-01), 적 붉은 E(dot-02, 짐작).
             Put(_marks, _art.Path_(ship.Mine ? "dot-01" : "dot-02"), sx + (ship.Mine ? 4 : 36), sy + (ship.Mine ? 0 : 22), 8, 8, z: 0);
+        }
+        UpdateFlames();
+    }
+
+    /// <summary>
+    /// 불붙은 배(상태 5) 위에 blast-03·04·05 를 <c>[+0x8F0] % 48 / 16</c> 로 번갈아 덮는다(<c>0x004406AD</c>).
+    /// </summary>
+    private void UpdateFlames()
+    {
+        int frame = _fireTick % (FlameTicks * 3) / FlameTicks;
+        foreach (var ship in _battle.Ships)
+        {
+            if (!_flames.TryGetValue(ship.Index, out var flame)) continue;
+            bool on = ship.CanAct && ship.Burning;
+            flame.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            if (!on) continue;
+            flame.Source = Bitmap(_art.Path_($"blast-{3 + frame:D2}"));
+            var (sx, sy) = ScreenOf(ship.X, ship.Y);
+            Canvas.SetLeft(flame, sx);
+            Canvas.SetTop(flame, sy - 8);
         }
     }
 
@@ -353,7 +445,7 @@ public sealed class SeaCombatDialog : GameWindow
             {
                 _battle.Retreat(here);
                 Unpick();
-                if (_battle.AllMineGone) Finish();
+                if (_battle.Over) Finish();
                 else AfterOrder();
                 return;
             }
@@ -438,31 +530,17 @@ public sealed class SeaCombatDialog : GameWindow
         try
         {
             _battle.EndPlanning();
-            _battle.Execute(beat =>
-            {
-                Redraw();
-                foreach (var (mover, hit) in beat.Crashes.Where(c => c.Mover.Mine || c.Hit.Mine))
-                    Say(SeaBattle.CrashWord(mover, hit));
-
-                // 「탄약이 떨어졌습니다! 공격할 수 없습니다!」 따위는 얼굴 없는 「해전」 창이다.
-                foreach (string notice in beat.Notices)
-                    ConfirmDialog.Tell(this, notice, BattleTitle);
-
-                foreach (var volley in beat.Volleys)
-                {
-                    Animate(volley);
-                    Redraw();
-                }
-                Wait(StepSpan);
-            });
+            // 충돌·백병전·총격·포격·가라앉음은 일이 날 때마다 이 창의 IStage 로 불린다.
+            _battle.Execute(this);
             Redraw();
         }
         finally
         {
             _running = false;
+            Redraw();   // 다음 계획 차례 — 발밑 칸을 도로 깐다
         }
 
-        if (_battle.AllMineGone || _battle.AllEnemyGone) { Finish(); return; }
+        if (_battle.Over) { Finish(); return; }
 
         if (_battle.Wind != windBefore) Say(_battle.WindNotice());
         Say(_battle.OrderPrompt());
@@ -477,30 +555,197 @@ public sealed class SeaCombatDialog : GameWindow
         if (_running) return;
         if (!ConfirmDialog.Ask(this, "항복하겠습니까?", face: _face)) return;
         Result = Outcome.Surrendered;
+        // 항복은 게임에 없는 앱 차림표라 도망(0x00435ABF)처럼 되쓴다 — 잃은 배·빼앗긴 배는 함대에서 빠진다.
+        WriteBack(Result);
+        _settle?.Invoke(this, new Report(Result, _battle.EnemyDowned, _battle.EnemyCaptured));
+        CheckCrew();
         Close();
     }
 
-    /// <summary>판이 끝났다 — 다 빠져나갔거나 적이 다 물러갔다(<c>0x00435ABF</c> 벌).</summary>
+    /// <summary>
+    /// 판이 끝났다 — <b>먼저 빠진 기함</b>이 끝을 정한다(<c>0x004350F0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   내 기함 격침·나포  소리 0x4A · 9초 · 적장 비웃음 rand(5)                         → 패배(GAME OVER)
+    ///   적 기함 격침·나포  소리 0x4D · 5초 · 부관 rand(5) · 적장 rand(5)
+    ///                      → 되찾은 배 · 레코드 되쓰기 · 명성·전리품 · 들임 차림표 · 편성 창  → 승리
+    ///   내 기함 퇴각       부관 rand(5) → 되쓰기(잃은 배·빼앗긴 배는 뺀다) · 악명 · 편성 창  → 도망
+    ///   적 기함 퇴각       소리 0x4D · 5초 · 부관 rand(5) · 명성
+    ///                      → 되찾은 배(레코드는 싸움 전 값) · 나포선이 있으면 들임 차림표   → 적이 달아남
+    /// </code>
+    /// 값 치르기(<see cref="_settle"/>)와 들임·편성 창을 판 위에서 돌리고 닫는다 — 게임도 판을 닫기 전에 띄운다.
+    /// 짐 창(<c>0x004879A0</c>, 빼앗은 배의 교역품·보급품)은 옮기지 않았다. 음악을 끄고 켜는 것도 없다.
+    /// </remarks>
     private void Finish()
     {
-        if (_battle.AllEnemyGone)
+        Result = OutcomeOf(_battle);
+        var report = new Report(Result, _battle.EnemyDowned, _battle.EnemyCaptured);
+
+        switch (Result)
         {
-            // 적을 모두 물리쳤다 — 전리품·명성(0x004354C0)은 다음 단계에서 붙인다.
-            Result = Outcome.Won;
-            Close();
-            return;
+            case Outcome.Defeated:
+                _sfx?.Play(LosePart);
+                Wait(Tick * LoseTicks);
+                ConfirmDialog.Tell(this, _battle.TauntWord(), BattleTitle, _foeFace);
+                _settle?.Invoke(this, report);
+                break;
+
+            case Outcome.Won:
+                _sfx?.Play(WinPart);
+                Wait(Tick * WinTicks);
+                Say(_battle.WonWord(_foe.Name));
+                ConfirmDialog.Tell(this, _battle.BeatenWord(), BattleTitle, _foeFace);
+                WriteBack(Result);
+                _settle?.Invoke(this, report);
+                Muster(Result);
+                CheckCrew();
+                break;
+
+            case Outcome.EnemyRetreated:
+                _sfx?.Play(WinPart);
+                Wait(Tick * WinTicks);
+                Say(_battle.FoeFledWord(_foe.Name));
+                _settle?.Invoke(this, report);
+                WriteBack(Result);
+                Muster(Result);
+                CheckCrew();
+                break;
+
+            default:
+                Say(_battle.EscapedWord(_foe.Name));
+                WriteBack(Result);
+                _settle?.Invoke(this, report);
+                CheckCrew();
+                break;
         }
 
-        if (_battle.Ships.Any(s => s.Mine && s.State == SeaBattle.ShipState.Retreated))
-        {
-            Result = Outcome.Escaped;
-            Say(_battle.EscapedWord(_foe.Name));
-        }
-        else
-        {
-            Result = Outcome.Defeated;
-        }
         Close();
+    }
+
+    /// <summary>
+    /// 아군 배를 레코드에 되쓴다(<c>0x004350F0</c> 10.1~10.3).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   가라앉은 배(1)       함대에서 뺀다
+    ///   빼앗긴 배(2)         승리 — 「빼앗긴 배를 되찾았습니다.」 한 번, 승원 0 으로 되쓴다
+    ///                        적 기함 퇴각 — 「빼앗긴 배를 되찾았습니다」 한 번, 레코드는 싸움 전 값 그대로(원본대로)
+    ///                        내 기함 퇴각 — 함대에서 뺀다(빼앗긴 배는 잃는다)
+    ///   그 밖(퇴각 3·떠 있음) 내구 · 승원 · 대포 문수를 되쓴다
+    ///   탄약 = 판의 탄약 / 10
+    /// </code>
+    /// 추진력은 판에서 안 깎아(포격의 추진력 깎기를 안 옮김) 되쓸 것이 없다.
+    /// </remarks>
+    private void WriteBack(Outcome outcome)
+    {
+        if (_player is not { } player || _fleet.Count == 0) return;
+
+        bool won = outcome == Outcome.Won;
+        bool fled = outcome is Outcome.Escaped or Outcome.Surrendered;
+
+        var before = player.CrewShares.ToList();
+        var crew = new Dictionary<Support.Local.Models.Ship, int>();
+        for (int i = 0; i < player.Ships.Count; i++) crew[player.Ships[i]] = before.ElementAtOrDefault(i);
+
+        bool told = false;
+        var lost = new List<Support.Local.Models.Ship>();
+        foreach (var (slot, record) in _fleet)
+        {
+            if (slot.State == SeaBattle.ShipState.Sunk
+                || (slot.State == SeaBattle.ShipState.Captured && fled))
+            {
+                lost.Add(record);
+                continue;
+            }
+            if (slot.State == SeaBattle.ShipState.Captured)
+            {
+                if (!told)
+                {
+                    Say(SeaBattle.RecoveredWord(won));
+                    told = true;
+                }
+                slot.Crew = 0;
+                if (!won) continue;
+            }
+            record.SetHp(slot.Hp);
+            if (record.Gun >= 0 && slot.Guns != record.Guns) record.Load(record.Gun, slot.Guns);
+            crew[record] = slot.Crew;
+        }
+
+        foreach (var ship in lost)
+        {
+            player.Release(ship);
+            crew.Remove(ship);
+        }
+
+        var shares = player.Ships.Select(s => crew.GetValueOrDefault(s)).ToList();
+        player.SetCrew(shares.Sum());
+        player.SetCrewShares(shares);
+        player.SetSupply(SupplyKind.Ammo, Math.Max(0, _battle.Ammo) / 10);
+    }
+
+    /// <summary>
+    /// 나포선 들임(<c>0x00434D30</c>) — 적 칸 가운데 상태 2 또는 떠 있는 배가 후보다.
+    /// </summary>
+    /// <remarks>
+    /// 적 기함을 격침·나포하면 <b>살아 있는 호위선까지</b> 모두 후보다. 적 기함이 퇴각했으면 나포해 둔 배가 하나라도
+    /// 있어야 차림표가 뜨고, 그때도 산 호위선이 함께 후보가 된다. 이름은 선체 이름, 승원 0, 내구·대포는 판 끝 값이다.
+    /// </remarks>
+    private void Muster(Outcome outcome)
+    {
+        if (_player is not { } player || _fleet.Count == 0) return;
+        var enemies = _battle.Ships.Where(s => !s.Mine).ToList();
+        if (outcome == Outcome.EnemyRetreated && enemies.All(s => s.State != SeaBattle.ShipState.Captured)) return;
+
+        var prizes = enemies
+            .Where(s => s.State is SeaBattle.ShipState.Captured or SeaBattle.ShipState.Afloat)
+            .Select(PrizeOf)
+            .ToList();
+        if (prizes.Count > 0) PrizeFleetMenu.Run(this, player, prizes);
+    }
+
+    /// <summary>빼앗은 적 칸 하나를 함대 배로 — 선체표 선체(<see cref="Hull.FromTable"/>), 이름은 선체 이름.</summary>
+    private static Support.Local.Models.Ship PrizeOf(SeaBattle.Ship s)
+    {
+        var hull = Hull.FromTable(s.Art);
+        var stats = new Support.Local.Models.Ship.Stats(
+            MaxHp: Math.Max(1, s.MaxHp), Speed: Math.Max(1, s.Speed), Capacity: Math.Max(1, s.Cargo),
+            Tonnage: hull.Tonnage, Crew: Math.Max(1, s.MinCrew), Turrets: Math.Max(hull.Guns, s.Guns),
+            Gun: s.Gun, Guns: s.Guns, Sails: [.. s.Sails]);
+        return new Support.Local.Models.Ship(hull, s.Hp, stats, s.HullName);
+    }
+
+    /// <summary>필요승원이 모자란 배가 있으면 편성 창(<c>0x004AC310</c>)을 연다.</summary>
+    private void CheckCrew()
+    {
+        if (_player is not { } player || _fleet.Count == 0 || player.Ships.Count == 0) return;
+        var shares = player.CrewShares;
+        if (player.Ships.Where((s, i) => shares.ElementAtOrDefault(i) < Player.NeedCrewOf(s)).Any())
+            CrewShareDialog.Show(this, player);
+    }
+
+    /// <summary>상태 1(격침)·2(나포/승원 0) — 판에서 잃은 배.</summary>
+    private static bool Down(SeaBattle.Ship s) =>
+        s.State is SeaBattle.ShipState.Sunk or SeaBattle.ShipState.Captured;
+
+    /// <summary>
+    /// 판의 끝을 가른다. 기함이 먼저 빠진 쪽을 보고, 기함이 안 빠졌는데 한 편이 다 떴으면 그 편으로 친다.
+    /// </summary>
+    private static Outcome OutcomeOf(SeaBattle battle)
+    {
+        if (battle.FirstFlagOut is { } flag)
+        {
+            bool lost = Down(flag);
+            return flag.Mine
+                ? lost ? Outcome.Defeated : Outcome.Escaped
+                : lost ? Outcome.Won : Outcome.EnemyRetreated;
+        }
+        if (battle.AllEnemyGone)
+            return battle.Ships.Any(s => !s.Mine && Down(s))
+                ? Outcome.Won : Outcome.EnemyRetreated;
+        return battle.Ships.Any(s => s.Mine && s.State == SeaBattle.ShipState.Retreated)
+            ? Outcome.Escaped : Outcome.Defeated;
     }
 
     // ── 포격 연출 — 0x004384E8 ────────────────────────────────────────────
@@ -569,24 +814,183 @@ public sealed class SeaCombatDialog : GameWindow
 
         Wait(FxFrame * 2);
 
-        // 피해 숫자 — 맞은 발의 합. 십·백 자리가 0 이면 안 찍는다.
+        // 피해 숫자 — 맞은 발의 합. 가라앉으면 연출 갈래 1(Sink)이 뒤따른다.
         int total = volley.Shots.Where(s => s.Hit).Sum(s => s.Damage);
-        if (total > 0)
+        if (total > 0) ShowNumbers((volley.Target, total));
+    }
+
+    /// <summary>
+    /// 숫자(<c>0x00437330</c>) — 배마다 그 배 위에 파트 20 의 24x24 로 찍는다. 일·십·백 자리 x +0x50·+0x38·+0x20,
+    /// 앞 0 은 안 찍는다. 값이 음수인 줄은 건너뛴다(<c>−1</c> 자리).
+    /// </summary>
+    private void ShowNumbers(params (SeaBattle.Ship Ship, int Value)[] rows)
+    {
+        int[] offsets = [0x50, 0x38, 0x20];
+        var digits = new List<Image>();
+        foreach (var (ship, value) in rows)
         {
-            var digits = new List<Image>();
-            int[] places = [total % 10, total / 10 % 10, total / 100 % 10];
-            int[] offsets = [0x50, 0x38, 0x20];
+            if (value < 0) continue;
+            var (sx, sy) = ScreenOf(ship.X, ship.Y);
+            int[] places = [value % 10, value / 10 % 10, value / 100 % 10];
             for (int p = 0; p < 3; p++)
             {
-                if (p > 0 && total < Math.Pow(10, p)) break;
-                if (Sprite(_art.Path_($"digit-{places[p]:D2}"), tx - 0x38 + offsets[p], ty - 24, 24, 24) is { } digit)
+                if (p > 0 && value < (p == 1 ? 10 : 100)) break;
+                if (Sprite(_art.Path_($"digit-{places[p]:D2}"), sx - 0x38 + offsets[p], sy - 24, 24, 24) is { } digit)
                     digits.Add(digit);
             }
-            Wait(FxFrame * 5);
-            foreach (var digit in digits) _fx.Children.Remove(digit);
         }
+        if (digits.Count == 0) return;
+        Wait(FxFrame * 5);
+        foreach (var digit in digits) _fx.Children.Remove(digit);
+    }
 
-        if (volley.Sunk) _sfx?.Play(SinkPart);
+    /// <summary>
+    /// 불꽃 48x48 석 장(<c>+0x270</c> 묶음, 오프셋 <c>0x900</c> 씩)을 그 자리들에 한 장씩 올린다 — 장 사이 기다림은
+    /// 원본에 없어 한 번 화면 올림을 <see cref="FxFrame"/> 로 어림했다.
+    /// </summary>
+    private void Blast(int first, params (double X, double Y)[] at)
+    {
+        for (int f = 0; f < 3; f++)
+        {
+            var shown = new List<Image>();
+            foreach (var (x, y) in at)
+                if (Sprite(_art.Path_($"blast-{first + f:D2}"), x, y, 48, 48) is { } image) shown.Add(image);
+            Wait(FxFrame);
+            foreach (var image in shown) _fx.Children.Remove(image);
+        }
+    }
+
+    /// <summary>그 배 칸의 48x48 장 자리 — <c>x = X*32 + 0x38</c>, <c>y = Y*32 + (X 짝수 ? 16 : 0) + 0x18</c>.</summary>
+    private static (double X, double Y) BlastAt(SeaBattle.Ship ship)
+    {
+        var (sx, sy) = ScreenOf(ship.X, ship.Y);
+        return (sx, sy - 8);
+    }
+
+    // ── 가까운 싸움 연출 — SeaBattle.IStage ───────────────────────────────
+
+    void SeaBattle.IStage.Moved() => Redraw();
+
+    /// <remarks>
+    /// 원본 알림(<c>0x0049E3E0(0, "해전", 글)</c>)은 얼굴 없는 게임 창이다. 적끼리 부딪힌 것은 원본 갈래를 다 못 짚어
+    /// (「아군끼리」 말이 적에게 뜨게 된다) 아군이 낄 때만 알린다 — 소리는 적이 끼면 난다.
+    /// </remarks>
+    void SeaBattle.IStage.Crash(SeaBattle.Ship mover, SeaBattle.Ship hit, bool friendly)
+    {
+        Redraw();
+        if (!friendly) _sfx?.Play(CrashPart);
+        if (mover.Mine || hit.Mine) ConfirmDialog.Tell(this, SeaBattle.CrashWord(mover, hit), BattleTitle);
+    }
+
+    void SeaBattle.IStage.HullLoss(SeaBattle.Ship mover, int moverLoss, SeaBattle.Ship hit, int hitLoss)
+    {
+        Wait(Tick * 2);
+        ShowNumbers((mover, moverLoss), (hit, hitLoss));
+        Wait(Tick * 2);
+    }
+
+    /// <remarks>소리 0x2D → 150ms → 맞은편 칸 blast-09~11 → 100ms → 숫자(제 배 위에 제 잃은 승원) → 100ms.</remarks>
+    void SeaBattle.IStage.Melee(SeaBattle.Ship mover, SeaBattle.Ship target, int moverLoss, int targetLoss)
+    {
+        Redraw();
+        _sfx?.Play(MeleePart);
+        Wait(Tick * 3);
+        Blast(9, BlastAt(target));
+        Wait(Tick * 2);
+        ShowNumbers((mover, moverLoss), (target, targetLoss));
+        Wait(Tick * 2);
+    }
+
+    void SeaBattle.IStage.Ignite(SeaBattle.Ship target)
+    {
+        _sfx?.Play(IgnitePart);
+        Blast(3, BlastAt(target));
+        UpdateFlames();
+    }
+
+    /// <remarks>
+    /// 소리 0x1E(파트 2) → 두 배 <b>가운데</b>에 blast-09~11 — <c>x = ((X쏜+X과녁)/2 + 2)*32</c>,
+    /// <c>y = ((Y쏜+Y과녁)/2 + 1)*32 + 두 배 짝수X 밀림의 평균</c> → 숫자 둘. 말 창은 없다.
+    /// </remarks>
+    void SeaBattle.IStage.Gunfight(SeaBattle.Ship shooter, SeaBattle.Ship target, int shooterLoss, int targetLoss)
+    {
+        Redraw();
+        _sfx?.Play(GunfightPart);
+        Wait(Tick);
+        int mx = (shooter.X + target.X) / 2, my = (shooter.Y + target.Y) / 2;
+        double shift = (((shooter.X & 1) == 0 ? 16 : 0) + ((target.X & 1) == 0 ? 16 : 0)) / 2.0;
+        Blast(9, ((mx + 2) * CombatArt.Cell, (my + 1) * CombatArt.Cell + shift));
+        Wait(Tick);
+        ShowNumbers((shooter, shooterLoss), (target, targetLoss));
+        Wait(Tick);
+    }
+
+    void SeaBattle.IStage.Mine()
+    {
+        Say(SeaBattle.MineWord);
+        _player?.Drop(SeaBattle.MineItem);          // 한 번 쓰면 그 칸이 빈다
+    }
+
+    void SeaBattle.IStage.Volley(SeaBattle.Volley volley) => Animate(volley);
+
+    void SeaBattle.IStage.Notice(string text) => ConfirmDialog.Tell(this, text, BattleTitle);
+
+    /// <remarks>
+    /// 소리 0x2E → 150ms → 배 칸마다 blast-12~14 → 기함 아닌 배마다 격침 말 → 판을 다시 그려 배가 사라진다.
+    /// 배가 가라앉거나 뒤집히는 장은 없다(원본도 불꽃 석 장뿐이다).
+    /// </remarks>
+    void SeaBattle.IStage.Sink(IReadOnlyList<SeaBattle.Ship> ships)
+    {
+        _sfx?.Play(SinkPart);
+        Wait(Tick * 3);
+        Blast(12, ships.Select(BlastAt).ToArray());
+        foreach (var ship in ships.Where(s => !s.Flagship)) Say(_battle.SinkWord(ship));
+        Redraw();
+    }
+
+    void SeaBattle.IStage.Captured(SeaBattle.Ship ship)
+    {
+        Say(_battle.CapturedWord(ship));
+        Redraw();
+    }
+
+    /// <remarks>제목·얼굴 없는 두 줄 고르기(<c>0x004878A0</c>). 「대기」·닫기는 아무 일도 없다.</remarks>
+    bool SeaBattle.IStage.AskCapture(SeaBattle.Ship target) =>
+        ChoiceDialog.Pick(this, "", SeaBattle.CaptureRows) == 0;
+
+    bool SeaBattle.IStage.OfferDuel()
+    {
+        if (ChoiceDialog.Pick(this, "", SeaBattle.DuelRows) != 0) return false;
+        ConfirmDialog.Tell(this, _battle.DuelTakenWord(), BattleTitle, _foeFace);
+        return true;
+    }
+
+    bool SeaBattle.IStage.Challenged()
+    {
+        Say(_battle.ChallengeWord(_foe.Name));
+        bool yes = ChoiceDialog.Pick(this, "", SeaBattle.ChallengeRows) == 0;
+        ConfirmDialog.Tell(this, yes ? _battle.AcceptedWord() : _battle.RefusedWord(), BattleTitle, _foeFace);
+        return yes;
+    }
+
+    bool? SeaBattle.IStage.Duel()
+    {
+        var won = _duel?.Invoke(this);
+        Redraw();
+        return won;
+    }
+
+    void SeaBattle.IStage.Burn(SeaBattle.Ship ship)
+    {
+        Wait(Tick * 2);
+        ShowNumbers((ship, SeaBattle.BurnDamage));
+        Wait(Tick * 2);
+    }
+
+    void SeaBattle.IStage.BeatDone(int beat)
+    {
+        Redraw();
+        Wait(StepSpan);
     }
 
     /// <summary>연출 층에 그림 한 장을 올린다. 못 읽으면 null.</summary>
@@ -667,29 +1071,58 @@ public sealed class SeaCombatDialog : GameWindow
     /// 함대 자리의 바다 바람(16방위, 세기). 원본은 이것으로 풍향·세기를 매긴다(<c>0x00441F1C</c>).
     /// 모르면 굴린다.
     /// </param>
+    /// <param name="foeFace">적장 얼굴 — 끝맺음·일기토 말에 쓴다.</param>
+    /// <param name="duel">결투 판을 여는 쪽. 이기면 true — 없으면 일기토가 안 열린다.</param>
     public static Outcome Fight(Window owner, Player player, in Enemy foe, Random rng, uint[]? face,
-                                (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null)
+                                (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
+                                uint[]? foeFace = null, Func<Window, bool?>? duel = null) =>
+        Engage(owner, player, foe, rng, face, seaWind, sfx, foeFace, duel: duel).Outcome;
+
+    /// <summary>
+    /// 해전을 벌이고 끝의 알맹이를 낸다. 그림을 못 읽었으면 도망친 것으로 치고 값 치르기는 안 부른다.
+    /// </summary>
+    /// <param name="foeFace">적장 얼굴 — 끝맺음에서 적장이 말할 때 쓴다.</param>
+    /// <param name="settle">판을 닫기 직전에 판 창을 주인으로 불러 값을 치르게 한다.</param>
+    public static Report Engage(Window owner, Player player, in Enemy foe, Random rng, uint[]? face,
+                                (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
+                                uint[]? foeFace = null, Action<Window, Report>? settle = null,
+                                Func<Window, bool?>? duel = null)
     {
         var art = CombatArt.Open();
         if (art == null)
         {
             NoticeDialog.Show(owner, $"해전 그림을 못 읽었다 — {CombatArt.LastError}");
-            return Outcome.Escaped;
+            return new Report(Outcome.Escaped, 0, 0);
         }
 
         var battle = seaWind is { } w
             ? SeaBattle.FromSeaWind(rng, w.Dir, w.Strength)
             : new SeaBattle(rng, rng.Next(SeaBattle.Ways), rng.Next(3) + 1);
 
-        // 제독 능력 벌(0x00441D97) — 포술 자리 · 무력 · 방어(넷째 능력+1). 부하 선장과 견주는 셈은 아직이다.
-        battle.MineSide = new SeaBattle.Side(player.LevelOf(Skill.Names[3]),
-                                             player.AbilityOf(Ability.Might),
-                                             player.AbilityOf(Ability.Luck) + 1);
-        // 적장 능력 벌(0x00440D90) — 적장 한 사람 값 그대로다. 포술 · 무력(+1) · 운(+1).
+        // 제독 값(0x00441D8A) — 제독·부관(부하 첫 자리) 가운데 큰 값이다. 능력은 +1, 기능은 그대로,
+        // 운세칸[0] 은 제독 것(0x00477FE0). 무력도 +1 이다(예전에는 +1 을 안 먹였다).
+        var mate = player.MateInfoOf(player.MateAt(0));
+        int Best(int mine, int? theirs) => Math.Max(mine, theirs ?? 0);
+        int SkillOf(int k) => player.LevelOf(Skill.Names[k]);
+        battle.MineSide = new SeaBattle.Side(
+            Gunnery: Best(SkillOf(Skill.Gunnery), mate?.Gunnery),
+            Might: Best(player.AbilityOf(Ability.Might), mate?.Might) + 1,
+            Defense: Best(player.AbilityOf(Ability.Luck), mate?.Luck) + 1,
+            Mind: Best(player.AbilityOf(Ability.Mind), mate?.Mind) + 1,
+            Charm: Best(player.AbilityOf(Ability.Charm), mate?.Charm) + 1,
+            Sword: Best(SkillOf(Skill.Sword), mate?.Sword),
+            Shooting: Best(SkillOf(Skill.Shooting), mate?.Shooting),
+            Fortune: FleetRaid.FortuneOf(player.Face, player.Blood, player.Nation)[0]);
+        // 적장 값(0x00440F23) — 적장 한 사람 값 그대로다(능력은 이미 +1 된 날값).
         var leader = foe.Leader ?? Encounter.CaptainOf(Encounter.PirateLeader);
-        battle.EnemySide = new SeaBattle.Side(leader.Gunnery, leader.Might, leader.Luck);
-        // 탄약 = 함대 보급품 탄약 x 10(볼트 85).
+        battle.EnemySide = new SeaBattle.Side(leader.Gunnery, leader.Might, leader.Luck,
+                                              leader.Mind, leader.Charm, leader.Sword, leader.Shooting,
+                                              leader.FortuneAt(0));
+        battle.LeaderFortune = leader.FortuneAt(3);
+        // 탄약 = 함대 보급품 탄약 x 10(볼트 85). 잠수폭탄은 소지품 칸마다 굴린다(볼트 94 3.1).
         battle.Ammo = player.SupplyOf(SupplyKind.Ammo) * 10;
+        battle.Mines = player.Items.Count(id => id == SeaBattle.MineItem);
+        var ours = new List<(SeaBattle.Ship, Support.Local.Models.Ship)>();
 
         // 기함이 0번이다. 승원은 바다 커맨드 「편성」이 나눠 둔 배마다의 몫이고, 자리는 「대열」이 정한다.
         var ships = player.Ships;
@@ -699,12 +1132,13 @@ public sealed class SeaCombatDialog : GameWindow
         for (int slot = 0; slot < order.Count; slot++)
         {
             var (ship, at) = order[slot];
-            battle.Place(true, slot, ship.Name, ship.Speed, [.. ship.Sails],
+            var placed = battle.Place(true, slot, ship.Name, ship.Speed, [.. ship.Sails],
                          art: ship.Hull.GameId,     // SCOMBAT 파트 5+선체 번호(0x00442D93)
                          hp: ship.Hp, crew: shares.ElementAtOrDefault(at), minCrew: ship.Crew,
                          gun: ship.Guns > 0 ? ship.Gun : -1, figurehead: ship.Figurehead,
                          formation: player.Formation,
-                         hullName: ship.Hull.Name, cargo: ship.Capacity, guns: ship.Guns);
+                         hullName: ship.Hull.Name, cargo: ship.Capacity, guns: ship.Guns, maxHp: ship.MaxHp);
+            ours.Add((placed, ship));
         }
 
         // 배가 한 척도 없으면(타이틀의 미니게임에서 여는 모의해전) 연습용 카라벨 한 척을 띄운다.
@@ -729,15 +1163,16 @@ public sealed class SeaCombatDialog : GameWindow
             battle.Place(false, slot, foe.Name, e.Speed, e.Sails,
                          art: e.Hull, hp: e.Hp, crew: e.Crew, minCrew: e.MinCrew, gun: e.Gun,
                          hullName: e.HullName, cargo: e.Capacity, guns: e.Guns,
-                         formation: enemyFormation);
+                         formation: enemyFormation, maxHp: e.Hp);
         }
 
-        // 바람과 퇴각지점은 <b>해전 판이 뜨기 전에</b>, 바다 지도 위에서 부관이 알린다 — 게임 화면이 그렇다.
-        ConfirmDialog.Tell(owner, battle.WindNotice(), BattleTitle, face);
-
-        var dialog = new SeaCombatDialog(battle, art, foe, face, ZoomFor(owner), sfx) { Owner = owner };
+        var dialog = new SeaCombatDialog(battle, art, foe, face, ZoomFor(owner), sfx, foeFace, settle,
+                                         player, ours, duel)
+        {
+            Owner = owner,
+        };
         dialog.ShowDialog();
-        return dialog.Result;
+        return new Report(dialog.Result, battle.EnemyDowned, battle.EnemyCaptured);
     }
 
     /// <summary>해전 연습 — 개발용 창에서 연다. 붙는 무리는 조우 굴림으로 짓는다.</summary>

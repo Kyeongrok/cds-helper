@@ -509,11 +509,26 @@ public sealed class CityPicView : GameWindow, ITownScreen
         if (_player.HasFound(row.Id)) return;
         if (!log.IsOpen(_player, row)) return;
 
+        // 발견 대본(DISEV)이 있으면 <b>그것이 다 한다</b> — 동영상 · 대사 · 육상전까지. 바다·뭍 발견
+        // (ShipMapWindow.CheckDiscovery)과 같은 길이다. 예전에는 건물 발견만 그림 한 장으로 끝내서
+        // 파르테논 신전에서 동영상도 육상전도 안 났다.
+        bool scripted = Engine.Disev.DisevRunner.Run(this, _game, row.Id);
+        // 대본이 게임 오버로 끝났으면(파르테논 육상전에서 전멸하거나 물러나 저주를 받으면) 발견을
+        // 적지 않고 놀이를 끝낸다 — 바다·뭍 발견과 같은 차례다(ShipMapWindow.CheckDiscovery).
+        if (Engine.Disev.DisevRunner.LastEndedInGameOver)
+        {
+            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+            if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
+            return;
+        }
+
         int item = log.Discover(_player, row.Id);
 
+        // 대본이 없을 때만 그림 한 장으로 알린다.
         // 게임 문구는 "%s%s 발견했다!"(0x00544720) 다 — 이름 뒤에 을/를 이 붙는다.
-        DiscoveryDialog.Show(this, _game.Stills, building.Picture,
-                             $"{row.Name}{GameUi.Josa(row.Name, "을", "를")} 발견했다!");
+        if (!scripted)
+            DiscoveryDialog.Show(this, _game.Stills, building.Picture,
+                                 $"{row.Name}{GameUi.Josa(row.Name, "을", "를")} 발견했다!");
 
         if (item >= 0)
         {

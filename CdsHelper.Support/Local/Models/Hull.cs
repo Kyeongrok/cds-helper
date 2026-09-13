@@ -89,6 +89,40 @@ public sealed record Hull(
         }
     }
 
+    /// <summary>선체 번호 → 지도 그림 벌(<c>0x005695D8</c>).</summary>
+    private static readonly int[] TableSkins = [0, 1, 1, 2, 2, 2, 3, 0];
+
+    /// <summary>
+    /// 게임 선체 번호의 선체 — 해전에서 빼앗은 배(<c>0x00434D30</c>)가 이것으로 함대에 든다.
+    /// </summary>
+    /// <remarks>
+    /// 조선소 선체(<see cref="All"/>)에 같은 이름이 있으면 그것을 쓴다. 코구·대형카락·다우처럼 조선소에
+    /// 안 나오는 선체는 선체표 아래값으로 짓는다 — 값은 계수의 1000배, 마스트는 코구·다우가 표의 돛 수
+    /// (못 늘린다, <c>0x00494A50</c>), 카라벨 둘, 그 밖 셋이다.
+    /// </remarks>
+    public static Hull FromTable(int id)
+    {
+        var spec = Table[Math.Clamp(id, 0, Table.Length - 1)];
+        if (All.FirstOrDefault(h => h.Name == spec.Name) is { } known) return known;
+
+        int masts = spec.Id switch
+        {
+            Cog or Dhow => Math.Max(1, spec.Sails.Count(v => v != 0)),
+            Caravel => 2,
+            _ => 3,
+        };
+        return new Hull(spec.Name, spec.Hp, spec.Speed, spec.Capacity, spec.Tonnage, spec.Crew,
+                        spec.GunsMin, spec.PriceFactor * 1000, TableSkins[spec.Id],
+                        MaxMasts: masts, CanChangeSail: spec.Id is not (Caravel or LargeCaravel), Id: spec.Id);
+    }
+
+    /// <summary>선체표 이름으로 찾는다. 없으면 null — 세이브를 되돌릴 때 조선소에 없는 선체를 살린다.</summary>
+    public static Hull? FromTableName(string name)
+    {
+        int at = Array.FindIndex(Table, s => s.Name == name);
+        return at < 0 ? null : FromTable(at);
+    }
+
     /// <summary>
     /// 마스트 자리 수. 게임도 셋이 끝이다.
     /// </summary>

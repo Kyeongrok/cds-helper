@@ -18,7 +18,10 @@ namespace CdsHelper.Game.Engine.Sea;
 ///   턴 끝       rand(10)==0 이면 바람이 (풍향+5)%6 으로 돈다
 ///   퇴각 지대   바람이 정한 가장자리 한 곳(0x0043E090)
 /// </code>
-/// <b>아직 없는 것</b> — 포격·접현·나포·일기토·전리품(다음 단계)과 부관 위임(<c>+0x944</c>).
+/// 가까운 싸움은 볼트 <c>94.분석-해전 총격전</c> · <c>95.분석-해전 충돌·백병전·나포·일기토</c> 를 옮겼다 —
+/// 충돌(<c>0x004397E0</c>) → 백병전(<c>0x00439D50</c>) → 불 → 나포·일기토(<c>0x0043A200</c>), 총격전(<c>0x004362E0</c>).
+/// 원본 결함(적이 걸 때 곱하는 승원이 뒤바뀜 · 적이 나포할 때 막는 매력만 적 것)도 그대로 옮기고 그 자리에 적었다.
+/// <b>아직 없는 것</b> — 괴물 싸움(<c>+0x8FC</c>)과 부관 위임(<c>+0x944</c>).
 /// </remarks>
 public sealed class SeaBattle
 {
@@ -40,8 +43,11 @@ public sealed class SeaBattle
     /// <summary>걸음 하나의 선회 — 0 그대로 · 1 오른쪽(방향+1) · 2 왼쪽(방향+5).</summary>
     public enum Move { Straight = 0, TurnRight = 1, TurnLeft = 2 }
 
-    /// <summary>배 한 척의 상태. 원본 배 칸 <c>+0x24</c>(4 이상 = 떠 있음 · 3 퇴각 · 2 이하 잃음).</summary>
-    public enum ShipState { Afloat, Retreated, Lost }
+    /// <summary>
+    /// 배 한 척의 상태. 원본 배 칸 <c>+0x30C</c> — 4 이상 떠 있음(5 는 불, <see cref="Ship.Burning"/>) · 3 퇴각 ·
+    /// 2 나포/승원 0 · 1 가라앉음. 판 그리기(<c>0x00440480</c>)는 4 이상만 그린다.
+    /// </summary>
+    public enum ShipState { Afloat, Retreated, Sunk, Captured }
 
     /// <summary>판 위의 배 한 척.</summary>
     public sealed class Ship
@@ -68,6 +74,8 @@ public sealed class SeaBattle
         public int Figurehead { get; init; } = -1;
         /// <summary>내구(<c>+0x304</c>).</summary>
         public int Hp { get; internal set; }
+        /// <summary>최대 내구(<c>0x0044C880</c>) — 불사조상이 턴 끝에 여기까지 되살린다.</summary>
+        public int MaxHp { get; init; }
         /// <summary>승원(<c>+0x308</c>).</summary>
         public int Crew { get; internal set; }
         /// <summary>필요승원 — 적이 물러설지 볼 때 <c>선박표[0x4FC214]+10</c> 과 견준다.</summary>
@@ -83,10 +91,23 @@ public sealed class SeaBattle
         public List<Move> Plan { get; } = [];
         /// <summary>지시를 마쳤는지(<c>+0x320</c> 1).</summary>
         public bool Ordered { get; internal set; }
-        /// <summary>이번 턴에 부딪혀 섰는지(<c>+0x320</c> 3).</summary>
-        public bool Crashed { get; internal set; }
-        /// <summary>지난 턴에 부딪혀 이번 턴은 못 움직이는지(<c>+0x320</c> 2).</summary>
-        public bool Stuck { get; internal set; }
+        /// <summary>
+        /// 지시상태의 충돌 몫(<c>+0x320</c>) — 3 이번 턴에 들이받음 · 2 받혔거나 지난 턴에 들이받음 · 0 멀쩡.
+        /// </summary>
+        /// <remarks>턴 끝(<c>0x0043D7E7</c>)에 3 → 2, 그 밖 → 0 이다.</remarks>
+        internal int Bump { get; set; }
+        /// <summary>이번 턴에 들이받아 섰는지(3) — 이번 턴 남은 걸음과 다음 턴 걸음·총격을 잃는다. 대포는 쏜다.</summary>
+        public bool Crashed => Bump == 3;
+        /// <summary>계획 차례에서는 지난 턴에 들이받아 이번 턴 못 움직이는지(2). 실행 중에는 받힌 배도 2 다.</summary>
+        public bool Stuck => Bump == 2;
+        /// <summary>걸음·총격을 건너뛰는지 — 지시상태 ≥ 2(<c>0x0043CB4F</c>).</summary>
+        public bool Halted => Bump >= 2;
+        /// <summary>판 밖으로 나가려다 이번 턴 남은 걸음을 거뒀는지 — 원본 길 짜기는 판 밖을 안 내어 우리 어림이다.</summary>
+        internal bool Blocked { get; set; }
+        /// <summary>
+        /// 불이 붙었는지(상태 5, <c>0x00437E3A</c>). <b>꺼지지 않는다</b> — 턴마다 내구 3 을 깎는다. 이동·총격·포격은 그대로 한다.
+        /// </summary>
+        public bool Burning { get; internal set; }
 
         public bool CanAct => State == ShipState.Afloat;
     }
@@ -211,7 +232,7 @@ public sealed class SeaBattle
     /// </remarks>
     public Ship Place(bool mine, int slot, string name, int speed, int[] sails, int art,
                       int hp = 50, int crew = 30, int minCrew = 10, int gun = -1, int figurehead = -1,
-                      int formation = -1, string hullName = "", int cargo = 0, int guns = 0)
+                      int formation = -1, string hullName = "", int cargo = 0, int guns = 0, int maxHp = 0)
     {
         int index = (mine ? 0 : PerSide) + Math.Clamp(slot, 0, PerSide - 1);
         int baseX = mine ? 17 : 5;
@@ -247,6 +268,7 @@ public sealed class SeaBattle
             Sails = sails,
             Art = art,
             Hp = hp,
+            MaxHp = Math.Max(hp, maxHp),
             Crew = crew,
             MinCrew = minCrew,
             Gun = gun,
@@ -454,6 +476,7 @@ public sealed class SeaBattle
                     // 적도 퇴각 지대에 서 있으면 판을 뜬다(원본은 편을 가리지 않고 +0x8DC 로 본다).
                     ship.State = ShipState.Retreated;
                     ship.Ordered = true;
+                    NoteFlag(ship);
                     continue;
                 }
 
@@ -637,70 +660,154 @@ public sealed class SeaBattle
 
     // ── 실행 ──────────────────────────────────────────────────────────────
 
-    /// <summary>한 박자에 일어난 일 — 부딪힘 · 포격 · 알림.</summary>
-    public sealed record Beat(int Index, IReadOnlyList<(Ship Mover, Ship Hit)> Crashes,
-                              IReadOnlyList<Volley> Volleys, IReadOnlyList<string> Notices);
+    /// <summary>
+    /// 판이 일마다 부르는 화면 쪽 — 셈은 판이 하고, 소리·그림·말·고르기는 받는 쪽이 한다.
+    /// </summary>
+    /// <remarks>
+    /// 원본은 충돌·백병전·나포·일기토를 <b>걸음을 딛는 그 자리에서</b> 곧바로 치른다(<c>0x0043D374</c>).
+    /// 「배를 뺏앗는다」·「일기토」·「응한다」가 다음 배의 걸음보다 먼저 정해져야 해서, 박자가 끝난 뒤 모아
+    /// 그리던 옛 방식 대신 일이 날 때마다 부른다. 받는 쪽이 없으면 고르기는 모두 「대기」, 결투는 안 열린다.
+    /// </remarks>
+    public interface IStage
+    {
+        /// <summary>하위단계 0 — 모든 배가 걸음 하나를 디딘 뒤.</summary>
+        void Moved();
+
+        /// <summary>충돌(<c>0x004397E0</c>) — 적이 끼면 소리 0x2C, 알림 「충돌했다!」/「위험하다! 정지!…」.</summary>
+        void Crash(Ship mover, Ship hit, bool friendly);
+
+        /// <summary>충돌 내구 피해 숫자 — 기다림 2 · 숫자(제 배 위에 제 잃은 값) · 기다림 2.</summary>
+        void HullLoss(Ship mover, int moverLoss, Ship hit, int hitLoss);
+
+        /// <summary>백병전 연출 갈래 3(<c>0x00437A94</c>) — 소리 0x2D · 맞은편 칸 blast-09~11 · 잃는 승원.</summary>
+        void Melee(Ship mover, Ship target, int moverLoss, int targetLoss);
+
+        /// <summary>불이 붙었다(<c>0x00437E3A</c>) — 소리 0x30 · 맞은편 칸 blast-03~05.</summary>
+        void Ignite(Ship target);
+
+        /// <summary>총격전 연출 갈래 4(<c>0x00437FDF</c>) — 소리 0x1E · 두 배 가운데 blast-09~11 · 숫자 둘.</summary>
+        void Gunfight(Ship shooter, Ship target, int shooterLoss, int targetLoss);
+
+        /// <summary>잠수폭탄을 썼다 — 「다 빈치선생님의 수중기뢰를 씁시다.」(<c>0x0056AE60</c>), 소지품에서 뺀다.</summary>
+        void Mine();
+
+        /// <summary>포격 한 번(<c>0x004384E8</c>).</summary>
+        void Volley(Volley volley);
+
+        /// <summary>얼굴 없는 「해전」 알림.</summary>
+        void Notice(string text);
+
+        /// <summary>가라앉음 연출 갈래 1(<c>0x004375F5</c>) — 소리 0x2E · blast-12~14 · 기함 아닌 배의 격침 말.</summary>
+        void Sink(IReadOnlyList<Ship> ships);
+
+        /// <summary>승원 0·나포(<c>0x004358EE</c>) — 불꽃·소리 없이 기함 아닌 배의 말만.</summary>
+        void Captured(Ship ship);
+
+        /// <summary>「배를 뺏앗는다 / 대기」(<c>0x0056B048</c>) — 뺏으면 true.</summary>
+        bool AskCapture(Ship target);
+
+        /// <summary>「일기토 / 대기」(<c>0x0056B060</c>) 뒤 적장 말 — 결투를 열면 true.</summary>
+        bool OfferDuel();
+
+        /// <summary>결투 신청(<c>0x0043A567</c>) — 부관 말 · 「응한다 / 거절한다」 · 적장 말. 응하면 true.</summary>
+        bool Challenged();
+
+        /// <summary>결투 판(<c>0x004AA700(적장, 0, 0, −1)</c>). 이기면 true, 지면 false, 못 열면 null.</summary>
+        bool? Duel();
+
+        /// <summary>턴 끝 불 피해 — 그 배 위에 숫자 3.</summary>
+        void Burn(Ship ship);
+
+        /// <summary>박자 하나가 끝났다.</summary>
+        void BeatDone(int beat);
+    }
+
+    private IStage? _stage;
 
     /// <summary>
-    /// 한 턴을 실행한다 — 모든 배가 걸음 하나씩을 <b>나란히</b> 딛고, 그 박자에 쏠 수 있는 배는 쏜다
-    /// (<c>0x0043CA60</c>).
+    /// 한 턴을 실행한다(<c>0x0043CA60</c>).
     /// </summary>
-    /// <param name="onBeat">박자 하나가 끝날 때마다 부른다.</param>
     /// <remarks>
     /// <code>
-    ///   틱 0..59 x 하위단계 0..3 x 배 i
-    ///     하위단계 1·2 는 (이동력*(틱+1)) % 60 == 0 일 때만 돈다 — 곧 한 턴에 <b>이동력 번</b>
-    ///     하위단계 2 = 포격(0x00436900)
+    ///   틱 0..59 x 하위단계 0..3 x 배 i (번호 차례)
+    ///     상태 &lt; 4 → 건너뜀 ;  하위단계 0·1 이고 지시상태 ≥ 2 → 건너뜀
+    ///     0 걸음 — 앞 칸에 산 배가 있으면 충돌 → 백병전 → 불 → 나포·일기토 (그 자리에서)
+    ///     1 총격 0x004362E0 — 이웃 칸 맞은편 배(기함 먼저)
+    ///     2 포격 0x00436900
+    ///     3 턴 끝 (틱 59)
+    ///   하위단계 1·2 는 (이동력*(틱+1)) % 60 == 0 틱에만 — 곧 한 턴에 이동력 번
     /// </code>
-    /// 여기서는 틱을 「박자」로 묶었다 — 박자 k 에 걸음 k 를 딛고, k &lt; 이동력인 배가 쏜다. 걸음이 아니라
-    /// 이동력으로 세므로 서 있거나 부딪혀 멈춘 배도 쏜다(볼트 85).
-    ///
-    /// 들어갈 칸에 배가 있으면 부딪혀 선다(<c>0x00439858</c>). 부딪힌 배는 다음 턴 한 번 못 움직인다.
+    /// 틱을 「박자」로 묶었다 — 박자 k 에 모든 배가 걸음 k 를 딛고, 이어서 k &lt; 이동력인 배가 총격, 그 뒤 포격한다.
+    /// 번호가 낮은 배가 먼저 칸을 차지하면 뒤에 오는 배가 거기로 들어가려다 충돌한다.
     /// </remarks>
-    public void Execute(Action<Beat>? onBeat = null)
+    public void Execute(IStage? stage = null)
     {
+        _stage = stage;
         int beats = Ships.Where(s => s.CanAct)
                          .Select(s => Math.Max(s.Plan.Count, s.Power))
                          .DefaultIfEmpty(0).Max();
 
-        for (int k = 0; k < beats; k++)
+        for (int k = 0; k < beats && !Over; k++)
         {
-            var crashes = new List<(Ship, Ship)>();
-            foreach (var ship in Ships.Where(s => s.CanAct && !s.Crashed && k < s.Plan.Count).ToList())
+            // 하위단계 0 — 걸음.
+            foreach (var ship in Ships.ToList())
             {
+                if (Over) break;
+                if (!ship.CanAct || ship.Halted || ship.Blocked || k >= ship.Plan.Count) continue;
                 int way = Turn(ship.Way, ship.Plan[k]);
                 var (nx, ny) = Step(ship.X, ship.Y, way);
-                ship.Way = way;
-                if (!OnBoard(nx, ny)) { ship.Crashed = true; continue; }
+                ship.Way = way;                                   // 돌기는 이미 먹었다
+                if (!OnBoard(nx, ny)) { ship.Blocked = true; continue; }
                 if (ShipAt(nx, ny) is { } hit)
                 {
-                    ship.Crashed = true;
-                    crashes.Add((ship, hit));
+                    Collide(ship, hit);                           // 그 칸에는 안 들어간다
                     continue;
                 }
                 ship.X = nx;
                 ship.Y = ny;
             }
+            _stage?.Moved();
 
-            var volleys = new List<Volley>();
-            var notices = new List<string>();
-            foreach (var ship in Ships.Where(s => s.CanAct && k < s.Power).ToList())
+            // 하위단계 1 — 총격. 충돌한 배(지시상태 ≥ 2)는 먼저 걸지 않는다(걸리는 쪽으로는 맞는다).
+            foreach (var ship in Ships.ToList())
             {
-                if (!ship.CanAct) continue;                 // 이 박자에 먼저 가라앉았다
-                if (Fire(ship, notices) is { } volley) volleys.Add(volley);
+                if (Over) break;
+                if (!ship.CanAct || ship.Halted || k >= ship.Power) continue;
+                Gunfight(ship);
             }
 
-            onBeat?.Invoke(new Beat(k, crashes, volleys, notices));
-            if (AllMineGone || AllEnemyGone) break;
+            // 하위단계 2 — 포격. 지시상태를 안 본다(부딪힌 배도 쏜다).
+            foreach (var ship in Ships.ToList())
+            {
+                if (Over) break;
+                if (!ship.CanAct || k >= ship.Power) continue;
+                if (Fire(ship) is not { } volley) continue;
+                _stage?.Volley(volley);
+                if (volley.Sunk) Sink([volley.Target]);           // 0x0043D79D → 연출 갈래 1
+            }
+
+            _stage?.BeatDone(k);
         }
 
         EndTurn();
+        _stage = null;
     }
 
     // ── 포격 — 0x00436900 ─────────────────────────────────────────────────
 
-    /// <summary>한 편 제독의 싸움 능력 — 포술 자리 · 무력 · 방어(<c>[0x910]</c> 벌).</summary>
-    public readonly record struct Side(int Gunnery, int Might, int Defense);
+    /// <summary>
+    /// 한 편 제독의 싸움 값(<c>0x00441D8A</c> 아군 · <c>0x00440F23</c> 적). 아군은 제독·부관 가운데 큰 값이다.
+    /// </summary>
+    /// <param name="Gunnery">포술 <c>+0x914</c>.</param>
+    /// <param name="Might">무력 <c>+0x904</c>(능력+1).</param>
+    /// <param name="Defense">운 <c>+0x910</c>(능력+1) — 포격 방어와 잠수폭탄 굴림.</param>
+    /// <param name="Mind">지력 <c>+0x908</c>(능력+1) — 불 막기·나포.</param>
+    /// <param name="Charm">매력 <c>+0x90C</c>(능력+1) — 나포 막기.</param>
+    /// <param name="Sword">검술 <c>+0x918</c> — 백병전·불.</param>
+    /// <param name="Shooting">사격술 <c>+0x91C</c> — 총격전.</param>
+    /// <param name="Fortune">운세칸[0] <c>+0x920</c>(0~2) — 나포 막기·일기토 걸기.</param>
+    public readonly record struct Side(int Gunnery, int Might, int Defense, int Mind = 0, int Charm = 0,
+                                       int Sword = 0, int Shooting = 0, int Fortune = 0);
 
     /// <summary>아군 제독(<c>[0x904]</c>~).</summary>
     public Side MineSide { get; set; } = new(0, 50, 50);
@@ -741,13 +848,13 @@ public sealed class SeaBattle
     /// </code>
     /// 선수상 보정(0x1D·0x22·0x23·0x1A)과 과녁 추진력 깎기, 속사포는 아직 안 옮겼다.
     /// </remarks>
-    private Volley? Fire(Ship ship, List<string> notices)
+    private Volley? Fire(Ship ship)
     {
         if (ship.Mine)
         {
             if (Ammo == 0)
             {
-                notices.Add("탄약이 떨어졌습니다! 공격할 수 없습니다!");
+                _stage?.Notice("탄약이 떨어졌습니다! 공격할 수 없습니다!");
                 Ammo = -1;
                 return null;
             }
@@ -759,7 +866,7 @@ public sealed class SeaBattle
             if (ship.Mine && !_noGunsWarned && FireTarget(ship, RangeOf(ship.Gun)) is not null)
             {
                 _noGunsWarned = true;
-                notices.Add("대포를 싣지 않은 함선은 발사할 수 없습니다!");
+                _stage?.Notice("대포를 싣지 않은 함선은 발사할 수 없습니다!");
             }
             return null;
         }
@@ -807,7 +914,7 @@ public sealed class SeaBattle
         if (ship.Mine) Ammo = Math.Max(0, Ammo - shots.Count);
 
         bool sunk = target.Hp == 0;
-        if (sunk) target.State = ShipState.Lost;
+        if (sunk) target.State = ShipState.Sunk;       // 판 닫기·연출은 Execute 의 Sink 가 한다
         return new Volley(ship, target, shots, sunk);
     }
 
@@ -830,19 +937,394 @@ public sealed class SeaBattle
         return null;
     }
 
-    /// <summary>턴 끝 — 부딪힌 배는 다음 턴에 못 움직이고, 바람이 열에 하나로 돌고, 이동력을 다시 매긴다.</summary>
+    /// <summary>불이 턴마다 깎는 내구 · 불사조상이 턴마다 되살리는 내구(<c>0x0043D7E7</c>).</summary>
+    public const int BurnDamage = 3, PhoenixMend = 5;
+
+    /// <summary>
+    /// 턴 끝(틱 59 하위단계 3, <c>0x0043D7E7</c>) — 바람이 열에 하나로 돌고, 배마다 차례로:
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   지시상태 3 → 2 , 그 밖 → 0              ; 들이받은 배는 다음 턴도 못 움직인다
+    ///   아군 · 선수상 0x20 불사조 → 내구 = min(내구+5, 최대내구)
+    ///   불(상태 5) → 내구 −3 , 숫자 3 , 0 이면 가라앉음(연출 1)
+    /// </code>
+    /// 떠 있는 배(상태 ≥ 4)만 본다. 불은 번지지도 꺼지지도 않는다.
+    /// </remarks>
     private void EndTurn()
     {
         if (_rng.Next(10) == 0) Wind = (Wind + 5) % Ways;
 
-        foreach (var ship in Ships)
+        foreach (var ship in Ships.ToList())
         {
-            ship.Stuck = ship.Crashed;
-            ship.Crashed = false;
             ship.Plan.Clear();
             ship.Ordered = false;
+            ship.Blocked = false;
+            ship.Bump = ship.Bump == 3 ? 2 : 0;
+
+            if (ship.CanAct && !Over)
+            {
+                if (ship.Mine && ship.Figurehead == Phoenix)
+                    ship.Hp = Math.Max(ship.Hp, Math.Min(ship.Hp + PhoenixMend, ship.MaxHp));
+                if (ship.Burning)
+                {
+                    ship.Hp = Math.Max(0, ship.Hp - BurnDamage);
+                    _stage?.Burn(ship);
+                    if (ship.Hp == 0)
+                    {
+                        ship.State = ShipState.Sunk;
+                        Sink([ship]);
+                    }
+                }
+            }
             ship.Power = PowerOf(ship);
         }
+    }
+
+    // ── 가까운 싸움 — 충돌·백병전·불·나포·일기토·총격 ──────────────────────
+
+    /// <summary>선수상 번호(표 <c>0x0054A0A0</c>) — 해신 · 수룡 · 청룡 · 백호 · 불사조 · 마왕.</summary>
+    public const int SeaGod = 0x1B, WaterDragon = 0x1C, BlueDragon = 0x1E, WhiteTiger = 0x1F,
+                     Phoenix = 0x20, DemonKing = 0x23;
+
+    /// <summary>
+    /// 적장 운세칸[3](<c>0x004319D0([+0x120])</c>) — 아군 기함이 적 기함을 받을 때 일기토 굴림에 든다.
+    /// </summary>
+    public int LeaderFortune { get; set; }
+
+    /// <summary>
+    /// 소지품의 잠수폭탄(아이템 <see cref="MineItem"/>, 다 빈치 수중기뢰) 수 — 칸마다 한 번씩 굴린다. 쓰면 준다.
+    /// </summary>
+    public int Mines { get; set; }
+
+    /// <summary>잠수폭탄 아이템 번호.</summary>
+    public const int MineItem = 0;
+
+    /// <summary>게임의 <c>rand(n)</c>(<c>0x004B7C0F</c>) — n 이 2 보다 작으면 0.</summary>
+    private int Rand(int n) => n < 2 ? 0 : _rng.Next(n);
+
+    /// <summary>
+    /// 충돌(<c>0x004397E0</c>) — 들이받은 배 <paramref name="m"/> 가 <paramref name="t"/> 의 칸으로 못 들어갔다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   지시상태  나 3 , 상대 (3 아니면) 2          ; 아군끼리면 여기서 끝(피해·백병전 없음)
+    ///   a = 적재용량(+0x300)/5
+    ///   |방향차| == 3 (정면)  둘 다 −(상대용량/5 + a)/5
+    ///   그 밖                  들이받은 −(a/5)*8/10 · 받힌 −(a/5)*13/10
+    ///   내구 0 → 가라앉음(연출 1) ; 둘 다 떴으면 백병전
+    /// </code>
+    /// 「정면」은 자리 관계가 아니라 <b>뱃머리 방향만</b> 본다. 방향차는 mod 가 아니라 절댓값이다(0·3, 1·4, 2·5).
+    /// 굴림·선수상·능력이 없고 최소 1 도 없다(용량 25 밑이면 0). 밑값은 최대 내구가 아니라 <b>적재용량</b>이다.
+    /// 편을 가리는 것은 같은 편인지다 — 원본은 적끼리 부딪혀도 알림을 낸다.
+    /// </remarks>
+    private void Collide(Ship m, Ship t)
+    {
+        bool friendly = m.Mine == t.Mine;
+        _stage?.Crash(m, t, friendly);
+        m.Bump = 3;
+        if (t.Bump != 3) t.Bump = 2;
+        if (friendly) return;
+
+        int a = m.Cargo / 5;
+        int mLoss, tLoss;
+        if (Math.Abs(m.Way - t.Way) == 3)
+        {
+            mLoss = tLoss = (t.Cargo / 5 + a) / 5;
+        }
+        else
+        {
+            int b = a / 5;
+            mLoss = b * 8 / 10;
+            tLoss = b * 13 / 10;
+        }
+        m.Hp = Math.Max(0, m.Hp - mLoss);
+        t.Hp = Math.Max(0, t.Hp - tLoss);
+        _stage?.HullLoss(m, mLoss, t, tLoss);
+
+        var sunk = new List<Ship>();
+        if (m.Hp <= 0) sunk.Add(m);
+        if (t.Hp <= 0) sunk.Add(t);
+        if (sunk.Count > 0)
+        {
+            foreach (var s in sunk) s.State = ShipState.Sunk;
+            Sink(sunk);
+            return;
+        }
+        Melee(m, t);
+    }
+
+    /// <summary>
+    /// 백병전(<c>0x00439D50</c>) — 충돌한 두 배가 모두 떠 있을 때 곧바로 이어진다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   P = ((검술p+1) * 들이받은 배 승원 + 무력p − 50) / 10
+    ///   E = ((검술e+1) * 받힌 배 승원    + 무력e − 50) / 10
+    ///   아군이 들이받음: 받힌 적 −P , 아군 −E
+    ///   적이 들이받음  : 받힌 아군 −E , 적 −P        ← 원본 결함: 능력은 제 편 것인데 곱하는 승원은 잃는 쪽 배 것
+    ///   아군이 들이받을 때  선수상 0x1F 백호 ×2 , 아니고 0x23 마왕 ×3/2   (받힌 적이 잃는 값)
+    ///   아군이 받힐 때      선수상 0x1C 수룡 ×3/10                        (받힌 아군이 잃는 값)
+    ///   둘 다 최소 1 · 연출 갈래 3 · 불 굴림 · 승원 적용 · 승원 0 이면 상태 2(기함이면 끝)
+    ///   둘 다 떴으면 나포·일기토
+    /// </code>
+    /// 굴림·상한이 없다. C 나눗셈(0 쪽 버림)은 C# 과 같다.
+    /// </remarks>
+    private void Melee(Ship m, Ship t)
+    {
+        var p = MineSide;
+        var e = EnemySide;
+        int pLoss = ((p.Sword + 1) * m.Crew + p.Might - 50) / 10;
+        int eLoss = ((e.Sword + 1) * t.Crew + e.Might - 50) / 10;
+        int tLoss = m.Mine ? pLoss : eLoss;
+        int mLoss = m.Mine ? eLoss : pLoss;
+
+        if (m.Mine)
+        {
+            if (m.Figurehead == WhiteTiger) tLoss *= 2;
+            else if (m.Figurehead == DemonKing) tLoss = tLoss * 3 / 2;
+        }
+        if (t.Mine && t.Figurehead == WaterDragon) tLoss = tLoss * 3 / 10;   // 0x4B7B96(v,3,10)
+        tLoss = Math.Max(1, tLoss);
+        mLoss = Math.Max(1, mLoss);
+
+        _stage?.Melee(m, t, mLoss, tLoss);
+        Ignite(m, t);                                     // 연출 갈래 3 끝 — 승원 셈 전이다
+
+        m.Crew = Math.Max(0, m.Crew - mLoss);
+        t.Crew = Math.Max(0, t.Crew - tLoss);
+        CrewOut(t, m);
+        if (Over) return;
+
+        if (m.CanAct && t.CanAct) Board(m, t);
+    }
+
+    /// <summary>
+    /// 불(<c>0x00437E3A</c>) — <b>들이받은 쪽이 맞은편에</b> 지른다. 아군·적 같은 식이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   맞은편이 이미 불이면 안 붙음
+    ///   c = max(0, 무력 / (4 − 검술) − 상대 지력/2)      ; 들이받은 편 무력·검술, 받힌 편 지력
+    ///   rand(100) ≤ c (부호 없는 비교) → 상태 5, 소리 0x30, blast-03~05
+    /// </code>
+    /// 검술 4 면 0 으로 나누지만 기능은 0~3 이라 안 난다 — 그래도 판이 죽지 않게 1 로 받친다.
+    /// </remarks>
+    private void Ignite(Ship m, Ship t)
+    {
+        if (t.Burning) return;
+        var (me, them) = m.Mine ? (MineSide, EnemySide) : (EnemySide, MineSide);
+        int c = Math.Max(0, me.Might / Math.Max(1, 4 - me.Sword) - them.Mind / 2);
+        if ((uint)_rng.Next(100) > (uint)c) return;
+        t.Burning = true;
+        _stage?.Ignite(t);
+    }
+
+    /// <summary>
+    /// 승원 0 뒤처리(<c>0x0043D51E</c> · <c>0x00439D50</c> 끝) — 차례대로 상태 2 로 빼고, 기함이면 판을 닫는다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   승원 ≤ 0 → 상태 2
+    ///     아군 기함 승원 ≤ 0 → 끝 1(짐) ; 아니고 적 기함 승원 ≤ 0 → 끝 2(이김, 1 을 덮지 않음) ; 아니면 나포 말
+    /// </code>
+    /// 가라앉지 않는다 — 판에서 빠질 뿐이고 판 끝에 들임 후보가 된다.
+    /// </remarks>
+    private void CrewOut(params Ship[] ships)
+    {
+        int end = 0;
+        foreach (var s in ships)
+        {
+            if (s.Crew > 0 || !s.CanAct) continue;
+            s.Crew = 0;
+            s.State = ShipState.Captured;
+            if (At(0) is { Crew: <= 0 }) end = 1;
+            else if (At(PerSide) is { Crew: <= 0 }) { if (end != 1) end = 2; }
+            else _stage?.Captured(s);
+        }
+        if (end == 1) CloseBy(At(0)!);
+        else if (end == 2) CloseBy(At(PerSide)!);
+    }
+
+    /// <summary>그 기함이 빠져 판이 끝났다. 아직 떠 있으면(승원만 0) 상태 2 로 뺀다.</summary>
+    private void CloseBy(Ship flag, ShipState state = ShipState.Captured)
+    {
+        if (flag.CanAct) flag.State = state;
+        NoteFlag(flag);
+    }
+
+    /// <summary>
+    /// 나포·일기토(<c>0x0043A200</c>) — 충돌해서 둘 다 살아남았을 때만 온다. 총격전으로는 안 열린다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   받힌 배가 기함 아님 — 나포
+    ///     아군이 들이받음  공 = 3지p + 2무p ,  수 = 3(지e + 매e) + 10운세e
+    ///     적이 들이받음    공 = 3지e + 2무e ,  수 = 3(지p + 매e) + 10운세p     ← 원본 결함: 매력만 적 것
+    ///     c = max(0, 공 − 수)/5 + rand(2) ;  rand(100) &lt; c 가 아니면 끝
+    ///     아군 「배를 뺏앗는다 / 대기」 · 적 rand(5) != 0 (4/5) → 상태 2, 승원은 안 옮긴다
+    ///   아군 기함 → 적 기함 — c = (운세e[0] + 적장 운세칸[3])*20 + rand(5) → 「일기토 / 대기」 → 적장 말 → 결투
+    ///   적 기함 → 아군 기함 — 아군 산 배 &gt; 적 산 배 · 검술e &gt; 0 · rand(2)==1 → 결투 신청
+    ///   호위선이 기함을 받으면 아무것도 없다
+    /// </code>
+    /// </remarks>
+    private void Board(Ship m, Ship t)
+    {
+        var p = MineSide;
+        var e = EnemySide;
+
+        if (!t.Flagship)
+        {
+            int attack, guard;
+            if (m.Mine)
+            {
+                attack = 3 * p.Mind + 2 * p.Might;
+                guard = 3 * (e.Mind + e.Charm) + 10 * e.Fortune;
+            }
+            else
+            {
+                attack = 3 * e.Mind + 2 * e.Might;
+                guard = 3 * (p.Mind + e.Charm) + 10 * p.Fortune;      // 원본 그대로 — 매력은 적 것
+            }
+            int c = Math.Max(0, attack - guard) / 5 + Rand(2);
+            if (_rng.Next(100) >= c) return;
+
+            if (m.Mine) { if (_stage?.AskCapture(t) != true) return; }   // 「대기」는 그냥 닫는다
+            else if (Rand(5) == 0) return;
+
+            t.State = ShipState.Captured;
+            _stage?.Captured(t);
+            return;
+        }
+
+        if (m.Index == 0 && t.Index == PerSide)
+        {
+            int c = (e.Fortune + LeaderFortune) * 20 + Rand(5);
+            if (_rng.Next(100) >= c) return;
+            if (_stage?.OfferDuel() != true) return;
+            Duel();
+            return;
+        }
+
+        if (m.Index == PerSide && t.Index == 0)
+        {
+            int ours = Ships.Count(s => s.Mine && s.CanAct);
+            int theirs = Ships.Count(s => !s.Mine && s.CanAct);
+            if (ours <= theirs || e.Sword <= 0 || Rand(2) != 1) return;
+            if (_stage?.Challenged() != true) return;                     // 거절해도 값은 안 바뀐다
+            Duel();
+        }
+    }
+
+    /// <summary>
+    /// 결투를 넘기고 결과를 판에 먹인다(<c>0x0043A200</c> 6.4) — 이기면(끝값 ≤1) 적 기함 상태 1, 지면(용서받아도) 아군 기함 상태 1.
+    /// </summary>
+    /// <remarks>적 기함은 나포가 아니라 격침으로 끝나 판 끝에 들임 후보가 안 된다.</remarks>
+    private void Duel()
+    {
+        if (_stage?.Duel() is not { } won) return;
+        CloseBy(At(won ? PerSide : 0)!, ShipState.Sunk);
+    }
+
+    /// <summary>
+    /// 총격전(<c>0x004362E0</c>) — 이웃 칸의 맞은편 배와 승원만 주고받는다. 아군·적 같은 코드다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   과녁  이웃 여섯 칸의 맞은편 산 배 — 기함이면 곧, 아니면 번호 낮은 배
+    ///   기뢰  아군이 적 기함을 쏠 때: 잠수폭탄 칸마다 rand(100) &lt; rand(운) → 적 기함 승원 0 · 숫자 999/0 · 칸 비움
+    ///   A = ((사격술p+1) * 승원 + 무력p − 50)/10 ,  E = ((사격술e+1) * 승원 + 무력e − 50)/10
+    ///   아군이 걸음: 과녁 −A(쏜 아군 승원) , 쏜 배 −E(적 과녁 승원) ; 선수상 0x1E 청룡·0x23 마왕 → 과녁 몫 ×3/2
+    ///   적이 걸음  : 과녁 −E(아군 과녁 승원) , 쏜 배 −A(쏜 적 승원)   ← 원본 결함: 승원이 뒤바뀐다
+    ///                아군 과녁 선수상 0x1B 해신 → 과녁 몫 /2
+    ///   둘 다 최소 1 · 굴림·운 없음 · 내구는 안 깎는다 · 승원 0 이면 상태 2
+    /// </code>
+    /// </remarks>
+    private void Gunfight(Ship s)
+    {
+        if (GunTarget(s) is not { } t) return;
+
+        int sLoss, tLoss;
+        if (s.Mine && t.Index == PerSide && MineHits())
+        {
+            tLoss = 999;
+            sLoss = 0;
+        }
+        else
+        {
+            var p = MineSide;
+            var e = EnemySide;
+            int Ours(int crew) => ((p.Shooting + 1) * crew + p.Might - 50) / 10;
+            int Theirs(int crew) => ((e.Shooting + 1) * crew + e.Might - 50) / 10;
+
+            if (s.Mine)
+            {
+                tLoss = Ours(s.Crew);
+                sLoss = Theirs(t.Crew);
+                if (s.Figurehead is BlueDragon or DemonKing) tLoss = tLoss * 3 / 2;
+            }
+            else
+            {
+                tLoss = Theirs(t.Crew);
+                sLoss = Ours(s.Crew);
+                if (t.Figurehead == SeaGod) tLoss /= 2;
+            }
+            tLoss = Math.Max(1, tLoss);
+            sLoss = Math.Max(1, sLoss);
+        }
+
+        s.Crew = Math.Max(0, s.Crew - sLoss);
+        t.Crew = Math.Max(0, t.Crew - tLoss);
+        _stage?.Gunfight(s, t, sLoss, tLoss);
+        CrewOut(t, s);
+    }
+
+    /// <summary>잠수폭탄 굴림 — 든 칸마다 <c>rand(100) &lt; rand(운)</c>. 맞으면 하나 쓰고 말한다.</summary>
+    private bool MineHits()
+    {
+        for (int slot = 0; slot < Mines; slot++)
+        {
+            if (_rng.Next(100) >= Rand(MineSide.Defense)) continue;
+            Mines--;
+            _stage?.Mine();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>총격 과녁 — 맞은편 편 칸 차례로 이웃한 산 배, 기함이면 곧장(<c>0x004362E0</c>).</summary>
+    private Ship? GunTarget(Ship s)
+    {
+        int first = s.Mine ? PerSide : 0;
+        Ship? pick = null;
+        for (int j = first; j < first + PerSide; j++)
+        {
+            if (At(j) is not { CanAct: true } o || !Adjacent(s.X, s.Y, o.X, o.Y)) continue;
+            if (j == first) return o;
+            pick ??= o;
+        }
+        return pick;
+    }
+
+    /// <summary>
+    /// 육각 이웃인지 — dX 0 이면 dY ±1, 짝수 X 는 dY 0·+1, 홀수 X 는 dY −1·0(짝수 X 줄이 16점 아래로 밀렸다).
+    /// </summary>
+    public static bool Adjacent(int x, int y, int ox, int oy)
+    {
+        int dx = ox - x, dy = oy - y;
+        if (dx is < -1 or > 1) return false;
+        if (dx == 0) return dy is 1 or -1;
+        return (x & 1) == 0 ? dy is 0 or 1 : dy is -1 or 0;
+    }
+
+    /// <summary>
+    /// 가라앉은 배들 — 기함이면 판을 닫고(아군 기함이 먼저 끝을 정한다), 연출 갈래 1 과 격침 말을 부른다.
+    /// </summary>
+    private void Sink(IReadOnlyList<Ship> ships)
+    {
+        foreach (var s in ships.Where(s => s.Mine)) NoteFlag(s);
+        foreach (var s in ships.Where(s => !s.Mine)) NoteFlag(s);
+        _stage?.Sink(ships);
     }
 
     // ── 퇴각 ──────────────────────────────────────────────────────────────
@@ -869,6 +1351,7 @@ public sealed class SeaBattle
     {
         if (!ship.Mine || !ship.CanAct || !IsRetreatCell(ship.X, ship.Y)) return;
         ship.State = ShipState.Retreated;
+        NoteFlag(ship);
     }
 
     /// <summary>내 배가 모두 판을 떴는지.</summary>
@@ -876,6 +1359,44 @@ public sealed class SeaBattle
 
     /// <summary>적이 모두 판을 떴는지.</summary>
     public bool AllEnemyGone => Ships.Where(s => !s.Mine).All(s => !s.CanAct);
+
+    /// <summary>
+    /// 먼저 판을 뜬 기함(0 또는 8). 아직 둘 다 떠 있으면 null.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배 상태(<c>+0x30C</c>)가 바뀔 때마다 <c>0x004350F0(배)</c> 를 부르고, <b>기함이 빠질 때</b>
+    /// 판을 닫는다(볼트 93 의 5절). 한 박자에 두 기함이 함께 빠져도 먼저 바뀐 쪽이 끝을 정한다.
+    /// </remarks>
+    public Ship? FirstFlagOut
+    {
+        get
+        {
+            if (_flagOut == null)
+                foreach (var ship in Ships)
+                    if (ship.Flagship && !ship.CanAct) { _flagOut = ship; break; }
+            return _flagOut;
+        }
+    }
+
+    private Ship? _flagOut;
+
+    /// <summary>판이 끝났는지 — 어느 기함이 빠졌거나 한 편이 다 떴다.</summary>
+    public bool Over => AllMineGone || AllEnemyGone || FirstFlagOut != null;
+
+    /// <summary>
+    /// 가라앉힌 적 배 수(상태 1). 게임의 꺾음 m 은 이것과 <see cref="EnemyCaptured"/> 의 합이다
+    /// (<c>0x004350F0</c> 승리 갈래). 일기토로 이긴 적 기함도 상태 1 이라 여기에 든다.
+    /// </summary>
+    public int EnemyDowned => Ships.Count(s => !s.Mine && s.State == ShipState.Sunk);
+
+    /// <summary>빼앗거나 승원을 없앤 적 배 수(상태 2).</summary>
+    public int EnemyCaptured => Ships.Count(s => !s.Mine && s.State == ShipState.Captured);
+
+    /// <summary>상태가 바뀌는 자리마다 불러, 기함이 먼저 빠진 차례를 붙잡는다.</summary>
+    private void NoteFlag(Ship ship)
+    {
+        if (_flagOut == null && ship.Flagship && !ship.CanAct) _flagOut = ship;
+    }
 
     // ── 말 ────────────────────────────────────────────────────────────────
 
@@ -900,9 +1421,110 @@ public sealed class SeaBattle
         _ => "각 함대에 이동 지시를 내려 주십시오.",
     };
 
-    /// <summary>충돌 말(<c>0x00439858</c> 벌).</summary>
+    /// <summary>
+    /// 충돌 말(<c>0x0056AFF0</c> · <c>0x0056B038</c>). 원본 첫째 줄은 <c>\n</c> 으로 끊기는데 우리 창은 띄어쓰기로만
+    /// 끊어 빈칸으로 둔다.
+    /// </summary>
     public static string CrashWord(Ship mover, Ship hit) =>
-        mover.Mine && hit.Mine ? "위험하다! 정지!…하마터면 아군끼리 부딪칠 뻔 했다." : "충돌했다!";
+        mover.Mine == hit.Mine ? "위험하다! 정지! ·····하마터면 아군끼리 부딪칠 뻔 했다." : "충돌했다!";
+
+    private string One(string[] lines) => lines[_rng.Next(lines.Length)];
+
+    /// <summary>잠수폭탄 말(<c>0x0056AE60</c>).</summary>
+    public const string MineWord = "다 빈치선생님의 수중기뢰를 씁시다.";
+
+    /// <summary>격침 말(<c>0x004350F0</c>, rand(5)) — 아군 <c>0x0056A850</c>~ · 적 <c>0x0056A910</c>~.</summary>
+    public string SinkWord(Ship ship) => ship.Mine
+        ? string.Format(One([
+            "큰일났습니다! {0}호가 침몰하고 말았습니다.",
+            "제독, {0}호가 가라앉고 있습니다!",
+            "큰일입니다! {0}호가 격침당했습니다!",
+            "{0}호가 공격당했습니다!",
+            "아아, {0}호가 가라앉아 버렸습니다!",
+        ]), ship.Name)
+        : One([
+            "적함 한 척을 격침시켰습니다!",
+            "한 척을 격침시켰습니다!",
+            "제독, 적함 한 척을 가라앉혔습니다.",
+            "적함 한 척을 바다속에 가라앉혔습니다.",
+            "적함 1척 격침! 꼴좋군!",
+        ]);
+
+    /// <summary>나포·승원 0 말(<c>0x004358EE</c>, rand(10)) — 빼앗김 <c>0x0056A9B8</c>~ · 빼앗음 <c>0x0056AB28</c>~.</summary>
+    public string CapturedWord(Ship ship) => ship.Mine
+        ? string.Format(One([
+            "배를 빼앗겼습니다.",
+            "제독, 죄송합니다. 배를 빼앗겼습니다.",
+            "어찌 된 일인가! 배를 빼앗겼습니다.",
+            "어찌 된 일인가! {0}호가 당했습니다.",
+            "{0}호의 선원이 당했습니다!",
+            "제독, {0}호가 당했습니다!",
+            "큰일입니다. 배를 빼앗겼습니다!",
+            "적에게 빈틈을 보여 배를 빼앗겼습니다!",
+            "앗! {0}호를 빼앗겼습니다!",
+            "제독, {0}호가 적의 손에 들어갔습니다!",
+        ]), ship.Name)
+        : One([
+            "적함을 빼앗았습니다.",
+            "적함을 빼앗았다! 꼴 좋군.",
+            "제독, 적함을 나포했습니다.",
+            "헤헤, 적함을 빼앗았습니다!",
+            "제독, 빈틈을 타서 적함을 빼앗았습니다!",
+            "적함 한 척을 빼앗았어요.",
+            "적함 한 척을 전투 불가능하게 해 놓았습니다.",
+            "이 배는 우리들 것이다!",
+            "적함의 선원을 해치웠습니다.",
+            "제독, 적함 한 척을 없애버렸습니다.",
+        ]);
+
+    /// <summary>나포 고르기(<c>0x0056B048</c> · <c>0x0056B058</c>).</summary>
+    public static readonly string[] CaptureRows = ["배를 뺏앗는다", "대기"];
+
+    /// <summary>일기토 고르기(<c>0x0056B060</c> · <c>0x0056B068</c>).</summary>
+    public static readonly string[] DuelRows = ["일기토", "대기"];
+
+    /// <summary>결투 신청 고르기(<c>0x0056B210</c> · <c>0x0056B218</c>).</summary>
+    public static readonly string[] ChallengeRows = ["응한다", "거절한다"];
+
+    /// <summary>아군이 일기토를 걸었을 때 적장 말(<c>0x0056B070</c>~).</summary>
+    public string DuelTakenWord() => One([
+        "물고기 밥을 만들어 주겠다! 덤벼라!",
+        "배짱은 좋군, 상대해 주마.",
+        "남자답군. 상대해 주마.",
+        "아니, 일대일로 싸우고 싶다고? 좋지!",
+        "신청해 놓고 나중에 후회하지 마라.",
+    ]);
+
+    /// <summary>
+    /// 적이 결투를 신청할 때 부관 말(<c>0x0056B128</c>~). <c>%s%s</c> 는 적장 이름과 조사(<c>0x004281B0(이름,0)</c>)인데
+    /// 조사 갈래 0 을 못 짚어 이/가 로 둔다.
+    /// </summary>
+    public string ChallengeWord(string foe)
+    {
+        string who = foe + Josa(foe, "이", "가");
+        return One([
+            $"{who} 일대일 결투를 신청해 왔습니다!",
+            "제독, 적이 일대일 결투를 원하고 있습니다!",
+            $"{who} 제독과 일대일 결투를 하고 싶다고 합니다!",
+            "제독, 적이 일대일 승부를 겨루고 싶다고 합니다!",
+            "제독, 적의 결투 신청에 응하겠습니까?",
+        ]);
+    }
+
+    /// <summary>결투 신청에 응했을 때 적장 말(<c>0x0056B228</c>~).</summary>
+    public string AcceptedWord() => One([
+        "그래야지!", "이얏! 간다!", "제법 배짱이 좋군.", "도망가지 않았다는 점은 칭찬해 주지.", "그럼, 슬슬 시작할까.",
+    ]);
+
+    /// <summary>결투 신청을 거절했을 때 적장 말(<c>0x0056B2A8</c>~).</summary>
+    public string RefusedWord() => One([
+        "이 겁장이!", "겨우 그정도냐.", "쳇, 시시한 놈이군.", "도망가느냐, 겁장이.", "그러고도 남자냐, 겁장이 같으니라고!",
+    ]);
+
+    /// <summary>
+    /// 되찾은 배 말 — 승리 <c>0x0056A6D8</c>(마침표 있음) · 적 기함 퇴각 <c>0x0056AE38</c>(마침표 없음).
+    /// </summary>
+    public static string RecoveredWord(bool won) => won ? "빼앗긴 배를 되찾았습니다." : "빼앗긴 배를 되찾았습니다";
 
     /// <summary>다 빠져나갔을 때의 다섯 벌(<c>0x00435ABF</c>).</summary>
     public string EscapedWord(string foe)
@@ -917,6 +1539,48 @@ public sealed class SeaBattle
             _ => $"{foe}의 추격을 물리친 것 같습니다!",
         };
     }
+
+    /// <summary>내 기함이 가라앉았을 때 적장이 비웃는 다섯 벌(<c>0x0056A418</c>~, <c>0x004350F0</c> 패배 갈래).</summary>
+    public string TauntWord() => _rng.Next(5) switch
+    {
+        0 => "흐흐흐, 물고기 밥이 되었군.",
+        1 => "네놈의 항해도 이제 끝이다.",
+        2 => "상어의 밥이나 되라.",
+        3 => "바다에서 죽는 것이 소원이겠지.",
+        _ => "상대를 잘못 만났군. 죽어라!",
+    };
+
+    /// <summary>적 기함을 꺾었을 때 부관의 다섯 벌(<c>0x0056A558</c>~).</summary>
+    public string WonWord(string foe) => _rng.Next(5) switch
+    {
+        0 => $"{foe}의 함선을 물리쳤습니다.",
+        1 => "해냈습니다. 기함을 물리쳤습니다!",
+        2 => "제독, 기함을 물리쳤습니다.",
+        3 => "기함을 물리쳤습니다! 우리가 이겼습니다!",
+        _ => "적 기함을 물리쳤습니다! 우리가 이겼습니다!",
+    };
+
+    /// <summary>진 적장의 다섯 벌(<c>0x0056A618</c>~).</summary>
+    public string BeatenWord() => _rng.Next(5) switch
+    {
+        0 => "내 인생도 이제 끝인가···",
+        1 => "네놈 따위에게 당할 줄이야···",
+        2 => "바다에서 죽을 수만 있다면 미련은 없다.",
+        3 => "내가 질 줄이야···방심했군.",
+        _ => "저승으로 가게 될 줄이야···",
+    };
+
+    /// <summary>
+    /// 적 기함이 달아났을 때 부관의 다섯 벌(<c>0x0056AD40</c>~). 끝 줄의 조사 갈래는 못 짚어 이/가 로 둔다.
+    /// </summary>
+    public string FoeFledWord(string foe) => _rng.Next(5) switch
+    {
+        0 => "꽁무니를 빼고 도망갔습니다!",
+        1 => "모처럼의 사냥감을 놓쳤군요.",
+        2 => "하하하, 꼴 좋군.",
+        3 => "제독이 무서워서 도망간 것 같군요.",
+        _ => $"제독, {foe}{Josa(foe, "이", "가")} 도망친 것 갔습니다!",
+    };
 
     private static string Josa(string word, string batchim, string plain)
     {

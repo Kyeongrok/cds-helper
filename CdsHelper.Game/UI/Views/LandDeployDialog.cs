@@ -145,9 +145,10 @@ internal sealed class LandDeployDialog : GameWindow
     /// 문화권을 안 받는다 — 낼 수 있는 여덟 병종은 <see cref="LandUnitArt.PartOf"/> 에서
     /// 죄다 아군·적으로만 갈리고 문화권으로는 안 갈린다.
     /// </remarks>
-    public static int[]? Show(Window? owner, Engine.Game game, string cityName)
+    /// <param name="borrowedMen">대본이 빌려 준 병력. −1 이면 함대 선원으로 짓는다.</param>
+    public static int[]? Show(Window? owner, Engine.Game game, string cityName, int borrowedMen = -1)
     {
-        var roster = LandRoster.For(game.Player, Aide(game));
+        var roster = LandRoster.For(game.Player, Aide(game), borrowedMen);
 
         // 판을 <b>화면 점</b>에 딱 떨어지게 앉힌다 — 배율이 175%인 화면에서 그냥
         // DIP 로 재면 곱이 1 로 깎이고, 그 1배 그림을 창이 다시 1.75배로 늘리면서

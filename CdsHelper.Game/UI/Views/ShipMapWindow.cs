@@ -1299,8 +1299,112 @@ public sealed class ShipMapWindow : Window
 
         ConfirmDialog.Tell(this, Encounter.GreetOf(foe, rng), Encounter.TitleOf(foe.Kind), face);
         ConfirmDialog.Tell(this, Encounter.FightOnWord(rng), "응전", face);
+        int leaderId = foe.Leader?.Id ?? Encounter.PirateLeader;
+        var foeFace = PersonFace(leaderId);
         SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
-                              (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx);
+                              (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
+                              foeFace, SeaDuel(leaderId, foe.Name, foeFace));
+    }
+
+    /// <summary>그 인물의 얼굴. 인물표를 못 읽었으면 null.</summary>
+    private uint[]? PersonFace(int id) =>
+        _game.World?.Table.Find(id) is { } row ? _game.Faces?.TryGetBgra(row.Face, female: false) : null;
+
+    /// <summary>
+    /// 해전 일기토(<c>0x0043A200</c> 6.4 → <c>0x004AA700(적장, 0, 0, −1)</c>) — 판 창 위에 결투 판을 연다.
+    /// </summary>
+    /// <remarks>
+    /// 싸우는 값은 해전 값이 아니라 <b>인물 레코드</b>(체력·무력·검술·운)다. 갈래 0 이라 부관이 있으면
+    /// 「　부관을 싸우게 하겠습니까?」를 묻는다(<c>0x004A8611</c>). 이기면 처형·놓아 준다·모두 뺏는다(<c>0x004A9E50</c>).
+    /// 지면 용서받아도 기함이 가라앉은 것으로 쳐 GAME OVER 라 도망·용서 말은 안 낸다. 상대 무기·갑옷은 인물표에 없어 0 이다.
+    /// </remarks>
+    private Func<Window, bool?> SeaDuel(int leaderId, string name, uint[]? foeFace) => board =>
+    {
+        var player = _game.Player;
+        var row = _game.World?.Table.Find(leaderId);
+        var builtin = Encounter.CaptainOf(leaderId);
+        var foe = new Engine.Town.Duel.Fighter(
+            row?.Name is { Length: > 0 } rowName ? rowName : name,
+            Body: row?.Stats is { Length: > 0 } s0 ? s0[Ability.Body] : 50,
+            Might: row?.Stats is { Length: > Ability.Might } s2 ? s2[Ability.Might] : builtin.Might,
+            Sword: row?.Skills is { Length: > Skill.Sword } k ? k[Skill.Sword] : builtin.Sword,
+            Luck: row?.Stats is { Length: > Ability.Luck } s4 ? s4[Ability.Luck] : builtin.Luck,
+            Weapon: 0, Armor: 0);
+
+        var dice = new GameRandom(Environment.TickCount);
+        var mate = SeaSendMate(board, dice);
+        var me = mate is { } m
+            ? new Engine.Town.Duel.Fighter(m.Name, m.Body, m.Might, m.Sword, m.Luck,
+                                           BestItem(Engine.Town.Duel.WeaponCategory),
+                                           BestItem(Engine.Town.Duel.ArmorCategory))
+            : MyFighter();
+        var duel = new Engine.Town.Duel(me, foe, player.Items.Contains(Engine.Town.Duel.EdithShieldId),
+                                        Environment.TickCount);
+
+        DuelDialog.Show(board, duel, dice, foeFace, _game.Fighters, foeSet: 1,
+                        myFace: _game.Faces?.TryGetBgra(
+                            PortraitAges.At(player.Face, player.Age, false, _game.Faces), female: false),
+                        arena: DuelArt.Deck,
+                        bgm: _game.Bgm);
+
+        // 대신 나간 사람이 다친다(0x004AA5F8).
+        if (mate is { } hurt) player.HurtMate(hurt.Name, duel.BodyLost);
+        else player.Hurt(duel.BodyLost);
+
+        if (duel.Won != true) return false;
+        SeaTriumph(board, leaderId, foeFace, dice);
+        return true;
+    };
+
+    /// <summary>부관을 대신 내보낼지 묻는다(<c>0x004A8611</c>) — 술집 일기토와 같은 셈·말이다.</summary>
+    private Player.MateInfo? SeaSendMate(Window owner, GameRandom dice)
+    {
+        var player = _game.Player;
+        string first = player.Mates.FirstOrDefault(n => n.Length > 0) ?? "";
+        if (first.Length == 0 || player.MateInfoOf(first) is not { } mate) return null;
+        if (!ConfirmDialog.Ask(owner, "　부관을 싸우게 하겠습니까?", "일기토")) return null;
+
+        int mine = (player.AbilityOf(Ability.Might) + 1) / TavernMenu.MateEdge
+                 + player.LevelOf(Skill.Names[Skill.Sword]) * TavernMenu.MateSwordWeight;
+        int theirs = (mate.Might + 1) / TavernMenu.MateEdge + mate.Sword * TavernMenu.MateSwordWeight;
+
+        var face = _game.Faces?.TryGetBgra(mate.Face, female: false);
+        if (mine <= theirs)
+        {
+            TalkDialog.Say(owner, face, "", TavernMenu.MateEager[dice.Next(TavernMenu.MateEager.Length)]);
+            return mate;
+        }
+        TalkDialog.Say(owner, face, "", TavernMenu.MateShy[dice.Next(TavernMenu.MateShy.Length)]);
+        return ConfirmDialog.Ask(owner, "　부관을 싸우게 하겠습니까?", "일기토") ? mate : null;
+    }
+
+    /// <summary>해전 일기토에서 이긴 뒤 — 처형한다 · 놓아 준다 · 모두 뺏는다(<c>0x004AA2D2</c>~).</summary>
+    private void SeaTriumph(Window owner, int leaderId, uint[]? face, GameRandom dice)
+    {
+        var player = _game.Player;
+        switch (ChoiceDialog.Pick(owner, "", ["처형한다", "놓아 준다", "모두 뺏는다"]))
+        {
+            case 0:
+                TalkDialog.Say(owner, face, "", TavernMenu.Executed[dice.Next(TavernMenu.Executed.Length)]);
+                if (_game.World?.People.FirstOrDefault(r => r.Id == leaderId) is { } person)
+                    person.Appear = 0;                                            // 0x00432180(0)
+                break;
+
+            case 2:
+                TalkDialog.Say(owner, face, "", TavernMenu.Robbed[dice.Next(TavernMenu.Robbed.Length)]);
+                player.Infamy += TavernMenu.RobInfamy;
+                NoticeDialog.Show(owner, $"악명이 {TavernMenu.RobInfamy} 올라갔다", "일기토");
+                int gold = dice.Next(TavernMenu.RobGoldRoll) + TavernMenu.RobGoldBase;
+                player.Earn(gold);
+                NoticeDialog.Show(owner, $"금화 {gold}닢을 손에 넣었다", "일기토");
+                break;
+
+            default:
+                TalkDialog.Say(owner, face, "", TavernMenu.Beaten[dice.Next(TavernMenu.Beaten.Length)]);
+                player.Fame += TavernMenu.SpareFame;
+                NoticeDialog.Show(owner, $"명성이 {TavernMenu.SpareFame} 올라갔다", "일기토");
+                break;
+        }
     }
 
     /// <remarks>
@@ -2453,8 +2557,8 @@ public sealed class ShipMapWindow : Window
     /// 새로 붙은 배가 하나라도 있으면 그 틱에는 바다 주사위(<see cref="CheckEncounter"/>)를
     /// 굴리지 않는다 — 게임도 <c>0x0048C126</c> 에서 목록이 비었을 때만 주사위로 간다.
     ///
-    /// <b>아직 못 옮긴 것</b> — 우호 만남의 정보·보급 거래(<c>0x0048CCF0</c>), 해전 자체, 영해
-    /// 경고에서 상대가 따르지 않고 싸움을 거는 조건.
+    /// 그 뒤의 흐름·해전·값 치르기는 볼트 <c>전투/93.분석-보이는 함대 습격</c> 그대로다
+    /// (<see cref="FleetRaid"/>). 해전에서 내 기함이 가라앉으면 놀이가 끝난다.
     /// </remarks>
     /// <returns>이번에 새로 두 칸 안에 든 배가 있었는지.</returns>
     private bool MeetFolk()
@@ -2476,15 +2580,19 @@ public sealed class ShipMapWindow : Window
 
         _asking = true;
         _host.Paused = true;
+        bool over = false;
         try
         {
-            if (PickFolk(fresh) is { } who) Approach(world, who);
+            if (PickFolk(fresh) is { } who) over = Approach(world, who);
         }
         finally
         {
             _host.Paused = false;
             _asking = false;
         }
+
+        // 창을 되돌리는 것은 try 밖에서 한다 — 안에서 하면 닫히는 창에 잠금을 풀게 된다.
+        if (over) ReturnToTitle();
         return true;
     }
 
@@ -2516,7 +2624,12 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>다가간 뒤 — 우호적으로 접근한다 · 습격한다 · 떠난다(<c>0x0056FBE0</c> 벌).</summary>
-    private void Approach(PersonWorld world, PersonTable.Row who)
+    /// <remarks>
+    /// 세 줄 모두 켜져 있다(<c>0x00487820</c> 의 켜짐 깃발 1). 「떠난다」는 아무 값도 안 바꾼다 —
+    /// 걸쇠만 남아 두 칸 밖으로 벗어났다 다시 들어오면 또 묻는다.
+    /// </remarks>
+    /// <returns>해전에서 내 기함이 가라앉아 놀이가 끝났는지.</returns>
+    private bool Approach(PersonWorld world, PersonTable.Row who)
     {
         var template = _game.PersonTemplates?.Find(who.Id);
         int nation = template?.Nation ?? -1;
@@ -2524,26 +2637,29 @@ public sealed class ShipMapWindow : Window
         string nationName = _game.Nations?.Find(nation)?.Name ?? "";
         var face = _game.Faces?.TryGetBgra(who.Face, female: false);
         var aide = _game.AideFace;
+        // 운세 칸(0x00477FE0) — 별자리·혈액형이 밑표(얼굴·혈액형·나라)에서 나온다.
+        var fortune = FleetRaid.FortuneOf(template?.Face ?? 0, template?.Blood ?? 0, nation);
 
         int pick = ChoiceDialog.Ask(this, who.Name, ["우호적으로 접근한다", "습격한다"], cancel: "떠난다");
-        if (pick < 0) return;
+        if (pick < 0) return false;
 
         bool fight = pick == 0
-            ? Befriend(who, side, nationName, face, aide)
+            ? Befriend(who, side, nationName, fortune, face, aide)
             : Raid(side, nationName, face, aide, _game.Random);
 
-        if (fight) FightFolk(world, who, nation);
+        return fight && FightFolk(world, who, nation, face);
     }
 
-    /// <summary>우호적으로 접근했을 때. 싸움이 붙으면 true.</summary>
-    private bool Befriend(PersonTable.Row who, FolkSide side, string nationName,
+    /// <summary>우호적으로 접근했을 때(<c>0x0048C3B4</c>). 싸움이 붙으면 true.</summary>
+    /// <remarks>여기서 이어진 해전도 플래그 0 이다 — 해적이 덮쳐 와도 이기면 악명이 오른다.</remarks>
+    private bool Befriend(PersonTable.Row who, FolkSide side, string nationName, int[] fortune,
                           uint[]? face, uint[]? aide)
     {
         switch (side)
         {
             // 포르투갈·에스파니아 배는 1492년까지는 여느 배다(0x0048C530 의 cmp 해, 0x5D4).
             case FolkSide.Crown when _game.Player.Date.Year > 1492:
-                return Treaty(nationName, face, aide);
+                return Treaty(nationName, fortune, face, aide);
 
             case FolkSide.Heathen:
                 return MeetHeathen(face);
@@ -2555,12 +2671,77 @@ public sealed class ShipMapWindow : Window
                 return true;
 
             default:
-                // 0x0048CCF0 — "여어, 자네! 나는 %s의 %s%s네." 가운데 두 %s 는 아직 안 짚었다.
-                ConfirmDialog.Tell(this, $"여어, 자네! 나는 {nationName}의 {who.Name}네. 항해는 순조롭나?",
-                                   face: face);
-                if (ChoiceDialog.Ask(this, who.Name, ["정보를 산다", "보급물자를 산다"], cancel: "헤어진다") >= 0)
-                    ConfirmDialog.Tell(this, "…(정보·보급 거래는 아직 옮기지 못했다.)");
+                Trade(who, nationName, fortune, face, aide);
                 return false;
+        }
+    }
+
+    /// <summary>
+    /// 같은 나라·그 밖의 배와의 거래(<c>0x0048CCF0</c>) — 「보급물자를 산다」와 「헤어진다」 두 줄뿐이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   k = 운세[4]==0 ? 2 : 1 ;  물 (rand(3)+k)*10 · 식량 (rand(3)+k)*15   한 통
+    ///   성사 = rand(100) ≤ 매력+1  (하트 0x004A6360)
+    ///   실패 && 운세[4] != 2 → 「미안하지만 나누어 줄 만큼…」 끝
+    ///   고리 — 처음이고 운세[4]==0 이면 비싼 값 말 + 부관 「바가지」, 아니면 여느 값 말
+    ///          「물을 산다」/「식량을 산다」/「교섭을 안한다」
+    ///          최대 = min(소지금/값, 100, 빈 적재, 남는 무게/단중량)
+    /// </code>
+    /// 「정보를 산다」(<c>0x005702A0</c>)와 그 대답 두 줄은 EXE 에 글만 있고 <b>아무도 안 읽는다</b>.
+    /// 인사말의 셋째 %s 는 조사 갈래를 못 짚어 받침이 있으면 「이」를 붙인다.
+    /// </remarks>
+    private void Trade(PersonTable.Row who, string nationName, int[] fortune, uint[]? face, uint[]? aide)
+    {
+        var player = _game.Player;
+        var rng = _game.Random;
+        var (waterPrice, foodPrice) = FleetRaid.PricesOf(fortune, rng);
+
+        ConfirmDialog.Tell(this, $"여어, 자네! 나는 {nationName}의 {who.Name}{GameUi.Josa(who.Name, "이", "")}네. " +
+                                 "항해는 순조롭나?", face: face);                               // 0x00570270
+        if (ChoiceDialog.Ask(this, who.Name, ["보급물자를 산다"], cancel: "헤어진다") != 0) return;
+
+        bool shares = FleetRaid.Shares(player.AbilityOf(Ability.Charm), rng);
+        EffectPopup.Play(this, _game, EffectAnim.Heart, shares, MapAreaOnScreen());
+        if (!shares && fortune[4] != 2)
+        {
+            ConfirmDialog.Tell(this, "미안하지만 나누어 줄 만큼 여유가 없네. 미안하네, 주님의 가호가 있기를!",
+                               face: face);                                                    // 0x00570330
+            return;
+        }
+
+        for (bool first = true; ; first = false)
+        {
+            if (first && fortune[4] == 0)
+            {
+                ConfirmDialog.Tell(this, $"물은 금화 {waterPrice}닢, 식량은 금화 {foodPrice}닢 지불한다면 " +
+                                         "팔 수도 있네.", face: face);                          // 0x005703E8
+                ConfirmDialog.Tell(this, "제독. 이놈, 우리가 난처한 입장에 있는걸 알고 바가지 씌울 생각인 것 " +
+                                         "같습니다.", face: aide);                              // 0x00570428
+            }
+            else
+            {
+                ConfirmDialog.Tell(this, $"물은 금화 {waterPrice}닢으로, 식량은 금화 {foodPrice}닢 지불한다면 " +
+                                         "팔 수도 있지.", face: face);                          // 0x005704B8
+            }
+
+            int pick = ChoiceDialog.Ask(this, who.Name, ["물을 산다", "식량을 산다"], cancel: "교섭을 안한다");
+            if (pick < 0) return;
+
+            var kind = pick == 0 ? SupplyKind.Water : SupplyKind.Food;
+            int price = pick == 0 ? waterPrice : foodPrice;
+            int room = Math.Max(0, player.Capacity - player.LoadedBarrels);                   // 0x00474490
+            int weight = Math.Max(0, player.Tonnage - player.LoadedWeight)
+                         / Supply.Of(kind).UnitWeight;                                        // 0x004743D0
+            int most = Math.Min(Math.Min(player.Gold / price, FleetRaid.MaxBarrels), Math.Min(room, weight));
+            if (most <= 0) continue;
+
+            if (NumberPadDialog.Ask(this, most, 0, most,
+                    $"몇 통 사겠습니까?\n(1통=금화 {price}닢/ 최대 {most}통)") is not { } barrels   // 0x005704F8
+                || barrels <= 0)
+                continue;
+
+            if (player.Pay(barrels * price)) player.AddSupply(kind, barrels);                 // 0x004740C0 · 0x00474160
         }
     }
 
@@ -2568,8 +2749,8 @@ public sealed class ShipMapWindow : Window
     /// 이교도 함대에 우호로 다가갔을 때(<c>0x0048C3DB</c>). 싸움이 붙으면 true.
     /// </summary>
     /// <remarks>
-    /// 아랍어(<c>vtbl+0x20(5)</c>)가 3 이면 교섭 줄이 뜬다. 아니면 <b>신앙심 + 1 ≥ 75</b> 일 때만
-    /// 저쪽이 덤빈다 — 신앙이 깊은 제독은 이교도가 먼저 알아본다. 둘 다 아니면 그냥 지나간다.
+    /// 아랍어(<c>vtbl+0x20(5)</c>)가 3 이면 교섭 줄이 뜬다 — 교섭하면 그 말로 끝난다. 아랍어를 못
+    /// 하거나 「전투를 한다」를 골라도 <b>신앙심 + 1 ≥ 75</b> 일 때만 저쪽이 덤빈다. 아니면 그냥 지나간다.
     /// </remarks>
     private bool MeetHeathen(uint[]? face)
     {
@@ -2582,10 +2763,8 @@ public sealed class ShipMapWindow : Window
                                          "그러나, 우리 선원들을 다치게 하면 용서치 않겠다.", face: face);
             if (pick != 1) return false;
         }
-        else if (player.AbilityOf(Ability.Faith) + 1 < 75)
-        {
-            return false;
-        }
+
+        if (player.AbilityOf(Ability.Faith) + 1 < 75) return false;
 
         ConfirmDialog.Tell(this, "이교도들, 우리들이 상대해 주겠다!", face: face);
         return true;
@@ -2599,18 +2778,18 @@ public sealed class ShipMapWindow : Window
     /// 선은 x = 15000(1/16 칸, 서경 45°)이고 1493년만 16223(서경 34°)이다. <b>포르투갈은 동쪽,
     /// 에스파니아는 서쪽이 제 바다</b>다.
     /// <list type="bullet">
-    ///   <item>제 바다면 이쪽이 경고하고(<c>0x0056FC10</c>) 저쪽이 물러간다(<c>0x0056FCD8</c>).
-    ///         게임은 저쪽 형편 칸(<c>vtbl+0x24</c> 넷째)이 2 면 "조약따윈 모른다!" 로 덤비는데
-    ///         그 칸을 아직 못 짚어 늘 물러가게 둔다.</item>
+    ///   <item>제 바다면 이쪽이 경고한다(<c>0x0056FC10</c>). 저쪽 운세 칸(<c>vtbl+0x24</c> = <c>0x00477FE0</c>)
+    ///         넷째(<c>[3]</c>)가 2 면 「조약따윈 모른다!」(<c>0x0056FC70</c>) + 부관 「당치도 않는 소리를!」
+    ///         (<c>0x0056FCA0</c>)로 해전, 아니면 저쪽이 물러간다(<c>0x0056FCD8</c>).</item>
     ///   <item>남의 바다면 저쪽이 경고하고(<c>0x0056FD18</c>) 따를지 칠지 고른다.</item>
     /// </list>
     /// </remarks>
-    private bool Treaty(string theirNation, uint[]? face, uint[]? aide)
+    private bool Treaty(string theirNation, int[] fortune, uint[]? face, uint[]? aide)
     {
         var player = _game.Player;
         var (_, lon) = _host.ShipLatLon;
         int x = (int)((lon + 180) / 360 * 40000);
-        int line = player.Date.Year == 1493 ? 16223 : 15000;
+        int line = FleetRaid.TreatyLine(player.Date.Year);
         bool west = x <= line;
 
         if ((player.Nation == 0) != west)
@@ -2618,6 +2797,12 @@ public sealed class ShipMapWindow : Window
             string mine = _game.Nations?.Find(player.Nation)?.Name ?? player.NationName;
             ConfirmDialog.Tell(this, $"경고한다. 여기는 {mine}의 영해다. " +
                                      "타국의 배는 기항도 항해도 허용되지 않는다. 신속히 떠나도록.", face: aide);
+            if (fortune[3] == 2)
+            {
+                ConfirmDialog.Tell(this, "조약따윈 모른다! 물고기 밥이 되게 해 주마!", face: face);
+                ConfirmDialog.Tell(this, "당치도 않는 소리를! 제독, 할 수 없습니다. 싸웁시다.", face: aide);
+                return true;
+            }
             ConfirmDialog.Tell(this, "알았다. 우리는 조약을 위반할 뜻은 없다. 이 해역에서 떠나겠다.", face: face);
             return false;
         }
@@ -2663,13 +2848,120 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 해전 뒤끝. 게임은 싸우고 나면 그 사람을 제 나라 수도로 돌려보내고 예순 날 재운다
-    /// (<c>0x0048CCD7</c> → <c>0x00432400</c>).
+    /// 보이는 함대와 해전(<c>0x0048CC20(인물, 0)</c>) — 교섭·도망·응전 창 없이 곧장 판이다.
     /// </summary>
-    private void FightFolk(PersonWorld world, PersonTable.Row who, int nation)
+    /// <remarks>
+    /// <code>
+    ///   0x004435B0(id, 목록, 플래그 0)   ; 플래그 0 이라 0x004555B0 을 건너뛴다
+    ///   0x00441A00                        ; 바람은 함대 자리 바다 바람, 대열은 함대 +0xDC, 선공 덤 없음
+    ///   0x004350F0                        ; 끝 — 값 치르기는 <see cref="SettleRaid"/>
+    ///   0x00432400                        ; 결과와 상관없이 제 나라 수도로 · -60일
+    /// </code>
+    /// 적 배는 그 사람을 적장으로 짓는다(<see cref="EnemyFleet"/>). 대본 함대 276~280 의 선체 목록
+    /// (<c>0x00589C70</c>)은 아직 없어 그들도 적장 능력으로 짓는다.
+    /// </remarks>
+    /// <returns>내 기함이 가라앉아 놀이가 끝났는지.</returns>
+    private bool FightFolk(PersonWorld world, PersonTable.Row who, int nation, uint[]? foeFace)
     {
-        ConfirmDialog.Tell(this, "…(해전은 아직 옮기지 못했다. 적은 물러갔다.)");
-        world.SendHome(who, _game.Nations?.Find(nation)?.Capital ?? -1);
+        var player = _game.Player;
+        var rng = _game.Random;
+        var leader = CaptainOf(who.Id) ?? Encounter.CaptainOf(who.Id);
+        var foe = Encounter.OfPerson(leader, who.Name);
+        int capital = _game.Nations?.Find(nation)?.Capital ?? -1;
+
+        var report = SeaCombatDialog.Engage(this, player, foe, rng, MateFace(),
+                                            (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx, foeFace,
+                                            (board, end) => SettleRaid(board, end, nation, capital, rng),
+                                            SeaDuel(who.Id, who.Name, foeFace));
+
+        // 판이 어떻게 끝났든 상대는 제 나라 수도로 돌아가 예순 날 쉰다 — 곧바로 다시 못 만난다.
+        world.SendHome(who, capital);
+
+        if (report.Outcome != SeaCombatDialog.Outcome.Defeated) return false;
+
+        // 패배 — 0x0044AF40(0x5A4D18, 2). 끝 까닭별 그림 번호는 아직 못 갈라 반란 패배 그림을 쓴다.
+        GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+        return true;
+    }
+
+    /// <summary>
+    /// 보이는 함대 해전의 값 치르기(<c>0x004350F0</c>, 플래그 0) — 판 창 위에 알린다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   밑값        적장 나라 == 내 나라 ? 악명 100 : 명성 100
+    ///   적 기함 격침 명성 +120 · 악명 +180 · 전리품 (100(규모+1)+rand100) x 꺾음 · 무력 오름 1/20
+    ///   적 기함 퇴각 명성·악명 같음 · 전리품 없음 · 무력 오름 1/20        (알림 끝에 느낌표 없음)
+    ///   내 기함 퇴각 악명 +200 만
+    ///   내 기함 격침 없음(GAME OVER)
+    /// </code>
+    /// 곧 명성 220/120 · 악명 180/280(남의 나라/같은 나라), 도망 악명 200/300 이다. 항복은 게임에 없는
+    /// 앱 차림표라 도망처럼 친다. 나포선 들임(<c>0x00434D30</c>)과 되찾은 배 알림은 나포가 없어 안 낸다.
+    /// </remarks>
+    private void SettleRaid(Window board, SeaCombatDialog.Report end, int nation, int capital, Random rng)
+    {
+        const string Title = "해전";
+        var player = _game.Player;
+        var (fame, infamy) = FleetRaid.BaseOf(nation == player.Nation);
+
+        switch (end.Outcome)
+        {
+            case SeaCombatDialog.Outcome.Won:
+            case SeaCombatDialog.Outcome.EnemyRetreated:
+            {
+                bool won = end.Outcome == SeaCombatDialog.Outcome.Won;
+                string bang = won ? "!" : "";                      // 0x0056A7E8 · 0x0056ADF8
+                fame += FleetRaid.WinFame;
+                infamy += FleetRaid.WinInfamy;
+
+                player.Fame = Math.Min(FleetRaid.MaxRenown, player.Fame + fame);
+                ConfirmDialog.Tell(board, $"명성이 {fame} 올라갔다{bang}", Title);
+                player.Infamy = Math.Min(FleetRaid.MaxRenown, player.Infamy + infamy);
+                ConfirmDialog.Tell(board, $"악명이 {infamy} 올라갔다{bang}", Title);
+
+                if (won && end.EnemyDowned + end.EnemyCaptured > 0)
+                {
+                    // 규모는 EXE 의 처음 규모로 갈음한다(도시가 자라는 셈은 아직 없다).
+                    int scale = _game.CityRows?.ScaleOf(capital) ?? 0;
+                    int gold = FleetRaid.Loot(scale, end.EnemyDowned + end.EnemyCaptured, rng);
+                    ConfirmDialog.Tell(board, $"전리품으로서 금화 {gold} 닢을 손에 넣었다!", Title);   // 0x0056A828
+                    player.Earn(gold);
+                }
+
+                RaiseMight(board, rng);
+                break;
+            }
+
+            case SeaCombatDialog.Outcome.Escaped:
+            case SeaCombatDialog.Outcome.Surrendered:
+                infamy += FleetRaid.FleeInfamy;
+                player.Infamy = Math.Min(FleetRaid.MaxRenown, player.Infamy + infamy);
+                ConfirmDialog.Tell(board, $"악명이 {infamy} 올라갔다", Title);                      // 0x0056AD28
+                break;
+        }
+    }
+
+    /// <summary>해전 뒤 무력 오름(<c>0x00455CA0(0)</c>) — 스물에 하나, 제독·부관이 1~2 오른다.</summary>
+    private void RaiseMight(Window board, Random rng)
+    {
+        var player = _game.Player;
+        string mateName = player.MateAt(0);
+        var mate = mateName.Length > 0 ? _game.MateInfo(mateName) : null;
+        var (admiral, raiseMate, amount) = FleetRaid.MightUp(player.AbilityOf(Ability.Might), mate?.Might, rng);
+        if (amount == 0) return;
+
+        if (admiral)
+            player.Abilities[Ability.Might] = Math.Min(FleetRaid.MaxMight, player.Abilities[Ability.Might] + amount);
+        if (raiseMate && mate is { } m)
+            player.RememberMate(m with { Might = Math.Min(FleetRaid.MaxMight, m.Might + amount) });
+
+        string text = (admiral, raiseMate) switch
+        {
+            (true, true) => $"{player.Name}, 부관의 무력이 {amount} 상승했다!",   // 0x005602A8
+            (true, false) => $"{player.Name}의 무력이 {amount} 상승했다!",        // 0x00560258
+            _ => $"부관의 무력이 {amount} 상승했다!",                              // 0x00560280
+        };
+        ConfirmDialog.Tell(board, text, "성장");
     }
 
     /// <summary>두 칸. 게임은 1/16 칸 거리² 가 <c>0x400</c> 이하일 때 붙인다(<c>0x0048C0E5</c>).</summary>
@@ -3026,6 +3318,7 @@ public sealed class ShipMapWindow : Window
         if (Encounter.AtSea(lat, lon, steps, _game.Random, CaptainOf) is not { } foe) return;
         var rng = _game.Random;
 
+        bool over = false;
         _asking = true;
         _host.Paused = true;
         try
@@ -3056,14 +3349,27 @@ public sealed class ShipMapWindow : Window
 
             // 여기까지 오면 해전이다 — 조우 함수가 0 을 돌려주면 부른 쪽이 판을 연다(볼트 47).
             // 판의 풍향·세기는 함대 자리의 바다 바람에서 온다(0x00441F1C).
-            SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
-                                  (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx);
+            int leaderId = foe.Leader?.Id ?? Encounter.PirateLeader;
+            var foeFace = PersonFace(leaderId);
+            var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
+                                                (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
+                                                foeFace, SeaDuel(leaderId, foe.Name, foeFace));
+
+            // 기함을 잃으면(격침·나포·일기토 패배) 놀이가 끝난다 — 보이는 함대 해전(FightFolk)과 같다.
+            if (outcome == SeaCombatDialog.Outcome.Defeated)
+            {
+                GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+                over = true;
+            }
         }
         finally
         {
             _asking = false;
             _host.Paused = false;
         }
+
+        // 창을 되돌리는 것은 try 밖에서 한다 — 안에서 하면 닫히는 창에 잠금을 풀게 된다.
+        if (over) ReturnToTitle();
     }
 
     /// <summary>
@@ -3073,7 +3379,8 @@ public sealed class ShipMapWindow : Window
     {
         var row = _game.World?.Table.Find(id);
         var template = _game.PersonTemplates?.Find(id);
-        return Encounter.CaptainOf(id, row?.Stats, row?.Skills, template?.Nation, template?.Job);
+        return Encounter.CaptainOf(id, row?.Stats, row?.Skills, template?.Nation, template?.Job,
+                                   template?.Face, template?.Blood);
     }
 
     /// <summary>교섭 한 판. 돈을 물어 물러가면 true.</summary>

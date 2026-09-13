@@ -191,9 +191,9 @@ def main():
         for p2, s2, _, _, _ in PIECES:
             if p2 == part and s2 > start:
                 span = min(span, s2 - start)
-        # 작은 글자(A·E)는 바탕을 색인 74(공용 색표의 흰색)로 칠해 두었다 — 160 과 함께 비침으로 친다.
-        # 안 그러면 판 위에 흰 네모가 깔린다(포탄 dot-00 은 160 바탕이라 그대로다).
-        keys = (TRANSPARENT, DOT_BACK) if name == "dot" else (TRANSPARENT,)
+        # 작은 글자(A·E)와 피해 숫자는 바탕을 색인 74(공용 색표의 흰색)로 칠해 두었다 — 160 과 함께
+        # 비침으로 친다. 안 그러면 판 위에 흰 네모가 깔린다(포탄 dot-00 은 160 바탕이라 그대로다).
+        keys = (TRANSPARENT, DOT_BACK) if name in ("dot", "digit") else (TRANSPARENT,)
         for i, im in enumerate(frames(data[start:start + span], w, h, banks, shared, keys=keys)):
             im.save(os.path.join(out_dir, "%s-%02d.png" % (name, i)))
             made += 1

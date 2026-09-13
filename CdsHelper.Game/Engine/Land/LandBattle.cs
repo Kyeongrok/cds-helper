@@ -144,6 +144,75 @@ public sealed class LandBattle
         MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
     }
 
+    /// <summary>
+    /// <b>발견 대본</b>의 육상전 판을 세운다 — <c>2F 0D [인물]</c> 이다(갈래 3).
+    /// </summary>
+    /// <remarks>
+    /// 해석기가 <c>0x0044AA30(3, 아군, 적 대장, 0, 지형)</c> 을 부른다. 도시가 없으므로
+    /// 적을 규모로 짓지 않는다(<c>0x00449E50</c> 은 갈래 2·4 만). 대신
+    /// <code>
+    ///   0x004A04F0  적 총원 = 적 대장 묶음 +0x0C + 1      ; 대본의 26 1C 10 이 채운다
+    ///   0x004A1200  부대 수를 굴림으로 깎고
+    ///   0x004A1320  적 대장 나라 수도의 문화권(0x00447070)으로 진형을 고른다
+    /// </code>
+    /// 적 대장 능력은 그 인물의 것이다(<c>0x00446FBC</c>). 도시 규모는 없으니 0 이다.
+    /// </remarks>
+    /// <param name="mine">아군 여섯 자리의 병종.</param>
+    /// <param name="myMen">아군 총원(묶음 +0x0C + 1, <c>0x0044A7C8</c>).</param>
+    /// <param name="foeMen">적 총원.</param>
+    /// <param name="foe">적 대장의 무력 · 지력 · 운 · 체력.</param>
+    /// <param name="foeSkills">
+    /// 적 대장의 실제 기능(검술 · 포술 · 사격술). 편성을 <b>이 생성자 안에서</b> 짓기 때문에(<c>Deal</c>)
+    /// 초기화 식으로 나중에 넣으면 늦는다 — 여기서 받는다.
+    /// </param>
+    public LandBattle(IReadOnlyList<int> mine, int myMen, int foeMen, Player player,
+                      Player.MateInfo? aide, int culture, int terrain,
+                      (int Might, int Mind, int Luck, int Body) foe, GameRandom dice,
+                      (int Sword, int Gunnery, int Shooting)? foeSkills = null)
+    {
+        FoeSkills = foeSkills;
+        Sort = Script;
+        Nation = -1;
+        Culture = culture;
+        Terrain = Math.Clamp(terrain, 0, 3);
+        Scale = 0;
+        _me = player;
+        _aide = aide;
+
+        MyFirst = Math.Max(1, myMen);
+        Split(mine, MyFirst);
+
+        FoeMight = foe.Might;
+        FoeMind = foe.Mind;
+        FoeLuck = foe.Luck;
+        FoeBody = foe.Body;
+
+        Deal(Math.Max(1, foeMen), dice);
+        Shell(player, dice);
+        for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
+        FoeRoom = FoeUnits > 0 ? FoeFirst / FoeUnits : FoeFirst;
+        MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
+    }
+
+    /// <summary>
+    /// 아군이 <b>빌린 병력</b>인지 — 참이면 끝나고 제독의 선원 수를 안 고친다.
+    /// </summary>
+    /// <remarks>
+    /// 대본이 <c>26 1C 02 [n]</c> 으로 임시 묶음(<c>[ebp-0xB0]</c>)을 세우면 싸움은 그 묶음으로
+    /// 한다. 부상병 복귀(<c>0x004495D5</c>)도 그 묶음의 <c>+0x0C</c> 에만 적히므로(<c>0x0045FF40</c>)
+    /// 함대의 선원은 그대로다.
+    /// </remarks>
+    public bool KeepsCrew { get; init; }
+
+    /// <summary>
+    /// 아군이 <b>다 쓰러져</b> 끝났는지. 물러난 것과 다르다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이때 <c>0x00449908</c> 에서 바로 게임 오버(<c>0x0044AF40(3)</c>)를 건다 — 들싸움만
+    /// 「적이 봐 준」 문이 있다. 판이 이것을 적어 두면 발견 대본이 보고 멈춘다.
+    /// </remarks>
+    public bool Wiped { get; internal set; }
+
     /// <summary>적 여섯 자리를 받은 대로 세우고 병력을 고르게 나눈다.</summary>
     private void Fill(IReadOnlyList<int> theirs, int men)
     {
@@ -199,6 +268,7 @@ public sealed class LandBattle
     public bool Reinforce(GameRandom dice)
     {
         if (_reinforced) return false;
+        if (Sort != Town) return false;     // 0x00449930 이 갈래 2 부터 본다
         if (Scale < ReinforcingScale && Nation != ReinforcingNation) return false;
 
         _reinforced = true;
@@ -314,7 +384,12 @@ public sealed class LandBattle
     {
         int men = 50 * scale * scale + 100 + dice.Next(50);
         if (scale <= 2) men *= 2;
+        Deal(men, dice);
+    }
 
+    /// <summary>총원으로 부대 수를 정하고 진형대로 나눠 세운다(<c>0x004A0530</c>).</summary>
+    private void Deal(int men, GameRandom dice)
+    {
         int units = Shrink(Math.Clamp(men / PerUnit, 1, PerSide), dice);
         var kinds = Formation(units, dice);
 
@@ -364,9 +439,26 @@ public sealed class LandBattle
     /// </remarks>
     private int FoeSkill(int slot)
     {
+        // 적 대장 인물을 알면(발견 대본의 2F 0D [인물]) 그 사람의 기능 자리를 그대로 본다.
+        // 파르테논 신전의 206번에게 사격술 3 을 주면 화승총병이 아니라 머스켓총병이 선다.
+        if (FoeSkills is { } known)
+            return Math.Clamp(slot switch
+            {
+                Skill.Sword => known.Sword,
+                Skill.Gunnery => known.Gunnery,
+                Skill.Shooting => known.Shooting,
+                _ => 0,
+            }, 0, Skill.MaxLevel);
+
         int stat = slot == Skill.Sword ? FoeMight : FoeMind;
         return stat >= 80 ? 3 : stat >= 60 ? 2 : stat >= 40 ? 1 : 0;
     }
+
+    /// <summary>
+    /// 적 대장의 실제 기능(검술 · 포술 · 사격술). 인물을 아는 판만 준다 — 없으면 능력에서 어림한다.
+    /// </summary>
+    /// <remarks>게임은 <c>0x00446F70(기능, 6)</c> 으로 적 대장 인물 레코드를 본다.</remarks>
+    public (int Sword, int Gunnery, int Shooting)? FoeSkills { get; init; }
 
     // ── 끝맺음 — 0x00449870 ────────────────────────────────────────────────────
 
@@ -469,8 +561,8 @@ public sealed class LandBattle
     /// </remarks>
     public int Sort { get; } = Town;
 
-    /// <summary>전투 갈래 둘 — 마을 공략과 들에서 마주친 부대다.</summary>
-    public const int Field = 1, Town = 2;
+    /// <summary>전투 갈래 — 들에서 마주친 부대 · 마을 공략 · 발견 대본의 인물전(<c>2F 0D</c>)이다.</summary>
+    public const int Field = 1, Town = 2, Script = 3;
 
     /// <summary>작렬탄을 받았는지. 서 있으면 포가 비를 안 탄다.</summary>
     public bool Shells { get; private set; }
@@ -617,7 +709,7 @@ public sealed class LandBattle
     /// </remarks>
     public bool DuelOffered(GameRandom dice)
     {
-        if (Sort != Field) return false;
+        if (Sort == Town) return false;     // 0x004479B0 은 갈래 2·4 만 닫는다
 
         int odds = _me.AbilityOf(Ability.Luck) * 3 / 10
                  - _me.AbilityOf(Ability.Might) + FoeMight;
@@ -646,7 +738,7 @@ public sealed class LandBattle
     /// </remarks>
     public bool FoeDuelOffered(GameRandom dice)
     {
-        if (Sort != Field) return false;
+        if (Sort == Town) return false;     // 0x004479D7 도 갈래 2·4 만 거른다
 
         // 적 첫 칸이 아직 성하면 부대 수까지 본다.
         if (_units[FirstFoe].Men >= RoomPerUnit(FirstFoe) * 4 / 10

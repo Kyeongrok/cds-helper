@@ -315,6 +315,12 @@ public sealed class Ship
     public void Repair() => Hp = MaxHp;
 
     /// <summary>
+    /// 내구를 그대로 박는다 — 해전 끝에 판의 칸 내구를 레코드에 되쓴다(<c>0x004350F0</c> → <c>0x0044C850</c>).
+    /// </summary>
+    /// <remarks>불사조상(<c>0x20</c>)은 판 안에서 내구를 올리므로 <see cref="Hurt"/> 로는 못 옮긴다.</remarks>
+    public void SetHp(int hp) => Hp = Math.Clamp(hp, 0, MaxHp);
+
+    /// <summary>
     /// 배 이름. 게임 문구에서는 뒤에 "호" 가 붙는다("산타마리아호").
     /// </summary>
     /// <remarks>

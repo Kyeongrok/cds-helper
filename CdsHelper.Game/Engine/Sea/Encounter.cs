@@ -36,9 +36,18 @@ public enum EnemyKind
 /// <param name="Gunnery">포술 <c>+0x934</c>.</param>
 /// <param name="Sword">검술 <c>+0x938</c>.</param>
 /// <param name="Shooting">사격술 <c>+0x93C</c>.</param>
+/// <param name="Fortune">
+/// 운세 여덟 칸(<c>vtbl+0x24</c> = <c>0x00477FE0</c>). 칸[0] 이 해전 <c>+0x940</c>, 칸[3] 이 일기토 걸기(<c>0x0043A347</c>)
+/// 에 든다. 없으면 얼굴·혈액형 0 으로 나라만 넣어 셈한다.
+/// </param>
 public readonly record struct Captain(
     int Id, int Nation, int Job, int Might, int Mind, int Charm, int Luck, int Faith,
-    int Gunnery, int Sword, int Shooting);
+    int Gunnery, int Sword, int Shooting, int[]? Fortune = null)
+{
+    /// <summary>운세 칸 하나(0~2).</summary>
+    public int FortuneAt(int slot) =>
+        (Fortune ?? FleetRaid.FortuneOf(0, 0, Nation)).ElementAtOrDefault(slot);
+}
 
 /// <summary>붙은 무리 하나.</summary>
 /// <param name="Ships">
@@ -352,6 +361,22 @@ public static class Encounter
     }
 
     /// <summary>
+    /// 지도에 보이는 인물 함대를 친다 — 그 사람을 적장으로 한 무리(<c>0x0048CC20</c> → <c>0x004435B0(id, 목록, 0)</c>).
+    /// </summary>
+    /// <remarks>
+    /// 척수·능력 합은 <see cref="Make"/> 와 같은 셈이다(교섭 창 몫이라 플래그 0 에서는 안 쓰인다).
+    /// 갈래는 창 제목에만 쓰이므로 해적 직업이면 해적, 아니면 이름 있는 적으로 둔다.
+    /// </remarks>
+    public static Enemy OfPerson(in Captain leader, string name)
+    {
+        int bonus = leader.Job switch { EnemyFleet.PirateJob => 2, EnemyFleet.SoldierJob or EnemyFleet.ConquerorJob => 1, _ => 0 };
+        int ships = Math.Clamp(leader.Might / 14 + bonus, 1, SeaBattle.PerSide);
+        int sum = (leader.Might - 1) + (leader.Mind - 1) + (leader.Charm - 1) + (leader.Luck - 1) + 1;
+        var kind = leader.Job == EnemyFleet.PirateJob ? EnemyKind.Pirate : EnemyKind.Raider;
+        return new Enemy(kind, name, ships, sum, leader);
+    }
+
+    /// <summary>
     /// 조우 인물 262~270 의 붙박이 값 — 인물표·인물 밑표를 못 읽었을 때 쓴다.
     /// </summary>
     /// <remarks>
@@ -385,12 +410,15 @@ public static class Encounter
     /// </summary>
     /// <param name="stats">능력 여섯(날값) — 체력·지력·무력·매력·운·신앙심.</param>
     /// <param name="skills">기능 열셋 — 차례는 <see cref="Skill.Names"/>.</param>
+    /// <param name="face">밑표 얼굴 — 운세 칸의 별자리에 든다.</param>
+    /// <param name="blood">밑표 혈액형.</param>
     public static Captain CaptainOf(int id, IReadOnlyList<int>? stats, IReadOnlyList<int>? skills,
-                                    int? nation, int? job)
+                                    int? nation, int? job, int? face = null, int? blood = null)
     {
         var fallback = CaptainOf(id);
         int Stat(int k, int dflt) => stats != null && k < stats.Count ? stats[k] : dflt;
         int Skl(int k, int dflt) => skills != null && k < skills.Count ? skills[k] : dflt;
+        int home = nation ?? fallback.Nation;
         return new Captain(
             id, nation ?? fallback.Nation, job ?? fallback.Job,
             Might: Stat(Ability.Might, fallback.Might),
@@ -400,7 +428,8 @@ public static class Encounter
             Faith: Stat(Ability.Faith, fallback.Faith),
             Gunnery: Skl(Skill.Gunnery, fallback.Gunnery),
             Sword: Skl(Skill.Sword, fallback.Sword),
-            Shooting: Skl(Skill.Shooting, fallback.Shooting));
+            Shooting: Skl(Skill.Shooting, fallback.Shooting),
+            Fortune: FleetRaid.FortuneOf(face ?? 0, blood ?? 0, home));
     }
 
     /// <summary>

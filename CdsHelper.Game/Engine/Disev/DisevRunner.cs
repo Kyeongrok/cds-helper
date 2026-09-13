@@ -2,6 +2,7 @@
 using System.Windows;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Game.Engine.Land;
 using CdsHelper.Game.UI.Views;
 
 namespace CdsHelper.Game.Engine.Disev;
@@ -91,6 +92,17 @@ public sealed class DisevRunner
     /// 지면 「왕릉을 침해한 죄를 죽음으로 대신해라!」 뒤 <c>4A</c>(게임 오버)다.
     /// </remarks>
     private bool _result;
+
+    /// <summary>이번 대본에서 미니게임이나 육상전이 결과를 남겼는지. 「이동」(43 45)이 본다.</summary>
+    private bool _hasResult;
+
+    /// <summary>대본이 <c>26 1C 02</c> 로 빌려 준 아군 병력. 없으면 −1(함대 선원을 쓴다).</summary>
+    private int _borrowedMen = -1;
+
+    /// <summary>대본이 <c>26 1C 10</c> 으로 넣은 적 병력. 없으면 −1.</summary>
+    private int _foeMen = -1;
+
+    private readonly GameRandom _dice = new(Environment.TickCount);
 
     /// <summary>
     /// 마지막으로 돌린 대본이 <b>게임 오버</b>(<c>4A</c>)로 끝났는지. 부른 쪽이 보고 놀이를 끝낸다.
@@ -296,9 +308,53 @@ public sealed class DisevRunner
                 _game.Player.Pay((int)Field(2, 4));
                 return 0;
 
-            // 늘 뛰는 것.
+            // 43 45 — 조건이 「마지막 결과」 그대로라 <b>결과가 거짓일 때만</b> 뛴다(0x0040B1B4).
+            // 러너는 예/아니오 물음을 아직 안 풀어 결과를 모르는 때가 많다. 그때는 예전처럼
+            // 늘 뛰고, 미니게임·육상전이 결과를 남긴 뒤에만 게임대로 가른다. 파르테논(파트 23)의
+            // +0x2C0 이 그 자리다 — 이긴 뒤 늘 뛰면 「우리가 이겼습니다!」와 방패를 건너뛴다.
             case "이동":
-                return (int)(short)Field(2, 2);
+                return _hasResult && _result ? 0 : (int)(short)Field(2, 2);
+
+            // 43 12 0E — 그 힌트를 얻었거나 보고까지 했으면 뛴다(0x0040902F).
+            case "힌트 조건 분기":
+            {
+                int hint = (int)Field(3, 2);
+                bool held = _game.Player.HasHint(hint)
+                            || (_game.Discoveries?.IsHintDone(_game.Player, hint) ?? false);
+                return held ? (int)(short)Field(5, 2) : 0;
+            }
+
+            // 26 1C [칸] — 육상전에 넘길 두 묶음만 받는다(0x0040A15C 의 뜀표 0x0040C314).
+            //   칸 2  아군 임시 묶음의 병력(0x0040A1F9 → 0x0045FF40)
+            //   칸 16 적 대장 묶음의 병력(0x0040A242 → 0x0045FF40)
+            // 그 밖의 칸은 아직 안 옮겼다.
+            case "능력치/기한 설정":
+            {
+                int slot = (int)Field(2, 2);
+                int value = op.Length >= 13
+                    ? (int)Field(9, 4) + _game.Random.Next((int)Math.Max(1, Field(5, 4)))
+                    : (int)Field(5, 4);
+                if (slot == 2) _borrowedMen = value;
+                else if (slot == 16) _foeMen = value;
+                return 0;
+            }
+
+            // 육상전 — 이겼는지를 남기고, 전멸했으면 그 자리에서 게임 오버로 멈춘다.
+            case "육상전(인물)":
+            case "육상전(도시)":
+            {
+                var battle = op.Kind == "육상전(인물)"
+                    ? LeaderBattle((int)Field(2, 2))
+                    : CityBattle((int)Field(2, 2));
+                _result = LandBattleScene.Run(_owner, _game, battle, _dice);
+                _hasResult = true;
+                if (battle.Wiped)
+                {
+                    LastEndedInGameOver = true;
+                    return Stop;
+                }
+                return 0;
+            }
 
             // 조건이 맞으면 뛴다. 조건 부분은 Holds 와 같은 눈으로 본다.
             case "발견물 조건 분기":
@@ -311,6 +367,7 @@ public sealed class DisevRunner
             // 미니게임 한 판 — 이겼는지를 들고 있다가 조건 47 이 읽는다.
             case "미니게임":
                 _result = PlayMinigame((int)Field(2, 2));
+                _hasResult = true;
                 return 0;
 
             // 조건 47 은 「마지막 결과가 0 인가」라 <b>이겼으면 뛴다</b>(0x0040B1C8 → 0x0040BCF9).
@@ -371,6 +428,110 @@ public sealed class DisevRunner
             default:
                 return true;
         }
+    }
+
+    /// <summary>
+    /// <c>2F 0D [인물]</c> 의 판 — 그 인물이 적 대장이다(<c>0x0040A40B</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0040a41d  아군 = 26 1C 02 가 세운 임시 묶음, 없으면 함대(0x005AA2B8)
+    ///   0040a423  적   = 인물 핸들 0x1000|번호(0x00477AF0), 병력은 26 1C 10 이 넣은 것
+    ///   0040a442  지형 = 배 자리의 부류(0x00426740) → 7 도시 · 2 초지 · 4 황무지 · 그 밖 숲
+    ///   0040a459  0x0044AA30(3, 아군, 적, 0, 지형)
+    ///   0040a47e  [ebp-0x1C] = (돌려준 값 == 0)   ; 0 이김 · 1 물러남 · 2 전멸(게임 오버)
+    /// </code>
+    /// 파르테논 신전(파트 23)은 26 1C 02 = 70, 26 1C 10 = 100~139, 적 대장 206 이다.
+    /// <b>지형</b>은 우리가 배 자리 부류를 안 들고 있어 도시 안이면 도시, 아니면 숲으로 둔다.
+    /// </remarks>
+    private LandBattle LeaderBattle(int person)
+    {
+        var player = _game.Player;
+        var aide = AideInfo();
+        int myMen = (_borrowedMen >= 0 ? _borrowedMen : player.Crew) + 1;
+
+        // 적 총원 = 묶음 +0x0C + 1(0x004A050D). 대본이 안 넣었으면 백으로 친다.
+        int foeMen = (_foeMen >= 0 ? _foeMen : 100) + 1;
+
+        // 적 대장 능력 — 인물 표의 능력 여섯(0 체력 · 1 지력 · 2 무력 · 4 운).
+        var foe = (Might: 75, Mind: 70, Luck: 65, Body: 85);
+        (int Sword, int Gunnery, int Shooting)? foeSkills = null;
+        try
+        {
+            if (PersonTable.Open().Find(person) is { } row && row.Stats.Length >= 5)
+            {
+                foe = (row.Stats[2], row.Stats[1], row.Stats[4], row.Stats[0]);
+                // 편성(병종)은 적 대장의 기능 자리로 갈린다 — 인물 표에 적힌 그대로 쓴다.
+                if (row.Skills.Length > Support.Local.Models.Skill.Shooting)
+                    foeSkills = (row.Skills[Support.Local.Models.Skill.Sword],
+                                 row.Skills[Support.Local.Models.Skill.Gunnery],
+                                 row.Skills[Support.Local.Models.Skill.Shooting]);
+            }
+        }
+        catch (Exception)
+        {
+            // 인물 표를 못 읽으면 도시 규모 3~4 의 밑값으로 싸운다.
+        }
+
+        // 문화권은 적 대장 나라의 수도 것이다(0x00447070).
+        int culture = 0;
+        if (_game.PersonTemplates?.Find(person) is { } who
+            && _game.Nations?.Find(who.Nation) is { } nation)
+            culture = _game.CityRows?.CultureOf(nation.Capital) ?? 0;
+
+        int terrain = player.CityId >= 0 ? 0 : 2;
+        // 적 기능은 생성자로 넘긴다 — 편성이 생성자 안에서 지어진다.
+        return new LandBattle(Deploy(aide), myMen, foeMen, player, aide, culture, terrain, foe, _dice,
+                              foeSkills)
+        {
+            KeepsCrew = _borrowedMen >= 0,
+        };
+    }
+
+    /// <summary>
+    /// <c>2F 08 [도시]</c> 의 판 — 그 도시를 친다(<c>0x0040A3B2</c> → <c>0x0044AA30(4, 아군, 0, 도시, 7)</c>).
+    /// </summary>
+    /// <remarks>
+    /// 적은 도시 규모로 짓는다(<c>0x00449E50</c> 은 갈래 2·4 가 함께 쓴다). 지형 인자 7 은
+    /// 싸움터 0(도시)이다(<c>0x0044A624</c>). 우리 판에 갈래 4 가 따로 없어 마을 공략(2)으로 세운다.
+    /// </remarks>
+    private LandBattle CityBattle(int city)
+    {
+        var player = _game.Player;
+        var aide = AideInfo();
+        int myMen = _borrowedMen >= 0 ? _borrowedMen + 1 : 0;
+        var rows = _game.CityRows;
+        return new LandBattle(Deploy(aide), player, aide, rows?.ScaleOf(city) ?? 0,
+                              rows?.NationOf(city) ?? -1, rows?.CultureOf(city) ?? 0,
+                              0, _dice, myMen)
+        {
+            KeepsCrew = _borrowedMen >= 0,
+        };
+    }
+
+    /// <summary>부관 신상. 없으면 null.</summary>
+    private Support.Local.Models.Player.MateInfo? AideInfo()
+    {
+        var player = _game.Player;
+        return player.Mates.Count > 0 && player.Mates[0].Length > 0
+            ? player.MateInfoOf(player.Mates[0]) : null;
+    }
+
+    /// <summary>
+    /// 부대배치 화면 — 게임도 판을 열기 전에 편다(<c>0x0044A963</c> → <c>0x00446E60</c>).
+    /// </summary>
+    /// <remarks>게임 화면에는 물리는 길이 없다. 창을 닫으면 제독 부대 하나만 세운다.</remarks>
+    private int[] Deploy(Support.Local.Models.Player.MateInfo? aide)
+    {
+        int city = _game.Player.CityId;
+        string where = city >= 0 ? _game.CityName(city) : "";
+        // 대본이 병력을 빌려 줬으면(파르테논 70명) 배치 판도 그 수로 짓는다 — 함대 선원이 아니다.
+        if (LandDeployDialog.Show(_owner, _game, where, _borrowedMen) is { } line) return line;
+
+        var alone = new int[LandRoster.SlotCount];
+        Array.Fill(alone, -1);
+        alone[0] = LandRoster.For(_game.Player, aide).KindAt(LandRoster.Leader);
+        return alone;
     }
 
     /// <summary>
