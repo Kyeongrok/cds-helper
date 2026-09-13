@@ -731,7 +731,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                         myFace: _game.Faces?.TryGetBgra(
                             PortraitAges.At(_player.Face, _player.Age, false, _game.Faces),
                             female: false),
-                        arena: "duel-tavern");
+                        arena: "duel-tavern",
+                        bgm: _game.Bgm);
 
         int lost = duel.BodyLost;
 

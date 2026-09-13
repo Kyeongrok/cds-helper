@@ -882,18 +882,22 @@ public sealed class CityPicView : GameWindow, ITownScreen
         Enter(spots[at]);
     }
 
-    /// <summary>「지도를 본다」 한 겹.</summary>
+    /// <summary>「지도를 본다」 한 겹 — 항해지도 · 취소(<c>0x0049328E</c>).</summary>
     private GameMenu MapMenu() => CityCommandMenu.Map(
-        wide: () => LookAtMap(wide: true),
-        near: () => LookAtMap(wide: false),
+        wide: LookAtChart,
         back: _cityMenu.Pop);
 
-    /// <summary>도시 그림을 잠깐 걷고 지도를 본다. 되돌리는 것은 함대 창이 맡는다.</summary>
-    private void LookAtMap(bool wide)
+    /// <summary>
+    /// 항해지도 창을 띄운다 — 바다와 <b>같은</b> 모달 창이다. 창을 그리는 것은 함대 창이 맡는다.
+    /// </summary>
+    /// <remarks>
+    /// 창이 떠 있는 동안 커맨드 창은 감춰 두고, 닫으면 「지도를 본다」 한 겹을 도로 낸다
+    /// (<c>0x0049334C</c> 가 취소가 아니면 메뉴를 다시 띄운다).
+    /// </remarks>
+    private void LookAtChart()
     {
         if (Owner is not ShipMapWindow map) { CloseCityMenu(); return; }
-        CloseCityMenu();
-        map.LookAtMap(wide, this);
+        map.ShowSeaChart(this, _cityMenu.Window);
     }
 
     /// <summary>도시 정보 창을 낸다. 표를 못 읽어도 열린다 — 그 줄만 비는 채로 뜬다.</summary>

@@ -83,6 +83,7 @@ BANK_A_PART, BANK_A_BASE = 17, 74      # 색인  74~159
 BANK_B_PART, BANK_B_BASE = 18, 160     # 색인 160~245
 BANK_SIZE = 86
 TRANSPARENT = 160
+DOT_BACK = 74          # 작은 글자 A·E 의 바탕 색인(흰색) — 이것도 비침이다
 
 # (파트, 시작, 폭, 높이, 이름) — 시작은 그 파트 안에서의 자리다.
 PIECES = [
@@ -136,9 +137,9 @@ def game_palette(repo):
     return pal + [(255, 0, 255)] * (256 - len(pal))
 
 
-def color(value, banks, shared, clear=True):
+def color(value, banks, shared, clear=True, keys=(TRANSPARENT,)):
     """색인 하나를 색으로. 비침이면 None(통짜 그림은 clear=False)."""
-    if clear and value == TRANSPARENT:
+    if clear and value in keys:
         return None
     for base, table in banks:
         if base <= value < base + BANK_SIZE:
@@ -148,13 +149,13 @@ def color(value, banks, shared, clear=True):
     return shared[value]
 
 
-def frames(data, w, h, banks, shared, clear=True):
+def frames(data, w, h, banks, shared, clear=True, keys=(TRANSPARENT,)):
     """한 덩이를 틀 크기로 잘라 낸다. clear 면 RGBA(비침 있음), 아니면 RGB."""
     out = []
     for f in range(len(data) // (w * h)):
         px = []
         for v in data[f * w * h:(f + 1) * w * h]:
-            c = color(v, banks, shared, clear)
+            c = color(v, banks, shared, clear, keys)
             px.append((0, 0, 0, 0) if c is None else
                       ((c[0], c[1], c[2], 255) if clear else c))
         im = Image.new("RGBA" if clear else "RGB", (w, h))
@@ -190,7 +191,10 @@ def main():
         for p2, s2, _, _, _ in PIECES:
             if p2 == part and s2 > start:
                 span = min(span, s2 - start)
-        for i, im in enumerate(frames(data[start:start + span], w, h, banks, shared)):
+        # 작은 글자(A·E)는 바탕을 색인 74(공용 색표의 흰색)로 칠해 두었다 — 160 과 함께 비침으로 친다.
+        # 안 그러면 판 위에 흰 네모가 깔린다(포탄 dot-00 은 160 바탕이라 그대로다).
+        keys = (TRANSPARENT, DOT_BACK) if name == "dot" else (TRANSPARENT,)
+        for i, im in enumerate(frames(data[start:start + span], w, h, banks, shared, keys=keys)):
             im.save(os.path.join(out_dir, "%s-%02d.png" % (name, i)))
             made += 1
 

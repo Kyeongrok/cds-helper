@@ -301,7 +301,7 @@ internal sealed class LandBattleScene : GameWindow
                                    _battle.FoeLuck, 0, 0);
 
         var duel = new Duel(mine, foe, shield: false, dice.Next());
-        return DuelDialog.Show(this, duel, dice, null);
+        return DuelDialog.Show(this, duel, dice, null, bgm: _game?.Bgm);
     }
 
     /// <summary>

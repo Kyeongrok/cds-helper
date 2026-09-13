@@ -2,7 +2,6 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Engine;
@@ -31,8 +30,15 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class DuelDialog : GameWindow
 {
-    /// <summary>고른 명령 라벨과 부위 막대의 바탕 — 눈금판의 검은 홈이다.</summary>
-    private static readonly Brush Slot = Frozen(Color.FromRgb(0x0A, 0x08, 0x08));
+    /// <summary>
+    /// 막대의 <b>검은 덮개</b> — 색 <c>0x49</c>, 공용 색표에서 (24, 20, 12)다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 막대 줄마다 <c>S(체력+1)</c> 넘는 자리를 이 색 네모로 채운다
+    /// (<c>0x004A71A9</c> ~ <c>0x004A73A7</c>, <c>0x4B9663(0, 0x49, 0)</c> → <c>0x4B9C04</c>).
+    /// 눈금판의 검은 홈과 같은 빛깔이다.
+    /// </remarks>
+    private static readonly Brush BarCover = Frozen(Color.FromRgb(24, 20, 12));
 
     /// <summary>
     /// 부위 막대를 칠하는 붓 셋 — <b>게임 조각을 그대로</b> 깐다.
@@ -128,26 +134,34 @@ public sealed class DuelDialog : GameWindow
 
     private readonly StackPanel _keys = new();
 
-    /// <summary>부위 막대 여섯 — 남은 것과 이번에 깎인 것을 겹쳐 그린다.</summary>
     /// <summary>
-    /// 부위 막대 한 칸 — 조각 넷을 겹쳐 짓는다.
+    /// 부위 막대 한 칸 — 게임이 찍는 차례대로 조각 넷을 겹친다(<c>0x004A7050</c>).
     /// </summary>
     /// <remarks>
+    /// 게임 막대는 <b>72점 폭에 눈금의 끝이 100 으로 박혀 있다</b>(<c>0x004A8D65</c> 가
+    /// <c>+0x168</c>·<c>+0x16C</c> 에 100 을 쓴다). 곧 <c>S(v) = v x 72 / 100</c>(버림)이고
+    /// 한 줄은 이렇다(나 쪽, 상대는 거울).
     /// <code>
-    ///   남은 것        파랑        [0 .. 지금]
-    ///   이번에 깎인 것 나무색      [지금 .. 앞판]   ← 맞는 순간 잠깐 스치는 빛깔
-    ///   그 위로        빨강        같은 자리로 다섯 눈금에 걸쳐 차오른다
-    ///   지난 판까지    빨강        [앞판 .. 끝]
+    ///   0          S(지금)          S(체력+1)          72
+    ///   |-- 파랑 ---|---- 빨강 --------|---- 검정 --------|
+    ///   눈금판 그림    조각 0(잃은 값)     색 0x49(끝내 없는 몫)
     /// </code>
-    /// 곧 <b>잃은 만큼은 빨강으로 남는다</b>. 나무색은 맞는 그 순간에만 보인다 —
-    /// 나무색으로 남겨 두었던 것은 틀렸다.
+    /// 게임은 파랑(눈금판) 위에 ① 옅은 나뭇결(조각 8) ② 빨강(조각 0) ③ 검은 네모를
+    /// 차례로 <b>막대 끝까지</b> 찍는다. 그래서 여기서도 넷을 모두 먼 끝(나는 오른쪽,
+    /// 상대는 왼쪽)에 붙이고 폭만 <c>72 - 시작점</c> 으로 준다.
     /// </remarks>
     private sealed class BarView
     {
-        public Border Keep = null!;    // 남은 것(파랑)
-        public Border Fresh = null!;   // 이번에 깎인 자리(나무색)
-        public Border Flash = null!;   // 그 위로 차오르는 빨강
-        public Border Lost = null!;    // 지난 판까지 깎인 것(빨강)
+        public Border Keep = null!;    // 파랑 — 눈금판 그림, 늘 72점
+        public Border Fresh = null!;   // ① 옅은 나뭇결(조각 8) — 방금 깎인 자리
+        public Border Lost = null!;    // ② 빨강(조각 0) — 잃은 값
+        public Border Black = null!;   // ③ 색 0x49 — S(체력+1) 넘는 자리
+
+        /// <summary>줄어드는 결을 도는 중인가.</summary>
+        public bool Hurting;
+
+        /// <summary>새 끝 <c>+0x128</c> · 옛 끝 <c>+0x12C</c> · 걸음 <c>+0xF0</c> · 걸음수 <c>+0x130</c>.</summary>
+        public int NewEnd, OldEnd, Step, Count;
     }
 
     private readonly BarView[] _mine = new BarView[Duel.Lines];
@@ -157,9 +171,12 @@ public sealed class DuelDialog : GameWindow
     private readonly GameUi.GameLabel _myMove = MoveLabel();
     private readonly GameUi.GameLabel _foeMove = MoveLabel();
 
-    /// <summary>지난 판의 부위 값 — 얼마나 깎였는지 빨강으로 내려고 들고 있는다.</summary>
+    /// <summary>앞 판 값(나 <c>+0x104</c>~, 상대 <c>+0x11C</c>~) — 빨강이 차기 시작하는 옛 끝이다.</summary>
     private readonly int[] _wasMine = new int[Duel.Lines];
     private readonly int[] _wasFoe = new int[Duel.Lines];
+
+    /// <summary>빨강이 차는 결을 돌리는 눈금(1/15초). 막대가 다 차면 멈춘다.</summary>
+    private readonly DispatcherTimer _hurtTimer = new(DispatcherPriority.Render);
 
     /// <summary>명령 창이 앉는 자리 — 판 오른쪽 아래다.</summary>
     private readonly Border _keyBox = new();
@@ -234,8 +251,8 @@ public sealed class DuelDialog : GameWindow
             DuelArt.PanelWidth, DuelArt.PanelHeight);
 
         // 왼쪽이 상대, 오른쪽이 나다.
-        Put(canvas, Portrait(face), DuelArt.Slots.FoePortraitX, Top + DuelArt.Slots.PortraitY);
-        Put(canvas, Portrait(myFace), DuelArt.Slots.MyPortraitX, Top + DuelArt.Slots.PortraitY);
+        Put(canvas, Portrait(face), FoeFaceX, Top + DuelArt.Slots.PortraitY);
+        Put(canvas, Portrait(myFace), MyFaceX, Top + DuelArt.Slots.PortraitY);
 
         Put(canvas, Framed(_foeMove), DuelArt.Slots.FoeMoveX, Top + DuelArt.Slots.MoveY,
             DuelArt.Slots.MoveW, DuelArt.Slots.MoveH);
@@ -284,11 +301,8 @@ public sealed class DuelDialog : GameWindow
         GameUi.EnableDrag(this, page);
         KeyDown += (_, e) => { if (e.Key == Key.Escape) e.Handled = true; };   // 판은 물러날 수 없다
 
-        for (int i = 0; i < Duel.Lines; i++)
-        {
-            _wasMine[i] = _duel.MyParts[i];
-            _wasFoe[i] = _duel.FoeParts[i];
-        }
+        _hurtTimer.Interval = TimeSpan.FromSeconds(DuelMotions.Tick);
+        _hurtTimer.Tick += (_, _) => HurtTick();
 
         Refresh();
         Rebuild();
@@ -331,7 +345,17 @@ public sealed class DuelDialog : GameWindow
         return image;
     }
 
-    /// <summary>초상 한 장을 자리 가운데에 앉힌다. 얼굴이 없으면 자리를 비운다.</summary>
+    /// <summary>
+    /// 초상 자리 — 상대 (8, 144), 나 (296, 144). 판 전체 기준이고 80x96 이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>0x004A714E</c> 에서 상대 얼굴을 x 8 에, <c>0x004A70F3</c> 에서 내 얼굴을
+    /// x <c>0x128</c>(296)에 곧바로 찍는다. 84 폭 자리표(<see cref="DuelArt.Slots"/>)의 가운데에
+    /// 앉히던 것은 9 · 295 로 한 점씩 어긋났다.
+    /// </remarks>
+    private const int FoeFaceX = 8, MyFaceX = 296;
+
+    /// <summary>초상 한 장. 얼굴이 없으면 자리를 비운다.</summary>
     private static UIElement? Portrait(uint[]? face)
     {
         if (face == null) return null;
@@ -348,14 +372,7 @@ public sealed class DuelDialog : GameWindow
         };
         RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
-
-        // 자리(84x96)가 초상(80x96)보다 조금 넓다 — 가운데로 민다.
-        return new Border
-        {
-            Width = DuelArt.Slots.PortraitW,
-            Height = DuelArt.Slots.PortraitH,
-            Child = image,
-        };
+        return image;
     }
 
     /// <summary>
@@ -371,8 +388,10 @@ public sealed class DuelDialog : GameWindow
         // 아래로 그림자가 진 것처럼 보인다. 원본의 고른 명령 글씨는 그림자가 없다.
         Bold = false,
         FallbackBrush = Brushes.White,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
+        // 게임은 칸 <b>왼쪽 위</b>(x 0x70 + 0x60*쪽, y 0xA0)에 "%s" 로 곧바로 찍는다 —
+        // 가운데 맞춤이 없다(0x004A6764). 글꼴 높이가 16 이라 칸 높이와 같다.
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Top,
     };
 
     /// <summary>상대 쪽에서 본 판 갈래 — 내가 치면 상대는 막고, 내가 막으면 상대가 친다.</summary>
@@ -383,7 +402,11 @@ public sealed class DuelDialog : GameWindow
         _ => was,                                   // 맞부딪힘은 둘 다 친다
     };
 
-    private static Border Framed(UIElement inner) => new() { Background = Slot, Child = inner };
+    /// <summary>
+    /// 명령 칸. 바탕을 칠하지 않는다 — 칸이 비면 눈금판 그림의 검은 홈이 그대로 보인다
+    /// (게임도 눈금판을 다시 깔아 칸을 비운다).
+    /// </summary>
+    private static Border Framed(UIElement inner) => new() { Child = inner };
 
     /// <summary>
     /// 말풍선에 상대의 말을 적는다. 빈 글이면 풍선을 걷는다.
@@ -427,113 +450,174 @@ public sealed class DuelDialog : GameWindow
     }
 
     /// <summary>
-    /// 부위 막대 한 칸 — 검은 홈에 남은 것(파랑)과 이번에 깎인 것(빨강)을 겹친다.
+    /// 부위 막대 한 칸 — 파랑 · 옅은 나뭇결 · 빨강 · 검정을 겹친다.
     /// </summary>
     private static Border Bar(out BarView view, bool mirror)
     {
-        // <b>두 쪽이 서로 거울이다.</b> 아군 막대는 왼쪽에 파랑이 붙어 오른쪽에서 빨개지고,
-        // 적군 막대는 오른쪽에 파랑이 붙어 <b>왼쪽에서</b> 빨개진다. 게임도 그렇다 —
-        // 적군 쪽 셈만 0x004A7202 에서 <c>neg</c> 로 뒤집어 72 에서 빼며 센다.
-        var side = mirror ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        // <b>두 쪽이 서로 거울이다.</b> 내 막대는 왼쪽에 파랑이 붙어 오른쪽에서 빨개지고,
+        // 상대 막대는 오른쪽에 파랑이 붙어 <b>왼쪽에서</b> 빨개진다. 게임도 그렇다 —
+        // 상대 쪽 셈만 <c>neg eax; idiv [+0x16C]; add eax, 0x48</c> 로 72 에서 빼며 센다.
+        // 조각은 파랑 반대쪽 끝(나는 오른쪽, 상대는 왼쪽)에 붙인다.
+        var far = mirror ? HorizontalAlignment.Left : HorizontalAlignment.Right;
 
         view = new BarView
         {
-            Keep = new Border { Background = Left_, HorizontalAlignment = side },
-            Fresh = new Border { Background = Empty_, HorizontalAlignment = side },
-            Lost = new Border { Background = Hurt, HorizontalAlignment = side },
+            Keep = new Border { Background = Left_ },
+            Fresh = new Border { Background = Empty_, HorizontalAlignment = far },
+            Lost = new Border { Background = Hurt, HorizontalAlignment = far },
+            Black = new Border { Background = BarCover, HorizontalAlignment = far },
         };
-        // 빨강은 <b>조각 쪽에서 반대로</b> 차오른다 — 아군은 오른쪽에서 파랑 쪽으로,
-        // 적군은 왼쪽에서 파랑 쪽으로 들어온다.
-        view.Flash = new Border
-        {
-            Background = Hurt,
-            HorizontalAlignment = mirror ? HorizontalAlignment.Left : HorizontalAlignment.Right,
-        };
-        view.Fresh.Child = view.Flash;
 
+        // 게임이 찍는 차례 그대로 — 눈금판(파랑) 위에 ① 나뭇결 ② 빨강 ③ 검정.
         var stack = new Grid();
-        stack.Children.Add(view.Lost);      // 아래에 깔고
-        stack.Children.Add(view.Fresh);     //   그 위에 이번 것
-        stack.Children.Add(view.Keep);      //   맨 위에 남은 것
+        stack.Children.Add(view.Keep);
+        stack.Children.Add(view.Fresh);
+        stack.Children.Add(view.Lost);
+        stack.Children.Add(view.Black);
 
-        return new Border { Background = Slot, Child = stack };
+        return new Border { Child = stack };
     }
 
     /// <summary>
-    /// 깎인 자리가 빨갛게 <b>차는 데 걸리는 눈금</b>.
+    /// 막대 눈금의 끝 — <b>누구나 100</b>이다(<c>0x004A8D65</c>, <c>+0x168</c>·<c>+0x16C</c>).
     /// </summary>
     /// <remarks>
-    /// 화면을 보면 맞은 자리가 대뜸 빨개지지 않고 <b>다섯 눈금에 걸쳐</b> 왼쪽에서
-    /// 빨갛게 차 온다. 한 눈금이 0.067초이니 0.34초다.
+    /// 제 처음 값(체력+1)이 아니다. 그래서 체력이 낮을수록 막대 끝에 검은 몫이 길다 —
+    /// 체력 60 이면 72점 가운데 43점만 보이고 29점이 검다.
     /// </remarks>
-    private const int HurtSteps = 5;
+    private const int BarScale = 100;
 
-    /// <summary>막대와 라벨을 다시 그린다.</summary>
-    /// <param name="flash">맞은 눈금이면 참 — 빨강이 다섯 눈금에 걸쳐 찬다.</param>
-    private void Refresh(bool flash = false)
-    {
-        double full = DuelArt.Slots.BarW;
-
-        for (int i = 0; i < Duel.Lines; i++)
-        {
-            Paint(_mine[i], _duel.MyParts[i], _wasMine[i], _duel.MyFull, full, flash, mirror: false);
-            Paint(_theirs[i], _duel.FoeParts[i], _wasFoe[i], _duel.FoeFull, full, flash, mirror: true);
-        }
-    }
+    /// <summary><c>S(v) = v x 72 / 100</c> — 정수 나눗셈 버림. 막대 밖으로는 안 나가게 자른다.</summary>
+    private static int Scale(int v) => Math.Clamp(v * DuelArt.Slots.BarW / BarScale, 0, DuelArt.Slots.BarW);
 
     /// <summary>
-    /// 막대 한 칸을 칠한다 — 남은 것이 파랑, <b>이번 판에 깎인 만큼</b>이 빨강이다.
+    /// 막대 여섯을 <b>가만히 있는 모양</b>으로 그리고 앞 판 값을 지금 값에 맞춘다.
     /// </summary>
     /// <remarks>
-    /// 파랑은 왼쪽에서 남은 만큼, 빨강은 오른쪽 끝에서 <b>이번에 잃은 만큼</b>이다.
-    /// 둘 사이가 검게 남으면 그것은 <b>지난 판까지 잃은 것</b>이다.
+    /// 줄어드는 결이 도는 중이면 그 자리에서 끝낸다 — 다 찬 모양과 같다
+    /// (<c>0x004A6AB3</c> 에서 앞 판 값 = 사본).
     /// </remarks>
-    private static void Paint(BarView view, int now, int was, int full,
-                             double width, bool flash, bool mirror)
+    private void Refresh()
     {
-        int cap = Math.Max(1, full);
-        double keep = width * Math.Clamp(now, 0, cap) / cap;
-        double fresh = width * Math.Clamp(was - now, 0, cap) / cap;
-        double lost = width * Math.Clamp(cap - was, 0, cap) / cap;
-
-        view.Keep.Width = keep;
-        view.Fresh.Width = fresh;
-        view.Lost.Width = lost;
-
-        // 자리는 파랑 <b>바로 옆</b>이다. 적군 쪽은 거울이라 오른쪽에서 물려 놓는다.
-        Place(view.Fresh, keep, mirror);
-        Place(view.Lost, keep + fresh, mirror);
-
-        if (!flash || fresh <= 0)
-        {
-            // 짓시늉을 걷어야 폭을 다시 박을 수 있다 — 걸린 채로는 값이 안 든다.
-            view.Flash.BeginAnimation(FrameworkElement.WidthProperty, null);
-            view.Flash.Width = fresh;          // 다 지나간 자리는 <b>빨강</b>으로 남는다
-            return;
-        }
-
-        // 맞는 순간에만 나무색이 스친다 — 그 위로 빨강이 다섯 눈금에 걸쳐 차오른다.
-        var fill = new DoubleAnimationUsingKeyFrames();
-        for (int step = 1; step <= HurtSteps; step++)
-            fill.KeyFrames.Add(new DiscreteDoubleKeyFrame(
-                fresh * step / HurtSteps,
-                KeyTime.FromTimeSpan(TimeSpan.FromSeconds(DuelMotions.Tick * step))));
-
-        view.Flash.BeginAnimation(FrameworkElement.WidthProperty, fill);
-    }
-
-    /// <summary>막대 조각을 그만큼 물려 놓는다 — 거울인 쪽은 오른쪽에서 잰다.</summary>
-    private static void Place(Border what, double at, bool mirror) =>
-        what.Margin = mirror ? new Thickness(0, 0, at, 0) : new Thickness(at, 0, 0, 0);
-
-    /// <summary>이번 판이 끝나면 부위 값을 갈무리한다 — 다음 판의 빨강 기준이다.</summary>
-    private void Keep()
-    {
+        _hurtTimer.Stop();
         for (int i = 0; i < Duel.Lines; i++)
         {
+            Rest(_mine[i], _duel.MyParts[i], _duel.MyFull);
+            Rest(_theirs[i], _duel.FoeParts[i], _duel.FoeFull);
             _wasMine[i] = _duel.MyParts[i];
             _wasFoe[i] = _duel.FoeParts[i];
         }
+    }
+
+    /// <summary>한 줄의 가만히 있는 모양 — 파랑 [0, S(지금)) · 빨강 [S(지금), S(처음)) · 검정 [S(처음), 72).</summary>
+    private static void Rest(BarView view, int now, int full)
+    {
+        view.Hurting = false;
+        view.Step = view.Count = 0;
+        Paint(view, pale: DuelArt.Slots.BarW, red: Scale(now), full);
+    }
+
+    /// <summary>
+    /// 한 줄을 칠한다. 세 조각의 <b>시작점</b>만 받는다 — 끝은 모두 막대 끝이다.
+    /// </summary>
+    /// <param name="pale">옅은 나뭇결(조각 8)이 시작하는 점. 72 면 없다.</param>
+    /// <param name="red">빨강(조각 0)이 시작하는 점.</param>
+    /// <param name="full">부위의 처음 값(체력+1). <c>S(full)</c> 부터 검정이다.</param>
+    private static void Paint(BarView view, int pale, int red, int full)
+    {
+        int width = DuelArt.Slots.BarW;
+        int black = Scale(full);
+
+        view.Keep.Width = width;
+        view.Fresh.Width = width - Math.Clamp(pale, 0, width);
+        view.Lost.Width = width - Math.Clamp(red, 0, width);
+        view.Black.Width = width - black;
+    }
+
+    /// <summary>
+    /// 맞은 줄의 <b>틱 11</b> — 깎인 몫을 한꺼번에 옅은 나뭇결로 찍고 빨강이 차는 결을 건다.
+    /// </summary>
+    /// <remarks>
+    /// 한 틱 함수 <c>0x004A6730</c> 의 <c>0x004A680F</c> 다.
+    /// <code>
+    ///   새 끝 +0x128 = S(사본)
+    ///   옛 끝 +0x12C = S(앞 판 값) - 1
+    ///   새 끝 .. 옛 끝 : 조각 8          ; 빨강은 아직 S(앞 판 값) 부터
+    ///   걸음수 +0x130 = 1
+    /// </code>
+    /// 맞은 쪽만 돈다 — 값이 안 바뀐 줄(막힌 쪽·안 맞은 부위)은 그대로 둔다.
+    /// </remarks>
+    private void StartHurt()
+    {
+        bool any = false;
+        for (int i = 0; i < Duel.Lines; i++)
+        {
+            any |= StartHurt(_mine[i], _duel.MyParts[i], _wasMine[i], _duel.MyFull);
+            any |= StartHurt(_theirs[i], _duel.FoeParts[i], _wasFoe[i], _duel.FoeFull);
+        }
+        if (any) _hurtTimer.Start();
+    }
+
+    private static bool StartHurt(BarView view, int now, int was, int full)
+    {
+        if (now == was) return false;
+
+        view.Hurting = true;
+        view.NewEnd = Scale(now);
+        view.OldEnd = Scale(was) - 1;
+        view.Step = 0;
+        view.Count = 1;
+        Paint(view, pale: view.NewEnd, red: Scale(was), full);
+        return true;
+    }
+
+    /// <summary>
+    /// 틱 12 부터 — 빨강이 옛 끝에서 새 끝 쪽으로 <b>한 틱에 한 걸음씩</b> 파고든다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x004A69CD</c> · <c>0x004A69F8</c>.
+    /// <code>
+    ///   걸음 +0xF0 = (옛 끝 - 새 끝) / 8 + 1      ; 처음 한 번, 버림
+    ///   k = 옛 끝 - 걸음 x 걸음수
+    ///   k > 새 끝 : [새 끝, k) 나뭇결 · [k, S(처음)) 빨강, 걸음수++
+    ///   아니면    : [새 끝, S(처음)) 모두 빨강, 앞 판 값 = 사본 (0x004A6AB3)
+    /// </code>
+    /// 곧 깎인 것이 8점을 넘으면 여덟 틱쯤, 8점 아래면 깎인 점수만큼 틱이 걸린다.
+    /// </remarks>
+    private void HurtTick()
+    {
+        bool any = false;
+        for (int i = 0; i < Duel.Lines; i++)
+        {
+            if (HurtTick(_mine[i], _duel.MyFull)) any = true;
+            else _wasMine[i] = _duel.MyParts[i];
+
+            if (HurtTick(_theirs[i], _duel.FoeFull)) any = true;
+            else _wasFoe[i] = _duel.FoeParts[i];
+        }
+        if (!any) _hurtTimer.Stop();
+    }
+
+    /// <returns>아직 도는 중이면 true.</returns>
+    private static bool HurtTick(BarView view, int full)
+    {
+        if (!view.Hurting) return false;
+
+        // C# 의 정수 나눗셈도 0 쪽으로 버려 idiv 와 같다.
+        if (view.Step == 0) view.Step = (view.OldEnd - view.NewEnd) / 8 + 1;
+
+        int k = view.OldEnd - view.Step * view.Count;
+        if (k > view.NewEnd)
+        {
+            Paint(view, pale: view.NewEnd, red: k, full);
+            view.Count++;
+            return true;
+        }
+
+        Paint(view, pale: DuelArt.Slots.BarW, red: view.NewEnd, full);
+        view.Hurting = false;
+        view.Step = view.Count = 0;
+        return false;
     }
 
     /// <summary>
@@ -550,6 +634,10 @@ public sealed class DuelDialog : GameWindow
     /// <summary>이번 판에 고를 손으로 단추를 다시 짓는다.</summary>
     private void Rebuild()
     {
+        // 판을 열면 명령 칸을 비운다(0x004A6F39 가 [+0xE4] = 0) — 고르는 동안은 검게 비어 있다.
+        _myMove.Text = "";
+        _foeMove.Text = "";
+
         _keys.Children.Clear();
         var names = _duel.Choices();
         var focus = new GameUi.FocusGroup();
@@ -613,12 +701,15 @@ public sealed class DuelDialog : GameWindow
         Speak("");                 // 새 판이 시작되면 앞 말은 걷는다
         _focus = null;
 
-        // 두 사람이 고른 명령을 가운데 홈에 적는다.
+        // 앞 판의 빨강이 덜 찼으면 여기서 끝낸다 — 새 판은 다 찬 모양에서 시작한다.
+        if (_hurtTimer.IsEnabled) Refresh();
+
+        // 두 사람이 고른 명령은 <b>주고받기 틱 8</b>에 가운데 홈에 뜬다(0x004A6764).
         // 갈래는 <b>내 쪽에서 본 것</b>이라 상대는 뒤집어 읽어야 한다 — 내가 치는 판이면
         // 상대는 막는 것이고, 내가 막는 판이면 상대가 친다. 안 뒤집었더니 상대가 웅크렸는데
         // 「하단공격」이라고 떴다.
-        _myMove.Text = MoveName(turn.Was, turn.MyMove);
-        _foeMove.Text = MoveName(Flip(turn.Was), turn.FoeMove);
+        string myName = MoveName(turn.Was, turn.MyMove);
+        string foeName = MoveName(Flip(turn.Was), turn.FoeMove);
 
         // 판 갈래대로 두 사람이 통째로 마흔 점 옮겨 간다(0x004A6EE5) — 내가 몰아붙이면
         // 상대 쪽으로, 막기만 하면 내 쪽으로다. 맞부딪힘은 제자리다. 맞았는지는 안 본다.
@@ -637,8 +728,8 @@ public sealed class DuelDialog : GameWindow
         int ticks = turn.Blow == Duel.Blow.Blocked ? DuelStage.ShortTicks : DuelStage.HitTicks;
 
         _stage.Play(mine, theirs, way, ticks,
-                    onSay: null,
-                    onHurt: () => Refresh(flash: true),
+                    onSay: () => { _myMove.Text = myName; _foeMove.Text = foeName; },
+                    onHurt: StartHurt,
                     onDone: () => Settle(turn));
     }
 
@@ -671,8 +762,9 @@ public sealed class DuelDialog : GameWindow
     /// <summary>판이 끝난 자리 — 말을 내고 다음 명령을 묻는다.</summary>
     private void Settle(in Duel.Turn turn)
     {
-        Refresh();
-        Keep();          // 빨강은 이번 판 것만 — 다음 판 기준을 여기서 갈무리한다
+        // 판 그림은 꼬리를 걷어 틱 18 에 끝나지만 빨강은 여덟 틱쯤 걸릴 수 있다 — 도는 중이면
+        // 끝까지 두고, 아니면(그림 없는 판) 곧바로 가만히 있는 모양으로 그린다.
+        if (!_hurtTimer.IsEnabled) Refresh();
 
         if (_duel.Over)
         {
@@ -746,13 +838,28 @@ public sealed class DuelDialog : GameWindow
     /// <summary>판을 연다. 이겼으면 true.</summary>
     /// <param name="art">싸움 그림. 없으면 막대와 글로만 낸다.</param>
     /// <param name="foeSet">상대 스프라이트셋(1~8).</param>
+    /// <param name="bgm">
+    /// 배경음악. 주면 판이 도는 동안 일기토 곡(<see cref="BgmPlayer.DuelTrack"/>, 트랙 11)을 틀고
+    /// 끝나면 앞서 돌던 곡으로 되돌린다 — 게임도 들머리에서 곡을 갈아 튼다(<c>0x004AA8A0</c>).
+    /// </param>
     public static bool Show(Window owner, Duel duel, GameRandom dice, uint[]? face,
                             FighterSprites? art = null, int foeSet = 1,
-                            uint[]? myFace = null, string arena = DuelArt.Field)
+                            uint[]? myFace = null, string arena = DuelArt.Field,
+                            BgmPlayer? bgm = null)
     {
-        var window = new DuelDialog(duel, dice, face, myFace, art, foeSet,
-                                    DuelArt.Open(), arena) { Owner = owner };
-        window.ShowDialog();
+        int before = bgm?.Track ?? -1;
+        bgm?.Play(BgmPlayer.DuelTrack);
+        try
+        {
+            var window = new DuelDialog(duel, dice, face, myFace, art, foeSet,
+                                        DuelArt.Open(), arena) { Owner = owner };
+            window.ShowDialog();
+        }
+        finally
+        {
+            // 앞 곡으로 곧바로 돌린다 — 해상 곡 맞추기(PlayWhenDone)에 맡기면 일기토 곡이 끝까지 돈다.
+            if (bgm != null && before >= 0) bgm.Play(before);
+        }
         return duel.Won == true;
     }
 }

@@ -605,6 +605,26 @@ public sealed class ShipMapWindow : Window
         return new Rect(topLeft.X, topLeft.Y, _input.ActualWidth, _input.ActualHeight);
     }
 
+    /// <summary>
+    /// 지도 위에 사건 애니메이션 한 장면을 돌린다 — 게임의 <c>0x0048E820(장면)</c>.
+    /// </summary>
+    /// <remarks>
+    /// 게임 한 점은 지도가 구름을 그리는 배율(<see cref="ShipMapHost.GamePixelScale"/>)대로 잡는다 —
+    /// 그래야 덤불이 배 그림(48점) 곁에 제 크기로 선다. 너무 멀리 보거나 가까이 보면 장면이
+    /// 티끌만 하거나 지도를 넘치므로, 지도 폭이 게임 점 320~1280 사이가 되게 묶는다(원본 640).
+    /// </remarks>
+    private void PlayEventScene(int scene)
+    {
+        var area = MapAreaOnScreen();
+        var (pixelW, _) = _host.SurfaceSize;
+        if (area.Width <= 0 || pixelW <= 0) return;
+
+        double perPixel = area.Width / pixelW;                  // 실픽셀 → WPF 단위
+        double scale = Math.Clamp(_host.GamePixelScale * perPixel, area.Width / 1280, area.Width / 320);
+        Point? ship = _host.ShipOnSurface is { } p ? new Point(p.X * perPixel, p.Y * perPixel) : null;
+        EventAnimationPopup.Play(this, _game, scene, area, scale, ship);
+    }
+
     /// <summary>트리에 붙었고 자리도 잡았는가 — <c>PointToScreen</c> 을 부르기 전에 본다.</summary>
     private static bool Ready(FrameworkElement element) =>
         PresentationSource.FromVisual(element) != null
@@ -1519,34 +1539,32 @@ public sealed class ShipMapWindow : Window
     private FrameworkElement? _titleMenuBox;
 
     /// <summary>
-    /// 「지도를 본다」 — 도시 그림을 잠깐 걷고 지도만 본다.
+    /// 도시 커맨드의 「지도를 본다 → 항해지도」 — 바다와 <b>같은</b> 모달 창을 띄운다.
     /// </summary>
     /// <remarks>
-    /// 게임 커맨드의 그 줄이다(<c>0x0053BE98</c> · 아래에 <c>0x00533240</c> "항해지도" ·
-    /// <c>0x00533250</c> "주변지도"). 게임은 지도 화면을 따로 그리는데 우리 지도는 그 자체가
-    /// 세계지도라 <b>배율만 갈아 준다</b>. 도시에서 부르면 그림을 잠깐 감추고, 돌아가면
-    /// 도로 낸다.
+    /// 게임의 <c>0x0049333E</c> 가 <c>0x00416A00</c> 을 부른다. 본 지도의 배율은 안 건드린다.
     /// </remarks>
-    /// <param name="wide">참이면 항해지도(통째로), 거짓이면 주변지도(배 둘레).</param>
-    /// <param name="hide">잠깐 감출 창. 도시 그림이다.</param>
-    public void LookAtMap(bool wide, Window? hide = null)
+    /// <param name="owner">창의 주인. 도시 그림이다.</param>
+    /// <param name="menu">잠깐 감출 커맨드 창. 닫으면 도로 낸다.</param>
+    internal void ShowSeaChart(Window owner, Window? menu) =>
+        WithMenuHidden(menu, () => SeaChartDialog.ShowWorld(owner, _host, _game.Player.Explored));
+
+    /// <summary>
+    /// 커맨드 창을 감춘 채 지도 창을 띄우고, 닫히면 그 창을 도로 낸다 — 게임은 지도를 닫으면
+    /// 「지도를 본다」 메뉴를 다시 띄운다(<c>0x0042617F</c>).
+    /// </summary>
+    private static void WithMenuHidden(Window? menu, Action show)
     {
-        if (wide) _host.ShowWorld(); else _host.ShowAround();
-
-        if (hide == null) return;
-        hide.Visibility = Visibility.Hidden;
-        _host.InCity = false;
-
-        // 지도 위에 "돌아간다" 한 줄만 띄운다 — 누르면 도시로 되돌아간다.
-        var back = new GameMenuHost(this);
-        back.Closed += () =>
+        if (menu != null) menu.Visibility = Visibility.Hidden;
+        try { show(); }
+        finally
         {
-            hide.Visibility = Visibility.Visible;
-            _host.InCity = true;
-            hide.Activate();
-        };
-        back.Open(() => new GameMenu(wide ? "항해지도" : "주변지도", null,
-            ("돌아간다", back.Close)));
+            if (menu != null)
+            {
+                menu.Visibility = Visibility.Visible;
+                menu.Activate();
+            }
+        }
     }
 
     /// <summary>
@@ -1943,18 +1961,32 @@ public sealed class ShipMapWindow : Window
     /// <c>0x00533260</c>, 창 제목 <c>0x00533270</c>).
     ///
     /// 둘은 아주 다른 그림이다. <b>항해지도</b>(<c>0x00416A00</c>)는 밝힌 자리만
-    /// 드러나는 양피지 지도고, <b>주변지도</b>(<c>0x00416B60</c>)는 배 둘레를 여덟 배로
-    /// 키워 도시와 아직 못 찾은 발견물까지 점으로 세운다. 둘 다 <see cref="SeaChartDialog"/>
-    /// 가 낸다.
+    /// 드러나는 양피지 지도고, <b>주변지도</b>(<c>0x00416B60</c>)는 배 둘레를
+    /// <c>(측량 + 2) / 16</c> 칸 걸음으로 크게 보며 알고 서 있는 도시와 이미 찾았거나 발표된
+    /// 발견물의 그림 칸을 밝힌다. 둘 다 <see cref="SeaChartDialog"/> 가 낸다.
+    ///
+    /// 지도 창을 닫으면 <b>이 메뉴로 되돌아온다</b>(<c>0x0042617F</c>) — 창이 떠 있는 동안
+    /// 커맨드 창은 감춰 둘 뿐 닫지 않는다. 멈춤은 커맨드 창이 떠 있는 동안 그대로 걸려 있다.
     /// </remarks>
     private GameMenu MapMenuBox() => new("지도를 본다", null,
     [
-        ("항해지도", () => Info(() =>
+        ("항해지도", () => WithMenuHidden(CommandMenu.Window, () =>
             SeaChartDialog.ShowWorld(this, _host, _game.Player.Explored))),
-        ("주변지도", () => Info(() =>
-            SeaChartDialog.ShowAround(this, _host, _game.Discoveries, _game.Player))),
+        ("주변지도", () => WithMenuHidden(CommandMenu.Window, () =>
+            SeaChartDialog.ShowAround(this, _host, _game.Discoveries, _game.Player,
+                                      _game.CityVisible, SurveyLevel()))),
         ("돌아간다", CommandMenu.Pop),
     ]);
+
+    /// <summary>
+    /// 지도에 쓰는 측량술 — <c>0x0047CCA0(제독, 기능 7, 2, -1, -1, -1)</c> 의 <c>+0x5C</c>.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 제독과 <b>역할 2 부하</b>(<c>0x0047CC60(2, 0)</c>) 가운데 높은 쪽을 쓴다. 우리 부하
+    /// 자료(<see cref="Player.MateInfo"/>)는 기능을 안 들어서 도시 알아보기(<see cref="SpotCities"/>)
+    /// 처럼 <b>제독의 측량술</b>만 본다.
+    /// </remarks>
+    private int SurveyLevel() => _game.Player.LevelOf(Skill.Names[Skill.Survey]);
 
     /// <summary>함대정보 판의 함대좌표 줄. 게임 말투 그대로 "북위 38도 서경 9도" 다.</summary>
     private string CoordLine()
@@ -2692,7 +2724,12 @@ public sealed class ShipMapWindow : Window
         player.Cheer(handling - (player.Gold > 0 ? 4 : 10));
 
         // 빈 글로 덮어쓰면 어제 적힌 한 줄이 하루 만에 지워진다. 할 말이 있을 때만 적는다.
-        if (MoraleLine(before, player.Morale) is { Length: > 0 } line) Say(line);
+        // 띠에 적는 손(0x0040E0A0)은 적은 뒤 늘 소리 0x1D(WAVE 파트 1)를 낸다.
+        if (MoraleLine(before, player.Morale) is { Length: > 0 } line)
+        {
+            Say(line);
+            _game.Sfx?.Play(SoundBank.BandNoticePart);
+        }
 
         // 뭍에서는 짐승과 독충을 마주친다.
         CheckLandEvent();
@@ -2735,7 +2772,10 @@ public sealed class ShipMapWindow : Window
 
         // 바다 쪽 문구는 「선원」이다 — 뭍의 「대원」과 갈린다(0x0047585E).
         if (MoraleLine(before, player.Morale) is { Length: > 0 } line)
+        {
             Say(line.Replace("대원", "선원"));
+            _game.Sfx?.Play(SoundBank.BandNoticePart);   // 띠 알림 소리(0x0040E0B6)
+        }
 
         if (before > 0 && player.Morale == 0) Mutiny();
     }
@@ -2777,6 +2817,9 @@ public sealed class ShipMapWindow : Window
     /// 셈은 <see cref="LandEvents"/> 가 다 하고 여기서는 말만 낸다. 문구는 게임
     /// <c>0x005338E0</c> 덩이에서 그대로 옮겼다 — 짐승은 조사가 하나 더 붙는 서식이라
     /// (「큰일이다! %s%s다!」) 이름 뒤에 은/는을 넣는다.
+    ///
+    /// 말보다 먼저 덤불 장면(<c>0x0048E820(8)</c>)이 함대 자리에서 돈다 — 독충
+    /// (<c>0x00427866</c>)과 짐승(<c>0x00427B4C</c>)이 같은 8 이다.
     /// </remarks>
     private void CheckLandEvent()
     {
@@ -2793,6 +2836,7 @@ public sealed class ShipMapWindow : Window
         try
         {
             var face = MateFace();     // 말을 거는 것은 부관이다
+            PlayEventScene(EventAnimation.Bush);   // 게임도 말보다 먼저 튼다
             string what = met.Venomous
                 ? $"큰일이다! {met.Name}다!"
                 : $"큰일이다! {met.Name}{GameUi.Josa(met.Name, "이", "가")}다!";
@@ -2828,7 +2872,8 @@ public sealed class ShipMapWindow : Window
     /// <remarks>
     /// 게임의 <c>0x00427DB8</c> 이다. 짐승과 달리 <b>가릴 것도 고를 것도 없다</b> —
     /// 말 셋이 나고, 그림이 한 번 돌고(<c>0x0048E820(13)</c>), 말 둘이 더 난 뒤에
-    /// 죽은 수를 알린다. 그림은 아직 안 뽑아서 말만 낸다.
+    /// 죽은 수를 알린다. 그림은 EVANIME 파트 17 — 회오리 둘이 좌우에서 굽이치며 지나간다
+    /// (<see cref="EventAnimationPopup"/>).
     /// </remarks>
     private void Tornado(GameRandom dice)
     {
@@ -2840,6 +2885,7 @@ public sealed class ShipMapWindow : Window
             var lines = LandEvents.TornadoLines;
 
             for (int i = 0; i < 3; i++) ConfirmDialog.Tell(this, lines[i], face: face);
+            PlayEventScene(EventAnimation.Tornado);          // 0x00427E4A — 말 셋 뒤, 말 둘 앞
 
             int dead = LandEvents.Strike(_game.Player, dice);
 
@@ -2950,7 +2996,8 @@ public sealed class ShipMapWindow : Window
     /// 있습니다!!" · <c>0x005351B8</c> "빨리 돛을 접어라!…" · <c>0x005351F0</c> "제독 %s%s
     /// 눈에 띄지 않습니다…" · <c>0x00535260</c> "간신히 빠져 나왔습니다만…".
     ///
-    /// 게임은 여기서 폭풍 장면(<c>0x0048E820</c>)을 틀지만 우리는 알림 줄로 갈음한다.
+    /// 「빨리 돛을 접어라」 뒤에 폭풍 장면(<c>0x0048E820(2)</c>, 눈보라는 3)을 돌린다 — 게임도
+    /// 피로·사기를 깎은 다음 그 자리에서 튼다(<c>0x00474D4D</c>).
     /// </remarks>
     /// <summary>
     /// 남의 함대와 붙는다 — 교섭 · 도망 · 응전.
@@ -3069,6 +3116,7 @@ public sealed class ShipMapWindow : Window
             NoticeDialog.Show(this,
                 $"제, 제독, 큰일입니다! {word}{GameUi.Josa(word, "이", "가")} 오고 있습니다!!");
             NoticeDialog.Show(this, "빨리 돛을 접어라! 어떻게 해서든지 버텨라!!");
+            PlayEventScene(kind == SeaEventKind.Storm ? EventAnimation.Storm : EventAnimation.Blizzard);
 
             if (storm.Lost.Count > 0)
             {
@@ -3159,7 +3207,8 @@ public sealed class ShipMapWindow : Window
         var still = picture >= 0 ? EventStillPopup.Open(this, _game, picture, MapAreaOnScreen()) : null;
         try
         {
-            ConfirmDialog.Tell(this, word, face: MateFace());
+            // 반란과 같은 꼴이다 — 대사 창은 스틸 아래에 겹치지 않게 선다.
+            ConfirmDialog.Tell(this, word, face: MateFace(), under: still);
         }
         finally
         {
@@ -3208,15 +3257,16 @@ public sealed class ShipMapWindow : Window
             var still = EventStillPopup.Open(this, _game, EventStillPopup.Mutiny, MapAreaOnScreen());
             try
             {
+                // 대사 창은 스틸 <b>아래</b>에 겹치지 않게 선다 — 게임 화면이 그렇다.
                 ConfirmDialog.Tell(this,
                     $"제독, 큰일입니다. {who}{GameUi.Josa(who, "이", "가")} 반란을 일으켰습니다!  " +
-                    $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!", face: MateFace());
+                    $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!", face: MateFace(), under: still);
                 ConfirmDialog.Tell(this,
                     $"제독, 이대로 {what}{GameUi.Josa(what, "을", "를")} 계속할 작정이라면 우리들은 " +
-                    "전멸이다. 우리들은 당신과 함께 죽을 마음이 없다.", face: leaderFace);
+                    "전멸이다. 우리들은 당신과 함께 죽을 마음이 없다.", face: leaderFace, under: still);
                 ConfirmDialog.Tell(this,
                     "그러니, 모두가 보는 앞에서 나와 승부하자! 당신이 이기면 얌전히 따르겠다. " +
-                    $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.", face: leaderFace);
+                    $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.", face: leaderFace, under: still);
             }
             finally
             {
@@ -3238,7 +3288,9 @@ public sealed class ShipMapWindow : Window
                                 PortraitAges.At(_game.Player.Face, _game.Player.Age,
                                                 false, _game.Faces),
                                 female: false),
-                            arena: land ? DuelArt.Field : DuelArt.Deck);
+                            arena: land ? DuelArt.Field : DuelArt.Deck,
+                            // 반란도 일기토 판이라 트랙 11 이 돈다(0x004AA8A0).
+                            bgm: _game.Bgm);
 
             if (duel.Won == true)
             {
@@ -3324,7 +3376,8 @@ public sealed class ShipMapWindow : Window
                             PortraitAges.At(_game.Player.Face, _game.Player.Age,
                                             false, _game.Faces),
                             female: false),
-                        arena: arena);
+                        arena: arena,
+                        bgm: _game.Bgm);
     }
 
     private Engine.Town.Duel.Fighter MyFighter()
@@ -3392,13 +3445,22 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>
     /// 배가 선 자리 둘레를 항해지도에 밝힌다. 게임의 <c>0x00468D90</c> 자리다 —
-    /// 지금 칸을 가운데로 반지름만큼 원을 칠한다.
+    /// 지금 칸을 가운데로 반지름 <c>측량 * 8 + 56</c> 칸의 원을 칠한다.
     /// </summary>
+    /// <remarks>
+    /// 게임은 함대 칸이 <b>바뀌었을 때만</b> 부른다(<c>0x0047D3FE</c>·<c>0x0047D41E</c> 비교 뒤
+    /// <c>0x0047D438</c>). 같은 칸에서 되풀이하면 결과는 같고 셈만 는다.
+    /// </remarks>
     private void MarkSeen()
     {
         if (_host.ShipCell is not { } cell) return;
-        _game.Player.Explored.Mark(cell.CellX, cell.CellY);
+        if (_lastMarked == (cell.CellX, cell.CellY)) return;
+        _lastMarked = (cell.CellX, cell.CellY);
+        _game.Player.Explored.Mark(cell.CellX, cell.CellY, ExploredMap.RadiusFor(SurveyLevel()));
     }
+
+    /// <summary>마지막으로 밝힌 칸. 칸이 바뀔 때만 다시 칠한다.</summary>
+    private (int X, int Y)? _lastMarked;
 
     /// <summary>발견을 마지막으로 재 본 칸. 그 사이를 지나온 칸도 함께 훑는다.</summary>
     private (int X, int Y)? _lastChecked;

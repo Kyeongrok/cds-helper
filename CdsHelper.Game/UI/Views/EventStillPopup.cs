@@ -28,6 +28,20 @@ internal sealed class EventStillPopup : Window
     /// <summary>해상재해·반란 스틸 번호.</summary>
     public const int Mutiny = 0, Sickness = 1, Rats = 2;
 
+    /// <summary>액자의 까만 줄 두께와 밤색 판 폭. 발견물 그림 액자(<see cref="DiscoveryDialog"/>)와 같다.</summary>
+    private const double FrameLine = 1, FrameWide = 8;
+
+    /// <summary>액자의 까만 줄과 밤색 판.</summary>
+    private static readonly Brush FrameEdge = FrozenBrush(Color.FromRgb(0x11, 0x09, 0x09));
+    private static readonly Brush FrameFill = FrozenBrush(Color.FromRgb(0x4A, 0x2E, 0x24));
+
+    private static Brush FrozenBrush(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
     private EventStillPopup(BitmapSource art, int scale, Rect area)
     {
         WindowStyle = WindowStyle.None;
@@ -35,7 +49,7 @@ internal sealed class EventStillPopup : Window
         ShowInTaskbar = false;
         ShowActivated = false;
         SizeToContent = SizeToContent.WidthAndHeight;
-        Background = Brushes.Black;
+        Background = FrameFill;
 
         var image = new Image
         {
@@ -46,13 +60,29 @@ internal sealed class EventStillPopup : Window
         };
         RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         RenderOptions.SetEdgeMode(image, EdgeMode.Aliased);
-        Content = image;
 
+        // 게임은 스틸 뒤에 <b>밤색 판</b>을 깔고 까만 줄을 두 겹 두른다 — 발견물 그림 액자와 같은 꼴이다
+        // (까만 줄 · 밤색 판 · 까만 줄). 예전에는 그림만 까만 창에 올렸다.
+        Content = new Border
+        {
+            Background = FrameFill,
+            BorderBrush = FrameEdge,
+            BorderThickness = new Thickness(FrameLine),
+            Padding = new Thickness(FrameWide),
+            Child = new Border
+            {
+                BorderBrush = FrameEdge,
+                BorderThickness = new Thickness(FrameLine),
+                Child = image,
+            },
+        };
+
+        double frameGrow = (FrameLine + FrameWide + FrameLine) * 2;
         if (area.Width > 0)
         {
             WindowStartupLocation = WindowStartupLocation.Manual;
-            Left = area.X + (area.Width - image.Width) / 2;
-            Top = area.Y + (area.Height - image.Height) / 2;
+            Left = area.X + (area.Width - image.Width - frameGrow) / 2;
+            Top = area.Y + (area.Height - image.Height - frameGrow) / 2;
         }
         else
         {

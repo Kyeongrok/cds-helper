@@ -183,8 +183,7 @@ public sealed class SeaCombatDialog : GameWindow
         Loaded += (_, _) =>
         {
             Redraw();
-            // 들머리 — 바람과 퇴각지점을 알리고 이동 지시를 재촉한다(0x0043C4E0).
-            Say(_battle.WindNotice());
+            // 들머리 — 이동 지시를 재촉한다(0x0043C4E0). 바람과 퇴각지점은 판이 뜨기 전에 이미 알렸다(Fight).
             Say(_battle.OrderPrompt());
         };
     }
@@ -727,6 +726,9 @@ public sealed class SeaCombatDialog : GameWindow
                          art: 4 + Math.Min(3, slot), hp: 50, crew: 40, minCrew: 15, gun: 0,
                          hullName: "카락", cargo: 200, guns: 6,
                          formation: enemyFormation);
+
+        // 바람과 퇴각지점은 <b>해전 판이 뜨기 전에</b>, 바다 지도 위에서 부관이 알린다 — 게임 화면이 그렇다.
+        ConfirmDialog.Tell(owner, battle.WindNotice(), BattleTitle, face);
 
         var dialog = new SeaCombatDialog(battle, art, foe, face, ZoomFor(owner), sfx) { Owner = owner };
         dialog.ShowDialog();
