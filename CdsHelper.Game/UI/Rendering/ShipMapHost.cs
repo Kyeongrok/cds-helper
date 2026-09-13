@@ -684,23 +684,19 @@ public sealed class ShipMapHost : HwndHost
     }
 
     /// <summary>
-    /// 내 배에서 <paramref name="radiusCells"/> 칸 안에 있는 <b>가장 가까운 사람</b>.
-    /// 아무도 없으면 −1.
+    /// 내 배에서 <paramref name="radiusCells"/> 칸 안(경계 포함)에 든 사람들의 번호.
     /// </summary>
-    /// <remarks>지금 그리고 있는 사람들 가운데서 고른다 — 화면 밖은 만날 일이 없다.</remarks>
-    public (int Person, double Cells) NearestFolk(double radiusCells)
+    /// <remarks>
+    /// 지금 그리고 있는 사람들 가운데서 고른다 — 게임도 화면 열여섯 칸에 든 사람만 잰다
+    /// (<c>0x0048C049</c>).
+    /// </remarks>
+    public List<int> FolkWithin(double radiusCells)
     {
-        int who = -1;
-        double best = radiusCells * radiusCells;
-
+        var got = new List<int>();
+        double limit = radiusCells * radiusCells;
         foreach (var one in _folk)
-        {
-            double far = Near(one);
-            if (far > best) continue;
-            best = far;
-            who = one.Person;
-        }
-        return (who, who < 0 ? 0 : Math.Sqrt(best));
+            if (Near(one) <= limit) got.Add(one.Person);
+        return got;
     }
 
     /// <summary>

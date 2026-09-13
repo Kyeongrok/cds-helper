@@ -76,6 +76,7 @@ public sealed class Game
         _faces = null; _facesTried = false;
         _effects = null; _effectsTried = false;
         _guests = null; _guestsTried = false;
+        _templates = null; _templatesTried = false;
         _photos = null; _photosTried = false;
         _itemText = null; _itemTextTried = false;
         _itemArt = null;
@@ -226,6 +227,11 @@ public sealed class Game
     public TavernGuests? Guests =>
         Once(ref _guests, ref _guestsTried, TavernGuests.Open,
              () => TavernGuests.LastError, "손님 그림");
+
+    /// <summary>인물 밑표(CDS_95.EXE). 세이브에 없는 인물의 나라·직업이 여기서 온다.</summary>
+    public PersonTemplate? PersonTemplates =>
+        Once(ref _templates, ref _templatesTried, PersonTemplate.Open,
+             () => PersonTemplate.LastError, "인물 밑표");
 
     /// <summary>건물 사진(MPCG.CDS). 건물에 들어갈 때 뜨는 타원 사진이다.</summary>
     public BuildingPhoto? Photos =>
@@ -508,6 +514,8 @@ public sealed class Game
     private Portraits? _faces;
     private EffectAnim? _effects;
     private TavernGuests? _guests;
+    private PersonTemplate? _templates;
+    private bool _templatesTried;
     private BuildingPhoto? _photos;
     private ItemDescriptions? _itemText;
     private ItemArt? _itemArt;

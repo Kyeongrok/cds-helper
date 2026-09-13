@@ -281,6 +281,25 @@ public sealed class PersonWorld
         }
     }
 
+    /// <summary>
+    /// 바다에서 붙고 난 사람을 제 나라 수도로 돌려보내고 예순 날 재운다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00432400</c> 이다 — 해전 뒤끝(<c>0x0048CCD7</c>)이 부른다. 목적지를 지우고
+    /// 좌표를 걷고, 소재 도시를 나라 형편 칸의 수도로 박고, 날 셈을 -60 으로 둔다.
+    /// 우리는 표를 적어 두지 않으므로 판을 다시 열면 이 일은 잊힌다.
+    /// </remarks>
+    /// <param name="capital">돌려보낼 수도. 모르면 -1 — 게임도 그 값을 그대로 박는다.</param>
+    public void SendHome(PersonTable.Row row, int capital)
+    {
+        row.Dest = -1;
+        row.From = -1;
+        _bound.Remove(row.Id);
+        row.City = capital;
+        row.Wait = -RestDays;
+        Revision++;
+    }
+
     // ── 달 넘김 ────────────────────────────────────────────────────────────────
 
     private void Roll(DateTime when)
