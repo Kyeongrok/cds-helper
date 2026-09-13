@@ -69,11 +69,16 @@ public sealed class ContractDialog : GameWindow
     /// <remarks>
     /// <b>원본은 가로세로가 거의 같다.</b> 화면으로 재 보면 판이 1.05:1 인데 예전 값
     /// (560x420)은 1.33:1 이라 옆으로 퍼져 보였고, 아래가 통째로 비었다.
+    ///
+    /// <b>그다음 값 470x440 은 갈무리 점을 그대로 옮긴 것이라 1.75배쯤 컸다.</b> 글씨는 제
+    /// 크기인데 판만 커서, 가장 긴 줄(「미불 … 나머지 8개월」, 약 294점)을 두고도 옆이 한참
+    /// 비고 증거품 아래가 통째로 비었다. 글 줄에 맞춰 줄였다 — 제목·줄 다섯·틈 둘·목록 둘을
+    /// 쌓으면 키가 256점쯤이다.
     /// </remarks>
-    private const double BoardWidth = 470, BoardHeight = 440;
+    private const double BoardWidth = 300, BoardHeight = 262;
 
-    /// <summary>발견물·증거품 칸에 비워 두는 높이. 게임도 이만큼씩 띄운다.</summary>
-    private const double ListHeight = 84;
+    /// <summary>발견물·증거품 칸에 비워 두는 높이. 예전 84 를 같은 비율(1.75)로 줄였다.</summary>
+    private const double ListHeight = 48;
 
     /// <summary>목록 상자가 왼쪽에서 들어가는 만큼. 게임도 라벨보다 안쪽에서 시작한다.</summary>
     private const double ListIndent = 74;

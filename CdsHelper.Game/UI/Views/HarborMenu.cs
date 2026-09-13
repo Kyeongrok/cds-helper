@@ -313,14 +313,14 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         [.. Facility.CrewMenu.Select(item => (item, CrewAction(item)))]);
 
     /// <summary>
-    /// "선원편성" 을 눌렀을 때. <b>선원이 하나도 없으면 창을 안 내고 곧장 모집으로</b> 간다 —
-    /// 해고할 것이 없으니 고를 것도 없다.
+    /// "선원편성" 을 눌렀을 때. <b>늘 선원모집 · 선원해고 · 돌아간다 창을 낸다.</b>
     /// </summary>
-    public void CrewForm()
-    {
-        if (_player.Crew <= 0) { HireCrew(); return; }
-        _menu.Push(CrewMenu);
-    }
+    /// <remarks>
+    /// 예전에는 선원이 하나도 없으면 창을 건너뛰고 곧장 모집으로 갔다. 게임은 그러지 않는다 —
+    /// 창(<c>0x004774E0</c>)은 늘 서고 해고할 사람이 없을 때 "선원해고" 줄만 흐려진다
+    /// (<see cref="CrewAction"/>).
+    /// </remarks>
+    public void CrewForm() => _menu.Push(CrewMenu);
 
     private Action? CrewAction(string item) => item switch
     {
