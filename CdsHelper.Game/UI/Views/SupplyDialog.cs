@@ -83,6 +83,11 @@ public sealed class SupplyDialog : GameWindow
     /// <remarks>판을 줄인 만큼(0.837배) 같이 줄였다. 칸 차례와 결은 그대로다.</remarks>
     private const double UnitWidth = 134, HaveWidth = 84, AddWidth = 100, CostWidth = 92;
 
+    /// <summary>
+    /// 한 무리 안의 단추 사이. 게임 갈무리에서 단추 사이가 단추 폭의 한 켜쯤(열 점 안팎)이다.
+    /// </summary>
+    private const double ButtonGap = 6;
+
     /// <summary>↑↓ 한 번에 움직이는 통 수. Shift 를 누르면 열 배로 뛴다.</summary>
     private const int Step = 1, FastStep = 10;
 
@@ -148,13 +153,22 @@ public sealed class SupplyDialog : GameWindow
         DockPanel.SetDock(totalRow, Dock.Bottom);
         board.Children.Add(totalRow);
 
-        _decide = new GameButton("결정", Decide) { On = false };
+        // 단추는 <b>왼쪽 넷 · 오른쪽 둘</b>로 모인다 — 게임 화면이 그렇다. 단추마다 기본 바깥
+        // 여백(GameButton.Spacing)을 그대로 두면 여섯이 판 폭을 꽉 채워 고르게 벌어지고 두 무리
+        // 사이가 안 벌어졌다. 그래서 단추 사이만 좁게 띄우고 남는 폭은 두 무리 사이로 몬다.
+        static GameButton Tight(GameButton button, double gap)
+        {
+            button.Margin = new Thickness(0, 0, gap, 0);
+            return button;
+        }
+
+        _decide = Tight(new GameButton("결정", Decide) { On = false }, ButtonGap);
 
         var left = new StackPanel { Orientation = Orientation.Horizontal };
-        left.Children.Add(new GameButton("최대", Fill));
-        left.Children.Add(new GameButton("10일분", TenDays));
-        left.Children.Add(new GameButton("일지정"));
-        left.Children.Add(new GameButton("전회분"));
+        left.Children.Add(Tight(new GameButton("최대", Fill), ButtonGap));
+        left.Children.Add(Tight(new GameButton("10일분", TenDays), ButtonGap));
+        left.Children.Add(Tight(new GameButton("일지정"), ButtonGap));
+        left.Children.Add(Tight(new GameButton("전회분"), 0));
 
         var right = new StackPanel
         {
@@ -162,7 +176,7 @@ public sealed class SupplyDialog : GameWindow
             HorizontalAlignment = HorizontalAlignment.Right,
         };
         right.Children.Add(_decide);
-        right.Children.Add(new GameButton("돌아간다", Close));
+        right.Children.Add(Tight(new GameButton("돌아간다", Close), 0));
 
         var buttons = new DockPanel { Margin = new Thickness(10, 0, 10, 10) };
         DockPanel.SetDock(left, Dock.Left);
