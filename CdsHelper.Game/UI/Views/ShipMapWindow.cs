@@ -2136,6 +2136,9 @@ public sealed class ShipMapWindow : Window
         if (since <= 0) { _steps = walked; return; }
         _steps = walked;
 
+        // 무리가 붙는 주사위는 날이 아니라 걸음마다 굴린다 — 게임도 고리 한 바퀴에 한 번이다.
+        if (!_host.IsOnLand) CheckEncounter(since);
+
         _ticks += since * TerrainTable.TicksOfClass(_host.TerrainClass);
         if (_ticks < TerrainTable.TicksPerDay) return;
 
@@ -2156,7 +2159,6 @@ public sealed class ShipMapWindow : Window
             Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
             PassSeaMorale();
             CheckSeaEvent();
-            CheckEncounter();
         }
     }
 
@@ -2623,23 +2625,27 @@ public sealed class ShipMapWindow : Window
     /// 남의 함대와 붙는다 — 교섭 · 도망 · 응전.
     /// </summary>
     /// <remarks>
-    /// 게임은 지도 위를 돌아다니는 함대와 <b>두 칸 안</b>으로 가까워지면 붙인다
-    /// (<c>0x0048BE80</c>, 볼트 <c>59.분석-해적 조우</c>). 우리 쪽에는 그 함대 객체가
-    /// 없어서 <b>주사위로 갈음한다</b> — 붙고 난 뒤의 차례와 셈은 게임 것 그대로다
-    /// (<see cref="Encounter"/>).
+    /// 게임에는 길이 둘이다(<c>0x0048BE80</c>, 볼트 <c>59.분석-해적 조우</c>).
+    /// <list type="number">
+    ///   <item>화면에 보이는 인물 함대와 <b>두 칸 안</b>으로 가까워지면 「배가 보입니다」 —
+    ///         우호 · 습격 · 떠난다. 우리 쪽에는 돌아다니는 인물 함대가 없어 <b>아직 안 옮겼다</b>.</item>
+    ///   <item>그런 함대가 없으면 <b>구역 주사위</b> — 유럽 바다 1/700 해적, 동지중해~아라비아해
+    ///         1/400 이슬람 함대. 걸음마다 굴리고 구역 밖에서는 안 붙는다. 여기가 이것이다
+    ///         (<see cref="Encounter.AtSea"/>).</item>
+    /// </list>
+    /// 붙고 난 뒤의 교섭 · 도망 · 응전 차례와 셈은 게임 것 그대로다(<see cref="Encounter"/>).
     ///
     /// <b>해전은 아직 못 옮겼다.</b> 싸우게 되면 그렇다고 이르고 넘어간다.
     /// </remarks>
-    private const int EncounterRoll = 400;
-
-    private void CheckEncounter()
+    /// <param name="steps">지난번 뒤로 걸은 걸음 수.</param>
+    private void CheckEncounter(int steps)
     {
         // 무엇이 떠 있거나 멈춰 있으면 안 붙인다 — 입항 물음과 겹치면 둘 다 어그러진다.
         if (_asking || _host.Paused) return;
         if (_game.Player.Ships.Count == 0) return;          // 배가 없으면 붙을 일이 없다
-        if (_game.Random.Next(EncounterRoll) != 0) return;
 
-        var foe = Encounter.Roll(_game.Random);
+        var (lat, lon) = _host.ShipLatLon;
+        if (Encounter.AtSea(lat, lon, steps, _game.Random) is not { } foe) return;
         var rng = _game.Random;
 
         _asking = true;
