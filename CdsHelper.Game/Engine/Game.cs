@@ -374,23 +374,30 @@ public sealed class Game
     /// <param name="buildingCode">건물 코드(항구 0 · 조선소 6 · 도서관 8 …).</param>
     /// <param name="culture">그 마을 문화권 번호.</param>
     /// <summary>
-    /// <b>부관</b>(부하 첫 자리)의 얼굴. 자리가 비었거나 신상을 못 찾으면 null.
+    /// <b>부관</b>(부하 첫 자리)의 얼굴. 부관이 없거나 신상을 못 찾으면 <b>뱃사람(MALE #299)</b>이다.
     /// </summary>
     /// <remarks>
     /// 대원이 대신 말하는 자리는 죄다 이 얼굴을 쓴다 — 성문에서 문지기 말을 못 알아들어
     /// 한 마디 덧붙일 때, 쳐들어가기 전에 되물을 때가 그렇다.
+    ///
+    /// 게임의 말 창 <c>0x00478280</c> 은 얼굴 <c>0x12B</c>(299)에서 시작해, 넘겨받은 사람이 제독
+    /// 객체가 아니면 그 사람 얼굴로 바꾼다. <c>0x0047CC60(0, 1)</c> 이 부관이 없으면 제독 객체를
+    /// 넘기므로 그때는 뱃사람 얼굴이 선다(볼트 81).
     /// </remarks>
     public uint[]? AideFace
     {
         get
         {
             string mate = Player.MateAt(0);
-            if (mate.Length == 0) return null;
-
-            return MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
-                ? Faces?.TryGetBgra(who.Face, female: false) : null;
+            if (mate.Length > 0 && MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
+                && Faces?.TryGetBgra(who.Face, female: false) is { } face)
+                return face;
+            return Faces?.TryGetBgra(SailorFace, female: false);
         }
     }
+
+    /// <summary>부관이 없을 때 말하는 뱃사람 얼굴 번호(<c>0x00478280</c> 의 <c>0x12B</c>).</summary>
+    public const int SailorFace = 299;
 
     public uint[]? SpeakerFace(int buildingCode, int culture)
     {

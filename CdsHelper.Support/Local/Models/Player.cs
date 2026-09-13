@@ -1,6 +1,24 @@
 ﻿namespace CdsHelper.Support.Local.Models;
 
 /// <summary>배를 산 결과.</summary>
+/// <summary>
+/// 함대에 남아 있는 해상재해. 게임의 함대 <c>+0xD4</c> 비트 0·1·2 다(볼트 80).
+/// </summary>
+[Flags]
+public enum SeaAilment
+{
+    None = 0,
+
+    /// <summary>쥐 — 날마다 식량을 먹는다.</summary>
+    Rats = 1,
+
+    /// <summary>괴혈병 — 날마다 선원이 죽는다.</summary>
+    Scurvy = 2,
+
+    /// <summary>전염병 — 날마다 선원이 죽는다.</summary>
+    Plague = 4,
+}
+
 public enum PurchaseResult
 {
     /// <summary>샀다.</summary>
@@ -825,6 +843,33 @@ public sealed class Player
 
     /// <summary>항해일을 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
     public void SetDaysAtSea(int days) => DaysAtSea = Math.Max(0, days);
+
+    /// <summary>
+    /// 함대에 남아 있는 해상재해. 터지면 서고, 항해가 끝나야(상륙·입항) 풀린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 함대 <c>+0xD4</c> 비트로 든다(세터 <c>0x00474630</c>). 항해일수를 0 으로 돌리는
+    /// 세 자리(<c>0x0048B56A</c> · <c>0x0048DC4F</c> · <c>0x0048E6AD</c>)가 이 값도 함께 0 으로 둔다.
+    /// </remarks>
+    public SeaAilment Ailments { get; private set; }
+
+    /// <summary>그 재해가 서 있는지.</summary>
+    public bool Has(SeaAilment ailment) => (Ailments & ailment) != 0;
+
+    /// <summary>재해를 세운다.</summary>
+    public void Afflict(SeaAilment ailment) => Ailments |= ailment;
+
+    /// <summary>재해를 모두 풀고, 풀기 전에 서 있던 것을 낸다.</summary>
+    public SeaAilment CureAilments()
+    {
+        var was = Ailments;
+        Ailments = SeaAilment.None;
+        return was;
+    }
+
+    /// <summary>재해를 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
+    public void SetAilments(int bits) =>
+        Ailments = (SeaAilment)bits & (SeaAilment.Rats | SeaAilment.Scurvy | SeaAilment.Plague);
 
     /// <summary>
     /// 아이템을 산다. 값을 치르고 소지품에 넣는다. 돈이 모자라면 아무것도 하지 않는다.

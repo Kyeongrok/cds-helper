@@ -158,7 +158,11 @@ public static class SeaEvents
         int sail = player.LevelOf(SkillName);
         int carved = FigureheadOf(player);
 
-        return rng.Next(KindCount) switch
+        // 굴린 갈래의 재해가 이미 서 있으면 그날은 그냥 넘긴다(0x004746DC) — 겹쳐 뜨지 않는다.
+        int kind = rng.Next(KindCount);
+        if (AilmentOf(kind) is { } standing && player.Has(standing)) return null;
+
+        return kind switch
         {
             RatsKind or RatsAgainKind =>
                 Figureheads.Blocks(carved, Figureheads.GuardsRats, rng)
@@ -219,6 +223,67 @@ public static class SeaEvents
 
     /// <summary>쥐가 축내는 식량 통 수(<c>0x0047476E</c> 벌).</summary>
     public static int RatsEat(Random rng) => rng.Next(3) + 1;
+
+    /// <summary>그 갈래가 남기는 재해. 쥐·괴혈병·전염병만 남는다.</summary>
+    public static SeaAilment? AilmentOf(int kind) => kind switch
+    {
+        RatsKind or RatsAgainKind => SeaAilment.Rats,
+        ScurvyKind => SeaAilment.Scurvy,
+        PlagueKind => SeaAilment.Plague,
+        _ => null,
+    };
+
+    /// <summary>터진 재해가 남기는 표시. 귀띔이나 폭풍은 안 남긴다.</summary>
+    public static SeaAilment AilmentOf(SeaEventKind kind) => kind switch
+    {
+        SeaEventKind.Rats => SeaAilment.Rats,
+        SeaEventKind.Scurvy => SeaAilment.Scurvy,
+        SeaEventKind.Plague => SeaAilment.Plague,
+        _ => SeaAilment.None,
+    };
+
+    /// <summary>쥐가 서 있는 동안 날마다 먹는 식량 원값 — <c>0x00474160(-10)</c> 이 열 배로 민다(10통).</summary>
+    public const int RatsDailyUnits = 100;
+
+    /// <summary>
+    /// 재해가 서 있는 동안 바다에서 하루를 난다 — 쥐는 식량을 먹고 병은 선원을 죽인다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 바다 하루 뒷정리 <c>0x00474DA0</c> 앞머리다.
+    /// <code>
+    ///   474db0  쥐    → 식량 원값 -100
+    ///   474dd2  괴혈병 → 죽는 수  = rand(2) + 3 - 부하 의학
+    ///   474e0c  전염병 → 죽는 수 += 6 - 부하 의학
+    ///   474e3c  죽는 수만큼 선원 비율이 높은 배에서 한 명씩
+    /// </code>
+    /// 부하 기능표를 우리는 안 들어 <b>주인공의 의학</b>으로 갈음한다. 우리 선원은 함대가 통째로
+    /// 태우므로 머릿수만 던다.
+    /// </remarks>
+    /// <returns>오늘 죽은 선원 수.</returns>
+    public static int Ail(Player player, Random rng)
+    {
+        if (player.Has(SeaAilment.Rats))
+            player.AddSupplyUnits(SupplyKind.Food, -RatsDailyUnits);
+
+        int medicine = player.LevelOf(MedicineSkill);
+        int dead = 0;
+        if (player.Has(SeaAilment.Scurvy)) dead = rng.Next(2) + 3 - medicine;
+        if (player.Has(SeaAilment.Plague)) dead += 6 - medicine;
+
+        dead = Math.Clamp(dead, 0, player.Crew);
+        if (dead > 0) player.SetCrew(player.Crew - dead);
+        return dead;
+    }
+
+    /// <summary>
+    /// 항해가 끝나 재해가 풀릴 때 부관이 하는 말(<c>0x0048E5E0</c>) — 서 있던 것마다 한 줄씩이다.
+    /// </summary>
+    public static IEnumerable<string> CureWords(SeaAilment was)
+    {
+        if ((was & SeaAilment.Rats) != 0) yield return "쥐를 퇴치했습니다. 이제 괜찮습니다.";
+        if ((was & SeaAilment.Scurvy) != 0) yield return "환자가 회복되었습니다. 어떻게 되는 줄 알았습니다.";
+        if ((was & SeaAilment.Plague) != 0) yield return "병이 가라앉은 것 같습니다. 정말 위험할 뻔했습니다.";
+    }
 
     /// <summary>
     /// 반란이 일 만한지 — <b>이레마다</b>, 또는 피로도가 80 을 넘었으면 언제든.
