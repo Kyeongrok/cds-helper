@@ -4043,19 +4043,24 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     private void LoadSprites()
     {
-        if (_spritesTried || string.IsNullOrEmpty(_game.Directory)) return;
-        _spritesTried = true;
+        // 게임 폴더를 몰라도 연다 — 조각과 글꼴은 asset 을 먼저 보므로 폴더 없이도 원본 그대로 선다.
+        // 예전에는 폴더가 비면 여기서 돌아가 버려 세이브를 안 연 첫 실행에서 메인메뉴가 민색 상자였다.
+        // 폴더를 나중에 알게 되면 한 번 더 연다(asset 에 빠진 조각을 CDS 에서 마저 찾는다).
+        var dir = _game.Directory;
+        if (_spritesTriedFor == dir) return;
+        _spritesTriedFor = dir;
 
-        GameUi.Sprites = UiSprites.Open(_game.Directory);
+        GameUi.Sprites = UiSprites.Open(dir);
         if (GameUi.Sprites == null)
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 화면 조각 없음: {UiSprites.LastError}");
 
-        GameUi.Font = GameFont.Open(_game.Directory);
+        GameUi.Font = GameFont.Open(dir);
         if (GameUi.Font == null)
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 게임 글꼴 없음: {GameFont.LastError}");
     }
 
-    private bool _spritesTried;
+    /// <summary>조각·글꼴을 마지막으로 연 게임 폴더(모르면 빈 문자열). 아직 안 열었으면 null.</summary>
+    private string? _spritesTriedFor;
 
     /// <summary>
     /// 게임 폴더를 잡고 타이틀 곡을 튼다. 지도는 아직 띄우지 않는다 —
