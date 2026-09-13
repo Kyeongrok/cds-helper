@@ -514,7 +514,7 @@ public sealed class ShipMapWindow : Window
                                                  : _host.Status;
             CheckPort();
             SpotCities();
-            MeetFolk();
+            _folkEntered = MeetFolk();
             CheckDiscovery();
             PassTime();
             MarkSeen();
@@ -2137,7 +2137,8 @@ public sealed class ShipMapWindow : Window
         _steps = walked;
 
         // 무리가 붙는 주사위는 날이 아니라 걸음마다 굴린다 — 게임도 고리 한 바퀴에 한 번이다.
-        if (!_host.IsOnLand) CheckEncounter(since);
+        // 이번 틱에 보이는 배가 새로 붙었으면 굴리지 않는다(0x0048C126).
+        if (!_host.IsOnLand && !_folkEntered) CheckEncounter(since);
 
         _ticks += since * TerrainTable.TicksOfClass(_host.TerrainClass);
         if (_ticks < TerrainTable.TicksPerDay) return;
@@ -2300,50 +2301,246 @@ public sealed class ShipMapWindow : Window
     private (DateTime Day, int Revision) _folkStamp = (default, -1);
 
     /// <summary>
-    /// 배가 사람 곁을 지나면 말을 건다.
+    /// 화면에 뜬 사람의 배에 <b>두 칸 안</b>으로 붙으면 「배가 보입니다」 — 우호 · 습격 · 떠난다.
     /// </summary>
     /// <remarks>
-    /// 한 번 만난 사람에게는 <b>그가 다시 떠날 때까지</b> 안 붙는다 — 같은 자리에서
-    /// 몇 번이고 창이 뜨면 배를 못 몬다. 인물 세상이 누가 움직일 때마다 올리는
-    /// <c>Revision</c> 으로 그것을 가른다.
+    /// 게임의 <c>0x0048C049</c> ~ <c>0x0048CA90</c> 이다(볼트 <c>59.분석-해적 조우</c> 5·6절).
+    /// <code>
+    ///   거리² ≤ 0x400  (1/16 칸이라 두 칸)   칸마다 걸쇠 +4 — 들어올 때 한 번, 벗어나면 풀린다
+    ///   하나면 묻고, 여럿이면 고르게 한다(0x0056FBA8)
+    ///   상대 갈래  0 같은 나라 · 1 포르투갈·에스파니아 · 2 이교도(나라 갈래 3)
+    ///              3 해적(직업 4) · 4 그 밖                              (0x0048C265)
+    /// </code>
+    /// 새로 붙은 배가 하나라도 있으면 그 틱에는 바다 주사위(<see cref="CheckEncounter"/>)를
+    /// 굴리지 않는다 — 게임도 <c>0x0048C126</c> 에서 목록이 비었을 때만 주사위로 간다.
+    ///
+    /// <b>아직 못 옮긴 것</b> — 우호 만남의 정보·보급 거래(<c>0x0048CCF0</c>), 해전 자체, 영해
+    /// 경고에서 상대가 따르지 않고 싸움을 거는 조건.
     /// </remarks>
-    private void MeetFolk()
+    /// <returns>이번에 새로 두 칸 안에 든 배가 있었는지.</returns>
+    private bool MeetFolk()
     {
-        if (_asking || _host.SeaBlocked || _host.IsOnLand) return;
-        if (_game.World is not { } world) return;
+        if (_asking || _host.SeaBlocked || _host.IsOnLand) return false;
+        if (_game.World is not { } world) return false;
 
-        var (who, cells) = _host.NearestFolk(MeetCells);
-        if (who < 0) { return; }
+        // 걸쇠 — 두 칸 밖으로 벗어난 사람은 풀어 주고, 새로 든 사람만 고른다.
+        var inside = _host.FolkWithin(MeetCells);
+        _near.IntersectWith(inside);
 
-        // 같은 만남을 두 번 열지 않는다.
-        var mark = (who, world.Revision);
-        if (_met == mark) return;
-        _met = mark;
-
-        if (world.People.FirstOrDefault(r => r.Id == who) is not { } row) return;
-
-        string what = row.Id < HistoryVoyages.Count
-            ? $"{row.Name} 의 함대다!"
-            : $"{row.Name} 의 배와 마주쳤다.";
+        var fresh = new List<PersonTable.Row>();
+        foreach (int id in inside)
+        {
+            if (!_near.Add(id)) continue;
+            if (world.People.FirstOrDefault(r => r.Id == id) is { } row) fresh.Add(row);
+        }
+        if (fresh.Count == 0) return false;
 
         _asking = true;
+        _host.Paused = true;
         try
         {
-            _host.Paused = true;
-            NoticeDialog.Show(this, what, $"{cells:F0}칸 앞");
+            if (PickFolk(fresh) is { } who) Approach(world, who);
         }
         finally
         {
             _host.Paused = false;
             _asking = false;
         }
+        return true;
     }
 
-    /// <summary>말을 걸 만큼 가까운 거리. 게임 그림이 세 칸이라 그 언저리다.</summary>
-    private const double MeetCells = 3;
+    /// <summary>다가갈 배를 정한다. 안 다가가면 null.</summary>
+    private PersonTable.Row? PickFolk(List<PersonTable.Row> rows)
+    {
+        const string Seen = "제독! 배가 보입니다. 가까이 가 보겠습니까?";     // 0x0056FB28
 
-    /// <summary>마지막으로 만난 사람과 그때의 세상 판. 같은 만남을 거르는 데 쓴다.</summary>
-    private (int Who, int Revision) _met = (-1, -1);
+        if (rows.Count == 1)
+            return ConfirmDialog.Ask(this, Seen, face: _game.AideFace) ? rows[0] : null;
+
+        // 여럿이면 물음은 건네기만 하고 목록에서 고르게 한다(0x0056FB58 · 0x0056FBA8).
+        ConfirmDialog.Tell(this, Seen, face: _game.AideFace);
+        int pick = ChoiceDialog.Ask(this, "접근할 함대를 선택해 주십시오",
+                                    [.. rows.Select(r => $"{r.Name}에 접근한다")]);
+        return pick >= 0 && pick < rows.Count ? rows[pick] : null;
+    }
+
+    /// <summary>붙은 배의 갈래(<c>0x0048C265</c>).</summary>
+    private enum FolkSide { Own, Crown, Heathen, Pirate, Other }
+
+    private FolkSide SideOf(int nation, int job)
+    {
+        if (nation == _game.Player.Nation) return FolkSide.Own;
+        if (nation is 0 or 1) return FolkSide.Crown;
+        if (_game.Nations?.Find(nation) is { Sect: 3 }) return FolkSide.Heathen;
+        if (job == PersonTemplate.PirateJob) return FolkSide.Pirate;
+        return FolkSide.Other;
+    }
+
+    /// <summary>다가간 뒤 — 우호적으로 접근한다 · 습격한다 · 떠난다(<c>0x0056FBE0</c> 벌).</summary>
+    private void Approach(PersonWorld world, PersonTable.Row who)
+    {
+        var template = _game.PersonTemplates?.Find(who.Id);
+        int nation = template?.Nation ?? -1;
+        var side = SideOf(nation, template?.Job ?? 0);
+        string nationName = _game.Nations?.Find(nation)?.Name ?? "";
+        var face = _game.Faces?.TryGetBgra(who.Face, female: false);
+        var aide = _game.AideFace;
+
+        int pick = ChoiceDialog.Ask(this, who.Name, ["우호적으로 접근한다", "습격한다"], cancel: "떠난다");
+        if (pick < 0) return;
+
+        bool fight = pick == 0
+            ? Befriend(who, side, nationName, face, aide)
+            : Raid(side, nationName, face, aide, _game.Random);
+
+        if (fight) FightFolk(world, who, nation);
+    }
+
+    /// <summary>우호적으로 접근했을 때. 싸움이 붙으면 true.</summary>
+    private bool Befriend(PersonTable.Row who, FolkSide side, string nationName,
+                          uint[]? face, uint[]? aide)
+    {
+        switch (side)
+        {
+            // 포르투갈·에스파니아 배는 1492년까지는 여느 배다(0x0048C530 의 cmp 해, 0x5D4).
+            case FolkSide.Crown when _game.Player.Date.Year > 1492:
+                return Treaty(nationName, face, aide);
+
+            case FolkSide.Heathen:
+                return MeetHeathen(face);
+
+            // 해적은 우호로 가도 덮친다(0x0056FEA0 · 0x0056FED8).
+            case FolkSide.Pirate:
+                ConfirmDialog.Tell(this, "제독, 뭔가 분위기가 이상한데요···해, 해적입니다!", face: aide);
+                ConfirmDialog.Tell(this, "하하하! 좋은 봉이 걸려 들었군! 놈들을 남김없이 해치워라!", face: face);
+                return true;
+
+            default:
+                // 0x0048CCF0 — "여어, 자네! 나는 %s의 %s%s네." 가운데 두 %s 는 아직 안 짚었다.
+                ConfirmDialog.Tell(this, $"여어, 자네! 나는 {nationName}의 {who.Name}네. 항해는 순조롭나?",
+                                   face: face);
+                if (ChoiceDialog.Ask(this, who.Name, ["정보를 산다", "보급물자를 산다"], cancel: "헤어진다") >= 0)
+                    ConfirmDialog.Tell(this, "…(정보·보급 거래는 아직 옮기지 못했다.)");
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// 이교도 함대에 우호로 다가갔을 때(<c>0x0048C3DB</c>). 싸움이 붙으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 아랍어(<c>vtbl+0x20(5)</c>)가 3 이면 교섭 줄이 뜬다. 아니면 <b>신앙심 + 1 ≥ 75</b> 일 때만
+    /// 저쪽이 덤빈다 — 신앙이 깊은 제독은 이교도가 먼저 알아본다. 둘 다 아니면 그냥 지나간다.
+    /// </remarks>
+    private bool MeetHeathen(uint[]? face)
+    {
+        var player = _game.Player;
+        if (player.TongueOf("아랍어") == 3)
+        {
+            int pick = ChoiceDialog.Ask(this, "교섭", ["교섭하여 전투를 피한다", "전투를 한다"]);
+            if (pick == 0)
+                ConfirmDialog.Tell(this, "좋지. 자비를 청하는 자를 죽이진 않겠다. " +
+                                         "그러나, 우리 선원들을 다치게 하면 용서치 않겠다.", face: face);
+            if (pick != 1) return false;
+        }
+        else if (player.AbilityOf(Ability.Faith) + 1 < 75)
+        {
+            return false;
+        }
+
+        ConfirmDialog.Tell(this, "이교도들, 우리들이 상대해 주겠다!", face: face);
+        return true;
+    }
+
+    /// <summary>
+    /// 1493년부터 포르투갈·에스파니아 배와 만나면 토르데시야스선을 따진다(<c>0x0048C551</c>).
+    /// 싸움이 붙으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 선은 x = 15000(1/16 칸, 서경 45°)이고 1493년만 16223(서경 34°)이다. <b>포르투갈은 동쪽,
+    /// 에스파니아는 서쪽이 제 바다</b>다.
+    /// <list type="bullet">
+    ///   <item>제 바다면 이쪽이 경고하고(<c>0x0056FC10</c>) 저쪽이 물러간다(<c>0x0056FCD8</c>).
+    ///         게임은 저쪽 형편 칸(<c>vtbl+0x24</c> 넷째)이 2 면 "조약따윈 모른다!" 로 덤비는데
+    ///         그 칸을 아직 못 짚어 늘 물러가게 둔다.</item>
+    ///   <item>남의 바다면 저쪽이 경고하고(<c>0x0056FD18</c>) 따를지 칠지 고른다.</item>
+    /// </list>
+    /// </remarks>
+    private bool Treaty(string theirNation, uint[]? face, uint[]? aide)
+    {
+        var player = _game.Player;
+        var (_, lon) = _host.ShipLatLon;
+        int x = (int)((lon + 180) / 360 * 40000);
+        int line = player.Date.Year == 1493 ? 16223 : 15000;
+        bool west = x <= line;
+
+        if ((player.Nation == 0) != west)
+        {
+            string mine = _game.Nations?.Find(player.Nation)?.Name ?? player.NationName;
+            ConfirmDialog.Tell(this, $"경고한다. 여기는 {mine}의 영해다. " +
+                                     "타국의 배는 기항도 항해도 허용되지 않는다. 신속히 떠나도록.", face: aide);
+            ConfirmDialog.Tell(this, "알았다. 우리는 조약을 위반할 뜻은 없다. 이 해역에서 떠나겠다.", face: face);
+            return false;
+        }
+
+        ConfirmDialog.Tell(this, $"경고한다. 여기는 {theirNation}의 영해다. " +
+                                 "타국의 배는 기항도 항해도 허용하지 않는다. 신속히 떠나도록.", face: face);
+        if (ChoiceDialog.Ask(this, "경고", ["경고를 따라 떠난다", "경고를 무시하고 공격한다"]) == 1)
+            return true;
+
+        ConfirmDialog.Tell(this, "알았다. 우리는 조약을 위반할 뜻은 없다. 이 해역을 곧 떠나겠다.", face: aide);
+        return false;
+    }
+
+    /// <summary>습격한다를 골랐을 때(<c>0x0048C76D</c>). 싸움이 붙으면 true.</summary>
+    private bool Raid(FolkSide side, string nationName, uint[]? face, uint[]? aide, Random rng)
+    {
+        switch (side)
+        {
+            case FolkSide.Heathen:
+                ConfirmDialog.Tell(this, "제독, 전방의 함대는 이교도의 것입니다!", face: aide);
+                ConfirmDialog.Tell(this, rng.Next(2) == 0 ? "적의 습격이다! 서둘러 응전하라!"
+                                                          : "전원 전투 준비! 반격하라!", face: face);
+                return true;
+
+            case FolkSide.Pirate:
+                ConfirmDialog.Tell(this, "제독, 전방의 함대는 해적입니다! 해치워 버립시다!", face: aide);
+                ConfirmDialog.Tell(this, rng.Next(2) == 0
+                    ? "적의 습격이다! 서둘러 응전하라!"
+                    : "흐흐, 우리 해적들을 우습게 보지 마라! 모두 물고기 밥이 되게 해 주마!", face: face);
+                return true;
+        }
+
+        // 같은 나라(0x0056FF18)와 그 밖(0x0056FF98)은 한 번 더 묻는다.
+        ConfirmDialog.Tell(this, side == FolkSide.Own
+            ? $"제독, 잠깐! 저것은 {nationName}의 함대입니다!"
+            : $"제독, 저것은 {nationName}의 함대입니다. 괜찮습니까?", face: aide);
+        if (ChoiceDialog.Ask(this, "습격", ["무시하고 공격한다", "공격을 중지한다"]) != 0) return false;
+
+        ConfirmDialog.Tell(this, "···공격하실 겁니까!?", face: aide);
+        ConfirmDialog.Tell(this, side == FolkSide.Own ? "도대체 어쩔 셈인냐!?"
+                                                      : "갑자기 공격하다니, 비겁한 놈들! 응전하라!", face: face);
+        return true;
+    }
+
+    /// <summary>
+    /// 해전 뒤끝. 게임은 싸우고 나면 그 사람을 제 나라 수도로 돌려보내고 예순 날 재운다
+    /// (<c>0x0048CCD7</c> → <c>0x00432400</c>).
+    /// </summary>
+    private void FightFolk(PersonWorld world, PersonTable.Row who, int nation)
+    {
+        ConfirmDialog.Tell(this, "…(해전은 아직 옮기지 못했다. 적은 물러갔다.)");
+        world.SendHome(who, _game.Nations?.Find(nation)?.Capital ?? -1);
+    }
+
+    /// <summary>두 칸. 게임은 1/16 칸 거리² 가 <c>0x400</c> 이하일 때 붙인다(<c>0x0048C0E5</c>).</summary>
+    private const double MeetCells = 2;
+
+    /// <summary>두 칸 안에 들어와 이미 한 번 물은 사람들 — 게임의 걸쇠(<c>칸+4</c>)다.</summary>
+    private readonly HashSet<int> _near = [];
+
+    /// <summary>이번 틱에 새 배가 붙었는지. 그러면 바다 주사위를 건너뛴다.</summary>
+    private bool _folkEntered;
 
     /// <summary>지난번에 세어 둔, 선 도시들.</summary>
     private HashSet<int>? _founded;
@@ -2628,7 +2825,7 @@ public sealed class ShipMapWindow : Window
     /// 게임에는 길이 둘이다(<c>0x0048BE80</c>, 볼트 <c>59.분석-해적 조우</c>).
     /// <list type="number">
     ///   <item>화면에 보이는 인물 함대와 <b>두 칸 안</b>으로 가까워지면 「배가 보입니다」 —
-    ///         우호 · 습격 · 떠난다. 우리 쪽에는 돌아다니는 인물 함대가 없어 <b>아직 안 옮겼다</b>.</item>
+    ///         우호 · 습격 · 떠난다. <see cref="MeetFolk"/> 가 맡는다.</item>
     ///   <item>그런 함대가 없으면 <b>구역 주사위</b> — 유럽 바다 1/700 해적, 동지중해~아라비아해
     ///         1/400 이슬람 함대. 걸음마다 굴리고 구역 밖에서는 안 붙는다. 여기가 이것이다
     ///         (<see cref="Encounter.AtSea"/>).</item>
