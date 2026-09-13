@@ -2922,10 +2922,15 @@ public sealed class ShipMapWindow : Window
             switch (pick)
             {
                 case 0 when Talked(foe, rng): return;       // 교섭이 되면 그대로 끝난다
-                case 1 when Encounter.Escapes(_game.Player, foe, rng):
-                    ConfirmDialog.Tell(this, Encounter.FledWord(rng), "도망성공");
-                    return;
                 case 1:
+                    // 게임도 굴리고 나서 동전을 돌린다(0x00455B8D → 0x00455B98) — 멎은 쪽이 곧 결과다.
+                    bool fled = Encounter.Escapes(_game.Player, foe, rng);
+                    EffectPopup.PlayCoin(this, _game, fled, MapAreaOnScreen());
+                    if (fled)
+                    {
+                        ConfirmDialog.Tell(this, Encounter.FledWord(rng), "도망성공");
+                        return;
+                    }
                     ConfirmDialog.Tell(this, Encounter.CaughtWord(rng), "도망실패");
                     break;
                 case 2:
@@ -2946,9 +2951,12 @@ public sealed class ShipMapWindow : Window
     /// <summary>교섭 한 판. 돈을 물어 물러가면 true.</summary>
     private bool Talked(in Enemy foe, Random rng)
     {
-        // 추격대·토벌대는 말이 안 통한다(0x0045585C).
-        if (!Encounter.CanTalk(foe.Kind)
-            || !Encounter.Roll(Encounter.TalkOdds(_game.Player, rng), rng))
+        // 추격대·토벌대는 말이 안 통한다(0x0045585C) — 굴림 없이 진 동전이 돈다(0x00455860).
+        // 통하는 적이면 굴리고 나서 동전을 돌린다(0x004559C2 → 0x004559CD).
+        bool heard = Encounter.CanTalk(foe.Kind)
+                     && Encounter.Roll(Encounter.TalkOdds(_game.Player, rng), rng);
+        EffectPopup.PlayCoin(this, _game, heard, MapAreaOnScreen());
+        if (!heard)
         {
             ConfirmDialog.Tell(this, Encounter.NoWordsWord(rng), "교섭");
             return false;
@@ -3063,14 +3071,25 @@ public sealed class ShipMapWindow : Window
         if (kind == SeaEventKind.Rats)
             _game.Player.AddSupply(SupplyKind.Food, -SeaEvents.RatsEat(_game.Random));
 
+        // 터진 재해만 사건 스틸을 먼저 세운다(0x004747C4 쥐 #2 · 0x004748EA/0x00474A96 병 #1).
+        // 귀띔(약해짐·이상한 병)에는 그림이 없다.
+        int picture = kind switch
+        {
+            SeaEventKind.Rats => EventStillPopup.Rats,
+            SeaEventKind.Scurvy or SeaEventKind.Plague => EventStillPopup.Sickness,
+            _ => -1,
+        };
+
         _asking = true;
         _host.Paused = true;
+        var still = picture >= 0 ? EventStillPopup.Open(this, _game, picture, MapAreaOnScreen()) : null;
         try
         {
             ConfirmDialog.Tell(this, word, face: MateFace());
         }
         finally
         {
+            still?.Close();                          // 대사 창이 닫히면 스틸도 걷는다(0x00473160)
             _host.Paused = false;
             _asking = false;
         }
@@ -3099,17 +3118,25 @@ public sealed class ShipMapWindow : Window
         {
             // 첫 마디는 <b>부관</b>이(0x0047534A — 0x0047CC60 으로 부하 첫 자리), 둘째·셋째는
             // <b>반란 대표</b>(#212)가 얼굴을 걸고 한다(0x00475383 · 0x004753AA 가 대표 객체를 넘긴다).
-            // 게임은 이 동안 사건 스틸(0x00472FA0(0))을 뒤에 깔아 두는데 우리는 아직 겹쳐 세우지 못한다.
+            // 게임은 이 동안 사건 스틸 #0 을 뒤에 깔아 둔다(0x00475317 → 0x00472FA0(0)).
             var leaderFace = _game.Faces?.TryGetBgra(MutinyFace, female: false);
-            ConfirmDialog.Tell(this,
-                $"제독, 큰일입니다. {who}{GameUi.Josa(who, "이", "가")} 반란을 일으켰습니다!  " +
-                $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!", face: MateFace());
-            ConfirmDialog.Tell(this,
-                $"제독, 이대로 {what}{GameUi.Josa(what, "을", "를")} 계속할 작정이라면 우리들은 " +
-                "전멸이다. 우리들은 당신과 함께 죽을 마음이 없다.", face: leaderFace);
-            ConfirmDialog.Tell(this,
-                "그러니, 모두가 보는 앞에서 나와 승부하자! 당신이 이기면 얌전히 따르겠다. " +
-                $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.", face: leaderFace);
+            var still = EventStillPopup.Open(this, _game, EventStillPopup.Mutiny, MapAreaOnScreen());
+            try
+            {
+                ConfirmDialog.Tell(this,
+                    $"제독, 큰일입니다. {who}{GameUi.Josa(who, "이", "가")} 반란을 일으켰습니다!  " +
+                    $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!", face: MateFace());
+                ConfirmDialog.Tell(this,
+                    $"제독, 이대로 {what}{GameUi.Josa(what, "을", "를")} 계속할 작정이라면 우리들은 " +
+                    "전멸이다. 우리들은 당신과 함께 죽을 마음이 없다.", face: leaderFace);
+                ConfirmDialog.Tell(this,
+                    "그러니, 모두가 보는 앞에서 나와 승부하자! 당신이 이기면 얌전히 따르겠다. " +
+                    $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.", face: leaderFace);
+            }
+            finally
+            {
+                still?.Close();                      // 일기토 판이 뜨기 전에 걷는다
+            }
 
             // 굴림 하나로 갈음하던 것을 <b>진짜 일기토 판</b>으로 바꿨다. 술집이 쓰는
             // 그 판(DuelDialog)이고, 상대만 그 자리에서 지어 세운다.
