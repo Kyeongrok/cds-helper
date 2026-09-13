@@ -190,7 +190,7 @@ public static class TownWorks
         if (facility.Kind == FacilityKind.Inn && !state.Poor)
             items.Remove(NameOf(TownWork.OddJob));
 
-        // 항구의 발표는 알릴 발견물이 있을 때만 뜬다
+        // 항구의 발표는 모항이고 알릴 발견물이 있을 때만 뜬다
         // (게임도 0x00477974 가 0x00476DE0 의 값을 그 줄의 보임 칸에 넣는다).
         if (facility.Kind == FacilityKind.Harbor && !state.CanAnnounce)
             items.Remove(NameOf(TownWork.Announce));

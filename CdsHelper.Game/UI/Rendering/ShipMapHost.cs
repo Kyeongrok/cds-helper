@@ -1751,6 +1751,35 @@ public sealed class ShipMapHost : HwndHost
         return true;
     }
 
+    /// <summary>
+    /// 바다에서 적을 배 자리. 뭍에 올라 있으면 대 둔 배 자리다. 자리를 모르면 null.
+    /// </summary>
+    public (double X, double Y)? SeaSpot =>
+        !_shipKnown ? null : _onLand ? (_moored ? (_mooredX, _mooredY) : null) : (_shipX, _shipY);
+
+    /// <summary>
+    /// 배를 그 칸에 갖다 놓는다(바다에서 적은 판을 불러올 때). 뭍이면 가까운 물칸으로 민다.
+    /// </summary>
+    public bool PlaceAtSea(double x, double y)
+    {
+        if (!_ready) return false;
+        (x, y) = NearestWater(x, Math.Clamp(y, 0, WorldMapRenderer.CellH - 1));
+        _shipX = _targetX = x;
+        _shipY = _targetY = y;
+        _shipKnown = true;
+        _blocked = false;
+        _anchored = true;                  // 닻을 내린 채로 연다 — 곧바로 흘러가지 않게
+        _onLand = false;
+        _moored = false;
+        _tickAccum = 0;
+        _dirX = _dirY = 0;
+        _centerX = x;
+        _centerY = y;
+        _follow = true;
+        _dirty = true;
+        return true;
+    }
+
     /// <summary>배를 리스본 앞바다로 되돌린다.</summary>
     public void ResetToLisbon()
     {

@@ -471,6 +471,7 @@ public sealed class ShipMapWindow : Window
         GameWindow.Cover(this, hamburger == null ? [_screen] : [_screen, hamburger]);
 
         PreviewKeyDown += OnTitleKey;   // 타이틀에서만 먹는다(그 안에서 화면을 본다)
+        KeyDown += OnMapKey;            // 지도에서 V 저장
 
         // V 글쇠가 어느 창에서든 이 창을 찾을 수 있게 해 둔다.
         Current = this;
@@ -1557,11 +1558,21 @@ public sealed class ShipMapWindow : Window
     /// 새 놀이는 <b>고른 국적의 자택</b>에서 시작한다 — 포르투갈이면 리스본,
     /// 에스파니아면 세빌리아다.
     /// </summary>
-    private void OpenHome()
+    /// <summary>새 판이 여는 도시 — 나라가 1 이면 세빌리아, 아니면 리스본. 없으면 번호 -1.</summary>
+    private (int Id, string Name) StartCity()
     {
         string want = _game.Player.Nation == 1 ? "세빌리아" : "리스본";
         var found = _game.CityTable.Cities.FirstOrDefault(c => c.Name == want);
-        if (found.Name != want) return;
+        return found.Name == want ? (found.Id, found.Name) : (-1, "");
+    }
+
+    private void OpenHome()
+    {
+        var found = StartCity();
+        if (found.Id < 0) return;
+
+        // 새 판을 연 도시가 모항이다 — 발표는 여기서만 된다(0x0045E449).
+        _game.Player.SetHomePort(found.Id);
 
         if (!_host.PlaceAtCity(found.Id)) return;
         _askedCity = found.Id;                    // 곧바로 다시 묻지 않게
@@ -1722,8 +1733,26 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     internal void SaveByKey(Window owner)
     {
-        if (!_started) return;
+        if (!_started || !ReferenceEquals(_screen.Content, _mapRoot)) return;
+        _game.Player.SetSeaCell(_host.SeaSpot);
         GameSystemMenu.Save(owner, _game);
+    }
+
+    /// <summary>
+    /// 지도 창 자체에서 누른 V — 이 창은 <see cref="GameWindow"/> 가 아니라 글쇠를 따로 받는다.
+    /// 해상에서도 저장이 된다.
+    /// </summary>
+    private void OnMapKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.V || e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
+        if (e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase) return;
+        if (!ReferenceEquals(_screen.Content, _mapRoot)) return;
+
+        bool paused = _host.Paused;
+        _host.Paused = true;               // 묻는 동안 배가 흘러가지 않게
+        try { SaveByKey(this); }
+        finally { _host.Paused = paused; }
+        e.Handled = true;
     }
 
     public void LoadGame()
@@ -1802,6 +1831,8 @@ public sealed class ShipMapWindow : Window
             // 대열과 배마다 승원(편성). 판 28 앞의 세이브에는 없어 대열 0 · 고르게 나눈 채로 연다.
             if (saved.Formation is { } formation) _game.Player.SetFormation(formation);
             _game.Player.SetCrewShares(saved.CrewShares);
+            // 모항. 판 29 앞의 세이브에는 없어 새 판이 여는 도시(리스본·세빌리아)로 둔다.
+            _game.Player.SetHomePort(saved.HomePort ?? StartCity().Id);
             // 밝힌 바다. 판 21 앞의 세이브에는 없어 빈 채로 시작한다.
             _game.Player.Explored.Restore(saved.Explored);
             // 아내와 후손. 판 22 앞의 세이브에는 없어 홀로 시작한다.
@@ -1834,6 +1865,9 @@ public sealed class ShipMapWindow : Window
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
+            // 바다에서 적은 판은 적어 둔 칸에 닻을 내린 채로 연다.
+            else if (saved.CityId < 0 && saved.SeaX is { } sx && saved.SeaY is { } sy)
+                _host.PlaceAtSea(sx, sy);
             _status.Text = saved.CityId >= 0
                 ? $"[{saved.CityName}] 에서 이어 간다 — {saved.Date:yyyy년 M월 d일}"
                 : $"바다에서 이어 간다 — {saved.Date:yyyy년 M월 d일}";
@@ -2032,6 +2066,7 @@ public sealed class ShipMapWindow : Window
         var owner = CommandMenu.Window ?? this;
         if (!ConfirmDialog.Ask(owner, "지금 플레이하고 있는 게임을 중단하겠습니까?")) return;
 
+        _game.Player.SetSeaCell(_host.SeaSpot);
         string error = GameSave.Save(_game.Player);
         if (error.Length > 0)
         {
@@ -2370,6 +2405,18 @@ public sealed class ShipMapWindow : Window
 
             // 서 있는 재해가 날마다 해를 끼친다 — 쥐는 식량을, 병은 선원을(0x00474DA0).
             SeaEvents.Ail(_game.Player, _game.Random);
+
+            // 바다에서 선원이 다 죽으면 놀이가 끝난다 — 게임도 하루 셈 끝에 도시 밖이고
+            // 선원 합이 0 이면 0x0044AF40(0x5A4D18, 1) 로 GAME OVER 다(0x00475A2C).
+            if (_game.Player.Ships.Count > 0 && _game.Player.Crew <= 0)
+            {
+                _host.Paused = true;
+                _asking = true;                      // 창이 떠 있는 동안 하루 셈이 다시 안 돌게
+                GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+                _asking = false;
+                Dispatcher.BeginInvoke(ReturnToTitle);
+                return;
+            }
         }
     }
 
@@ -3984,9 +4031,10 @@ public sealed class ShipMapWindow : Window
     /// 왕복하면 원본이 스무아흐레인데, 그 가운데 스무 날이 들고 나는 값이고 실제로 걷는
     /// 것은 아흐레쯤이다. 우리는 걷는 날만 세고 있었으니 절반이 될 수밖에 없었다.
     /// </remarks>
-    private const int PortDays = 10;
+    /// <remarks>기본은 원본대로 열흘이고, 개발 창 「출입 일수」로 1~10 사이에서 줄일 수 있다.</remarks>
+    private static int PortDays => Local.Settings.GameSettings.PortDays;
 
-    /// <summary>마을에 들거나 날 때 열흘을 보낸다.</summary>
+    /// <summary>마을에 들거나 날 때 설정한 날수(기본 열흘)를 보낸다.</summary>
     private void PassPortDays() => _game.Player.AdvanceDays(PortDays);
 
     /// <summary>

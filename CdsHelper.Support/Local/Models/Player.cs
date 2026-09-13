@@ -320,6 +320,26 @@ public sealed class Player
     /// <summary>지금 들어와 있는 도시 이름. 바다에 있으면 빈 문자열.</summary>
     public string CityName { get; private set; } = "";
 
+    /// <summary>모항 — 새 판을 연 도시. 모르면 -1.</summary>
+    /// <remarks>
+    /// 게임은 도시 레코드 <c>+0x1D</c> 의 비트 8 로 든다. NEW GAME 이 시작 도시에만 세우고
+    /// (<c>0x0045E449</c> · <c>0x0045E7BE</c> · <c>0x0045EA28</c>) 그 뒤로 옮기는 곳은 없다.
+    /// 항구 「발표」가 이 비트를 본다(<c>0x00476DE0</c>) — <b>발표는 모항에서만</b> 된다.
+    /// 도착 대사 「제독, 역시 모항이 좋군요.」(<c>0x004687BE</c>)도 같은 비트다.
+    /// </remarks>
+    public int HomePort { get; private set; } = -1;
+
+    /// <summary>모항을 박는다(새 판 · 불러오기).</summary>
+    public void SetHomePort(int cityId) => HomePort = cityId;
+
+    /// <summary>
+    /// 바다에서 적을 때 배가 있던 칸. 도시에 있으면 쓰지 않는다 — 적기 앞에 지도가 채운다.
+    /// </summary>
+    public (double X, double Y)? SeaCell { get; private set; }
+
+    /// <summary>바다의 배 자리를 적어 둔다.</summary>
+    public void SetSeaCell((double X, double Y)? cell) => SeaCell = cell;
+
     /// <summary>배운 기술과 그 자리.</summary>
     public IReadOnlyDictionary<string, int> Skills => _skills;
 
