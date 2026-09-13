@@ -48,6 +48,13 @@ public static class DisevScript
         // 뒤의 02 0A 00 을 빈 대사로 잘못 읽는다.
         new(Sig(0x00, 0x02), 4, "AVI 재생"),
         new(Sig(0x00, 0x1F), 4, "EVSTILL 이미지 표시"),
+        // 00 1E [u16 n] — 특수 조우 연출. 0x004085D2 가 n(0~8)을 뜀표 0x0040C160 으로 가려 사건 애니메이션
+        // 0x0048E820(장면)을 튼다. 이름은 cds_disev_editor v0.4 것이다(<see cref="Encounters"/>).
+        new(Sig(0x00, 0x1E), 4, "특수 조우 연출"),
+        // 00 0C [u16 n] — DISCOVER.CDS 파트 n 을 움직이는 그림으로 튼다(0x00408429 → 0x00466C90).
+        // 존왕의 술잔(파트 104)의 +0xA3 이 이것이다. 예전에는 00 을 못 짚어 「0C 04 00」으로 읽었다 —
+        // 0C 는 00 없이 오면 인물 대화(0C 0D)만 뜻이 있다(0x00408BA4).
+        new(Sig(0x00, 0x0C), 4, "CG 애니메이션 재생"),
         new(Sig(0x43, 0x2C, 0x08), 15, "교역품 조건 분기", 13),
         new(Sig(0x43, 0x2D, 0x1C), 12, "능력치 비교 분기", 10),
         new(Sig(0x43, 0x2E, 0x1C), 12, "능력치 비교2 분기", 10),
@@ -82,7 +89,7 @@ public static class DisevScript
         new(Sig(0x36, 0x16), 7, "연도 범위 조건"),
         new(Sig(0x1B, 0x0B), 4, "발견 완료 조건"),
         new(Sig(0x5E, 0x0B), 4, "미발견 조건"),
-        new(Sig(0x2A, 0x1C), 9, "수치 비교 (이상)"),
+        new(Sig(0x2A, 0x1C), 9, "수치 비교 (초과)"),
         new(Sig(0x2B, 0x1C), 9, "능력치 조건"),
         new(Sig(0x2C, 0x1C), 9, "수치 비교 (미만)"),
         new(Sig(0x2D, 0x1C), 9, "수치 비교 (이하)"),
@@ -104,8 +111,8 @@ public static class DisevScript
         new(Sig(0x22, 0x1C), 9, "능력치 설정"),
         new(Sig(0x19, 0x14), 6, "금화 증가"),
         new(Sig(0x1A, 0x14), 6, "금화 감소"),
-        new(Sig(0x12, 0x05), 4, "아이템 소지 조건"),
-        new(Sig(0x0F, 0x05), 4, "아이템 비소지 조건"),
+        new(Sig(0x12, 0x05), 4, "아이템 비소지 조건"),   // 0x00409022: 0x0047CE20 가 −1 이면 1 — 없음
+        new(Sig(0x0F, 0x05), 4, "아이템 소지 조건"),     // 0x00408EC8: 있으면 1 (cds_disev_editor 이름이 뒤바뀌어 있었다)
         new(Sig(0x0F, 0x0E), 4, "힌트 상태 활성 조건"),
         new(Sig(0x12, 0x0E), 4, "힌트 상태 미활성 조건"),
         new(Sig(0x00, 0x05), 4, "아이템 획득"),
@@ -120,6 +127,11 @@ public static class DisevScript
         // 0E 04 [u16 n] — 미니게임 n 을 한 판 하고 이겼는지를 「마지막 결과」에 둔다(0x00408D16).
         // 0 성배 퍼즐(0x004684D0) · 1 스핑크스 퀴즈 · 2 미궁 64 · 3 낚시 · 6 큐브 퍼즐.
         new(Sig(0x0E, 0x04), 4, "미니게임"),
+        // 0E 14|1A [u32 판자] 04 [u16 n] — 코인 게임(4)·발라몬의 탑(5)(0x00408DF7). 둘째 바이트 14 와 1A 는
+        // 같은 손으로 간다(0x0040C198 의 17·23 칸 — 둘째−3 이 칸 번호다). 04 가 아니면 아무것도 안 한다.
+        // 판자는 탑만 쓴다. cds_disev_editor v0.4 도 0E 14 로 적는다.
+        new(Sig(0x0E, 0x14), 9, "퍼즐 미니게임"),
+        new(Sig(0x0E, 0x1A), 9, "퍼즐 미니게임"),
         // 2F 0D [u16 인물] — 그 인물이 이끄는 적과 육상전(0x0040A40B → 0x0044AA30(3, 아군, 적, 0, 지형)).
         // 2F 08 [u16 도시] — 그 도시와 육상전(0x0040A3B2 → 0x0044AA30(4, 아군, 0, 도시, 7)).
         // 결과는 「이겼는가」로 남아 43 47 이 이기면 뛴다. 전멸하면 게임이 먼저 게임 오버를 걸고
@@ -135,6 +147,26 @@ public static class DisevScript
         new(Sig(0x4D), 1, "이벤트 결과 코드 1"),
         new(Sig(0x4E), 1, "이벤트 결과 코드 2"),
     ];
+
+    /// <summary>
+    /// <c>00 1E [n]</c> 특수 조우 연출 — 이름과 <c>0x0048E820</c> 에 넘기는 사건 애니메이션 장면 번호.
+    /// </summary>
+    /// <remarks>
+    /// 장면 번호는 뜀표 <c>0x0040C160</c> 아홉 칸이 밀어 넣는 값 그대로다(<c>0x004085F1</c>~<c>0x00408679</c>).
+    /// 7·8 은 같은 장면 <c>0x0E</c> 다. 이름은 cds_disev_editor v0.4 의 것을 받았다.
+    /// </remarks>
+    public static readonly (string Name, int Scene)[] Encounters =
+    [
+        ("백경", 0x13), ("돌고래", 0x14), ("날치", 0x15), ("유령선", 0x09), ("오로라", 0x0B),
+        ("플라밍고 떼", 0x16), ("모르포 나비 떼", 0x17), ("유빙·빙산", 0x0E), ("유빙·빙산", 0x0E),
+    ];
+
+    /// <summary>특수 조우 연출 번호의 이름. 8 넘으면 게임이 건너뛴다(<c>0x004085E1</c>).</summary>
+    public static string EncounterName(int n) =>
+        n >= 0 && n < Encounters.Length ? Encounters[n].Name : "(없음 — 게임이 건너뜀)";
+
+    /// <summary>미니게임 번호의 이름(<see cref="DisevMinigame"/>). 뜀표에서 건너뛰는 번호면 그렇다고 적는다.</summary>
+    public static string MinigameName(int game) => ((DisevMinigame)game).Title();
 
     /// <summary>능력치 번호 → 이름. 빈 자리는 아직 못 짚은 것이다.</summary>
     public static readonly IReadOnlyDictionary<int, string> StatNames = new Dictionary<int, string>
@@ -260,6 +292,40 @@ public static class DisevScript
                 continue;
             }
 
+            // 1F — 발견물 이름(0x0040984A). 앞머리가 1F 0A 라 「창 플래그 1F 대사」로 잘못 읽히므로 먼저 잡는다.
+            //   1F 0A [이름] 00 0B [u16 발견물]   곧장 이름을 박는다(0x00409888 → 0x004AAB00)
+            //   1F 0B [u16 발견물] 0A [글] 00     이름 입력창을 열어 친 글 뒤에 이 글을 붙인다
+            // 꼴은 cds_disev_editor v0.4 가 가른 것과 같다.
+            if (data[i] == 0x1F && i + 2 < end)
+            {
+                if (data[i + 1] == 0x0A)
+                {
+                    int term = Array.IndexOf(data, (byte)0, i + 2, end - (i + 2));
+                    if (term >= 0 && term + 4 <= end && data[term + 1] == 0x0B)
+                    {
+                        var (_, name) = DecodeDialogue(span[(i + 2)..term]);
+                        int id = U16(span, term + 2);
+                        ops.Add(new Op(i, term + 4 - i, "발견물 이름 강제 입력",
+                            $"발견물 이름 강제 입력: 발견물 {id} ← \"{name}\"", Hex(span[i..(term + 4)]), true));
+                        i = term + 4;
+                        continue;
+                    }
+                }
+                else if (data[i + 1] == 0x0B && i + 5 <= end && data[i + 4] == 0x0A)
+                {
+                    int term = Array.IndexOf(data, (byte)0, i + 5, end - (i + 5));
+                    if (term >= 0)
+                    {
+                        var (_, tail) = DecodeDialogue(span[(i + 5)..term]);
+                        int id = U16(span, i + 2);
+                        ops.Add(new Op(i, term + 1 - i, "발견물 이름 입력 대기",
+                            $"발견물 이름 입력 대기: 발견물 {id}, 친 글 뒤에 \"{tail}\"", Hex(span[i..(term + 1)]), true));
+                        i = term + 1;
+                        continue;
+                    }
+                }
+            }
+
             // 대사 — 0A 로 바로 열거나, 창 플래그 한 바이트 뒤에 0A 가 온다.
             var form = data[i] == 0x0A ? null : FormAt(data, i, end);
             if (data[i] == 0x0A || (form == null && i + 1 < end && data[i + 1] == 0x0A))
@@ -375,6 +441,28 @@ public static class DisevScript
             case "EVSTILL 이미지 표시":
             case "음원 재생":
                 return $"{kind}: 슬롯 {U16(raw, 2)}";
+            case "CG 애니메이션 재생":
+                return $"{kind}: DISCOVER.CDS 파트 {U16(raw, 2)}";
+            case "특수 조우 연출":
+            {
+                int n = U16(raw, 2);
+                return $"특수 조우 연출: {n} {EncounterName(n)}";
+            }
+            case "미니게임":
+            {
+                int game = U16(raw, 2);
+                return $"미니게임: {game} {MinigameName(game)}";
+            }
+            case "퍼즐 미니게임":
+            {
+                // 가운데 바이트가 04 가 아니면 게임은 아무것도 안 한다(0x00408E13).
+                if (raw.Length < 9 || raw[6] != 0x04) return $"{kind}: (가운데 바이트가 04 가 아님 — 게임이 건너뜀)";
+                int game = U16(raw, 7);
+                string name = ((DisevMinigame)game).ByPuzzleCommand() ? MinigameName(game) : "(없음 — 게임이 건너뜀)";
+                return game == (int)DisevMinigame.Tower
+                    ? $"미니게임: {game} {name}, 판자 {U32(raw, 2)}장"
+                    : $"미니게임: {game} {name}";
+            }
             case "연도 조건":
                 return $"연도 >= {U16(raw, 2)}";
             case "연월 조건":
@@ -393,14 +481,14 @@ public static class DisevScript
             case "미발견 조건":
                 return $"{kind}: 발견물 ID {U16(raw, 2)}";
             case "능력치 조건":
-            case "수치 비교 (이상)":
+            case "수치 비교 (초과)":
             case "수치 비교 (이하)":
             case "수치 비교 (미만)":
             {
                 string op = kind switch
                 {
-                    "능력치 조건" => ">",
-                    "수치 비교 (이상)" => ">=",
+                    "능력치 조건" => ">=",      // 2B: A ≥ B (0x0040A343)
+                    "수치 비교 (초과)" => ">",   // 2A: A > B (0x0040A32D)
                     "수치 비교 (이하)" => "<=",
                     _ => "<",
                 };

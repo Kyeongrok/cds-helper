@@ -623,12 +623,17 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// <c>[0x154] != 0</c> 일 때만 <c>0x0047CBC0(0xBB8)</c> 을 부르는데, 그 값은
     /// 들어올 때 받은 인자이고 미니 게임은 0 을 준다(<c>0x0045FB54</c>).
     /// </remarks>
-    public static void Play(Window owner, Random rng)
+    /// <returns>
+    /// 가려냈는지. 발견 대본 <c>0E 14|1A … 04 04 00</c> 은 <c>0x004531F0(1)</c> 이 1 을 돌려줄 때만
+    /// 이긴 것으로 친다(<c>0x00408E44</c>).
+    /// </returns>
+    public static bool Play(Window owner, Random rng)
     {
         var dialog = new CoinPuzzleDialog(rng) { Owner = owner };
         dialog.ShowDialog();
 
-        if (dialog._game.Won == true)
+        bool won = dialog._game.Won == true;
+        if (won)
             NoticeDialog.Show(owner,
                 "무게가 다른 금화를 잘 가려낸 것 같다. 천칭은 평형을 이루고" +
                 Environment.NewLine + "보물 상자를 무사히 가질 수 있었다.", "게임 클리어");
@@ -636,5 +641,6 @@ internal sealed class CoinPuzzleDialog : InfoDialog
             NoticeDialog.Show(owner,
                 "가려야 할 금화를 잘못 고른 것 같다. 천칭은 기울어지고 말았다.",
                 "클리어 실패");
+        return won;
     }
 }

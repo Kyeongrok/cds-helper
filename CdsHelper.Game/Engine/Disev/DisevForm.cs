@@ -30,6 +30,11 @@ public static class DisevForm
         City,
         /// <summary>상대 이동값 — 덩이 밖으로 뛰면 위험하다.</summary>
         Relative,
+        /// <summary>미니게임 번호(<see cref="DisevMinigame"/>).</summary>
+        Minigame,
+
+        /// <summary>특수 조우 연출 번호(<see cref="DisevScript.Encounters"/>).</summary>
+        Encounter,
     }
 
     /// <summary>고칠 수 있는 칸 하나.</summary>
@@ -53,9 +58,20 @@ public static class DisevForm
         switch (op.Kind)
         {
             case "AVI 재생" when op.Length == 4:
+            case "CG 애니메이션 재생" when op.Length == 4:
             case "EVSTILL 이미지 표시":
             case "음원 재생":
                 return F(new Field("슬롯", 2, 2));
+
+            case "미니게임":
+                return F(new Field("미니게임", 2, 2, Lookup.Minigame));
+
+            // 0E 14|1A [u32 판자] 04 [u16 n] — 판자는 발라몬의 탑만 쓴다.
+            case "특수 조우 연출":
+                return F(new Field("연출", 2, 2, Lookup.Encounter));
+
+            case "퍼즐 미니게임" when op.Length == 9:
+                return F(new Field("미니게임", 7, 2, Lookup.Minigame), new Field("판자", 2, 4));
 
             case "DSTILL 이미지 재생":
             case "AVI 재생":
@@ -115,7 +131,7 @@ public static class DisevForm
                 return F(new Field("금화", 2, 4));
 
             case "능력치 조건":
-            case "수치 비교 (이상)":
+            case "수치 비교 (초과)":
             case "수치 비교 (이하)":
             case "수치 비교 (미만)":
                 return F(new Field("능력치", 2, 2, Lookup.Stat), new Field("값", 5, 4));

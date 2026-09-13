@@ -522,7 +522,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
             return;
         }
 
-        int item = log.Discover(_player, row.Id);
+        // 대본이 돌았으면 발견·물건은 대본의 01 0B 가 준다(0x0048D3F0 은 따로 안 적는다).
+        int item = scripted ? -1 : log.Discover(_player, row.Id);
 
         // 대본이 없을 때만 그림 한 장으로 알린다.
         // 게임 문구는 "%s%s 발견했다!"(0x00544720) 다 — 이름 뒤에 을/를 이 붙는다.

@@ -220,6 +220,11 @@ public sealed class Game
         Once(ref _stills, ref _stillsTried, DiscoveryStills.Open,
              () => DiscoveryStills.LastError, "발견물 그림");
 
+    /// <summary>발견 대본이 트는 움직이는 그림(DISCOVER.CDS) — 존왕의 술잔 따위.</summary>
+    public DiscoveryClips? Clips =>
+        Once(ref _clips, ref _clipsTried, DiscoveryClips.Open,
+             () => DiscoveryClips.LastError, "발견 애니메이션");
+
     /// <summary>화면에 겹쳐 도는 동그란 애니메이션(MPEFFECT.CDS).</summary>
     public EffectAnim? Effects =>
         Once(ref _effects, ref _effectsTried, EffectAnim.Open,
@@ -521,6 +526,8 @@ public sealed class Game
     private bool _fightersTried;
     private DiscoveryStills? _stills;
     private bool _stillsTried;
+    private DiscoveryClips? _clips;
+    private bool _clipsTried;
     private BarmaidTable? _barmaids;
     private bool _barmaidsTried;
     private TavernRoster? _roster;

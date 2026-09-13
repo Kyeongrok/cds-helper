@@ -118,7 +118,7 @@ public sealed class FishingGame
     /// <summary>떨어뜨리기 시작했나(<c>[0x200]</c>). 누르기 전에는 배 밑에 매달려 있다.</summary>
     public bool Started { get; private set; }
 
-    /// <summary>이번 틱은 안 내려간다(<c>[0x1F8]</c>). 옆으로 가겠다고 한 틱이 그렇다.</summary>
+    /// <summary>이번 틱은 안 내려간다(<c>[0x1F8]</c>). 떨어뜨린 첫 틱이 그렇다 — 그래야 마흔 틱째에 y 103 가로줄에 닿는다.</summary>
     private bool _hold = true;
 
     /// <summary>
@@ -130,59 +130,16 @@ public sealed class FishingGame
     /// <summary>한 줄(한 칸)의 길이. 가로 칸 사이도 세로 줄 사이도 이만큼이다.</summary>
     public const int Span = 40;
 
-    /// <summary>
-    /// 옆으로 건너는 데 쓰는 틱. 나머지로 내려가며 따라붙는다.
-    /// </summary>
+    /// <summary>그리는 가로 자리 — <see cref="HookX"/> 그대로다.</summary>
     /// <remarks>
-    /// 한 칸이 가로세로 <see cref="Span"/> 으로 같고 한 줄이 <see cref="TicksPerRow"/> 틱이라,
-    /// <b>내려가는 빠르기는 틱당 1</b> 이다. 옆으로도 그렇게 하려면 마흔 틱이 다 드는데
-    /// 그러면 그 줄에서 내려갈 참이 없어진다 — 판 도는 시간은 그대로 두고 가로만
-    /// <b>사분의 삼</b>으로 늦춘다. 틱당 1.3 이라 예전(틱당 2)보다 눈에 한결 낫다.
+    /// 게임은 옆으로 건너는 줄(<c>[0x1F0] ≠ 0</c>)에서 <b>마흔 틱 내내 가로로만</b> 한 점씩 가고
+    /// 높이는 안 늘린다(<c>0x0047B05C</c> 의 <c>[0xF8]++</c> 는 곧장 내려갈 때만 탄다).
+    /// 그래서 가로든 세로든 빠르기가 늘 틱당 한 점이다.
     /// </remarks>
-    private const int CrossTicks = TicksPerRow * 3 / 4;
+    public double DrawX => HookX;
 
-    /// <summary>옆으로 가겠다고 한 <b>그 틱</b>과 그때의 깊이.</summary>
-    /// <remarks>
-    /// 줄 한가운데서 방향을 틀면 여기가 곧 꺾이는 자리다. 줄 첫머리(<c>Tick = 0</c>)에서
-    /// 재면 <b>이미 지난 만큼이 한꺼번에 반영되어 바늘이 옆으로 튄다</b> — 틱 30에
-    /// 눌렀는데 가로로 한 칸을 그 자리에서 건너뛰던 것이 그것이다.
-    /// </remarks>
-    private int _leanAt, _leanY;
-
-    /// <summary>이번에 옆으로 건너는 데 실제로 쓸 틱. 줄 끝을 넘지 않는다.</summary>
-    private int CrossSpan => Math.Max(1, Math.Min(CrossTicks, TicksPerRow - _leanAt));
-
-    /// <summary>
-    /// <b>그리는</b> 가로 자리. 사다리는 가로줄과 세로줄뿐이라 비스듬히 가지 않는다.
-    /// </summary>
-    /// <remarks>
-    /// 셈은 <see cref="HookX"/> · <see cref="Y"/> 그대로 두고 <b>보이는 길만</b> ㄱ 자로
-    /// 꺾는다 — 옆으로 갈 때는 앞 절반에 가로줄을 건너고 뒤 절반에 세로줄을 내려간다.
-    /// 한 줄에 드는 틱(<see cref="TicksPerRow"/>)은 그대로라 판이 도는 빠르기는 안 바뀐다.
-    /// </remarks>
-    public double DrawX =>
-        Lean == 0 ? Column * Span
-                  : Column * Span + Lean * Span
-                    * Math.Clamp((Tick - _leanAt) / (double)CrossSpan, 0, 1);
-
-    /// <summary>
-    /// <b>그리는</b> 세로 자리. 가로줄을 건너는 동안은 <b>누른 그때의 깊이</b>에 멎어
-    /// 있다가, 다 건넌 뒤에 실제 깊이로 따라붙는다.
-    /// </summary>
-    public double DrawY
-    {
-        get
-        {
-            if (Lean == 0) return Y;
-
-            int crossEnd = _leanAt + CrossSpan;
-            if (Tick <= crossEnd) return _leanY;
-
-            double gone = Math.Clamp((Tick - crossEnd) / (double)Math.Max(1, TicksPerRow - crossEnd),
-                                     0, 1);
-            return _leanY + (Y - _leanY) * gone;
-        }
-    }
+    /// <summary>그리는 세로 자리 — <see cref="Y"/> 그대로다. 건너는 동안은 멎어 있다.</summary>
+    public double DrawY => Y;
 
     /// <summary>떨어뜨린다.</summary>
     public void Drop() => Started = true;
@@ -322,15 +279,16 @@ public sealed class FishingGame
         int wish = way > 0 && Column + Wish < Columns - 1 ? 1
                  : way < 0 && Column + Wish > 0 ? -1 : 0;
 
-        if (Tick == 0 && Lean == 0)
+        // 건너는 중에는 안 받는다 — 게임은 여기서 [0x1EC] 가 바뀌면 줄 끝에서 건너기를 처음부터
+        // 다시 해 바늘이 제자리로 튄다. 건넌 다음 꼭짓점은 어차피 반드시 밑으로 간다.
+        if (Lean != 0) return;
+
+        if (Tick == 0 && At >= 0)
         {
-            // 지금이 꼭짓점이다 — 곧장 건넌다.
+            // 지금이 꼭짓점(가로줄 위)이다 — 곧장 건넌다.
             if (wish == 0) return;
             Lean = wish;
             Wish = 0;
-            _hold = true;
-            _leanAt = 0;
-            _leanY = Y;
             return;
         }
         Wish = wish;
@@ -360,24 +318,32 @@ public sealed class FishingGame
 
         Tick++;
 
+        // 건너는 줄에서는 안 내려간다(0x0047AF5A → 0x0047B07F·0x0047B0C3 이 [0xF8]++ 를 건너뛴다).
         if (_hold) _hold = false;
-        else Y++;
+        else if (Lean == 0) Y++;
 
         if (Tick >= TicksPerRow)
         {
             Tick = 0;
-            At += Lean > 0 ? Columns + 1 : Lean < 0 ? Columns - 1 : Columns;
 
-            // 여기가 꼭짓점이다 — 적어 둔 쪽으로 이 줄에서 건넌다.
-            Lean = Wish;
-            Wish = 0;
-            _leanAt = 0;
-            _leanY = Y;
-            if (Lean != 0) _hold = true;
+            // 0x0047AB22: 건너기를 마치면 대각선 아래 칸으로, 적어 둔 쪽이 있으면 칸은 그대로 두고
+            // 이번 줄을 건너는 데 쓰고, 아니면 곧장 아래 칸으로 간다.
+            if (Lean != 0)
+            {
+                At += Columns + Lean;
+                Lean = 0;
+                Wish = 0;
+            }
+            else if (Wish != 0)
+            {
+                Lean = Wish;
+                Wish = 0;
+            }
+            else At += Columns;
 
             Swim();
         }
-        else if ((Tick == MeetRight || Tick == MeetLeft) && At >= 0 && At < Cells
+        else if ((Tick == MeetRight || Tick == MeetLeft) && Lean == 0 && At >= 0 && At < Cells
                  && Fish.Any(f => f.Cell == At
                                   && f.Way == (Tick == MeetRight ? 1 : 2)))
         {

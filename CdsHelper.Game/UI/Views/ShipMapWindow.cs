@@ -614,7 +614,7 @@ public sealed class ShipMapWindow : Window
     /// 그래야 덤불이 배 그림(48점) 곁에 제 크기로 선다. 너무 멀리 보거나 가까이 보면 장면이
     /// 티끌만 하거나 지도를 넘치므로, 지도 폭이 게임 점 320~1280 사이가 되게 묶는다(원본 640).
     /// </remarks>
-    private void PlayEventScene(int scene)
+    internal void PlayEventScene(int scene)
     {
         var area = MapAreaOnScreen();
         var (pixelW, _) = _host.SurfaceSize;
@@ -3274,10 +3274,13 @@ public sealed class ShipMapWindow : Window
     ///   0x00535640  "선원들이 지쳐있습니다. 이제 상륙합시다!"        (피로 70)
     ///   0x00535668  "선원들의 피로가 한계에 달하고 있습니다. …"      (피로 90)
     /// </code>
+    /// 바닥 두 줄만 대원이 말한다 — <c>0x004756FF</c>·<c>0x0047573C</c> 가 <c>0x0047CC60(0, 1)</c> 로
+    /// 화자를 집어 말 창 <c>0x00478280</c> 에 넘기므로 <b>부관 아니면 뱃사람 얼굴</b>이 선다.
+    /// 나머지(얼마 안 남음·피로)는 <c>0x0040E0A0</c> 알림으로 얼굴이 없다.
     /// </remarks>
     private void Tell(SeaEvents.Day day)
     {
-        var lines = new List<string>();
+        var lines = new List<(string Text, bool Mate)>();
 
         if (day.WaterLow || day.FoodLow)
         {
@@ -3285,25 +3288,25 @@ public sealed class ShipMapWindow : Window
             bool both = day.WaterLow && day.FoodLow;
             string water = day.WaterLow ? (both ? "물도 " : "물이 ") : "";
             string food = day.FoodLow ? (both ? "식량도 " : "식량이 ") : "";
-            lines.Add($"제독, {water}{food}얼마 남지 않았습니다!");
+            lines.Add(($"제독, {water}{food}얼마 남지 않았습니다!", false));
         }
 
         if (day.WaterOut && day.FoodOut)
-            lines.Add("제독, 물도 식량도 바닥을 드러내고 있습니다. 빨리 상륙하지 않으면 전멸입니다!");
+            lines.Add(("제독, 물도 식량도 바닥을 드러내고 있습니다. 빨리 상륙하지 않으면 전멸입니다!", true));
         else if (day.WaterOut || day.FoodOut)
         {
             string what = day.WaterOut ? "물" : "식량";
-            lines.Add($"제독, {what}{GameUi.Josa(what, "이", "가")} 바닥을 드러내고 있습니다, " +
-                      "빨리 상륙합시다!");
+            lines.Add(($"제독, {what}{GameUi.Josa(what, "이", "가")} 바닥을 드러내고 있습니다, " +
+                       "빨리 상륙합시다!", true));
         }
 
         if (day.Weary > 0)
-            lines.Add(day.Weary switch
+            lines.Add((day.Weary switch
             {
                 50 => "선원들이 지쳐있습니다",
                 70 => "선원들이 지쳐있습니다. 이제 상륙합시다!",
                 _ => "선원들의 피로가 한계에 달하고 있습니다. 이대로라면 죽는 사람이 나오고 맙니다!",
-            });
+            }, false));
 
         if (lines.Count == 0) return;
 
@@ -3311,7 +3314,11 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
-            foreach (string line in lines) NoticeDialog.Show(this, line);
+            foreach (var (text, mate) in lines)
+            {
+                if (mate) ConfirmDialog.Tell(this, text, face: MateFace());
+                else NoticeDialog.Show(this, text);
+            }
         }
         finally
         {
@@ -3897,7 +3904,8 @@ public sealed class ShipMapWindow : Window
 
             // DISEV.CDS 에 대본이 있으면 <b>그것이 다 한다</b> — 부하 대사 · 동영상 · 음원 ·
             // 아이템 · 발견까지. 카르낙 거석군(19번)은 열세 줄짜리다.
-            if (!DisevRunner.Run(this, _game, id)) PlainNotice(row);
+            bool scripted = DisevRunner.Run(this, _game, id);
+            if (!scripted) PlainNotice(row);
 
             // 대본이 게임 오버(명령 4A)로 끝났으면 — 피라미드에서 성배 퍼즐에 지면 그렇다 —
             // 발견을 적지 않고 놀이를 끝낸다. 반란에 졌을 때와 같은 차례다.
@@ -3907,9 +3915,10 @@ public sealed class ShipMapWindow : Window
                 GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
             }
 
-            // 대본이 발견을 안 적었으면(그 줄이 없거나 중간에 끊겼으면) 여기서 적는다.
-            // 이미 적혔으면 -1 이 돌아와 아무 일도 없다.
-            int item = over ? -1 : log.Discover(_game.Player, id);
+            // 대본이 돌았으면 발견은 <b>대본의 01 0B 만</b> 적는다 — 게임의 발견 판정(0x0048D3F0)은
+            // 대본 뒤에 결과 코드만 볼 뿐 발견을 따로 안 적는다. 예전에는 여기서 늘 적어서 존왕의
+            // 술잔(104)을 낚시에 지고도(대본은 4E 로 끝남) 손에 넣었다. 대본이 없을 때만 여기서 적는다.
+            int item = over || scripted ? -1 : log.Discover(_game.Player, id);
             if (item >= 0)
             {
                 string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
