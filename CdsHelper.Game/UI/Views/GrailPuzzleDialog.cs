@@ -408,7 +408,11 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     /// 게임은 「대실패」와 「다시 한번 찬스」 뒤에 "다시 도전하겠습니까?" 를 묻고
     /// 그러겠다면 문제를 <b>새로 굴려</b> 다시 시작한다(<c>0x00468511</c> 로 돌아간다).
     /// </remarks>
-    public static void Play(Window owner, Player player, Random rng, SoundBank? sfx = null)
+    /// <returns>
+    /// 성배를 다 채웠는지(「성공」·「멋지게 성공」). 게임 <c>0x004684D0</c> 은 이때만 0 이 아닌 값을
+    /// 내고, 발견 대본의 미니게임 명령(<c>0E 04 00 00</c>)이 그 값으로 갈라진다.
+    /// </returns>
+    public static bool Play(Window owner, Player player, Random rng, SoundBank? sfx = null)
     {
         while (true)
         {
@@ -423,13 +427,13 @@ internal sealed class GrailPuzzleDialog : InfoDialog
             {
                 case GrailPuzzle.Result.GaveUp:
                     NoticeDialog.Show(owner, "근성이 없는 녀석이로군···", "성스러운 항아리");
-                    return;
+                    return false;
 
                 case GrailPuzzle.Result.Spilled:
                     NoticeDialog.Show(owner, "성배에서 물이 넘쳤다!", "대실패");
                     NoticeDialog.Show(owner, "재주가 없는 녀석이로군···한번 더 찬스를 주겠다",
                                       "성스러운 항아리");
-                    if (!ConfirmDialog.Ask(owner, "다시 도전하겠습니까?", "메시지")) return;
+                    if (!ConfirmDialog.Ask(owner, "다시 도전하겠습니까?", "메시지")) return false;
                     break;
 
                 case GrailPuzzle.Result.Slow:
@@ -438,18 +442,18 @@ internal sealed class GrailPuzzleDialog : InfoDialog
                     NoticeDialog.Show(owner,
                                       "재주가 없는 녀석이로군···으음···다시 한번 찬스를 주겠다",
                                       "성스러운 항아리");
-                    if (!ConfirmDialog.Ask(owner, "다시 도전하겠습니까?", "메시지")) return;
+                    if (!ConfirmDialog.Ask(owner, "다시 도전하겠습니까?", "메시지")) return false;
                     break;
 
                 case GrailPuzzle.Result.Good:
                     NoticeDialog.Show(owner, "모든 성배를 성수로 채웠다!", "성공");
-                    return;
+                    return true;
 
                 case GrailPuzzle.Result.Great:
                     NoticeDialog.Show(owner, "성배로부터 눈부신 빛이 넘치기 시작했다!", "멋지게 성공");
                     NoticeDialog.Show(owner, $"금화 {GrailPuzzle.Prize} 닢을 손에 넣었습니다!", "성공");
                     player.Earn(GrailPuzzle.Prize);
-                    return;
+                    return true;
             }
         }
     }
