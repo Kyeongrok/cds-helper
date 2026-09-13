@@ -674,21 +674,33 @@ public sealed class DuelDialog : GameWindow
         Refresh();
         Keep();          // 빨강은 이번 판 것만 — 다음 판 기준을 여기서 갈무리한다
 
-        // 상대의 말은 판 위 흰 말풍선으로 난다 — 게임도 그 자리다.
-        Speak(Taunt(turn));
-
         if (_duel.Over)
         {
+            // 끝판에는 <b>비아냥도 「확인」도 없다</b> — 게임은 판이 끝나면 곧바로 뒤처리
+            // (0x004A9E50)로 넘어간다. 예전에는 끝판에도 「아직이다. 아직 끝나지 않았다…」 같은
+            // 판 중 말풍선을 띄우고 확인 단추를 세웠다. 쓰러지는 모습만 잠깐 보여 주고 닫는다 —
+            // 뒤의 말(처형·놓아 준다·모두 뺏는다, 반란 진압)은 부른 쪽이 낸다.
+            Speak("");
             _stage?.Fall(mine: _duel.Won != true);
             _keys.Children.Clear();
-            var focus = new GameUi.FocusGroup();
-            var ok = focus.Add("확인", () => { DialogResult = _duel.Won; }, 96);
-            ok.Height = UiSprites.BandHeight;
-            _keys.Children.Add(ok);
-            _focus = focus;
-            _keyBox.Visibility = Visibility.Visible;
+            _keyBox.Visibility = Visibility.Collapsed;
+            _focus = null;
+
+            var end = new DispatcherTimer(DispatcherPriority.Render)
+            {
+                Interval = TimeSpan.FromSeconds(DuelMotions.Tick * TauntTicks),
+            };
+            end.Tick += (_, _) =>
+            {
+                end.Stop();
+                DialogResult = _duel.Won;
+            };
+            end.Start();
             return;
         }
+
+        // 상대의 말은 판 위 흰 말풍선으로 난다 — 게임도 그 자리다.
+        Speak(Taunt(turn));
 
         _stage?.Rest();
 

@@ -126,7 +126,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     public void Drink(DrinkTable.Drink drink, string shown) => Alone(() =>
     {
         int price = Math.Max(_game.Rates.Of(_cityId) * drink.Price / 100, 1);
-        var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
+        // 값을 이르고 돈을 받는 것은 <b>술집 주인</b>이다 — 지나가는 손님(무명 손님 얼굴)이 아니다.
+        var face = HostFace();
 
         if (!ConfirmDialog.Ask(_view, $"{shown}{GameUi.Josa(shown, "은", "는")} 금화 {price}닢이네.",
                                face: face))
@@ -629,17 +630,33 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         switch (at)
         {
             case 0:
-                // 게임은 여기서 발견물 실마리를 주는데 우리는 아직 그 자리를 못 흉내낸다.
-                // 대신 세이브에 적힌 그 사람 됨됨이를 이른다. 나이는 값이 이상한 칸이
-                // 더러 있어(등장 전 인물) 말이 될 때만 말한다.
-                TalkDialog.Say(_view, face, "", who.Age is > 0 and < 120
-                                   ? $"나 말인가. {who.Name}. 올해 {who.Age}이네. 이름값은 {who.Fame} 쯤 하지."
-                                   : $"나 말인가. {who.Name}. 이름값은 {who.Fame} 쯤 하지.");
+                // 게임은 이 사람 몫으로 대본이 넣어 둔 말(0x005AA278 목록)이 있으면 그중 하나를,
+                // 없으면 <b>그 사람 고향 문화권의 소문</b>을 한 마디 한다(0x004A45E0 → 0x004A4790
+                // → 0x004A4630 갈래 0 → 0x004A3740). 대본 목록은 아직 안 옮겨 소문만 낸다.
+                TalkDialog.Say(_view, face, "", TavernRumors.Of(HomeCulture(who.Index), _game.Random));
                 break;
             case 1 when hireable:
                 Hire(who, face);
                 break;
         }
+    }
+
+    /// <summary>
+    /// 그 사람이 소문을 꺼낼 문화권 — 제 나라 수도의 문화권이고, 모르면 이 술집 마을 것이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004A4590</c> 이다. 도시(<c>0x00429970</c>)의 <c>+0x58</c> 문화권을 밑값으로
+    /// 두었다가, 인물의 나라 형편 칸(<c>0x00477EA0</c>)에서 수도를 얻으면 그 도시의 <c>+0x58</c>
+    /// 로 덮는다. 나라는 세이브에 없어 인물 밑표(<see cref="PersonTemplate"/>)에서 온다.
+    /// </remarks>
+    private int HomeCulture(int person)
+    {
+        if (_game.PersonTemplates?.Find(person) is { } template
+            && _game.Nations?.Find(template.Nation) is { } nation
+            && _game.CityRows is { } cities
+            && cities.CultureOf(nation.Capital) is var culture and >= 0)
+            return culture;
+        return _cultureNo;
     }
 
     /// <summary>
@@ -653,9 +670,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   <item>상대가 달아나려 든다 — <b>체력에 주사위 오십씩</b>을 얹어 견주고 못
     ///         미치면 놓친다(<c>0x004A494B</c>).</item>
     ///   <item>판이 열린다(<see cref="DuelDialog"/>).</item>
-    ///   <item>이기면 그것으로 끝이다. <b>술집 일기토는 처형·놓아 준다·모두 뺏는다가
-    ///         안 뜬다</b> — 그 줄은 판 종류가 7 아래일 때만 나오는데 술집에서 신청한
-    ///         판은 8 이다(<c>0x004AA2B1</c>).</item>
+    ///   <item>이기면 <b>처형한다 · 놓아 준다 · 모두 뺏는다</b>를 고른다
+    ///         (<c>0x004A8380(3)</c>, <see cref="Triumph"/>). 예전에는 "술집 판은 종류가 8 이라
+    ///         안 뜬다" 고 적어 두었는데 실제 게임에서는 뜬다 — 반란 판(7)만 이 줄이 없다.</item>
     ///   <item>지면 도망·용서·죽음으로 갈린다(<see cref="Engine.Town.Duel.FateOf"/>).</item>
     ///   <item>이기든 지든 <b>남은 부위의 평균만큼 체력이 준다</b>.</item>
     /// </list>
@@ -689,7 +706,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         if (duel.Won == true)
         {
-            TalkDialog.Say(_view, face, "", Beaten[dice.Next(Beaten.Length)]);
+            Triumph(who, face, dice);
         }
         else
         {
@@ -795,6 +812,74 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         "여자와 아이, 약한 자들은 죽이지 않는 주의라서...",
         "너 같은 녀석 죽일 가치도 없다. 빨리 사라져라.",
         "이번만은 용서해 주지. 좀더 힘을 길러라.",
+    ];
+
+    /// <summary>
+    /// 이긴 뒤 — <b>처형한다 · 놓아 준다 · 모두 뺏는다</b>(<c>0x004A8380(3)</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x004AA2D2</c> ~ <c>0x004AA588</c> 이다. 진 사람이 고른 것에 따라 한 마디 한다.
+    /// <code>
+    ///   처형한다    「죽어야 하나...? 내가...」 다섯(0x005347F8~) → 그 인물이 사라진다(0x00432180(0))
+    ///   놓아 준다   「제길, 기억해 두어라.」 다섯(0x005348A8~)   → 「명성이 10 올라갔다」
+    ///   모두 뺏는다 「이런 야비한 녀석.」 다섯(0x00534978~)     → 「악명이 100 올라갔다」
+    ///                                                            「금화 %d닢을 손에 넣었다」 20 + rand(11)
+    ///                                                            「상대는 %s 장비하고 있다」 → 그 무기·방어구를 얻는다
+    /// </code>
+    /// 상대가 지닌 무기·방어구 번호(<c>[결투+0x198]</c> · <c>+0x19C</c>)는 우리 인물 표에 없어
+    /// 장비를 뺏는 것만 아직 못 옮겼다. 창을 물리면 놓아 준 것으로 친다.
+    /// </remarks>
+    private void Triumph(TavernRoster.Person who, uint[]? face, GameRandom dice)
+    {
+        switch (ChoiceDialog.Pick(_view, "", ["처형한다", "놓아 준다", "모두 뺏는다"]))
+        {
+            case 0:
+                TalkDialog.Say(_view, face, "", Executed[dice.Next(Executed.Length)]);
+                if (_game.World?.People.FirstOrDefault(r => r.Id == who.Index) is { } row)
+                    row.Appear = 0;
+                break;
+
+            case 2:
+                TalkDialog.Say(_view, face, "", Robbed[dice.Next(Robbed.Length)]);
+                _player.Infamy += RobInfamy;
+                NoticeDialog.Show(_view, $"악명이 {RobInfamy} 올라갔다", "일기토");
+                int gold = dice.Next(RobGoldRoll) + RobGoldBase;
+                _player.Earn(gold);
+                NoticeDialog.Show(_view, $"금화 {gold}닢을 손에 넣었다", "일기토");
+                break;
+
+            default:
+                TalkDialog.Say(_view, face, "", Beaten[dice.Next(Beaten.Length)]);
+                _player.Fame += SpareFame;
+                NoticeDialog.Show(_view, $"명성이 {SpareFame} 올라갔다", "일기토");
+                break;
+        }
+    }
+
+    /// <summary>놓아 주면 오르는 명성(<c>0x004AA3E0</c>) · 뺏으면 오르는 악명(<c>0x004AA470</c> 알림 값).</summary>
+    private const int SpareFame = 10, RobInfamy = 100;
+
+    /// <summary>뺏는 금화 — <c>rand(11) + 20</c>(<c>0x004AA486</c>).</summary>
+    private const int RobGoldRoll = 11, RobGoldBase = 20;
+
+    /// <summary>처형당하기 전에 하는 말(<c>0x005347F8</c> 다섯).</summary>
+    private static readonly string[] Executed =
+    [
+        "죽어야 하나...? 내가...",
+        "이자, 너무 강하다...",
+        "자. 잠깐 기다려라, 아직 각오가... 으윽.",
+        "너에게 진 것이라면 후회는 없다. 자, 죽여라.",
+        "내 인생도 끝인가... 분하다!",
+    ];
+
+    /// <summary>다 뺏길 때 하는 말(<c>0x00534978</c> 벌 — 끝의 둘이 같은 줄이다).</summary>
+    private static readonly string[] Robbed =
+    [
+        "이런 야비한 녀석.",
+        "무일푼이냐...",
+        "기다려라, 이것은 중요한 물건이다.",
+        "기억해 두어라, 비겁한 녀석!",
+        "기억해 두어라, 비겁한 녀석!",
     ];
 
     /// <summary>내 몫 — 능력치와 검술, 그리고 지닌 무기·방어구 가운데 가장 센 것.</summary>

@@ -456,6 +456,8 @@ public sealed class ShipMapWindow : Window
             ("여급 수첩", () => BarmaidBookDialog.Show(this, _game)),
             // 제독의 값이 화면 곳곳에 흩어져 있어 한자리에 모아 볼 데가 없었다.
             ("제독 정보", () => PlayerInfoDialog.Show(this, _game)),
+            // 누가 어느 도시로 가고 있는지는 지도에 배만 떠 있어 알 길이 없다.
+            ("인물 이동", () => PersonMoveDialog.Show(this, _game)),
             ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
         shell.Children.Add(titleBar);
@@ -527,7 +529,8 @@ public sealed class ShipMapWindow : Window
             _tired.Text = $"피로도{_game.Player.Fatigue,4}";
             _morale.Text = $"규율{_game.Player.Morale,4}";
             _windText.Text = WindLine();
-            _crew.Text = $"선원{_game.Player.Crew,4}명";
+            // 게임은 뭍이면 「대원」, 바다면 「선원」이다(0x0056BEA8 의 %s).
+            _crew.Text = $"{(_host.IsOnLand ? "대원" : "선원")}{_game.Player.Crew,4}명";
             _stores.Text = $"물{_game.Player.SupplyOf(SupplyKind.Water),4}통" +
                            $" 식량{_game.Player.SupplyOf(SupplyKind.Food),4}통";
             // 「남은일수」는 <b>계약 기한</b>이다 — 보급이 아니다(0x0047DEF8).
@@ -2278,8 +2281,11 @@ public sealed class ShipMapWindow : Window
     /// 게임도 지도를 그릴 때마다 인물 배열을 통째로 훑는다(<c>0x00426790</c>).
     ///
     /// 다만 이쪽은 <b>화면 새로 고침마다</b> 불린다(<c>CompositionTarget.Rendering</c>).
-    /// 사람 자리는 <b>하루에 한 번</b>밖에 안 바뀌므로 날짜와 세상 판이 그대로면 지난
+    /// 사람 자리는 <b>눈금이 하나 넘을 때</b>만 바뀌므로 날짜·눈금·세상 판이 그대로면 지난
     /// 목록을 그대로 낸다 — 안 그러면 초당 예순 번 이백여든 줄을 훑고 목록을 새로 짓는다.
+    ///
+    /// 하루 안의 눈금(<see cref="_ticks"/>)을 함께 넘긴다. 예전에는 날짜만 넘겨 배가 하루에
+    /// 스물네 칸씩 <b>순간이동</b>하듯 뛰었다 — 게임은 눈금마다 조금씩 옮긴다.
     /// </remarks>
     private IReadOnlyList<(double X, double Y, int Heading, int Person)> FolkAfloat()
     {
@@ -2287,18 +2293,19 @@ public sealed class ShipMapWindow : Window
 
         world.Advance(_game.Player.Date);
 
-        var now = (_game.Player.Date, world.Revision);
+        var now = (_game.Player.Date, world.Revision, _ticks);
         if (_folkStamp == now) return _folkList;
         _folkStamp = now;
 
+        double dayPart = (double)_ticks / TerrainTable.TicksPerDay;
         _folkList.Clear();
-        foreach (var (who, x, y, heading) in world.Afloat())
+        foreach (var (who, x, y, heading) in world.Afloat(dayPart))
             _folkList.Add((x, y, heading, who.Id));
         return _folkList;
     }
 
     private readonly List<(double X, double Y, int Heading, int Person)> _folkList = [];
-    private (DateTime Day, int Revision) _folkStamp = (default, -1);
+    private (DateTime Day, int Revision, int Tick) _folkStamp = (default, -1, -1);
 
     /// <summary>
     /// 화면에 뜬 사람의 배에 <b>두 칸 안</b>으로 붙으면 「배가 보입니다」 — 우호 · 습격 · 떠난다.
@@ -2576,7 +2583,7 @@ public sealed class ShipMapWindow : Window
     private void PassLandDay()
     {
         var player = _game.Player;
-        int handling = player.LevelOf(Skill.Names[Skill.Handling]);
+        int handling = FleetLevel(Skill.Handling);
 
         player.PassDayAtSea();                       // 날짜는 뭍에서도 간다
         player.Spend((5 - handling) * player.Crew / 2);
@@ -2621,7 +2628,7 @@ public sealed class ShipMapWindow : Window
     private void PassSeaMorale()
     {
         var player = _game.Player;
-        int sailing = player.LevelOf(Skill.Names[Skill.Sailing]);
+        int sailing = FleetLevel(Skill.Sailing);
 
         int before = player.Morale;
         player.Cheer(sailing - SeaMoraleDrain);
@@ -2635,6 +2642,33 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>바다에서 하루에 빠지는 규율의 밑값(<c>0x00475838</c> 의 3 x 2).</summary>
     private const int SeaMoraleDrain = 6;
+
+    /// <summary>
+    /// 그 기능을 <b>함대에서 제일 잘 아는 사람</b>의 수준 — 제독과 부하 가운데 가장 높은 값.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0047CCA0(기능, 1, -1, -1, -1)</c> 이다. 뭍의 하루(<c>0x004754B6</c>, 운용술)와
+    /// 바다의 하루(<c>0x0047574A</c>, 항해술) 둘 다 이것을 쓴다. 예전에는 <b>제독 것만</b> 봐서
+    /// 운용술 좋은 부하를 태워도 여행비가 줄지 않았다 — 여행비가 <c>(5 − 운용술) × 대원수 ÷ 2</c>
+    /// 라 운용술 0 이면 대원 백 명에 하루 250닢이 나가 돈이 금방 바닥나고, 그러면 규율이 −10 으로 뛴다.
+    ///
+    /// 부하 자료(<see cref="Player.MateInfo"/>)에는 운용술·항해술 칸이 없어 인물 표에서 이름으로 찾는다.
+    /// </remarks>
+    private int FleetLevel(int skill)
+    {
+        var player = _game.Player;
+        int best = player.LevelOf(Skill.Names[skill]);
+
+        if (_game.World?.People is not { } people) return best;
+        for (int slot = 0; slot < player.Mates.Count; slot++)
+        {
+            string mate = player.MateAt(slot);
+            if (mate.Length == 0) continue;
+            if (people.FirstOrDefault(r => r.Name == mate) is { } row && skill < row.Skills.Length)
+                best = Math.Max(best, row.Skills[skill]);
+        }
+        return best;
+    }
 
     /// <summary>
     /// 뭍을 걷다 짐승이나 독충을 마주친다 — 「싸운다 · 도망친다」.
@@ -3030,16 +3064,19 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
-            // 게임은 첫 마디에 사건 스틸 한 장을 함께 세운다(0x00475317 의 0x00472FA0(0)).
-            DiscoveryDialog.Show(this, _game.EventStills, MutinyStill,
+            // 첫 마디는 <b>부관</b>이(0x0047534A — 0x0047CC60 으로 부하 첫 자리), 둘째·셋째는
+            // <b>반란 대표</b>(#212)가 얼굴을 걸고 한다(0x00475383 · 0x004753AA 가 대표 객체를 넘긴다).
+            // 게임은 이 동안 사건 스틸(0x00472FA0(0))을 뒤에 깔아 두는데 우리는 아직 겹쳐 세우지 못한다.
+            var leaderFace = _game.Faces?.TryGetBgra(MutinyFace, female: false);
+            ConfirmDialog.Tell(this,
                 $"제독, 큰일입니다. {who}{GameUi.Josa(who, "이", "가")} 반란을 일으켰습니다!  " +
-                $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!");
-            NoticeDialog.Show(this,
+                $"{who}의 대표가 제독께 할 이야기가 있다고 합니다!", face: MateFace());
+            ConfirmDialog.Tell(this,
                 $"제독, 이대로 {what}{GameUi.Josa(what, "을", "를")} 계속할 작정이라면 우리들은 " +
-                "전멸이다. 우리들은 당신과 함께 죽을 마음이 없다.");
-            NoticeDialog.Show(this,
+                "전멸이다. 우리들은 당신과 함께 죽을 마음이 없다.", face: leaderFace);
+            ConfirmDialog.Tell(this,
                 "그러니, 모두가 보는 앞에서 나와 승부하자! 당신이 이기면 얌전히 따르겠다. " +
-                $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.");
+                $"그러나, 내가 이기면 {beast}의 먹이가 될 줄 알아라.", face: leaderFace);
 
             // 굴림 하나로 갈음하던 것을 <b>진짜 일기토 판</b>으로 바꿨다. 술집이 쓰는
             // 그 판(DuelDialog)이고, 상대만 그 자리에서 지어 세운다.
@@ -3048,9 +3085,7 @@ public sealed class ShipMapWindow : Window
                                             _game.Player.Items.Contains(Engine.Town.Duel.EdithShieldId),
                                             Environment.TickCount);
             // 배경은 뭍이면 초원, 바다면 배 갑판이다.
-            // 대표 얼굴은 49 로 본다 — 게임이 [ebx+0x34] 에 0x31 을 못박는데(0x004752E3)
-            // 그 자리가 능력 여섯의 끝(신앙심)인지 얼굴 번호인지 아직 못 갈랐다.
-            // 화면의 대표가 수염 난 사람이라 얼굴 쪽으로 보고 그 번호를 쓴다.
+            // 대표 얼굴은 #212 다 — 게임이 [대표+8] 에 0xD4 를 박는다(0x00475279).
             DuelDialog.Show(this, duel, dice,
                             _game.Faces?.TryGetBgra(MutinyFace, female: false),
                             _game.Fighters, foeSet: 1,
@@ -3063,8 +3098,13 @@ public sealed class ShipMapWindow : Window
             if (duel.Won == true)
             {
                 _game.Player.Cheer(SeaEvents.MutinyCheer);
-                NoticeDialog.Show(this, "이것으로 불만 없겠지!");
-                NoticeDialog.Show(this, "반란을 진압했습니다");
+                // 반란 판(종류 7)은 처형·놓아 준다·모두 뺏는다가 없다(0x004AA2C9). 게임은 둘 중
+                // <b>하나만</b> 낸다(0x004753F8): 부하 첫 자리가 있으면 그 사람이 「이것으로 불만
+                // 없겠지!」, 없으면 알림 「반란을 진압했습니다」. 예전에는 둘을 잇달아 냈다.
+                if (_game.Player.MateAt(0).Length > 0)
+                    ConfirmDialog.Tell(this, "이것으로 불만 없겠지!", face: MateFace());
+                else
+                    NoticeDialog.Show(this, "반란을 진압했습니다");
                 // 규율이 도로 올랐으니 띠에 남아 있던 불만 글도 걷는다.
                 Say("");
                 return;
@@ -3087,11 +3127,14 @@ public sealed class ShipMapWindow : Window
         ReturnToTitle();
     }
 
-    /// <summary>반란 대표의 얼굴 번호(<c>0x004752E3</c> 의 <c>0x31</c>).</summary>
-    private const int MutinyFace = 0x31;
+    /// <summary>반란 대표의 얼굴 번호 — MALE.CDS #212(<c>0x00475279</c> 의 <c>[대표+8] = 0xD4</c>).</summary>
+    /// <remarks>
+    /// 인물 <c>+0x08</c> 이 얼굴 칸이다. 예전에 얼굴로 본 <c>0x004752E3</c> 의 <c>0x31</c> 은
+    /// <c>+0x34</c> — 능력 여섯의 끝인 <b>신앙심</b>이었다. 게임 화면의 대표(희끗한 머리에
+    /// 수염 난 사람)와 #212 가 같다.
+    /// </remarks>
+    private const int MutinyFace = 0xD4;
 
-    /// <summary>반란을 알릴 때 세우는 사건 스틸(<c>0x00475317</c> 이 0 을 넘긴다).</summary>
-    private const int MutinyStill = 0;
 
     /// <summary>일기토에 선 내 몫. 술집 것과 같다.</summary>
     /// <summary>
@@ -3371,6 +3414,10 @@ public sealed class ShipMapWindow : Window
         dialog.Closed += (_, _) =>
         {
             SetInCity(false);
+
+            // 항구에서 출항했는데 아직 뭍이면(뭍으로 걸어 들어온 마을이다) 그 마을 앞바다에 배를
+            // 띄운다. 예전에는 출항을 따로 안 받아, 말을 탄 채 뭍에 그대로 남았다.
+            if (dialog.Sailed && _host.IsOnLand) _host.PlaceAtCity(city);
 
             // 성문으로 나섰으면 뭍에 올라 말로 걷는다 — 곡도 뭍 것으로 바뀐다.
             bool walking = dialog.Explored && _host.Land();
