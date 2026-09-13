@@ -47,18 +47,16 @@ public sealed class HullSelectDialog : GameWindow
     /// <summary>표가 이보다 길어지면 굴린다.</summary>
     private const double TableMaxHeight = 420;
 
-    private readonly Player _player;
     private readonly GameButton _decide;
     private readonly Dictionary<Hull, Border> _rows = [];
 
     private Hull? _picked;
 
-    /// <summary>이 창에서 산 배. 안 샀으면 null.</summary>
-    public Hull? Bought { get; private set; }
+    /// <summary>이 창에서 고른 선체. 안 골랐으면 null.</summary>
+    public Hull? Chosen { get; private set; }
 
-    private HullSelectDialog(Player player)
+    private HullSelectDialog()
     {
-        _player = player;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -118,13 +116,10 @@ public sealed class HullSelectDialog : GameWindow
                 hull.Name, $"{hull.Hp}", $"{hull.Speed}", $"{hull.Capacity}",
                 $"{hull.Tonnage}", $"{hull.Crew}", $"{hull.Guns}",
             ];
-            bool canBuy = _player.CanBuy(hull) == PurchaseResult.Ok;
-            var row = Row(cells, header: false, dim: !canBuy);
-            if (canBuy)
-            {
-                row.Cursor = Cursors.Hand;
-                row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Pick(hull); };
-            }
+            // 원본 표는 돈이 모자라도 흐리지 않는다 — 돈은 YES 뒤에 본다(0x0044B5A0).
+            var row = Row(cells, header: false);
+            row.Cursor = Cursors.Hand;
+            row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Pick(hull); };
             _rows[hull] = row;
             table.Children.Add(row);
         }
@@ -177,48 +172,24 @@ public sealed class HullSelectDialog : GameWindow
     private void SetDecide(bool enabled) => _decide.On = enabled;
 
     /// <summary>
-    /// 결정 — 살 건지 묻고, 사겠다면 이름을 짓게 한 뒤에 산다.
+    /// 결정 — 고른 선체를 내고 닫는다. 값을 묻고 사는 것은 조선소(<see cref="ShipyardMenu.BuyShip"/>)가 한다.
     /// </summary>
     /// <remarks>
-    /// 차례가 셋이다.
-    /// <list type="number">
-    ///   <item>못 사는 까닭이 있으면 여기서 끝낸다 — 물어 놓고 "소지금이 모자랍니다" 를 내면 헛걸음이다.</item>
-    ///   <item>"사겠나?" 를 묻는다. 아니오면 아무 일도 없다.</item>
-    ///   <item>「선명입력」(<see cref="ShipNameDialog"/>)을 낸다. <b>여기엔 중단이 없다</b> —
-    ///         살지 말지는 앞에서 이미 정했으므로, 이름을 지어야 넘어간다.</item>
-    /// </list>
-    /// 돈은 이름까지 정해진 뒤에 뺀다.
+    /// 원본 표(<c>0x00422DE0</c>)도 고른 번호만 돌려준다 — 척수 검사·값 물음·돈 검사·동영상·
+    /// 선명입력은 모두 부른 쪽 고리(<c>0x0044B5A0</c>)에 있다.
     /// </remarks>
     private void Decide()
     {
         if (_picked is not { } hull) return;
-
-        switch (_player.CanBuy(hull))
-        {
-            case PurchaseResult.NotEnoughGold:
-                NoticeDialog.Show(this, "소지금이 모자랍니다");
-                return;
-            case PurchaseResult.FleetFull:
-                NoticeDialog.Show(this, $"배는 {Player.MaxShips}척까지만 가질 수 있습니다");
-                return;
-        }
-
-        if (!ConfirmDialog.Ask(this, $"「{hull.Name}」은(는) {hull.Price}닢일세. 사겠나?")) return;
-
-        string name = ShipNameDialog.Ask(this, _player.SuggestShipName(), mustName: true)!;
-
-        if (_player.Buy(hull, name) != PurchaseResult.Ok) return;
-
-        Bought = hull;
-        NoticeDialog.Show(this, $"「{name}」을(를) 샀습니다 · {hull.Name} · {hull.Price}닢");
+        Chosen = hull;
         Close();
     }
 
-    /// <summary>선체 표를 띄운다. 배를 샀으면 그 선체를 낸다.</summary>
-    public static Hull? Show(Window owner, Player player)
+    /// <summary>선체 표를 띄운다. 고른 선체를 낸다(중단이면 null).</summary>
+    public static Hull? Show(Window owner)
     {
-        var dlg = new HullSelectDialog(player) { Owner = owner };
+        var dlg = new HullSelectDialog { Owner = owner };
         dlg.ShowDialog();
-        return dlg.Bought;
+        return dlg.Chosen;
     }
 }

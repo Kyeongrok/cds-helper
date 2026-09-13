@@ -108,7 +108,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </summary>
     /// <remarks>
     /// 마을이 닫히고 뭍으로 나선다 — 배는 항구에 대 둔 채 말을 타고 걷는다. 되돌아오는
-    /// 것은 바다 커맨드의 "출항" 이 맡는다(<see cref="Rendering.ShipMapHost.Embark"/>).
+    /// 것은 뭍 커맨드의 "승선" 이 맡는다(<see cref="Rendering.ShipMapHost.Embark"/>).
     /// </remarks>
     public bool Explored { get; private set; }
 
@@ -1313,7 +1313,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.Supply() =>
         SupplyDialog.Show(Menu.Window ?? this, _player, Market?.Rates.Of(_cityId) ?? 100);
 
-    void ITownScreen.BuyShip() => HullSelectDialog.Show(this, _player);
+    void ITownScreen.BuyShip() => Yard.BuyShip();
     void ITownScreen.SellShip() => Yard.SellShip();
     void ITownScreen.RepairShip() => Yard.RepairShip();
     void ITownScreen.RefitShip() => Yard.RefitShip();

@@ -51,6 +51,73 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         ConfirmDialog.Tell(_view, "형씨, 바다에 나갈 거면 좋은 배를 사요.",
                            face: _game.SpeakerFace(BuildingCode, _culture));
 
+    /// <summary>
+    /// 배를 산다. 게임의 <c>0x0044B5A0</c> 자리다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00531068  "새로운 배가 갖고 싶나?"                           얼굴 창
+    ///   0x00422DE0  「선체종류 선택」 — 중단이면 끝
+    ///   0x005310B8  함대가 8척이면 "이 이상 배를 늘릴 수 없습니다!" 뒤 끝
+    ///   0x0044B450  값 = 선체표 +0x38 x 1000 x 시세 / 100 (적어도 1)
+    ///   0x005310D8  "%s%s 갖고 싶다면 금화 %ld닢이 필요하네."          얼굴 YES/NO — NO 면 표로
+    ///   0x00531100  소지금이 모자라면 "자금이 모자랍니다!" 뒤 표로     돈은 YES 뒤에 본다
+    ///   0x00422C10  AVI\S%02d_0001.AVI — 선체 번호(0~7) 동영상
+    ///   0x0044B7B0  선명입력 → 배를 지어 함대에 붙인다. 끝 알림은 없다
+    /// </code>
+    /// 「함대가 정박해 있지 않는 마을에서는 배를 살 수 없습니다」 검사는 아직 없다 — 뭍으로
+    /// 걸어 든 마을인지를 이 창이 모른다.
+    /// </remarks>
+    public void BuyShip()
+    {
+        var owner = Owner;
+        var face = _game.SpeakerFace(BuildingCode, _culture);
+
+        ConfirmDialog.Tell(owner, "새로운 배가 갖고 싶나?", face: face);
+
+        while (HullSelectDialog.Show(owner) is { } hull)
+        {
+            if (_player.Ships.Count >= Player.MaxShips)
+            {
+                GameDialog.Show(owner, "이 이상 배를 늘릴 수 없습니다!");
+                return;
+            }
+
+            int price = Math.Max(1, hull.Price * _rate / 100);
+            string what = hull.Name;
+            if (!ConfirmDialog.Ask(owner,
+                    $"{what}{GameUi.Josa(what, "이", "가")} 갖고 싶다면 금화 {price}닢이 필요하네.",
+                    face: face))
+                continue;
+
+            if (!_player.CanAfford(price))
+            {
+                GameDialog.Show(owner, "자금이 모자랍니다!");
+                continue;
+            }
+
+            MoviePlayer.Play(owner, MovieOf(hull));
+
+            string name = ShipNameDialog.Ask(owner, _player.SuggestShipName(), mustName: true)!;
+            _player.Buy(hull, name, price);
+            _menu.Refresh();
+            return;
+        }
+    }
+
+    /// <summary>
+    /// 선체 번호 차례(<c>0x004FC1E0</c>). 동영상 <c>S00</c>~<c>S07</c> 이 이 차례와 짝이다.
+    /// </summary>
+    private static readonly string[] MovieHulls =
+        ["코구", "카라벨", "대형카라벨", "카락", "대형카락", "중카락", "갤리온", "다우"];
+
+    /// <summary>그 선체의 동영상 자리. 게임 선체가 아니면(등록해 넣은 배) null — 안 튼다.</summary>
+    private string? MovieOf(Hull hull)
+    {
+        int n = Array.IndexOf(MovieHulls, hull.Name);
+        return n < 0 ? null : System.IO.Path.Combine(_game.Directory, "AVI", $"S{n:00}_0001.AVI");
+    }
+
     /// <summary>고칠 배가 있는지. 없으면 게임처럼 "수리" 줄이 흐리다.</summary>
     public bool CanRepair => RepairTargets().Count > 0;
 
