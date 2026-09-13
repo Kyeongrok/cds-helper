@@ -249,19 +249,71 @@ public static class Encounter
         "터키 해군", "이슬람 함대", "아랍 해적", "콜세르", "해적", "사략 함대",
     ];
 
-    /// <summary>
-    /// 만난 무리 하나를 굴린다. <b>이쪽은 우리가 지어낸 것이다</b> — 게임은 지도 위를
-    /// 돌아다니는 함대 객체를 넘긴다.
-    /// </summary>
-    public static Enemy Roll(Random rng)
-    {
-        // 해적이 흔하고 이슬람 함대가 그다음이다. 추격대는 악명이 붙어야 나오므로
-        // 여기서는 안 낸다(아직 그 조건을 안 옮겼다).
-        var kind = rng.Next(4) == 0 ? EnemyKind.Islam : EnemyKind.Pirate;
-        string name = kind == EnemyKind.Islam ? Names[1] : Names[rng.Next(2, Names.Length)];
+    /// <summary>유럽 바다 구역의 주사위 폭 — <c>rand(700) == 0</c> 이면 해적이 붙는다.</summary>
+    public const int EuropeRoll = 700;
 
+    /// <summary>동지중해~아라비아해 구역의 주사위 폭 — <c>rand(400) == 0</c> 이면 이슬람 함대.</summary>
+    public const int LevantRoll = 400;
+
+    /// <summary>
+    /// 그 자리가 어느 주사위 구역인지. 구역 밖이면 null — 바다 주사위가 아예 없다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 <c>0x0048CAC5</c> 의 경계를 위도·경도로 옮긴 것이다. 게임 좌표는 1/16 칸이라
+    /// 경도 = x/40000·360−180, 위도 = 90 − y/20000·180 이다.
+    /// <code>
+    ///   A  18334 ≤ x &lt; 22222 · 3334 ≤ y &lt;  6667   경도 -15~20 · 위도 30~60   rand(700)
+    ///   B  22222 ≤ x &lt; 27777 · 4445 ≤ y &lt; 10000   경도  20~70 · 위도  0~50   rand(400)
+    /// </code>
+    /// 대서양 한가운데·아메리카·동아시아는 두 구역 밖이다.
+    /// </remarks>
+    public static int? RollOf(double lat, double lon)
+    {
+        if (lon >= -15 && lon < 20 && lat > 30 && lat <= 60) return EuropeRoll;
+        if (lon >= 20 && lon < 70 && lat > 0 && lat <= 50) return LevantRoll;
+        return null;
+    }
+
+    /// <summary>
+    /// 바다에서 걸음을 옮기는 동안 무리가 붙는지 굴린다(<c>0x0048CABA</c>). 안 붙으면 null.
+    /// </summary>
+    /// <param name="steps">그동안 걸은 걸음 수. 게임은 고리 한 바퀴(한 걸음)마다 한 번 굴린다.</param>
+    /// <remarks>
+    /// 게임은 이 주사위를 <b>화면에 보이는 함대에 두 칸 안으로 붙지 않았을 때</b>만 굴리고
+    /// (<c>0x0048C049</c>, 볼트 <c>59.분석-해적 조우</c> 5·6절), 걸리면
+    /// <c>0x004435B0(인물, 0, 1)</c> 로 교섭·도망·응전 창을 연다. 유럽 구역은 인물 262(해적),
+    /// 81칸 표에 걸린 것이 있으면 268(추격대)인데 그 표를 아직 못 짚어 <b>해적만</b> 낸다.
+    /// </remarks>
+    public static Enemy? AtSea(double lat, double lon, int steps, Random rng)
+    {
+        if (RollOf(lat, lon) is not { } roll) return null;
+
+        for (int i = 0; i < steps; i++)
+        {
+            if (rng.Next(roll) != 0) continue;
+            return roll == LevantRoll ? Make(EnemyKind.Islam, rng) : Make(EnemyKind.Pirate, rng);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 그 갈래의 무리 하나를 짓는다. <b>척수와 적장 능력은 우리가 굴린다</b> — 게임은
+    /// 인물 레코드(<c>([인물+0x28]+1)/14</c>, 해적 +2)에서 척수를 내는데 그 인물들을 아직
+    /// 안 옮겼다.
+    /// </summary>
+    private static Enemy Make(EnemyKind kind, Random rng)
+    {
+        string name = kind == EnemyKind.Islam ? Names[1] : Names[rng.Next(2, Names.Length)];
         int ships = rng.Next(1, 5);
         int sum = rng.Next(40, 200) + 1;      // 적장 능력 넷의 합
         return new Enemy(kind, name, ships, sum);
     }
+
+    /// <summary>
+    /// 만난 무리 하나를 굴린다. <b>이쪽은 우리가 지어낸 것이다</b> — 게임은 지도 위를
+    /// 돌아다니는 함대 객체를 넘긴다.
+    /// </summary>
+    /// <remarks>자리를 따지지 않는다 — 해전 연습 창(<c>SeaCombatDialog</c>)이 쓴다.</remarks>
+    public static Enemy Roll(Random rng) =>
+        Make(rng.Next(4) == 0 ? EnemyKind.Islam : EnemyKind.Pirate, rng);
 }
