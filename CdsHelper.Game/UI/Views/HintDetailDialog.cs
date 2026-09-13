@@ -25,20 +25,23 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class HintDetailDialog : GameWindow
 {
-    /// <summary>판의 색. 게임 갈무리에서 집은 회청색이다.</summary>
-    private static readonly Brush PanelFill = Frozen(Color.FromRgb(0x6E, 0x82, 0xA6));
-    private static readonly Brush PanelEdge = Frozen(Color.FromRgb(0x2C, 0x38, 0x50));
+    /// <remarks>
+    /// <b>원본 코드에서 뽑은 자리다.</b> 창 <c>0x0046ED57</c> 은 320x240(테 포함)이고, 속(테 8점 안쪽)
+    /// 좌표로 그린다(<c>0x0046EC2F</c>).
+    /// <code>
+    ///   0x0046EC48  제목 "%s(%s)"          (8, 8)
+    ///   0x0046ECD8  글 상자                (8, 40) 288 x 176 — 반각 36칸, 줄 사이 4
+    /// </code>
+    /// 판 색은 인물정보·후원자 정보와 같은 강청색 <c>#5C6F93</c> 이고 테도 같은 세 줄이다.
+    /// </remarks>
+    private const double BoardWidth = 304, BoardHeight = 224;
 
-    /// <summary>
-    /// 판 속에 글이 놓이는 폭. 게임 판은 한 줄에 한글 열아홉 자쯤 든다.
-    /// </summary>
-    private const double TextWidth = 19 * 16;
+    /// <summary>제목 자리와 글 상자 자리.</summary>
+    private const double TitleX = 8, TitleY = 8, TextX = 8, TextY = 40;
 
-    /// <summary>판 안쪽 여백과 한 줄 높이.</summary>
-    private const double PanelPad = 14, LineHeight = 20;
-
-    /// <summary>글꼴을 못 읽었을 때 눈대중으로 쓸 글자 폭(한글은 두 배).</summary>
-    private const double GuessCell = 8;
+    /// <summary>글 상자 폭(반각 칸)과 한 줄 높이(글자 16 + 줄 사이 4).</summary>
+    private const int TextCells = 36;
+    private const double LineHeight = 20;
 
     private static Brush Frozen(Color c)
     {
@@ -56,27 +59,16 @@ public sealed class HintDetailDialog : GameWindow
         ShowInTaskbar = false;
         Background = Brushes.Transparent;
 
-        var words = new StackPanel();
-        words.Children.Add(Ink(head));
-        words.Children.Add(new Border { Height = LineHeight });        // 한 줄 띄운다
-        foreach (string line in Wrap(body, TextWidth))
-            words.Children.Add(Ink(line));
+        var board = new Canvas { Width = BoardWidth, Height = BoardHeight, ClipToBounds = true };
 
-        // 게임 판은 테가 두 겹이다 — 짙은 선 안에 한 칸 띄우고 다시 짙은 선.
-        Content = new Border
-        {
-            BorderBrush = PanelEdge,
-            BorderThickness = new Thickness(2),
-            Background = PanelFill,
-            Padding = new Thickness(2),
-            Child = new Border
-            {
-                BorderBrush = PanelEdge,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(PanelPad),
-                Child = new StackPanel { Width = TextWidth, Children = { words } },
-            },
-        };
+        Put(board, Ink(head), TitleX, TitleY);
+
+        var lines = Wrap(body, TextCells);
+        for (int i = 0; i < lines.Count; i++)
+            Put(board, Ink(lines[i]), TextX, TextY + i * LineHeight);
+
+        // 판은 인물정보·후원자 정보와 같은 강청색 세 줄 테다.
+        Content = GameUi.InfoFrame(board, GameUi.InfoBack);
 
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
 
@@ -95,30 +87,42 @@ public sealed class HintDetailDialog : GameWindow
         };
 
     /// <summary>
-    /// 판 너비에 맞춰 끊는다. 자 너비는 <b>게임 글꼴에 직접 물어본다</b> —
-    /// 한글 16점 · ASCII 8점으로 어림하던 것이 실제와 어긋나 글이 오른쪽으로 삐져나갔다.
+    /// 반각 칸으로 세어 끊는다 — 원본은 <b>낱말이 아니라 글자</b>에서 끊는다.
     /// </summary>
-    private static List<string> Wrap(string text, double width)
+    /// <remarks>
+    /// 원본 갈무리의 끊김이 이 셈과 딱 맞는다: 「새하얀 」까지 35칸이라 「석」(2칸)이 넘쳐 다음
+    /// 줄로 가고, 「없을 정」에서 36칸이 차 「도이다.」가 넘어간다. 한글은 두 칸, ASCII 는 한 칸이고,
+    /// 새 줄 머리의 빈칸은 버린다.
+    /// </remarks>
+    private static List<string> Wrap(string text, int cells)
     {
-        var font = GameUi.Font;
         var lines = new List<string>();
         var line = new StringBuilder();
-        double used = 0;
+        int used = 0;
 
         foreach (char c in text)
         {
-            double w = font?.TextWidth(c.ToString()) ?? (c < 0x80 ? GuessCell : GuessCell * 2);
-            if (used + w > width && line.Length > 0)
+            int w = c < 0x80 ? 1 : 2;
+            if (used + w > cells && line.Length > 0)
             {
                 lines.Add(line.ToString());
                 line.Clear();
                 used = 0;
             }
+            if (used == 0 && c == ' ') continue;        // 줄 머리 빈칸은 버린다
             line.Append(c);
             used += w;
         }
         if (line.Length > 0) lines.Add(line.ToString());
         return lines;
+    }
+
+    /// <summary>속 좌표로 캔버스에 놓는다.</summary>
+    private static void Put(Canvas canvas, UIElement element, double x, double y)
+    {
+        Canvas.SetLeft(element, x);
+        Canvas.SetTop(element, y);
+        canvas.Children.Add(element);
     }
 
     /// <summary>

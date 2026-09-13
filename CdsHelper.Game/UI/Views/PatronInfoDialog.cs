@@ -34,14 +34,14 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 public sealed class PatronInfoDialog : GameWindow
 {
-    /// <summary>화면 바탕. 계약 정보·보급 화면과 같은 밤색 판이다.</summary>
-    private static readonly Brush Back = Frozen(Color.FromRgb(0x31, 0x18, 0x18));
+    /// <summary>화면 바탕 — 인물정보·힌트정보와 같은 강청색 <c>#5C6F93</c> 이다(원본 갈무리).</summary>
+    private static readonly Brush Back = GameUi.InfoBack;
 
     /// <summary>테를 두르는 짙은 선.</summary>
-    private static readonly Brush Line = Frozen(Color.FromRgb(0x11, 0x09, 0x09));
+    private static readonly Brush Line = GameUi.InfoLine;
 
-    /// <summary>글꼴 조각을 못 읽었을 때 물러설 글씨색.</summary>
-    private static readonly Brush Ink = Frozen(Color.FromRgb(0xCB, 0xC5, 0xC5));
+    /// <summary>글꼴 조각을 못 읽었을 때 물러설 글씨색. 강청색 판은 검은 글씨다.</summary>
+    private static readonly Brush Ink = Brushes.Black;
 
     private static SolidColorBrush Frozen(Color c)
     {
@@ -143,10 +143,10 @@ public sealed class PatronInfoDialog : GameWindow
     /// <summary>게임의 <c>%-10s</c> 처럼 바이트로 세어 채운다.</summary>
     private static string Pad(string text, int width) => GameUi.Pad(text, width);
 
-    /// <summary>밤색 판 위 그 자리에 밝은 글씨를 얹는다.</summary>
+    /// <summary>강청색 판 위 그 자리에 검은 글씨를 얹는다.</summary>
     private static void Put(Canvas board, double x, double y, string text)
     {
-        var label = new GameUi.GameLabel(GameFont.WhiteColor)
+        var label = new GameUi.GameLabel(GameFont.BlackColor)
         {
             Text = text,
             FallbackBrush = Ink,
