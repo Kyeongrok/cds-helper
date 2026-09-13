@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using CdsHelper.Game.Engine.Town;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Settings;
 
@@ -323,6 +324,9 @@ public sealed class CityCultureDialog : GameWindow
             _faces.Children.Add(Cell(name, code, face, speakers.IsFemale(code)));
         }
 
+        // 술집·여관의 무명 손님 — 화자표가 아니라 고정 표 0x004A2F80 에서 온다.
+        _faces.Children.Add(Cell("무명 손님", -1, TavernRumors.StrangerFace(culture), female: false));
+
         ShowGuests(CityCultureEdits.NameOf(culture));
     }
 
@@ -348,9 +352,9 @@ public sealed class CityCultureDialog : GameWindow
     /// 손님 한 칸 — 서 있는 그림과 번호.
     /// </summary>
     /// <remarks>
-    /// 무명 손님의 <b>초상</b>은 여기 안 낸다. 한때 손님 그림 번호를 남자 얼굴 수로 나눈
-    /// 나머지로 골라 함께 냈는데, 그건 우리가 정한 규칙이라 얼굴이 갈리지 않고 죄다 같은
-    /// 것으로 나왔다. 원본이 무명 손님에게 어느 얼굴을 물리는지 짚은 뒤에 다시 볼 일이다.
+    /// 무명 손님의 <b>초상</b>은 손님마다 내지 않는다. 원본은 서 있는 그림과 상관없이
+    /// 문화권 하나에 얼굴 하나를 물리므로(<c>0x004A2F80</c>, <see cref="TavernRumors.StrangerFace"/>)
+    /// 위 시설 줄에 「무명 손님」 한 칸으로 낸다.
     /// </remarks>
     private static UIElement GuestCell(TavernGuests book, TavernGuests.Guest guest)
     {
@@ -390,7 +394,7 @@ public sealed class CityCultureDialog : GameWindow
         var box = new StackPanel { Margin = new Thickness(8), Width = 96 };
         box.Children.Add(new TextBlock
         {
-            Text = $"{name} ({code})",
+            Text = code < 0 ? name : $"{name} ({code})",
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 4),
         });
