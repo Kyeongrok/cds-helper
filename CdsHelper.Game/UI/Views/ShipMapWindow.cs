@@ -504,7 +504,8 @@ public sealed class ShipMapWindow : Window
             _game.Sfx?.Play(SoundBank.AnchorPart);
         };
         input.MouseMove += (_, e) => _host.SetMouse(e.GetPosition(input), true);
-        input.MouseLeave += (_, _) => _host.SetMouse(default, false);
+        // 지도를 벗어나도 "밖" 으로 두지 않는다 — 가장자리로 잘라 계속 그쪽으로 간다(SyncMouse).
+        input.MouseLeave += (_, _) => SyncMouse();
 
         // 초점이 어디로 가는지 보려고 둔 진단(FocusWatch). 다 잡고 나면 지운다.
         FocusWatch.Sink = note => _focusNote = note;
@@ -710,15 +711,35 @@ public sealed class ShipMapWindow : Window
     /// 닫히거나 커서가 잠깐 지도를 벗어나면 <c>MouseLeave</c> 가 "밖" 으로 표시해 놓고,
     /// 커서를 <b>움직이기 전까지</b> 그대로였다 — 배가 뱃머리를 못 잡고 그 자리에 서 있었다.
     /// 입항 직후에는 뱃머리가 0 이라 특히 티가 났다. 그래서 틱마다 직접 재 둔다.
+    ///
+    /// <b>커서가 창 밖이어도 그쪽으로 간다</b> — 원본이 그렇다. 원본은 마우스를 붙들지 않고
+    /// 틱마다 <c>GetCursorPos</c> → <c>ScreenToClient</c> 로 읽어 창 가장자리로 자른다
+    /// (<c>0x004BA427</c>, 항해 고리 <c>0x0048BA84</c>). 그래서 창 밖 커서는 가장 가까운 가장자리
+    /// 점을 가리킨 셈이 된다. 우리도 화면 좌표를 읽어 지도 크기로 자른다. 다른 창이 앞에
+    /// 있을 때만은 끈다 — 딴 프로그램을 쓰는 동안 배가 돌면 곤란하다.
     /// </remarks>
     private void SyncMouse()
     {
         if (!_started || !ReferenceEquals(_screen.Content, _mapRoot) || _input.ActualWidth <= 0) return;
 
-        var p = Mouse.GetPosition(_input);
-        bool inside = p.X >= 0 && p.Y >= 0 && p.X < _input.ActualWidth && p.Y < _input.ActualHeight;
-        _host.SetMouse(p, inside);
+        if (!IsActive || !GetCursorPos(out var screen))
+        {
+            _host.SetMouse(default, false);
+            return;
+        }
+
+        var p = _input.PointFromScreen(new Point(screen.X, screen.Y));
+        p = new Point(Math.Clamp(p.X, 0, _input.ActualWidth - 1),
+                      Math.Clamp(p.Y, 0, _input.ActualHeight - 1));
+        _host.SetMouse(p, true);
     }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativePoint { public int X, Y; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out NativePoint point);
 
     /// <summary>
     /// 해상에서 자리에 맞는 곡으로 갈아탄다. <b>지금 곡이 끝난 뒤에</b> 바뀐다 —
@@ -1755,7 +1776,8 @@ public sealed class ShipMapWindow : Window
                 items.Add(($"{_game.CityName(town)}에 들어간다", () => { Close(); EnterCity(town); }));
 
             if (_host.IsNearWater())
-                items.Add(("출항", () => { if (_host.Embark()) _game.Bgm.Play(BgmPlayer.SeaTrack); Close(); }));
+                // 뭍에서 배로 옮겨 타는 줄은 「승선」이다(0x0056F9A8, 0x0048B3ED) — 「출항」은 항구 것이다.
+                items.Add(("승선", () => { if (_host.Embark()) _game.Bgm.Play(BgmPlayer.SeaTrack); Close(); }));
         }
         else if (_host.IsNearLand())
         {
@@ -2214,15 +2236,26 @@ public sealed class ShipMapWindow : Window
     /// 게임도 도시와 똑같은 손으로 가린다(<c>0x00425720</c> → <c>0x004AADD0</c> →
     /// <c>0x004AAE90</c>). 사각형이 없는 발견물(유적 속 물건 따위)은 지도에 자리가 없어
     /// 건너뛴다.
+    ///
+    /// <c>0x004AADD0</c> 이 안 덮는 것은 셋이다 — 내가 찾은 것(사람 칸 0), 역사 항해자가
+    /// 먼저 찾은 것(칸 1), 그리고 <b>계약 목표</b>다. 계약 힌트가 가리키는 일련번호와
+    /// 발견물 <c>+0x08</c> 을 맞대므로, 계약을 맺으면 아직 못 찾은 유적 그림이 지도에 드러난다.
+    /// 같은 번호를 쓰는 것(기제의 피라미드·스핑크스)은 함께 드러난다.
     /// </remarks>
     private IEnumerable<(int X, int Y, ushort[] Block)> HiddenPlaces()
     {
-        if (_game.Discoveries?.Table is not { } table) yield break;
+        if (_game.Discoveries is not { } log) yield break;
 
-        foreach (var row in table.Discoveries)
+        var player = _game.Player;
+        int target = player.Contract is { } contract && _game.Hints?.Find(contract.Hint) is { } hint
+                   ? hint.Discovery : -1;
+
+        foreach (var row in log.Table.Discoveries)
         {
             if (!row.HasPlace || row.Erase is not { Length: > 0 } block) continue;
-            if (_game.Player.HasFound(row.Id)) continue;
+            if (player.HasFound(row.Id)) continue;
+            if (log.TakenBy(row, player.Date) >= 0) continue;
+            if (target >= 0 && row.Hint == target) continue;
 
             yield return (row.X1, row.Y1, block);
         }
@@ -3427,6 +3460,9 @@ public sealed class ShipMapWindow : Window
             _game.Player.EnterCity(-1);
             PassPortDays();          // 나오는 데도 열흘
             InfoMenu.Close();        // 도시를 나오면 도시정보 창도 같이 걷는다
+
+            // 도시에서 계약을 맺거나 깨거나 보고했으면 목표 유적 그림이 드러나거나 다시 덮인다.
+            HideCities();
         };
         return true;
     }
