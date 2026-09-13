@@ -13,6 +13,6 @@ namespace CdsHelper.Maze;
 /// </remarks>
 public static class MazeGame
 {
-    /// <summary>놀이를 한 판 하고 결과를 알린다.</summary>
-    public static void Play(Window owner, Random rng) => MazePuzzleDialog.Play(owner, rng);
+    /// <summary>놀이를 한 판 하고 결과를 알린다. 돌파했으면 true.</summary>
+    public static bool Play(Window owner, Random rng) => MazePuzzleDialog.Play(owner, rng);
 }

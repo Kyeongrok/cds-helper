@@ -684,6 +684,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             ? "음음, 잘 했네. 또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나."
             : "또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나.");
 
+        // 계약이 끝났으니 부하마다 다시 태울지 묻는다(0x00454160).
+        RecontractMates();
+
         // 보고가 끝나면 그 줄이 사라져야 한다 — 계약이 없어졌으니 「보고」 줄도 없다.
         // 줄 목록을 다시 지어 그리게 한다(TownWorks.LinesOf 가 후원자 줄을 다시 고른다).
         _menu.Refresh();
@@ -747,6 +750,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
                                   "가까이 하지 않는 것이 좋을 것 같군요.");
+            RecontractMates();
             return;
         }
 
@@ -762,11 +766,60 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
                                   "가까이 하지 않는 것이 좋을 것 같군요.");
+            RecontractMates();
             return;
         }
 
         _player.EndContract();
         GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 물었다.");
+        RecontractMates();
+    }
+
+    /// <summary>
+    /// 계약이 끝나면 <b>부하마다 다시 태울지</b> 묻는다(게임 <c>0x00454160</c>).
+    /// </summary>
+    /// <remarks>
+    /// 볼트 <c>90.분석-보고 뒤 부하 재계약</c>. 보고로 끝나든 파기로 끝나든 계약이 끝난 건물을 나설 때
+    /// 돈다(<c>0x0044E6C0</c>). 자리 0~3 을 차례로 보고 빈 자리만 건넌다 — 역사 인물·말·충성은 안 본다.
+    /// <code>
+    ///   선금 = 밑값 x (10 - 웅변) / 3          0x004541F0 → 0x00453940 (고용 계약금과 같다)
+    ///   선금 &gt; 소지금  → 묻지 않고 떠난다   「이것으로 제독과의 계약을 달성했군요. 또 일이 있으면 불러 주십시오.」 0x0055AC18
+    ///   YES           → 선금만 낸다(0x0047CBC0)
+    ///   NO            → 떠난다(0x00453470)   「또 일이 있으면 불러 주십시오!」 0x0055ABF8
+    /// </code>
+    /// 말은 모두 그 부하 얼굴로 한다. 무작위는 없다.
+    /// </remarks>
+    private void RecontractMates()
+    {
+        int eloquence = _player.LevelOf(Skill.Names[Skill.Rhetoric]);
+        for (int slot = 0; slot < Player.MaxMates; slot++)
+        {
+            string name = _player.MateAt(slot);
+            if (name.Length == 0) continue;
+
+            var face = _player.MateInfoOf(name) is { } info
+                ? _game.Faces?.TryGetBgra(info.Face, female: false) : null;
+            int baseFee = _game.World?.People.FirstOrDefault(r => r.Name == name)?.Fee ?? 0;
+            int fee = Math.Max(0, baseFee * (10 - eloquence) / 3);
+
+            if (fee > _player.Gold)
+            {
+                _player.SetMate(slot, "");
+                TalkDialog.Say(_view, face, "", "이것으로 제독과의 계약을 달성했군요. 또 일이 있으면 불러 주십시오.");
+                continue;
+            }
+
+            if (ConfirmDialog.Ask(_view,
+                    $"선금으로 금화 {fee}닢이라면 한번 더 제독의 배를 탈 수 있습니다. 어떻게 하시겠습니까?",
+                    null, face))
+            {
+                _player.Spend(fee);
+                continue;
+            }
+
+            _player.SetMate(slot, "");
+            TalkDialog.Say(_view, face, "", "또 일이 있으면 불러 주십시오!");
+        }
     }
 
     /// <summary>계약을 깨는 것을 후원자가 눈감아 주는지(<see cref="Palace.Forgiven"/>).</summary>

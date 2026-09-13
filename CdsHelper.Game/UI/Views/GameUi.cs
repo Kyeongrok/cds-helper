@@ -18,14 +18,22 @@ namespace CdsHelper.Game.UI.Views;
 /// </summary>
 internal static class GameUi
 {
-    public static readonly Brush Back = new SolidColorBrush(Color.FromRgb(0x3A, 0x24, 0x1E));
+    /// <summary>다이얼로그 바탕. 게임 화면에서 뽑은 <c>#311818</c> 이다.</summary>
+    public static readonly Brush Back = new SolidColorBrush(Color.FromRgb(0x31, 0x18, 0x18));
     /// <summary>
     /// 창 바깥 테. 게임은 창을 <b>거의 검정</b>으로 두른다 — 밝은 양피지색(<c>C8B490</c>)으로
     /// 두었더니 창마다 액자가 하나 더 있는 꼴이었다.
     /// </summary>
     public static readonly Brush Edge = new SolidColorBrush(Color.FromRgb(0x0B, 0x05, 0x05));
     public static readonly Brush Text = new SolidColorBrush(Color.FromRgb(0xF2, 0xEA, 0xD6));
-    public static readonly Brush MenuBack = new SolidColorBrush(Color.FromRgb(0x4A, 0x2A, 0x22));
+
+    /// <summary>
+    /// 명령 창(메뉴) 판의 테. 게임 화면에서 뽑은 <c>#B3AA96</c> 이다 — 공용 테(<see cref="Edge"/>)처럼
+    /// 검지 않다.
+    /// </summary>
+    public static readonly Brush MenuEdge = new SolidColorBrush(Color.FromRgb(0xB3, 0xAA, 0x96));
+    /// <summary>술집 따위 명령 창의 바탕 판. 게임 화면에서 뽑은 <c>#311818</c> 이다(보급·계약 화면과 같은 밤색).</summary>
+    public static readonly Brush MenuBack = new SolidColorBrush(Color.FromRgb(0x31, 0x18, 0x18));
     public static readonly Brush ItemFill = new SolidColorBrush(Color.FromRgb(0xD2, 0xCA, 0xAD));
     public static readonly Brush ItemEdge = new SolidColorBrush(Color.FromRgb(0x4A, 0x40, 0x30));
     public static readonly Brush PageFill = new SolidColorBrush(Color.FromRgb(0xF2, 0xE4, 0xC8));
@@ -84,7 +92,7 @@ internal static class GameUi
         return new Border
         {
             Background = MenuBack,
-            BorderBrush = Edge,
+            BorderBrush = MenuEdge,
             BorderThickness = new Thickness(1),
             Child = bar,
         };
@@ -711,14 +719,13 @@ internal static class GameUi
 
         /// <summary>
         /// 그 색인의 게임 색. 윈도 글꼴로 물러설 때에도 글씨색은 게임 것으로 둔다 —
-        /// 검정으로 두면 게임 글꼴로 찍힌 옆 칸과 색이 어긋난다(띠 글씨는 <c>341C14</c> 다).
+        /// 검정으로 두면 게임 글꼴로 찍힌 옆 칸과 색이 어긋난다(띠 글씨는 <c>#010101</c> 이다).
         /// </summary>
         private static Brush PaletteBrush(byte color)
         {
-            int i = color * 3;
-            var brush = new SolidColorBrush(Color.FromRgb(GamePalette.Rgb[i],
-                                                          GamePalette.Rgb[i + 1],
-                                                          GamePalette.Rgb[i + 2]));
+            uint argb = GameFont.TextArgb(color);
+            var brush = new SolidColorBrush(Color.FromRgb((byte)(argb >> 16), (byte)(argb >> 8),
+                                                          (byte)argb));
             brush.Freeze();
             return brush;
         }
@@ -1514,6 +1521,56 @@ internal static class GameUi
         var grid = new Grid { Width = w, Height = UiSprites.BandHeight, Background = brush };
         grid.Children.Add(label);
         return new Border { Child = grid };
+    }
+
+    /// <summary>술집 손님·서가 책에 커서를 올렸을 때 붙는 이름표의 테. 물음창 테와 같은 밝은 회갈색이다.</summary>
+    /// <remarks>게임은 판을 색 <c>0x11</c> 로 칠하고 테를 색 <c>0x49</c> 로 한 점 두른다(<c>0x0042DEC0</c>).</remarks>
+    private static readonly Brush HoverEdge = PaletteBrush(0x49);
+
+    /// <summary>민 이름표의 판 — 색 <c>0x11</c>.</summary>
+    private static readonly Brush HoverFill = PaletteBrush(0x11);
+
+    private static SolidColorBrush PaletteBrush(int index) =>
+        FrozenBrush(Color.FromRgb(GamePalette.Rgb[index * 3], GamePalette.Rgb[index * 3 + 1],
+                                  GamePalette.Rgb[index * 3 + 2]));
+
+    private static SolidColorBrush FrozenBrush(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
+    /// <summary>
+    /// 술집 손님·서가 책 위에 커서를 올렸을 때 붙는 <b>민 이름표</b> — 짙은 밤색 판에 밝은 한 점 테,
+    /// 흰 글씨다.
+    /// </summary>
+    /// <remarks>
+    /// 건물 이름표(<see cref="NameTag"/>)처럼 덩굴 띠를 두르지 않는다. 게임 갈무리의 「마르틴」 ·
+    /// 「「XX」 XXXX XXX」 가 이 모양이다.
+    /// </remarks>
+    public static (Border Tag, GameLabel Text) HoverTag(string text = "")
+    {
+        var label = new GameLabel(GameFont.WhiteColor)
+        {
+            Text = text,
+            FallbackBrush = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        // 글은 판 안 (8,4) 에서 시작하고 판 높이는 24 다 — 테 한 점을 빼고 채운다.
+        var tag = new Border
+        {
+            Background = HoverFill,
+            BorderBrush = HoverEdge,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(7, 3, 7, 3),
+            Height = 24,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = label,
+        };
+        return (tag, label);
     }
 
     /// <summary>건물 위에 커서를 올렸을 때 붙는 이름표.</summary>

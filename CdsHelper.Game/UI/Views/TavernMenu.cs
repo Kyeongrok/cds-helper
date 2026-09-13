@@ -415,8 +415,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 var who = people[seat.Person];
                 bool known = Known(who);
                 art.Add(new(bgra, seat.Art.Width, seat.Art.Height,
-                            known ? who.Name : seat.Art.Female ? "여" : "남",
-                            () => Alone(() => MeetPerson(who, seat.Art.Female))));
+                            known ? who.ShortName : seat.Art.Female ? "여" : "남",
+                            () => Alone(() => MeetPerson(who, seat.Art.Female,
+                                                         inn: kind == FacilityKind.Inn))));
             }
         }
         return art;
@@ -555,8 +556,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     }
 
     /// <summary>
-    /// 그 사람과 낯을 텄는지. 세이브에 고용 가능(2)·고용 중(3)으로 적혀 있으면 이미 아는
-    /// 사이로 보고, 그 밖에는 술집에서 한잔 사야 이름을 알게 된다.
+    /// 그 사람과 낯을 텄는지. 술집에서 한잔 사거나 말을 걸어 용건을 물었으면 아는 사이고,
+    /// 제 부하도 물론 안다. 세이브의 고용상태로는 가르지 않는다.
     /// </summary>
     /// <summary>
     /// 그 건물에 <b>앉아 있는</b> 사람들.
@@ -574,8 +575,13 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         return [.. people.Where(p => !_player.HasMate(p.Name))];
     }
 
+    /// <remarks>
+    /// 고용상태(2 고용가능)로 아는 사이를 가르면 <b>처음 들어간 여관에서도 이름이 뜬다</b>.
+    /// 게임은 사람마다 「모르는 사이」 깃발을 들고 있다가 용건을 물을 때(<c>0x004A4BB0</c> →
+    /// <c>0x004321C0</c>, <c>[인물+0xF8] = 0</c>) 걷는다 — 곧 실제로 말을 걸어야 안다.
+    /// </remarks>
     private bool Known(TavernRoster.Person who) =>
-        who.Hire >= TavernRoster.Hireable || _player.HasMet(who.Name);
+        _player.HasMet(who.Name) || _player.HasMate(who.Name);
 
     /// <summary>
     /// 인물을 눌렀을 때. <b>낯을 텄는지에 따라 두 갈래</b>다 — 게임도 인물 객체의
@@ -592,11 +598,17 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 말을 걸었을 때 뜰 줄은 게임이 인물 갈래(<c>+0xE8</c>)로 고르는데(<c>0x004A4DE0</c>),
     /// 우리는 세이브의 고용상태(1 대화만 · 2 고용가능 · 3 고용중)로 대신한다.
     /// </remarks>
-    private void MeetPerson(TavernRoster.Person who, bool female)
+    /// <param name="inn">
+    /// 여관 손님인지. 여관(<c>0x004A4F80</c>)은 한잔 사는 줄이 없다 — 모르는 사람이면
+    /// 「낯선 %s%s 있다」(<c>0x005518A8</c>), 아는 사람이면 「[%s]%s 있다」(<c>0x005518B8</c>)
+    /// 뒤에 <b>말을 건다 · 무시한다</b>를 내고 곧장 용건으로 간다.
+    /// </param>
+    private void MeetPerson(TavernRoster.Person who, bool female, bool inn = false)
     {
         var face = FaceOf(who);
+        bool known = Known(who);
 
-        if (!Known(who))
+        if (!known && !inn)
         {
             string seen = female ? "아름다운 여성이 있다" : "술을 마시고 있는 남자가 있다";
             if (TalkDialog.Ask(_view, null, "", seen, "한잔 산다", "무시한다") != 0) return;
@@ -608,8 +620,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         // <b>이 줄에는 얼굴이 안 붙는다.</b> 「…이 있다」 는 그 사람이 하는 말이 아니라
         // 눈에 띄었다는 서술이라 게임도 그냥 알림으로 낸다 — 모르는 사람 쪽
         // (「술을 마시고 있는 남자가 있다」)과 같은 꼴이다. 얼굴은 말을 걸고 나서부터다.
-        if (TalkDialog.Ask(_view, null, "", $"[{who.Name}]{Subject(who.Name)} 있다",
-                           "말을 건다", "무시한다") != 0) return;
+        // 이름표는 게임 표(0x005609C8)의 「남자」·「여」다.
+        string label = female ? "여" : "남자";
+        string line = known ? $"[{who.Name}]{Subject(who.Name)} 있다"
+                            : $"낯선 {label}{Subject(label)} 있다";
+        if (TalkDialog.Ask(_view, null, "", line, "말을 건다", "무시한다") != 0) return;
 
         // 일기토는 <b>역사 항해자 열넷에게만</b> 건다. 게임도 차림표를 짓고 나서
         // 조건이 안 맞으면 그 줄을 지운다(0x004A4AA0 이 0x00468F70 의 답을 보고
@@ -618,26 +633,42 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         bool hireable = who.Hire == TavernRoster.Hireable;
         bool duelable = who.Index < PersonTable.VoyagerCount;
 
-        var rows = new List<string> { "정보를 듣는다" };
-        if (hireable) rows.Add("부하로 고용한다");
-        int duelAt = duelable ? rows.Count : -1;
-        if (duelable) rows.Add("일기토를 신청한다");
-        rows.Add("떠난다");
-
-        int at = TalkDialog.Ask(_view, face, "", "무슨 용건인가?", [.. rows]);
-        if (at == duelAt) { Duel(who, face); return; }
-
-        switch (at)
+        // 말이 전혀 안 통하면 용건도 못 묻는다(0x004A4BB0 → 0x00468F70).
+        if (TongueWith(who.Index) <= 0)
         {
-            case 0:
+            TalkDialog.Say(_view, face, "", "무슨 말을 하는 건지, 전혀 모르겠군.");
+            return;
+        }
+        TalkDialog.Say(_view, face, "", "무슨 용건인가?");
+        // 용건을 묻고 나면 아는 사이가 된다 — 게임도 여기서 「모르는 사이」 깃발을 걷는다(0x004321C0).
+        _player.Meet(who.Name);
+
+        // 게임은 차림표를 <b>되풀이해</b> 낸다. 「정보를 듣는다」는 한 번 들으면 줄이 사라지고,
+        // 인물 판에서 중단하거나 자리·말 검사에서 물리면 차림표로 돌아온다.
+        bool heard = false;
+        while (true)
+        {
+            var rows = new List<string>();
+            int hearAt = -1, hireAt = -1, duelAt = -1;
+            if (!heard) { hearAt = rows.Count; rows.Add("정보를 듣는다"); }
+            if (hireable) { hireAt = rows.Count; rows.Add("부하로 고용한다"); }
+            if (duelable) { duelAt = rows.Count; rows.Add("일기토를 신청한다"); }
+            rows.Add("떠난다");
+
+            int at = ChoiceDialog.Ask(_view, "", rows[..^1], rows[^1]);
+            if (at < 0 || at >= rows.Count - 1) return;
+
+            if (at == duelAt) { Duel(who, face); return; }
+            if (at == hearAt)
+            {
                 // 게임은 이 사람 몫으로 대본이 넣어 둔 말(0x005AA278 목록)이 있으면 그중 하나를,
                 // 없으면 <b>그 사람 고향 문화권의 소문</b>을 한 마디 한다(0x004A45E0 → 0x004A4790
                 // → 0x004A4630 갈래 0 → 0x004A3740). 대본 목록은 아직 안 옮겨 소문만 낸다.
                 TalkDialog.Say(_view, face, "", TavernRumors.Of(HomeCulture(who.Index), _game.Random));
-                break;
-            case 1 when hireable:
-                Hire(who, face);
-                break;
+                heard = true;
+                continue;
+            }
+            if (at == hireAt && Hire(who, face)) return;
         }
     }
 
@@ -910,65 +941,211 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         return best;
     }
 
-    /// <summary>
-    /// 부하로 삼는다. 게임은 명성이 그 사람에 못 미치면 물린다 —
-    /// <see cref="Support.Local.Models.CharacterData.CanRecruit"/> 와 같은 잣대다.
-    /// </summary>
-    private void Hire(TavernRoster.Person who, uint[]? face)
-    {
-        if (_player.HasMate(who.Name))
-        {
-            TalkDialog.Say(_view, face, "", $"{who.Name}{Subject(who.Name)} 이미 자네 사람이 아닌가.");
-            return;
-        }
+    // ── 부하 고용 ─────────────────────────────────────────────────────────────
+    //
+    // 볼트 87.분석-부하 고용(결정 조건과 거절 말). 무작위는 없다.
 
-        if (_player.MateCount >= Player.MaxMates)
-        {
-            TalkDialog.Say(_view, face, "", "자네 배에는 이미 사람이 넘치지 않는가.");
-            return;
-        }
+    /// <summary>부관 자리.</summary>
+    private const int FirstMateSlot = 0;
 
-        if (_player.Fame < who.Fame)
-        {
-            TalkDialog.Say(_view, face, "", "자네 이름은 들어 본 적이 없군. 더 이름을 알리고 오게.");
-            return;
-        }
+    /// <summary>통역 자리.</summary>
+    private const int InterpreterSlot = 3;
 
-        int slot = AskMateSlot(face);
-        if (slot < 0) return;                       // 물렀다
+    /// <summary>부관·통역 자리에 앉히려면 넘어야 하는 말 수준(<c>0x00453580</c>).</summary>
+    private const int FluentTongue = 3;
 
-        _player.SetMate(slot, who.Name);
-        // 됨됨이를 지금 베껴 둔다 — 나중에 인물정보를 낼 때 게임 세이브를 다시 안 뒤지게.
-        _player.RememberMate(Tavern.MateInfoOf(who));
-        TalkDialog.Say(_view, face, "",
-                       $"좋네. {Player.MateRoles[slot]}(으)로서 자네와 함께 가지.");
-    }
+    /// <summary>명성 셈에서 매력이 이 값을 넘는 만큼 보탠다(<c>0x00453600</c>).</summary>
+    private const int CharmFloor = 69;
+
+    /// <summary>명성이 모자랄 때 대신 내밀 수 있는 소지품.</summary>
+    private const string Dumpling = "수수경단";
 
     /// <summary>
-    /// 어느 자리에 앉힐지 묻는다. <b>빈 자리만</b> 내놓는다 — 찬 자리를 고르게 두면 있던
-    /// 사람을 말없이 내보내게 된다. 물렀으면 -1.
+    /// 「부하로 고용한다」. 인물 판에서 <b>결정</b>하고 자리·말 검사를 넘어 판정까지 갔으면 true —
+    /// 게임은 그때 붙든 못 붙든 차림표를 닫는다(<c>0x004A4BB0</c>).
     /// </summary>
     /// <remarks>
-    /// 자리는 <see cref="Player.MateRoles"/> — 부관·항해사·측량사·통역 넷이다. 앉힌 뒤에
-    /// 자리를 바꾸는 것은 여관·술집의 "부하편성" 창(<see cref="MateRosterDialog"/>)이 맡는다.
-    ///
-    /// 고르는 단추는 폭이 정해져 있어(<c>110</c>) 자리 이름만 넣는다. 누가 어디 앉아 있는지는
-    /// 부하편성 창에서 본다.
+    /// <code>
+    ///   ① 빈 자리가 없다     「부하는 동시에 4명밖에 고용할 수 없습니다」
+    ///   ② 빈 자리가 부관·통역뿐인데 제독과 말이 3 미만
+    ///                        「지금 고용할 수 있는 것은 완전히 언어가 통하는 사람 뿐입니다」
+    ///   ③ 명성  (max(0, 매력-69) + 100) x 제독 명성 &gt; 인물 명성 x 100
+    ///      이기면 계약금 = 밑값 x (10 - 웅변) / 3 을 부르고, 지면 수수경단을 묻는다
+    /// </code>
+    /// 계약금으로 붙어도 「고용했다」는 말이 없다 — 곧장 일을 정한다.
     /// </remarks>
-    private int AskMateSlot(uint[]? face)
+    private bool Hire(TavernRoster.Person who, uint[]? face)
     {
-        var open = new List<int>();
-        for (int i = 0; i < Player.MaxMates; i++)
-            if (_player.MateAt(i).Length == 0) open.Add(i);
-        if (open.Count == 0) return -1;
+        var row = RowOf(who.Index);
+        if (!PersonInfoDialog.AskHire(_view, SheetOf(who), face)) return false;
 
-        var choices = new string[open.Count + 1];
-        for (int i = 0; i < open.Count; i++) choices[i] = Player.MateRoles[open[i]];
-        choices[^1] = "그만둔다";
+        if (!HasOpenSlot(row, anySlot: true))
+        {
+            NoticeDialog.Show(_view, "부하는 동시에 4명밖에 고용할 수 없습니다");
+            return false;
+        }
+        if (!HasOpenSlot(row, anySlot: false))
+        {
+            NoticeDialog.Show(_view, "지금 고용할 수 있는 것은 완전히 언어가 통하는 사람 뿐입니다");
+            return false;
+        }
 
-        int picked = TalkDialog.Ask(_view, face, "", "어느 자리에 앉히겠나?", choices);
-        return picked >= 0 && picked < open.Count ? open[picked] : -1;
+        int charm = Math.Max(0, _player.AbilityOf(Ability.Charm) - CharmFloor) + 100;
+        bool famous = (long)charm * _player.Fame > (long)who.Fame * 100;
+
+        // 판정 결과를 <b>설득 애니메이션(5번)</b>으로 보인다 — 무릎 꿇고 청하다가 이기면
+        // 받아들여지고 지면 엎어진다(0x00453600 → 0x004A63A0). 후원자 설득과 같은 연출이다.
+        (_view as CityPicView)?.PlayFameCheck(famous);
+
+        int fee = 0;
+        bool hired = false;
+        if (famous)
+        {
+            int eloquence = _player.LevelOf(Skill.Names[Skill.Rhetoric]);
+            fee = Math.Max(0, (row?.Fee ?? 0) * (10 - eloquence) / 3);
+            if (ConfirmDialog.Ask(_view,
+                    $"선금으로 금화 {fee}닢이라면, 그 이야기 들어줄 수도 있지. 어떤가?", null, face))
+            {
+                if (_player.Gold >= fee) hired = true;
+                else NoticeDialog.Show(_view, "계약금이 너무 비쌉니다!");
+            }
+            // NO 면 아무 말 없이 끝난다.
+        }
+        else
+        {
+            if (_game.Items?.Find(Dumpling) is { } dumpling && _player.HasItem(dumpling.Id)
+                && ConfirmDialog.Ask(_view, $"{Dumpling}{Object(Dumpling)} 주시겠습니까?"))
+            {
+                TalkDialog.Say(_view, face, "",
+                    "이런것에 마음이 변하리라 생각했나? ~우물우물~! 어디까지나 제독을 따라가겠습니다! 맡겨 주십시오.");
+                _player.Drop(dumpling.Id);
+                hired = true;
+            }
+            if (!hired)
+                TalkDialog.Say(_view, face, "", "시시한 배를 탈 정도로 바보는 아니네.");
+        }
+
+        if (hired)
+        {
+            _player.Spend(fee);
+            // 됨됨이를 지금 베껴 둔다 — 나중에 인물정보를 낼 때 게임 세이브를 다시 안 뒤지게.
+            _player.RememberMate(Tavern.MateInfoOf(who));
+            PlaceMate(who.Name);
+        }
+        return true;
     }
+
+    /// <summary>
+    /// 새 부하의 일을 정한다(<c>0x00453764</c>). 찬 자리를 고르면 바꿀지 묻고, 밀려난 사람의
+    /// 일을 다시 정한다 — 빈 자리가 하나는 있으니 사슬은 거기서 끝난다.
+    /// </summary>
+    private void PlaceMate(string name)
+    {
+        string? next = name;
+        while (next != null)
+        {
+            string placing = next;
+            NoticeDialog.Show(_view, $"{placing}의 일을 정해 주십시오");
+
+            var row = RowOf(placing);
+            var rows = new List<(string Text, bool On)>();
+            for (int i = 0; i < Player.MaxMates; i++)
+            {
+                string role = Player.MateRoles[i], sitting = _player.MateAt(i);
+                rows.Add((sitting.Length > 0 ? $"{role} ({sitting})" : role, CanSit(row, i)));
+            }
+
+            int slot = ChoiceDialog.Pick(_view, "", rows, exitRow: false);
+            if (slot < 0 || slot >= Player.MaxMates) continue;    // 물릴 수 없다 — 다시 묻는다
+
+            string old = _player.MateAt(slot);
+            if (old.Length > 0)
+            {
+                string role = Player.MateRoles[slot];
+                if (!ConfirmDialog.Ask(_view,
+                        $"현재의 {role}{Topic(role)} {old}입니다. {placing}에 변경하시겠습니까?"))
+                    continue;
+            }
+            _player.SetMate(slot, placing);
+            next = old.Length > 0 ? old : null;
+        }
+    }
+
+    /// <summary>
+    /// 들어올 자리가 있는지(<c>0x00453580</c>). <paramref name="anySlot"/> 이면 빈 자리만 보고,
+    /// 아니면 부관·통역 자리는 제독과 말이 3 이상이어야 친다.
+    /// </summary>
+    private bool HasOpenSlot(PersonTable.Row? row, bool anySlot)
+    {
+        for (int i = 0; i < Player.MaxMates; i++)
+        {
+            if (_player.MateAt(i).Length > 0) continue;
+            if (anySlot || CanSit(row, i)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>그 사람이 그 자리에 앉을 수 있는지(<c>0x00453530</c>). 항해사·측량사는 늘 된다.</summary>
+    private bool CanSit(PersonTable.Row? row, int slot) =>
+        slot is not (FirstMateSlot or InterpreterSlot) || PlayerTongue(row) >= FluentTongue;
+
+    /// <summary>
+    /// 그 사람과 통하는 말 — 제독·부관·통역 가운데 가장 잘 통하는 사람의 수준(<c>0x00468F70</c>).
+    /// 인물 표에 없으면 막지 않는다.
+    /// </summary>
+    private int TongueWith(int person)
+    {
+        if (RowOf(person) is not { } row) return FluentTongue;
+        int best = PlayerTongue(row);
+        foreach (int slot in (int[])[FirstMateSlot, InterpreterSlot])
+            if (RowOf(_player.MateAt(slot)) is { } mate)
+                best = Math.Max(best, Shared(mate.Languages, i => row.Languages[i]));
+        return best;
+    }
+
+    /// <summary>제독과 그 사람이 함께 잘하는 말의 수준. 표에 없으면 막지 않는다.</summary>
+    private int PlayerTongue(PersonTable.Row? row) =>
+        row == null ? FluentTongue
+                    : Shared(row.Languages, i => _player.TongueOf(Skill.Languages[i]));
+
+    /// <summary>언어 열넷 중 <c>max(min(갑, 을))</c> — 게임의 <c>0x00478050</c> 이다.</summary>
+    private static int Shared(IReadOnlyList<int> theirs, Func<int, int> ours)
+    {
+        int best = 0;
+        for (int i = 0; i < Math.Min(theirs.Count, Skill.Languages.Length); i++)
+            best = Math.Max(best, Math.Min(theirs[i], ours(i)));
+        return best;
+    }
+
+    /// <summary>인물 표의 그 줄. 없으면 null.</summary>
+    private PersonTable.Row? RowOf(int id) =>
+        _game.World?.People.FirstOrDefault(r => r.Id == id);
+
+    /// <summary>이름으로 찾은 인물 표의 줄. 없으면 null.</summary>
+    private PersonTable.Row? RowOf(string name) =>
+        name.Length == 0 ? null : _game.World?.People.FirstOrDefault(r => r.Name == name);
+
+    /// <summary>술집 인물 판에 적을 것. 직업·나라는 인물 밑표에서 온다.</summary>
+    private PersonInfoDialog.HireSheet SheetOf(in TavernRoster.Person who)
+    {
+        // 별자리·혈액형도 밑표에서 온다 — 인물에게는 생일 칸이 없다(볼트 87 §10).
+        if (_game.PersonTemplates?.Find(who.Index) is not { } t)
+            return new(who.Name, who.Body, who.Mind, who.Might, who.Charm, who.Age, "", "", "", "");
+
+        string job = t.JobName.Length > 0 ? t.JobName : Job.Of(t.Job).Name;
+        string nation = _game.Nations?.Find(t.Nation) is { } nat ? nat.Name : "";
+        return new(who.Name, who.Body, who.Mind, who.Might, who.Charm, who.Age,
+                   job, t.Zodiac, t.BloodName, nation);
+    }
+
+    /// <summary>이름 뒤에 붙는 목적격 조사. 받침이 있으면 "을", 없으면 "를".</summary>
+    private static string Object(string name) => HasBatchim(name) ? "을" : "를";
+
+    /// <summary>이름 뒤에 붙는 보조사. 받침이 있으면 "은", 없으면 "는".</summary>
+    private static string Topic(string name) => HasBatchim(name) ? "은" : "는";
+
+    private static bool HasBatchim(string name) =>
+        name.Length > 0 && name[^1] is >= '가' and <= '힣' && (name[^1] - '가') % 28 != 0;
 
     /// <summary>이름 뒤에 붙는 주격 조사. 받침이 있으면 "이", 없으면 "가".</summary>
     /// <remarks>
@@ -1107,6 +1284,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         }
         return best >= 0 ? best : null;
     }
+
+    /// <summary>「포카를 권한다」 — 술집 주인과 카드 도박을 한다(<see cref="PokerDialog.Play"/>).</summary>
+    public void PlayPoker() => Alone(() => PokerDialog.Play(_view, _game, _cultureNo));
 
     public bool BuyDrink()
     {

@@ -23,11 +23,16 @@ public sealed class SettingsDialog : GameWindow
     private readonly Border _sfxRow = new() { Padding = new Thickness(8, 2, 8, 2) };
     private readonly Border _bgmVolRow = new() { Padding = new Thickness(8, 2, 8, 2) };
     private readonly Border _sfxVolRow = new() { Padding = new Thickness(8, 2, 8, 2) };
-    private readonly Border _sizeRow = new() { Padding = new Thickness(8, 2, 8, 4) };
+    private readonly Border _sizeRow = new() { Padding = new Thickness(8, 2, 8, 2) };
+    private readonly Border _mapRow = new() { Padding = new Thickness(8, 2, 8, 4) };
 
-    private SettingsDialog(BgmPlayer bgm)
+    /// <summary>해상 지도 배율을 바꿨을 때 지도에 곧바로 먹이는 손. 없으면 다음에 켤 때 든다.</summary>
+    private readonly Action<double>? _onMapScale;
+
+    private SettingsDialog(BgmPlayer bgm, Action<double>? onMapScale)
     {
         _bgm = bgm;
+        _onMapScale = onMapScale;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -41,6 +46,7 @@ public sealed class SettingsDialog : GameWindow
         _bgmVolRow.Child = VolumeRow("배경음악", GameSettings.BgmVolume, StepBgm);
         _sfxVolRow.Child = VolumeRow("효과음  ", GameSettings.SfxVolume, StepSfx);
         _sizeRow.Child = SizeRow();
+        _mapRow.Child = MapRow();
 
         var title = GameUi.TitleBar("설정", Close);
         GameUi.EnableDrag(this, title);
@@ -52,6 +58,7 @@ public sealed class SettingsDialog : GameWindow
         stack.Children.Add(_sfxRow);
         stack.Children.Add(_sfxVolRow);
         stack.Children.Add(_sizeRow);
+        stack.Children.Add(_mapRow);
         stack.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -189,6 +196,29 @@ public sealed class SettingsDialog : GameWindow
         _sfxVolRow.Child = VolumeRow("효과음  ", GameSettings.SfxVolume, StepSfx);
     }
 
-    public static void Show(Window owner, BgmPlayer bgm) =>
-        new SettingsDialog(bgm) { Owner = owner }.ShowDialog();
+    /// <summary>
+    /// 해상 지도 배율 한 줄 — <c>◀ 지도 0.75 ▶</c> 로 0.25 씩 0.5~1.5 를 오간다. 끝에서 멈춘다.
+    /// </summary>
+    private UIElement MapRow()
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new GameButton("◀", () => StepMap(-1), BandStyle.Button, StepWidth));
+        row.Children.Add(new GameButton($"지도 {GameSettings.MapScale:0.00}", null,
+                                        BandStyle.Button, NumberWidth));
+        row.Children.Add(new GameButton("▶", () => StepMap(+1), BandStyle.Button, StepWidth));
+        return row;
+    }
+
+    /// <summary>배율을 한 칸 옮기고 지도에 곧바로 먹인다.</summary>
+    private void StepMap(int by)
+    {
+        double next = GameSettings.MapScale + by * GameSettings.MapScaleStep;
+        GameSettings.MapScale = next;
+        _mapRow.Child = MapRow();
+        _onMapScale?.Invoke(GameSettings.MapScale);
+    }
+
+    /// <param name="onMapScale">해상 지도 배율을 바꿨을 때 지도에 먹이는 손.</param>
+    public static void Show(Window owner, BgmPlayer bgm, Action<double>? onMapScale = null) =>
+        new SettingsDialog(bgm, onMapScale) { Owner = owner }.ShowDialog();
 }

@@ -41,7 +41,10 @@ public sealed class BookTable
     /// <param name="Language">책의 언어(언어 이름표 색인 0~13).</param>
     /// <param name="Year">이 해부터 서가에 나온다.</param>
     /// <param name="Cities">놓인 도서관의 도시 번호.</param>
-    /// <param name="Hints">읽으면 주는 힌트 번호.</param>
+    /// <param name="Hints">
+    /// 읽으면 주는 힌트 번호. 여덟 칸을 <b>칸 차례 그대로</b> 담고 빈 칸(-1)만 뺐다 — 칸은 앞에서부터
+    /// 채워져 있어서 <c>Hints[i]</c> 가 곧 펼친 책의 펼침면 <c>i</c> 다(<c>0x00464A30</c>).
+    /// </param>
     /// <remarks>
     /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
     /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
@@ -67,14 +70,22 @@ public sealed class BookTable
     /// <param name="Skill">필요 기능 번호. -1 이면 기능 조건이 없다.</param>
     /// <param name="Level">그 기능의 필요 자리.</param>
     /// <param name="Parents">먼저 발견해 두어야 할 발견물 번호들. 빈 칸(-1)은 뺐다.</param>
+    /// <param name="Picture">
+    /// 펼친 책 왼쪽 면에 얹는 삽화 번호(힌트 줄 <c>+0x10</c>, <c>0x004D8E90</c>). 0~19 면
+    /// <see cref="OpenBookArt"/> 의 그림 <c>13+값</c> 이고, 그 밖(-1)이면 삽화가 없다.
+    /// </param>
     [method: JsonConstructor]
-    public readonly record struct HintNeed(int Skill, int Level, IReadOnlyList<int>? Parents = null);
+    public readonly record struct HintNeed(int Skill, int Level, IReadOnlyList<int>? Parents = null,
+                                           int Picture = -1);
 
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\책표.json</c>).</summary>
     private const string CacheName = "책표";
 
-    /// <summary>알맹이 모양 판. 힌트의 선행 발견물 칸을 더하면서 올렸다.</summary>
-    private const int SnapshotVersion = 2;
+    /// <summary>알맹이 모양 판. 힌트의 삽화 칸(<see cref="HintNeed.Picture"/>)을 더하면서 3 으로 올렸다.</summary>
+    private const int SnapshotVersion = 3;
+
+    /// <summary>삽화 칸이 <see cref="HintsVa"/> 에서 얼마나 떨어져 있는지(줄 안 +0x10).</summary>
+    private const int PictureOffset = -0x10;
 
     /// <summary>JSON 으로 적어 두는 알맹이. EXE 를 읽어야만 알 수 있는 것 전부다.</summary>
     internal sealed record Snapshot(List<Book> Books, HintNeed[] HintNeeds);
@@ -172,7 +183,8 @@ public sealed class BookTable
             }
 
             needs[h] = new HintNeed(exe.Int(row), exe.Int(row + 0x08),
-                                    parents.Count > 0 ? parents : null);
+                                    parents.Count > 0 ? parents : null,
+                                    exe.Int(row + PictureOffset));
         }
 
         return new Snapshot(books, needs);

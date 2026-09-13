@@ -33,9 +33,33 @@ public sealed class PersonTemplate
     /// <summary>해적 직업 번호. <c>0x0048C2D9</c> 의 <c>cmp eax, 4</c> 다.</summary>
     public const int PirateJob = 4;
 
+    /// <summary>직업 이름표(<c>0x00560AA8</c>, 글 포인터 줄). 인물은 0·3·4·5·6·7·13·21 을 쓴다.</summary>
+    private const int JobNameVa = 0x00560AA8;
+
+    /// <summary>표에 든 가장 큰 직업 번호보다 넉넉히.</summary>
+    private const int JobNameCount = 32;
+
     /// <summary>한 사람의 밑줄.</summary>
+    /// <param name="Face">밑표 <c>+0x08</c> 얼굴 — 별자리 셈에 들어간다.</param>
+    /// <param name="Blood">밑표 <c>+0x1C</c> 혈액형(0 A · 1 B · 2 O · 3 AB).</param>
+    /// <param name="JobName">직업 이름(<c>0x00560AA8[직업]</c>).</param>
     [method: JsonConstructor]
-    public readonly record struct Template(int Id, int Nation, int Job);
+    public readonly record struct Template(int Id, int Nation, int Job,
+                                           int Face = 0, int Blood = 0, string JobName = "")
+    {
+        /// <summary>
+        /// 별자리. <b>생일 칸이 없어</b> 게임이 <c>(얼굴 + 혈액형 + 나라) % 12</c> 로 지어낸다
+        /// (<c>0x004780B0</c>). 비센테(194+0+1)%12=3 → 게좌.
+        /// </summary>
+        [JsonIgnore]
+        public string Zodiac =>
+            Support.Local.Models.Player.Zodiacs[((Face + Blood + Nation) % 12 + 12) % 12];
+
+        /// <summary>혈액형 이름.</summary>
+        [JsonIgnore]
+        public string BloodName =>
+            Support.Local.Models.Player.BloodTypes[Math.Clamp(Blood, 0, 3)];
+    }
 
     /// <summary>JSON 으로 적어 두는 알맹이.</summary>
     internal sealed record Snapshot(Template[] Rows);
@@ -50,7 +74,9 @@ public sealed class PersonTemplate
     /// <summary>표를 연다. 적어 둔 JSON 이 있으면 그것을 읽는다.</summary>
     public static PersonTemplate? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        // 판 2: 얼굴·혈액형·직업 이름을 더했다.
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               version: 2);
         LastError = error;
         return snapshot == null ? null : new PersonTemplate(snapshot.Rows);
     }
@@ -66,7 +92,11 @@ public sealed class PersonTemplate
         for (int i = 0; i < Count; i++)
         {
             int row = TableVa + i * RowSize;
-            rows[i] = new Template(i, exe.Int(row + 0x14), exe.Int(row + 0x20));
+            int job = exe.Int(row + 0x20);
+            string jobName = job is >= 0 and < JobNameCount
+                ? exe.Text(exe.Word(JobNameVa + job * 4)) ?? "" : "";
+            rows[i] = new Template(i, exe.Int(row + 0x14), job,
+                                   exe.Int(row + 0x08), exe.Int(row + 0x1C), jobName);
         }
 
         // 3번 바스코·다 가마는 포르투갈, 6번 아메리고·베스풋치는 에스파니아다 — 판이 다른

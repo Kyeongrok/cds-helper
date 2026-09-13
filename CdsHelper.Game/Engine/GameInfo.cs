@@ -16,11 +16,22 @@ namespace CdsHelper.Game.Engine;
 /// </remarks>
 public static class GameInfo
 {
-    /// <summary>지금까지 발견한 것의 이름. 소지품 판의 발견물 칸에 쓴다.</summary>
+    /// <summary>
+    /// 발견하고 <b>아직 보고·발표하지 않은 것</b>의 이름. 소지품 판의 발견물 칸에 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 게임(<c>0x0044CC79</c>)은 발견물 274칸을 차례로 훑어 <b>발견자 칸(+0x18)이 차 있고 보고자 칸(+0x78)이
+    /// 비어 있는</b> 것만 담는다. 보고·발표(<c>0x0047E680</c>)가 보고자 칸을 채우므로, 한 번 보고했거나
+    /// 발표한 것은 이 칸에서 빠진다. 우리는 그 칸을 <see cref="Support.Local.Models.Player.Announced"/> 로 든다.
+    /// 볼트 <c>88.분석-발견물 일람 거르기(보고·발표)</c>.
+    /// </remarks>
     public static List<string> DiscoveryNames(Game game)
     {
         var table = game.Discoveries?.Table;
-        return [.. game.Player.Discoveries.Order()
+        var player = game.Player;
+        // 표에 없는 번호(대본 해석기가 잘못 적은 것)는 뺀다.
+        return [.. player.Discoveries.Where(id => !player.HasAnnounced(id))
+                   .Where(id => table == null || table.Find(id) != null).Order()
                    .Select(id => table?.Find(id)?.Name ?? $"발견물 {id}")];
     }
 
@@ -74,11 +85,19 @@ public static class GameInfo
         var table = game.Discoveries?.Table;
         var items = game.Items;
 
+        // 게임은 <b>계약한 유적의 것만</b> 적는다(0x0047F6BA: 0x00493E60 으로 계약 힌트를 얻어
+        // 0x0046AE90 · 0x0046B030 으로 모은다). 오다가 딴 것을 발견해도 여기 안 뜬다 —
+        // 그것은 항구 「발표」 몫이다(Harbor.Announceable 이 계약 목표만 뺀다).
+        int target = game.Hints?.Find(contract.Hint) is { } hint ? hint.Discovery : -1;
+
         var found = new List<string>();
         var evidence = new List<string>();
         foreach (int id in contract.Found)
         {
             var row = table?.Find(id);
+            // 표에 없는 번호는 대본 해석기가 잘못 짚어 적은 것이다(DisevRunner) — 보이지 않는다.
+            if (table != null && row == null) continue;
+            if (target >= 0 && row != null && row.Value.Hint != target) continue;
             found.Add(row?.Name ?? $"발견물 {id}");
 
             if (row is not { GivesItem: true } got || !game.Player.HasItem(got.ItemId)) continue;

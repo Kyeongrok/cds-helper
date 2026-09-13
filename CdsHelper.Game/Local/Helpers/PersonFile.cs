@@ -17,7 +17,7 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   +0x00 능력 여섯(u8)   +0x0A 등급(u8)        +0x0B 기술 열셋(u8)   +0x18 언어 열넷(u8)
 ///   +0x26 명성(u32)       +0x2E 도시(i16)       +0x30 건물(i16)
 ///   +0x32 이름(19)        +0x45 성(19, cp949)   +0x58 얼굴(u32)
-///   +0x5C 나이(i32)       +0x62 고용상태(i16)   +0x64 이동 갈래(i16)
+///   +0x5C 나이(i32)       +0x62 고용상태(i16)   +0x64 이동 갈래(i16)  +0x66 계약금 밑값(i32)
 ///   +0x6A 등장 여부(u32)  +0x72 목적지 도시(i16) +0x74 날 셈(i32)
 /// </code>
 /// <b>등장 여부는 +0x6A 다.</b> +0x0A 는 등급이고, 그것으로 자리(술집·여관)가 갈린다 —
@@ -46,7 +46,7 @@ public static class PersonFile
     private const int StatAt = 0x00, GradeAt = 0x0A, SkillAt = 0x0B, LangAt = 0x18,
                       FameAt = 0x26, CityAt = 0x2E, BuildingAt = 0x30, FirstAt = 0x32,
                       LastAt = 0x45, FaceAt = 0x58, AgeAt = 0x5C, HireAt = 0x62,
-                      KindAt = 0x64, AppearAt = 0x6A, DestAt = 0x72, WaitAt = 0x74;
+                      KindAt = 0x64, FeeAt = 0x66, AppearAt = 0x6A, DestAt = 0x72, WaitAt = 0x74;
 
     /// <summary>이름·성 한 칸이 쓰는 바이트 수.</summary>
     private const int NameBytes = 0x13;
@@ -102,6 +102,7 @@ public static class PersonFile
                 Age = BitConverter.ToInt32(data, at + AgeAt),
                 Hire = BitConverter.ToInt16(data, at + HireAt),
                 Kind = BitConverter.ToInt16(data, at + KindAt),
+                Fee = BitConverter.ToInt32(data, at + FeeAt),
                 Appear = BitConverter.ToInt32(data, at + AppearAt),
                 Dest = Where(BitConverter.ToInt16(data, at + DestAt)),
                 Wait = BitConverter.ToInt32(data, at + WaitAt),

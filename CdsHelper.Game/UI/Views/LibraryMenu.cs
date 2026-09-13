@@ -52,6 +52,27 @@ internal sealed class LibraryMenu(Window view, Engine.Game game, int cityId, str
 
         LibraryDialog.Show(owner, _game.Directory, _cityName, _cityId,
                            _game.Player, books, _buildings, _game.HintName,
-                           _game.Book, id => _game.Hints?.Find(id)?.Text ?? "", say);
+                           _game.Book, id => _game.Hints?.Find(id)?.Text ?? "", say,
+                           _game.Sfx, Reported);
+    }
+
+    /// <summary>
+    /// 그 힌트가 가리키는 발견물을 <b>찾아서 보고까지</b> 했는지 — 펼친 책의 종이 색이
+    /// 이것으로 갈린다(힌트 상태 <c>(+4 &amp; 3) == 3</c>, <c>0x00464C50</c>).
+    /// </summary>
+    /// <remarks>
+    /// 힌트와 발견물은 번호로 짝을 맺는다(힌트의 <c>Discovery</c> 와 발견물의 <c>Hint</c>).
+    /// 책으로만 얻은 힌트는 흰 종이다.
+    /// </remarks>
+    private bool Reported(int hint)
+    {
+        if (_game.Hints?.Find(hint) is not { } row || _game.Discoveries?.Table is not { } table)
+            return false;
+
+        foreach (var found in table.Discoveries)
+            if (found.Hint == row.Discovery
+                && _game.Player.HasFound(found.Id) && _game.Player.HasAnnounced(found.Id))
+                return true;
+        return false;
     }
 }

@@ -375,7 +375,11 @@ internal sealed class FishingGameDialog : InfoDialog
     /// <summary>
     /// 한 판 한다. 결과 글은 <c>0x0047AD31</c> 의 뜀표 그대로다.
     /// </summary>
-    public static void Play(Window owner, Random rng)
+    /// <returns>
+    /// <b>대어를 낚았는지</b>. 게임은 대어 갈래에서만 결과 <c>[+0x9C] = 1</c> 을 박고
+    /// (<c>0x0047AD6C</c>) 나머지는 0 이라, 발견 대본(<c>0E 04 03</c>)은 대어만 이긴 것으로 친다.
+    /// </returns>
+    public static bool Play(Window owner, Random rng)
     {
         // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다(0x0047BD7E).
         NoticeDialog.Explain(owner, Rules);
@@ -415,5 +419,7 @@ internal sealed class FishingGameDialog : InfoDialog
                     "[지구를 낚았다]고 해야하나.", "바닥에 걸렸다");
                 break;
         }
+
+        return dialog._game.Got == FishingGame.Catch.BigOne;
     }
 }

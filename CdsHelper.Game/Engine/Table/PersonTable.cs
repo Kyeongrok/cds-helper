@@ -98,6 +98,12 @@ public sealed class PersonTable
         /// <summary>날 셈. 음수면 그만큼 더 쉰다(도착하면 -60 이 박힌다).</summary>
         public int Wait { get; set; }
 
+        /// <summary>
+        /// 계약금 밑값(세이브 <c>+0x66</c>). 부하로 들일 때 <c>밑값 x (10 - 웅변) / 3</c> 닢을 부른다
+        /// (<c>0x00453940</c>).
+        /// </summary>
+        public int Fee { get; set; }
+
         /// <summary>얼굴 코드.</summary>
         public int Face { get; set; }
 
@@ -222,7 +228,7 @@ public sealed class PersonTable
         {
             Edited = true;
             Source = saved.Source.Length > 0 ? saved.Source : "고친 것";
-            return new PersonTable(Fix(saved.Data.People), saved.Data.Year);
+            return new PersonTable(WithFees(Fix(saved.Data.People)), saved.Data.Year);
         }
         Edited = false;
 
@@ -280,6 +286,30 @@ public sealed class PersonTable
     }
 
     private static List<Row> Fix(List<Row> rows) => rows.Select(r => r.Fixed()).ToList();
+
+    /// <summary>세이브가 제독 자리로 쓴 줄에 남는 채움 나이. 그 줄은 나이·등급·명성이 모두 끝값이다.</summary>
+    private const int FillerAge = 255;
+
+    /// <summary>
+    /// 고쳐 둔 표의 빈 곳을 같이 깔린 본에서 번호대로 채운다.
+    /// <list type="bullet">
+    ///   <item>계약금 칸이 생기기 전에 고친 표는 밑값이 모두 0 이다.</item>
+    ///   <item>씨앗 세이브가 바르톨로메우·디아스(0번)로 논 판이라 그 줄 나이가 채움값 255 로 남았다 —
+    ///         해가 가면 256 으로 보인다. 본에는 EXE 밑표 나이(30)를 적어 두었다.</item>
+    /// </list>
+    /// </summary>
+    private static List<Row> WithFees(List<Row> rows)
+    {
+        if (Shipped() is not { } shipped) return rows;
+        bool noFees = !rows.Any(r => r.Fee != 0);
+        foreach (var r in rows)
+        {
+            if (shipped.People.FirstOrDefault(s => s.Id == r.Id) is not { } s) continue;
+            if (noFees) r.Fee = s.Fee;
+            if (r.Age == FillerAge && s.Age != FillerAge) r.Age = s.Age;
+        }
+        return rows;
+    }
 
     /// <summary>
     /// 세이브에서 표를 <b>다시 굽는다</b>. 손으로 고쳐 둔 것은 이때 사라진다.

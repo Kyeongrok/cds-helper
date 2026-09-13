@@ -375,8 +375,11 @@ public sealed class CityPicView : GameWindow, ITownScreen
             var harbor = Facility.For("항구");
             picBox.Cursor = Cursors.Hand;
             picBox.MouseLeftButtonUp += (_, _) =>
+            {
+                if (MenuOpen) return;   // 창이 떠 있으면 그림을 눌러도 안 열린다
                 ShowMenu(() => BuildMenu(harbor, harbor.Name, HarborCode, 0, harbor.Name),
-                 harbor.BgmTrack);
+                         harbor.BgmTrack);
+            };
         }
 
         // 게임 화면에는 제목 줄도 안내 줄도 없다. 그림 한 장이 곧 창이다.
@@ -444,9 +447,20 @@ public sealed class CityPicView : GameWindow, ITownScreen
         spot.MouseLeave += (_, _) => tag.Visibility = Visibility.Collapsed;
         // 건물을 누른 것은 여기서 삼킨다 — 안 그러면 그림 끌기가 먼저 걸려 메뉴가 안 열린다.
         spot.MouseLeftButtonDown += (_, e) => e.Handled = true;
-        spot.MouseLeftButtonUp += (_, e) => { e.Handled = true; Enter(building); };
+        spot.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (MenuOpen) return;   // 명령 창이 떠 있으면 딴 건물은 안 눌린다
+            Enter(building);
+        };
         _layer.Children.Add(spot);
     }
+
+    /// <summary>
+    /// 건물이나 도시 명령 창이 떠 있는지. 게임은 창이 열린 채로는 <b>다른 건물을 못 누른다</b> —
+    /// 먼저 창을 닫아야 한다. 예전에는 눌러지는 대로 그 건물 창으로 갈아탔다.
+    /// </summary>
+    private bool MenuOpen => Menus.FacilityWindow != null || _cityMenu.IsOpen;
 
     /// <summary>
     /// 건물 하나에 들어간다. 그림에서 눌러도, 커맨드의 "맵 포인트에 들어간다" 로 골라도
@@ -965,8 +979,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         while (true)
         {
-            int at = HintListDialog.Pick(owner, [.. ids.Select(_game.HintName)],
-                                         whenEmpty: "아직 얻은 힌트가 없다.");
+            // 힌트가 없으면 게임도 설득 때와 같은 「설득 가능한 힌트가 없습니다」를 낸다.
+            int at = HintListDialog.Pick(owner, [.. ids.Select(_game.HintName)]);
             if (at < 0 || at >= ids.Count) return;
             if (_game.Hints?.Find(ids[at]) is not { } hint) return;
 
@@ -1280,6 +1294,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     }
 
     void ITownScreen.HearInfo() => Guests.HearInfo();
+    bool ITownScreen.CanPlayPoker => Engine.Town.Poker.CanPlayIn(_cultureNo);
+    void ITownScreen.PlayPoker() => Guests.PlayPoker();
     void ITownScreen.Report(Patron patron) => Patrons.Report(patron);
     void ITownScreen.BreakContract(Patron patron) => Patrons.BreakContract(patron);
 

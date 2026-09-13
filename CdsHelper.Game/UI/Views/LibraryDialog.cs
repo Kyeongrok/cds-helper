@@ -61,10 +61,17 @@ public sealed class LibraryDialog : GameWindow
     private readonly OpenBookArt? _book;
     private readonly Func<int, string>? _hintText;
 
+    /// <summary>띠 말에 딸린 소리(<see cref="SoundBank.BandNoticePart"/>)를 낼 효과음 묶음.</summary>
+    private readonly SoundBank? _sfx;
+
+    /// <summary>힌트가 가리키는 발견물을 찾아서 보고까지 했는지 — 펼친 책의 종이 색을 가른다.</summary>
+    private readonly Func<int, bool>? _reported;
+
     private LibraryDialog(string cityName, BookShelf art, IReadOnlyList<Library.Slot> shelved,
                           Player player, BookTable table, CityBuildingTable names,
                           Func<int, string> hintName, int scale,
-                          OpenBookArt? bookArt, Func<int, string>? hintText, Action<string>? say)
+                          OpenBookArt? bookArt, Func<int, string>? hintText, Action<string>? say,
+                          SoundBank? sfx, Func<int, bool>? reported)
     {
         _player = player;
         _books = table;
@@ -74,6 +81,8 @@ public sealed class LibraryDialog : GameWindow
         _book = bookArt;
         _say = say;
         _hintText = hintText;
+        _sfx = sfx;
+        _reported = reported;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -100,22 +109,8 @@ public sealed class LibraryDialog : GameWindow
 
         // 책 이름표도 <b>게임 글꼴</b>이다. 글씨는 <b>흰색</b>이고 굵히지 않는다 —
         // 굵히면 한 점 겹쳐 찍혀서 획에 그림자가 진 것처럼 보인다.
-        _tagText = new GameUi.GameLabel(GameFont.WhiteColor)
-        {
-            FallbackBrush = Brushes.White,
-        };
-        _tag = new Border
-        {
-            // 글씨가 희므로 띠는 어두워야 한다. 밝은 나무빛 띠(ItemFill)에 흰 글씨를
-            // 얹으면 글자가 묻힌다.
-            Background = GameUi.MenuBack,
-            BorderBrush = GameUi.ItemEdge,
-            BorderThickness = new Thickness(2),
-            Padding = new Thickness(8, 1, 8, 1),
-            Visibility = Visibility.Collapsed,
-            IsHitTestVisible = false,
-            Child = _tagText,
-        };
+        // 게임 서가의 이름표는 짙은 판에 밝은 한 점 테, 흰 글씨다 — 술집 손님 이름표와 같은 꼴이다.
+        (_tag, _tagText) = GameUi.HoverTag();
         _layer.Children.Add(_tag);
         Panel.SetZIndex(_tag, 20);
 
@@ -233,7 +228,7 @@ public sealed class LibraryDialog : GameWindow
         {
             if (_player.HasHint(hint)) continue;
             left = true;
-            if (CanRead(book) && Understands(hint)) return 1;   // 파랑
+            if (CanRead(book) && Unlocked(hint) && KnowsSkill(hint)) return 1;   // 파랑
         }
         return left ? 2 : 0;                                    // 빨강 / 초록
     }
@@ -251,95 +246,169 @@ public sealed class LibraryDialog : GameWindow
     /// 한 권도 안 나오고 아무 책도 못 읽었다.
     ///
     /// 게임은 <b>함대에 탄 사람 전부</b>를 훑어 그 언어를 가장 잘 아는 이를 찾는다
-    /// (<c>0x0047CD20</c>) — 부하가 대신 읽어 준다. 우리는 부하의 언어를 아직 안 적어 두어
-    /// 주인공만 본다.
+    /// (<c>0x0047CD20</c>) — 부하가 대신 읽어 준다. 그래서 로드리고·데·에스코베토 같은
+    /// 말 잘하는 부하를 들이면 읽을 수 있는 책이 확 는다. 부하의 언어는 인물 표에서 이름으로 찾는다.
     /// </remarks>
-    private bool CanRead(BookTable.Book book) => _player.TongueOf(LanguageOf(book)) >= ReadLevel;
+    private bool CanRead(BookTable.Book book)
+    {
+        int best = _player.TongueOf(LanguageOf(book));
+        if (book.Language >= 0)
+            foreach (var mate in MateRows())
+                if (book.Language < mate.Languages.Length)
+                    best = Math.Max(best, mate.Languages[book.Language]);
+        return best >= ReadLevel;
+    }
+
+    private List<PersonTable.Row>? _mateRows;
+
+    /// <summary>함대에 탄 부하들의 인물 표 줄. 한 번만 찾는다.</summary>
+    private List<PersonTable.Row> MateRows()
+    {
+        if (_mateRows != null) return _mateRows;
+        var people = PersonTable.Open().People;
+        _mateRows = [.. _player.Mates.Where(n => n.Length > 0)
+                                     .Select(n => people.FirstOrDefault(r => r.Name == n))
+                                     .OfType<PersonTable.Row>()];
+        return _mateRows;
+    }
 
     /// <summary>
-    /// 힌트를 알아들을 수 있는지 — 기능만으로는 안 되는 힌트가 있다.
+    /// 힌트가 <b>열려 있는지</b> — 기능·언어를 보기 전의 관문이다(<c>0x0042CC90</c>).
     /// </summary>
     /// <remarks>
-    /// 게임의 <c>0x00463E50</c> 이다. 기능을 재기 <b>앞에</b> <c>0x0042CCC0</c> 으로
-    /// <b>선행 발견물 여덟 칸</b>을 훑어, 한 칸이라도 아직 못 찾았으면 물린다.
+    /// 여기서 물리면 펼친 책에 삽화도 안 얹히고 띠에 「무슨 말인지 잘 모르겠습니다」 가 뜬다.
     /// <code>
     ///   0042CC93  [힌트+0x04] &amp; 0x08   개방 비트 — 놀이가 켜 준다
     ///   0042CCA4  힌트 번호 != 184
     ///   0042CCC0  선행 발견물 여덟 칸이 다 발견되었나
-    ///   00463E72  필요 기능(+0x20)과 그 자리(+0x28)
     /// </code>
     /// 톨레도 도서관의 <b>카파도키아</b>(힌트 52)가 그렇다 — 신학 3 만으로는 안 되고
     /// <b>산티아고 대성당</b>(발견물 50)을 먼저 봐야 한다. 성지순례를 다녀와야 읽힌다는
     /// 것이 이것이다. 「성스러운 유물상자」(힌트 101)도 성 마르틴 교회(62)가 앞선다.
     ///
-    /// 개방 비트와 184번 자리는 아직 안 옮겼다 — 그 비트를 켜는 곳이 이벤트 스크립트
+    /// 개방 비트는 아직 안 옮겼다(늘 선 것으로 친다) — 그 비트를 켜는 곳이 이벤트 스크립트
     /// 실행기 안(<c>0x0040A0F8</c>)이라 스크립트 쪽을 더 뜯어야 한다.
     /// </remarks>
-    private bool Understands(int hint)
+    private bool Unlocked(int hint)
     {
-        var need = _books.NeedFor(hint);
+        if (hint == SealedHint) return false;
 
         // 먼저 찾아 두어야 할 것이 남아 있으면 아무리 배워도 안 들어온다.
-        if (need.Parents is { } parents)
+        if (_books.NeedFor(hint).Parents is { } parents)
             foreach (int id in parents)
                 if (!_player.HasFound(id)) return false;
+        return true;
+    }
 
+    /// <summary>늘 닫혀 있는 힌트 번호(<c>0x0042CCA4</c> 의 <c>cmp 184</c>).</summary>
+    private const int SealedHint = 184;
+
+    /// <summary>
+    /// 힌트의 <b>필요 기능</b>을 채웠는지(<c>0x00463E50</c>) — 없으면 된 것으로 친다.
+    /// </summary>
+    /// <remarks>필요 기능은 힌트 줄 <c>+0x20</c>, 그 자리는 <c>+0x28</c> 이다(<c>0x00463E72</c>).</remarks>
+    private bool KnowsSkill(int hint)
+    {
+        var need = _books.NeedFor(hint);
         if (need.Skill < 0 || need.Skill >= _names.SkillNames.Count) return true;
         return _player.LevelOf(_names.SkillNames[need.Skill]) >= need.Level;
     }
 
-    /// <summary>책을 읽는다. 시간도 돈도 들지 않고, 알아들을 수 있는 힌트만 들어온다.</summary>
-    private void Read(BookTable.Book book, Image image, BitmapSource[] spines)
+    /// <summary>힌트가 요구하는 기능 이름(기능 이름표 <c>0x00560A10</c>).</summary>
+    private string SkillOf(int hint)
     {
-        if (!CanRead(book))
-        {
-            NoticeDialog.Show(this, $"{LanguageOf(book)}를 더 익혀야 읽을 수 있다.");
-            return;
-        }
-
-        var got = new List<string>();
-        var gotIds = new List<int>();
-        foreach (int hint in book.Hints)
-        {
-            if (_player.HasHint(hint) || !Understands(hint)) continue;
-            if (!_player.GainHint(hint)) continue;
-            got.Add(_hintName(hint));
-            gotIds.Add(hint);
-        }
-
-        image.Source = spines[SpineColor(book)];   // 읽고 나면 색이 바뀐다
-
-        // 게임은 알림 창이 아니라 <b>펼친 책</b>으로 이른다 — 얻은 힌트마다 한 번씩 편다.
-        bool opened = false;
-        foreach (int hint in gotIds)
-            if (OpenBookDialog.Show(this, _book, _hintName(hint), _hintText?.Invoke(hint) ?? "",
-                                    Pages(hint)))
-                opened = true;
-        if (opened) return;
-
-        NoticeDialog.Show(this, got.Count == 0
-            ? $"「{book.Title}」{GameUi.Josa(book.Title, "을", "를")} 읽었다. 새로 알게 된 것은 없다."
-            : $"「{book.Title}」{GameUi.Josa(book.Title, "을", "를")} 읽었다!"
-              + Environment.NewLine
-              + $"{string.Join(" · ", got)}에 대해 알게 되었다!");
+        int skill = _books.NeedFor(hint).Skill;
+        return skill >= 0 && skill < _names.SkillNames.Count ? _names.SkillNames[skill] : $"기능 {skill}";
     }
 
     /// <summary>
-    /// 펼친 쪽 번호. 게임 갈무리는 <c>-3-</c>·<c>-4-</c> 였는데 무엇으로 정하는지는
-    /// 못 짚었다 — 힌트마다 늘 같은 쪽이 나오게 홀수로 짓는다.
+    /// 책을 편다(<c>0x00471EA0</c>). 시간도 돈도 들지 않는다.
     /// </summary>
     /// <remarks>
-    /// <b>발견물 번호가 아니라 이 책의 쪽수다.</b> 예전에는 힌트 번호를 그대로 불려
-    /// <c>-33-</c> 처럼 큰 수가 나왔는데, 게임 것은 늘 한 자리였다 — 책 한 권이 그만큼
-    /// 얇다. 그래서 <b>1~10</b> 안으로 접는다.
+    /// <b>책은 언제나 열린다</b> — 언어가 모자라도 창은 똑같이 뜨고, 모자란 것은 창 안의 띠 말로만
+    /// 이른다. 힌트는 책을 펼 때 한꺼번에 들어오는 것이 아니라 <b>그 펼침면이 화면에 나올 때</b>
+    /// 칸 하나씩 들어온다(<see cref="Shown"/>). 한 번도 안 넘긴 면의 힌트는 안 들어온다.
     /// </remarks>
-    private const int PagesPerBook = 5;
+    private void Read(BookTable.Book book, Image image, BitmapSource[] spines)
+    {
+        int count = Math.Min(book.Hints.Count, OpenBookDialog.MaxSpreads);
 
-    private static int Pages(int hint) => hint % PagesPerBook * 2 + 1;
+        // 그림을 못 읽으면 첫 면만 편 셈 치고 힌트 주기와 띠 말만 낸다.
+        if (!OpenBookDialog.Read(this, _book, count, i => SpreadAt(book, i), i => Shown(book, i)))
+            Shown(book, 0);
+
+        image.Source = spines[SpineColor(book)];   // 읽고 나면 색이 바뀐다
+    }
+
+    /// <summary>
+    /// 펼침면 <c>i</c> 에 그릴 것 — 게임 <c>0x00464C50</c> 의 규칙이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   삽화   개방·184·선행 발견물(0x0042CC90)만 보고 얹는다 — 기능·언어가 모자라도 나온다
+    ///   종이   찾아서 보고까지 한 힌트면 누런 벌, 아니면 흰 벌
+    ///   글     개방 &amp;&amp; 언어 3(0x00463E30) &amp;&amp; 기능(0x00463E50) 일 때만 — 아니면 오른쪽이 빈 종이
+    /// </code>
+    /// </remarks>
+    private OpenBookDialog.Spread SpreadAt(BookTable.Book book, int i)
+    {
+        if (i >= book.Hints.Count) return new OpenBookDialog.Spread(false, -1, false, "", "");
+
+        int hint = book.Hints[i];
+        bool open = Unlocked(hint);
+        int picture = _books.NeedFor(hint).Picture;
+        int illustration = open && picture >= 0 && picture < OpenBookArt.IllustrationCount
+            ? OpenBookArt.FirstIllustration + picture
+            : -1;
+        bool readable = open && CanRead(book) && KnowsSkill(hint);
+
+        return new OpenBookDialog.Spread(true, illustration, _reported?.Invoke(hint) == true,
+                                         readable ? _hintName(hint) : "",
+                                         readable ? _hintText?.Invoke(hint) ?? "" : "");
+    }
+
+    /// <summary>
+    /// 펼침면 <c>i</c> 가 화면에 나왔다 — 힌트를 주고 아래 띠에 말을 낸다(<c>0x00464A30</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   칸이 -1                       「모험에 도움이 될 것 같지 않습니다」   0x0055CAB0
+    ///   개방·184·선행 발견물 실패     「무슨 말인지 잘 모르겠습니다」         0x0055CA90
+    ///   언어 &amp;&amp; 기능                 힌트가 들어오고 띠를 비운다(소리 없음, 0x0040E0C0)
+    ///   기능 부족                     「%s의 지식이 필요합니다」 기능 이름     0x0055CA60
+    ///   기능은 되고 언어 부족         같은 꼴에 언어 이름                     0x0055CA78
+    /// </code>
+    /// <b>기능 부족이 언어 부족보다 먼저다</b> — 둘 다 모자라면 기능 이름이 나온다. 이미 얻은
+    /// 힌트라고 따로 이르는 말은 없다.
+    /// </remarks>
+    private void Shown(BookTable.Book book, int i)
+    {
+        if (i >= book.Hints.Count) { Band("모험에 도움이 될 것 같지 않습니다"); return; }
+
+        int hint = book.Hints[i];
+        if (!Unlocked(hint)) { Band("무슨 말인지 잘 모르겠습니다"); return; }
+
+        bool tongue = CanRead(book), skill = KnowsSkill(hint);
+        if (tongue && skill) _player.GainHint(hint);   // 띠 검사보다 앞이라 늘 실행된다
+
+        if (!skill) Band($"{SkillOf(hint)}의 지식이 필요합니다");
+        else if (!tongue) Band($"{LanguageOf(book)}의 지식이 필요합니다");
+        else _say?.Invoke("");
+    }
+
+    /// <summary>아래 띠에 말을 넣는다 — 소리 <c>0x1D</c> 가 같이 난다(<c>0x0040E0A0</c>).</summary>
+    private void Band(string text)
+    {
+        _say?.Invoke(text);
+        _sfx?.Play(SoundBank.BandNoticePart);
+    }
 
     /// <summary>글자마다 <c>x</c> 로 가린다. 띄어쓰기는 그대로 둔다.</summary>
+    /// <summary>
+    /// 못 읽는 책의 이름 — 게임은 글자마다 영문 X 가 아니라 <b>온각 ×</b>(CP949 <c>A1BF</c>, 두 칸 폭)로 가린다.
+    /// </summary>
     private static string Masked(string text) =>
-        new([.. text.Select(c => c == ' ' ? ' ' : 'x')]);
+        new([.. text.Select(c => c == ' ' ? ' ' : '×')]);
 
     private static BitmapSource ToBitmap(uint[] bgra, int width, int height)
     {
@@ -354,11 +423,14 @@ public sealed class LibraryDialog : GameWindow
     /// </summary>
     /// <param name="book">펼친 책 그림. 없으면 알림 창으로만 이른다.</param>
     /// <param name="hintText">그 힌트의 설명 — 펼친 책 오른쪽 면에 적힌다.</param>
+    /// <param name="sfx">띠 말 소리를 낼 효과음 묶음. 없으면 소리 없이 말만 낸다.</param>
+    /// <param name="reported">힌트의 발견물을 찾아서 보고까지 했는지 — 펼친 책 종이 색을 가른다.</param>
     public static void Show(Window owner, string gameDirectory, string cityName, int cityId,
                             Player player, BookTable table, CityBuildingTable names,
                             Func<int, string> hintName,
                             OpenBookArt? book = null, Func<int, string>? hintText = null,
-                            Action<string>? say = null)
+                            Action<string>? say = null, SoundBank? sfx = null,
+                            Func<int, bool>? reported = null)
     {
         var art = BookShelf.Open(gameDirectory);
         if (art == null)
@@ -380,7 +452,7 @@ public sealed class LibraryDialog : GameWindow
         // 창 크기에 맞춰 정수배로 키운다(책장이 384x320 이라 두 배면 넉넉하다).
         int scale = owner.ActualHeight > 800 ? 2 : 1;
         new LibraryDialog(cityName, art, shelved, player, table, names, hintName, scale,
-                          book, hintText, say)
+                          book, hintText, say, sfx, reported)
         {
             Owner = owner,
         }.ShowDialog();

@@ -31,7 +31,14 @@ public sealed class TavernRoster
     public readonly record struct Person(int Index, string Name, int Fame, int Age,
                                          byte Hire, int FaceCode, int City, byte Building,
                                          byte Body, byte Mind, byte Might, byte Charm, byte Luck,
-                                         byte Sword, byte Shooting = 0, byte Gunnery = 0);
+                                         byte Sword, byte Shooting = 0, byte Gunnery = 0)
+    {
+        /// <summary>
+        /// 술집 이름표에 적는 짧은 이름 — 이름 칸(<c>+0x32</c>)만 쓴다.
+        /// 「비센테·야네스·핀손」이면 「비센테」다.
+        /// </summary>
+        public string ShortName => Name.Split('·')[0];
+    }
 
     private readonly List<Person> _people;
 

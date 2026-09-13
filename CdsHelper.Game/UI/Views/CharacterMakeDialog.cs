@@ -290,9 +290,6 @@ internal sealed class CharacterMakeDialog : GameWindow
         double y = RowFamily + FaceHeight + Gap;
         Band("<<", PortraitX, y, PickWidth, () => Turn(-1));
         Band(">>", PortraitX + PickWidth, y, PickWidth, () => Turn(+1));
-
-        // 화살표 밑에 얼굴 번호와 중년 짝을 적는다.
-        Put(_agedNote, PortraitX, y + UiSprites.BandHeight + 2);
     }
 
     private void NameRow(double y, string label, GameUi.GameLabel box, Func<IReadOnlyList<string>> list)
@@ -439,19 +436,7 @@ internal sealed class CharacterMakeDialog : GameWindow
         _portrait.Source = bmp;
         _portrait.Stretch = Stretch.Fill;
         RenderOptions.SetBitmapScalingMode(_portrait, GameUi.SpriteScaling);
-
-        // 그 얼굴에 중년 얼굴이 있는지 밑에 한 줄로 이른다 — 없으면 나이가 들어도
-        // 얼굴이 안 바뀐다는 뜻이다.
-        int aged = PortraitAges.AgedOf(_face, female: false, _faces);
-        string middle = aged != _face ? $"중년 {aged}번" : "중년 얼굴 없음";
-        _agedNote.Text = $"{_face}번 · {middle}";
     }
-
-    /// <summary>얼굴 번호와 중년 짝을 이르는 줄.</summary>
-    private readonly GameUi.GameLabel _agedNote = new(GameFont.ButtonColor)
-    {
-        FallbackBrush = Ink,
-    };
 
     /// <summary>
     /// 그 얼굴이 지고 나올 <b>운명 자리</b>(0~15).

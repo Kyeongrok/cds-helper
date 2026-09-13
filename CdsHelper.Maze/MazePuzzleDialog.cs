@@ -461,7 +461,11 @@ internal sealed class MazePuzzleDialog : InfoDialog
     }
 
     /// <summary>놀이를 한 판 하고 <c>0x0042C8A0</c> 이 하듯 결과를 알린다.</summary>
-    public static void Play(Window owner, Random rng)
+    /// <returns>
+    /// 돌파했는지. 게임은 돌파 보상을 치른 갈래에서만 결과 <c>[+0x9C] = 1</c> 을 박고
+    /// (<c>0x0042B154</c>) 덫·실패·포기는 0 이다 — 발견 대본(<c>0E 04 02</c>)이 이 값으로 갈라진다.
+    /// </returns>
+    public static bool Play(Window owner, Random rng)
     {
         // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다(0x0042C84E).
         Explain(owner);
@@ -499,5 +503,7 @@ internal sealed class MazePuzzleDialog : InfoDialog
                     "게임 클리어");
                 break;
         }
+
+        return dialog._game.Over is MazePuzzle.Result.Cleared or MazePuzzle.Result.Perfect;
     }
 }

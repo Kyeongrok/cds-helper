@@ -1431,6 +1431,81 @@ public sealed class Player
     /// <summary>선원 수를 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
     public void SetCrew(int crew) => Crew = Math.Clamp(crew, 0, MaxCrew);
 
+    // ── 편성(배마다 선원)과 대열 ─────────────────────────────────────────────
+
+    private readonly List<int> _crewShares = [];
+
+    /// <summary>
+    /// 배마다 태운 선원 — <see cref="Ships"/> 차례대로다. 합은 늘 <see cref="Crew"/> 다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배 레코드 <c>+0x34</c> 마다 승원을 들고, 함대 선원은 그 합이다(<c>0x004745F0</c>).
+    /// 우리는 모집·해고가 함대 총수를 움직이므로, 합이 어긋나거나 배 수가 바뀌면 바다 커맨드
+    /// 「편성」의 <b>최적화</b>(<c>0x004744F0</c>)와 같은 규칙으로 다시 나눈다.
+    /// </remarks>
+    public IReadOnlyList<int> CrewShares
+    {
+        get
+        {
+            if (_crewShares.Count != _ships.Count || _crewShares.Sum() != Crew
+                || _crewShares.Where((c, i) => c > MaxCrewOf(_ships[i])).Any())
+            {
+                var fresh = OptimizeCrew(_ships, Crew);
+                _crewShares.Clear();
+                _crewShares.AddRange(fresh);
+            }
+            return _crewShares;
+        }
+    }
+
+    /// <summary>그 배의 필요 승원(<c>0x0044C780</c> — 레코드 <c>+0x30</c> + 10).</summary>
+    public static int NeedCrewOf(Ship ship) => ship.Crew;
+
+    /// <summary>그 배에 태울 수 있는 끝(<c>0x0044C790</c> — 선체표 <c>+0x34</c> x 5 + 50 = 필요 x 5).</summary>
+    public static int MaxCrewOf(Ship ship) => ship.Crew * 5;
+
+    /// <summary>
+    /// 선원을 배마다 고르게 나눈다(<c>0x004744F0</c>) — 한 명씩, 최대에 안 찬 배 가운데
+    /// <c>승원*100/필요승원</c> 이 가장 작은 배에 태운다.
+    /// </summary>
+    public static List<int> OptimizeCrew(IReadOnlyList<Ship> ships, int total)
+    {
+        var shares = new List<int>(new int[ships.Count]);
+        for (int n = 0; n < total; n++)
+        {
+            int best = -1, bestRatio = int.MaxValue;
+            for (int i = 0; i < ships.Count; i++)
+            {
+                if (shares[i] >= MaxCrewOf(ships[i])) continue;
+                int ratio = shares[i] * 100 / Math.Max(1, NeedCrewOf(ships[i]));
+                if (ratio < bestRatio) { bestRatio = ratio; best = i; }
+            }
+            if (best < 0) break;
+            shares[best]++;
+        }
+        return shares;
+    }
+
+    /// <summary>
+    /// 편성 창에서 결정한 몫을 적는다. 배 수·합·최대가 안 맞으면 받지 않는다.
+    /// </summary>
+    public bool SetCrewShares(IEnumerable<int>? shares)
+    {
+        if (shares == null) return false;
+        var list = shares.ToList();
+        if (list.Count != _ships.Count || list.Sum() != Crew || list.Any(c => c < 0)) return false;
+        if (list.Where((c, i) => c > MaxCrewOf(_ships[i])).Any()) return false;
+        _crewShares.Clear();
+        _crewShares.AddRange(list);
+        return true;
+    }
+
+    /// <summary>해전에 들어설 때의 대열(0~7). 게임의 함대 <c>+0xDC</c> 다 — 새 판은 0.</summary>
+    public int Formation { get; private set; }
+
+    /// <summary>대열을 고른다(<c>0x00475A50</c>).</summary>
+    public void SetFormation(int formation) => Formation = Math.Clamp(formation, 0, 7);
+
     /// <summary>식량과 물이 며칠 갈지. 적은 쪽이 정한다.</summary>
     public int SupplyDaysLeft =>
         Supply.DaysLeft(SupplyOf(SupplyKind.Food), SupplyOf(SupplyKind.Water), Crew);

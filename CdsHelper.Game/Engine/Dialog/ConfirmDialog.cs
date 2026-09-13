@@ -258,8 +258,12 @@ public sealed class ConfirmDialog : GameWindow
         return image;
     }
 
-    /// <summary>한 줄이 이보다 길면 끊는다 — 게임이 예순 칸에서 끊는다.</summary>
-    private const double MaxTextWidth = 480;
+    /// <summary>
+    /// 한 줄이 이보다 길면 끊는다. 예전 480(예순 칸)은 짧았다 — 출항 물음 「준비 만반입니다. 언제라도
+    /// 출항할 수 있습니다! 출항하겠습니까?」가 원본은 한 줄(얼굴 옆 약 490점)인데 우리는 두 줄로 끊겼다.
+    /// 여든 칸(640)까지 한 줄로 둔다.
+    /// </summary>
+    private const double MaxTextWidth = 640;
 
     /// <summary>단추 크기와 사이. 폭은 마구리 둘에 가운데 넉 칸이다(16+8*4+16).</summary>
     private const double ButtonWidth = 64, ButtonHeight = UiSprites.BandHeight, ButtonGap = 16;

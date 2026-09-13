@@ -58,9 +58,19 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>
     /// 화면 한 점이 나아가는 칸 수. 작을수록 확대다. 뒤집으면 "칸당 화면 픽셀"이 된다 —
     /// 1/16 이면 칸당 16점으로 타일이 원본 크기, 1/32 면 그 두 배로 커진다.
-    /// 게임 화면과 나란히 놓고 맞춘 값이 1/32 다(게임이 640x480 을 늘려 띄우기 때문).
+    /// 게임 화면과 나란히 놓고 다시 맞춘 값이 <b>1/24</b> 다. 예전 1/32 은 원본보다 1.35배쯤 컸다 —
+    /// 같은 갈무리에서 도시 표시(3x3 칸)가 원본 45점 · 우리 62점이었다(0.73배).
     /// </summary>
-    private double _cellsPerPixel = 1.0 / 32;
+    private double _cellsPerPixel = CellsPerPixelFor(Local.Settings.GameSettings.MapScale);
+
+    /// <summary>배율 1 일 때 한 점에 드는 칸 — 예전 크기다. 설정 배율이 이것을 나눈다.</summary>
+    private const double BaseCellsPerPixel = 1.0 / 32;
+
+    /// <summary>설정 배율(0.5~1.5)을 한 점당 칸으로 바꾼다. 0.75 가 1/24 다.</summary>
+    private static double CellsPerPixelFor(double scale) => BaseCellsPerPixel / scale;
+
+    /// <summary>설정 창에서 배율을 바꿨을 때 곧바로 든다. 배를 가운데 두고 본다.</summary>
+    public void ApplyMapScale(double scale) => LookAt(CellsPerPixelFor(scale));
 
     /// <summary>화면 한가운데가 가리키는 칸 좌표.</summary>
     private double _centerX = 1185, _centerY = 357;

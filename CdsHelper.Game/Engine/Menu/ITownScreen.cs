@@ -52,6 +52,11 @@ internal interface ITownScreen
     /// <summary>후손을 남길 수 있는지.</summary>
     bool CanLeaveHeir { get; }
 
+    /// <summary>
+    /// 이 마을 술집에서 포카를 할 수 있는지 — 이베리아·북유럽·지중해 문화권만이다(<c>0x0042FB00</c>).
+    /// </summary>
+    bool CanPlayPoker { get; }
+
     // ── 해라 ─────────────────────────────────────────────────────────────
 
     /// <summary>명령 창을 닫고 도시로 돌아간다.</summary>
@@ -75,6 +80,9 @@ internal interface ITownScreen
 
     /// <summary>술집의 「정보를 듣는다」 — 주인이 계약한 것의 실마리를 준다.</summary>
     void HearInfo();
+
+    /// <summary>술집의 「포카를 권한다」 — 술집 주인과 카드 도박을 한다(<c>0x0042F690</c>).</summary>
+    void PlayPoker();
 
     /// <summary>발견한 건물의 해설 — 그림 한 장과 그 이야기.</summary>
     void ShowComment(int buildingCode);

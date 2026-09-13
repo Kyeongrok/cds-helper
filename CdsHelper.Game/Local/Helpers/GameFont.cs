@@ -36,8 +36,16 @@ public sealed class GameFont
     /// <summary>타이틀 띠 글자색(공용 색표 색인). 크림 <c>196,180,148</c>.</summary>
     public const byte TitleColor = 26;
 
-    /// <summary>베이지 버튼 글자색. 짙은 갈색 <c>52,28,20</c>.</summary>
-    public const byte ButtonColor = 17;
+    /// <summary>
+    /// 글자에만 쓰는 먹색 칸. 공용 색표에 <c>1,1,1</c> 이 없어 <b>글자 셈에서만</b> 이 번호를
+    /// <c>#010101</c> 로 읽는다 — 그림들은 색표를 그대로 읽으므로 색표 자체는 건드리지 않는다.
+    /// </summary>
+    public const byte InkColor = 254;
+
+    /// <summary>
+    /// 베이지 띠(메뉴 줄·단추) 글자색. 게임은 짙은 갈색(<c>341C14</c>)이 아니라 <c>#010101</c> 로 찍는다.
+    /// </summary>
+    public const byte ButtonColor = InkColor;
 
     /// <summary>흰빛 글자색. 공용 색표에서 가장 흰 <c>244,232,224</c> 다.</summary>
     public const byte WhiteColor = 10;
@@ -235,8 +243,12 @@ public sealed class GameFont
         return bgra;
     }
 
-    private static uint Argb(byte index)
+    private static uint Argb(byte index) => TextArgb(index);
+
+    /// <summary>글자색 번호의 ARGB. <see cref="InkColor"/> 만 색표 밖의 <c>#010101</c> 이다.</summary>
+    public static uint TextArgb(byte index)
     {
+        if (index == InkColor) return 0xFF010101u;
         int i = index * 3;
         return (uint)(0xFF << 24 | GamePalette.Rgb[i] << 16
                       | GamePalette.Rgb[i + 1] << 8 | GamePalette.Rgb[i + 2]);

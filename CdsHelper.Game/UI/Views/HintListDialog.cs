@@ -170,7 +170,7 @@ public sealed class HintListDialog : GameWindow
                 Child = new Border
                 {
                     Background = GameUi.MenuBack,
-                    BorderBrush = GameUi.Edge,
+                    BorderBrush = GameUi.MenuEdge,
                     BorderThickness = new Thickness(1),
                     Margin = new Thickness(PanelInset),
                     Child = stack,
@@ -222,7 +222,7 @@ public sealed class HintListDialog : GameWindow
     /// <param name="whenEmpty">줄이 하나도 없을 때 알릴 말.</param>
     public static void Show(Window owner, IReadOnlyList<string> hints,
                             string caption = "취득 힌트 일람",
-                            string whenEmpty = "아직 얻은 힌트가 없다.")
+                            string whenEmpty = "설득 가능한 힌트가 없습니다")
     {
         if (hints.Count == 0)
         {
