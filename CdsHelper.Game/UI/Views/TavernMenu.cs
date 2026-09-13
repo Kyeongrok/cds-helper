@@ -357,33 +357,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 술꾼이다. 예전에는 여기서 <b>앉아 있는 첫 인물</b>의 얼굴을 써서 엉뚱한 사람이
     /// 말을 걸었다.
     ///
-    /// <b>얼굴 번호는 우리가 정한다.</b> 게임은 자리를 지을 때 <c>+0x00</c> 에 얼굴을
-    /// 박아 두는데 그 자리를 아직 못 짚었다. 대신 서 있는 그림 번호에서 뽑아 쓴다 —
-    /// 같은 마을이면 늘 같은 얼굴이 나온다.
+    /// 그 <c>+0x00</c> 은 무명 자리를 지을 때 <c>0x004A1530</c> 이 채운다 — 도시 문화권으로
+    /// 고정 표 <c>0x004A2F80</c> 을 집은 값이라(<see cref="TavernRumors.StrangerFace"/>)
+    /// 서 있는 그림과 상관없이 <b>한 마을의 무명 손님은 다 같은 얼굴</b>이다.
     /// </remarks>
-    private uint[]? DrinkerFace()
-    {
-        if (_game.Guests is not { } book || _game.Faces is not { } faces) return null;
-
-        var people = Sitting(TavernRoster.Tavern);
-        var keys = new List<int>(people.Count);
-        foreach (var p in people) keys.Add(p.Index);
-
-        bool first = true;
-        foreach (var seat in book.Seat(_culture, _cityId, keys))
-        {
-            if (seat.Person >= 0) { first = false; continue; }
-
-            // 맨 앞 여자 자리는 이 마을 여급이다 — 게임에서는 그쪽도 인물이라 건너뛴다.
-            if (first && seat.Art.Female && Standing() != null) { first = false; continue; }
-            first = false;
-
-            int count = faces.MaleCount;
-            if (count <= 0) return null;
-            return faces.TryGetBgra(seat.Art.Index % count, female: false);
-        }
-        return null;
-    }
+    private uint[]? DrinkerFace() =>
+        _game.Faces?.TryGetBgra(TavernRumors.StrangerFace(_cultureNo), female: false);
 
     /// <summary>
     /// 사진 앞에 세울 손님들. 술집·여관이 아니거나 그림을 못 읽었으면 빈 목록이다.
