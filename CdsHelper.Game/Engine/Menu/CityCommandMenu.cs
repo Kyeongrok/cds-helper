@@ -48,10 +48,14 @@ internal static class CityCommandMenu
             ("게임 종료", on.Quit),
             ("취소", on.Cancel));
 
-    /// <summary>「지도를 본다」 한 겹 — 항해지도 · 주변지도 · 돌아간다.</summary>
-    public static GameMenu Map(Action wide, Action near, Action back) =>
+    /// <summary>「지도를 본다」 한 겹 — 항해지도 · 취소.</summary>
+    /// <remarks>
+    /// 게임의 <c>0x0049328E</c> 다(<c>0x0053BF70</c> "항해지도" · <c>0x0053BF80</c> "취소",
+    /// 제목 <c>0x0053BF88</c>). <b>도시에는 주변지도가 없다.</b> 항해지도는 바다와 같은
+    /// 모달 창(<c>0x00416A00</c>)이고, 닫으면 이 한 겹으로 되돌아온다.
+    /// </remarks>
+    public static GameMenu Map(Action wide, Action back) =>
         new("지도를 본다", null,
             ("항해지도", wide),
-            ("주변지도", near),
-            ("돌아간다", back));
+            ("취소", back));
 }

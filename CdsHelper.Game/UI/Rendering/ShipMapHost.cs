@@ -363,6 +363,21 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>지금 스왑체인 크기(화면 실픽셀).</summary>
     public (int W, int H) SurfaceSize => (_pixelW, _pixelH);
 
+    /// <summary>
+    /// 게임 한 점이 화면 실픽셀 몇 개인지 — 구름을 그리는 셈(<see cref="UpdateClouds"/>)과 같이
+    /// 칸 하나를 16점으로 친다.
+    /// </summary>
+    public double GamePixelScale => 1.0 / (_cellsPerPixel * GamePixelsPerCell);
+
+    /// <summary>
+    /// 배(뭍이면 말) 그림 한가운데가 스왑체인 어디에 있는지(실픽셀). 배 자리를 모르면 null.
+    /// </summary>
+    /// <remarks>그리는 자리(<see cref="SpriteRectAt"/>)와 같은 셈이다.</remarks>
+    public Point? ShipOnSurface => _shipKnown && _pixelW > 0 && _pixelH > 0
+        ? new Point(_pixelW / 2.0 + WrapDx(_shipX - _centerX) / _cellsPerPixel,
+                    _pixelH / 2.0 + (_shipY - _centerY) / _cellsPerPixel)
+        : null;
+
     /// <summary>배가 화면 밖으로 나가지 않게 따라다닐지.</summary>
     public bool Follow
     {
@@ -1207,8 +1222,8 @@ public sealed class ShipMapHost : HwndHost
     /// </summary>
     /// <remarks>
     /// 게임의 <c>0x00416A00</c> 그대로다. 점 하나가 칸 <b>4x4</b> 고, 그 열여섯 칸 가운데
-    /// 뭍이 바다보다 많으면 뭍색이다. <b>안 밝힌 점은 아예 안 본다</b> — 그 자리는
-    /// 양피지로 남는다.
+    /// 뭍이 바다보다 많으면 뭍색이다(같으면 바다). <b>안 밝힌 점은 아예 안 본다</b> — 그 자리는
+    /// 양피지로 남는다. 배·도시·발견물 같은 <b>표식은 하나도 안 찍는다</b>.
     /// </remarks>
     public uint[]? Chart(ExploredMap seen, out int width, out int height)
     {
@@ -1230,134 +1245,206 @@ public sealed class ShipMapHost : HwndHost
                         for (int x = 0; x < step; x++)
                         {
                             int off = RawAt(bx * step + x, by * step + y).Offset;
-                            if (_terrain.CanSail(CellAt(off))) water++;
+                            if (IsSeaClass(CellAt(off))) water++;
                             else land++;
                         }
                     color = land > water ? ChartLand : ChartSea;
                 }
 
-                int k = color * 3;
-                argb[by * width + bx] = 0xFF000000u
-                                      | ((uint)GamePalette.Rgb[k] << 16)
-                                      | ((uint)GamePalette.Rgb[k + 1] << 8)
-                                      | GamePalette.Rgb[k + 2];
+                argb[by * width + bx] = PaletteBgra(color);
             }
 
         return argb;
     }
 
-    /// <summary>주변지도의 색 — 배 · 도시 · 발견물 · 뭍 · 바다(게임 색표 색인).</summary>
+    /// <summary>
+    /// 지도 그림에서 바다로 치는 칸인지 — 부류(<c>0x00426710</c> = <c>0x004CD048[타일]</c>)가
+    /// <b>0·1</b> 일 때만이다. 음수를 포함한 그 밖은 뭍이다.
+    /// </summary>
+    private bool IsSeaClass(int cell) => _terrain!.ClassOfCell(cell) is 0 or 1;
+
+    /// <summary>게임 색표 색인 하나를 BGRA 한 점으로.</summary>
+    private static uint PaletteBgra(byte index)
+    {
+        int k = index * 3;
+        return 0xFF000000u
+             | ((uint)GamePalette.Rgb[k] << 16)
+             | ((uint)GamePalette.Rgb[k + 1] << 8)
+             | GamePalette.Rgb[k + 2];
+    }
+
+    /// <summary>주변지도의 색 — 배 · 도시 · 발견물 · 뭍 · 바다 · 극지 밖(게임 색표 색인).</summary>
     /// <remarks>
     /// <c>0x00416CB4</c> 배 · <c>0x00416DE2</c> 도시 · <c>0x00416DE7</c> 발견물 ·
-    /// <c>0x00416DDD</c> 뭍 · <c>0x00416DEC</c> 바다.
+    /// <c>0x00416DDD</c> 뭍 · <c>0x00416DEC</c> 바다. 칸y 가 1250 밖인 줄은 <c>0x49</c>
+    /// (24,20,12 거의 검정)로 채운다.
     /// </remarks>
     private const byte NearShip = 0x0A, NearCity = 0x24, NearFind = 0x38,
-                       NearLand = 0x18, NearSea = 0x2E;
+                       NearLand = 0x18, NearSea = 0x2E, NearPole = 0x49;
 
-    /// <summary>주변지도가 한 점에 나아가는 거리 밑값(1/16 칸). 게임은 <c>시야 + 2</c> 다.</summary>
+    /// <summary>주변지도가 한 점에 나아가는 거리 밑값(1/16 칸). 게임은 <c>측량 + 2</c> 다.</summary>
     public const int LocalStepBase = 2;
+
+    /// <summary>WORLD.CDS 칸 낱말에서 <b>그림이 박힌 칸</b>(도시·발견물 그림 조각)을 뜻하는 비트.</summary>
+    private const int PictureBit = 0x8000;
+
+    /// <summary>발견물 칸 깃발 — 내가 찾았다 · 발표됐다.</summary>
+    private const byte FindFound = 1, FindAnnounced = 2;
 
     /// <summary>
     /// 주변지도 한 장을 BGRA 로 짓는다. 지도를 못 읽었거나 배가 없으면 null.
     /// </summary>
     /// <remarks>
-    /// 게임의 <c>0x00416B60(칸x, 칸y, 시야 + 2)</c> 다. 항해지도와 크기는 같은데
+    /// 게임의 <c>0x00416B60(칸x, 칸y, 측량 + 2)</c> 다. 항해지도와 크기는 같은데
     /// (<b>625 x 313</b>) <b>배 둘레를 크게 본 것</b>이고, 밝힘과 상관없이 다 보인다.
     /// <code>
     ///   416ba6  왼쪽 끝 = 배칸x * 16 - 625 * r / 2       (자리는 1/16 칸)
     ///   416bcf  위  끝 = 배칸y * 16 - 313 * r / 2
     ///   416df4  한 점에 r 만큼 나아간다
+    ///   줄마다  칸y = 위 &gt;&gt; 4 — -1 이면 윗줄을 옮겨 적고(0x4B7E47), 1250 밖이면 0x49
+    ///   점마다  칸x = ((x &gt;&gt; 4) + 2500) % 2500, 앞 점과 칸이 같으면 앞 점 색 그대로
     /// </code>
-    /// <c>r</c> 이 <c>시야 + 2</c> 라 밑값이면 한 점이 <b>1/8 칸</b>이다 — 칸 하나가 8x8
-    /// 점으로 커지고, 화면에는 78 x 39 칸쯤이 담긴다. 망원경 같은 것으로 시야가 오르면
-    /// 한 점이 넓어져 <b>더 멀리</b> 보인다(아이템 설명이 그렇게 말한다).
+    /// <c>r</c> 이 <c>측량 + 2</c> 라 측량 0 이면 한 점이 <b>1/8 칸</b>이다 — 칸 하나가 8x8
+    /// 점으로 커지고, 화면에는 78 x 39 칸쯤이 담긴다. 측량이 오르면 한 점이 넓어져
+    /// <b>더 멀리</b> 보인다.
     ///
-    /// 점마다 도시와 발견물을 뒤지면 열아홉만 번이라 <b>칸 격자를 먼저 칠하고</b> 점으로
-    /// 편다. 게임은 점마다 뒤지지만 셈이 칸에만 걸려 있어 결과는 같다.
+    /// 도시·발견물은 <b>그림이 박힌 칸</b>(<see cref="PictureBit"/>)에서만 색이 바뀐다 —
+    /// 둘레를 네모로 칠하는 것이 아니라 그림 조각 모양 그대로 밝아진다(<see cref="NearPaint"/>).
     /// </remarks>
     /// <param name="log">발견물. 없으면 발견물 점이 안 선다.</param>
-    /// <param name="player">주인공. 이미 찾은 것과 가진 힌트를 본다.</param>
-    /// <param name="sight">시야. 아직 올릴 길이 없어 늘 0 이다.</param>
-    public uint[]? LocalChart(DiscoveryLog? log, Player player, int sight,
-                              out int width, out int height)
+    /// <param name="player">주인공. 찾은 것·발표한 것을 본다.</param>
+    /// <param name="cityShown">지도에 뜨는 도시인지 — 알고(<c>+0x04 &amp; 1</c>) 서 있는
+    /// (<c>!(+0x04 &amp; 4)</c>) 도시만 참이다. null 이면 모두 뜬다.</param>
+    /// <param name="survey">측량술. <c>r = 측량 + 2</c> 가 된다.</param>
+    public uint[]? LocalChart(DiscoveryLog? log, Player player, Func<int, bool>? cityShown,
+                              int survey, out int width, out int height)
     {
         width = ExploredMap.Width;
         height = ExploredMap.Height;
         if (_world == null || _terrain == null || !_shipKnown) return null;
 
-        int step = Math.Max(1, sight + LocalStepBase);
-        int shipX = (int)Math.Floor(_shipX), shipY = (int)Math.Floor(_shipY);
-        int left = shipX * 16 - width * step / 2;
-        int top = shipY * 16 - height * step / 2;
+        int r = Math.Max(0, survey) + LocalStepBase;
+        int shipX = Wrap((int)Math.Floor(_shipX)), shipY = (int)Math.Floor(_shipY);
+        int left = shipX * 16 - width * r / 2;
+        int top = shipY * 16 - height * r / 2;
 
-        // 담기는 칸 범위. 넉넉히 한 칸씩 더 잡아 둔다.
-        int cell0X = (left + 8) >> 4, cell0Y = (top + 8) >> 4;
-        int cellsW = (width * step >> 4) + 2, cellsH = (height * step >> 4) + 2;
-
-        var paint = new byte[cellsW * cellsH];
-        for (int j = 0; j < cellsH; j++)
-        {
-            int cy = cell0Y + j;
-            for (int i = 0; i < cellsW; i++)
-            {
-                int cx = Wrap(cell0X + i);
-                paint[j * cellsW + i] = cy is < 0 or >= WorldMapRenderer.CellH
-                    ? NearSea
-                    : PaintOf(cx, cy, shipX, shipY, log, player);
-            }
-        }
+        var cities = CityCells(cityShown);
+        var finds = FindCells(log, player);
+        uint pole = PaletteBgra(NearPole);
 
         var argb = new uint[width * height];
         for (int py = 0; py < height; py++)
         {
-            int j = (((top + py * step) + 8) >> 4) - cell0Y;
-            j = Math.Clamp(j, 0, cellsH - 1);
+            int row = py * width;
+            int cy = (top + py * r) >> 4;
+
+            // 가장자리 한 줄은 윗줄을 그대로 옮겨 적는다(0x4B7E47).
+            if (cy == -1 && py > 0)
+            {
+                Array.Copy(argb, row - width, argb, row, width);
+                continue;
+            }
+            if (cy < 0 || cy >= WorldMapRenderer.CellH)
+            {
+                Array.Fill(argb, pole, row, width);
+                continue;
+            }
+
+            int lastX = int.MinValue;
+            uint last = 0;
             for (int px = 0; px < width; px++)
             {
-                int i = (((left + px * step) + 8) >> 4) - cell0X;
-                i = Math.Clamp(i, 0, cellsW - 1);
-                int k = paint[j * cellsW + i] * 3;
-                argb[py * width + px] = 0xFF000000u
-                                      | ((uint)GamePalette.Rgb[k] << 16)
-                                      | ((uint)GamePalette.Rgb[k + 1] << 8)
-                                      | GamePalette.Rgb[k + 2];
+                int cx = Wrap((left + px * r) >> 4);
+                if (cx != lastX)
+                {
+                    lastX = cx;
+                    last = PaletteBgra(NearPaint(cx, cy, shipX, shipY, cities, finds));
+                }
+                argb[row + px] = last;
             }
         }
         return argb;
     }
 
-    /// <summary>주변지도에서 그 칸이 무슨 색인지.</summary>
-    private byte PaintOf(int cx, int cy, int shipX, int shipY,
-                         DiscoveryLog? log, Player player)
+    /// <summary>
+    /// 주변지도에서 그 칸이 무슨 색인지 — <c>0x00416C6E</c>.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   칸 == 배칸                                → 0x0A (깜박이지 않는다)
+    ///   w &amp; 0x8000 이면 dy·dx 0..2 로 (칸x-dx, 칸y-dy) 를 본다
+    ///     그 칸이 도시 칸(0x4255A0)이고 반지름(+0x0C) &gt; dx, &gt; dy, 알고 서 있으면 → 0x24
+    ///     그 칸이 발견물 칸(0x425640)이고 지도 그림이 있고(0x4AAE90 != FFFF)
+    ///       (dx&lt;2 &amp;&amp; dy&lt;2 &amp;&amp; 내가 찾음) 또는 발표(+0x16 &amp; 0x80) 이면     → 0x38
+    ///   부류 0·1 → 0x2E 바다, 그 밖 → 0x18 뭍
+    /// </code>
+    /// 힌트로 열린 못 찾은 발견물은 <b>안 선다</b> — 힌트 깃발 <c>0x08</c> 은 안 본다.
+    /// </remarks>
+    private byte NearPaint(int cx, int cy, int shipX, int shipY,
+                           Dictionary<(int X, int Y), int> cities,
+                           Dictionary<(int X, int Y), byte> finds)
     {
         if (cx == shipX && cy == shipY) return NearShip;
-        if (CityNear(cx, cy)) return NearCity;
-        if (FindNear(cx, cy, log, player)) return NearFind;
-        return _terrain!.CanSail(_world![RawAt(cx, cy).Offset]) ? NearSea : NearLand;
-    }
 
-    /// <summary>이 칸 언저리에 도시가 있는지. 게임도 3x3 을 본다(<c>0x00416CDB</c>).</summary>
-    private static bool CityNear(int cx, int cy)
-    {
-        for (int id = 0; id < GameMapCoords.CityCount; id++)
+        int w = CellAt(RawAt(cx, cy).Offset);
+        if ((w & PictureBit) != 0)
         {
-            if (!GameMapCoords.TryCityCell(id, out double x, out double y)) continue;
-            if (Math.Abs((int)x - cx) <= 1 && Math.Abs((int)y - cy) <= 1) return true;
+            for (int dy = 0; dy < 3; dy++)
+            {
+                int y = cy - dy;
+                if (y < 0) continue;
+                for (int dx = 0; dx < 3; dx++)
+                {
+                    var at = (Wrap(cx - dx), y);
+                    if (cities.TryGetValue(at, out int reach) && reach > dx && reach > dy)
+                        return NearCity;
+                    if (finds.TryGetValue(at, out byte f)
+                        && ((dx < 2 && dy < 2 && (f & FindFound) != 0) || (f & FindAnnounced) != 0))
+                        return NearFind;
+                }
+            }
         }
-        return false;
+        return IsSeaClass(w) ? NearSea : NearLand;
     }
 
-    /// <summary>이 칸에 아직 못 찾은 발견물이 있는지.</summary>
-    private static bool FindNear(int cx, int cy, DiscoveryLog? log, Player player)
+    /// <summary>지도에 뜨는 도시가 앉은 칸과 그 반지름(<c>+0x0C</c>).</summary>
+    private Dictionary<(int X, int Y), int> CityCells(Func<int, bool>? cityShown)
     {
-        if (log == null) return false;
+        var cells = new Dictionary<(int X, int Y), int>();
+        if (_cities is not { } table) return cells;
+
+        for (int id = 0; id < CityExeTable.Count; id++)
+        {
+            if (cityShown != null && !cityShown(id)) continue;
+            if (!table.TryCell(id, out int x, out int y, out int reach)) continue;
+            cells[(Wrap(x), y)] = reach;
+        }
+        return cells;
+    }
+
+    /// <summary>
+    /// 주변지도에 설 수 있는 발견물 — 지도 그림이 있고(<c>+0x54</c> 첫 칸이 FFFF 가 아님)
+    /// 내가 찾았거나 발표된 것. 사각형 왼쪽 위 칸에 깃발을 단다.
+    /// </summary>
+    private static Dictionary<(int X, int Y), byte> FindCells(DiscoveryLog? log, Player player)
+    {
+        var cells = new Dictionary<(int X, int Y), byte>();
+        if (log == null) return cells;
+
         foreach (var row in log.Table.Discoveries)
         {
-            if (row.Indirect || !row.Covers(cx, cy)) continue;
-            if (player.HasFound(row.Id) || !log.IsOpen(player, row)) continue;
-            return true;
+            if (!row.HasPlace || row.Erase is not { Length: > 0 } block) continue;
+            if (block[0] == DiscoveryTable.Keep) continue;
+
+            byte flag = 0;
+            if (player.HasFound(row.Id)) flag |= FindFound;
+            if (player.HasAnnounced(row.Id)) flag |= FindAnnounced;
+            if (flag == 0) continue;
+
+            var at = (Wrap(row.X1), row.Y1);
+            cells[at] = (byte)(cells.GetValueOrDefault(at) | flag);
         }
-        return false;
+        return cells;
     }
 
     /// <summary>가로로 이어진 지도를 접는다.</summary>
@@ -1580,22 +1667,6 @@ public sealed class ShipMapHost : HwndHost
         _mouse = p;
         _mouseInside = inside && !SeaBlocked;
     }
-
-    /// <summary>
-    /// 「항해지도」 — 지도를 통째로 보이게 맞춘다. 배가 가운데에 온다.
-    /// </summary>
-    /// <remarks>
-    /// 게임 정보 창의 "지도를 본다" 아래 두 줄 가운데 하나다(<c>0x00533240</c> "항해지도" ·
-    /// <c>0x00533250</c> "주변지도"). 게임은 따로 그린 지도 화면을 내는데, 우리 지도는
-    /// 그 자체가 세계지도라 <b>배율만 갈아 준다</b>.
-    /// </remarks>
-    public void ShowWorld() => LookAt(WorldCellsPerPixel);
-
-    /// <summary>「주변지도」 — 배 둘레를 크게 본다.</summary>
-    public void ShowAround() => LookAt(AroundCellsPerPixel);
-
-    /// <summary>항해지도·주변지도의 배율. 화면 한 점에 몇 칸이 들어가는지다.</summary>
-    private const double WorldCellsPerPixel = 2.0, AroundCellsPerPixel = 1.0 / 16;
 
     /// <summary>그 배율로 배를 가운데 두고 본다.</summary>
     private void LookAt(double cellsPerPixel)

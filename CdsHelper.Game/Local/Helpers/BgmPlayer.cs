@@ -32,6 +32,15 @@ public sealed class BgmPlayer : IDisposable
     /// <summary>술집에 들어가 있는 동안 도는 곡.</summary>
     public const int TavernTrack = 22;
 
+    /// <summary>
+    /// 일기토가 도는 동안의 곡 — 반란도 이 판으로 치르므로 반란 곡이기도 하다.
+    /// </summary>
+    /// <remarks>
+    /// 일기토 들머리(<c>0x004AA700</c>)가 지금 곡을 멈추고(<c>0x00422A40(-1, 3)</c>) 소리 9 를
+    /// 튼다(<c>0x004AA8A0</c> · <c>0x004225A0(9, 0)</c>). 트랙으로는 소리 + 2 = 11 이다.
+    /// </remarks>
+    public const int DuelTrack = 11;
+
     /// <summary>교회에 들어가 있는 동안 도는 곡. 나오면 도시 곡으로 돌아간다.</summary>
     public const int ChurchTrack = 16;
 

@@ -75,6 +75,7 @@ public sealed class Game
         _cityRows = null; _cityRowsTried = false;
         _faces = null; _facesTried = false;
         _effects = null; _effectsTried = false;
+        _eventAnims = null; _eventAnimsTried = false;
         _guests = null; _guestsTried = false;
         _templates = null; _templatesTried = false;
         _cells = null; _cellsTried = false;
@@ -223,6 +224,13 @@ public sealed class Game
     public EffectAnim? Effects =>
         Once(ref _effects, ref _effectsTried, EffectAnim.Open,
              () => EffectAnim.LastError, "애니메이션");
+
+    /// <summary>
+    /// 지도 위에 통째로 겹쳐 도는 사건 애니메이션(EVANIME.CDS) — 회오리·폭풍·눈보라·덤불.
+    /// </summary>
+    public EventAnimation? EventAnims =>
+        Once(ref _eventAnims, ref _eventAnimsTried, EventAnimation.Open,
+             () => EventAnimation.LastError, "사건 애니메이션");
 
     /// <summary>술집 손님 그림. 못 읽으면 손님만 안 선다.</summary>
     public TavernGuests? Guests =>
@@ -525,6 +533,8 @@ public sealed class Game
     private (int Walk, int Year) _rosterWalk = (-1, -1);
     private Portraits? _faces;
     private EffectAnim? _effects;
+    private EventAnimation? _eventAnims;
+    private bool _eventAnimsTried;
     private TavernGuests? _guests;
     private PersonTemplate? _templates;
     private bool _templatesTried;

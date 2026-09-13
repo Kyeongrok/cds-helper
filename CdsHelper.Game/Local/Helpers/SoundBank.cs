@@ -156,6 +156,19 @@ public sealed class SoundBank : IDisposable
         return made;
     }
 
+    /// <summary>
+    /// 내고 있던 효과음을 끊는다. 사건 애니메이션이 끝날 때 제 소리를 끄는 자리
+    /// (<c>0x00422A40(소리, 3)</c>)에 쓴다.
+    /// </summary>
+    public void Stop()
+    {
+        try { _player.Stop(); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SoundBank] 소리를 끊지 못했습니다 — {ex.Message}");
+        }
+    }
+
     /// <summary>WAV 머리 길이와 8비트 소리의 무음 자리.</summary>
     private const int WavHeader = 44, Silence = 128;
 
