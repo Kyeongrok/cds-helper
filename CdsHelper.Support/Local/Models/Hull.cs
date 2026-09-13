@@ -23,10 +23,72 @@ namespace CdsHelper.Support.Local.Models;
 /// 8방향 그림이 든 폴더의 온 경로. 등록해 넣은 배가 제 그림을 들고 다니는 자리다.
 /// null 이면 <see cref="Skin"/> 대로 <c>asset/ship-g*</c> 에서 읽는다.
 /// </param>
+/// <param name="Id">
+/// 게임 선체 번호(<c>0x004FC1E0</c> 차례, <see cref="Table"/>). 등록해 넣은 배는 −1 이다.
+/// <b>세이브는 선체를 이름으로 적으므로</b> 이 칸을 더해도 옛 세이브가 안 깨진다.
+/// </param>
 public sealed record Hull(
     string Name, int Hp, int Speed, int Capacity, int Tonnage, int Crew, int Guns, int Price,
-    int Skin, int MaxMasts = 3, bool CanChangeSail = true, string? SpriteFolder = null)
+    int Skin, int MaxMasts = 3, bool CanChangeSail = true, string? SpriteFolder = null, int Id = -1)
 {
+    /// <summary>게임 선체 번호.</summary>
+    public const int Cog = 0, Caravel = 1, LargeCaravel = 2, Carrack = 3, LargeCarrack = 4,
+                     HeavyCarrack = 5, Galleon = 6, Dhow = 7;
+
+    /// <summary>
+    /// 선체표 한 줄(<c>0x004FC1E0</c>, 64바이트) — <b>아래값</b>만 옮겼다(대포는 위값도).
+    /// </summary>
+    /// <param name="Crew">필요승원 — 표 <c>+0x34</c> 에 10 을 더한 값.</param>
+    /// <param name="GunsMin">대포 아래값(<c>+0x2C</c>).</param>
+    /// <param name="GunsMax">대포 위값(<c>+0x30</c>). 적 배 대포 수를 여기서 자른다.</param>
+    /// <param name="PriceFactor">값 계수(<c>+0x38</c>, x1000).</param>
+    /// <param name="SailBits">돛 비트(<c>+0x3C</c>, 2비트 x 3 — 메인·세브·선미).</param>
+    public readonly record struct Spec(
+        int Id, string Name, int Speed, int Hp, int Tonnage, int Capacity,
+        int GunsMin, int GunsMax, int Crew, int PriceFactor, int SailBits)
+    {
+        /// <summary>돛 비트를 마스트 셋의 돛(0 없음 · 1 삼각 · 2 사각)으로 푼다.</summary>
+        public int[] Sails => [SailBits & 3, (SailBits >> 2) & 3, (SailBits >> 4) & 3];
+    }
+
+    /// <summary>
+    /// 선체표 여덟 줄 그대로다(<c>0x004FC1E0</c>, 볼트 <c>92.분석-적 함대 배 짜기</c> 6절).
+    /// </summary>
+    /// <remarks>
+    /// 조선소에 내는 것은 여전히 <see cref="Builtin"/> 다섯이다 — 이 표는 적 함대를 짓고
+    /// 해전 그림(SCOMBAT 파트 5+번호)을 고르는 데 쓴다. 번호가 곧 차례라 바꾸면 안 된다.
+    /// </remarks>
+    public static readonly Spec[] Table =
+    [
+        new(Cog,          "코구",       70, 30, 1250, 125,  0,  5, 10,   7,  2),
+        new(Caravel,      "카라벨",     80, 20, 1250, 125,  2,  8, 15,  10,  1),
+        new(LargeCaravel, "대형카라벨", 50, 35, 2000, 250,  8, 14, 30,  40,  5),
+        new(Carrack,      "카락",       60, 30, 1750, 200,  6, 12, 20,  50,  6),
+        new(LargeCarrack, "대형카락",   50, 40, 2500, 300, 10, 20, 35, 100, 10),
+        new(HeavyCarrack, "중카락",     35, 60, 4000, 400, 24, 32, 45, 180, 26),
+        new(Galleon,      "갤리온",     55, 70, 3500, 375, 24, 40, 40, 250, 26),
+        new(Dhow,         "다우",       70, 30, 1750, 200,  8, 12, 25,  60,  5),
+    ];
+
+    /// <summary>
+    /// 이 배의 게임 선체 번호 — 해전 그림 벌(SCOMBAT 파트 5+번호)이 이것이다(<c>0x00442D93</c>).
+    /// </summary>
+    /// <remarks>
+    /// 붙박이는 <see cref="Id"/> 를 들고 있다(고쳐 이름을 바꿔도 <c>with</c> 로 남는다).
+    /// 등록해 넣은 배는 번호가 없어 이름이 표에 있으면 그것을, 없으면 지도 그림벌
+    /// (<see cref="Skin"/> 0 코구 · 1 카라벨 · 2 카락 · 3 갤리온)로 어림한다 — 어림은 우리 것이다.
+    /// </remarks>
+    public int GameId
+    {
+        get
+        {
+            if (Id is >= 0 and < 8) return Id;
+            int byName = Array.FindIndex(Table, s => s.Name == Name);
+            if (byName >= 0) return byName;
+            return Skin switch { 0 => Cog, 2 => Carrack, 3 => Galleon, _ => Caravel };
+        }
+    }
+
     /// <summary>
     /// 마스트 자리 수. 게임도 셋이 끝이다.
     /// </summary>
@@ -71,11 +133,11 @@ public sealed record Hull(
     /// </remarks>
     public static readonly Hull[] Builtin =
     [
-        new("갤리온",     70, 55, 375, 3500, 40, 24, 250000, 3),
-        new("중카락",     60, 35, 400, 4000, 45, 24, 180000, 2),
-        new("카락",       30, 60, 200, 1750, 20,  6,  50000, 2),
-        new("대형카라벨", 35, 50, 250, 2000, 30,  8,  40000, 1, CanChangeSail: false),
-        new("카라벨",     20, 80, 125, 1250, 15,  2,  10000, 1, MaxMasts: 2, CanChangeSail: false),
+        new("갤리온",     70, 55, 375, 3500, 40, 24, 250000, 3, Id: Galleon),
+        new("중카락",     60, 35, 400, 4000, 45, 24, 180000, 2, Id: HeavyCarrack),
+        new("카락",       30, 60, 200, 1750, 20,  6,  50000, 2, Id: Carrack),
+        new("대형카라벨", 35, 50, 250, 2000, 30,  8,  40000, 1, CanChangeSail: false, Id: LargeCaravel),
+        new("카라벨",     20, 80, 125, 1250, 15,  2,  10000, 1, MaxMasts: 2, CanChangeSail: false, Id: Caravel),
     ];
 
     private static Hull[]? _all;

@@ -685,8 +685,9 @@ public sealed class SeaCombatDialog : GameWindow
         battle.MineSide = new SeaBattle.Side(player.LevelOf(Skill.Names[3]),
                                              player.AbilityOf(Ability.Might),
                                              player.AbilityOf(Ability.Luck) + 1);
-        // 적장 능력은 넷의 합(Sum)만 알아 고르게 나눠 쓴다.
-        battle.EnemySide = new SeaBattle.Side(Math.Clamp(foe.Sum / 100, 0, 3), foe.Sum / 4, foe.Sum / 4);
+        // 적장 능력 벌(0x00440D90) — 적장 한 사람 값 그대로다. 포술 · 무력(+1) · 운(+1).
+        var leader = foe.Leader ?? Encounter.CaptainOf(Encounter.PirateLeader);
+        battle.EnemySide = new SeaBattle.Side(leader.Gunnery, leader.Might, leader.Luck);
         // 탄약 = 함대 보급품 탄약 x 10(볼트 85).
         battle.Ammo = player.SupplyOf(SupplyKind.Ammo) * 10;
 
@@ -699,7 +700,7 @@ public sealed class SeaCombatDialog : GameWindow
         {
             var (ship, at) = order[slot];
             battle.Place(true, slot, ship.Name, ship.Speed, [.. ship.Sails],
-                         art: Math.Clamp(ship.Hull.Skin, 0, 3),
+                         art: ship.Hull.GameId,     // SCOMBAT 파트 5+선체 번호(0x00442D93)
                          hp: ship.Hp, crew: shares.ElementAtOrDefault(at), minCrew: ship.Crew,
                          gun: ship.Guns > 0 ? ship.Gun : -1, figurehead: ship.Figurehead,
                          formation: player.Formation,
@@ -712,20 +713,24 @@ public sealed class SeaCombatDialog : GameWindow
             var practice = Hull.Cheapest;
             battle.Place(true, 0, practice.Name, practice.Speed,
                          [Support.Local.Models.Ship.Lateen, Support.Local.Models.Ship.Lateen, 0],
-                         art: Math.Clamp(practice.Skin, 0, 3), hp: practice.Hp,
+                         art: practice.GameId, hp: practice.Hp,
                          crew: practice.Crew + 20, minCrew: practice.Crew, gun: -1,
                          hullName: practice.Name, cargo: practice.Capacity);
         }
 
-        // 적 배의 선체는 아직 모른다 — 두 돛대·추진력 50 짜리 배에 세이커포를 싣게 세운다.
+        // 적 배 — 적장의 나라와 그 해로 선체를, 적장 능력으로 척수·승원·대포를 짓는다(0x00440D90).
+        // 이름은 게임이 일본 군함명 자리 채움(0x549A34)을 굴리는데 화면에는 선체 이름이 찍혀 무리 이름을 쓴다.
         // 적의 대열은 굴린다(0x004421F6 의 rand(8)).
         int enemyFormation = rng.Next(SeaBattle.FormationCount);
-        for (int slot = 0; slot < Math.Min(foe.Ships, SeaBattle.PerSide); slot++)
-            battle.Place(false, slot, foe.Name, 50,
-                         [Support.Local.Models.Ship.Square, Support.Local.Models.Ship.Lateen, 0],
-                         art: 4 + Math.Min(3, slot), hp: 50, crew: 40, minCrew: 15, gun: 0,
-                         hullName: "카락", cargo: 200, guns: 6,
+        var fleet = EnemyFleet.Build(leader, player.Date.Year, rng);
+        for (int slot = 0; slot < fleet.Count; slot++)
+        {
+            var e = fleet[slot];
+            battle.Place(false, slot, foe.Name, e.Speed, e.Sails,
+                         art: e.Hull, hp: e.Hp, crew: e.Crew, minCrew: e.MinCrew, gun: e.Gun,
+                         hullName: e.HullName, cargo: e.Capacity, guns: e.Guns,
                          formation: enemyFormation);
+        }
 
         // 바람과 퇴각지점은 <b>해전 판이 뜨기 전에</b>, 바다 지도 위에서 부관이 알린다 — 게임 화면이 그렇다.
         ConfirmDialog.Tell(owner, battle.WindNotice(), BattleTitle, face);

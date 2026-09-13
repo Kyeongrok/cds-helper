@@ -18,10 +18,36 @@ public enum EnemyKind
     Islam = 3,
 }
 
+/// <summary>
+/// 적장 한 사람 — 해전 들머리(<c>0x00440D90</c>)가 적 능력 벌과 적 배를 이 값으로 짓는다.
+/// </summary>
+/// <remarks>
+/// 능력은 모두 <b>세이브 날값(게임 값 + 1)</b>이다 — 게임도 <c>[인물+0x28]+1</c> 로 옮겨 적
+/// 벌 <c>+0x924</c>~ 에 넣는다(볼트 <c>92.분석-적 함대 배 짜기</c> 3절). 기능은 그대로다.
+/// </remarks>
+/// <param name="Id">인물 번호(262~270 조우 인물).</param>
+/// <param name="Nation">나라(인물 밑표 <c>+0x14</c>).</param>
+/// <param name="Job">직업(밑표 <c>+0x20</c> — 0 탐험가 3 정복자 4 해적 5 전도사 6 상인 7 군인).</param>
+/// <param name="Might">무력 <c>+0x924</c>.</param>
+/// <param name="Mind">지력 <c>+0x928</c>.</param>
+/// <param name="Charm">매력 <c>+0x92C</c>.</param>
+/// <param name="Luck">운 <c>+0x930</c>.</param>
+/// <param name="Faith">신앙심(전도사·상인 승원 셈에만 쓴다).</param>
+/// <param name="Gunnery">포술 <c>+0x934</c>.</param>
+/// <param name="Sword">검술 <c>+0x938</c>.</param>
+/// <param name="Shooting">사격술 <c>+0x93C</c>.</param>
+public readonly record struct Captain(
+    int Id, int Nation, int Job, int Might, int Mind, int Charm, int Luck, int Faith,
+    int Gunnery, int Sword, int Shooting);
+
 /// <summary>붙은 무리 하나.</summary>
-/// <param name="Ships">적 함대 척수. 요구액과 교섭 확률이 여기 걸린다.</param>
+/// <param name="Ships">
+/// 교섭 창의 척수(<c>0x004435B0</c> — <c>무력/14</c> + 해적 2 · 군인·정복자 1). 요구액과 도망 셈이
+/// 여기 걸린다. <b>해전에 실제로 나오는 척수와 다르다</b>(<see cref="EnemyFleet.CountOf"/>).
+/// </param>
 /// <param name="Sum">적장 능력 넷의 합에 1 을 더한 값(<c>0x00455A36</c>).</param>
-public readonly record struct Enemy(EnemyKind Kind, string Name, int Ships, int Sum);
+/// <param name="Leader">적장. 없으면(옛 호출) 해전이 조우 인물 262 로 갈음한다.</param>
+public readonly record struct Enemy(EnemyKind Kind, string Name, int Ships, int Sum, Captain? Leader = null);
 
 /// <summary>
 /// 바다에서 남의 함대를 만났을 때의 셈과 말 — <b>교섭 · 도망 · 응전</b>.
@@ -283,37 +309,108 @@ public static class Encounter
     /// (<c>0x0048C049</c>, 볼트 <c>59.분석-해적 조우</c> 5·6절), 걸리면
     /// <c>0x004435B0(인물, 0, 1)</c> 로 교섭·도망·응전 창을 연다. 유럽 구역은 인물 262(해적),
     /// 81칸 표에 걸린 것이 있으면 268(추격대)인데 그 표를 아직 못 짚어 <b>해적만</b> 낸다.
+    /// 동쪽 구역은 인물 265(이슬람)다.
     /// </remarks>
-    public static Enemy? AtSea(double lat, double lon, int steps, Random rng)
+    /// <param name="lookup">인물 번호로 적장을 찾는다. null 이거나 못 찾으면 붙박이 값(<see cref="CaptainOf"/>)이다.</param>
+    public static Enemy? AtSea(double lat, double lon, int steps, Random rng,
+                               Func<int, Captain?>? lookup = null)
     {
         if (RollOf(lat, lon) is not { } roll) return null;
 
         for (int i = 0; i < steps; i++)
         {
             if (rng.Next(roll) != 0) continue;
-            return roll == LevantRoll ? Make(EnemyKind.Islam, rng) : Make(EnemyKind.Pirate, rng);
+            return roll == LevantRoll
+                ? Make(EnemyKind.Islam, IslamLeader, rng, lookup)
+                : Make(EnemyKind.Pirate, PirateLeader, rng, lookup);
         }
         return null;
     }
 
+    /// <summary>바다 주사위가 부르는 인물 — 유럽 해적 262 · 이슬람 265(<c>0x0048CABA</c>).</summary>
+    public const int PirateLeader = 262, IslamLeader = 265;
+
     /// <summary>
-    /// 그 갈래의 무리 하나를 짓는다. <b>척수와 적장 능력은 우리가 굴린다</b> — 게임은
-    /// 인물 레코드(<c>([인물+0x28]+1)/14</c>, 해적 +2)에서 척수를 내는데 그 인물들을 아직
-    /// 안 옮겼다.
+    /// 그 적장의 무리 하나를 짓는다. 척수(교섭 창 몫)와 능력 합은 적장에서 낸다(<c>0x004435B0</c>).
     /// </summary>
-    private static Enemy Make(EnemyKind kind, Random rng)
+    /// <remarks>
+    /// <code>
+    ///   척수 = 무력/14 + (해적 2 · 군인·정복자 1)   1~8, 굴림 없음
+    /// </code>
+    /// 능력 합(<see cref="Enemy.Sum"/>)에 어느 넷이 드는지는 아직 못 짚었다 — <b>무력·지력·매력·운</b>의
+    /// 게임 값(날값−1) 합에 1 을 더해 쓴다. 이름은 인물 이름(262 「사략 함대」 따위)이다.
+    /// </remarks>
+    private static Enemy Make(EnemyKind kind, int leaderId, Random rng, Func<int, Captain?>? lookup)
     {
-        string name = kind == EnemyKind.Islam ? Names[1] : Names[rng.Next(2, Names.Length)];
-        int ships = rng.Next(1, 5);
-        int sum = rng.Next(40, 200) + 1;      // 적장 능력 넷의 합
-        return new Enemy(kind, name, ships, sum);
+        var leader = lookup?.Invoke(leaderId) ?? CaptainOf(leaderId);
+        string name = NameOf(leaderId)
+                      ?? (kind == EnemyKind.Islam ? Names[1] : Names[rng.Next(2, Names.Length)]);
+        int bonus = leader.Job switch { EnemyFleet.PirateJob => 2, EnemyFleet.SoldierJob or EnemyFleet.ConquerorJob => 1, _ => 0 };
+        int ships = Math.Clamp(leader.Might / 14 + bonus, 1, SeaBattle.PerSide);
+        int sum = (leader.Might - 1) + (leader.Mind - 1) + (leader.Charm - 1) + (leader.Luck - 1) + 1;
+        return new Enemy(kind, name, ships, sum, leader);
     }
 
     /// <summary>
-    /// 만난 무리 하나를 굴린다. <b>이쪽은 우리가 지어낸 것이다</b> — 게임은 지도 위를
-    /// 돌아다니는 함대 객체를 넘긴다.
+    /// 조우 인물 262~270 의 붙박이 값 — 인물표·인물 밑표를 못 읽었을 때 쓴다.
     /// </summary>
-    /// <remarks>자리를 따지지 않는다 — 해전 연습 창(<c>SeaCombatDialog</c>)이 쓴다.</remarks>
-    public static Enemy Roll(Random rng) =>
-        Make(rng.Next(4) == 0 ? EnemyKind.Islam : EnemyKind.Pirate, rng);
+    /// <remarks>
+    /// 나라·직업은 EXE 밑표(<c>0x004DF3F0</c> <c>+0x14</c>·<c>+0x20</c>), 능력(날값)·기능은
+    /// 같이 깔린 <c>인물표.json</c> 에서 옮겼다(볼트 92 의 8절).
+    /// <code>
+    ///   id  이름         나라          직업  무력 지력 매력 운 신앙 포술 검술 사격
+    /// </code>
+    /// </remarks>
+    private static readonly (string Name, Captain Who)[] Builtins =
+    [
+        ("사략 함대",   new(262, 11, 4, 56, 46, 31, 51, 21, 1, 1, 0)),
+        ("해적",        new(263,  3, 4, 61, 51, 31, 51, 21, 1, 2, 1)),
+        ("콜세르",      new(264, 16, 4, 66, 51, 31, 51, 21, 2, 2, 2)),
+        ("아랍 해적",   new(265, 27, 4, 56, 46, 31, 51, 81, 0, 1, 1)),
+        ("이슬람 함대", new(266, 26, 7, 66, 51, 36, 51, 81, 1, 2, 2)),
+        ("터키 해군",   new(267, 37, 7, 76, 56, 46, 51, 81, 2, 3, 2)),
+        ("상금벌기",    new(268,  1, 4, 61, 46, 31, 51, 31, 1, 1, 1)),
+        ("사설 함대",   new(269,  0, 7, 71, 51, 41, 51, 51, 2, 2, 2)),
+        ("추격 함대",   new(270,  1, 7, 81, 56, 51, 51, 61, 2, 3, 3)),
+    ];
+
+    /// <summary>붙박이 적장. 표에 없는 번호면 262(해적)로 갈음한다.</summary>
+    public static Captain CaptainOf(int id) =>
+        (Builtins.FirstOrDefault(b => b.Who.Id == id) is { Name: not null } hit ? hit : Builtins[0]).Who;
+
+    private static string? NameOf(int id) => Builtins.FirstOrDefault(b => b.Who.Id == id).Name;
+
+    /// <summary>
+    /// 인물표 한 줄과 밑표 한 줄로 적장을 짓는다. 나라·직업을 모르면 붙박이 값을 쓴다.
+    /// </summary>
+    /// <param name="stats">능력 여섯(날값) — 체력·지력·무력·매력·운·신앙심.</param>
+    /// <param name="skills">기능 열셋 — 차례는 <see cref="Skill.Names"/>.</param>
+    public static Captain CaptainOf(int id, IReadOnlyList<int>? stats, IReadOnlyList<int>? skills,
+                                    int? nation, int? job)
+    {
+        var fallback = CaptainOf(id);
+        int Stat(int k, int dflt) => stats != null && k < stats.Count ? stats[k] : dflt;
+        int Skl(int k, int dflt) => skills != null && k < skills.Count ? skills[k] : dflt;
+        return new Captain(
+            id, nation ?? fallback.Nation, job ?? fallback.Job,
+            Might: Stat(Ability.Might, fallback.Might),
+            Mind: Stat(Ability.Mind, fallback.Mind),
+            Charm: Stat(Ability.Charm, fallback.Charm),
+            Luck: Stat(Ability.Luck, fallback.Luck),
+            Faith: Stat(Ability.Faith, fallback.Faith),
+            Gunnery: Skl(Skill.Gunnery, fallback.Gunnery),
+            Sword: Skl(Skill.Sword, fallback.Sword),
+            Shooting: Skl(Skill.Shooting, fallback.Shooting));
+    }
+
+    /// <summary>
+    /// 만난 무리 하나를 굴린다. 적장은 갈래 안에서 고른다 — 해적 262~264 · 이슬람 265~267.
+    /// </summary>
+    /// <remarks>자리를 따지지 않는다 — 모의해전이 쓴다. 적장을 고르는 굴림은 우리 것이다.</remarks>
+    public static Enemy Roll(Random rng, Func<int, Captain?>? lookup = null)
+    {
+        bool islam = rng.Next(4) == 0;
+        int leader = (islam ? IslamLeader : PirateLeader) + rng.Next(3);
+        return Make(islam ? EnemyKind.Islam : EnemyKind.Pirate, leader, rng, lookup);
+    }
 }

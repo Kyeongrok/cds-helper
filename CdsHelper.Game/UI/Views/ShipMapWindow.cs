@@ -1294,7 +1294,7 @@ public sealed class ShipMapWindow : Window
     private void MockSeaBattle()
     {
         var rng = _game.Random;
-        var foe = Encounter.Roll(rng);
+        var foe = Encounter.Roll(rng, CaptainOf);
         var face = MateFace();
 
         ConfirmDialog.Tell(this, Encounter.GreetOf(foe, rng), Encounter.TitleOf(foe.Kind), face);
@@ -3023,7 +3023,7 @@ public sealed class ShipMapWindow : Window
         if (_game.Player.Ships.Count == 0) return;          // 배가 없으면 붙을 일이 없다
 
         var (lat, lon) = _host.ShipLatLon;
-        if (Encounter.AtSea(lat, lon, steps, _game.Random) is not { } foe) return;
+        if (Encounter.AtSea(lat, lon, steps, _game.Random, CaptainOf) is not { } foe) return;
         var rng = _game.Random;
 
         _asking = true;
@@ -3064,6 +3064,16 @@ public sealed class ShipMapWindow : Window
             _asking = false;
             _host.Paused = false;
         }
+    }
+
+    /// <summary>
+    /// 적장 — 인물표(능력·기능 날값)와 인물 밑표(나라·직업)에서 짓는다. 못 읽은 칸은 붙박이 값이다.
+    /// </summary>
+    private Captain? CaptainOf(int id)
+    {
+        var row = _game.World?.Table.Find(id);
+        var template = _game.PersonTemplates?.Find(id);
+        return Encounter.CaptainOf(id, row?.Stats, row?.Skills, template?.Nation, template?.Job);
     }
 
     /// <summary>교섭 한 판. 돈을 물어 물러가면 true.</summary>
