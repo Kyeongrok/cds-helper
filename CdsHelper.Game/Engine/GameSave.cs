@@ -50,6 +50,9 @@ public static class GameSave
     /// <summary>이 판부터 대열(함대 <c>+0xDC</c>)과 배마다 승원(편성)도 적는다.</summary>
     public const int FormationFrom = 28;
 
+    /// <summary>이 판부터 모항(새 판을 연 도시)도 적는다 — 항구 발표가 모항에서만 된다.</summary>
+    public const int HomePortFrom = 29;
+
     /// <summary>이 판부터 <c>ShipStats</c> 에 마스트의 돛도 함께 적힌다.</summary>
     public const int SailsInStatsFrom = 19;
 
@@ -157,7 +160,8 @@ public static class GameSave
         Dictionary<int, int>? Hostility = null, List<int>? OpenedGates = null,
         List<int>? TalksLost = null, Dictionary<string, int>? Closeness = null,
         List<int>? KnownCities = null, int? Ailments = null,
-        int? Formation = null, List<int>? CrewShares = null);
+        int? Formation = null, List<int>? CrewShares = null, int? HomePort = null,
+        double? SeaX = null, double? SeaY = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -173,7 +177,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(FormationFrom, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(HomePortFrom, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],
@@ -206,7 +210,10 @@ public static class GameSave
                             [.. player.OpenedGates], [.. player.TalksLost],
                             player.Closeness.ToDictionary(e => e.Key, e => e.Value),
                             [.. player.KnownCities], (int)player.Ailments,
-                            player.Formation, [.. player.CrewShares]);
+                            player.Formation, [.. player.CrewShares], player.HomePort,
+                            // 바다에서 적을 때만 배 자리를 적는다 — 도시면 도시 앞바다로 연다.
+                            player.CityId < 0 ? player.SeaCell?.X : null,
+                            player.CityId < 0 ? player.SeaCell?.Y : null);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

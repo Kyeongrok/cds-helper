@@ -25,6 +25,15 @@ public sealed class GameSettingsData
     /// <summary>게임 창 단추의 좌우 여백(점).</summary>
     public int BandPad { get; set; } = GameSettings.DefaultBandPad;
 
+    /// <summary>마을·항구에 들고 날 때 보내는 날수(1~10). 기본 10 — 원본 값이다.</summary>
+    public int PortDays { get; set; } = GameSettings.DefaultPortDays;
+
+    /// <summary>인물이 떠날지 굴리는 간격 — 0 이면 매월 1일(원본), 1~30 이면 그 날수마다.</summary>
+    public int PersonRollDays { get; set; }
+
+    /// <summary>인물이 떠날 확률의 분모(1~5) — N분의 1. 기본 5(원본).</summary>
+    public int PersonMoveOdds { get; set; } = GameSettings.DefaultPersonMoveOdds;
+
     /// <summary>일기토에서 최근에 싸운 상대 이름 — 앞이 가장 최근이다.</summary>
     public List<string> RecentDuelFoes { get; set; } = [];
 
@@ -303,6 +312,41 @@ public static class GameSettings
     /// <summary>배율을 0.25 칸에 맞추고 범위 안으로 자른다.</summary>
     private static double Snap(double scale) =>
         Math.Clamp(Math.Round(scale / MapScaleStep) * MapScaleStep, MinMapScale, MaxMapScale);
+
+    /// <summary>인물 떠남 확률 분모의 아래·위·기본.</summary>
+    public const int MinPersonMoveOdds = 1, MaxPersonMoveOdds = 5, DefaultPersonMoveOdds = 5;
+
+    /// <summary>인물 굴림 간격의 위 끝. 0 은 「매월 1일」(원본)이다.</summary>
+    public const int MaxPersonRollDays = 30;
+
+    /// <summary>
+    /// 인물이 떠날지 굴리는 간격 — 0 이면 매월 1일(원본), 1~30 이면 1480년 1월 1일부터 그 날수마다.
+    /// 역사 항해자의 대본은 이것과 상관없이 매월 1일에만 든다.
+    /// </summary>
+    public static int PersonRollDays
+    {
+        get => Math.Clamp(Get(d => d.PersonRollDays), 0, MaxPersonRollDays);
+        set => Set(d => d.PersonRollDays = Math.Clamp(value, 0, MaxPersonRollDays));
+    }
+
+    /// <summary>인물이 떠날 확률의 분모(1~5) — 굴릴 때마다 N분의 1. 원본은 5다.</summary>
+    public static int PersonMoveOdds
+    {
+        get => Math.Clamp(Get(d => d.PersonMoveOdds), MinPersonMoveOdds, MaxPersonMoveOdds);
+        set => Set(d => d.PersonMoveOdds = Math.Clamp(value, MinPersonMoveOdds, MaxPersonMoveOdds));
+    }
+
+    /// <summary>들고 나는 날수의 아래·위·기본.</summary>
+    public const int MinPortDays = 1, MaxPortDays = 10, DefaultPortDays = 10;
+
+    /// <summary>
+    /// 마을·항구에 들고 날 때 보내는 날수(1~10). 원본은 열흘이고, 개발 창에서 줄여 시험할 수 있다.
+    /// </summary>
+    public static int PortDays
+    {
+        get => Math.Clamp(Get(d => d.PortDays), MinPortDays, MaxPortDays);
+        set => Set(d => d.PortDays = Math.Clamp(value, MinPortDays, MaxPortDays));
+    }
 
     /// <summary>
     /// 게임 창 단추의 좌우 여백(점).

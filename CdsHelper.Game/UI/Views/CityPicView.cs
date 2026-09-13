@@ -1021,7 +1021,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
             new TownWorks.TownState(
                 Teaches: TownWorks.Teaches(teachMask),
                 Poor: _player.Gold < Lodging.OddJobMaxGold,
-                CanAnnounce: Port.Announceable().Count > 0,
+                // 게임도 알릴 것이 있고 <b>모항</b>일 때만 줄을 켠다(0x00476DE0).
+                CanAnnounce: _cityId == _player.HomePort && Port.Announceable().Count > 0,
                 PatronRow: patron == null ? null : Patrons.PatronRow(patron),
                 Commented: Commented(code),
                 Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,

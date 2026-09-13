@@ -94,7 +94,7 @@ public sealed class PersonMoveDialog : GameWindow
         _view.SelectedIndex = ViewAll;
         _view.SelectionChanged += (_, _) => Rebuild();
 
-        // 도시는 기본이 지금 들어와 있는 도시다. 바다 위에서는 고를 도시가 없어 모두 보인다.
+        // 도시는 기본이 지금 들어와 있는 도시다. 바다 위에서는 기본만 「전체」고 고르기는 된다.
         int here = game.Player.CityId;
         _city.Items.Add(new ComboBoxItem { Content = "전체", Tag = -1 });
         for (int id = 0; id < PersonTable.CityCount; id++)
@@ -106,7 +106,6 @@ public sealed class PersonMoveDialog : GameWindow
             if (id == here) _city.SelectedItem = item;
         }
         if (_city.SelectedItem == null) _city.SelectedIndex = 0;
-        _city.IsEnabled = here >= 0;
         _city.SelectionChanged += (_, _) => Rebuild();
         _grid.SelectionChanged += (_, _) => ShowDetail();
 
@@ -228,7 +227,7 @@ public sealed class PersonMoveDialog : GameWindow
             if (!show) continue;
 
             // 도시를 골랐으면 그 도시에 앉은 사람과 그리로 가는 사람만 둔다.
-            int city = _city.IsEnabled && _city.SelectedItem is ComboBoxItem { Tag: int c } ? c : -1;
+            int city = _city.SelectedItem is ComboBoxItem { Tag: int c } ? c : -1;
             if (city >= 0 && person.City != city && !(onRoad && person.Dest == city)) continue;
 
             if (_states[(int)StateKind(person, active, onRoad)].IsChecked != true) continue;
@@ -284,7 +283,11 @@ public sealed class PersonMoveDialog : GameWindow
         if (!active) return "나오지 않음(등장·나이)";
         if (person.Kind == 2) return "갈래 2 — 안 움직임";
         if (person.Wait < 0) return $"쉬는 중 {-person.Wait}일 남음";
-        return "매월 1일 5분의 1로 떠남";
+        // 굴리는 때와 확률은 개발 창에서 바꿀 수 있다 — 원본은 매월 1일 5분의 1이다.
+        int every = Local.Settings.GameSettings.PersonRollDays;
+        string when = every == 0 ? "매월 1일" : $"{every}일마다";
+        int odds = Local.Settings.GameSettings.PersonMoveOdds;
+        return odds == 1 ? $"{when} 반드시 떠남" : $"{when} {odds}분의 1로 떠남";
     }
 
     /// <summary>고른 사람의 자세한 것 — 갈 수 있는 도시나 앞으로의 대본.</summary>

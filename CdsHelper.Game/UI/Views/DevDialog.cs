@@ -91,6 +91,28 @@ public sealed class DevDialog : GameWindow
             $"게임 창 단추의 좌우 여백(점). 띠 마구리는 실제로 16점입니다. 기본값 {GameSettings.DefaultBandPad}."
             + " 바꾼 값은 다음에 여는 창부터 듭니다."));
 
+        // 마을·항구에 들고 날 때 보내는 날수. 원본은 열흘씩이라 오가는 시험이 더디다.
+        rows.Children.Add(Tune("출입 일수", GameSettings.PortDays,
+            GameSettings.MinPortDays, GameSettings.MaxPortDays, v => GameSettings.PortDays = v,
+            $"항구·마을에 들어가고 나올 때 각각 지나는 날수(1~10). 원본 기본값 {GameSettings.DefaultPortDays}."
+            + " 바꾼 값은 다음 출입부터 곧바로 듭니다."));
+
+        // 인물 이동 — 떠날지 굴리는 때와 확률. 원본은 매월 1일 5분의 1이다.
+        // 첫 줄(0)이 원본 「매월 1일」이고, 그 뒤 줄 번호가 곧 날수다.
+        rows.Children.Add(Select("이동 주기",
+            ["매월 1일 (원본)", .. Enumerable.Range(1, GameSettings.MaxPersonRollDays).Select(n => $"{n}일마다")],
+            GameSettings.PersonRollDays,
+            i => GameSettings.PersonRollDays = i,
+            "인물(14~200번)이 떠날지 굴리는 때. 원본은 매월 1일입니다. N일마다는 1480년 1월 1일부터 셉니다."
+            + " 역사 항해자 대본은 늘 매월 1일입니다."));
+        rows.Children.Add(Select("떠날 확률",
+            [.. Enumerable.Range(GameSettings.MinPersonMoveOdds,
+                                 GameSettings.MaxPersonMoveOdds - GameSettings.MinPersonMoveOdds + 1)
+                          .Select(n => n == 1 ? "1분의 1 (반드시)" : $"{n}분의 1")],
+            GameSettings.PersonMoveOdds - GameSettings.MinPersonMoveOdds,
+            i => GameSettings.PersonMoveOdds = i + GameSettings.MinPersonMoveOdds,
+            $"굴릴 때마다 떠날 확률. 원본은 {GameSettings.DefaultPersonMoveOdds}분의 1입니다."));
+
         // 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다.
         var dump = new StackPanel
         {
@@ -312,6 +334,43 @@ public sealed class DevDialog : GameWindow
 
         box.LostFocus += (_, _) => Put(Current(box));
         box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Put(Current(box)); };
+        return line;
+    }
+
+    /// <summary>고르는 줄 하나 — 이름과 펼침 상자. 고르면 곧바로 설정에 남긴다.</summary>
+    private static UIElement Select(string label, IReadOnlyList<string> items, int selected,
+                                    Action<int> set, string tip)
+    {
+        var line = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 8, 0, 2),
+            ToolTip = tip,
+        };
+        line.Children.Add(new TextBlock
+        {
+            Text = label,
+            Width = 64,
+            Foreground = GameUi.Text,
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        var box = new ComboBox
+        {
+            Width = 160,
+            Margin = new Thickness(6, 0, 6, 0),
+            Padding = new Thickness(6, 3, 6, 3),
+            FontWeight = FontWeights.Bold,
+            FontSize = 14,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        foreach (string item in items) box.Items.Add(item);
+        box.SelectedIndex = Math.Clamp(selected, 0, items.Count - 1);
+        box.SelectionChanged += (_, _) => { if (box.SelectedIndex >= 0) set(box.SelectedIndex); };
+
+        line.Children.Add(box);
         return line;
     }
 

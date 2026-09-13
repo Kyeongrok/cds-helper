@@ -523,6 +523,14 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             Harbor.Celebrate(_player);
 
             GameDialog.Show(owner, $"{row.Name}의 발견을 발표했다!");
+
+            // 동영상이 있으면 틀고, 없고 그림만 있으면 그림을 낸다 — 보고와 같다
+            // (0x0047E96F → 0x004AAF30 이 표 +0x10 동영상을 튼다).
+            if (row.Movie >= 0)
+                MoviePlayer.Play(owner, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
+            else if (row.Picture >= 0)
+                DiscoveryDialog.Show(owner, _game.Stills, row.Picture, row.Name);
+
             GameDialog.Show(owner, $"명성이 {fame} 올라갔다!");
         }
     }

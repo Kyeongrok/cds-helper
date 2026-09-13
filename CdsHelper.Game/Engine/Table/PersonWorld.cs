@@ -49,8 +49,16 @@ public sealed class PersonWorld
     /// <summary>세계가 감기는 너비. <c>0x9C4</c> 다.</summary>
     private const int WorldWidth = 0x9C4;
 
-    /// <summary>몇 달에 한 번꼴로 움직이는가. <c>0x0043284A</c> 의 <c>push 5</c> 다.</summary>
-    private const int Odds = 5;
+    /// <summary>몇 번 굴림에 한 번꼴로 움직이는가. 원본은 <c>0x0043284A</c> 의 <c>push 5</c> 다.</summary>
+    /// <remarks>개발 창 「떠날 확률」로 1~5 사이에서 바꿀 수 있다.</remarks>
+    private static int Odds => Local.Settings.GameSettings.PersonMoveOdds;
+
+    /// <summary>굴림 간격 — 0 이면 매월 1일(원본), 1~30 이면 그 날수마다.</summary>
+    /// <remarks>개발 창 「이동 주기」로 바꾼다.</remarks>
+    private static int RollDays => Local.Settings.GameSettings.PersonRollDays;
+
+    /// <summary>N일마다 굴릴 때 날을 세기 시작하는 날 — 판이 열리는 날이다.</summary>
+    private static readonly DateTime RollEpoch = new(1480, 1, 1);
 
     /// <summary>
     /// 아직 세워지지 않은 도시 — 갈래 3(같은 나라)이 목적지로 삼지 않는다.
@@ -159,18 +167,41 @@ public sealed class PersonWorld
     {
         if (today <= _asOf) return;
 
-        // 굴림은 매월 1일에 한 번이라 달 경계마다 끊어 나아간다.
+        // 매월 1일(대본)과 굴림 날(설정 간격)마다 끊어 나아간다.
         var at = _asOf;
         while (at < today)
         {
-            var nextMonth = new DateTime(at.Year, at.Month, 1).AddMonths(1);
-            var step = nextMonth <= today ? nextMonth : today;
+            var nextRoll = NextRollDay(at);
+            var step = nextRoll <= today ? nextRoll : today;
 
             Walk((step - at).Days);
             at = step;
-            if (at == nextMonth) Roll(at);
+            if (at == nextRoll) Roll(at);
         }
         _asOf = today;
+    }
+
+    /// <summary>
+    /// 그 날 뒤 첫 끊는 날 — 다음 달 1일(대본이 드는 날)과 다음 굴림 날 가운데 이른 쪽.
+    /// </summary>
+    private static DateTime NextRollDay(DateTime after)
+    {
+        var nextMonth = new DateTime(after.Year, after.Month, 1).AddMonths(1);
+        if (RollDays <= 0) return nextMonth;
+
+        // 1480년 1월 1일부터 센 날수를 간격으로 나눠 다음 배수로 올린다.
+        long index = (after.Date - RollEpoch).Days;
+        long next = (long)Math.Floor(index / (double)RollDays) * RollDays + RollDays;
+        var nextRoll = RollEpoch.AddDays(next);
+        return nextRoll < nextMonth ? nextRoll : nextMonth;
+    }
+
+    /// <summary>그 날이 떠날지 굴리는 날인가 — 원본은 매월 1일, 설정하면 간격의 배수 날.</summary>
+    private static bool IsRollDay(DateTime day)
+    {
+        if (RollDays <= 0) return day.Day == 1;
+        long index = (day.Date - RollEpoch).Days;
+        return ((index % RollDays) + RollDays) % RollDays == 0;
     }
 
     // ── 하루 넘김과 도착 ───────────────────────────────────────────────────────
@@ -320,10 +351,14 @@ public sealed class PersonWorld
 
     private void Roll(DateTime when)
     {
+        bool rollDay = IsRollDay(when);
+
         foreach (var row in _rows)
         {
             // 역사 항해자는 여기서 갈린다 — 활동 판정보다 앞이다(위 <b>다른 것 둘</b>).
-            if (row.Id < PersonTable.VoyagerCount) { Sail(row, when); continue; }
+            // 대본은 달 단위라 1일에만 든다(달 중간 굴림에 들면 한 달 수를 두 번 둔다).
+            if (row.Id < PersonTable.VoyagerCount) { if (when.Day == 1) Sail(row, when); continue; }
+            if (!rollDay) continue;                             // 대본만 드는 1일이다
             if (row.Id >= PersonTable.MovingEnd) continue;     // 이벤트 인물은 안 움직인다
             if (!Active(row)) continue;
             if (row.Wait < 0) continue;                        // 아직 쉬는 중
@@ -443,8 +478,12 @@ public sealed class PersonWorld
     /// <summary>
     /// 그 달 그 사람의 주사위. <c>(번호, 해, 달)</c> 로 씨를 뿌려 언제 따라잡아도 같게 나온다.
     /// </summary>
+    /// <remarks>
+    /// 15일 굴림은 날을 더 섞어 1일과 다른 눈이 나오게 한다. 1일은 예전 씨 그대로라
+    /// 매월 1일만 굴리는 원본 설정의 세상은 바뀌지 않는다.
+    /// </remarks>
     private static int Seed(int id, DateTime when) =>
-        (id * 10007) ^ (when.Year * 137 + when.Month * 11);
+        (id * 10007) ^ (when.Year * 137 + when.Month * 11 + (when.Day == 1 ? 0 : when.Day * 7919));
 
     // ── 들여다보기 ─────────────────────────────────────────────────────────────
 
