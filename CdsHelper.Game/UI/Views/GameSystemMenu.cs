@@ -42,8 +42,11 @@ internal static class GameSystemMenu
     /// 게임의 <c>0x004A2800</c> 그대로다 — 물음(<c>0x00568CB8</c>) · 쓰기 · 알림(<c>0x00568CE0</c>).
     /// 물음에 YES 가 아니면 아무것도 쓰지 않고 그냥 돌아간다.
     /// </remarks>
-    public static void Save(Window view, Engine.Game game, GameMenuHost menu) =>
-        Save(menu.Window ?? view, game);
+    public static void Save(Window view, Engine.Game game, GameMenuHost menu)
+    {
+        // 적고 나면 기능 창이 닫힌다 — 원본도 겹쳐 썼다는 알림 뒤에 차림표로 안 돌아온다.
+        if (Save(menu.Window ?? view, game)) menu.Close();
+    }
 
     /// <summary>
     /// 시설 창 없이 저장한다 — 물음과 알림만 그 창 위에 낸다.
@@ -52,13 +55,15 @@ internal static class GameSystemMenu
     /// 자택 「기능 → 저장」이 밟는 차례와 같다. V 글쇠가 이 자리를 곧바로 부른다
     /// (<see cref="ShipMapWindow.SaveByKey"/>).
     /// </remarks>
-    public static void Save(Window owner, Engine.Game game)
+    /// <returns>적기까지 갔는지(물음에 YES 를 골랐는지).</returns>
+    public static bool Save(Window owner, Engine.Game game)
     {
-        if (!ConfirmDialog.Ask(owner, "데이터를 겹쳐 쓰겠습니다. 좋습니까?")) return;
+        if (!ConfirmDialog.Ask(owner, "데이터를 겹쳐 쓰겠습니다. 좋습니까?")) return false;
 
         string error = game.Save();
         ConfirmDialog.Tell(owner, error.Length == 0 ? "데이터를 겹쳐 썼습니다"
                                                     : $"기록하지 못했다 — {error}");
+        return true;
     }
 
     /// <summary>
