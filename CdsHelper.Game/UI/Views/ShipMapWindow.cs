@@ -1649,6 +1649,8 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreMateBook(saved.MateBook);
             if (saved.Fatigue is { } tired) _game.Player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _game.Player.SetDaysAtSea(atSea);
+            // 서 있던 해상재해. 판 27 앞의 세이브에는 없어 없는 채로 연다.
+            if (saved.Ailments is { } ail) _game.Player.SetAilments(ail);
             // 밝힌 바다. 판 21 앞의 세이브에는 없어 빈 채로 시작한다.
             _game.Player.Explored.Restore(saved.Explored);
             // 아내와 후손. 판 22 앞의 세이브에는 없어 홀로 시작한다.
@@ -1781,7 +1783,13 @@ public sealed class ShipMapWindow : Window
         }
         else if (_host.IsNearLand())
         {
-            items.Add(("상륙", () => { if (_host.Land()) _game.Bgm.Play(BgmPlayer.LandTrack); Close(); }));
+            items.Add(("상륙", () =>
+            {
+                bool landed = _host.Land();
+                if (landed) _game.Bgm.Play(BgmPlayer.LandTrack);
+                Close();
+                if (landed) EndVoyage();                 // 상륙하면 쥐·병이 풀린다
+            }));
         }
 
         items.Add(("정보", () => CommandMenu.Push(InfoMenuBox)));
@@ -2036,6 +2044,8 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void EnterCity(int city)
     {
+        // 마을에 닿으면 항해가 끝난다 — 쥐·병이 풀리고 부관이 알린다.
+        EndVoyage();
         if (_asking) return;
 
         _askedCity = city;
@@ -2185,7 +2195,28 @@ public sealed class ShipMapWindow : Window
             Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
             PassSeaMorale();
             CheckSeaEvent();
+
+            // 서 있는 재해가 날마다 해를 끼친다 — 쥐는 식량을, 병은 선원을(0x00474DA0).
+            SeaEvents.Ail(_game.Player, _game.Random);
         }
+    }
+
+    /// <summary>
+    /// 항해가 끝났다 — 상륙하거나 마을에 들었다. 서 있던 재해가 풀리고 항해일수가 0 이 된다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 항해일수(<c>0x005A4D40</c>)와 재해 비트(<c>0x005B39FC</c>)를 늘 함께 0 으로 둔다.
+    /// 그중 <c>0x0048E5E0</c> 은 풀기 전에 서 있던 재해마다 부관이 한 줄씩 말한다.
+    /// 세 자리 가운데 어느 것이 상륙·입항인지는 아직 이름표를 안 붙여, 둘 다 말하게 둔다.
+    /// </remarks>
+    private void EndVoyage()
+    {
+        var player = _game.Player;
+        var was = player.CureAilments();
+        player.SetDaysAtSea(0);
+
+        foreach (string line in SeaEvents.CureWords(was))
+            ConfirmDialog.Tell(this, line, face: MateFace());
     }
 
     /// <summary>
@@ -2916,25 +2947,27 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
-            ConfirmDialog.Tell(this, Encounter.GreetOf(foe, rng), Encounter.TitleOf(foe.Kind));
+            // 조우의 말은 모두 한 사람이 한다 — 부관, 없으면 뱃사람(0x004555BC 가 처음에 집는다).
+            var face = MateFace();
+            ConfirmDialog.Tell(this, Encounter.GreetOf(foe, rng), Encounter.TitleOf(foe.Kind), face);
 
             int pick = ChoiceDialog.Ask(this, Encounter.TitleOf(foe.Kind), Encounter.Choices);
             switch (pick)
             {
-                case 0 when Talked(foe, rng): return;       // 교섭이 되면 그대로 끝난다
+                case 0 when Talked(foe, rng, face): return;  // 교섭이 되면 그대로 끝난다
                 case 1:
                     // 게임도 굴리고 나서 동전을 돌린다(0x00455B8D → 0x00455B98) — 멎은 쪽이 곧 결과다.
                     bool fled = Encounter.Escapes(_game.Player, foe, rng);
                     EffectPopup.PlayCoin(this, _game, fled, MapAreaOnScreen());
                     if (fled)
                     {
-                        ConfirmDialog.Tell(this, Encounter.FledWord(rng), "도망성공");
+                        ConfirmDialog.Tell(this, Encounter.FledWord(rng), "도망성공", face);
                         return;
                     }
-                    ConfirmDialog.Tell(this, Encounter.CaughtWord(rng), "도망실패");
+                    ConfirmDialog.Tell(this, Encounter.CaughtWord(rng), "도망실패", face);
                     break;
                 case 2:
-                    ConfirmDialog.Tell(this, Encounter.FightOnWord(rng), "응전");
+                    ConfirmDialog.Tell(this, Encounter.FightOnWord(rng), "응전", face);
                     break;
             }
 
@@ -2949,7 +2982,7 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>교섭 한 판. 돈을 물어 물러가면 true.</summary>
-    private bool Talked(in Enemy foe, Random rng)
+    private bool Talked(in Enemy foe, Random rng, uint[]? face)
     {
         // 추격대·토벌대는 말이 안 통한다(0x0045585C) — 굴림 없이 진 동전이 돈다(0x00455860).
         // 통하는 적이면 굴리고 나서 동전을 돌린다(0x004559C2 → 0x004559CD).
@@ -2958,25 +2991,25 @@ public sealed class ShipMapWindow : Window
         EffectPopup.PlayCoin(this, _game, heard, MapAreaOnScreen());
         if (!heard)
         {
-            ConfirmDialog.Tell(this, Encounter.NoWordsWord(rng), "교섭");
+            ConfirmDialog.Tell(this, Encounter.NoWordsWord(rng), "교섭", face: face);
             return false;
         }
 
         int want = Encounter.Demand(foe);
-        if (!ConfirmDialog.Ask(this, Encounter.DemandWord(want, rng), "교섭"))
+        if (!ConfirmDialog.Ask(this, Encounter.DemandWord(want, rng), "교섭", face: face))
         {
-            ConfirmDialog.Tell(this, Encounter.TalkFailedWord(rng), "교섭");
+            ConfirmDialog.Tell(this, Encounter.TalkFailedWord(rng), "교섭", face: face);
             return false;
         }
 
         if (_game.Player.Gold < want)
         {
-            ConfirmDialog.Tell(this, Encounter.TooPoorWord(rng), "교섭");
+            ConfirmDialog.Tell(this, Encounter.TooPoorWord(rng), "교섭", face: face);
             return false;
         }
 
         _game.Player.Pay(want);
-        ConfirmDialog.Tell(this, Encounter.PaidWord(rng), "교섭");
+        ConfirmDialog.Tell(this, Encounter.PaidWord(rng), "교섭", face: face);
         return true;
     }
 
@@ -3066,6 +3099,9 @@ public sealed class ShipMapWindow : Window
         };
         if (word.Length == 0) return false;
 
+        // 터진 재해는 함대에 남는다 — 항해가 끝날 때까지 날마다 해를 끼친다(0x004747FF 벌).
+        _game.Player.Afflict(SeaEvents.AilmentOf(kind));
+
         int toll = SeaEvents.TollOf(kind, _game.Random);
         if (toll > 0) _game.Player.SetCrew(_game.Player.Crew - toll);
         if (kind == SeaEventKind.Rats)
@@ -3096,14 +3132,25 @@ public sealed class ShipMapWindow : Window
         return true;
     }
 
-    /// <summary>부관 얼굴. 부관 자리가 비었거나 신상을 못 찾으면 null.</summary>
+    /// <summary>
+    /// 대원이 말하는 얼굴 — <b>부관이 있으면 부관, 없으면 뱃사람(MALE #299)</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 말 창 <c>0x00478280</c> 은 얼굴 <c>0x12B</c>(299)에서 시작해, 넘겨받은 사람이 제독 객체
+    /// (<c>0x005B60A0</c>)가 아니면 그 사람 얼굴로 바꾼다. 부르는 쪽은 <c>0x0047CC60(0, 1)</c> 로
+    /// 부관을 집고 없으면 제독 객체를 넘기므로, 부관이 없을 때 뱃사람 얼굴이 선다(볼트 81).
+    /// </remarks>
     private uint[]? MateFace()
     {
         string mate = _game.Player.MateAt(0);
-        if (mate.Length == 0) return null;
-        return _game.MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
-            ? _game.Faces?.TryGetBgra(who.Face, female: false) : null;
+        if (mate.Length > 0 && _game.MateInfo(mate) is { Face: >= 0 and < 0xFFFF } who
+            && _game.Faces?.TryGetBgra(who.Face, female: false) is { } face)
+            return face;
+        return _game.Faces?.TryGetBgra(SailorFace, female: false);
     }
+
+    /// <summary>부관이 없을 때 말하는 뱃사람 얼굴 번호(<c>0x00478280</c> 의 <c>0x12B</c>).</summary>
+    private const int SailorFace = 299;
 
     private void Mutiny()
     {
@@ -3378,6 +3425,7 @@ public sealed class ShipMapWindow : Window
         // 알리는 동안 배가 계속 가면 다음 칸에서 또 뜬다.
         _asking = true;
         _host.Paused = true;
+        bool over = false;
         try
         {
             // 사건이 도는 동안 지도가 파래진다.
@@ -3387,9 +3435,17 @@ public sealed class ShipMapWindow : Window
             // 아이템 · 발견까지. 카르낙 거석군(19번)은 열세 줄짜리다.
             if (!DisevRunner.Run(this, _game, id)) PlainNotice(row);
 
+            // 대본이 게임 오버(명령 4A)로 끝났으면 — 피라미드에서 성배 퍼즐에 지면 그렇다 —
+            // 발견을 적지 않고 놀이를 끝낸다. 반란에 졌을 때와 같은 차례다.
+            if (DisevRunner.LastEndedInGameOver)
+            {
+                over = true;
+                GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+            }
+
             // 대본이 발견을 안 적었으면(그 줄이 없거나 중간에 끊겼으면) 여기서 적는다.
             // 이미 적혔으면 -1 이 돌아와 아무 일도 없다.
-            int item = log.Discover(_game.Player, id);
+            int item = over ? -1 : log.Discover(_game.Player, id);
             if (item >= 0)
             {
                 string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
@@ -3405,6 +3461,9 @@ public sealed class ShipMapWindow : Window
             _host.Paused = false;
             _asking = false;
         }
+
+        // 창을 되돌리는 것은 try 밖에서 한다 — 안에서 하면 닫히는 창에 잠금을 풀게 된다.
+        if (over) ReturnToTitle();
     }
 
     /// <summary>
