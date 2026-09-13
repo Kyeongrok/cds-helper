@@ -44,15 +44,19 @@ internal static class SphinxQuizDialog
     /// <summary>
     /// 한 판 한다. 수수께끼를 틀리면 그 자리에서 쫓겨난다.
     /// </summary>
-    public static void Play(Window owner, Random rng)
+    /// <returns>
+    /// 끝까지 맞혀 칭송을 받았는지. 게임 <c>0x0047BFE0</c> 은 이때 1 을 내고, 발견 대본의
+    /// 미니게임 명령(<c>0E 04 01 00</c>)은 1 일 때만 이긴 것으로 친다(<c>0x00408D5E</c>).
+    /// </returns>
+    public static bool Play(Window owner, Random rng)
     {
         NoticeDialog.Show(owner,
             "〈스핑크스〉 아침에는 4개의 다리, 낮에는 2개의 다리." + Environment.NewLine +
             "밤에는 3개의 다리로 걷는 괴물은?", "스핑크스");
 
         int said = MapPointDialog.Ask(owner, SphinxQuiz.Riddle, "스핑크스");
-        if (said < 0) return;
-        if (said != SphinxQuiz.RiddleAnswer) { Away(owner); return; }
+        if (said < 0) return false;
+        if (said != SphinxQuiz.RiddleAnswer) { Away(owner); return false; }
 
         var quiz = new SphinxQuiz(rng);
         var lines = Enumerable.Range(1, SphinxQuiz.Choices).Select(n => $"{n}마리").ToList();
@@ -69,10 +73,10 @@ internal static class SphinxQuizDialog
             if (done.Value)
             {
                 NoticeDialog.Show(owner, "〈스핑크스〉 그대의 예지를 칭송하리라.", "스핑크스");
-                return;
+                return true;
             }
             Away(owner);
-            return;
+            return false;
         }
     }
 

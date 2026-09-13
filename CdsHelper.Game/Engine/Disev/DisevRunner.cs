@@ -82,6 +82,25 @@ public sealed class DisevRunner
     /// <summary>물고 있는 그림이 사건 스틸(EVSTILL)인지. 아니면 발견물 스틸(DSTILL)이다.</summary>
     private bool _pendingIsEvent;
 
+    /// <summary>
+    /// 마지막 미니게임을 이겼는지 — 게임 해석기의 <c>[ebp-0x1C]</c> 다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0E 04 [n]</c> 이 채우고(<c>0x00408D3A</c> 벌), 조건 <c>47</c> 이 읽는다(<c>0x0040B1C8</c>).
+    /// 기제의 3대 피라미드(파트 26)가 성배 퍼즐 뒤에 이 값으로 갈라진다 — 이기면 앵크를 얻고,
+    /// 지면 「왕릉을 침해한 죄를 죽음으로 대신해라!」 뒤 <c>4A</c>(게임 오버)다.
+    /// </remarks>
+    private bool _result;
+
+    /// <summary>
+    /// 마지막으로 돌린 대본이 <b>게임 오버</b>(<c>4A</c>)로 끝났는지. 부른 쪽이 보고 놀이를 끝낸다.
+    /// </summary>
+    /// <remarks>게임은 <c>0x0044AF40(0x5A4D18, 0)</c> 으로 놀이 상태를 끝으로 돌린다(<c>0x0040BDBA</c>).</remarks>
+    public static bool LastEndedInGameOver { get; private set; }
+
+    /// <summary>대본을 여기서 멈추라는 뜻으로 <see cref="Step"/> 이 내는 값.</summary>
+    private const int Stop = int.MinValue;
+
     private DisevRunner(Window owner, Game game)
     {
         _owner = owner;
@@ -96,6 +115,7 @@ public sealed class DisevRunner
     /// <param name="discoveryId">발견물 번호 = DISEV 파트 번호.</param>
     public static bool Run(Window owner, Game game, int discoveryId)
     {
+        LastEndedInGameOver = false;
         if (Open(game.Directory) is not { } book) return false;
         if (discoveryId < 0 || discoveryId >= book.Count) return false;
 
@@ -196,6 +216,7 @@ public sealed class DisevRunner
             if (op.Kind == "덩이/갈래 끝") return;
 
             int jump = Step(op);
+            if (jump == Stop) return;
             if (jump == 0) { i++; continue; }
 
             // 상대 이동은 <b>그 명령이 끝난 자리</b>에서 잰다.
@@ -281,11 +302,63 @@ public sealed class DisevRunner
             case "소지금 비교 분기":
                 return _game.Player.Gold < Field(6, 4) ? (int)(short)Field(10, 2) : 0;
 
+            // 미니게임 한 판 — 이겼는지를 들고 있다가 조건 47 이 읽는다.
+            case "미니게임":
+                _result = PlayMinigame((int)Field(2, 2));
+                return 0;
+
+            // 조건 47 은 「마지막 결과가 0 인가」라 <b>이겼으면 뛴다</b>(0x0040B1C8 → 0x0040BCF9).
+            case "예/아니오 응답 분기":
+                return _result ? (int)(short)Field(2, 2) : 0;
+
+            // 게임 오버 — 대본을 멈추고 부른 쪽에 알린다.
+            case "게임 오버":
+                LastEndedInGameOver = true;
+                return Stop;
+
+            // 결과 코드를 적고 대본을 끝낸다(0x0040BDD5 벌). 스핑크스에게 쫓겨나면 여기서 멎는다.
+            case "이벤트 결과 코드 0":
+            case "이벤트 결과 코드 1":
+            case "이벤트 결과 코드 2":
+                return Stop;
+
             // 외부 분기는 그 파일을 안 뜯어서 안 뛴다 — 다음 줄로 그냥 간다.
             case "STORY0.CDS 외 분기":
             case "STORY1.CDS 외 분기":
             default:
                 return 0;
+        }
+    }
+
+    /// <summary>
+    /// 미니게임 한 판(<c>0x00408D16</c> 의 뜀표). 이겼으면 true.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0  성배 퍼즐     0x004684D0   0 이 아니면 이김
+    ///   1  스핑크스 퀴즈 0x0047BFE0   1 이면 이김
+    ///   2  미궁 64       0x0042C8A0   (이 판에는 안 붙어 있다 — 이긴 것으로 친다)
+    ///   3  낚시          0x0047BDD0
+    ///   6  큐브 퍼즐     0x0049B3C0
+    /// </code>
+    /// 낚시·큐브는 창이 결과를 안 돌려줘 <b>이긴 것으로 친다</b> — 대본이 막히는 것보다 낫다.
+    /// </remarks>
+    private bool PlayMinigame(int game)
+    {
+        switch (game)
+        {
+            case 0:
+                return GrailPuzzleDialog.Play(_owner, _game.Player, _game.Random, _game.Sfx);
+            case 1:
+                return SphinxQuizDialog.Play(_owner, _game.Random);
+            case 3:
+                FishingGameDialog.Play(_owner, _game.Random);
+                return true;
+            case 6:
+                CubePuzzleDialog.Play(_owner, _game.Player, _game.Random);
+                return true;
+            default:
+                return true;
         }
     }
 
