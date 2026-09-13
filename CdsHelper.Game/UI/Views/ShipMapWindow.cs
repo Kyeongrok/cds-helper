@@ -449,7 +449,8 @@ public sealed class ShipMapWindow : Window
         var titleBar = ChromeTitleBar.Attach(this, out var hamburger,
             // 설정은 게임 띠에 두었다가 햄버거로 옮겼다 — 게임 띠에 없는 칸이라
             // 섞여 있으면 원본과 달라 보인다(개발 창을 옮긴 것과 같은 까닭이다).
-            ("설정", () => SettingsDialog.Show(this, _game.Bgm)),
+            // 지도 배율은 고르는 그 자리에서 지도에 먹인다.
+            ("설정", () => SettingsDialog.Show(this, _game.Bgm, s => _host.ApplyMapScale(s))),
             ("게임데이터", () => GameDataDialog.Show(this)),
             // 낯을 튼 여급과 그 궁합. 궁합은 초상화 번호 하나로 갈리는데 화면에서는
             // 볼 길이 없어 여기에 둔다.
@@ -1199,7 +1200,8 @@ public sealed class ShipMapWindow : Window
     /// 그쪽이 여기를 물고 있어서 반대로는 못 부른다. 띄우는 쪽(CdsHelper.Form)이
     /// 이 자리에 걸어 준다.
     /// </summary>
-    public static Action<Window, Random>? MazeGame { get; set; }
+    /// <remarks>돌파했으면 true 를 낸다 — 발견 대본(<c>0E 04 02</c>)이 그 결과로 갈라진다.</remarks>
+    public static Func<Window, Random, bool>? MazeGame { get; set; }
 
     // 일기토를 밖에서 걸어 주던 자리(DuelGame)는 걷었다 — 이제 PlayDuel 이 반란·해전이
     // 쓰는 그 판을 곧장 부른다. CdsHelper.Duel 의 옛 판은 아무도 안 부른다.
@@ -1236,7 +1238,7 @@ public sealed class ShipMapWindow : Window
             // 여기 아래 둘은 게임에 없는 줄이다 — 싸움 셈을 도시 없이 돌려 보려고
             // 뒤에 붙였다. 해전은 메인메뉴에 두었던 것을 이리로 옮겼다(원본 메인메뉴에
             // 없는 줄이라 거기 서 있으면 그만큼 게임이 아니게 된다).
-            "육상전 모의전", "해전 모의전",
+            "육상전 모의전", "모의해전",
         ];
 
         int pick = MapPointDialog.Ask(this, names, "미니 게임", MapPointDialog.MenuWidth);
@@ -1256,9 +1258,29 @@ public sealed class ShipMapWindow : Window
             case 6: CubePuzzleDialog.Play(this, _game.Player, _game.Random); break;
             case 7: PlayDuel(); break;
             case 8: LandSparDialog.Play(this, _game); break;
-            case 9: SeaCombatDialog.Play(this, _game.Player, _game.Random); break;
+            case 9: MockSeaBattle(); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
+    }
+
+    /// <summary>
+    /// 모의해전 — 바다에서 무리를 만나 <b>「응전한다」를 누른 것과 똑같이</b> 흘린다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CheckEncounter"/> 의 응전 갈래를 그대로 밟는다 — 무리 굴림 → 들어설 때의 말 →
+    /// 응전 말(부관, 없으면 뱃사람 얼굴) → 해전 판. 판의 바람은 함대 자리의 바다 바람이다
+    /// (<c>0x00441F1C</c>). 배가 없으면 해전 창이 연습용 카라벨 한 척을 띄운다.
+    /// </remarks>
+    private void MockSeaBattle()
+    {
+        var rng = _game.Random;
+        var foe = Encounter.Roll(rng);
+        var face = MateFace();
+
+        ConfirmDialog.Tell(this, Encounter.GreetOf(foe, rng), Encounter.TitleOf(foe.Kind), face);
+        ConfirmDialog.Tell(this, Encounter.FightOnWord(rng), "응전", face);
+        SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
+                              (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx);
     }
 
     /// <remarks>
@@ -1625,8 +1647,12 @@ public sealed class ShipMapWindow : Window
             if (!_host.Start(_game.Directory)) { _status.Text = _host.Status; return; }
             _host.ShowFlowArrows = GameSettings.ShowFlowArrows;
             _started = true;
-            _statusTimer.Start();
         }
+
+        // 상태 시계는 <b>들어올 때마다</b> 켠다. 타이틀로 돌아가면(ReturnToTitle) 멈추는데, 첫 판에서만
+        // 켜 두었더니 NEW GAME·불러오기로 다시 들어오면 위 띠가 앞 판 값(날짜·선원·물·식량)에 멈춰
+        // 있었고, 입항·날짜 흐름·발견 판정도 함께 섰다. 이미 돌고 있으면 다시 켜도 그대로다.
+        _statusTimer.Start();
 
         if (fresh)
         {
@@ -1651,6 +1677,9 @@ public sealed class ShipMapWindow : Window
             if (saved.DaysAtSea is { } atSea) _game.Player.SetDaysAtSea(atSea);
             // 서 있던 해상재해. 판 27 앞의 세이브에는 없어 없는 채로 연다.
             if (saved.Ailments is { } ail) _game.Player.SetAilments(ail);
+            // 대열과 배마다 승원(편성). 판 28 앞의 세이브에는 없어 대열 0 · 고르게 나눈 채로 연다.
+            if (saved.Formation is { } formation) _game.Player.SetFormation(formation);
+            _game.Player.SetCrewShares(saved.CrewShares);
             // 밝힌 바다. 판 21 앞의 세이브에는 없어 빈 채로 시작한다.
             _game.Player.Explored.Restore(saved.Explored);
             // 아내와 후손. 판 22 앞의 세이브에는 없어 홀로 시작한다.
@@ -1793,8 +1822,15 @@ public sealed class ShipMapWindow : Window
         }
 
         items.Add(("정보", () => CommandMenu.Push(InfoMenuBox)));
-        items.Add(("편성", null));
-        items.Add(("대열", null));
+        // 편성·대열은 바다에서만 있다(0x0048B3xx) — 뭍에 올라 있으면 줄이 없다.
+        // 대열은 배가 두 척 이상이어야 켜진다.
+        if (!_host.IsOnLand)
+        {
+            items.Add(("편성", () => { Close(); CrewShareDialog.Show(this, _game.Player); }));
+            items.Add(("대열", _game.Player.Ships.Count > 1
+                ? () => { Close(); FormationDialog.Show(this, _game.Player); }
+                : null));
+        }
         items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
         // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는
         // 방위를 바로 아는 편이 낫다 — 그래서 켜고 끌 수 있게 여기에 둔다.
@@ -2971,8 +3007,10 @@ public sealed class ShipMapWindow : Window
                     break;
             }
 
-            // 여기까지 오면 해전이다.
-            ConfirmDialog.Tell(this, "…(해전은 아직 옮기지 못했다. 적은 물러갔다.)");
+            // 여기까지 오면 해전이다 — 조우 함수가 0 을 돌려주면 부른 쪽이 판을 연다(볼트 47).
+            // 판의 풍향·세기는 함대 자리의 바다 바람에서 온다(0x00441F1C).
+            SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
+                                  (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx);
         }
         finally
         {
@@ -3527,7 +3565,9 @@ public sealed class ShipMapWindow : Window
         _game.Bgm.Play(track);
         SetInCity(true);          // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
         _game.Player.EnterCity(city, name);
-        PassPortDays();           // 들어가는 데 열흘
+        // 들어가는 데 열흘 — 다만 새 판은 이미 자택 안에서 시작하므로 날을 안 보낸다.
+        // 게임도 새 판은 1월 1일에 자택 명령 창이 떠 있다. 여기서 열흘을 보내 1월 11일이 되었었다.
+        if (!enterHome) PassPortDays();
         // 새 판은 자택 안에서 시작한다 — 게임도 판을 열면 자택 명령 창이 이미 떠 있다.
         if (enterHome) dialog.EnterHome();
         dialog.Closed += (_, _) =>
@@ -3539,7 +3579,9 @@ public sealed class ShipMapWindow : Window
             if (dialog.Sailed && _host.IsOnLand) _host.PlaceAtCity(city);
 
             // 성문으로 나섰으면 뭍에 올라 말로 걷는다 — 곡도 뭍 것으로 바뀐다.
-            bool walking = dialog.Explored && _host.Land();
+            // 이미 뭍에 서 있으면(말로 걸어 들어온 마을이면) Land() 는 거짓을 낸다 — 그때도 걷는
+            // 것이다. 예전에는 그 거짓을 그대로 받아 성문으로 나섰는데 출항 곡이 돌았다.
+            bool walking = dialog.Explored && (_host.IsOnLand || _host.Land());
             _game.Bgm.Play(walking ? BgmPlayer.LandTrack : BgmPlayer.SeaTrack);
             _host.Paused = false;
             _asking = false;

@@ -102,7 +102,12 @@ public sealed class DiscoveryDialog : GameWindow
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        var stack = new StackPanel { Width = MinWidth_ };
+        // 해설(제목 띠가 붙는 것)은 게임도 넓게 편다 — 한 줄이 예순두 칸쯤이다.
+        bool comment = !string.IsNullOrEmpty(title);
+        var stack = new StackPanel
+        {
+            Width = comment ? CommentCells * CellWidth + SidePad * 2 + EdgeThickness * 2 : MinWidth_,
+        };
 
         // 해설은 여러 줄이라 왼쪽에 붙이고, 발견 알림은 한 줄이라 가운데다.
         var lines = Wrap(text, stack.Width - SidePad * 2);
@@ -141,7 +146,7 @@ public sealed class DiscoveryDialog : GameWindow
         stack.Children.Add(new Border
         {
             Background = GameUi.Back,
-            BorderBrush = GameUi.Edge,
+            BorderBrush = PanelEdge,
             BorderThickness = new Thickness(EdgeThickness),
             Padding = new Thickness(SidePad, TopPad, SidePad, BottomPad),
             Child = below,
@@ -259,6 +264,15 @@ public sealed class DiscoveryDialog : GameWindow
 
     /// <summary>그림이 없을 때의 글 칸 너비. 게임 알림창의 가장 좁은 폭이다.</summary>
     private const double MinWidth_ = 272;
+
+    /// <summary>해설 한 줄의 칸 수. 게임 갈무리의 창 폭(확인 단추와 견주어 약 517점)에서 잰 값이다.</summary>
+    private const int CommentCells = 62;
+
+    /// <summary>
+    /// 알림 칸의 테. 공용 테(<see cref="GameUi.Edge"/>)는 거의 검정인데 게임 것은 밝은 회갈색이다 —
+    /// 물음창(<see cref="ConfirmDialog"/>)과 같은 빛이다.
+    /// </summary>
+    private static readonly Brush PanelEdge = Frozen(Color.FromRgb(0x9B, 0x8D, 0x7D));
 
     /// <summary>글자 한 칸 — 한글 한 자가 두 칸이다.</summary>
     private const double CellWidth = 8;

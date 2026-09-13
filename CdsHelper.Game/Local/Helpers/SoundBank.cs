@@ -71,6 +71,15 @@ public sealed class SoundBank : IDisposable
     /// </remarks>
     public const int ClashPart = 72 - WaveBank.FirstSoundId;
 
+    /// <summary>
+    /// 아래 띠에 말을 넣을 때 나는 소리 — <b>사운드 ID 0x1D</b>, 곧 파트 1 이다.
+    /// </summary>
+    /// <remarks>
+    /// 띠 말 넣기 <c>0x0040E0A0</c> 이 <c>0x004225A0(0x1D, 0)</c> 을 부른다. 펼친 책의
+    /// 「%s의 지식이 필요합니다」 가 이 소리와 같이 뜬다. 띠를 비우는 <c>0x0040E0C0</c> 은 소리가 없다.
+    /// </remarks>
+    public const int BandNoticePart = 0x1D - WaveBank.FirstSoundId;
+
     private readonly WaveBank _bank;
     private readonly SoundPlayer _player = new();
 

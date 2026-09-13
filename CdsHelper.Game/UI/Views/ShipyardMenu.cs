@@ -96,7 +96,8 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
                 continue;
             }
 
-            MoviePlayer.Play(owner, MovieOf(hull));
+            // 동영상은 넘겨받은 창을 가득 채운다 — 명령 창(작다)이 아니라 맨 위 게임 창을 덮는다.
+            MoviePlayer.Play(GameUi.RootOf(owner), MovieOf(hull));
 
             string name = ShipNameDialog.Ask(owner, _player.SuggestShipName(), mustName: true)!;
             _player.Buy(hull, name, price);

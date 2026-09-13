@@ -17,6 +17,9 @@ public sealed class GameSettingsData
 
     /// <summary>배경음악·효과음의 크기(0~100). 기본은 다 크게.</summary>
     public int BgmVolume { get; set; } = GameSettings.MaxVolume;
+
+    /// <summary>해상 지도 배율(0.5~1.5, 0.25 칸). 기본 0.75 — 원본 크기에 맞춘 값이다.</summary>
+    public double MapScale { get; set; } = GameSettings.DefaultMapScale;
     public int SfxVolume { get; set; } = GameSettings.MaxVolume;
 
     /// <summary>게임 창 단추의 좌우 여백(점).</summary>
@@ -283,6 +286,23 @@ public static class GameSettings
         get => Get(d => d.SfxEnabled);
         set => Set(d => d.SfxEnabled = value);
     }
+
+    /// <summary>해상 지도 배율의 아래·위·기본과 한 칸.</summary>
+    public const double MinMapScale = 0.5, MaxMapScale = 1.5, DefaultMapScale = 0.75, MapScaleStep = 0.25;
+
+    /// <summary>
+    /// 해상 지도를 얼마나 크게 그릴지(0.5~1.5, 0.25 칸). 1 이 예전 크기(한 점에 1/32 칸)이고,
+    /// 원본 화면에 맞춘 기본은 0.75(1/24 칸)다.
+    /// </summary>
+    public static double MapScale
+    {
+        get => Snap(Get(d => d.MapScale));
+        set => Set(d => d.MapScale = Snap(value));
+    }
+
+    /// <summary>배율을 0.25 칸에 맞추고 범위 안으로 자른다.</summary>
+    private static double Snap(double scale) =>
+        Math.Clamp(Math.Round(scale / MapScaleStep) * MapScaleStep, MinMapScale, MaxMapScale);
 
     /// <summary>
     /// 게임 창 단추의 좌우 여백(점).

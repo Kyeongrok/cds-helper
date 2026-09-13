@@ -19,8 +19,11 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal sealed class SkillSheetDialog : InfoDialog
 {
-    /// <summary>판 크기. 두 칸이 들어가야 해서 인물정보보다 넓다.</summary>
-    private const double BoardWidth = 424, BoardHeight = 322;
+    /// <summary>
+    /// 판 크기. 폭은 두 칸 줄(44칸 = 352점)에 맞춘다 — 게임 갈무리는 오른쪽 여백이 왼쪽만큼만
+    /// 남는다. 424 로 두었더니 값 칸 오른쪽이 휑하게 비었다.
+    /// </summary>
+    private const double BoardWidth = 356, BoardHeight = 322;
 
     /// <summary>
     /// 이름을 채우는 칸 수와 자릿수. 이름이 길어도 값이 세로로 맞게 못 박는다.

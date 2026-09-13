@@ -78,6 +78,9 @@ internal static class TownMenu
             // 술집 주인이 계약한 것의 실마리를 준다 — 술을 한잔 사야 입을 연다.
             TownWork.Info => screen.HearInfo,
 
+            // 포카는 유럽 세 문화권 술집에서만 줄이 산다 — 나머지는 회색 줄이다(0x0042FB00).
+            TownWork.Treat when screen.CanPlayPoker => screen.PlayPoker,
+
             // 함대편성은 그 안의 네 줄이 다 막히면 저도 흐려진다.
             TownWork.FleetForm when screen.CanFormFleet => screen.OpenFleetForm,
             TownWork.CityInfo => screen.ShowPortCityInfo,

@@ -66,7 +66,7 @@ internal sealed class MapPointDialog : GameWindow
         Content = new Border
         {
             Background = GameUi.MenuBack,
-            BorderBrush = GameUi.Edge,
+            BorderBrush = GameUi.MenuEdge,
             BorderThickness = new Thickness(1),
             Child = stack,
         };

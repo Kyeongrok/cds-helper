@@ -81,7 +81,7 @@ internal sealed class GameMenu : Border
         }
 
         Background = GameUi.MenuBack;
-        BorderBrush = GameUi.Edge;
+        BorderBrush = GameUi.MenuEdge;
         BorderThickness = new Thickness(BoxEdge);
         Padding = new Thickness(BoxPad);
         Child = stack;
@@ -187,7 +187,7 @@ internal sealed class GameMenu : Border
         return GameUi.TitleFrame(GameUi.Sprites, title) ?? new Border
         {
             Background = GameUi.MenuBack,
-            BorderBrush = GameUi.Edge,
+            BorderBrush = GameUi.MenuEdge,
             BorderThickness = new Thickness(2),
             Padding = new Thickness(18, 2, 18, 2),
             Child = new TextBlock

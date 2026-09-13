@@ -79,10 +79,13 @@ public sealed class BuildingPhotoWindow : GameWindow
     /// 손님에 커서를 올리면 발치에 뜨는 이름표. 세이브에서 그 술집에 앉힌 인물이면 그 이름을,
     /// 지나가는 손님이면 성별("남"·"여")을 낸다 — 게임이 그렇게 가른다.
     /// </summary>
+    /// <remarks>
+    /// 건물 이름표처럼 덩굴 띠를 두르지 않는다 — 게임 것은 짙은 판에 밝은 한 점 테를 두른
+    /// 민 이름표다(<see cref="GameUi.HoverTag"/>).
+    /// </remarks>
     private static void AddTag(Canvas canvas, Image guest, string name, double centerX, double bottom)
     {
-        var tag = GameUi.NameTag(name);
-        tag.IsHitTestVisible = false;
+        var (tag, _) = GameUi.HoverTag(name);
         Panel.SetZIndex(tag, 10);
         canvas.Children.Add(tag);
 

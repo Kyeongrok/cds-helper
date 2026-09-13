@@ -117,6 +117,55 @@ internal sealed class PersonInfoDialog : InfoDialog
               new GameButton("특기", () => ShowSkills(who.Name)), new GameButton("취소", Close));
     }
 
+    /// <summary>
+    /// 술집에서 「부하로 고용한다」를 눌렀을 때의 판 — 단추가 <b>특기 · 결정 · 중단</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0046DBC0(인물, 1)</c> 이다. 결정(id 0)만 참을 내고, 특기(id 2)는 특기 창을
+    /// 띄운 뒤 이 판으로 돌아온다.
+    /// </remarks>
+    private PersonInfoDialog(in HireSheet who, uint[]? face)
+    {
+        var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+        head.Children.Add(BlackLine($"  {who.Name}"));
+        head.Children.Add(BlackLine($"  체  력/{who.Body,4}"));
+        head.Children.Add(BlackLine($"  지  력/{who.Mind,4}"));
+        head.Children.Add(BlackLine($"  무  력/{who.Might,4}    직업  /{who.Job}"));
+        head.Children.Add(BlackLine($"  매  력/{who.Charm,4}"));
+
+        var top = new StackPanel { Orientation = Orientation.Horizontal };
+        if (Face(face) is { } portrait) top.Children.Add(portrait);
+        top.Children.Add(head);
+
+        var rows = new StackPanel();
+        rows.Children.Add(top);
+        rows.Children.Add(Gap(14));
+        rows.Children.Add(BlackLine($"  연령  /{who.Age,2}세"));
+        rows.Children.Add(BlackLine($"  별자리/{GameUi.Pad(who.Zodiac, 12)}혈액형  /{who.Blood}"));
+        rows.Children.Add(BlackLine($"  국적  /{who.Nation}"));
+
+        string name = who.Name;
+        Build("", rows, BoardWidth, BoardHeight,
+              new GameButton("특기", () => ShowSkills(name)),
+              new GameButton("결정", () => { _decided = true; Close(); }),
+              new GameButton("중단", Close));
+    }
+
+    private bool _decided;
+
+    /// <summary>술집 인물 판에 적는 것.</summary>
+    public readonly record struct HireSheet(string Name, int Body, int Mind, int Might, int Charm,
+                                            int Age, string Job, string Zodiac, string Blood,
+                                            string Nation);
+
+    /// <summary>술집 인물 판을 열고 <b>결정</b>을 눌렀는지 낸다.</summary>
+    public static bool AskHire(Window owner, in HireSheet who, uint[]? face)
+    {
+        var dialog = new PersonInfoDialog(who, face) { Owner = owner };
+        dialog.ShowDialog();
+        return dialog._decided;
+    }
+
     /// <summary>이 판의 글 한 줄 — 검정 글씨다.</summary>
     private static GameUi.GameLabel BlackLine(string text) => Label(text, BlackInk);
 

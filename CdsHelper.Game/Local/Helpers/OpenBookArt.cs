@@ -11,8 +11,12 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 게임도 그림 번호 <c>n</c> 을 파트 <c>n+3</c> 으로 바꿔 읽는다(<c>0x00463FE0</c>).
 /// <code>
 ///   파트 0   204바이트  68색 팔레트 — 책 틀과 삽화가 쓴다(밑동 74)
-///   파트 1    48바이트  16색 — 누런 종이(밑동 144)
-///   파트 2    48바이트  16색 — 흰 종이(밑동 160)
+///   파트 1    48바이트  16색 — 밑동 160
+///   파트 2    48바이트  16색 — 밑동 144
+/// </code>
+/// 밑동은 <c>0x00465120</c> 이 파트마다 박아 둔 값이다. 예전에는 파트 1 을 144 에, 파트 2 를
+/// 160 에 얹어 <b>두 종이 색이 뒤바뀌어</b> 나왔다.
+/// <code>
 ///   파트 3~   그림 33장. 크기는 EXE 표 0x005528A8 (8바이트 x 33) 에 적혀 있다
 /// </code>
 ///
@@ -53,6 +57,20 @@ public sealed class OpenBookArt
     /// <summary>삽화가 없을 때 쓰는 낱장 — 누런 종이 벌이다.</summary>
     public const int LeftPage = 6, RightPage = 10;
 
+    /// <summary>
+    /// 흰 종이 벌(<c>0x00464D5D</c>) — 왼쪽은 삽화 없음 2 · 세로 삽화 3 · 가로 삽화 4, 오른쪽은 9.
+    /// </summary>
+    public const int WhiteLeft = 2, WhiteLeftTall = 3, WhiteLeftWide = 4, WhiteRight = 9;
+
+    /// <summary>누런 종이 벌 — 왼쪽 6 · 7 · 8, 오른쪽 10. 찾아서 보고까지 한 힌트의 면이다.</summary>
+    public const int YellowLeft = 6, YellowLeftTall = 7, YellowLeftWide = 8, YellowRight = 10;
+
+    /// <summary>모서리 단추 그림 — 오른쪽(다음장) 11, 왼쪽(앞장) 12. 16x16 이다.</summary>
+    public const int NextCorner = 11, PreviousCorner = 12;
+
+    /// <summary>삽화 첫 그림. 힌트 줄 <c>+0x10</c> 의 값(0~19)을 더한다.</summary>
+    public const int FirstIllustration = 13, IllustrationCount = 20;
+
     /// <summary>그림마다의 크기. EXE 표(<c>0x005528A8</c>)에서 그대로 옮겼다.</summary>
     private static readonly (int W, int H)[] Sizes =
     [
@@ -68,8 +86,11 @@ public sealed class OpenBookArt
         (240, 160), (240, 160), (240, 160),
     ];
 
-    /// <summary>제 팔레트가 얹히는 첫 색인 셋. 파트 0·1·2 차례다.</summary>
-    private static readonly int[] Bases = [74, 144, 160];
+    /// <summary>
+    /// 제 팔레트가 얹히는 첫 색인 셋. 파트 0·1·2 차례다(<c>0x00465120</c>) —
+    /// 파트 1 이 160, 파트 2 가 144 로 <b>차례가 오르지 않는다</b>.
+    /// </summary>
+    private static readonly int[] Bases = [74, 160, 144];
 
     private readonly Ls12Reader _archive;
     private readonly byte[]?[] _palettes = new byte[]?[3];
@@ -105,8 +126,8 @@ public sealed class OpenBookArt
     /// 그림 한 장을 BGRA 로 푼다. 못 풀면 null.
     /// </summary>
     /// <remarks>
-    /// 팔레트는 <b>쓰는 색인을 보고</b> 고른다 — 책 틀과 삽화는 74 부터, 누런 종이는
-    /// 144 부터, 흰 종이는 160 부터라 서로 겹치지 않는다.
+    /// 팔레트는 <b>쓰는 색인을 보고</b> 고른다 — 책 틀과 삽화는 74 부터(파트 0), 144 부터는
+    /// 파트 2, 160 부터는 파트 1 이라 서로 겹치지 않는다.
     /// </remarks>
     public uint[]? TryGetBgra(int picture)
     {
@@ -121,7 +142,10 @@ public sealed class OpenBookArt
         {
             byte lowest = 255;
             for (int i = 0; i < w * h; i++) lowest = Math.Min(lowest, idx[i]);
-            int which = lowest < Bases[1] ? 0 : lowest < Bases[2] ? 1 : 2;
+            // 가장 작은 색인이 든 구간의 파트 — 밑동이 가장 크면서 그 색인 이하인 것.
+            int which = 0;
+            for (int p = 1; p < Bases.Length; p++)
+                if (lowest >= Bases[p] && Bases[p] > Bases[which]) which = p;
             int start = Bases[which];
             var pal = _palettes[which] ??= _archive.Decode(which);
 

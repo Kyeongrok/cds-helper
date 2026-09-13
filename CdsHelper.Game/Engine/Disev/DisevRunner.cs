@@ -280,8 +280,14 @@ public sealed class DisevRunner
                 return 0;
 
             case "발견물 등록/발견 처리":
-                _game.Player.Discover((int)Field(2, 2));
+            {
+                // 해석기는 <c>01 0B</c> 만 보고 이 명령으로 친다 — 다른 자료 속에 우연히 든 두 바이트도
+                // 걸린다. 스톤헨지 대본의 0x129 자리(「01 0B 0A 95」)가 그래서 발견물 38154 로 적혔다.
+                // 게임 명령은 발견물 274칸 가운데 하나만 켜므로 표에 없는 번호는 버린다.
+                int id = (int)Field(2, 2);
+                if (_game.Discoveries?.Table.Find(id) != null) _game.Player.Discover(id);
                 return 0;
+            }
 
             case "금화 증가":
                 _game.Player.Earn((int)Field(2, 4));
@@ -351,9 +357,14 @@ public sealed class DisevRunner
                 return GrailPuzzleDialog.Play(_owner, _game.Player, _game.Random, _game.Sfx);
             case 1:
                 return SphinxQuizDialog.Play(_owner, _game.Random);
+            // 미궁은 딴 어셈블리(CdsHelper.Maze)라 띄우는 쪽이 걸어 둔 자리로 부른다.
+            // 게임은 돌파 보상을 치른 갈래에서만 결과 1 을 박는다(0x0042B154) — 덫·실패·포기는 0.
+            // 걸려 있지 않으면 대본이 막히지 않게 이긴 것으로 친다.
+            case 2:
+                return UI.Views.ShipMapWindow.MazeGame?.Invoke(_owner, _game.Random) ?? true;
+            // 낚시는 대어일 때만 이긴 것이다(0x0047AD6C).
             case 3:
-                FishingGameDialog.Play(_owner, _game.Random);
-                return true;
+                return FishingGameDialog.Play(_owner, _game.Random);
             case 6:
                 CubePuzzleDialog.Play(_owner, _game.Player, _game.Random);
                 return true;

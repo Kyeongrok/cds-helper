@@ -34,6 +34,22 @@ public sealed class PersonMoveDialog : GameWindow
 
     private readonly ComboBox _view = new() { Width = 180, VerticalAlignment = VerticalAlignment.Center };
 
+    /// <summary>도시 거르개. 첫 줄 「전체」 뒤로 도시가 선다 — 줄의 Tag 가 도시 번호다.</summary>
+    private readonly ComboBox _city = new() { Width = 160, VerticalAlignment = VerticalAlignment.Center };
+
+    /// <summary>「보기」에서 「모두」의 자리.</summary>
+    private const int ViewAll = 2;
+
+    /// <summary>상태 갈래 — 거르개 칸의 차례와 같다.</summary>
+    private enum State { Sailing, Script, Event, Hidden, Fixed, Resting, Ready }
+
+    /// <summary>상태 거르개 칸 이름.</summary>
+    private static readonly string[] StateNames =
+        ["항해 중", "대본", "이벤트 인물", "나오지 않음", "갈래 2 안 움직임", "쉬는 중", "떠날 수 있음"];
+
+    /// <summary>상태 거르개. 기본은 「나오지 않음」만 끈다.</summary>
+    private readonly CheckBox[] _states = new CheckBox[StateNames.Length];
+
     private readonly DataGrid _grid = new()
     {
         AutoGenerateColumns = false,
@@ -75,8 +91,23 @@ public sealed class PersonMoveDialog : GameWindow
         Col("갈래", nameof(Row.Kind), 60);
 
         foreach (var name in Views) _view.Items.Add(name);
-        _view.SelectedIndex = 0;
+        _view.SelectedIndex = ViewAll;
         _view.SelectionChanged += (_, _) => Rebuild();
+
+        // 도시는 기본이 지금 들어와 있는 도시다. 바다 위에서는 고를 도시가 없어 모두 보인다.
+        int here = game.Player.CityId;
+        _city.Items.Add(new ComboBoxItem { Content = "전체", Tag = -1 });
+        for (int id = 0; id < PersonTable.CityCount; id++)
+        {
+            string name = game.CityName(id);
+            if (string.IsNullOrEmpty(name)) continue;
+            var item = new ComboBoxItem { Content = name, Tag = id };
+            _city.Items.Add(item);
+            if (id == here) _city.SelectedItem = item;
+        }
+        if (_city.SelectedItem == null) _city.SelectedIndex = 0;
+        _city.IsEnabled = here >= 0;
+        _city.SelectionChanged += (_, _) => Rebuild();
         _grid.SelectionChanged += (_, _) => ShowDetail();
 
         var bar = new StackPanel
@@ -92,8 +123,39 @@ public sealed class PersonMoveDialog : GameWindow
                     VerticalAlignment = VerticalAlignment.Center,
                 },
                 _view,
+                new TextBlock
+                {
+                    Text = "도시:",
+                    Margin = new Thickness(16, 0, 6, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+                _city,
             },
         };
+
+        // 상태는 여럿을 함께 고른다.
+        var stateBar = new WrapPanel { Margin = new Thickness(10, 0, 10, 4) };
+        stateBar.Children.Add(new TextBlock
+        {
+            Text = "상태:",
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        for (int i = 0; i < StateNames.Length; i++)
+        {
+            _states[i] = new CheckBox
+            {
+                Content = StateNames[i],
+                IsChecked = i != (int)State.Hidden,
+                Margin = new Thickness(0, 2, 14, 2),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            _states[i].Checked += (_, _) => Rebuild();
+            _states[i].Unchecked += (_, _) => Rebuild();
+            stateBar.Children.Add(_states[i]);
+        }
+
+        var top = new StackPanel { Children = { bar, stateBar } };
 
         var side = new ScrollViewer
         {
@@ -108,9 +170,9 @@ public sealed class PersonMoveDialog : GameWindow
         split.Children.Add(_grid);
 
         var page = new DockPanel();
-        DockPanel.SetDock(bar, Dock.Top);
+        DockPanel.SetDock(top, Dock.Top);
         DockPanel.SetDock(_status, Dock.Bottom);
-        page.Children.Add(bar);
+        page.Children.Add(top);
         page.Children.Add(_status);
         page.Children.Add(split);
         Content = page;
@@ -165,6 +227,12 @@ public sealed class PersonMoveDialog : GameWindow
             };
             if (!show) continue;
 
+            // 도시를 골랐으면 그 도시에 앉은 사람과 그리로 가는 사람만 둔다.
+            int city = _city.IsEnabled && _city.SelectedItem is ComboBoxItem { Tag: int c } ? c : -1;
+            if (city >= 0 && person.City != city && !(onRoad && person.Dest == city)) continue;
+
+            if (_states[(int)StateKind(person, active, onRoad)].IsChecked != true) continue;
+
             string to = person.Dest == PersonWorld.SpotDest ? "발견물 자리" : CityOf(person.Dest);
             string left = _world.DaysLeft(person) is { } days ? $"{days}일" : "";
             string kind = person.Kind >= 0 && person.Kind < KindNames.Length
@@ -187,6 +255,18 @@ public sealed class PersonMoveDialog : GameWindow
     private static bool Movable(PersonTable.Row person, bool active) =>
         person.Id < PersonTable.VoyagerCount
         || (active && person.Id < PersonTable.MovingEnd && person.Kind != 2);
+
+    /// <summary>상태 갈래 — <see cref="StateOf"/> 와 같은 차례로 가른다.</summary>
+    private static State StateKind(PersonTable.Row person, bool active, bool onRoad)
+    {
+        if (onRoad) return State.Sailing;
+        if (person.Id < PersonTable.VoyagerCount) return State.Script;
+        if (person.Id >= PersonTable.MovingEnd) return State.Event;
+        if (!active) return State.Hidden;
+        if (person.Kind == 2) return State.Fixed;
+        if (person.Wait < 0) return State.Resting;
+        return State.Ready;
+    }
 
     private string StateOf(PersonTable.Row person, bool active, bool onRoad)
     {
