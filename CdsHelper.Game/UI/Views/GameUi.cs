@@ -1156,16 +1156,11 @@ internal static class GameUi
             Content = content,
         };
 
-        var thumb = new Border
-        {
-            Background = ItemFill,
-            BorderBrush = ItemEdge,
-            BorderThickness = new Thickness(1),
-            Width = ScrollWidth,
-            Cursor = Cursors.Hand,
-        };
-        var trough = new Canvas { Background = MenuBack, Width = ScrollWidth };
+        var thumb = ThumbBevel();
+        var trough = new Canvas { Background = TroughFill, Width = ScrollWidth };
         trough.Children.Add(thumb);
+        trough.Children.Add(new Border { Background = TroughEdge, Width = 1 });
+        trough.SizeChanged += (_, _) => ((Border)trough.Children[1]).Height = trough.ActualHeight;
 
         var bar = new Grid { Width = ScrollWidth, Margin = new Thickness(2, 0, 0, 0) };
         bar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -1228,6 +1223,56 @@ internal static class GameUi
         host.Children.Add(view);
         host.Children.Add(bar);
         return host;
+    }
+
+    private static readonly Brush TroughFill = Frozen(0x39, 0x29, 0x29);
+    private static readonly Brush TroughEdge = Frozen(0x63, 0x53, 0x4E);
+
+    /// <summary>
+    /// 손잡이 결 — 바깥에서 안으로 한 점씩. 왼쪽·위는 밝고 오른쪽·아래는 어둡다.
+    /// 원본 갈무리에서 뜬 색이다(면 #DECEBD, 오른쪽 끝은 거의 검정).
+    /// </summary>
+    private static readonly (Brush Brush, bool Light)[] ThumbRings =
+    [
+        (Frozen(0x13, 0x12, 0x10), false),
+        (Frozen(0xA5, 0x94, 0x88), true),
+        (Frozen(0x47, 0x40, 0x3A), false),
+        (Frozen(0xF7, 0xF6, 0xF5), true),
+        (Frozen(0x78, 0x6D, 0x62), false),
+        (Frozen(0xEE, 0xE6, 0xDE), true),
+        (Frozen(0xA7, 0x97, 0x87), false),
+    ];
+
+    private static readonly Brush ThumbFace = Frozen(0xDE, 0xCE, 0xBD);
+
+    private static Brush Frozen(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// 게임 굴림대 손잡이. 윈도 단추처럼 한 겹 테가 아니라, 밝은 줄과 어두운 줄이 번갈아
+    /// 겹겹이 들어가 도드라져 보인다.
+    /// </summary>
+    private static Border ThumbBevel()
+    {
+        Border inner = new() { Background = ThumbFace };
+        for (int i = ThumbRings.Length - 1; i >= 0; i--)
+        {
+            var (brush, light) = ThumbRings[i];
+            inner = new Border
+            {
+                BorderBrush = brush,
+                BorderThickness = light ? new Thickness(1, 1, 0, 0) : new Thickness(0, 0, 1, 1),
+                Child = inner,
+            };
+        }
+        inner.Width = ScrollWidth;
+        inner.Cursor = Cursors.Hand;
+        inner.Background = ThumbFace;
+        return inner;
     }
 
     /// <summary>굴림대 끝의 화살표 한 칸. 조각이 없으면 빈 칸이다.</summary>

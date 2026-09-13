@@ -130,37 +130,56 @@ public sealed class UiSprites
     private readonly uint[]? _digitsBgra;
 
     /// <summary>
-    /// 계산기 글쇠 열일곱 장(32x24). <c>asset/ui/misc-06.png</c> 의 <b>y 1080</b> 부터
-    /// 스물넷씩 이어 붙어 있다.
+    /// 계산기 조각 한 파트(MISC.CDS 파트 6) 통째 — 픽셀 50,112 개를 파일 차례 그대로 든다.
     /// </summary>
     /// <remarks>
-    /// 차례는 <c>0 1 2 3 4 5 6 7 8 9 00 000 AC DEL MAX MIN CAN-CEL</c> 이다. 그림에서
-    /// 글쇠 얼굴(밝은 베이지)이 뜨는 줄을 재면 <c>1084 · 1108 · 1132 …</c> 로 스물넷씩
-    /// 고르게 떨어져 그 앞 넉 점을 테두리로 두고 잘랐다. <b>ENTER 는 이 벌에 없다</b> —
-    /// 가로로 긴 글쇠라 띠 단추로 그린다.
+    /// <b>조각마다 폭이 다르다.</b> 게임은 이 파트를 이렇게 나눠 쓴다(<c>0x00463750</c>).
+    /// <code>
+    ///   0      ~ 0x8700   판 바탕 160x216   돌무늬 틀과 위 표시줄
+    ///   0x8700 + k*768    글쇠 32x24 열일곱  0 1 2 3 4 5 6 7 8 9 00 000 AC DEL MAX MIN CAN-CEL
+    ///   0xBA00            ENTER 104x24
+    /// </code>
+    /// <c>asset/ui/misc-06.png</c> 는 이 파트를 <b>폭 32 로 감아</b> 뽑은 것이라(32x1566) 판과
+    /// ENTER 는 줄무늬로 보이지만 픽셀 차례는 그대로다 — 오프셋으로 다시 자르면 제 그림이 된다.
+    /// 예전에는 글쇠만 오려 쓰고 판은 밤색 틀로, ENTER 는 띠 단추로 지어 원본과 딴판이었다.
     /// </remarks>
     private readonly uint[]? _padBgra;
 
     /// <summary>계산기 글쇠 한 장의 크기와 장수.</summary>
     public const int PadWidth = 32, PadHeight = 24, PadCount = 17;
 
-    /// <summary>글쇠가 시작하는 줄과 그 그림의 온 높이. <c>misc-06.png</c> 안의 자리다.</summary>
-    private const int PadTop = 1080, PadStripHeight = 1566;
+    /// <summary>계산기 판 바탕과 ENTER 의 크기.</summary>
+    public const int PanelWidth = 160, PanelHeight = 216, EnterWidth = 104;
+
+    /// <summary>파트 안에서 글쇠와 ENTER 가 시작하는 픽셀 차례.</summary>
+    private const int KeyOffset = PanelWidth * PanelHeight,                  // 0x8700
+                      EnterOffset = KeyOffset + PadWidth * PadHeight * PadCount; // 0xBA00
+
+    /// <summary>파트 온 크기 — <c>misc-06.png</c> 가 32 폭으로 감아 둔 높이다.</summary>
+    private const int PadStripWidth = 32, PadStripHeight = 1566;
 
     /// <summary>글쇠 차례에서의 번호.</summary>
     public const int PadDoubleZero = 10, PadTripleZero = 11, PadClear = 12,
                      PadBack = 13, PadMost = 14, PadLeast = 15, PadCancel = 16;
 
-    /// <summary>계산기 글쇠 그림이 있는지.</summary>
+    /// <summary>계산기 조각이 있는지.</summary>
     public bool HasPad => _padBgra != null;
 
     /// <summary>글쇠 한 장을 BGRA 로. 없거나 번호가 밖이면 null.</summary>
-    public uint[]? Pad(int at)
-    {
-        if (_padBgra == null || at < 0 || at >= PadCount) return null;
+    public uint[]? Pad(int at) =>
+        at < 0 || at >= PadCount ? null : Slice(KeyOffset + at * PadWidth * PadHeight, PadWidth * PadHeight);
 
-        var made = new uint[PadWidth * PadHeight];
-        Array.Copy(_padBgra, at * made.Length, made, 0, made.Length);
+    /// <summary>계산기 판 바탕 160x216 을 BGRA 로. 없으면 null.</summary>
+    public uint[]? Panel() => Slice(0, PanelWidth * PanelHeight);
+
+    /// <summary>ENTER 글쇠 104x24 를 BGRA 로. 없으면 null.</summary>
+    public uint[]? Enter() => Slice(EnterOffset, EnterWidth * PadHeight);
+
+    private uint[]? Slice(int offset, int length)
+    {
+        if (_padBgra == null || offset + length > _padBgra.Length) return null;
+        var made = new uint[length];
+        Array.Copy(_padBgra, offset, made, 0, length);
         return made;
     }
 
@@ -285,22 +304,15 @@ public sealed class UiSprites
     /// 그 색과 정확히 같은 픽셀만 지운다.
     /// </summary>
     /// <summary>
-    /// <c>asset/ui/misc-06.png</c> 에서 계산기 글쇠 열일곱 장을 오려 이어 붙인다.
+    /// <c>asset/ui/misc-06.png</c> 를 통째로 읽는다 — 계산기 판·글쇠·ENTER 가 한 파트에 있다.
     /// </summary>
     /// <remarks>
-    /// 그 그림은 세로로 긴 띠(32 x 1566)라 통째로 읽고 <see cref="PadTop"/> 부터
-    /// 잘라 쓴다. 짧거나 없으면 null 이고, 그때는 계산기가 띠 단추로 물러선다.
+    /// 그 그림은 파트를 폭 32 로 감은 띠(32 x 1566)라 크기를 따지고 픽셀 차례 그대로 든다.
+    /// 조각은 <see cref="Panel"/> · <see cref="Pad"/> · <see cref="Enter"/> 가 오프셋으로 자른다.
+    /// 짧거나 없으면 null 이고, 그때는 계산기가 띠 단추로 물러선다.
     /// </remarks>
-    private static uint[]? LoadPadAsset()
-    {
-        // 띠 전체 높이는 그림에 딸린 값이라 여기 못 박는다 — 크기가 안 맞으면 안 쓴다.
-        var whole = LoadPiecePng(AssetPath("misc-06.png"), PadWidth, PadStripHeight);
-        if (whole == null) return null;
-
-        var made = new uint[PadWidth * PadHeight * PadCount];
-        Array.Copy(whole, PadTop * PadWidth, made, 0, made.Length);
-        return made;
-    }
+    private static uint[]? LoadPadAsset() =>
+        LoadPiecePng(AssetPath("misc-06.png"), PadStripWidth, PadStripHeight);
 
     private static uint[]? LoadDigitAsset()
     {

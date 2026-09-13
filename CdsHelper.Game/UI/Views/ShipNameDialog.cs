@@ -90,12 +90,12 @@ public sealed class ShipNameDialog : GameWindow
         var stack = new StackPanel();
         stack.Children.Add(title);
         stack.Children.Add(Framed(top, new Thickness(4, 4, 4, 0)));
-        stack.Children.Add(Framed(new ScrollViewer
+        // 윈도 굴림대 대신 게임 굴림대(화살표 조각 + 도드라진 손잡이)를 단다.
+        stack.Children.Add(Framed(new Border
         {
             Height = 300,
             Width = 300,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = list,
+            Child = GameUi.Scroller(list, 300),
         }, new Thickness(4, 4, 4, 0)));
         stack.Children.Add(buttons);
 
