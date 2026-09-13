@@ -40,28 +40,38 @@ internal sealed class AbilityMakeDialog : InfoDialog
     /// <summary>게임 갈무리에 이 화면들에는 닫기(X)가 없다.</summary>
     protected override bool ShowClose => false;
 
-    /// <summary>판과 단추 줄의 여백. 게임 것이 훨씬 촘촘하다.</summary>
-    protected override Thickness BoardPad => new(8, 6, 8, 2);
+    /// <summary>판을 원본 좌표 그대로 캔버스에 짓는다 — 여백은 테(8점)가 다 맡는다.</summary>
+    protected override Thickness BoardPad => new(0);
 
-    protected override Thickness ButtonPad => new(0, 2, 8, 6);
-
-    /// <summary>아래 단추의 폭과 사이. 게임 것은 마구리 둘에 가운데 두 칸(48)이다.</summary>
-    private const double FootWidth = 48;
-
-    private static readonly Thickness FootGap = new(3, 0, 0, 0);
+    protected override Thickness ButtonPad => new(0);
 
     /// <remarks>
-    /// <b>폭은 속에 든 것에 딱 맞춘다.</b> 왼쪽 줄(이름 48 · 값 28 · 화살표 둘)과 오른쪽
-    /// 직업 단추를 더한 만큼이다 — 남겨 두면 직업 단추 오른쪽에 빈자리가 생겨, 아래
-    /// "취소·다음" 과 오른쪽 끝이 안 맞는다(둘 다 판 오른쪽 끝에 붙기 때문이다).
+    /// 원본 창은 <b>288x208</b>(<c>0x0045D6ED</c>, 테 포함)이다. 자리는 창 <b>속</b>(<c>[창+0x54]</c>,
+    /// 테 8점 안쪽)에서 잰 값이라 그대로 캔버스 좌표가 된다 — 캔버스는 272x192 다.
+    /// 계약 정보 창(<c>0x0047F1E0</c>)으로 맞춰 봤다: 제목이 속 (0,8) 인데 갈무리에서 창 끝으로부터
+    /// 8점 안쪽에 있다.
+    /// <code>
+    ///   0x0045F009  이름·값 "%-6s%4d"   (8, 16 + 24i)        반각 8점 — 값은 x=88 에서 끝난다
+    ///   0x0045D75D  위 화살표 16x16      (104, 16 + 24i)      ID 0x15 + 2i
+    ///   0x0045D7B3  아래 화살표          (120, 16 + 24i)      ID 0x16 + 2i
+    ///   0x0045D829  직업 단추 96x24      (168, 16 + 32k)      고른 것 무늬 1, 나머지 2
+    ///   0x0045F0C1  보너스 상자 128x32   (8, 144)             "보너스" (8,144) · "포인트:%4d" (24,160)
+    ///   0x0045BE13  취소·다음 48x24      창 오른쪽 아래에서 (112,40) · (64,40)
+    /// </code>
     /// </remarks>
-    private const double BoardWidth = 210, BoardHeight = 172;
+    private const double BoardWidth = 272, BoardHeight = 192;
 
-    /// <summary>능력치 줄의 이름 칸과 값 칸.</summary>
-    private const double NameWidth = 48, ValueWidth = 28;
+    /// <summary>원본 좌표에서 뺄 값. 원본 자리가 이미 테 안쪽 기준이라 0 이다.</summary>
+    private const double Frame = 0;
 
-    /// <summary>값 옆 화살표 단추의 폭. 직업 단추는 마구리 둘에 가운데 여섯 칸이다.</summary>
-    private const double ArrowWidth = 13, JobWidth = 80;
+    /// <summary>게임 반각 한 칸.</summary>
+    private const double Cell = 8;
+
+    /// <summary>줄 사이(능력치 24 · 직업 32)와 첫 줄 자리.</summary>
+    private const double RowStep = 24, JobStep = 32, FirstRow = 16;
+
+    /// <summary>화살표 칸 폭(조각을 못 읽었을 때만 쓴다)과 직업·아래 단추 폭.</summary>
+    private const double ArrowWidth = 16, JobWidth = 96, FootWidth = 48;
 
     private readonly int _age;
 
@@ -101,87 +111,71 @@ internal sealed class AbilityMakeDialog : InfoDialog
             : Ability.Roll(Job.Of(_job), _age, player.BirthMonth, player.BirthDay, rng);
         _left = again ? spare : Ability.BonusFor(_stats, rng);
 
-        var left = new StackPanel { Margin = new Thickness(6, 0, 0, 0) };
+        var body = new Canvas { Width = BoardWidth, Height = BoardHeight };
+
         for (int i = 0; i < Ability.Shown; i++)
         {
             int which = i;
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
-            row.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
-            {
-                Text = Ability.Names[i],
-                Bold = false,
-                FallbackBrush = Ink,
-                Width = NameWidth,
-                HorizontalAlignment = HorizontalAlignment.Left,
-            });
-            // 값은 오른쪽에 맞춘다 — 한 자리와 두 자리가 섞여도 화살표 자리가 안 흔들린다.
-            _values[i] = new GameUi.GameLabel(GameFont.WhiteColor)
-            {
-                Bold = false,
-                FallbackBrush = Ink,
-                HorizontalAlignment = HorizontalAlignment.Right,
-            };
-            row.Children.Add(new Grid { Width = ValueWidth, Children = { _values[i] } });
+            double y = FirstRow + i * RowStep;
+
+            // "%-6s%4d" — 이름 여섯 칸 뒤에 값 네 칸을 오른쪽으로 맞춘다.
+            Put(body, Text(Ability.Names[i]), 8, y);
+            _values[i] = Text("");
+            _values[i].HorizontalAlignment = HorizontalAlignment.Right;
+            Put(body, new Grid { Width = 4 * Cell, Children = { _values[i] } }, 8 + 6 * Cell, y);
+
             // 게임은 화살표 둘을 세로로 쌓지 않고 나란히 놓는다.
-            row.Children.Add(Arrow(up: true, () => Move(which, +1)));
-            row.Children.Add(Arrow(up: false, () => Move(which, -1)));
-            left.Children.Add(row);
+            Put(body, Arrow(up: true, () => Move(which, +1)), 104, y);
+            Put(body, Arrow(up: false, () => Move(which, -1)), 120, y);
         }
 
-        left.Children.Add(new Border
+        // 보너스 상자는 글씨보다 먼저 깐다 — 글씨가 테 위에 올라앉는다(원본도 테에 붙어 있다).
+        Put(body, new Border
         {
             BorderBrush = Ink,
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 14, 5, 0),
-            Padding = new Thickness(3, 1, 3, 1),
-            Child = Bonus(),
-        });
+            Width = 128,
+            Height = 32,
+        }, 8, 144);
+        Put(body, Text("보너스"), 8, 144);
+        Put(body, Text("포인트:"), 24, 160);
+        Put(body, new Grid { Width = 4 * Cell, Children = { _bonus } }, 24 + 7 * Cell, 160);
 
-        var right = new StackPanel { Margin = new Thickness(14, 1, 0, 0) };
         for (int i = 0; i < Job.Choosable; i++)
         {
             int pick = i;
-            var cell = new GameButton(Job.All[i].Name, () => ChooseJob(pick), BandStyle.Button, JobWidth);
-            cell.Margin = new Thickness(0, 2, 0, 2);
+            var cell = new GameButton(Job.All[i].Name, () => ChooseJob(pick), BandStyle.Button, JobWidth)
+            {
+                Margin = new Thickness(0),
+            };
             _jobs.Add(cell);
-            right.Children.Add(cell);
+            Put(body, cell, 168, FirstRow + i * JobStep);
         }
 
-        var body = new DockPanel { LastChildFill = false };
-        DockPanel.SetDock(left, Dock.Left);
-        body.Children.Add(left);
-        DockPanel.SetDock(right, Dock.Left);
-        body.Children.Add(right);
+        Put(body, new GameButton("취소", Close, width: FootWidth) { Margin = new Thickness(0) }, 288 - 112, 208 - 40);
+        Put(body, new GameButton("다음", Next, width: FootWidth) { Margin = new Thickness(0) }, 288 - 64, 208 - 40);
 
-        Build("", body, BoardWidth, BoardHeight,
-              new GameButton("취소", Close, width: FootWidth) { Margin = FootGap }, new GameButton("다음", Next, width: FootWidth) { Margin = FootGap });
+        Build("", body, BoardWidth, BoardHeight);
 
         Sync();
     }
 
-    /// <summary>보너스 포인트 상자 — 게임처럼 두 줄로 적는다.</summary>
-    private UIElement Bonus()
+    /// <summary>원본 창 좌표(테 포함)로 캔버스에 놓는다.</summary>
+    private static void Put(Canvas canvas, UIElement element, double x, double y)
     {
-        var stack = new StackPanel();
-        stack.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
-        {
-            Text = "보너스",
-            Bold = false,
-            FallbackBrush = Ink,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        });
-        var line = new StackPanel { Orientation = Orientation.Horizontal };
-        line.Children.Add(new GameUi.GameLabel(GameFont.WhiteColor)
-        {
-            Text = "  포인트:",
-            Bold = false,
-            FallbackBrush = Ink,
-        });
-        _bonus.MinWidth = ValueWidth;
-        line.Children.Add(_bonus);
-        stack.Children.Add(line);
-        return stack;
+        Canvas.SetLeft(element, x - Frame);
+        Canvas.SetTop(element, y - Frame);
+        canvas.Children.Add(element);
     }
+
+    /// <summary>판 위의 밝은 글씨 한 줄.</summary>
+    private static GameUi.GameLabel Text(string text) => new(GameFont.WhiteColor)
+    {
+        Text = text,
+        Bold = false,
+        FallbackBrush = Ink,
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
 
     /// <summary>
     /// 위·아래 화살표. 게임 조각(<c>MISC.CDS</c> 파트 3)을 그대로 건다 —
@@ -191,7 +185,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
     {
         if (GameUi.GameIcon(up ? UiSprites.IconUp : UiSprites.IconDown) is { } art)
         {
-            art.Margin = new Thickness(1, 0, 0, 0);
+            art.Margin = new Thickness(0);
             art.Cursor = Cursors.Hand;
             art.VerticalAlignment = VerticalAlignment.Center;
             Hold(art, run);
@@ -205,7 +199,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
             BorderBrush = GameUi.ItemEdge,
             BorderThickness = new Thickness(1),
             Width = ArrowWidth,
-            Margin = new Thickness(1, 0, 0, 0),
+            Height = ArrowWidth,
             Cursor = Cursors.Hand,
             Child = new TextBlock
             {
