@@ -375,4 +375,19 @@ internal sealed class TowerPuzzleDialog : InfoDialog
 
         new TowerPuzzleDialog(planks.Value, rng) { Owner = owner }.ShowDialog();
     }
+
+    /// <summary>
+    /// 발견 대본이 판자 수를 정해 한 판 시킨다. 다 모았으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 대본 <c>0E 14|1A [u32 판자] 04 05 00</c> 이 <c>0x00431740(판자, 1)</c> 을 부른다 — 묻지 않는다.
+    /// 돌려준 값이 1 이어야 이긴 것이다(<c>0x00408E71</c>).
+    /// </remarks>
+    public static bool Play(Window owner, Random rng, int planks)
+    {
+        int count = Math.Clamp(planks, TowerPuzzle.LeastPlanks, TowerPuzzle.MostPlanks);
+        var dialog = new TowerPuzzleDialog(count, rng) { Owner = owner };
+        dialog.ShowDialog();
+        return dialog._game.Won;
+    }
 }

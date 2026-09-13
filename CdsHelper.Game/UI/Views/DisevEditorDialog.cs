@@ -60,6 +60,16 @@ public sealed class DisevEditorDialog : GameWindow
         Margin = new Thickness(4, 0, 10, 4),
     };
 
+    /// <summary>덩이 흐름도(<see cref="DisevFlowView"/>)가 들어앉는 자리.</summary>
+    private readonly ScrollViewer _flow = new()
+    {
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+    };
+
+    /// <summary>「표」와 「흐름도」 두 보기. 어느 쪽에서 골라도 아래 칸은 같은 명령을 잡는다.</summary>
+    private readonly TabControl _views = new() { Margin = new Thickness(4, 0, 10, 4) };
+
     /// <summary>고른 명령의 칸들이 들어앉는 자리.</summary>
     private readonly WrapPanel _form = new() { Margin = new Thickness(4, 2, 10, 2) };
 
@@ -97,7 +107,8 @@ public sealed class DisevEditorDialog : GameWindow
     /// <summary>지금 칸에 걸린 명령과 그 칸들.</summary>
     private DisevScript.Op? _op;
     private DisevForm.Field[] _fields = [];
-    private readonly List<TextBox> _boxes = [];
+    /// <summary>칸마다 지금 적힌 값을 읽는 것. 숫자가 아니면 null. 칸은 글상자이거나 고르는 상자다.</summary>
+    private readonly List<Func<long?>> _readers = [];
     private TextBox? _flagBox, _speakerBox, _textBox;
 
     public DisevEditorDialog()
@@ -166,7 +177,10 @@ public sealed class DisevEditorDialog : GameWindow
         right.Children.Add(_hex);
         right.Children.Add(hexLabel);
         right.Children.Add(formHost);
-        right.Children.Add(_ops);
+        _ops.Margin = new Thickness(0);
+        _views.Items.Add(new TabItem { Header = "표", Content = _ops });
+        _views.Items.Add(new TabItem { Header = "흐름도", Content = _flow });
+        right.Children.Add(_views);
 
         // 왼쪽 기둥 — 찾기 칸과 갈래 칸을 목록 위에 얹는다.
         _category.Items.Add(AllCategories);
@@ -413,6 +427,7 @@ public sealed class DisevEditorDialog : GameWindow
     private void ShowChunk()
     {
         _ops.ItemsSource = null;
+        _flow.Content = null;
         _hex.Clear();
         ClearForm();
         if (_part == null || _chunks.SelectedItem is not ChunkRow chunk) return;
@@ -430,6 +445,7 @@ public sealed class DisevEditorDialog : GameWindow
         }).ToList();
 
         _hex.Text = DisevScript.Hex(_part.Chunk(chunk.Start));
+        _flow.Content = DisevFlowView.Build(DisevFlow.Build(_part.Data, ops), PickOp);
 
         // 덩이 밖으로 뛰는 상대 이동이 있으면 길이를 바꿀 때 어긋난다 — 미리 일러 준다.
         int outside = ops.Count(op => op.Text.Contains("→ 파트 +0x") && !InsideChunk(op.Text, from, to));
@@ -437,6 +453,16 @@ public sealed class DisevEditorDialog : GameWindow
             ? $"덩이 +0x{chunk.Start:X4} — 명령 {ops.Count}개"
             : $"덩이 +0x{chunk.Start:X4} — 명령 {ops.Count}개, "
               + $"덩이 밖으로 뛰는 이동 {outside}개 있음 (길이를 바꾸면 어긋납니다)";
+    }
+
+    /// <summary>흐름도에서 누른 노드의 명령을 표에서 고른다 — 아래 칸이 그 명령으로 바뀐다.</summary>
+    private void PickOp(int offset)
+    {
+        if (_ops.ItemsSource is not List<OpRow> rows) return;
+        if (rows.FirstOrDefault(r => r.Op.Offset == offset) is not { } row) return;
+
+        _ops.SelectedItem = row;
+        _ops.ScrollIntoView(row);
     }
 
     private static bool InsideChunk(string text, int from, int to)
@@ -453,7 +479,7 @@ public sealed class DisevEditorDialog : GameWindow
     private void ClearForm()
     {
         _form.Children.Clear();
-        _boxes.Clear();
+        _readers.Clear();
         _flagBox = _speakerBox = _textBox = null;
         _fields = [];
         _op = null;
@@ -494,6 +520,19 @@ public sealed class DisevEditorDialog : GameWindow
         foreach (var field in _fields)
         {
             long value = DisevForm.Read(raw, field);
+            _form.Children.Add(new TextBlock
+            {
+                Text = field.Label,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 4, 0),
+            });
+
+            if (field.Kind == DisevForm.Lookup.Minigame)
+            {
+                _form.Children.Add(MinigamePicker(value));
+                continue;
+            }
+
             var box = new TextBox { Text = value.ToString(), Width = field.Width == 4 ? 92 : 64 };
             var hint = new TextBlock
             {
@@ -507,18 +546,42 @@ public sealed class DisevEditorDialog : GameWindow
             box.TextChanged += (_, _) =>
                 hint.Text = long.TryParse(box.Text, out long v) ? NameOf(captured, v) : "?";
 
-            _boxes.Add(box);
-            _form.Children.Add(new TextBlock
-            {
-                Text = field.Label,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 4, 0),
-            });
+            _readers.Add(() => long.TryParse(box.Text, out long v) ? v : null);
             _form.Children.Add(box);
             _form.Children.Add(hint);
         }
         _applyOp.IsEnabled = true;
     }
+
+    /// <summary>
+    /// 미니게임을 고르는 상자. 원본에 뜀표 밖 번호(4·5·7~)가 적혀 있으면 그 번호도 한 줄로 넣어
+    /// 고치지 않고 적용해도 날바이트가 안 바뀌게 한다.
+    /// </summary>
+    private ComboBox MinigamePicker(long value)
+    {
+        // 명령마다 부를 수 있는 놀이가 다르다 — 0E 04 는 코인·탑을 건너뛰고, 0E 14/1A 은 그 둘만 띄운다.
+        bool puzzle = _op?.Kind == "퍼즐 미니게임";
+        var choices = Enum.GetValues<DisevMinigame>()
+                          .Where(g => puzzle ? g.ByPuzzleCommand() : g.ByMinigameCommand())
+                          .Select(g => new MinigameChoice(g, $"{(int)g}  {g.Title()}"))
+                          .ToList();
+        if (!choices.Exists(c => (long)c.Value == value))
+            choices.Add(new MinigameChoice((DisevMinigame)value, $"{value}  {DisevScript.MinigameName((int)value)}"));
+
+        var picker = new ComboBox
+        {
+            ItemsSource = choices,
+            DisplayMemberPath = nameof(MinigameChoice.Text),
+            SelectedIndex = choices.FindIndex(c => (long)c.Value == value),
+            MinWidth = 180,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        _readers.Add(() => picker.SelectedItem is MinigameChoice c ? (long)c.Value : null);
+        return picker;
+    }
+
+    /// <summary>미니게임 고르는 상자의 한 줄. 바인딩은 속성만 읽으므로 튜플이 아니라 레코드다.</summary>
+    private sealed record MinigameChoice(DisevMinigame Value, string Text);
 
     /// <summary>칸 값 뒤에 붙는 이름 — 발견물·아이템·도시·능력치.</summary>
     private string NameOf(DisevForm.Field field, long value) => field.Kind switch
@@ -527,6 +590,8 @@ public sealed class DisevEditorDialog : GameWindow
         DisevForm.Lookup.Discovery => _names?.Find((int)value)?.Name ?? "",
         DisevForm.Lookup.Item => _items?.Find((int)value)?.Name ?? "",
         DisevForm.Lookup.City => _cities?.NameOf((int)value) ?? "",
+        DisevForm.Lookup.Minigame => DisevScript.MinigameName((int)value),
+        DisevForm.Lookup.Encounter => DisevScript.EncounterName((int)value),
         DisevForm.Lookup.Relative => _op is { } op ? $"→ 파트 +0x{op.Offset + op.Length + value:X}" : "",
         _ => "",
     };
@@ -600,9 +665,9 @@ public sealed class DisevEditorDialog : GameWindow
         else
         {
             replacement = RawOf(op);
-            for (int i = 0; i < _fields.Length && i < _boxes.Count; i++)
+            for (int i = 0; i < _fields.Length && i < _readers.Count; i++)
             {
-                if (!long.TryParse(_boxes[i].Text, out long value))
+                if (_readers[i]() is not { } value)
                 {
                     _status.Text = $"{_fields[i].Label}: 숫자가 아닙니다.";
                     return;

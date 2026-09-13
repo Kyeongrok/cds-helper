@@ -45,10 +45,14 @@ internal sealed class FishingGameDialog : InfoDialog
     /// </remarks>
     private const int Zoom = 2;
 
-    /// <summary>물빛 줄 자리. 그림에서 잰 것이다.</summary>
-    private const int GridX = 48, GridY = 63, Step = 40;
+    /// <summary>물빛 세로줄 자리. 그림에서 잰 것이다(첫 세로줄 x 48, 가로줄은 y 103 부터 40 마다).</summary>
+    /// <remarks>
+    /// 게임은 배경을 <c>(8, 0)</c> 에 찍는다(<c>0x0047AE06</c>). 그래서 아래 자리들은 모두
+    /// 게임이 그리는 자리에서 <b>x 만 8 을 뺀 값</b>이다. y 는 그대로다.
+    /// </remarks>
+    private const int Step = 40;
 
-    private const int BeastSize = 32, HookSize = 16, FishW = 32, FishH = 16;
+    private const int BeastSize = 32, HookSize = 16, FishW = 32, FishH = 16, BigW = 64, BigH = 32;
 
     /// <summary>한 틱에 얼마나 쉴지. 게임은 안 쉬고 그리는 대로 돈다.</summary>
     private static readonly TimeSpan TickTime = TimeSpan.FromMilliseconds(TickMs);
@@ -64,6 +68,7 @@ internal sealed class FishingGameDialog : InfoDialog
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
     private readonly Image _hook = new() { Width = HookSize, Height = HookSize };
     private readonly Image _boat = new() { Width = BeastSize, Height = BeastSize };
+    private readonly Image _bigOne = new() { Width = BigW, Height = BigH, IsHitTestVisible = false };
     private readonly Image[] _arrow = new Image[2];
 
     /// <summary>헤엄쳐 다니는 것 열 마리.</summary>
@@ -77,25 +82,28 @@ internal sealed class FishingGameDialog : InfoDialog
 
         Lay(Picture("fish-bg.png"), 0, 0, SceneWidth, SceneHeight);
 
-        // 바다 것들. 오징어와 낙지는 칸 가운데에 선다.
+        // 바다 것들 — 게임은 (칸*40+0x24, 줄*40+0x72) 에 찍는다(0x0047B1B2).
+        // 첫 가로줄(y 103) 밑이 0 줄이다. 그 위 물낯 띠에는 아무것도 없다.
         for (int at = 0; at < FishingGame.Cells; at++)
         {
             int what = _game.CellAt(at);
             if (what < FishingGame.Squid) continue;
 
             var art = Picture(what == FishingGame.Squid ? "fish-big-1.png" : "fish-big-2.png");
-            Lay(art, CellX(at % FishingGame.Columns) - BeastSize / 2,
-                CellY(at / FishingGame.Columns) - BeastSize / 2, BeastSize, BeastSize);
+            Lay(art, at % FishingGame.Columns * Step + 0x24 - 8,
+                at / FishingGame.Columns * Step + 0x72, BeastSize, BeastSize);
         }
 
-        // 대어는 바닥에, 제 칸에 눕는다.
-        Lay(Picture("fish-small-0.png"), CellX(_game.BigOneColumn) - FishW / 2,
-            GridY + FishingGame.Rows * Step + 14, FishW, FishH);
+        // 대어(실러캔스)는 바닥에 눕는다 — 64x32 를 (칸*40+0x29, 0x168) 에(0x0047B698).
+        Ready(_bigOne, Picture("fish-bigone.png"));
+        Canvas.SetLeft(_bigOne, _game.BigOneColumn * Step + 0x29 - 8);
+        Canvas.SetTop(_bigOne, FishingGame.FloorY);
+        Panel.SetZIndex(_bigOne, 20);
+        _scene.Children.Add(_bigOne);
 
-        // 배와 바늘.
+        // 배와 바늘. 배는 바늘을 따라 옆으로도 간다(0x0047AF7B, y 0x26).
         Ready(_boat, Picture("fish-big-0.png"));
-        Canvas.SetLeft(_boat, CellX(_game.DropColumn) - BeastSize / 2);
-        Canvas.SetTop(_boat, 32);   // 배는 물낯(y = 63) 위에 뜬다
+        Canvas.SetTop(_boat, 0x26);
         Panel.SetZIndex(_boat, 40);
         _scene.Children.Add(_boat);
 
@@ -168,12 +176,6 @@ internal sealed class FishingGameDialog : InfoDialog
 
         Sync();
     }
-
-    /// <summary>그 칸의 가운데 x — 물빛 세로 줄 자리다.</summary>
-    private static double CellX(int column) => GridX + column * Step;
-
-    /// <summary>그 줄의 가운데 y — 가로 줄 사이다.</summary>
-    private static double CellY(int row) => GridY + row * Step + Step / 2.0;
 
     private static void Ready(Image image, BitmapSource? art)
     {
@@ -277,10 +279,10 @@ internal sealed class FishingGameDialog : InfoDialog
             Close();
             return;
         }
-        Canvas.SetTop(_hook, _reeling - HookSize / 2.0);
+        Canvas.SetTop(_hook, _reeling);
 
         // 걸린 것도 함께 딸려 올라온다.
-        if (_catch != null) Canvas.SetTop(_catch, _reeling - FishH / 2.0);
+        if (_catch != null) Canvas.SetTop(_catch, _reeling + (HookSize - _catch.Height) / 2.0);
     }
 
     /// <summary>한 틱에 감아 올리는 깊이. 내려갈 때(한 틱에 1)보다 빠르다.</summary>
@@ -311,8 +313,13 @@ internal sealed class FishingGameDialog : InfoDialog
 
         // 바늘은 <b>사다리 위에서만</b> 간다 — 가로줄을 건널 때는 높이가 멎고,
         // 다 건넌 뒤에 세로줄을 내려간다(FishingGame.DrawX · DrawY).
-        Canvas.SetLeft(_hook, GridX + _game.DrawX - HookSize / 2.0);
-        Canvas.SetTop(_hook, _game.DrawY - HookSize / 2.0);
+        // 게임은 0x0047B6FE 에서 (x=[0xF4], y=[0xF8], 16, 16) 으로 찍는다 — [0xF4] 는 칸*40+0x2E 에서
+        // 시작해 건널 때 틱만큼 밀린다. 높이는 <b>그림 윗변</b>이라 바늘 고리가 줄 위에 놓인다.
+        Canvas.SetLeft(_hook, 0x2E - 8 + _game.DrawX);
+        Canvas.SetTop(_hook, _game.DrawY);
+
+        // 배도 바늘과 같이 옆으로 간다 — 칸*40+0x38 ± 틱(0x0047B0AC · 0x0047B0F0).
+        Canvas.SetLeft(_boat, 0x38 - 8 + _game.DrawX);
 
         // 걸린 순간, 무엇이 걸렸는지 붙잡아 둔다 — 감아 올릴 때 함께 딸려 온다.
         if (_catch == null && _game.Got != FishingGame.Catch.None) Hooked();
@@ -323,14 +330,17 @@ internal sealed class FishingGameDialog : InfoDialog
             var fish = _game.Fish[k];
             int col = fish.Cell % FishingGame.Columns;
             int row = fish.Cell / FishingGame.Columns;
-            double slide = _game.Started ? (fish.Way == 1 ? _game.Tick : -_game.Tick) : 0;
+            int tick = _game.Started ? _game.Tick : 0;
 
             // 머리가 가는 쪽을 본다. 벌 둘 가운데 <b>0 이 왼쪽</b>을 보므로(잉크가 왼쪽에
             // 몰려 있다) 오른쪽으로 가는 갈래 1 에는 <b>1</b> 을 걸어야 한다 —
             // 거꾸로 걸어 두어 지느러미 쪽으로 나아가고 있었다.
             _swim[k].Source = Picture($"fish-small-{fish.Kind * 2 + (fish.Way == 1 ? 1 : 0)}.png");
-            Canvas.SetLeft(_swim[k], CellX(col) + slide - FishW / 2.0);
-            Canvas.SetTop(_swim[k], CellY(row) - FishH / 2.0);
+            // 게임(0x0047B3A2): 오른쪽으로 가면 (칸*40+0x38−0x30+틱, 줄*40+0x68+0x10),
+            // 왼쪽으로 가면 (칸*40+0x38+0x0E−틱, 줄*40+0x68+0x0E). 가는 쪽마다 자리가 다르다.
+            bool right = fish.Way == 1;
+            Canvas.SetLeft(_swim[k], col * Step + 0x38 - 8 + (right ? tick - 0x30 : 0x0E - tick));
+            Canvas.SetTop(_swim[k], row * Step + 0x68 + (right ? 0x10 : 0x0E));
         }
     }
 
@@ -339,27 +349,35 @@ internal sealed class FishingGameDialog : InfoDialog
     /// </summary>
     private void Hooked()
     {
+        // 대어는 바닥에 누운 그 그림이 그대로 딸려 올라온다(0x0047B632 가 같은 [0x5691A4] 를 찍는다).
+        if (_game.Got == FishingGame.Catch.BigOne)
+        {
+            _catch = _bigOne;
+            Panel.SetZIndex(_catch, 80);
+            return;
+        }
+
         string? art = _game.Got switch
         {
             FishingGame.Catch.SquidCaught => "fish-big-1.png",
             FishingGame.Catch.OctopusCaught => "fish-big-2.png",
-            FishingGame.Catch.BigOne => "fish-small-0.png",
             FishingGame.Catch.SmallFry or FishingGame.Catch.SmallFryToo => "fish-small-0.png",
             _ => null,
         };
         if (art == null) return;
 
+        bool beast = _game.Got is FishingGame.Catch.SquidCaught or FishingGame.Catch.OctopusCaught;
         _catch = new Image
         {
             Source = Picture(art),
-            Width = FishW,
-            Height = FishH,
+            Width = beast ? BeastSize : FishW,
+            Height = beast ? BeastSize : FishH,
             IsHitTestVisible = false,
         };
         RenderOptions.SetBitmapScalingMode(_catch, GameUi.SpriteScaling);
         Panel.SetZIndex(_catch, 80);
-        Canvas.SetLeft(_catch, GridX + _game.DrawX - FishW / 2.0);
-        Canvas.SetTop(_catch, _game.DrawY - FishH / 2.0);
+        Canvas.SetLeft(_catch, 0x2E - 8 + _game.DrawX + (HookSize - _catch.Width) / 2.0);
+        Canvas.SetTop(_catch, _game.DrawY + (HookSize - _catch.Height) / 2.0);
         _scene.Children.Add(_catch);
     }
 

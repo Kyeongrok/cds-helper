@@ -265,6 +265,11 @@ public sealed class DisevRunner
                 PlaySound((int)Field(2, 2));
                 return 0;
 
+            // 00 0C [u16 n] — DISCOVER.CDS 파트 n 을 가운데에 틀고 돌아온다(0x00408429).
+            case "CG 애니메이션 재생" when op.Length == 4:
+                DiscoveryClipPlayer.Play(_owner, _game.Clips, (int)Field(2, 2));
+                return 0;
+
             // 그림은 바로 안 낸다 — 다음 대사와 한 창에 함께 낸다.
             case "DSTILL 이미지 재생":
                 _pendingStill = (int)Field(1, 2);
@@ -296,8 +301,11 @@ public sealed class DisevRunner
                 // 해석기는 <c>01 0B</c> 만 보고 이 명령으로 친다 — 다른 자료 속에 우연히 든 두 바이트도
                 // 걸린다. 스톤헨지 대본의 0x129 자리(「01 0B 0A 95」)가 그래서 발견물 38154 로 적혔다.
                 // 게임 명령은 발견물 274칸 가운데 하나만 켜므로 표에 없는 번호는 버린다.
+                // <b>발견과 그 물건은 이 명령만 준다</b> — 발견 판정 0x0048D3F0 은 대본을 돌린 뒤 결과
+                // 코드만 보고(0·1 이면 인스턴스 +0x17 비트 1) 발견을 따로 적지 않는다. 존왕의 술잔은
+                // 낚시에 지면 「놓쳤습니다」 뒤 4E 로 끝나 여기까지 안 온다. 물건 알림은 대본 대사가 한다.
                 int id = (int)Field(2, 2);
-                if (_game.Discoveries?.Table.Find(id) != null) _game.Player.Discover(id);
+                if (_game.Discoveries is { } log && log.Table.Find(id) != null) log.Discover(_game.Player, id);
                 return 0;
             }
 
@@ -361,13 +369,41 @@ public sealed class DisevRunner
                 return _game.Player.HasFound((int)Field(3, 2)) ? (int)(short)Field(5, 2) : 0;
             case "아이템 조건 분기":
                 return _game.Player.Items.Contains((int)Field(3, 2)) ? (int)(short)Field(5, 2) : 0;
+            // 00 1E [n] — 특수 조우 연출(0x004085D2). 지도 위에서 사건 애니메이션 장면을 튼다.
+            // 지도 창이 아닌 데서 돌면(개발 창 따위) 그릴 자리가 없어 건너뛴다. 8 넘으면 게임도 건너뛴다.
+            case "특수 조우 연출":
+            {
+                int n = (int)Field(2, 2);
+                if (n < DisevScript.Encounters.Length && _owner is UI.Views.ShipMapWindow map)
+                    map.PlayEventScene(DisevScript.Encounters[n].Scene);
+                return 0;
+            }
+
+            // 43 2C 1C 03 00 1A [금액] — 조건 2C 는 「소지금 < 금액」(0x0040A359)이고 43 은 조건이 <b>거짓일 때</b>
+            // 뛴다(0x0040BCF9). 곧 금액 <b>이상</b> 있으면 뛴다. 예전에는 거꾸로 모자랄 때 뛰었다.
             case "소지금 비교 분기":
-                return _game.Player.Gold < Field(6, 4) ? (int)(short)Field(10, 2) : 0;
+                return _game.Player.Gold >= Field(6, 4) ? (int)(short)Field(10, 2) : 0;
 
             // 미니게임 한 판 — 이겼는지를 들고 있다가 조건 47 이 읽는다.
             case "미니게임":
                 _result = PlayMinigame((int)Field(2, 2));
                 _hasResult = true;
+                return 0;
+
+            // 0E 14|1A [u32 판자] 04 [u16 n] — 코인 게임·발라몬의 탑(0x00408DF7). 가운데가 04 가 아니거나
+            // 번호가 4·5 가 아니면 아무것도 안 하고 결과도 안 건드린다.
+            case "퍼즐 미니게임" when Field(6, 1) == 0x04:
+                switch ((DisevMinigame)Field(7, 2))
+                {
+                    case DisevMinigame.Coin:
+                        _result = CoinPuzzleDialog.Play(_owner, _game.Random);
+                        _hasResult = true;
+                        break;
+                    case DisevMinigame.Tower:
+                        _result = TowerPuzzleDialog.Play(_owner, _game.Random, (int)Field(2, 4));
+                        _hasResult = true;
+                        break;
+                }
                 return 0;
 
             // 조건 47 은 「마지막 결과가 0 인가」라 <b>이겼으면 뛴다</b>(0x0040B1C8 → 0x0040BCF9).
@@ -408,25 +444,26 @@ public sealed class DisevRunner
     /// </remarks>
     private bool PlayMinigame(int game)
     {
-        switch (game)
+        switch ((DisevMinigame)game)
         {
-            case 0:
+            case DisevMinigame.Grail:
                 return GrailPuzzleDialog.Play(_owner, _game.Player, _game.Random, _game.Sfx);
-            case 1:
+            case DisevMinigame.Sphinx:
                 return SphinxQuizDialog.Play(_owner, _game.Random);
             // 미궁은 딴 어셈블리(CdsHelper.Maze)라 띄우는 쪽이 걸어 둔 자리로 부른다.
             // 게임은 돌파 보상을 치른 갈래에서만 결과 1 을 박는다(0x0042B154) — 덫·실패·포기는 0.
             // 걸려 있지 않으면 대본이 막히지 않게 이긴 것으로 친다.
-            case 2:
+            case DisevMinigame.Maze:
                 return UI.Views.ShipMapWindow.MazeGame?.Invoke(_owner, _game.Random) ?? true;
             // 낚시는 대어일 때만 이긴 것이다(0x0047AD6C).
-            case 3:
+            case DisevMinigame.Fishing:
                 return FishingGameDialog.Play(_owner, _game.Random);
-            case 6:
+            case DisevMinigame.Cube:
                 CubePuzzleDialog.Play(_owner, _game.Player, _game.Random);
                 return true;
+            // 4·5 와 7 넘는 번호는 뜀표가 곧장 다음 명령으로 간다 — 결과를 안 건드린다(0x0040C1B0).
             default:
-                return true;
+                return _result;
         }
     }
 
