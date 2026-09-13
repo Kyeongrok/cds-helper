@@ -1438,12 +1438,14 @@ public sealed class Player
     /// 새 배에 붙일 이름. 안 주면 <see cref="SuggestShipName"/> 이 골라 준다 —
     /// 조선소 창은 「선명입력」 에서 받은 것을 넘긴다.
     /// </param>
-    public PurchaseResult Buy(Hull hull, string? name = null)
+    /// <param name="price">치를 값. 안 주면 <see cref="Hull.Price"/> — 조선소는 시세를 먹인 값을 넘긴다.</param>
+    public PurchaseResult Buy(Hull hull, string? name = null, int? price = null)
     {
-        var can = CanBuy(hull);
-        if (can != PurchaseResult.Ok) return can;
+        int cost = price ?? hull.Price;
+        if (IsFleetFull) return PurchaseResult.FleetFull;
+        if (!CanAfford(cost)) return PurchaseResult.NotEnoughGold;
 
-        Gold -= hull.Price;
+        Gold -= cost;
         _ships.Add(new Ship(hull, name: string.IsNullOrWhiteSpace(name) ? SuggestShipName() : name.Trim()));
         return PurchaseResult.Ok;
     }
