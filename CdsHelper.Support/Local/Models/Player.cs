@@ -1277,7 +1277,8 @@ public sealed class Player
                              bool gunsInStats = true,
                              bool sailsInStats = true)
     {
-        static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name);
+        // 해전에서 빼앗은 코구·다우 따위는 조선소 선체에 없어 선체표에서 살린다.
+        static Hull? Find(string name) => Hull.All.FirstOrDefault(h => h.Name == name) ?? Hull.FromTableName(name);
 
         List<Ship> Build(IEnumerable<string> hulls, IReadOnlyList<int>? hps,
                          IReadOnlyList<Ship.Stats>? stats, IReadOnlyList<string>? names)
@@ -1331,6 +1332,28 @@ public sealed class Player
         if (index == Flagship) return false;
         RemoveShip(index);
         SetCrew(Crew);   // 배가 줄면 정원도 줄어 선원이 넘칠 수 있다
+        return true;
+    }
+
+    /// <summary>
+    /// 배 한 척을 함대에 들인다 — 해전 끝 「선박 편입」(<c>0x00473D50</c>). 꽉 찼으면 false.
+    /// </summary>
+    public bool Enlist(Ship ship)
+    {
+        if (IsFleetFull || _ships.Contains(ship)) return false;
+        _ships.Add(ship);
+        return true;
+    }
+
+    /// <summary>
+    /// 그 배를 함대에서 뺀다 — 해전에서 잃은 배·「선박 삭제」(<c>0x00473E30</c>). 마지막 한 척은 못 뺀다.
+    /// </summary>
+    /// <remarks>선원은 안 건드린다 — 부르는 쪽이 배마다의 몫과 함께 맞춘다.</remarks>
+    public bool Release(Ship ship)
+    {
+        int index = _ships.IndexOf(ship);
+        if (_ships.Count <= 1 || index < 0) return false;
+        RemoveShip(index);
         return true;
     }
 

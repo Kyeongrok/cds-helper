@@ -845,12 +845,14 @@ internal sealed class LandBattleScene : GameWindow
         var player = game.Player;
 
         int left = Math.Max(0, _battle.MenOn(foe: false) - 1) + spoils.Back;
-        player.SetCrew(left);
+        // 대본이 빌려 준 병력이면 함대 선원은 그대로다(LandBattle.KeepsCrew).
+        if (!_battle.KeepsCrew) player.SetCrew(left);
         if (spoils.Back > 0)
             NoticeDialog.Show(this, $"{spoils.Back}명의 부상병이 복귀했다", "");
 
         if (!won)
         {
+            if (!retreated) _battle.Wiped = true;
             if (!retreated) NoticeDialog.Show(this, "부대는 모두 쓰러졌다…", "");
             return;
         }

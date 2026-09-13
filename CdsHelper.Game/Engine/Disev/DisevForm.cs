@@ -96,7 +96,16 @@ public static class DisevForm
 
             case "인물 런타임 조건":
             case "후원자 런타임 조건":
+            case "인물 대화 갈래 설정":
                 return F(new Field("번호", 2, 2));
+
+            case "육상전(인물)":
+                return F(new Field("적 대장 인물", 2, 2));
+            case "육상전(도시)":
+                return F(new Field("도시", 2, 2, Lookup.City));
+
+            case "힌트 조건 분기":
+                return F(new Field("힌트", 3, 2), new Field("상대 이동", 5, 2, Lookup.Relative));
 
             case "이벤트 플래그 설정":
                 return F(new Field("플래그", 2, 2));
