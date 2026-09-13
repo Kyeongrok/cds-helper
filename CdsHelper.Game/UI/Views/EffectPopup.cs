@@ -21,8 +21,10 @@ namespace CdsHelper.Game.UI.Views;
 /// </remarks>
 internal sealed class EffectPopup : Window
 {
-    /// <summary>게임 점 하나를 몇 배로 그리는지. 지도 위 덧그림과 같은 2배다.</summary>
-    private const int Scale = 2;
+    /// <summary>
+    /// 게임 점 하나를 몇 배로 그리는지. 말 창·단추처럼 <b>1배</b>다 — 2배(160점)는 원본보다 훨씬 컸다.
+    /// </summary>
+    private const int Scale = 1;
 
     private static readonly TimeSpan CoinSpan = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan HeartSpan = TimeSpan.FromMilliseconds(140);

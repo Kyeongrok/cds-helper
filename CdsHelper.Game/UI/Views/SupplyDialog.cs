@@ -337,11 +337,85 @@ public sealed class SupplyDialog : GameWindow
         Paint();
     }
 
-    /// <summary>실을 수 있는 데까지 채운다. 게임의 "최대" 다.</summary>
+    /// <summary>
+    /// 게임의 "최대" — <b>식량과 물을 같은 통 수로</b> 실을 수 있는 데까지 맞춘다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x0040F670</c> → <c>0x0040ED20</c> 다. 자재·탄약은 지금 실린 그대로 두고
+    /// (보충량 0), 식량과 물을 <b>한 쌍씩</b> 센다.
+    /// <code>
+    ///   40ed4b  칸 = (용량 - 자재 - 탄약) / 2
+    ///   40ed5c  무게 = (중량 한도 - 자재·탄약 무게) / (식량 무게 + 물 무게)
+    ///   40ed71  n = max(0, min(칸, 무게))            ; 식량 = 물 = n (싣는 총량)
+    ///   40ede5  값이 소지금을 넘으면:
+    ///   40ee23    적은 쪽을 먼저 많은 쪽까지 올리고, 남은 돈을 한 쌍 값으로 나눠 둘 다 올린다
+    ///   40ef49    그러고도 남는 돈은 식량에 얹는다
+    /// </code>
+    /// 총량을 맞추는 것이라 지금 실린 것이 n 보다 많으면 보충량이 음수(덜어 냄)가 된다.
+    /// </remarks>
     private void Fill()
     {
-        for (int i = 0; i < Supply.Count; i++)
-            while (CanAdd(i)) _add[i]++;
+        var food = Supply.Of(SupplyKind.Food);
+        var water = Supply.Of(SupplyKind.Water);
+        var material = Supply.Of(SupplyKind.Material);
+        var ammo = Supply.Of(SupplyKind.Ammo);
+
+        int haveFood = _player.SupplyOf(SupplyKind.Food);
+        int haveWater = _player.SupplyOf(SupplyKind.Water);
+        int haveMaterial = _player.SupplyOf(SupplyKind.Material);
+        int haveAmmo = _player.SupplyOf(SupplyKind.Ammo);
+
+        int room = (_player.Capacity - haveMaterial - haveAmmo) / 2;
+        int free = _player.Tonnage - _player.GunWeight
+                   - haveMaterial * material.UnitWeight - haveAmmo * ammo.UnitWeight;
+        int byWeight = free / (food.UnitWeight + water.UnitWeight);
+        int pair = Math.Max(0, Math.Min(room, byWeight));
+
+        int foodPrice = food.PriceAt(_rate), waterPrice = water.PriceAt(_rate);
+        int foodTo = pair, waterTo = pair;
+        int gold = _player.Gold;
+        int cost = Math.Max(0, pair - haveFood) * foodPrice + Math.Max(0, pair - haveWater) * waterPrice;
+
+        if (cost > gold)
+        {
+            int gap = Math.Abs(haveFood - haveWater);
+            int foodMore = 0, waterMore = 0;
+            if (gap > 0 && haveFood < haveWater)
+            {
+                if (foodPrice * gap > gold) foodMore = gold / foodPrice;
+                else
+                {
+                    int each = (gold - foodPrice * gap) / (foodPrice + waterPrice);
+                    waterMore = each;
+                    foodMore = each + gap;
+                }
+            }
+            else if (gap > 0)
+            {
+                if (waterPrice * gap > gold) waterMore = gold / waterPrice;
+                else
+                {
+                    int each = (gold - waterPrice * gap) / (foodPrice + waterPrice);
+                    foodMore = each;
+                    waterMore = each + gap;
+                }
+            }
+            else
+            {
+                foodMore = waterMore = gold / (foodPrice + waterPrice);
+            }
+
+            int left = gold - foodMore * foodPrice - waterMore * waterPrice;
+            if (left > 0) foodMore += left / foodPrice;
+
+            foodTo = haveFood + foodMore;
+            waterTo = haveWater + waterMore;
+        }
+
+        _add[(int)SupplyKind.Food] = foodTo - haveFood;
+        _add[(int)SupplyKind.Water] = waterTo - haveWater;
+        _add[(int)SupplyKind.Material] = 0;
+        _add[(int)SupplyKind.Ammo] = 0;
         Paint();
     }
 
@@ -351,16 +425,20 @@ public sealed class SupplyDialog : GameWindow
     /// </summary>
     private void TenDays() => FillDays(10);
 
+    /// <remarks>
+    /// 게임의 <c>0x0040F600(날수)</c> 다 — <b>식량과 물을 똑같이</b> 그 날수치 총량으로 맞춘다.
+    /// <code>
+    ///   40f61d  통 = (날수 * 선원 + 9) / 10
+    ///   40f62c  식량 총량 = 통 · 물 총량 = 통
+    ///   40f63f  자재·탄약은 지금 실린 그대로(보충량 0)
+    /// </code>
+    /// 용량·소지금은 여기서 안 본다(결정할 때 본다). 지금 실린 것이 더 많으면 보충량이 음수가 된다.
+    /// </remarks>
     private void FillDays(int days)
     {
         int want = Supply.BarrelsForDays(days, _player.Crew);
         for (int i = 0; i < Supply.Count; i++)
-        {
-            // 식량과 물만 날수로 센다 — 자재·탄약은 날마다 닳는 것이 아니다.
-            if (!Supply.All[i].IsDaily) continue;
-            int need = want - _player.SupplyOf(Supply.All[i].Kind);
-            while (_add[i] < need && CanAdd(i)) _add[i]++;
-        }
+            _add[i] = Supply.All[i].IsDaily ? want - _player.SupplyOf(Supply.All[i].Kind) : 0;
         Paint();
     }
 
