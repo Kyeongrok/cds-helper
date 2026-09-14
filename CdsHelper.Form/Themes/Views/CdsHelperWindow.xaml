@@ -230,6 +230,10 @@
                                             x:Name="PART_ImageShrinkMenu"
                                             Header="이미지 크기 줄이기"
                                             ToolTip="그림 파일을 골라 크기·용량을 줄인다" />
+                                        <MenuItem
+                                            x:Name="PART_VideoShrinkMenu"
+                                            Header="동영상 줄이기"
+                                            ToolTip="동영상의 크기를 줄이고, 소리(배경음악)를 빼고, 압축해 MP4 로 쓴다" />
                                     </MenuItem>
                                     <MenuItem Header="개발">
                                         <MenuItem
