@@ -63,6 +63,10 @@ public sealed class PatronInfoDialog : GameWindow
     private static readonly string[] Categories =
         ["지리", "역사", "보물", "종교", "교역품", "미신", "생물", "민족"];
 
+    /// <summary>그 후원자가 좋아하는 갈래를 한 줄로 — 「지리 · 보물」. 스폰서 일람이 이름 아래에 단다.</summary>
+    public static string LikesText(Patron patron) =>
+        string.Join(" ", Categories.Where((_, i) => patron.Likes(i)));
+
     /// <summary>초상화가 놓이는 자리. 글줄이 <see cref="LineX"/> 에서 시작하니 그 앞이다.</summary>
     private const double FaceX = 8, FaceY = 8;
 

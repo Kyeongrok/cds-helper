@@ -41,8 +41,8 @@ public sealed class DisevRunner
     /// </summary>
     /// <remarks>
     /// 읽는 것은 <c>DISEV.CDS</c> 가 아니라 <c>발견이벤트.json</c> 이다
-    /// (<see cref="DisevBook"/>). 그 파일이 없으면 책이 원본을 떠서 <b>먼저 적어 두고</b>
-    /// 그것을 읽는다 — 이 집이 EXE 표를 다루는 결과 같다.
+    /// (<see cref="DisevBook"/>). 그 파일이 없으면 책이 앱에 실린 원본 대본을 <b>먼저 적어 두고</b>
+    /// 그것을 읽는다 — 게임 폴더에 <c>DISEV.CDS</c> 가 없어도 대본이 돈다.
     ///
     /// 다시 읽는 자리를 둔 까닭은 편집기 때문이다. 여기서 한 번 읽고 붙들고 있으면 앱을
     /// 껐다 켜기 전에는 고친 대본이 안 돈다.
@@ -57,7 +57,7 @@ public sealed class DisevRunner
         var when = Stamp();
         if (_shared != null && _sharedFrom == gameDirectory && _sharedWhen == when) return _shared;
 
-        _shared = DisevBook.Open(gameDirectory);
+        _shared = DisevBook.Open();
         _sharedFrom = gameDirectory;
         _sharedWhen = Stamp();
         return _shared;

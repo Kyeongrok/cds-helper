@@ -28,6 +28,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_NationEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DisevEditorMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_VoyagerEditMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_BuildingListMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PersonEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_FormationMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_FortuneMenu, Type = typeof(MenuItem))]
@@ -39,8 +40,9 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
-[TemplatePart(Name = PART_DiscoveryMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WorldMapMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_DiscoveryStillMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_CultureEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_AccordionMenu, Type = typeof(NavigationMenu))]
 [TemplatePart(Name = PART_ContentRegion, Type = typeof(ContentControl))]
 [TemplatePart(Name = PART_HamburgerButton, Type = typeof(Button))]
@@ -57,6 +59,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_NationEditMenu = "PART_NationEditMenu";
     private const string PART_DisevEditorMenu = "PART_DisevEditorMenu";
     private const string PART_VoyagerEditMenu = "PART_VoyagerEditMenu";
+    private const string PART_BuildingListMenu = "PART_BuildingListMenu";
     private const string PART_PersonEditMenu = "PART_PersonEditMenu";
     private const string PART_FormationMenu = "PART_FormationMenu";
     private const string PART_FortuneMenu = "PART_FortuneMenu";
@@ -68,8 +71,9 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
     private const string PART_HelpMenu = "PART_HelpMenu";
-    private const string PART_DiscoveryMenu = "PART_DiscoveryMenu";
     private const string PART_WorldMapMenu = "PART_WorldMapMenu";
+    private const string PART_DiscoveryStillMenu = "PART_DiscoveryStillMenu";
+    private const string PART_CultureEditMenu = "PART_CultureEditMenu";
     private const string PART_AccordionMenu = "PART_AccordionMenu";
     private const string PART_ContentRegion = "PART_ContentRegion";
     private const string PART_HamburgerButton = "PART_HamburgerButton";
@@ -163,6 +167,11 @@ public class CdsHelperWindow : CdsWindow
             nationEditMenu.Click += OnNationEditMenuClick;
         }
 
+        if (GetTemplateChild(PART_CultureEditMenu) is MenuItem cultureEditMenu)
+        {
+            cultureEditMenu.Click += OnCultureEditMenuClick;
+        }
+
         if (GetTemplateChild(PART_DisevEditorMenu) is MenuItem disevEditorMenu)
         {
             disevEditorMenu.Click += OnDisevEditorMenuClick;
@@ -171,6 +180,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_VoyagerEditMenu) is MenuItem voyagerEditMenu)
         {
             voyagerEditMenu.Click += OnVoyagerEditMenuClick;
+        }
+
+        if (GetTemplateChild(PART_BuildingListMenu) is MenuItem buildingListMenu)
+        {
+            buildingListMenu.Click += OnBuildingListMenuClick;
         }
 
         if (GetTemplateChild(PART_PersonEditMenu) is MenuItem personEditMenu)
@@ -228,14 +242,16 @@ public class CdsHelperWindow : CdsWindow
             helpMenu.Click += OnHelpMenuClick;
         }
 
-        if (GetTemplateChild(PART_DiscoveryMenu) is MenuItem discoveryMenu)
-        {
-            discoveryMenu.Click += (_, _) => NavigateAndSync("DiscoveryContent");
-        }
 
         if (GetTemplateChild(PART_WorldMapMenu) is MenuItem worldMapMenu)
         {
             worldMapMenu.Click += (_, _) => NavigateAndSync("WorldMapContent");
+        }
+
+        // 발견물 그림은 햄버거 차림표에서 「요소」 메뉴로 옮겼다 — 본문 자리에 그대로 띄운다.
+        if (GetTemplateChild(PART_DiscoveryStillMenu) is MenuItem discoveryStillMenu)
+        {
+            discoveryStillMenu.Click += (_, _) => NavigateAndSync("DiscoveryStillContent");
         }
 
         _accordionMenu = GetTemplateChild(PART_AccordionMenu) as NavigationMenu;
@@ -280,10 +296,6 @@ public class CdsHelperWindow : CdsWindow
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
-        // NavigateToCityEvent 구독 - 아코디언 메뉴 동기화
-        var eventAggregator = ContainerLocator.Container.Resolve<IEventAggregator>();
-        eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
-
         // 창 로드 후 네이티브 DLL 다운로드 확인 → 업데이트 확인
         Dispatcher.BeginInvoke(new Action(async () =>
         {
@@ -291,15 +303,6 @@ public class CdsHelperWindow : CdsWindow
             await _viewModel.CheckAndDownloadNativeDepsAsync();
             await _viewModel.CheckForUpdateAsync();
         }), System.Windows.Threading.DispatcherPriority.Loaded);
-    }
-
-    private void OnNavigateToCity(NavigateToCityEventArgs args)
-    {
-        // 아코디언 메뉴에서 지도 탭 선택
-        Dispatcher.Invoke(() =>
-        {
-            _accordionMenu?.SelectItemByTag("MapContent");
-        });
     }
 
     private void OnAccordionItemClick(string? viewName)
@@ -377,6 +380,10 @@ public class CdsHelperWindow : CdsWindow
     private void OnNationEditMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.NationEditDialog.Show(this);
 
+    // 도시마다의 문화권만 고치는 창 — 「도시 · 문화권 · 왕국」에서 떼어 요소로 뽑았다.
+    private void OnCultureEditMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.CityCultureEditDialog.Show(this);
+
     // DISEV.CDS 의 발견 이벤트 스크립트를 보고 고치는 창. 게임 파일을 직접 고치므로
     // 저장할 때 옆에 시각을 붙인 백업을 남긴다.
     private void OnDisevEditorMenuClick(object sender, RoutedEventArgs e) =>
@@ -385,6 +392,9 @@ public class CdsHelperWindow : CdsWindow
     // 역사 항해자 열넷이 언제 무엇을 채가는지 고치는 창. 이 놀이의 유일한 경쟁자다.
     private void OnVoyagerEditMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.VoyagerEditDialog.Show(this);
+
+    private void OnBuildingListMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.BuildingListDialog.Show(this);
 
     // 세이브의 인물 281명을 고치는 창. 나라 표와 달리 세이브를 그 자리에서 고치므로
     // 처음 고칠 때 시각을 붙인 백업을 옆에 남긴다.

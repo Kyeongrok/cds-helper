@@ -461,6 +461,10 @@ public sealed class ShipMapWindow : Window
             ("인물 이동", () => PersonMoveDialog.Show(this, _game)),
             // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
             ("발견물 지도", ShowDiscoveryMap),
+            // 기능·언어를 제독과 부하 넷을 나란히 놓고 본다 — 도구 앱의 「스킬」 칸이다.
+            ("기능·언어", () => SkillBoardDialog.Show(this, _game.Player, PersonTable.Open())),
+            // 도구 앱은 따로 도는 exe 다. 게임을 하다 표를 손볼 일이 생기면 여기서 띄운다.
+            ("도구 앱", RunHelperApp),
             ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
         shell.Children.Add(titleBar);
@@ -602,7 +606,21 @@ public sealed class ShipMapWindow : Window
         if (chart == null) { NoticeDialog.Show(this, "지도를 아직 못 읽었습니다"); return; }
 
         var at = _host.ShipCell is { } cell ? ((double, double)?)(cell.CellX, cell.CellY) : null;
-        DiscoveryMapDialog.Show(this, chart, w, h, _game.Discoveries?.Table, _game.Player, at);
+        DiscoveryMapDialog.Show(this, chart, w, h, _game.Discoveries?.Table, _game.Player, at,
+                                WindTable.Open(_game.Directory));
+    }
+
+    /// <summary>
+    /// 도구 앱(CdsHelper.exe)을 띄운다. 이미 떠 있으면 그 창을 앞으로 부른다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 그대로 돈다 — 딴 프로세스라 여기서 멎게 할 까닭이 없다. 다만 도구에서 표를
+    /// 고쳐도 이미 읽어 둔 표는 그대로다. 게임을 껐다 켜야 새 값이 먹는다.
+    /// </remarks>
+    private void RunHelperApp()
+    {
+        if (!HelperApp.Run())
+            NoticeDialog.Show(this, $"도구 앱을 띄우지 못했습니다.\n{HelperApp.LastError}");
     }
 
     /// <summary>
@@ -2099,9 +2117,12 @@ public sealed class ShipMapWindow : Window
         if (!_host.IsOnLand)
         {
             items.Add(("편성", () => { Close(); CrewShareDialog.Show(this, _game.Player); }));
-            items.Add(("대열", _game.Player.Ships.Count > 1
-                ? () => { Close(); FormationDialog.Show(this, _game.Player); }
-                : null));
+
+            // 「대열」은 <b>배가 둘 이상일 때만 줄이 선다</b> — 원본은 흐린 줄로 두지도 않고
+            // 아예 안 넣는다(0x0048B442: 0x00473E00() 이 1 이하면 줄을 건너뛴다).
+            // 호위함을 어떻게 세울지 고르는 창이라 한 척뿐이면 고를 것이 없다.
+            if (_game.Player.Ships.Count > 1)
+                items.Add(("대열", () => { Close(); FormationDialog.Show(this, _game.Player); }));
         }
         items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
         // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는

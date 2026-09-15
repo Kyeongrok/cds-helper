@@ -215,8 +215,6 @@ public partial class CdsHelperViewModel : ObservableObject
         _discoveryService = discoveryService;
         _updateService = updateService;
 
-        _eventAggregator.GetEvent<NavigateToCityEvent>().Subscribe(OnNavigateToCity);
-
         // 5분마다 세이브 파일 자동 새로고침
         var autoRefreshTimer = new System.Windows.Threading.DispatcherTimer
         {
@@ -226,12 +224,6 @@ public partial class CdsHelperViewModel : ObservableObject
         autoRefreshTimer.Start();
 
         Initialize();
-    }
-
-    private void OnNavigateToCity(NavigateToCityEventArgs args)
-    {
-        CdsHelper.Main.UI.Views.MapContent.SetPendingNavigation(args);
-        NavigateToContent("MapContent");
     }
 
     private async void Initialize()

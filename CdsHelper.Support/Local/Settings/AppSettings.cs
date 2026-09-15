@@ -201,12 +201,8 @@ public static class AppSettings
     {
         new() { Name = "PlayerContent", DisplayName = "플레이어" },
         new() { Name = "CharacterContent", DisplayName = "항해사" },
-        new() { Name = "BookContent", DisplayName = "도서" },
-        new() { Name = "CityContent", DisplayName = "도시" },
-        new() { Name = "PatronContent", DisplayName = "후원자" },
         new() { Name = "FigureheadContent", DisplayName = "선수상" },
         new() { Name = "ItemContent", DisplayName = "아이템" },
-        new() { Name = "MapContent", DisplayName = "지도" },
         new() { Name = "WorldMapContent", DisplayName = "세계지도" },
         new() { Name = "SphinxCalculatorContent", DisplayName = "스핑크스" }
     };
@@ -222,7 +218,11 @@ public static class AppSettings
                 if (data != null)
                 {
                     _markerSize = data.MarkerSize;
-                    _defaultView = data.DefaultView;
+                    // 뺀 화면(도서·도시·발견물·지도·후원자)을 시작 화면으로 적어 둔 설정은 기본 화면으로 돌린다 —
+                    // 없는 화면으로 가면 본문이 텅 빈 채로 뜬다.
+                    _defaultView = AvailableViews.Exists(v => v.Name == data.DefaultView)
+                        ? data.DefaultView
+                        : DefaultDefaultView;
                     _lastSaveFilePath = data.LastSaveFilePath;
                     if (!string.IsNullOrEmpty(data.TrailDirectory))
                         _trailDirectory = data.TrailDirectory;

@@ -206,7 +206,6 @@
                                     <MenuItem Header="파일">
                                         <MenuItem Command="{Binding LoadSaveCommand}" Header="세이브 파일 열기" />
                                     </MenuItem>
-                                    <MenuItem x:Name="PART_DiscoveryMenu" Header="발견물" />
                                     <MenuItem x:Name="PART_WorldMapMenu" Header="세계지도" />
                                     <MenuItem x:Name="PART_SettingsMenu" Header="설정" />
                                     <MenuItem
@@ -218,13 +217,13 @@
                                         <MenuItem x:Name="PART_EventQueueMenu" Header="이벤트 큐 보기" />
                                         <MenuItem x:Name="PART_DbTableViewerMenu" Header="DB 테이블 보기" />
                                         <MenuItem
-                                            x:Name="PART_WaveBankMenu"
-                                            Header="효과음 보기"
-                                            ToolTip="WAVES.CDS 에 든 게임 효과음" />
+                                            x:Name="PART_MenuDesignerMenu"
+                                            Header="메뉴 디자이너"
+                                            ToolTip="게임에 나는 명령 창·물음창·목록을 손잡이로 짜 보고 눈으로 맞댄다" />
                                         <MenuItem
-                                            x:Name="PART_PortraitBookMenu"
-                                            Header="초상화 보기"
-                                            ToolTip="MALE.CDS · FEMALE.CDS 의 얼굴을 번호와 함께 본다" />
+                                            x:Name="PART_MotionMakerMenu"
+                                            Header="모션 메이커"
+                                            ToolTip="일기토 그림 서른셋을 늘어놓고 번호를 적어 이어 돌려 본다 — 장마다 0.1초씩 맞춘다" />
                                         <Separator />
                                         <MenuItem
                                             x:Name="PART_ImageShrinkMenu"
@@ -235,31 +234,57 @@
                                             Header="동영상 줄이기"
                                             ToolTip="동영상의 크기를 줄이고, 소리(배경음악)를 빼고, 압축해 MP4 로 쓴다" />
                                     </MenuItem>
-                                    <MenuItem Header="개발">
-                                        <MenuItem
-                                            x:Name="PART_ShipRegistryMenu"
-                                            Header="선박"
-                                            ToolTip="조선소에 낼 배를 등록한다" />
-                                        <MenuItem
-                                            x:Name="PART_CityCultureMenu"
-                                            Header="도시 · 문화권 · 왕국"
-                                            ToolTip="도시마다의 문화권·왕국을 갈아 씌운다 — 시설 화자 얼굴도 따라 바뀐다" />
+                                    <!--  요소 — 게임에 나오는 것들(나라·사람·배)을 고친다  -->
+                                    <MenuItem Header="요소">
                                         <MenuItem
                                             x:Name="PART_NationEditMenu"
                                             Header="국가"
                                             ToolTip="나라 이름·쓰는 말·수도를 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
                                         <MenuItem
-                                            x:Name="PART_DisevEditorMenu"
-                                            Header="발견 이벤트"
-                                            ToolTip="DISEV.CDS 의 발견 이벤트 스크립트를 보고 고친다" />
+                                            x:Name="PART_CultureEditMenu"
+                                            Header="문화권"
+                                            ToolTip="도시마다의 문화권을 고친다 — 시설 화자 얼굴·술집 손님도 따라 바뀐다" />
+                                        <MenuItem
+                                            x:Name="PART_PersonEditMenu"
+                                            Header="인물"
+                                            ToolTip="세이브의 인물 281명을 고친다 — 이름·나이·자리·고용·이동 갈래·기술·언어" />
+                                        <MenuItem
+                                            x:Name="PART_ShipRegistryMenu"
+                                            Header="선박"
+                                            ToolTip="조선소에 낼 배를 등록한다" />
                                         <MenuItem
                                             x:Name="PART_VoyagerEditMenu"
                                             Header="경쟁자"
                                             ToolTip="역사 항해자 열넷이 언제 무엇을 채가는지 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
                                         <MenuItem
-                                            x:Name="PART_PersonEditMenu"
-                                            Header="인물"
-                                            ToolTip="세이브의 인물 281명을 고친다 — 이름·나이·자리·고용·이동 갈래·기술·언어" />
+                                            x:Name="PART_BuildingListMenu"
+                                            Header="건물"
+                                            ToolTip="도시마다 선 건물을 본다 — 자리와 가르치는 기능·언어까지" />
+                                        <MenuItem
+                                            x:Name="PART_PortraitBookMenu"
+                                            Header="초상화 보기"
+                                            ToolTip="MALE.CDS · FEMALE.CDS 의 얼굴을 번호와 함께 본다" />
+                                        <MenuItem
+                                            x:Name="PART_DiscoveryStillMenu"
+                                            Header="발견물 그림"
+                                            ToolTip="DSTILL.CDS 의 발견물 그림을 골라 본다" />
+                                    </MenuItem>
+                                    <!--  에셋 — 게임 파일에 든 소리·그림 따위를 본다  -->
+                                    <MenuItem Header="에셋">
+                                        <MenuItem
+                                            x:Name="PART_WaveBankMenu"
+                                            Header="효과음 보기"
+                                            ToolTip="WAVES.CDS 에 든 게임 효과음" />
+                                    </MenuItem>
+                                    <MenuItem Header="개발">
+                                        <MenuItem
+                                            x:Name="PART_CityCultureMenu"
+                                            Header="도시 · 문화권 · 왕국"
+                                            ToolTip="도시마다의 문화권·왕국을 갈아 씌운다 — 시설 화자 얼굴도 따라 바뀐다" />
+                                        <MenuItem
+                                            x:Name="PART_DisevEditorMenu"
+                                            Header="발견 이벤트"
+                                            ToolTip="DISEV.CDS 의 발견 이벤트 스크립트를 보고 고친다" />
                                         <MenuItem
                                             x:Name="PART_FormationMenu"
                                             Header="부대 편성"
@@ -269,17 +294,9 @@
                                             Header="운명 자리"
                                             ToolTip="여급 127명의 궁합 코드를 보고 고친다 — 어느 운명 자리에 여급이 몇이나 있는지" />
                                         <MenuItem
-                                            x:Name="PART_MenuDesignerMenu"
-                                            Header="메뉴 디자이너"
-                                            ToolTip="게임에 나는 명령 창·물음창·목록을 손잡이로 짜 보고 눈으로 맞댄다" />
-                                        <MenuItem
                                             x:Name="PART_TavernHintMenu"
                                             Header="술집 힌트"
                                             ToolTip="힌트 186줄을 보고 고친다 — 어느 발견물을 가리키는지, 술집이 어느 쪽으로 가라 이르는지 함께 낸다" />
-                                        <MenuItem
-                                            x:Name="PART_MotionMakerMenu"
-                                            Header="모션 메이커"
-                                            ToolTip="일기토 그림 서른셋을 늘어놓고 번호를 적어 이어 돌려 본다 — 장마다 0.1초씩 맞춘다" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>

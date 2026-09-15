@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using CdsHelper.Game.Engine.Disev;
+using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
 
@@ -43,8 +44,13 @@ internal static class DisevFlowView
 
     /// <summary>흐름도를 그린다.</summary>
     /// <param name="pick">노드를 누르면 그 첫 명령 자리를 넘긴다.</param>
-    public static FrameworkElement Build(DisevFlow.Graph graph, Action<int> pick)
+    /// <param name="describe">명령 상자에 적을 글. 없으면 <see cref="DisevScript.Op.Text"/> 다.</param>
+    /// <param name="action">명령 상자 오른쪽에 붙일 단추 — 이름과 누르면 할 일. 붙일 것이 없으면 null 을 낸다.</param>
+    public static FrameworkElement Build(DisevFlow.Graph graph, Action<int> pick,
+        Func<DisevScript.Op, string>? describe = null,
+        Func<DisevScript.Op, (string Label, Action Run)?>? action = null)
     {
+        describe ??= op => op.Text;
         var canvas = new Canvas { Background = Brushes.White };
         var nodes = graph.Nodes;
         int n = nodes.Count;
@@ -189,7 +195,7 @@ internal static class DisevFlowView
         for (int i = 0; i < n; i++)
         {
             var node = nodes[i];
-            var element = Draw(node, size[i], pick);
+            var element = Draw(node, size[i], pick, describe, action);
             element.Cursor = Cursors.Hand;
             // 쌓인 묶음은 상자마다 제 풀이를 달았으니 겉에는 안 단다.
             if (!IsStack(node))
@@ -218,7 +224,8 @@ internal static class DisevFlowView
     private static bool IsStack(DisevFlow.Node node) =>
         node.Kind is DisevFlow.NodeKind.Block or DisevFlow.NodeKind.End;
 
-    private static FrameworkElement Draw(DisevFlow.Node node, Size size, Action<int> pick)
+    private static FrameworkElement Draw(DisevFlow.Node node, Size size, Action<int> pick,
+        Func<DisevScript.Op, string> describe, Func<DisevScript.Op, (string Label, Action Run)?>? action)
     {
         if (IsStack(node))
         {
@@ -228,6 +235,7 @@ internal static class DisevFlowView
                 var op = node.Ops[k];
                 if (k > 0) stack.Children.Add(DownArrow(size.Width));
 
+                string text = describe(op);
                 var box = new Border
                 {
                     Height = OpH,
@@ -235,15 +243,8 @@ internal static class DisevFlowView
                     BorderBrush = StrokeBrush,
                     BorderThickness = new Thickness(1),
                     Cursor = Cursors.Hand,
-                    ToolTip = op.Text,
-                    Child = new TextBlock
-                    {
-                        Text = Short(op.Text),
-                        Foreground = Brushes.White,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(Pad, 0, Pad, 0),
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                    },
+                    ToolTip = text,
+                    Child = BoxContent(text, action?.Invoke(op)),
                 };
                 // 상자를 누르면 노드 첫 명령이 아니라 그 명령을 고른다 — 겉 노드 손은 안 돌게 막는다.
                 int offset = op.Offset;
@@ -255,6 +256,17 @@ internal static class DisevFlowView
 
         if (node.Kind == DisevFlow.NodeKind.Decision)
         {
+            // 물음에도 상자와 같은 이름을 붙인다 — 「발견물 55 찾았나」 만으로는 무엇인지 모른다.
+            // 이름은 describe 가 풀이 뒤에 붙인 꼬리만 떼어 온다.
+            string title = node.Title;
+            if (node.Ops.Count > 0)
+            {
+                var op = node.Ops[0];
+                string described = describe(op);
+                if (described.Length > op.Text.Length && described.StartsWith(op.Text, StringComparison.Ordinal))
+                    title += described[op.Text.Length..];
+            }
+
             var grid = new Grid { Width = size.Width, Height = size.Height, Background = Brushes.Transparent };
             grid.Children.Add(new Polygon
             {
@@ -265,7 +277,7 @@ internal static class DisevFlowView
             });
             grid.Children.Add(new TextBlock
             {
-                Text = node.Title,
+                Text = title,
                 Foreground = Brushes.White,
                 TextWrapping = TextWrapping.Wrap,
                 TextAlignment = TextAlignment.Center,
@@ -289,6 +301,39 @@ internal static class DisevFlowView
             BorderThickness = new Thickness(1),
             Child = lines,
         };
+    }
+
+    /// <summary>
+    /// 명령 상자 속 — 풀이 글과, 있으면 오른쪽 단추(그림 보기 · 소리 듣기).
+    /// </summary>
+    /// <remarks>단추는 제 누름을 삼키므로 상자의 「명령 고르기」 손은 안 돈다.</remarks>
+    private static FrameworkElement BoxContent(string text, (string Label, Action Run)? extra)
+    {
+        var label = new TextBlock
+        {
+            Text = Short(text),
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(Pad, 0, Pad, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        if (extra is not { } button) return label;
+
+        var panel = new DockPanel();
+        var run = button.Run;
+        var click = new Button
+        {
+            Content = button.Label,
+            FontSize = 11,
+            Padding = new Thickness(6, 0, 6, 0),
+            Margin = new Thickness(0, 3, 4, 3),
+            Cursor = Cursors.Arrow,
+        };
+        click.Click += (_, args) => { args.Handled = true; run(); };
+        DockPanel.SetDock(click, Dock.Right);
+        panel.Children.Add(click);
+        panel.Children.Add(label);
+        return panel;
     }
 
     /// <summary>쌓인 상자 사이의 작은 아래 화살.</summary>

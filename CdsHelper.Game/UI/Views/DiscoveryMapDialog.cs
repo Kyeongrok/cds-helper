@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Game.Local.Settings;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -27,6 +28,11 @@ namespace CdsHelper.Game.UI.Views;
 /// 바탕은 항해지도를 짓는 손(<see cref="Rendering.ShipMapHost.Chart"/>)을 <b>온 지도를 밝힌
 /// 채</b> 부른 것이라 점 하나가 칸 <c>4x4</c> 다 — 모드처럼 타일을 다시 그리지는 않으므로
 /// 아주 키우면 네모가 커질 뿐이다.
+///
+/// <b>풍향 · 해류</b>는 바람표(<see cref="WindTable"/>)의 50x25 칸마다 화살표 하나씩이다. 한 칸이 지도
+/// 점 12.5 라 칸 윗쪽에 풍향, 아랫쪽에 해류를 둔다. 화살표는 <b>불어가는 쪽</b>을 가리키고 세기만큼
+/// 길다. 풍향은 지금 달의 표(1~6월 · 7~12월)를 쓴다. 둘 다 아래 단추(글쇠 W · C)로 켜고 끄며,
+/// 켠 것은 설정에 남는다.
 /// </remarks>
 public sealed class DiscoveryMapDialog : GameWindow
 {
@@ -49,6 +55,13 @@ public sealed class DiscoveryMapDialog : GameWindow
     private static readonly Brush Yet = Frozen(Color.FromRgb(0x50, 0x50, 0x50));
     private static readonly Brush Mine = Frozen(Color.FromRgb(0x20, 0x40, 0xC0));
 
+    /// <summary>풍향 · 해류 화살표 색. 표식(빨강·회색·파랑)과 안 겹치게 보라와 청록이다.</summary>
+    private static readonly Brush WindInk = Frozen(Color.FromRgb(0x70, 0x40, 0xC0));
+    private static readonly Brush CurrentInk = Frozen(Color.FromRgb(0x10, 0x8A, 0x70));
+
+    /// <summary>화살표 선 굵기와 머리 크기(지도 점). 배율을 따라 함께 커진다.</summary>
+    private const double ArrowLine = 0.5, ArrowHead = 1.6;
+
     private static SolidColorBrush Frozen(Color c)
     {
         var b = new SolidColorBrush(c);
@@ -62,6 +75,19 @@ public sealed class DiscoveryMapDialog : GameWindow
     private readonly TranslateTransform _shift = new(0, 0);
     private readonly TextBlock _note;
 
+    /// <summary>풍향 · 해류 화살표가 앉는 켜. 표식보다 아래다.</summary>
+    private readonly Canvas _windLayer = new() { IsHitTestVisible = false };
+    private readonly Canvas _currentLayer = new() { IsHitTestVisible = false };
+
+    /// <summary>바람표를 읽었는지 — 못 읽었으면 단추도 설명도 안 낸다.</summary>
+    private readonly bool _hasFlows;
+
+    /// <summary>풍향에 쓴 달.</summary>
+    private readonly int _month;
+
+    /// <summary>풍향 · 해류 켜고 끄기(단추와 글쇠가 같이 쓴다).</summary>
+    private Action? _toggleWind, _toggleCurrent;
+
     private readonly int _chartW, _chartH, _found, _done;
     private int _zoom = ZoomStart;
     private double _vx, _vy;              // 보이는 자리의 왼쪽 위(지도 점)
@@ -72,10 +98,12 @@ public sealed class DiscoveryMapDialog : GameWindow
     private double Z => Zooms[_zoom];
 
     private DiscoveryMapDialog(uint[] chart, int width, int height,
-                               DiscoveryTable table, Player player, (double X, double Y)? ship)
+                               DiscoveryTable table, Player player, (double X, double Y)? ship, WindTable? wind)
     {
         _chartW = width;
         _chartH = height;
+        _month = player.Date.Month;
+        _hasFlows = wind != null;
 
         Title = "발견물 지도";
         WindowStyle = WindowStyle.None;
@@ -97,6 +125,13 @@ public sealed class DiscoveryMapDialog : GameWindow
             Height = height,
             SnapsToDevicePixels = true,
         });
+
+        // 화살표 켜는 표식보다 먼저 얹는다 — 점과 이름표가 화살표에 안 가린다.
+        _world.Children.Add(_windLayer);
+        _world.Children.Add(_currentLayer);
+        if (wind != null) DrawFlows(wind, width, height);
+        _windLayer.Visibility = GameSettings.DiscoveryMapWind ? Visibility.Visible : Visibility.Collapsed;
+        _currentLayer.Visibility = GameSettings.DiscoveryMapCurrent ? Visibility.Visible : Visibility.Collapsed;
 
         // 옮기고 키우는 것은 한 덩이로 — 먼저 밀고 나서 키운다.
         var moves = new TransformGroup();
@@ -174,6 +209,20 @@ public sealed class DiscoveryMapDialog : GameWindow
 
         var stack = new StackPanel { Margin = new Thickness(8) };
         stack.Children.Add(viewport);
+        if (_hasFlows)
+        {
+            var toggles = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 6, 0, 0),
+            };
+            toggles.Children.Add(Toggle("풍향", () => GameSettings.DiscoveryMapWind,
+                                        v => GameSettings.DiscoveryMapWind = v, _windLayer, out _toggleWind));
+            toggles.Children.Add(Toggle("해류", () => GameSettings.DiscoveryMapCurrent,
+                                        v => GameSettings.DiscoveryMapCurrent = v, _currentLayer, out _toggleCurrent));
+            stack.Children.Add(toggles);
+        }
         stack.Children.Add(_note);
         stack.Children.Add(ok);
         Content = stack;
@@ -200,6 +249,8 @@ public sealed class DiscoveryMapDialog : GameWindow
             case Key.Down: _vy += Step / Z; break;
             case Key.OemPlus or Key.Add: ZoomAt(1, new Point(ViewW / 2, ViewH / 2)); return;
             case Key.OemMinus or Key.Subtract: ZoomAt(-1, new Point(ViewW / 2, ViewH / 2)); return;
+            case Key.W: _toggleWind?.Invoke(); e.Handled = true; return;
+            case Key.C: _toggleCurrent?.Invoke(); e.Handled = true; return;
             default: return;
         }
         e.Handled = true;
@@ -246,7 +297,91 @@ public sealed class DiscoveryMapDialog : GameWindow
         foreach (var tag in _labels) tag.Visibility = show;
 
         _note.Text = $"발견물 {_found}곳 · 찾은 것 {_done}곳 · 배율 x{Z:0.#}"
-                   + "   (휠 키우기·줄이기 · 끌어서 옮기기 · 빨강 찾음 · 회색 아직 · 파랑 내 자리)";
+                   + "   (휠 키우기·줄이기 · 끌어서 옮기기 · 빨강 찾음 · 회색 아직 · 파랑 내 자리"
+                   + (_hasFlows
+                       ? $" · 보라 풍향 {(WindTable.IsFirstHalf(_month) ? "1~6월" : "7~12월")} · 청록 해류)"
+                       : ")");
+    }
+
+    /// <summary>
+    /// 켜고 끄는 단추 하나 — 누르면 설정을 뒤집고 그 켜를 보이거나 감춘다.
+    /// </summary>
+    /// <param name="flip">글쇠가 같은 일을 하도록 내주는 손.</param>
+    private static Border Toggle(string name, Func<bool> get, Action<bool> set, Canvas layer, out Action flip)
+    {
+        Border? button = null;
+        void Refresh()
+        {
+            bool on = get();
+            layer.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            if (button?.Child is TextBlock label) label.Text = $"{name} {(on ? "끄기" : "켜기")}";
+        }
+
+        flip = () => { set(!get()); Refresh(); };
+        button = GameUi.PushButton(name, flip, 110);
+        Refresh();
+        return button;
+    }
+
+    /// <summary>
+    /// 바람표 칸마다 풍향과 해류 화살표를 긋는다 — 켜 하나에 <b>도형 하나</b>로 묶어 가볍게 둔다.
+    /// </summary>
+    private void DrawFlows(WindTable table, int width, int height)
+    {
+        double cellW = width / (double)WindTable.Cols, cellH = height / (double)WindTable.Rows;
+        var wind = new StreamGeometry();
+        var current = new StreamGeometry();
+
+        using (var w = wind.Open())
+        using (var c = current.Open())
+        {
+            for (int cell = 0; cell < WindTable.Count; cell++)
+            {
+                double cx = (cell % WindTable.Cols + 0.5) * cellW;
+                double cy = (cell / WindTable.Cols + 0.5) * cellH;
+
+                // 한 칸 윗쪽에 풍향, 아랫쪽에 해류 — 가운데 겹치면 둘 다 안 읽힌다.
+                var blow = table.WindAt(cell, _month);
+                if (!blow.IsStill) Arrow(w, table, blow, cx, cy - cellH / 4, cellW, maxSpeed: 6);
+                var flow = table.CurrentAt(cell);
+                if (!flow.IsStill) Arrow(c, table, flow, cx, cy + cellH / 4, cellW, maxSpeed: 7);
+            }
+        }
+
+        wind.Freeze();
+        current.Freeze();
+        _windLayer.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = wind, Stroke = WindInk, Fill = WindInk, StrokeThickness = ArrowLine,
+        });
+        _currentLayer.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = current, Stroke = CurrentInk, Fill = CurrentInk, StrokeThickness = ArrowLine,
+        });
+    }
+
+    /// <summary>
+    /// 화살표 하나 — <paramref name="cx"/>·<paramref name="cy"/> 를 가운데로, 불어가는 쪽에 머리를 둔다.
+    /// 길이는 세기에 따라 칸 폭의 1/5 ~ 1/2 이다.
+    /// </summary>
+    private static void Arrow(StreamGeometryContext g, WindTable table, WindTable.Flow flow,
+                              double cx, double cy, double cellW, int maxSpeed)
+    {
+        var (dx, dy) = table.Vector(flow.Dir);
+        double ux = dx / (double)WindTable.VectorLength, uy = dy / (double)WindTable.VectorLength;
+        double len = cellW * (0.2 + 0.3 * Math.Min(flow.Speed, maxSpeed) / maxSpeed);
+
+        var tail = new Point(cx - ux * len / 2, cy - uy * len / 2);
+        var head = new Point(cx + ux * len / 2, cy + uy * len / 2);
+        g.BeginFigure(tail, isFilled: false, isClosed: false);
+        g.LineTo(head, isStroked: true, isSmoothJoin: false);
+
+        // 머리 — 뒤로 물러난 자리에서 좌우로 벌린 세모.
+        var back = new Point(head.X - ux * ArrowHead, head.Y - uy * ArrowHead);
+        double px = -uy * ArrowHead / 2, py = ux * ArrowHead / 2;
+        g.BeginFigure(head, isFilled: true, isClosed: true);
+        g.LineTo(new Point(back.X + px, back.Y + py), isStroked: false, isSmoothJoin: false);
+        g.LineTo(new Point(back.X - px, back.Y - py), isStroked: false, isSmoothJoin: false);
     }
 
     /// <summary>점 하나와 이름표를 찍는다. 자리는 <b>지도 점</b>(칸/4)이다.</summary>
@@ -281,10 +416,12 @@ public sealed class DiscoveryMapDialog : GameWindow
     }
 
     /// <summary>창을 연다. 지도를 못 지으면 아무 일도 안 한다.</summary>
+    /// <param name="wind">바람표. 없으면 풍향 · 해류 단추가 안 나온다.</param>
     public static void Show(Window owner, uint[]? chart, int width, int height,
-                            DiscoveryTable? table, Player player, (double X, double Y)? ship)
+                            DiscoveryTable? table, Player player, (double X, double Y)? ship,
+                            WindTable? wind = null)
     {
         if (chart == null || table == null || width <= 0 || height <= 0) return;
-        new DiscoveryMapDialog(chart, width, height, table, player, ship) { Owner = owner }.ShowDialog();
+        new DiscoveryMapDialog(chart, width, height, table, player, ship, wind) { Owner = owner }.ShowDialog();
     }
 }
