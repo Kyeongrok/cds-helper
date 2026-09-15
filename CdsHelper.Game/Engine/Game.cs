@@ -72,6 +72,7 @@ public sealed class Game
         _speakers = null; _speakersTried = false;
         _nations = null; _nationsTried = false;
         _goods = null; _goodsTried = false;
+        _trade = null; _tradeTried = false;
         _cityRows = null; _cityRowsTried = false;
         _faces = null; _facesTried = false;
         _effects = null; _effectsTried = false;
@@ -144,6 +145,13 @@ public sealed class Game
     public MarketRates Rates => _rates ??= MarketRates.Open();
 
     private MarketRates? _rates;
+
+    /// <summary>교역소 표(CDS_95.EXE). 지역 공통품 · 기준가 · 도시 특산가다.</summary>
+    public TradeTable? Trade =>
+        Once(ref _trade, ref _tradeTried, TradeTable.Open, () => TradeTable.LastError, "교역소 표");
+
+    private TradeTable? _trade;
+    private bool _tradeTried;
 
     /// <summary>술 표(CDS_95.EXE). 술집이 그 고장에서 파는 술과 값이다.</summary>
     public DrinkTable? Drinks =>

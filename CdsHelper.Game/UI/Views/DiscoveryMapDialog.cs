@@ -22,6 +22,7 @@ namespace CdsHelper.Game.UI.Views;
 /// <code>
 ///   휠      커서 밑에 있던 자리가 <b>제자리에 남도록</b> 배율만 바꾼다(ZoomAt)
 ///   끌기    누른 자리를 붙잡고 지도를 민다(g_drag)
+///   오른쪽  짚은 자리로 함대를 옮긴다 — 가까운 물칸에 닻을 내린 채 선다
 ///   열 때   함대 자리를 가운데 두고 중간 배율로 연다(ZOOM_START)
 ///   이름표  배율이 어느 구간일 때만 단다 — 너무 키우면 이름이 그림을 덮는다
 /// </code>
@@ -88,6 +89,19 @@ public sealed class DiscoveryMapDialog : GameWindow
     /// <summary>풍향 · 해류 켜고 끄기(단추와 글쇠가 같이 쓴다).</summary>
     private Action? _toggleWind, _toggleCurrent;
 
+    /// <summary>
+    /// 오른쪽 단추로 짚은 자리로 함대를 옮기는 손. 칸 자리를 받아 <b>실제로 선 칸</b>을
+    /// 돌려준다(뭍이면 가까운 물칸으로 밀리므로 짚은 자리와 다를 수 있다). 옮길 수 없는
+    /// 형편(도시 안·뭍 위)이면 null 이다. 안 주면 옮기기가 아예 없다.
+    /// </summary>
+    private readonly Func<double, double, (double X, double Y)?>? _warp;
+
+    /// <summary>내 자리 점. 옮기면 이 점을 따라 옮긴다.</summary>
+    private System.Windows.Shapes.Ellipse? _shipDot;
+
+    /// <summary>아래 줄에 잠깐 붙는 말(옮겼다 · 못 옮긴다).</summary>
+    private string _said = "";
+
     private readonly int _chartW, _chartH, _found, _done;
     private int _zoom = ZoomStart;
     private double _vx, _vy;              // 보이는 자리의 왼쪽 위(지도 점)
@@ -98,8 +112,10 @@ public sealed class DiscoveryMapDialog : GameWindow
     private double Z => Zooms[_zoom];
 
     private DiscoveryMapDialog(uint[] chart, int width, int height,
-                               DiscoveryTable table, Player player, (double X, double Y)? ship, WindTable? wind)
+                               DiscoveryTable table, Player player, (double X, double Y)? ship, WindTable? wind,
+                               Func<double, double, (double X, double Y)?>? warp)
     {
+        _warp = warp;
         _chartW = width;
         _chartH = height;
         _month = player.Date.Month;
@@ -157,8 +173,8 @@ public sealed class DiscoveryMapDialog : GameWindow
         _done = done;
 
         if (ship is { } at)
-            Mark(at.X / ExploredMap.CellsPerBlock, at.Y / ExploredMap.CellsPerBlock,
-                 ShipSize, Mine, "지금 자리", label: false);
+            _shipDot = Mark(at.X / ExploredMap.CellsPerBlock, at.Y / ExploredMap.CellsPerBlock,
+                            ShipSize, Mine, "지금 자리", label: false);
 
         var viewport = new Border
         {
@@ -193,6 +209,13 @@ public sealed class DiscoveryMapDialog : GameWindow
         {
             _dragging = false;
             viewport.ReleaseMouseCapture();
+        };
+        // 오른쪽 단추 — 짚은 자리로 함대를 옮긴다.
+        viewport.MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            var at = e.GetPosition(viewport);
+            Warp(_vx + at.X / Z, _vy + at.Y / Z);
         };
 
         _note = new TextBlock
@@ -297,10 +320,13 @@ public sealed class DiscoveryMapDialog : GameWindow
         foreach (var tag in _labels) tag.Visibility = show;
 
         _note.Text = $"발견물 {_found}곳 · 찾은 것 {_done}곳 · 배율 x{Z:0.#}"
-                   + "   (휠 키우기·줄이기 · 끌어서 옮기기 · 빨강 찾음 · 회색 아직 · 파랑 내 자리"
+                   + "   (휠 키우기·줄이기 · 끌어서 옮기기"
+                   + (_warp != null ? " · 오른쪽 단추 그 자리로 옮기기" : "")
+                   + " · 빨강 찾음 · 회색 아직 · 파랑 내 자리"
                    + (_hasFlows
                        ? $" · 보라 풍향 {(WindTable.IsFirstHalf(_month) ? "1~6월" : "7~12월")} · 청록 해류)"
-                       : ")");
+                       : ")")
+                   + _said;
     }
 
     /// <summary>
@@ -385,7 +411,8 @@ public sealed class DiscoveryMapDialog : GameWindow
     }
 
     /// <summary>점 하나와 이름표를 찍는다. 자리는 <b>지도 점</b>(칸/4)이다.</summary>
-    private void Mark(double x, double y, double size, Brush fill, string name, bool label)
+    private System.Windows.Shapes.Ellipse Mark(double x, double y, double size, Brush fill,
+                                              string name, bool label)
     {
         var dot = new System.Windows.Shapes.Ellipse
         {
@@ -398,7 +425,7 @@ public sealed class DiscoveryMapDialog : GameWindow
         Canvas.SetTop(dot, y - size / 2);
         _world.Children.Add(dot);
 
-        if (!label) return;
+        if (!label) return dot;
 
         var tag = new TextBlock
         {
@@ -413,15 +440,49 @@ public sealed class DiscoveryMapDialog : GameWindow
         Canvas.SetTop(tag, y - 2.5);
         _world.Children.Add(tag);
         _labels.Add(tag);
+        return dot;
+    }
+
+    /// <summary>
+    /// 짚은 자리(지도 점)로 함대를 옮긴다. 옮겨진 자리에 내 자리 점을 다시 찍는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임에 없는 길이라 묻지 않고 바로 옮긴다 — 지도를 띄워 놓고 여러 곳을 짚어 볼 수
+    /// 있어야 쓸모가 있다. 뭍을 짚으면 부르는 쪽이 가까운 물칸으로 밀어 준다.
+    /// </remarks>
+    private void Warp(double px, double py)
+    {
+        if (_warp == null) return;
+
+        var landed = _warp(px * ExploredMap.CellsPerBlock, py * ExploredMap.CellsPerBlock);
+        if (landed is not { } spot)
+        {
+            _said = "   ·   지금은 함대를 옮길 수 없습니다(도시 안이거나 뭍 위)";
+            Apply();
+            return;
+        }
+
+        double x = spot.X / ExploredMap.CellsPerBlock, y = spot.Y / ExploredMap.CellsPerBlock;
+        _shipDot ??= Mark(x, y, ShipSize, Mine, "지금 자리", label: false);
+        Canvas.SetLeft(_shipDot, x - ShipSize / 2);
+        Canvas.SetTop(_shipDot, y - ShipSize / 2);
+
+        _said = "   ·   그 자리로 옮겼습니다(닻을 내린 채)";
+        Apply();
     }
 
     /// <summary>창을 연다. 지도를 못 지으면 아무 일도 안 한다.</summary>
     /// <param name="wind">바람표. 없으면 풍향 · 해류 단추가 안 나온다.</param>
+    /// <param name="warp">
+    /// 오른쪽 단추로 짚은 자리로 함대를 옮기는 손. 안 주면 옮기기가 없다.
+    /// </param>
     public static void Show(Window owner, uint[]? chart, int width, int height,
                             DiscoveryTable? table, Player player, (double X, double Y)? ship,
-                            WindTable? wind = null)
+                            WindTable? wind = null,
+                            Func<double, double, (double X, double Y)?>? warp = null)
     {
         if (chart == null || table == null || width <= 0 || height <= 0) return;
-        new DiscoveryMapDialog(chart, width, height, table, player, ship, wind) { Owner = owner }.ShowDialog();
+        new DiscoveryMapDialog(chart, width, height, table, player, ship, wind, warp)
+        { Owner = owner }.ShowDialog();
     }
 }

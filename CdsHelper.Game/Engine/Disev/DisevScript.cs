@@ -101,6 +101,11 @@ public static class DisevScript
         new(Sig(0x29, 0x1A), 6, "기다리기(29 1A)"),
         // 33 은 00 1F 로 띄운 EVSTILL 그림을 닫는다 — 0x0040A79E 가 [ebp-0x20](0x00472FA0 이 만든 그림)의
         // 가상 +0x18 로 닫고 지운 뒤 「그림 떠 있음」 비트 0x2000 을 끈다. 인자 없는 한 바이트다.
+        // 31 — 제독의 성미 여덟 칸을 말로 풀어 낸다(0x0040A4C0). 칸마다 0·2 면 낱말 하나를
+        // 집어 「소심! 우유부단! …」처럼 잇고, 1 이면 건너뛴다. 낱말 짝은 0x00538A28 부터다
+        // (소심↔거만 · 우유부단↔독선 · 변덕↔집착 · 겁장이↔무모 · 냉혹↔팔방 미인 ·
+        //  편협↔욕심장이 · 무신경↔신경질 · 낭비가↔깍쟁이). 델포이 무당이 이것을 쓴다.
+        new(Sig(0x31), 1, "성격 알리기"),
         new(Sig(0x33), 1, "EVSTILL 닫기"),
         new(Sig(0x48), 1, "화면 떠 두기(48)"),
         new(Sig(0x49), 1, "화면 되돌리기(49)"),
@@ -587,6 +592,13 @@ public static class DisevScript
         DecodeDialogue(data, normalize: true);
 
     /// <summary>
+    /// 놀이가 낼 글 — 자리표에 <b>제독 이름과 조사</b>를 채워 넣는다.
+    /// </summary>
+    /// <param name="player">제독 이름. 비었으면 「제독」으로 물러선다.</param>
+    public static (string? Speaker, string Body) DecodeDialogue(ReadOnlySpan<byte> data, string player) =>
+        DecodeDialogue(data, normalize: true, player.Length > 0 ? player : "제독");
+
+    /// <summary>
     /// 같은 것을 <b>손실 없이</b> 푼다 — 고치는 칸에 넣을 글이다.
     /// </summary>
     /// <param name="normalize">
@@ -594,7 +606,8 @@ public static class DisevScript
     /// <b>거짓이면 아무것도 안 고른다</b> — 그래야 다시 구웠을 때 바이트가 같다.
     /// 자리표도 <c>&lt;제독&gt;</c> 처럼 되돌릴 수 있는 꼴로 적는다.
     /// </param>
-    public static (string? Speaker, string Body) DecodeDialogue(ReadOnlySpan<byte> data, bool normalize)
+    public static (string? Speaker, string Body) DecodeDialogue(ReadOnlySpan<byte> data, bool normalize,
+                                                               string? player = null)
     {
         string? speaker = null;
         int bodyStart = 0;
@@ -622,14 +635,7 @@ public static class DisevScript
             }
             if (i + 4 <= source.Length && source[i] == 0x81 && source[i + 1] == 0x93 && source[i + 2] == 0x82)
             {
-                string token = source[i + 3] switch
-                {
-                    0x93 => normalize ? "제독" : "<제독>",
-                    0x76 => normalize ? "협" : "<협>",
-                    0x77 => normalize ? "대륙" : "<대륙>",
-                    0x6C => normalize ? "남방대륙" : "<남방대륙>",
-                    _ => $"<자리표 0x{source[i + 3]:X2}>",
-                };
+                string token = TokenText(source[i + 3], normalize, player);
                 cooked.AddRange(Cp949.GetBytes(token));
                 i += 4;
                 continue;
@@ -640,6 +646,37 @@ public static class DisevScript
 
         string body = Safe(Cp949.GetString(cooked.ToArray()));
         return (speaker, normalize ? Normalize(body).TrimEnd(' ') : body);
+    }
+
+    /// <summary>
+    /// 자리표 한 개를 글로 편다(<see cref="NameToken"/>).
+    /// </summary>
+    /// <param name="player">
+    /// 놀이가 낼 글이면 제독 이름. <b>null 이면 고치는 창</b>이라 이름 대신 자리 이름을 적는다 —
+    /// 그래야 무손실 글이 다시 같은 바이트로 구워진다(<see cref="DisevForm"/>).
+    /// </param>
+    private static string TokenText(byte code, bool normalize, string? player)
+    {
+        // 글자 그대로 박는 자리표는 어느 쪽에서든 같은 글이다.
+        if (NameToken.WordOf(code) is { } word) return normalize ? word : $"<{word}>";
+
+        if (NameToken.IsName(code))
+            return player ?? (normalize ? "제독" : "<제독>");
+
+        int kind = NameToken.KindOf(code);
+        if (kind < 0) return $"<자리표 0x{code:X2}>";
+        if (player != null) return NameToken.Of(player, kind);
+
+        string label = kind switch
+        {
+            0 => "<이/가>",
+            1 => "<은/는>",
+            3 => "<와/과>",
+            8 => "<(이)라는>",
+            16 => "<(이)>",
+            _ => $"<자리표 0x{code:X2}>",
+        };
+        return label;
     }
 
     /// <summary>

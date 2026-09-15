@@ -1446,6 +1446,96 @@ public sealed class Player
     /// <summary>실어 둔 보급품을 원값으로 통째로. 세이브에 적을 때 쓴다.</summary>
     public IReadOnlyList<int> Supplies => _supplies;
 
+    // ── 교역품 짐 ────────────────────────────────────────────────────────────
+
+    /// <summary>짐 칸 하나 — 교역품 종류 · 갯수 · 원산지 도시 · 한 개 무게.</summary>
+    /// <remarks>
+    /// 게임은 함대 전역 객체(<c>0x005B3928</c>)의 <c>+0x54</c> 에 <c>{종류, 갯수, 원산지, ?}</c>
+    /// 16바이트 x 8칸을 둔다(읽기 <c>0x004742B0</c> · 쓰기 <c>0x004742F0</c>). 넷째 칸은 뜻을
+    /// 못 갈랐다. 무게는 교역품 표에 있지만 이 모델은 그 표를 모르므로 실을 때 함께 적어 둔다.
+    /// </remarks>
+    public readonly record struct Cargo(int Kind, int Count, int Origin, int UnitWeight);
+
+    /// <summary>짐 칸 수. <b>함대 통틀어</b> 여덟이다 — 배마다가 아니다(<c>0x004B5780</c>).</summary>
+    public const int CargoSlots = 8;
+
+    private readonly List<Cargo> _cargo = [];
+
+    /// <summary>실은 교역품. 앞에서부터 차고, 덜어 내어 빈 칸은 뒤가 당겨 붙는다.</summary>
+    public IReadOnlyList<Cargo> CargoHold => _cargo;
+
+    /// <summary>실은 교역품 갯수 — 용량을 이만큼 먹는다(<c>0x00474430</c>).</summary>
+    public int CargoCount => _cargo.Sum(c => c.Count);
+
+    /// <summary>실은 교역품 무게 — 갯수 x 한 개 무게(<c>0x00474330</c>).</summary>
+    public int CargoWeight => _cargo.Sum(c => c.Count * c.UnitWeight);
+
+    /// <summary>
+    /// 교역품을 싣는다. 같은 종류 · 같은 원산지 칸이 있으면 합치고, 없으면 빈 칸에 넣는다
+    /// (게임 <c>0x004B5830</c> AddCargo 와 같다). 칸이 없으면 false.
+    /// </summary>
+    public bool LoadCargo(int kind, int count, int origin, int unitWeight)
+    {
+        if (kind < 0 || count <= 0) return false;
+        int at = _cargo.FindIndex(c => c.Kind == kind && c.Origin == origin);
+        if (at >= 0)
+        {
+            _cargo[at] = _cargo[at] with { Count = _cargo[at].Count + count };
+            return true;
+        }
+        if (_cargo.Count >= CargoSlots) return false;
+        _cargo.Add(new Cargo(kind, count, origin, Math.Max(0, unitWeight)));
+        return true;
+    }
+
+    /// <summary>그 칸에서 그만큼 덜어 낸다. 다 덜면 칸을 빼고 뒤를 당긴다.</summary>
+    public bool UnloadCargo(int slot, int count)
+    {
+        if (slot < 0 || slot >= _cargo.Count || count <= 0 || count > _cargo[slot].Count) return false;
+        int left = _cargo[slot].Count - count;
+        if (left == 0) _cargo.RemoveAt(slot);
+        else _cargo[slot] = _cargo[slot] with { Count = left };
+        return true;
+    }
+
+    private readonly Dictionary<int, int[]> _tradeStock = [];
+
+    /// <summary>
+    /// 교역소 재고 — 도시 번호마다 <c>[공통품 다섯 칸, 특산품, 적은 달]</c> 일곱 칸.
+    /// </summary>
+    /// <remarks>
+    /// 게임 도시 레코드(<c>0x005863A8</c> + 도시 x 92)의 <c>+0x44~+0x54</c>(공통품)와
+    /// <c>+0x18</c>(특산품)이다. 게임은 매달 1일에 한도까지 통째로 다시 채우므로(<c>0x0042A280</c>)
+    /// 끝 칸에 그 재고를 적은 달을 둔다 — 달이 바뀌었거나 여기 없는 도시는 규칙 쪽이 한도로 본다.
+    /// </remarks>
+    public IReadOnlyDictionary<int, int[]> TradeStock => _tradeStock;
+
+    /// <summary>한 벌 칸 수. 공통품 다섯 · 특산품 하나 · 적은 달 하나.</summary>
+    public const int TradeStockCells = 7;
+
+    /// <summary>그 도시 재고를 박는다. 칸 수가 모자라면 받지 않는다.</summary>
+    public void SetTradeStock(int cityId, IReadOnlyList<int> cells)
+    {
+        if (cityId < 0 || cells.Count < TradeStockCells) return;
+        _tradeStock[cityId] = [.. cells.Take(TradeStockCells).Select(v => Math.Max(0, v))];
+    }
+
+    /// <summary>세이브에서 재고를 되돌린다. 옛 세이브(null)면 다들 처음 재고다.</summary>
+    public void RestoreTradeStock(IReadOnlyDictionary<int, List<int>>? stock)
+    {
+        _tradeStock.Clear();
+        foreach (var (city, cells) in stock ?? new Dictionary<int, List<int>>())
+            SetTradeStock(city, cells);
+    }
+
+    /// <summary>세이브에서 짐을 되돌린다. 옛 세이브(null)면 빈 채로 둔다.</summary>
+    public void RestoreCargo(IEnumerable<Cargo>? cargo)
+    {
+        _cargo.Clear();
+        foreach (var c in cargo ?? [])
+            if (c.Kind >= 0 && c.Count > 0 && _cargo.Count < CargoSlots) _cargo.Add(c);
+    }
+
     /// <summary>함대가 실을 수 있는 통 수(용량). 배마다의 적재량을 더한 것이다.</summary>
     public int Capacity => _ships.Sum(s => s.Capacity);
 
@@ -1576,13 +1666,13 @@ public sealed class Player
         Supply.DaysLeft(SupplyOf(SupplyKind.Food), SupplyOf(SupplyKind.Water), Crew);
 
     /// <summary>지금 실은 통 수.</summary>
-    public int LoadedBarrels => Supply.All.Sum(s => SupplyOf(s.Kind));
+    public int LoadedBarrels => Supply.All.Sum(s => SupplyOf(s.Kind)) + CargoCount;
 
     /// <summary>
     /// 지금 실은 무게 — 보급품과 <b>대포</b>를 센다. 소지품 무게는 아직 안 센다.
     /// </summary>
     public int LoadedWeight =>
-        Supply.All.Sum(s => SupplyOf(s.Kind) * s.UnitWeight) + GunWeight;
+        Supply.All.Sum(s => SupplyOf(s.Kind) * s.UnitWeight) + GunWeight + CargoWeight;
 
     /// <summary>함대가 실은 대포의 무게.</summary>
     public int GunWeight => _ships.Sum(s => s.GunWeight);
