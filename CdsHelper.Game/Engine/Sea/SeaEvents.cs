@@ -337,14 +337,65 @@ public static class SeaEvents
     /// <param name="Tired">오늘 오른 피로도.</param>
     /// <param name="Cold">추위 값(0~3).</param>
     /// <param name="Weary">넘어선 피로 문턱(50·70·90). 안 넘었으면 0.</param>
+    /// <param name="Dead">지쳐 죽은 선원 수.</param>
+    /// <param name="Short">그 바람에 승원이 모자라졌으면 부관이 할 말. 아니면 빈 글.</param>
     public sealed record Day(bool WaterLow, bool FoodLow, bool WaterOut, bool FoodOut,
-                             int Tired, int Cold, int Weary);
+                             int Tired, int Cold, int Weary, int Dead = 0, string Short = "");
 
     /// <summary>추위가 한 단씩 오르는 위도(도). 게임 값 <c>0x1C36·0x1E61·0x208D</c> 다.</summary>
     public static readonly double[] ColdLats = [65, 70, 75];
 
     /// <summary>피로 알림이 뜨는 문턱(<c>0x004757C5</c> 벌).</summary>
     public static readonly int[] WearySteps = [50, 70, 90];
+
+    /// <summary>이 피로도부터는 <b>날마다 사람이 죽는다</b>(<c>0x004758DD</c> 의 <c>cmp 0x5A</c>).</summary>
+    /// <remarks>
+    /// 문턱 알림의 마지막 줄이 이르는 그대로다 — 「선원들의 피로가 한계에 달하고 있습니다.
+    /// 이대로라면 죽는 사람이 나오고 맙니다!」 가 90 에서 뜨고, 그 뒤로는 <b>정말 죽는다</b>.
+    /// </remarks>
+    public const int DeathFatigue = 90;
+
+    /// <summary>
+    /// 오늘 지쳐 죽는 선원 수. 피로도가 <see cref="DeathFatigue"/> 아래면 0 이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    /// 4758dd  cmp 피로도(+0x28), 0x5A ; jl  건너뛴다
+    /// 4758e7  죽을수 = 0x004745F0(함대 총선원) / 10 + 1
+    /// 4758fd  척수   = 0x00473E00(배 수) ; 0 이면 1
+    /// 475916  배 여덟 칸마다   n = max(1, 죽을수 / 척수)
+    ///                          0x0044C800(배, n)          ; 배+0x34 선원 -= n
+    ///                          모자람 |= 필요승원(배+0x30 + 10) > 선원(배+0x34)
+    /// 475968  모자라면 부관(아니면 뱃사람)이 한 줄 한다
+    /// </code>
+    /// <b>배마다 적어도 한 사람</b>이라, 배가 많으면 그만큼 더 죽는다 — 선원 스물에 배 넉 척이면
+    /// 죽을수가 3 이라 척당 0 으로 떨어지지만 바닥이 1 이라 <b>넷</b>이 죽는다.
+    /// </remarks>
+    public static int WearyDeaths(Player player)
+    {
+        if (player.Fatigue < DeathFatigue || player.Crew <= 0) return 0;
+
+        int ships = Math.Max(1, player.Ships.Count);
+        int each = Math.Max(1, (player.Crew / 10 + 1) / ships);
+        return Math.Min(player.Crew, each * ships);
+    }
+
+    /// <summary>
+    /// 승원이 모자라졌을 때 부관이 하는 말(<c>0x005357D8</c> · <c>0x00535820</c>). 넉넉하면 빈 글이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 배마다 견주지만 우리는 함대가 통째로 태우므로 <b>합</b>으로 본다. 부하가 하나도
+    /// 없으면 게임도 이 줄을 안 낸다(<c>0x004759A5</c> 앞의 <c>0x0047CC50(0) == −1</c> 검사).
+    /// </remarks>
+    public static string ShortCrewWord(Player player)
+    {
+        if (player.Crew >= player.MinCrew) return "";
+        if (player.MateInfoOf(player.MateAt(0)) == null) return "";
+
+        return player.Ships.Count > 1
+            ? "제독, 선원이 부족한 배는 따라 올 수 없습니다. 선원수를 조정해 주십시오."
+            : "제독, 선원수가 모자랍니다! 아무 항구에서든 선원을 고용합시다.";
+    }
 
     /// <summary>
     /// 그 위도의 추위 — 65도에서 한 단, 70도에서 두 단, 75도를 넘으면 세 단이다.
@@ -406,10 +457,14 @@ public static class SeaEvents
         foreach (int mark in WearySteps)
             if (was < mark && player.Fatigue >= mark) weary = mark;
 
+        // 피로가 한계를 넘으면 그날부터 사람이 죽는다(0x004758DD) — 지친 뒤에 센다.
+        int dead = WearyDeaths(player);
+        if (dead > 0) player.SetCrew(player.Crew - dead);
+
         return new Day(
             Crossed(water0, water, warn), Crossed(food0, food, warn),
             water0 > 0 && water == 0, food0 > 0 && food == 0,
-            tired, cold, weary);
+            tired, cold, weary, dead, dead > 0 ? ShortCrewWord(player) : "");
     }
 
     /// <summary>선원 대표와 벌인 승부의 끝.</summary>

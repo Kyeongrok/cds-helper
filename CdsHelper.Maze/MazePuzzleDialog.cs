@@ -393,7 +393,7 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// <c>0x0049E3E0</c>(제목 달린 알림창)로 낸다.
     /// </remarks>
     private static void Explain(Window owner) =>
-        NoticeDialog.Show(owner, Rules, "게임 설명");
+        NoticeDialog.Explain(owner, Rules);
 
     private void Explain() => Explain(this);
 

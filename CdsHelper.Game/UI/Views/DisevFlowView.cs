@@ -12,7 +12,9 @@ namespace CdsHelper.Game.UI.Views;
 /// </summary>
 /// <remarks>
 /// 분기는 파란 마름모, 묶음은 초록 네모, 멎는 묶음은 갈색 네모다. 칸(열)은 들머리에서 가장 긴
-/// 앞으로 가는 길의 걸음 수로 잡고, 한 열 안에서는 앞 노드 높이에 맞추되 <b>예를 아니오 위에</b> 둔다.
+/// 앞으로 가는 길의 걸음 수로 잡고, 한 열 안에서는 앞 노드 높이에 맞춘다.
+/// <b>분기의 아니오(다음 줄)는 마름모 오른쪽 꼭짓점에서 같은 줄로, 예(뛰는 쪽)는 아래 꼭짓점에서
+/// 내려 마름모보다 밑 줄로</b> 간다. 예 노드는 가는 길에 걸리는 사이 열 노드 밑으로 민다.
 /// 뒤로 뛰는 화살은 두 노드 밑으로 돌려 그린다.
 /// </remarks>
 internal static class DisevFlowView
@@ -65,6 +67,28 @@ internal static class DisevFlowView
 
         // 줄 — 열마다 앞 노드 가운데 높이에 맞추고, 겹치면 밑으로 민다.
         var y = new double[n];
+
+        bool IsDown(DisevFlow.Edge e) => e.Jump && nodes[e.From].Kind == DisevFlow.NodeKind.Decision;
+
+        // 예 노드의 윗변 — 마름모 밑으로 내리고, 가로 화살이 사이 열 노드를 꿰지 않게 더 민다.
+        // 열은 왼쪽부터 놓으므로 사이 열은 이미 자리가 잡혀 있다.
+        double BelowDecision(int decision, int target)
+        {
+            double want = y[decision] + size[decision].Height + GapY;
+            for (bool moved = true; moved;)
+            {
+                moved = false;
+                double line = want + size[target].Height / 2;
+                for (int k = 0; k < n; k++)
+                {
+                    if (col[k] <= col[decision] || col[k] >= col[target]) continue;
+                    if (line < y[k] - GapY / 2 || line > y[k] + size[k].Height + GapY / 2) continue;
+                    want = y[k] + size[k].Height + GapY - size[target].Height / 2;
+                    moved = true;
+                }
+            }
+            return want;
+        }
         var incoming = graph.Edges.Where(e => e.From < e.To).ToLookup(e => e.To);
         for (int c = 0; c < columns; c++)
         {
@@ -73,9 +97,13 @@ internal static class DisevFlowView
                 {
                     var from = incoming[i].OrderBy(e => e.From).FirstOrDefault();
                     bool has = incoming[i].Any();
-                    double want = has ? y[from.From] + size[from.From].Height / 2 - size[i].Height / 2 : Edge0;
-                    int label = from.Label == DisevFlow.Yes ? 0 : from.Label == DisevFlow.No ? 2 : 1;
-                    return (Node: i, Want: want, Label: label);
+                    bool down = has && IsDown(from);
+                    double want = !has ? Edge0
+                        : down ? BelowDecision(from.From, i)
+                        : y[from.From] + size[from.From].Height / 2 - size[i].Height / 2;
+                    // 아니오가 먼저(같은 줄), 예는 맨 뒤(밑 줄)다.
+                    int rank = !has ? 1 : down ? 2 : from.Label.Length > 0 ? 0 : 1;
+                    return (Node: i, Want: want, Label: rank);
                 })
                 .OrderBy(t => t.Want).ThenBy(t => t.Label).ThenBy(t => t.Node);
 
@@ -94,12 +122,32 @@ internal static class DisevFlowView
         int back = 0;
         foreach (var e in graph.Edges)
         {
-            double sx = colX[col[e.From]] + size[e.From].Width, sy = y[e.From] + size[e.From].Height / 2;
+            // 예는 마름모 아래 꼭짓점, 그 밖은 오른쪽 가운데에서 나간다.
+            bool down = IsDown(e);
+            double sx = down ? colX[col[e.From]] + size[e.From].Width / 2 : colX[col[e.From]] + size[e.From].Width;
+            double sy = down ? y[e.From] + size[e.From].Height : y[e.From] + size[e.From].Height / 2;
             double tx = colX[col[e.To]], ty = y[e.To] + size[e.To].Height / 2;
             var line = new Polyline { Stroke = LineBrush, StrokeThickness = 1.2 };
-            double labelX;
+            double labelX, labelY = ty - 19;
 
-            if (col[e.To] > col[e.From])
+            if (down)
+            {
+                labelX = sx + 6;
+                labelY = sy + 2;
+                if (col[e.To] > col[e.From] && ty >= sy + 14)
+                    line.Points = [new(sx, sy), new(sx, ty), new(tx, ty)];
+                else
+                {
+                    // 과녁이 꼭짓점보다 높거나 뒤에 있으면 한 번 내려 섰다가 돌아 들어간다.
+                    double by = col[e.To] > col[e.From]
+                        ? sy + 14
+                        : Math.Max(sy, y[e.To] + size[e.To].Height) + 14 + back++ * 8;
+                    double lx = tx - (col[e.To] > col[e.From] ? GapX / 2 : 14);
+                    line.Points = [new(sx, sy), new(sx, by), new(lx, by), new(lx, ty), new(tx, ty)];
+                    bottom = Math.Max(bottom, by + Edge0);
+                }
+            }
+            else if (col[e.To] > col[e.From])
             {
                 double mx = tx - GapX / 2;
                 line.Points = [new(sx, sy), new(mx, sy), new(mx, ty), new(tx, ty)];
@@ -125,7 +173,7 @@ internal static class DisevFlowView
             {
                 var label = new TextBlock { Text = e.Label, Foreground = StrokeBrush, FontWeight = FontWeights.Bold };
                 Canvas.SetLeft(label, labelX);
-                Canvas.SetTop(label, ty - 19);
+                Canvas.SetTop(label, labelY);
                 canvas.Children.Add(label);
             }
         }

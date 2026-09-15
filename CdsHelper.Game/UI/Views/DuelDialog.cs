@@ -675,12 +675,15 @@ public sealed class DuelDialog : GameWindow
     /// 효과음 묶음은 <see cref="SoundBank.Shared"/> 가 한 벌만 들고 있고, 게임 폴더는
     /// 마지막으로 연 세이브 파일 자리에서 찾는다 — 이 창은 게임 판을 안 들고 있다.
     /// </remarks>
-    private void Clang()
+    private void Clang() => Sound(SoundBank.ClashPart);
+
+    /// <summary>효과음 한 자락. 묶음을 못 열면 조용히 넘어간다.</summary>
+    private static void Sound(int part)
     {
         var dir = System.IO.Path.GetDirectoryName(
             CdsHelper.Support.Local.Settings.AppSettings.LastSaveFilePath);
         if (string.IsNullOrEmpty(dir)) return;
-        SoundBank.Shared(dir)?.Play(SoundBank.ClashPart);
+        SoundBank.Shared(dir)?.Play(part);
     }
 
     private void OnKey(object sender, KeyEventArgs e)
@@ -773,14 +776,18 @@ public sealed class DuelDialog : GameWindow
             // 판 중 말풍선을 띄우고 확인 단추를 세웠다. 쓰러지는 모습만 잠깐 보여 주고 닫는다 —
             // 뒤의 말(처형·놓아 준다·모두 뺏는다, 반란 진압)은 부른 쪽이 낸다.
             Speak("");
+            // 이겼으면 승리 소리가 난다(사운드 ID 77).
+            if (_duel.Won == true) Sound(SoundBank.DuelWinPart);
             _stage?.Fall(mine: _duel.Won != true);
             _keys.Children.Clear();
             _keyBox.Visibility = Visibility.Collapsed;
             _focus = null;
 
+            // 끝맺는 몸짓(쓰러짐·승리)이 다 돌고 나서 닫는다 — 열여섯 눈금에 한 바퀴라
+            // 비아냥 눈금(15)으로는 마지막 장을 못 보고 닫혔다.
             var end = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromSeconds(DuelMotions.Tick * TauntTicks),
+                Interval = TimeSpan.FromSeconds(DuelMotions.Tick * EndTicks),
             };
             end.Tick += (_, _) =>
             {
@@ -816,6 +823,9 @@ public sealed class DuelDialog : GameWindow
 
     /// <summary>상대의 말이 떠 있는 눈금 — 이만큼 지나면 걷고 명령 창을 낸다.</summary>
     private const int TauntTicks = 15;
+
+    /// <summary>판이 끝나고 닫히기까지 — 끝맺는 몸짓 한 바퀴(16눈금)에 한 박자 더.</summary>
+    private const int EndTicks = 18;
 
     // 「이번 판에 무엇이 오갔는지」를 한 줄로 적던 줄은 걷었다. 게임은 그런 줄을 안
     // 낸다 — 오간 명령은 눈금판 가운데 라벨 둘이, 맞고 안 맞고는 그림과 체력 막대가

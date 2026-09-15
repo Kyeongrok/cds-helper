@@ -32,7 +32,7 @@ public sealed class GameOverDialog : GameWindow
 
     private bool _again;
 
-    private GameOverDialog(DiscoveryStills? stills, int picture, Window owner)
+    private GameOverDialog(DiscoveryStills? stills, int picture, Rect area)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -40,20 +40,22 @@ public sealed class GameOverDialog : GameWindow
         WindowStartupLocation = WindowStartupLocation.Manual;
         Background = Brushes.Black;
 
-        // 주인 창을 그대로 덮는다 — 놀이가 끝나는 자리라 화면을 통째로 가린다.
-        Left = owner.Left;
-        Top = owner.Top;
-        Width = owner.ActualWidth > 0 ? owner.ActualWidth : owner.Width;
-        Height = owner.ActualHeight > 0 ? owner.ActualHeight : owner.Height;
+        // <b>게임 화면만</b> 덮는다 — 제목 줄과 위·아래 띠는 그대로 보인다(원본도 띠가 남는다).
+        // 잴 데가 없으면 부르는 쪽이 주인 창 자리를 준다.
+        Left = area.Left;
+        Top = area.Top;
+        Width = area.Width;
+        Height = area.Height;
 
         var page = new Grid { Background = Wallpaper() };
 
         // 그림을 <b>위쪽에</b> 세운다 — 물음창이 그 아래에 앉을 자리를 비워 두는 것이다.
+        double drop = Height * DropRatio;
         var stack = new StackPanel
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, Gap, 0, 0),
+            Margin = new Thickness(0, drop, 0, 0),
         };
 
         double tall = 0;
@@ -70,7 +72,7 @@ public sealed class GameOverDialog : GameWindow
             _again = ConfirmDialog.Ask(this, "게임을 다시 시작하겠습니까?", "CONTINUE?",
                 place: box =>
                 {
-                    double want = Top + Gap + tall + Gap;
+                    double want = Top + drop + tall + Gap;
                     double most = Top + Height - box.ActualHeight - Gap;
                     box.Top = Math.Min(want, Math.Max(Top + Gap, most));
                 });
@@ -80,6 +82,9 @@ public sealed class GameOverDialog : GameWindow
 
     /// <summary>그림과 물음창 사이, 그리고 화면 가장자리에 두는 틈.</summary>
     private const double Gap = 24;
+
+    /// <summary>그림을 화면 높이의 이만큼 내려 앉힌다 — 원본이 위를 비워 둔다.</summary>
+    private const double DropRatio = 0.2;
 
     /// <summary>벽지 무늬 — 타이틀 화면 것을 그대로 깐다.</summary>
     private static Brush Wallpaper() => ShipMapWindow.TitleBackground();
@@ -114,9 +119,24 @@ public sealed class GameOverDialog : GameWindow
     /// <summary>
     /// 놀이 끝을 알린다. 다시 시작하겠다고 하면 true.
     /// </summary>
-    public static bool Show(Window owner, DiscoveryStills? stills, int picture = MutinyLost)
+    /// <param name="area">
+    /// 덮을 자리(화면 좌표, WPF 단위). 게임 화면만 주면 제목 줄과 위·아래 띠가 남는다.
+    /// 안 주거나 빈 자리면 주인 창을 통째로 덮는다.
+    /// </param>
+    /// <param name="bgm">놀이 끝 곡(8번)을 틀 이. 안 주면 곡은 그대로 돈다.</param>
+    public static bool Show(Window owner, DiscoveryStills? stills, int picture = MutinyLost,
+                            Rect? area = null, BgmPlayer? bgm = null)
     {
-        var dialog = new GameOverDialog(stills, picture, owner) { Owner = owner };
+        var where = area is { Width: > 0, Height: > 0 } r
+            ? r
+            : new Rect(owner.Left, owner.Top,
+                       owner.ActualWidth > 0 ? owner.ActualWidth : owner.Width,
+                       owner.ActualHeight > 0 ? owner.ActualHeight : owner.Height);
+
+        // 놀이가 끝나면 그 곡으로 갈린다. 되돌리지 않는다 — 여기서 나가면 타이틀이다.
+        bgm?.Play(BgmPlayer.GameOverTrack);
+
+        var dialog = new GameOverDialog(stills, picture, where) { Owner = owner };
         dialog.ShowDialog();
         return dialog._again;
     }

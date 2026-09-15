@@ -83,6 +83,11 @@ public sealed class MenuWindow : GameWindow
     {
         if (_shrinking || _closed) return;
         _shrinking = true;
+
+        // <b>알맹이를 먼저 감춘다</b> — 줄과 글은 사라지고 테두리만 남아 접히는 꼴이 된다.
+        // 자리는 그대로 두므로(Hidden) 접히는 크기가 달라지지 않는다.
+        if (_root.Child is { } inside) inside.Visibility = Visibility.Hidden;
+
         Zoom(grow: false, done: () => { if (!_closed) Close(); });
     }
 

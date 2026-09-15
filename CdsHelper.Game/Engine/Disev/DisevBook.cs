@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System.Buffers.Binary;
+using System.IO;
+using System.Text.Json.Serialization;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.Engine.Disev;
@@ -17,8 +19,10 @@ namespace CdsHelper.Game.Engine.Disev;
 /// 이 집이 EXE 표를 다루는 결과 같다(<see cref="ExeTable"/> · <c>발견물표.json</c> ·
 /// <c>건물표.json</c>). 원본은 읽기만 하고, 사람이 보고 고치는 것은 늘 JSON 쪽이다.
 ///
-/// 파트 하나를 통째로 <b>16진 글</b>로 적는다. 대본은 길이가 자유라 칸으로 나누면 되레
-/// 어긋나고, 어느 파트인지는 번호로 알 수 있다.
+/// 파트 하나를 <b>덩이마다 16진 글 한 줄</b>로 적는다(<see cref="Entry"/>). 슬롯 표는
+/// 오프셋 대신 덩이 번호로 적고, 머리말은 적을 때 다시 셈한다 — 그래야 덩이 하나를
+/// 손으로 늘리고 줄여도 파일이 깨지지 않는다. 덩이 안의 명령은 아직 날바이트다.
+/// 나중에 명령 하나씩 뜯어낸다.
 ///
 /// <b>원본이 갈려도 저절로 다시 뜨지는 않는다.</b> 도장은 적어 두되 견주어 버리지는
 /// 않는다 — 사람이 고쳐 둔 대본을 게임 파일이 갈렸다고 말없이 지울 수는 없다.
@@ -29,13 +33,31 @@ public sealed class DisevBook
     /// <summary>적어 둘 파일 이름(<c>발견이벤트.json</c>).</summary>
     public const string CacheName = "발견이벤트";
 
-    /// <summary>알맹이 모양 판.</summary>
-    private const int SnapshotVersion = 1;
+    /// <summary>
+    /// 알맹이 모양 판. 1 은 파트 통째 <c>Hex</c>, 2 는 덩이별 16진 글, 3 은 덩이마다 분기로 가른
+    /// 줄 나무(<see cref="DisevTree"/>)다. 옛 판도 읽어서 새 판으로 옮겨 적는다.
+    /// </summary>
+    private const int SnapshotVersion = 3;
 
     /// <summary>대본 한 파트.</summary>
     /// <param name="Index">발견물 번호이자 파트 번호(0~273).</param>
-    /// <param name="Hex">그 파트의 날바이트를 16진으로 적은 것.</param>
-    public readonly record struct Entry(int Index, string Hex);
+    /// <param name="Step">내부 단계 번호(<see cref="DisevPart.Step"/>).</param>
+    /// <param name="Slots">슬롯 표 — 오프셋이 아니라 <paramref name="Chunks"/> 의 번호다.</param>
+    /// <param name="Chunks">덩이마다 줄 나무 하나(<see cref="DisevTree"/>). 파트 안의 차례 그대로다.</param>
+    /// <param name="Hex">
+    /// 덩이로 못 나눈 파트의 통째 날바이트. 판 1 파일도 이 칸으로 읽힌다.
+    /// 이것이 있으면 나머지 칸은 안 본다.
+    /// </param>
+    public sealed record Entry(
+        int Index,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Step = null,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<SlotEntry>? Slots = null,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull), JsonConverter(typeof(DisevChunksConverter))]
+        List<List<DisevLine>>? Chunks = null,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Hex = null);
+
+    /// <summary>슬롯 한 줄 — 조건 덩이와 본문 덩이의 번호.</summary>
+    public readonly record struct SlotEntry(int Condition, int Body);
 
     /// <summary>JSON 으로 적어 두는 알맹이.</summary>
     internal sealed record Snapshot(List<Entry> Parts);
@@ -88,9 +110,14 @@ public sealed class DisevBook
     {
         LastError = "";
 
+        // 판 1 은 버리지 않고 옮겨 적는다 — 사람이 고쳐 둔 대본이 들어 있을 수 있다.
         var cached = TableCache.Read<Snapshot>(CacheName);
-        if (cached is { Version: SnapshotVersion } && cached.Data.Parts.Count > 0)
-            return FromEntries(cached.Data.Parts, cached.Stamp);
+        if (cached is { Version: >= 1 and <= SnapshotVersion } && cached.Data.Parts.Count > 0)
+        {
+            var book = FromEntries(cached.Data.Parts, cached.Stamp);
+            if (book != null && cached.Version != SnapshotVersion) book.Write();
+            return book;
+        }
 
         return Dump(gameDirectory);
     }
@@ -225,9 +252,9 @@ public sealed class DisevBook
         var parts = new List<byte[]>(rows.Count);
         foreach (var row in rows.OrderBy(r => r.Index))
         {
-            if (DisevScript.ParseHex(row.Hex) is not { Length: > 0 } data)
+            if (Join(row, out string why) is not { Length: > 0 } data)
             {
-                LastError = $"적어 둔 {CacheName}.json 의 파트 {row.Index} 가 깨졌습니다";
+                LastError = $"적어 둔 {CacheName}.json 의 파트 {row.Index} 가 깨졌습니다 — {why}";
                 return null;
             }
             parts.Add(data);
@@ -235,10 +262,98 @@ public sealed class DisevBook
         return new DisevBook(parts, stamp);
     }
 
+    /// <summary>
+    /// 파트를 덩이로 가른다. 되짜서 <b>한 바이트도 안 같으면</b> 통째 <c>Hex</c> 로 둔다.
+    /// </summary>
+    /// <remarks>
+    /// 머리말 뒤와 첫 덩이 사이에 틈이 있거나 뼈대가 안 읽히는 파트는 덩이로 적으면
+    /// 되짤 때 틈이 사라진다. 원본을 잃느니 통째로 적는다.
+    /// </remarks>
+    private static Entry Split(int index, byte[] data)
+    {
+        var whole = new Entry(index, Hex: DisevScript.Hex(data));
+        if (DisevPart.Parse(data, out _) is not { } part || part.ChunkStarts[0] != part.HeaderEnd)
+            return whole;
+
+        var starts = part.ChunkStarts;
+        var entry = new Entry(
+            index,
+            part.Step,
+            part.Slots.Select(s => new SlotEntry(IndexOf(starts, s.Condition), IndexOf(starts, s.Body))).ToList(),
+            starts.Select(s => DisevTree.Build(part.Chunk(s))).ToList());
+
+        return Join(entry, out _) is { } back && back.AsSpan().SequenceEqual(data) ? entry : whole;
+    }
+
+    private static int IndexOf(IReadOnlyList<int> list, int value)
+    {
+        for (int i = 0; i < list.Count; i++)
+            if (list[i] == value) return i;
+        return -1;
+    }
+
+    /// <summary>
+    /// 덩이들을 이어 파트를 짓는다 — 머리말의 슬롯 오프셋은 덩이 길이로 다시 셈한다.
+    /// </summary>
+    private static byte[]? Join(Entry entry, out string error)
+    {
+        error = "";
+        if (entry.Hex != null)
+        {
+            if (DisevScript.ParseHex(entry.Hex) is { Length: > 0 } whole) return whole;
+            error = "Hex 를 못 읽었습니다";
+            return null;
+        }
+
+        if (entry.Step is not { } step || entry.Slots is not { Count: > 0 } slots || entry.Chunks is not { Count: > 0 } chunks)
+        {
+            error = "Step · Slots · Chunks 가 다 있어야 합니다";
+            return null;
+        }
+
+        int headerEnd = 4 + slots.Count * 4;
+        var output = new List<byte>(headerEnd + 1024);
+        output.AddRange(new byte[headerEnd]);
+
+        var at = new int[chunks.Count];
+        for (int i = 0; i < chunks.Count; i++)
+        {
+            if (DisevTree.Flatten(chunks[i], out string why) is not { Length: > 0 } bytes)
+            {
+                error = $"덩이 {i} 를 못 읽었습니다 — {why}";
+                return null;
+            }
+            at[i] = output.Count;
+            output.AddRange(bytes);
+        }
+
+        if (output.Count > 0xFFFF + 4)
+        {
+            error = $"파트가 너무 큽니다({output.Count}바이트)";
+            return null;
+        }
+
+        var result = output.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(result, (ushort)step);
+        BinaryPrimitives.WriteUInt16LittleEndian(result.AsSpan(2), (ushort)slots.Count);
+        for (int i = 0; i < slots.Count; i++)
+        {
+            var (condition, body) = (slots[i].Condition, slots[i].Body);
+            if (condition < 0 || condition >= chunks.Count || body < 0 || body >= chunks.Count)
+            {
+                error = $"슬롯 {i} 가 없는 덩이를 가리킵니다";
+                return null;
+            }
+            BinaryPrimitives.WriteUInt16LittleEndian(result.AsSpan(4 + i * 4), (ushort)(at[condition] - 4));
+            BinaryPrimitives.WriteUInt16LittleEndian(result.AsSpan(6 + i * 4), (ushort)(at[body] - 4));
+        }
+        return result;
+    }
+
     private void Write()
     {
         var rows = new List<Entry>(_parts.Count);
-        for (int i = 0; i < _parts.Count; i++) rows.Add(new Entry(i, DisevScript.Hex(_parts[i])));
+        for (int i = 0; i < _parts.Count; i++) rows.Add(Split(i, _parts[i]));
 
         TableCache.Write(CacheName, new TableCache.Cached<Snapshot>(
             _stamp, new Snapshot(rows), "DISEV.CDS", SnapshotVersion));

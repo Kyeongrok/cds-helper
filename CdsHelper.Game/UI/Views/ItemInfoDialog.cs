@@ -43,7 +43,8 @@ public sealed class ItemInfoDialog : GameWindow
         return b;
     }
 
-    private ItemInfoDialog(ItemTable.Record item, string description, ItemArt? art)
+    private ItemInfoDialog(ItemTable.Record item, string description, ItemArt? art,
+                           bool equipped)
     {
         Title = item.Name;
         WindowStyle = WindowStyle.None;
@@ -54,7 +55,7 @@ public sealed class ItemInfoDialog : GameWindow
         ShowInTaskbar = false;
         Background = Back;
 
-        var head = HeadRow(item);
+        var head = HeadRow(item, equipped);
 
         var picture = new Border
         {
@@ -101,7 +102,15 @@ public sealed class ItemInfoDialog : GameWindow
     }
 
     /// <summary>맨 윗줄 — 이름 · 속성 · 효과 · 닫기.</summary>
-    private FrameworkElement HeadRow(ItemTable.Record item)
+    /// <summary>
+    /// 머리 줄 — 이름 · 속성 · 효과, 그리고 <b>「장비중」</b>.
+    /// </summary>
+    /// <remarks>
+    /// 게임(<c>0x0046E6D7</c>~<c>0x0046E772</c>)은 소지품을 훑어 <b>같은 갈래에서 효과가 가장
+    /// 센 것</b> 하나를 골라 두고, 지금 보는 것이 그것이면 효과 밑에 「장비중」(<c>0x005710C8</c>)
+    /// 을 찍는다. 값이 같으면 <b>먼저 든 것</b>이 이긴다(견줌이 <c>&gt;</c> 다).
+    /// </remarks>
+    private FrameworkElement HeadRow(ItemTable.Record item, bool equipped)
     {
         var row = new DockPanel { LastChildFill = true, Margin = new Thickness(12, 8, 8, 4) };
 
@@ -111,8 +120,14 @@ public sealed class ItemInfoDialog : GameWindow
         DockPanel.SetDock(close, Dock.Right);
         row.Children.Add(close);
 
-        var effect = Label($"효과  {item.Effect}");
-        effect.Margin = new Thickness(0, 0, 12, 0);
+        var effect = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
+        effect.Children.Add(Label($"효과  {item.Effect}"));
+        if (equipped)
+        {
+            var worn = Label("장비중");
+            worn.HorizontalAlignment = HorizontalAlignment.Right;
+            effect.Children.Add(worn);
+        }
         DockPanel.SetDock(effect, Dock.Right);
         row.Children.Add(effect);
 
@@ -141,6 +156,27 @@ public sealed class ItemInfoDialog : GameWindow
     };
 
     /// <summary>아이템 하나를 보여 준다. 확인을 누르거나 ESC 로 닫는다.</summary>
-    public static void Show(Window owner, ItemTable.Record item, string description, ItemArt? art) =>
-        new ItemInfoDialog(item, description, art) { Owner = owner }.ShowDialog();
+    /// <param name="equipped">「장비중」을 찍을지 — <see cref="IsEquipped"/> 가 가른다.</param>
+    public static void Show(Window owner, ItemTable.Record item, string description, ItemArt? art,
+                            bool equipped = false) =>
+        new ItemInfoDialog(item, description, art, equipped) { Owner = owner }.ShowDialog();
+
+    /// <summary>
+    /// 지닌 것 가운데 <b>그 갈래에서 가장 센 것</b>인지 — 이것 하나에만 「장비중」이 붙는다.
+    /// </summary>
+    /// <remarks>게임 <c>0x0046E6D7</c> 고리 그대로다. 같은 값이면 먼저 든 것이 이긴다.</remarks>
+    public static bool IsEquipped(ItemTable.Record item, IEnumerable<int> bag, ItemTable? table)
+    {
+        if (table == null) return false;
+
+        int best = -1, bestEffect = int.MinValue;
+        foreach (int id in bag)
+        {
+            if (table.Find(id) is not { } one || one.Category != item.Category) continue;
+            if (one.Effect <= bestEffect) continue;
+            bestEffect = one.Effect;
+            best = one.Id;
+        }
+        return best == item.Id;
+    }
 }

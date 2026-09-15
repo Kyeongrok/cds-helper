@@ -64,6 +64,27 @@ public static class Sailing
     public const int LandSpeed = 2;
 
     /// <summary>
+    /// 배 종류마다 한 틱에 <b>뱃머리가 도는 눈금 수</b>. 게임 표(<c>0x00569FC0</c>, int32 x8)다.
+    /// </summary>
+    /// <remarks>
+    /// 차례는 선체 번호(<see cref="Hull.GameId"/> — 게임에서는 기함 레코드 <c>+0x28</c>)다.
+    /// 눈금 하나가 22.5도라, 코구는 한 틱에 67.5도를 돌고 대형카락·중카락은 22.5도밖에
+    /// 못 돈다. 자세한 것은 볼트 <c>86.분석-바다 조타(커서 방향·뱃머리·이동 벡터)</c>.
+    /// </remarks>
+    public static readonly int[] TurnRates = [3, 2, 2, 2, 1, 1, 2, 2];
+
+    /// <summary>선체를 모를 때 쓰는 도는 빠르기. 여덟 중 여섯이 이 값이다.</summary>
+    public const int DefaultTurnRate = 2;
+
+    /// <summary>그 선체가 한 틱에 도는 눈금 수.</summary>
+    public static int TurnRateOf(Hull? hull)
+    {
+        if (hull == null) return DefaultTurnRate;
+        int id = hull.GameId;
+        return id >= 0 && id < TurnRates.Length ? TurnRates[id] : DefaultTurnRate;
+    }
+
+    /// <summary>
     /// 바닥 속도. 무풍에 셈이 0 으로 떨어졌을 때 이 값으로 받쳐 준다
     /// (<c>0x0048BE22</c>) — 표도 함대도 없어 셀 것이 없을 때도 이 값이다.
     /// </summary>

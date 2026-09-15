@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Game.Local.Helpers;
@@ -25,6 +25,7 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   <item><term>2 폭풍</term><description>파트 3 (320x240 x 11) · 빗방울 파트 2 (32x32) · 팔레트 32 · 소리 0x40</description></item>
 ///   <item><term>3 눈보라</term><description>파트 5 (240x320) · 눈송이 파트 4 (16x16 x 3) · 팔레트 33 · 소리 0x41</description></item>
 ///   <item><term>8 덤불</term><description>파트 10 (96x64 x 15) · 팔레트 38 — 짐승·독충</description></item>
+///   <item><term>11 오로라</term><description>파트 18 (640x192 x 22) · 팔레트 44 · 소리 0x3A · 곡 끊음</description></item>
 ///   <item><term>13 회오리</term><description>파트 17 (96x128 x 8) · 팔레트 43 · 소리 0x42</description></item>
 /// </list>
 /// </remarks>
@@ -44,6 +45,15 @@ public sealed class EventAnimation
 
     /// <summary>회오리 장면 — 뭍에서 회오리를 맞으면(<c>0x00427E4A</c>).</summary>
     public const int Tornado = 13;
+
+    /// <summary>
+    /// 오로라 장면 — 발견 대본의 <c>00 1E 04</c>(특수 조우 4)가 부른다(<c>0x0061D280</c>).
+    /// </summary>
+    /// <remarks>
+    /// 발견물 <b>194 오로라</b>의 DISEV 파트가 「굉장하다! 제독, 위를 보십시오!」 바로 뒤에
+    /// 이것을 건다. 지도를 <b>깜깜하게 덮고</b> 밤하늘에 빛의 장막을 펼친 뒤 도로 밝힌다.
+    /// </remarks>
+    public const int Aurora = 11;
 
     /// <summary>얹는 팔레트 색 수(<c>0x56</c>).</summary>
     private const int PaletteColors = 0x56;

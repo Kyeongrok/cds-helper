@@ -52,6 +52,15 @@ public sealed class ExploredMap
     /// <summary>비트가 하나라도 서 있는지 — 한 번도 안 나갔으면 false.</summary>
     public bool Any { get; private set; }
 
+    /// <summary>
+    /// 온 지도를 밝힌다. 놀이에는 쓰지 않는다 — <b>발견물 지도</b>가 바탕을 지을 때만 쓴다.
+    /// </summary>
+    public void RevealAll()
+    {
+        Array.Fill(_bits, (byte)0xFF);
+        Any = true;
+    }
+
     /// <summary>그 점이 밝혀졌는지. 밖이면 false.</summary>
     public bool Seen(int bx, int by)
     {

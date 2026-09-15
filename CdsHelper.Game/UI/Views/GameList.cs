@@ -76,7 +76,7 @@ internal enum GameListPick
 internal sealed class GameList : Border
 {
     /// <summary>고른 줄에 씌우는 남색. 게임 화면에서 뽑았다.</summary>
-    private static readonly Brush Picked = Frozen(Color.FromRgb(0x3A, 0x5A, 0x9A));
+    private static readonly Brush Picked = Frozen(Color.FromRgb(0x5C, 0x6F, 0x93));
 
     /// <summary>손이 가 있는 줄을 두르는 검은 테. 골라 둔 것과는 따로 논다.</summary>
     private static readonly Brush Caret = Frozen(Color.FromRgb(0x0C, 0x0A, 0x08));

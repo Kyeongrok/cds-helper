@@ -251,17 +251,34 @@ public sealed class Player
         Abilities = next;
     }
 
+    /// <summary>제독의 컨디션(<c>0x005B60D8</c>). 처음 값은 <see cref="ConditionFull"/> 이다.</summary>
+    public int Condition { get; private set; } = ConditionFull;
+
+    /// <summary>컨디션의 성한 값과 위 끝(<c>0x0049E560</c> 이 <c>0 ~ 0x7D0</c> 으로 자른다).</summary>
+    public const int ConditionFull = 100, ConditionMax = 2000;
+
+    /// <summary>컨디션을 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
+    public void SetCondition(int value) => Condition = Math.Clamp(value, 0, ConditionMax);
+
     /// <summary>
-    /// 몸이 상한다 — 일기토를 치르고 나면 그만큼 체력이 준다.
+    /// 몸이 상한다 — 일기토를 치르고 나면 <b>컨디션</b>이 그만큼 준다.
     /// </summary>
     /// <remarks>
-    /// 게임은 <c>0x004AA5BB</c> 에서 <b>남은 부위 셋의 평균</b>만큼 깎는다. 1 아래로는
-    /// 안 내려간다 — 0 이 되면 셈이 무너지는 자리가 여럿이다.
+    /// <code>
+    /// 4aa600  잃은 = 체력+1 − (남은 부위 셋의 합 / 3)
+    /// 4aa61a  if (컨디션[0x5B60D8] &lt;= 잃은) 컨디션 = 100
+    /// 4aa62c  0x00432C80(0x5B60C0, −잃은)   ; [객체+0x18] = clamp(컨디션 − 잃은, 0, 0x7D0)
+    /// </code>
+    /// <b>체력(능력치)은 안 건드린다.</b> 능력 여섯은 <c>0x5B60C0</c> 부터고 <c>+0x18</c> 은
+    /// 그 뒤의 컨디션 칸이다. 예전에는 여기서 체력을 깎아 <b>일기토를 치를수록 제독의 체력이
+    /// 영영 줄었다</b> — 일기토 막대는 <c>체력+1</c> 을 100 눈금으로 재니까, 몇 판 치르고 나면
+    /// 막대가 손톱만 해진다. 「플레이어 체력이 너무 낮다」가 이것이다.
     /// </remarks>
     public void Hurt(int amount)
     {
         if (amount <= 0) return;
-        Abilities[Ability.Body] = Math.Max(1, Abilities[Ability.Body] - amount);
+        if (Condition <= amount) Condition = ConditionFull;
+        SetCondition(Condition - amount);
     }
 
     /// <summary>언어마다의 자리(0~<see cref="Skill.MaxLevel"/>).</summary>
@@ -469,9 +486,11 @@ public sealed class Player
     /// <param name="Shooting">사격술(0~3) · <paramref name="Gunnery"/> 포술(0~3).
     /// 육상전 부대배치가 제독 것과 견주어 <b>높은 쪽</b>을 쓴다(<c>0x00446F70</c>).
     /// 검술처럼 예전 갈무리에는 없던 칸이라 없으면 0 이다.</param>
+    /// <param name="Condition">컨디션(인물 <c>+0x38</c>). 일기토에 대신 나가면 이것이 깎인다.</param>
     public readonly record struct MateInfo(string Name, int Face, int Fame, int Age,
                                            int Body, int Mind, int Might, int Charm, int Luck,
-                                           int Sword = 0, int Shooting = 0, int Gunnery = 0);
+                                           int Sword = 0, int Shooting = 0, int Gunnery = 0,
+                                           int Condition = ConditionFull);
 
     private readonly Dictionary<string, MateInfo> _mateBook = [];
 
@@ -503,7 +522,10 @@ public sealed class Player
     public void HurtMate(string name, int amount)
     {
         if (amount <= 0 || !_mateBook.TryGetValue(name ?? "", out var who)) return;
-        _mateBook[who.Name] = who with { Body = Math.Max(1, who.Body - amount) };
+
+        // 제독과 같은 길이다(0x004AA5F8 — 인물 +0x38). 체력은 안 깎는다.
+        int fit = who.Condition <= amount ? ConditionFull : who.Condition;
+        _mateBook[who.Name] = who with { Condition = Math.Clamp(fit - amount, 0, ConditionMax) };
     }
 
     /// <summary>두 자리를 맞바꾼다. 빈 자리와도 바꿀 수 있다.</summary>

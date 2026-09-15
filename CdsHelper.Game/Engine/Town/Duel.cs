@@ -378,7 +378,8 @@ public sealed class Duel
     public bool Over => Won != null;
 
     /// <summary>
-    /// 판을 치르며 잃은 체력(<c>0x004AA5BB</c>) — <b>남은 부위 셋의 평균만큼</b> 깎인다.
+    /// 판을 치르며 <b>잃은 만큼</b>(<c>0x004AA600</c>) — <c>체력+1 − 남은 부위 셋의 평균</c>이다.
+    /// 이 값이 <b>컨디션</b>에서 깎인다(<see cref="Support.Local.Models.Player.Hurt"/>).
     /// </summary>
     public int BodyLost => MyFull - (MyParts[0] + MyParts[1] + MyParts[2]) / Lines;
 

@@ -130,6 +130,16 @@ public sealed class ShipMapHost : HwndHost
     /// </remarks>
     public Func<int, int, int, bool, int>? FleetSpeed { get; set; }
 
+    /// <summary>
+    /// 기함이 한 틱에 도는 눈금 수를 물어보는 이. 안 걸어 두면
+    /// <see cref="Engine.Sea.Sailing.DefaultTurnRate"/> 로 돈다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 기함 종류로 표(<c>0x00569FC0</c>)를 찾는데 지도는 함대를 모른다 —
+    /// <see cref="FleetSpeed"/> 와 같이 붙이는 쪽이 걸어 준다.
+    /// </remarks>
+    public Func<int>? TurnRateOf { get; set; }
+
     /// <summary>지난 걸음에 잰 함대 속도. 상태줄에 적으려고 남긴다.</summary>
     public int LastSpeed { get; private set; }
 
@@ -230,8 +240,9 @@ public sealed class ShipMapHost : HwndHost
     /// </summary>
     public string HeadingName => CompassNames[(_heading & 0xF) >> 1];
 
-    private int _heading;                  // 그림에 쓸 게임 방향 번호(반시계, 16방위)
-    private double _dirX, _dirY;           // 실제로 나아가는 쪽(단위 벡터)
+    private int _heading;                  // 지금 뱃머리(반시계, 16방위). 그림도 이동도 이것이다
+    private int _desired;                  // 커서가 바라는 쪽(8방위라 늘 짝수)
+    private bool _making;                  // 나아가는 중인지. 입항·자리 옮김에서 세워 둔다
     private Point _mouse;                  // 마지막 커서 자리(WPF 단위, 이 요소 기준)
     private bool _mouseInside;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -1042,11 +1053,14 @@ public sealed class ShipMapHost : HwndHost
                 _targetY = origin.Y + _mouse.Y * dpiY * _cellsPerPixel;
             }
             Sail(dt);
+            // <b>멈춤과 커서 놓침을 먼저 적는다.</b> 이 둘은 뱃머리가 안 도는 까닭인데,
+            // 예전 줄은 그래도 "커서 쪽으로 항해 중" 이라 적어 서 있는 배와 구별이 안 됐다.
             Status = $"{(_onLand ? "말" : "배")} {_shipX:F1}, {_shipY:F1} 칸 · 방향 {HeadingName} · " +
-                     (_anchored ? (_onLand ? "멈춰 서 있다" : "닻을 내리고 정박 중")
-                               : _blocked ? (_onLand ? "바다에 막혔습니다" : "육지에 막혔습니다")
-                               : !_mouseInside ? "가던 쪽으로"
-                               : _onLand ? "커서 쪽으로 이동 중" : "커서 쪽으로 항해 중") +
+                     (Paused ? "멈춤(창이 떠 있다)"
+                             : _anchored ? (_onLand ? "멈춰 서 있다" : "닻을 내리고 정박 중")
+                             : _blocked ? (_onLand ? "바다에 막혔습니다" : "육지에 막혔습니다")
+                             : !_mouseInside ? "가던 쪽으로(커서 놓침)"
+                             : _onLand ? "커서 쪽으로 이동 중" : "커서 쪽으로 항해 중") +
                      (_ship.IsAttached ? "" : " · 그림은 구워 둔 것");
         }
         else
@@ -1121,46 +1135,117 @@ public sealed class ShipMapHost : HwndHost
     }
 
     /// <summary>
-    /// 커서 쪽으로 뱃머리를 돌리고, 틱마다 그 방향으로 한 걸음 나아간다.
-    /// 커서는 방향만 정한다 — 커서 자리에 도착해서 멈추는 것도, 창 밖으로 나갔다고
+    /// 커서 쪽으로 뱃머리를 돌리고, 틱마다 그 <b>뱃머리로</b> 한 걸음 나아간다.
+    /// 커서는 바라는 쪽만 정한다 — 커서 자리에 도착해서 멈추는 것도, 창 밖으로 나갔다고
     /// 서는 것도 아니다. 한 번 뱃머리를 잡으면 막힐 때까지 그 쪽으로 간다.
     /// </summary>
+    /// <remarks>
+    /// 게임의 조타 그대로다(볼트 <c>86.분석-바다 조타(커서 방향·뱃머리·이동 벡터)</c>).
+    /// <code>
+    ///   커서 → 바라는 쪽   0x0048ECC2   기울기 1/2·2 로 가르는 8방위(늘 짝수)
+    ///   한 틱 돌기·가기    0x0048D0A0   뱃머리를 1~3 눈금 돌리고 그 벡터로 나아간다
+    ///   누산 += 벡터[h] * 이동값        (x 는 * 경도보정 / 100)   0x0048D23A
+    /// </code>
+    /// <b>이동 벡터를 따로 두면 안 된다.</b> 예전에는 커서 각을 16방위로 꺾어 그대로 이동
+    /// 벡터로 삼았는데, 배 그림은 뱃머리를 둘로 접은 여덟 장뿐이라(<c>h &gt;&gt; 1</c>) 홀수
+    /// 방위로 갈 때마다 선체가 <b>22.5도 틀어진 채</b> 갔다 — 배가 옆으로 미끄러져 보이던
+    /// 것이 그것이다. 바라는 쪽을 짝수로만 내고 이동을 뱃머리 벡터로 되돌리면, 서 있을 때는
+    /// 늘 그림과 맞고 도는 동안만 게임처럼 잠깐 어긋난다.
+    ///
+    /// 죽은 구역(<see cref="TurnDeadZoneCells"/>)은 우리 것이다 — 게임은 커서가 배 한가운데에
+    /// 와도 동쪽으로 돌린다.
+    /// </remarks>
     private void Sail(double dt)
     {
         if (Paused) { _tickAccum = 0; return; }
 
-        // 닻을 내렸으면 그 자리에 선다. 뱃머리도 그대로 둬서 닻을 올리면 가던 쪽으로 다시 간다.
-        if (_anchored) { _tickAccum = 0; return; }
-
-        // 커서가 창 밖으로 나가도 배는 가던 쪽으로 계속 간다. 커서는 방향을 바꿀 때만 쓴다.
+        // 커서가 창 밖으로 나가도 배는 가던 쪽으로 계속 간다. 커서는 바라는 쪽을 바꿀 때만 쓴다.
         double dx = _targetX - _shipX, dy = _targetY - _shipY;
         if (_mouseInside && dx * dx + dy * dy > TurnDeadZoneCells * TurnDeadZoneCells)
         {
-            // atan2(dx, -dy) 는 북쪽이 0 이고 시계방향으로 느는 값이다.
-            double a = Math.Atan2(dx, -dy);
-            if (a < 0) a += Math.PI * 2;
-            int clockwise = (int)Math.Round(a / (Math.PI * 2 / 16)) & 0xF;
-
-            // 나아가는 쪽은 시계방향 번호를 그대로 각으로 되돌려 쓴다. 16방향에 맞춰
-            // 꺾어야 그림과 가는 쪽이 어긋나지 않는다.
-            double qa = clockwise * (Math.PI * 2 / 16);
-            _dirX = Math.Sin(qa);
-            _dirY = -Math.Cos(qa);
-
-            // 그림 번호만 게임식으로 바꾼다. 게임 방향은 반시계로 돈다 —
-            // 0 이 북, 4 가 서, 8 이 남, 12 가 동이다(4번 그림이 왼쪽을 보는 것으로 확인했다).
-            // 이 번호로 이동 벡터를 다시 만들면 두 번 뒤집혀 배가 뒤로 간다. 그래서 나눠 둔다.
-            _heading = (16 - clockwise + HeadingZeroOffset) & 0xF;
+            _desired = (Sector8(dx, dy) + HeadingZeroOffset) & 0xF;
+            _making = true;
         }
 
         _tickAccum += dt;
         while (_tickAccum >= TickSeconds)
         {
             _tickAccum -= TickSeconds;
+            Turn();
+
+            // 닻을 내렸으면 뱃머리만 돌고 그 자리에 선다 — 게임도 돌기가 닻 검사보다 앞이라,
+            // 서서 뱃머리를 맞춰 두었다가 닻을 올리면 곧바로 그 쪽으로 나아간다.
+            if (_anchored || !_making) continue;
+
             var (step, driftX, driftY) = Push();
-            Step(_dirX * step + driftX, _dirY * step + driftY);
+            var (vx, vy) = HeadingVector();
+
+            // 가로는 경도 보정만큼 늘린다(0x0048D23A) — 위도가 높을수록 경도 한 칸이 짧아서,
+            // 같은 걸음이라도 지도 위에서는 더 많은 칸을 지난다. 해류도 같은 값을 받는다.
+            double lon = Engine.Sea.Sailing.LonScale(ShipLatLon.Lat);
+            Step(vx * step * lon + driftX, vy * step + driftY);
             Steps++;
         }
+    }
+
+    /// <summary>
+    /// 커서 쪽을 <b>8방위</b> 하나로. 값은 늘 짝수다.
+    /// </summary>
+    /// <remarks>
+    /// 게임(<c>0x0048ECC2</c>)은 atan 표 없이 <c>dx-2dy · 2dx-dy · 2dx+dy · dx+2dy</c> 의
+    /// 부호만 보고 가른다. 경계가 기울기 <c>1/2</c> 와 <c>2</c> 인 직선이라 칸 너비가 고르지
+    /// 않다 — <b>동서남북 칸이 53도, 대각 칸이 37도</b>다. 여기서는 같은 경계를 크기 비교로
+    /// 낸다.
+    /// </remarks>
+    /// <param name="dx">동쪽이 +.</param>
+    /// <param name="dy">남쪽(화면 아래)이 +.</param>
+    private static int Sector8(double dx, double dy)
+    {
+        double ax = Math.Abs(dx), ay = Math.Abs(dy);
+        if (ay * 2 <= ax) return dx >= 0 ? 12 : 4;             // 동 · 서 (가운데면 게임처럼 동)
+        if (ax * 2 <= ay) return dy > 0 ? 8 : 0;               // 남 · 북
+        return dx > 0 ? (dy > 0 ? 10 : 14) : (dy > 0 ? 6 : 2); // 남동 · 북동 · 남서 · 북서
+    }
+
+    /// <summary>
+    /// 한 틱 만큼 뱃머리를 바라는 쪽으로 돌린다. 게임 <c>0x0048D0A0</c> 의 앞머리다.
+    /// </summary>
+    /// <remarks>
+    /// 배는 종류마다 한 틱에 <b>1~3 눈금</b>씩만 돈다(<c>0x00569FC0</c>, <see cref="TurnRateOf"/>).
+    /// 말은 곧장 돈다. 게임 방위는 반시계가 +라, 가까운 쪽으로 돌되 정반대(여덟 눈금)면
+    /// 시계로 돈다.
+    /// </remarks>
+    private void Turn()
+    {
+        if (_heading == _desired) return;
+        if (_onLand) { _heading = _desired; return; }
+
+        int rate = TurnRateOf?.Invoke() ?? Engine.Sea.Sailing.DefaultTurnRate;
+        for (int i = 0; i < rate && _heading != _desired; i++)
+        {
+            int d = (_desired - _heading) & 0xF;
+            _heading = (_heading + (d < 8 ? 1 : -1)) & 0xF;
+        }
+    }
+
+    /// <summary>
+    /// 지금 뱃머리의 단위 벡터. 배가 나아가는 쪽이 <b>이것뿐</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 방위 벡터표(<c>0x00569558</c>, 크기 64)를 그대로 쓴다 — 해류가 쓰는 표와 같은
+    /// 것이라 둘이 어긋날 일이 없다. 바람표를 못 읽었으면 각으로 대신 짓는다.
+    /// </remarks>
+    private (double X, double Y) HeadingVector()
+    {
+        if (_wind != null)
+        {
+            var (vx, vy) = _wind.Vector(_heading);
+            return (vx / (double)WindTable.VectorLength, vy / (double)WindTable.VectorLength);
+        }
+
+        // 게임 방위는 반시계다 — 번호를 시계 각으로 되돌려 쓴다.
+        double a = ((16 - _heading) & 0xF) * (Math.PI * 2 / 16);
+        return (Math.Sin(a), -Math.Cos(a));
     }
 
     /// <summary>
@@ -1743,7 +1828,8 @@ public sealed class ShipMapHost : HwndHost
         _anchored = false;
         _onLand = false;
         _tickAccum = 0;
-        _dirX = _dirY = 0;                 // 뱃머리를 놓아 그 자리에 선다
+        _making = false;                   // 세워 둔다 — 커서가 다시 쪽을 줄 때까지
+        _desired = _heading;
         _centerX = cx;
         _centerY = cy;
         _follow = true;
@@ -1772,7 +1858,8 @@ public sealed class ShipMapHost : HwndHost
         _onLand = false;
         _moored = false;
         _tickAccum = 0;
-        _dirX = _dirY = 0;
+        _making = false;
+        _desired = _heading;
         _centerX = x;
         _centerY = y;
         _follow = true;
@@ -2078,7 +2165,8 @@ public sealed class ShipMapHost : HwndHost
     public void EnterPort(string cityName)
     {
         _tickAccum = 0;
-        _dirX = _dirY = 0;          // 뱃머리를 놓아 그 자리에 선다
+        _making = false;            // 세워 둔다 — 커서가 다시 쪽을 줄 때까지
+        _desired = _heading;
         Status = $"[{cityName}] 입항 — {_shipX:F1}, {_shipY:F1} 칸";
     }
 

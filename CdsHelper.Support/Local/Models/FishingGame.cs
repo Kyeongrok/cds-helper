@@ -106,8 +106,26 @@ public sealed class FishingGame
     /// <summary>다음 교차점에서 옆으로 갈지 — <c>1</c> 오른쪽, <c>-1</c> 왼쪽, <c>0</c> 곧장.</summary>
     public int Lean { get; private set; }
 
+    /// <summary>그 칸에서 그 쪽으로 헤엄치는 잡어. 없으면 null.</summary>
+    private Swimmer? SwimmerAt(int cell, int way)
+    {
+        foreach (var fish in _swim)
+            if (fish.Cell == cell && fish.Way == way) return fish;
+        return null;
+    }
+
     /// <summary>낚은 것. <see cref="Catch.None"/> 이면 아직이다.</summary>
     public Catch Got { get; private set; }
+
+    /// <summary>
+    /// 걸린 잡어 — 잡어를 안 낚았으면 null. <b>그 놈의 그림이 그대로 딸려 올라온다.</b>
+    /// </summary>
+    /// <remarks>
+    /// 갈래가 둘이라(<see cref="Swimmer.Kind"/>) 어느 놈이 걸렸는지 적어 두지 않으면 올라오는
+    /// 그림을 고를 수 없다 — 적어 두기 전에는 늘 0번 그림이 올라와, 낚은 고기와 <b>딴 고기</b>가
+    /// 딸려 왔다.
+    /// </remarks>
+    public Swimmer? Caught { get; private set; }
 
     /// <summary>바늘의 높이(<c>[0xF8]</c>). 한 틱에 한 점씩 내려간다.</summary>
     public int Y { get; private set; } = TopY;
@@ -344,9 +362,9 @@ public sealed class FishingGame
             Swim();
         }
         else if ((Tick == MeetRight || Tick == MeetLeft) && Lean == 0 && At >= 0 && At < Cells
-                 && Fish.Any(f => f.Cell == At
-                                  && f.Way == (Tick == MeetRight ? 1 : 2)))
+                 && SwimmerAt(At, Tick == MeetRight ? 1 : 2) is { } hooked)
         {
+            Caught = hooked;
             Got = Catch.SmallFry;
             return false;
         }

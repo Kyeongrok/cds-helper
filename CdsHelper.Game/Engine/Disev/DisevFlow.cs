@@ -40,14 +40,15 @@ public static class DisevFlow
     public sealed record Node(int Id, NodeKind Kind, int Offset, IReadOnlyList<DisevScript.Op> Ops, string Title);
 
     /// <param name="Label">「예」·「아니오」, 그 밖에는 빈 글.</param>
-    public readonly record struct Edge(int From, int To, string Label);
+    /// <param name="Jump">분기가 <b>뛰는</b> 갈래인가 — 흐름도가 마름모 아래 꼭짓점에서 내린다.</param>
+    public readonly record struct Edge(int From, int To, string Label, bool Jump = false);
 
     public sealed record Graph(IReadOnlyList<Node> Nodes, IReadOnlyList<Edge> Edges);
 
     public const string Yes = "예", No = "아니오";
 
     /// <summary>대본이 멎는 명령(러너가 <c>Stop</c> 을 내는 것과 덩이 끝).</summary>
-    private static readonly HashSet<string> Ends =
+    internal static readonly HashSet<string> Ends =
         ["덩이/갈래 끝", "게임 오버", "이벤트 결과 코드 0", "이벤트 결과 코드 1", "이벤트 결과 코드 2"];
 
     /// <summary>조건 없이 뛰는 명령(<c>43 45</c>).</summary>
@@ -145,7 +146,7 @@ public static class DisevFlow
             if (targets[last] is { } target && op.Kind != Goto)
             {
                 var (_, jumpLabel, fallLabel) = Question(data, op);
-                edges.Add(new Edge(tail, NodeAt(target), jumpLabel));
+                edges.Add(new Edge(tail, NodeAt(target), jumpLabel, Jump: true));
                 if (hasNext) edges.Add(new Edge(tail, head[next], fallLabel));
             }
             else if (targets[last] is { } jump)
@@ -172,7 +173,7 @@ public static class DisevFlow
     /// </code>
     /// 모르는 조건은 「거짓이면 뜀」이라고만 적는다.
     /// </remarks>
-    private static (string Title, string Jump, string Fall) Question(byte[] data, DisevScript.Op op)
+    internal static (string Title, string Jump, string Fall) Question(byte[] data, DisevScript.Op op)
     {
         int U16(int at) => op.Offset + at + 2 <= data.Length
             ? BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(op.Offset + at)) : 0;
