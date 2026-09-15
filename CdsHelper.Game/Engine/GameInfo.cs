@@ -50,7 +50,25 @@ public static class GameInfo
 
         return [.. game.Player.Hints.Order()
                    .Where(id => !Found(game, table, hints, id))
-                   .Select(game.HintName)];
+                   .Select(id => HintLabel(game, id))];
+    }
+
+    /// <summary>
+    /// 힌트 이름 뒤에 <b>갈래</b>를 괄호로 붙인다 — 「몽생미셸 (종교)」.
+    /// </summary>
+    /// <remarks>
+    /// 갈래는 힌트 줄의 <c>+0x0C</c> 고 이름표는 <c>0x00560C60</c> 여덟이다(지리·역사·보물·
+    /// 종교·교역품·미신·생물·민족). <b>후원자마다 좋아하는 갈래가 달라</b> 어느 갈래인지가
+    /// 설득에 그대로 드는데, 목록에 이름만 있으면 그때마다 힌트 정보를 다시 펴야 했다.
+    /// 표를 못 읽었으면 이름만 낸다.
+    /// </remarks>
+    public static string HintLabel(Game game, int id)
+    {
+        string name = game.HintName(id);
+        if (game.Hints is not { } hints || hints.Find(id) is not { } row) return name;
+
+        string category = hints.CategoryOf(row.Category);
+        return category.Length > 0 ? $"{name} ({category})" : name;
     }
 
     /// <summary>그 힌트가 가리키는 발견물을 이미 찾았는지.</summary>

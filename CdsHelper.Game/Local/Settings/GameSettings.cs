@@ -68,6 +68,12 @@ public sealed class GameSettingsData
     /// <summary>지도 위에 바람·해류 화살표를 얹을지.</summary>
     public bool ShowFlowArrows { get; set; }
 
+    /// <summary>발견물 지도에 풍향 화살표를 얹을지.</summary>
+    public bool DiscoveryMapWind { get; set; }
+
+    /// <summary>발견물 지도에 해류 화살표를 얹을지.</summary>
+    public bool DiscoveryMapCurrent { get; set; }
+
     /// <summary>육상전 모의전 창이 지난번에 차렸던 짜임. 한 번도 안 차렸으면 null.</summary>
     public LandSparData? LandSpar { get; set; }
 }
@@ -495,6 +501,20 @@ public static class GameSettings
     {
         get => Get(d => d.ShowFlowArrows);
         set => Set(d => d.ShowFlowArrows = value);
+    }
+
+    /// <summary>발견물 지도에 풍향 화살표를 얹을지. 그 창의 「풍향」 단추로 켜고 끈다.</summary>
+    public static bool DiscoveryMapWind
+    {
+        get => Get(d => d.DiscoveryMapWind);
+        set => Set(d => d.DiscoveryMapWind = value);
+    }
+
+    /// <summary>발견물 지도에 해류 화살표를 얹을지. 그 창의 「해류」 단추로 켜고 끈다.</summary>
+    public static bool DiscoveryMapCurrent
+    {
+        get => Get(d => d.DiscoveryMapCurrent);
+        set => Set(d => d.DiscoveryMapCurrent = value);
     }
 
     /// <summary>

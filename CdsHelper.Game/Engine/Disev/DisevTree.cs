@@ -36,6 +36,11 @@ namespace CdsHelper.Game.Engine.Disev;
 /// <code>
 ///   음원 재생   0E 03 [u16]                    → { "Sound": 75 }
 ///   EVSTILL     00 1F [u16]                    → { "EvStill": 3 }
+///   발견 처리   01 0B [u16]                    → { "Discover": 4 }
+///   아이템 획득 00 05 [u16]                    → { "GetItem": 172 }
+///   AVI 재생    00 02 [u16]                    → { "Avi": 1 }
+///   특수 조우   00 1E [u16]                    → { "Encounter": 0 }
+///   능력치 +/-  19|1A 1C [u16] 1A [u32]        → { "Stat": 1, "StatName": "규율", "Add": 5 } (빼기는 "Sub")
 ///   대사        [플래그] 0A [화자 81 46] 글 00  → { "Speaker": "부관", "Flag": 11, "Say": "…" }
 /// </code>
 /// 화자는 <see cref="DisevScript.SpeakerNames"/> 에 있으면 이름, 없으면 <c>SpeakerTag</c> 에 16진이다.
@@ -90,6 +95,33 @@ public static class DisevTree
             case "EVSTILL 이미지 표시" when raw is [0x00, 0x1F, _, _]:
                 return new DisevLine { EvStill = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
 
+            case "발견물 등록/발견 처리" when raw is [0x01, 0x0B, _, _]:
+                return new DisevLine { Discover = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
+
+            case "아이템 획득" when raw is [0x00, 0x05, _, _]:
+                return new DisevLine { GetItem = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
+
+            // 19|1A 1C [u16 능력치] 1A [u32 값] — 더하기·빼기 한 핸들러(0x00409352). 무작위(20) 꼴 13바이트는 16진으로 둔다.
+            case "능력치 증가" or "능력치 감소" when raw.Length == 9 && raw[1] == 0x1C && raw[4] == 0x1A:
+            {
+                int stat = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2));
+                long value = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(5));
+                return new DisevLine
+                {
+                    Stat = stat,
+                    StatName = DisevScript.StatNames.TryGetValue(stat, out var name) ? name : null,
+                    Add = raw[0] == 0x19 ? value : null,
+                    Sub = raw[0] == 0x1A ? value : null,
+                };
+            }
+
+            case "특수 조우 연출" when raw is [0x00, 0x1E, _, _]:
+                return new DisevLine { Encounter = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
+
+            // AVI 는 00 02 [u16] 네 바이트 꼴만 푼다. 00 없이 온 02 [u16] 세 바이트 꼴은 16진으로 둔다.
+            case "AVI 재생" when raw is [0x00, 0x02, _, _]:
+                return new DisevLine { Avi = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
+
             case "대사":
             {
                 // 편집기 칸과 같은 가름 — [창 플래그] 0A [화자 태그 81 46] 본문 00.
@@ -138,6 +170,48 @@ public static class DisevTree
             if (line.EvStill is { } still)
             {
                 output.AddRange([0x00, 0x1F, (byte)still, (byte)(still >> 8)]);
+                continue;
+            }
+
+            if (line.Discover is { } found)
+            {
+                output.AddRange([0x01, 0x0B, (byte)found, (byte)(found >> 8)]);
+                continue;
+            }
+
+            if (line.GetItem is { } item)
+            {
+                output.AddRange([0x00, 0x05, (byte)item, (byte)(item >> 8)]);
+                continue;
+            }
+
+            if (line.Avi is { } avi)
+            {
+                output.AddRange([0x00, 0x02, (byte)avi, (byte)(avi >> 8)]);
+                continue;
+            }
+
+            if (line.Encounter is { } encounter)
+            {
+                output.AddRange([0x00, 0x1E, (byte)encounter, (byte)(encounter >> 8)]);
+                continue;
+            }
+
+            if (line.Stat is { } stat)
+            {
+                if ((line.Add == null) == (line.Sub == null))
+                {
+                    error = $"능력치 {stat}: Add 와 Sub 가운데 하나만 적어야 합니다";
+                    return false;
+                }
+                long amount = line.Add ?? line.Sub!.Value;
+                if (stat is < 0 or > ushort.MaxValue || amount is < 0 or > uint.MaxValue)
+                {
+                    error = $"능력치 {stat}: 번호는 0~65535, 값은 0~4294967295 라야 합니다";
+                    return false;
+                }
+                output.AddRange([line.Add != null ? (byte)0x19 : (byte)0x1A, 0x1C, (byte)stat, (byte)(stat >> 8), 0x1A,
+                                 (byte)amount, (byte)(amount >> 8), (byte)(amount >> 16), (byte)(amount >> 24)]);
                 continue;
             }
 
@@ -316,6 +390,30 @@ public sealed class DisevLine
     /// <summary>EVSTILL 이미지 표시(<c>00 1F</c>) 슬롯.</summary>
     public int? EvStill { get; set; }
 
+    /// <summary>발견물 등록/발견 처리(<c>01 0B</c>) 발견물 번호.</summary>
+    public int? Discover { get; set; }
+
+    /// <summary>아이템 획득(<c>00 05</c>) 아이템 번호.</summary>
+    public int? GetItem { get; set; }
+
+    /// <summary>AVI 재생(<c>00 02</c>) 슬롯.</summary>
+    public int? Avi { get; set; }
+
+    /// <summary>특수 조우 연출(<c>00 1E</c>) 번호(<see cref="DisevScript.Encounters"/>).</summary>
+    public int? Encounter { get; set; }
+
+    /// <summary>능력치 더하기·빼기(<c>19|1A 1C</c>)의 능력치 번호.</summary>
+    public int? Stat { get; set; }
+
+    /// <summary>능력치 이름(<see cref="DisevScript.StatNames"/>). 적을 때만 쓰고 읽을 때는 안 본다.</summary>
+    public string? StatName { get; set; }
+
+    /// <summary>더할 값(<c>19</c>).</summary>
+    public long? Add { get; set; }
+
+    /// <summary>뺄 값(<c>1A</c>).</summary>
+    public long? Sub { get; set; }
+
     /// <summary>대사 본문 — 무손실로 푼 글(<see cref="DisevForm.BuildDialogue"/> 가 되돌린다).</summary>
     public string? Say { get; set; }
 
@@ -365,6 +463,13 @@ public sealed class DisevLineConverter : JsonConverter<DisevLine>
             {
                 case "Sound": line.Sound = reader.GetInt32(); break;
                 case "EvStill": line.EvStill = reader.GetInt32(); break;
+                case "Discover": line.Discover = reader.GetInt32(); break;
+                case "GetItem": line.GetItem = reader.GetInt32(); break;
+                case "Avi": line.Avi = reader.GetInt32(); break;
+                case "Encounter": line.Encounter = reader.GetInt32(); break;
+                case "Stat": line.Stat = reader.GetInt32(); break;
+                case "Add": line.Add = reader.GetInt64(); break;
+                case "Sub": line.Sub = reader.GetInt64(); break;
                 case "Say": line.Say = reader.GetString(); break;
                 case "Speaker": line.Speaker = reader.GetString(); break;
                 case "SpeakerTag": line.SpeakerTag = reader.GetString(); break;
@@ -376,8 +481,9 @@ public sealed class DisevLineConverter : JsonConverter<DisevLine>
                 default: reader.Skip(); break;
             }
         }
-        if (line.If == null && line.Sound == null && line.EvStill == null && line.Say == null)
-            throw new JsonException("줄 객체에 If · Sound · EvStill · Say 가운데 하나가 있어야 합니다");
+        if (line.If == null && line.Sound == null && line.EvStill == null && line.Discover == null &&
+            line.GetItem == null && line.Avi == null && line.Encounter == null && line.Stat == null && line.Say == null)
+            throw new JsonException("줄 객체에 If · Sound · EvStill · Discover · GetItem · Avi · Encounter · Stat · Say 가운데 하나가 있어야 합니다");
         if (line.If != null)
         {
             line.Yes ??= [];
@@ -400,6 +506,49 @@ public sealed class DisevLineConverter : JsonConverter<DisevLine>
         {
             writer.WriteStartObject();
             writer.WriteNumber("EvStill", still);
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (value.Discover is { } found)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("Discover", found);
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (value.GetItem is { } item)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("GetItem", item);
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (value.Avi is { } avi)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("Avi", avi);
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (value.Encounter is { } encounter)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("Encounter", encounter);
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (value.Stat is { } stat)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("Stat", stat);
+            if (value.StatName != null) writer.WriteString("StatName", value.StatName);
+            if (value.Add is { } add) writer.WriteNumber("Add", add);
+            if (value.Sub is { } sub) writer.WriteNumber("Sub", sub);
             writer.WriteEndObject();
             return;
         }

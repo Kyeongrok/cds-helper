@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.UI.Views;
@@ -30,6 +31,19 @@ public sealed class HintListDialog : GameWindow
     /// <summary>고른 줄의 테. 바탕보다 훨씬 짙은 남색이다.</summary>
     private static readonly Brush PickEdge = Frozen(Color.FromRgb(0x05, 0x06, 0x09));
 
+    /// <summary>
+    /// 도드라진 줄의 바탕 <c>#DEC6AD</c> — 설득의 「제안 선택」에서 후원자가 좋아하는 갈래인 힌트다.
+    /// </summary>
+    /// <remarks>게임 창에는 없는 표시다. 종이색보다 한 톤 짙은 갈색이라 검은 글씨가 그대로 읽힌다.</remarks>
+    private static readonly Brush MarkFill = Frozen(Color.FromRgb(0xDE, 0xC6, 0xAD));
+
+    /// <summary>줄마다 도드라지게 칠할지. 없으면 어느 줄도 안 칠한다.</summary>
+    private readonly IReadOnlyList<bool>? _marks;
+
+    /// <summary>그 줄을 고르지 않았을 때의 바탕.</summary>
+    private Brush RestFill(int index) =>
+        _marks != null && index < _marks.Count && _marks[index] ? MarkFill : Brushes.Transparent;
+
 
     private static Brush Frozen(Color c)
     {
@@ -53,6 +67,12 @@ public sealed class HintListDialog : GameWindow
     /// <remarks>단추도 같은 자로 재면 원본이 제목 글씨의 1.34배인데 우리는 1.63배였다.</remarks>
     private const double ButtonWidth = 106, ButtonGap = 12;
 
+    /// <summary>
+    /// 줄 왼쪽 얼굴의 크기와 글씨까지의 틈 — 스폰서 일람이 쓴다. 초상화 80x96 의 절반이다.
+    /// </summary>
+    /// <remarks>게임 창에는 얼굴이 없다. 누구인지 한눈에 보려고 더한 것이라 작게 둔다.</remarks>
+    private const double FaceWidth = 40, FaceHeight = 48, FaceGap = 4;
+
     /// <summary>고른 줄. 아무것도 안 골랐으면 -1.</summary>
     private int _picked = -1;
 
@@ -62,8 +82,10 @@ public sealed class HintListDialog : GameWindow
     private readonly GameButton _decide;
 
     private HintListDialog(IReadOnlyList<string> hints, bool choosing, string caption,
-                           string header = "")
+                           string header = "", IReadOnlyList<uint[]?>? faces = null,
+                           IReadOnlyList<string>? subtitles = null, IReadOnlyList<bool>? marks = null)
     {
+        _marks = marks;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -91,26 +113,57 @@ public sealed class HintListDialog : GameWindow
         for (int i = 0; i < hints.Count; i++)
         {
             int index = i;
+            // 줄은 게임 비트맵 글꼴로 찍는다 — 종이 위라 검은 벌이다.
+            var label = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
+            {
+                Text = hints[i],
+                // 줄은 <b>겹쳐 찍지 않는다</b> — 오른쪽 아래로 한 점 겹친 자국이
+                // 그림자처럼 보인다. 게임 목록 글씨는 민 글씨다.
+                Bold = false,
+                FallbackBrush = Brushes.Black,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+
+            // 얼굴을 받았으면 줄 왼쪽에 작게 붙인다. 못 읽은 얼굴은 빈칸으로 두어 글씨 줄을 맞춘다.
+            // 이름 아래 한 줄(스폰서 일람의 취향). 얼굴과 함께 쓰면 두 줄이 얼굴 높이 안에 든다.
+            FrameworkElement text = label;
+            if (subtitles != null && i < subtitles.Count && subtitles[i].Length > 0)
+                text = new StackPanel
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Children =
+                    {
+                        label,
+                        new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
+                        {
+                            Text = subtitles[i],
+                            Bold = false,
+                            FallbackBrush = Brushes.Black,
+                            HorizontalAlignment = HorizontalAlignment.Left,
+                        },
+                    },
+                };
+
+            FrameworkElement content = text;
+            if (faces != null)
+                content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children = { Face(i < faces.Count ? faces[i] : null), text },
+                };
+
             var row = new Border
             {
-                Background = Brushes.Transparent,
+                Background = RestFill(i),
                 BorderBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(1),
                 // 테 <b>바깥</b>으로 한 점을 비운다 — 고른 줄의 테가 위아래 줄에 맞닿지 않게.
                 Margin = new Thickness(1),
                 Padding = new Thickness(RowPad, 0, RowPad, 0),
                 Cursor = choosing ? Cursors.Hand : Cursors.Arrow,
-                // 줄은 게임 비트맵 글꼴로 찍는다 — 종이 위라 검은 벌이다.
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                Child = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
-                {
-                    Text = hints[i],
-                    // 줄은 <b>겹쳐 찍지 않는다</b> — 오른쪽 아래로 한 점 겹친 자국이
-                    // 그림자처럼 보인다. 게임 목록 글씨는 민 글씨다.
-                    Bold = false,
-                    FallbackBrush = Brushes.Black,
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                },
+                Child = content,
             };
             if (choosing) row.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(index); };
             _rows.Add(row);
@@ -158,7 +211,8 @@ public sealed class HintListDialog : GameWindow
             // 예전에는 280x300 으로 박아 두어 줄이 몇 없어도 아래가 텅 비었다.
             Child = new ScrollViewer
             {
-                Width = ListWidth,
+                // 얼굴을 붙이면 그만큼 넓힌다 — 이름 칸 폭은 그대로 둔다.
+                Width = faces == null ? ListWidth : ListWidth + FaceWidth + FaceGap,
                 MaxHeight = ListMaxHeight,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Content = list,
@@ -166,14 +220,14 @@ public sealed class HintListDialog : GameWindow
         });
         stack.Children.Add(buttons);
 
-        // 창은 <b>세 겹</b>이다 — 갈무리를 보면 창 가장자리에 검은 줄이 둘 겹쳐 있고,
-        // 그 안쪽에 배경 판이 또 한 겹 있다.
+        // 창은 <b>두 겹</b>이다 — 바깥 검은 줄 하나와 그 안의 배경 판이다.
         // <code>
         //   ┌ 검은 줄 ─────────────┐  바깥 테
-        //   │ ┌ 검은 줄 ─────────┐ │  한 점 띄우고 한 겹 더
-        //   │ │ ┌ 검은 줄 ────┐  │ │  배경 판(세 점 물림)
-        //   │ │ │ 제목·목록·단추
+        //   │ ┌ 검은 줄 ─────────┐ │  배경 판(테 사이를 띄운다)
+        //   │ │ 제목·목록·단추
         // </code>
+        // 예전에는 가운데에 검은 줄을 한 겹 더 두었는데, 안쪽 판에도 테가 있어
+        // <b>검은 줄이 둘로 겹쳐</b> 보였다.
         Content = new Border
         {
             Background = GameUi.Back,
@@ -181,17 +235,11 @@ public sealed class HintListDialog : GameWindow
             BorderThickness = new Thickness(1),
             Child = new Border
             {
-                BorderBrush = GameUi.Edge,
+                Background = GameUi.MenuBack,
+                BorderBrush = GameUi.MenuEdge,
                 BorderThickness = new Thickness(1),
-                Margin = new Thickness(EdgeGap),
-                Child = new Border
-                {
-                    Background = GameUi.MenuBack,
-                    BorderBrush = GameUi.MenuEdge,
-                    BorderThickness = new Thickness(1),
-                    Margin = new Thickness(PanelInset),
-                    Child = stack,
-                },
+                Margin = new Thickness(EdgeGap + PanelInset),
+                Child = stack,
             },
         };
 
@@ -208,12 +256,13 @@ public sealed class HintListDialog : GameWindow
         for (int i = 0; i < _rows.Count; i++)
         {
             bool on = i == index;
-            _rows[i].Background = on ? PickFill : Brushes.Transparent;
+            // 고르지 않은 줄은 제 바탕으로 — 도드라진 줄이면 갈색이 남는다.
+            _rows[i].Background = on ? PickFill : RestFill(i);
             _rows[i].BorderBrush = on ? PickEdge : Brushes.Transparent;
-            if (_rows[i].Child is GameUi.GameLabel label)
-            {   // 글씨색만 뒤집는다 — 겹쳐 찍기는 어느 줄에서도 안 한다.
+            // 얼굴 · 둘째 줄이 붙은 줄은 글씨가 판 안에 들어 있다 — 든 글씨를 다 뒤집는다.
+            // 글씨색만 뒤집는다 — 겹쳐 찍기는 어느 줄에서도 안 한다.
+            foreach (var label in LabelsIn(_rows[i].Child))
                 label.TextColor = on ? GameFont.WhiteColor : GameFont.BlackColor;
-            }
         }
 
         _decide.On = true;
@@ -221,6 +270,36 @@ public sealed class HintListDialog : GameWindow
     }
 
     private bool _decideReady;
+
+    /// <summary>줄 안의 글씨를 다 찾는다 — 이름 한 줄이거나, 얼굴·둘째 줄과 함께 판에 들어 있다.</summary>
+    private static IEnumerable<GameUi.GameLabel> LabelsIn(object? element) => element switch
+    {
+        GameUi.GameLabel label => [label],
+        Panel panel => panel.Children.Cast<object>().SelectMany(LabelsIn),
+        _ => [],
+    };
+
+    /// <summary>줄 왼쪽의 작은 얼굴. 그림이 없으면 같은 크기의 빈칸이다.</summary>
+    private static FrameworkElement Face(uint[]? bgra)
+    {
+        var margin = new Thickness(0, 1, FaceGap, 1);
+        if (bgra == null || bgra.Length < Portraits.Width * Portraits.Height)
+            return new Border { Width = FaceWidth, Height = FaceHeight, Margin = margin };
+
+        var bitmap = BitmapSource.Create(Portraits.Width, Portraits.Height, 96, 96,
+                                         PixelFormats.Bgra32, null, bgra, Portraits.Width * 4);
+        bitmap.Freeze();
+        var image = new Image
+        {
+            Source = bitmap,
+            Width = FaceWidth,
+            Height = FaceHeight,
+            Stretch = Stretch.Fill,
+            Margin = margin,
+        };
+        RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
+        return image;
+    }
 
     /// <summary>결정 — 고른 것이 있어야 눌린다.</summary>
     private void Decide()
@@ -258,10 +337,16 @@ public sealed class HintListDialog : GameWindow
     /// (<c>0x004769A0</c> 와 <c>0x00476660</c> 이 같은 모양이다).
     /// </remarks>
     /// <param name="header">줄 위에 얹을 머리글. 빈 글이면 안 얹는다.</param>
+    /// <param name="faces">줄마다 왼쪽에 붙일 초상화(80x96 BGRA). 없으면 글씨만 늘어놓는다.</param>
+    /// <param name="subtitles">줄마다 이름 아래에 붙일 한 줄. 빈 글이면 그 줄은 이름만 있다.</param>
+    /// <param name="marks">줄마다 <c>#DEC6AD</c> 바탕으로 도드라지게 할지. 없으면 안 칠한다.</param>
     public static int Pick(Window owner, IReadOnlyList<string> items,
                            string caption = "취득 힌트 일람",
                            string whenEmpty = "설득 가능한 힌트가 없습니다",
-                           string header = "")
+                           string header = "",
+                           IReadOnlyList<uint[]?>? faces = null,
+                           IReadOnlyList<string>? subtitles = null,
+                           IReadOnlyList<bool>? marks = null)
     {
         if (items.Count == 0)
         {
@@ -269,7 +354,7 @@ public sealed class HintListDialog : GameWindow
             return -1;
         }
 
-        var dlg = new HintListDialog(items, choosing: true, caption, header) { Owner = owner };
+        var dlg = new HintListDialog(items, choosing: true, caption, header, faces, subtitles, marks) { Owner = owner };
         dlg.ShowDialog();
         return dlg._picked;
     }

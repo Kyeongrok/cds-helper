@@ -70,17 +70,12 @@ internal class App : PrismApplication
 
         // Navigation용 View 등록
         containerRegistry.RegisterForNavigation<CharacterContent>();
-        containerRegistry.RegisterForNavigation<BookContent>();
-        containerRegistry.RegisterForNavigation<CityContent>();
         containerRegistry.RegisterForNavigation<PatronContent>();
         containerRegistry.RegisterForNavigation<FigureheadContent>();
         containerRegistry.RegisterForNavigation<ItemContent>();
-        containerRegistry.RegisterForNavigation<MapContent>();
         containerRegistry.RegisterForNavigation<PlayerContent>();
         containerRegistry.RegisterForNavigation<SphinxCalculatorContent>();
-        containerRegistry.RegisterForNavigation<DiscoveryContent>();
         containerRegistry.RegisterForNavigation<DiscoveryStillContent>();
-        containerRegistry.RegisterForNavigation<ExePatchContent>();
         containerRegistry.RegisterForNavigation<AutoPlayContent>();
         containerRegistry.RegisterForNavigation<WorldMapContent>();
     }

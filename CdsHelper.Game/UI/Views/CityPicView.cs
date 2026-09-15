@@ -38,6 +38,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
     private readonly Canvas _layer = new();
 
     /// <summary>
+    /// 도시 창 <b>옆</b>에 따로 띄우는 내 함대 쪽지 — 배마다 한 줄 「배 이름(선체)」.
+    /// 게임 화면에는 없는 덧그림이라 그림을 가리지 않게 창 밖에 두고, 끌어 옮길 수 있다.
+    /// </summary>
+    private FleetLabelWindow? _shipNote;
+
+    /// <summary>
     /// 사건이 도는 동안 그림을 덮는 <b>파란 막</b>.
     /// </summary>
     /// <remarks>
@@ -52,9 +58,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
         IsHitTestVisible = false,
     };
 
-    /// <summary>그림을 파랗게 덮거나 걷는다.</summary>
-    public void Shade(bool on) =>
+    /// <summary>그림을 파랗게 덮거나 걷는다. 함대 쪽지도 같이 감췄다 낸다.</summary>
+    public void Shade(bool on)
+    {
         _shade.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        _shipNote?.Shade(on);
+    }
 
     /// <summary>건물 이름표들. 명령 창이 열리면 다 감춘다.</summary>
     private readonly List<Border> _tags = [];
@@ -360,6 +369,19 @@ public sealed class CityPicView : GameWindow, ITownScreen
             Height = image.Height,
             Children = { image, _layer, _shade },
         };
+
+        // 함대 쪽지는 이 창이 자리를 잡은 뒤에야 옆에 붙일 수 있다.
+        Loaded += (_, _) =>
+        {
+            _shipNote = FleetLabelWindow.Attach(this, 13 * scale);
+            RefreshShipLabel();
+        };
+        // 도시 창이 닫히면 쪽지도 같이 접는다(주인 창이 닫히면 따라 닫히지만, 펼침 효과로
+        // 미끄러지는 동안 닫는 자리도 있어 손으로 짚어 둔다).
+        Closed += (_, _) => { _shipNote?.Close(); _shipNote = null; };
+
+        // 조선소에서 배를 사거나 이름을 바꾸고 돌아오면 이 창이 다시 활성화된다 — 그때 고쳐 쓴다.
+        Activated += (_, _) => RefreshShipLabel();
 
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
         bool harborPlaced = false;
@@ -1000,7 +1022,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         while (true)
         {
             // 힌트가 없으면 게임도 설득 때와 같은 「설득 가능한 힌트가 없습니다」를 낸다.
-            int at = HintListDialog.Pick(owner, [.. ids.Select(_game.HintName)]);
+            int at = HintListDialog.Pick(owner, [.. ids.Select(id => GameInfo.HintLabel(_game, id))]);
             if (at < 0 || at >= ids.Count) return;
             if (_game.Hints?.Find(ids[at]) is not { } hint) return;
 
@@ -1008,6 +1030,14 @@ public sealed class CityPicView : GameWindow, ITownScreen
                                   _player.Fame, _player.MateCount > 0);
         }
     }
+
+    /// <summary>
+    /// 함대 쪽지를 지금 함대로 채운다 — 배마다 한 줄 「배 이름(선체)」, 함대 차례대로.
+    /// 배가 없으면 쪽지가 안 뜬다.
+    /// </summary>
+    private void RefreshShipLabel() =>
+        _shipNote?.Set(string.Join(Environment.NewLine,
+                                   _player.Ships.Select(s => $"{s.Name}({s.Hull.Name})")));
 
     /// <summary>
     /// 시설의 명령 창을 짓는다 — 줄과 손은 <see cref="TownMenu"/> 가 짝지어 주고,

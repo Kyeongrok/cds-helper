@@ -167,8 +167,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // (0x0044E7B0 이 상태가 맞는 것만 목록에 올린다). 보고를 마치면 0x004AACA0 이
         // bit1 을 켜서 여기서도 빠진다.
         var mine = LiveHints;
-        var names = mine.Select(_game.HintName).ToList();
-        int row = HintListDialog.Pick(_view, names, "제안 선택");
+        var names = mine.Select(id => GameInfo.HintLabel(_game, id)).ToList();
+
+        // 이 후원자가 좋아하는 갈래의 힌트는 갈색(#DEC6AD) 바탕으로 도드라지게 한다 — 설득이
+        // 갈래 취향을 그대로 따지므로(후원자 정보의 「발견물의 취향」) 고르기 전에 보이는 편이 낫다.
+        var liked = mine.Select(id => _game.Hints?.Find(id) is { } h && patron.Likes(h.Category)).ToList();
+        int row = HintListDialog.Pick(_view, names, "제안 선택", marks: liked);
         if (row < 0)
         {
             Say("뭔가, 용건이 없는가? 이쪽은 바쁘네, 빨리 나가주게.");
@@ -907,6 +911,17 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             .ToList();
         var names = mine.Select(m => m.Row?.Name ?? m.Patron.Name).ToList();
 
+        // 줄 왼쪽에 작게 붙일 얼굴 — 알현 대사에 쓰는 것과 같은 그림이다. 게임 창에는 없는 것이다.
+        var faces = mine.Select(m => FaceOf(m.Patron)).ToList();
+
+        // 이름 아래 한 줄 — 발견물의 취향. 상세 창(후원자 정보)과 같은 갈래 표에서 온다.
+        // <b>「취향」 을 안 적는다</b> — 갈래 여덟이 다 붙는 후원자는 줄이 창 밖으로 잘렸다.
+        // 가운뎃점도 뺐다(한 칸 띄우기).
+        var likes = mine.Select(m => PatronInfoDialog.LikesText(m.Patron) is { Length: > 0 } text
+                                         ? text
+                                         : "없음")
+                        .ToList();
+
         // 고르면 상세를 띄우고 닫으면 목록으로 돌아온다 — 게임도 그렇다(0x0049348E 가
         // 목록 짓는 데로 되돌아간다).
         // <b>도시 그림 창에 얹는다.</b> 부르는 쪽(CityPicView)이 도시 명령 창을 먼저
@@ -917,7 +932,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         while (true)
         {
             int row = HintListDialog.Pick(owner, names, "스폰서 일람",
-                                          "이 마을에는 아는 스폰서가 없습니다");
+                                          "이 마을에는 아는 스폰서가 없습니다", faces: faces,
+                                          subtitles: likes);
             if (row < 0 || row >= mine.Count) return;
 
             var (patron, sponsor) = mine[row];

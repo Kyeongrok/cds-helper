@@ -75,6 +75,12 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     private static readonly TimeSpan FxFrame = TimeSpan.FromMilliseconds(60);
     private const int BallSteps = 9;
 
+    /// <summary>
+    /// 포탄 한 걸음의 참. 걸음 0~9 열 번이라 한 발이 이것의 열 배 동안 난다 — 15ms 면 0.15초.
+    /// 원본 주소에서 옮긴 값이 아니라 보기 좋게 맞춘 값이다(예전 25ms 는 좀 느렸다).
+    /// </summary>
+    private static readonly TimeSpan BallStepTime = TimeSpan.FromMilliseconds(15);
+
     /// <summary>원본 화면 크기.</summary>
     private const int ScreenWidth = CombatArt.SeaWidth, ScreenHeight = CombatArt.SeaHeight;
 
@@ -889,7 +895,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                     Canvas.SetLeft(ball, sx + 20 + (tx - sx) * step / (double)BallSteps);
                     Canvas.SetTop(ball, sy + 12 + (ty - sy) * step / (double)BallSteps);
                 }
-                Wait(TimeSpan.FromMilliseconds(25));
+                Wait(BallStepTime);
             }
             if (ball != null) _fx.Children.Remove(ball);
 

@@ -1,5 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.IO;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using CdsHelper.Game.Local.Helpers;
 
@@ -11,22 +12,19 @@ namespace CdsHelper.Game.Engine.Disev;
 /// <remarks>
 /// <b>차례가 이렇다.</b>
 /// <list type="number">
-///   <item>적어 둔 <c>발견이벤트.json</c> 이 있으면 <b>그것을 읽는다</b>.</item>
-///   <item>없으면 게임 폴더의 <c>DISEV.CDS</c> 를 떠서 <b>먼저 적어 두고</b>, 그 다음에 읽는다.</item>
-///   <item>편집기가 고치는 것도 이 JSON 이다. 원본 CDS 는 안 건드린다.</item>
-///   <item>원본 게임에 먹일 때만 <b>한 번 굽는다</b> — 편집기의 「게임에 굽기」.</item>
+///   <item>적어 둔 <c>%APPDATA%\CdsHelper\exe-tables\발견이벤트.json</c> 이 있으면 <b>그것을 읽는다</b>.</item>
+///   <item>없으면 <b>앱 옆에 실어 둔 <c>발견이벤트.json</c></b>(<see cref="BundledPath"/>)을 먼저 적어 두고 그것을 읽는다.</item>
+///   <item>편집기가 고치는 것도 적어 둔 JSON 이다.</item>
 /// </list>
-/// 이 집이 EXE 표를 다루는 결과 같다(<see cref="ExeTable"/> · <c>발견물표.json</c> ·
-/// <c>건물표.json</c>). 원본은 읽기만 하고, 사람이 보고 고치는 것은 늘 JSON 쪽이다.
+/// <b><c>DISEV.CDS</c> 는 안 읽는다.</b> 실어 둔 JSON 은 원본 <c>DISEV.CDS</c> 를 한 번 떠서 저장소
+/// (<c>CdsHelper/발견이벤트.json</c>)에 넣은 것이라, 게임 폴더에 그 파일이 없어도 대본이 돈다.
 ///
-/// 파트 하나를 <b>덩이마다 16진 글 한 줄</b>로 적는다(<see cref="Entry"/>). 슬롯 표는
+/// 파트 하나를 <b>덩이마다 줄 나무 하나</b>로 적는다(<see cref="Entry"/> · <see cref="DisevTree"/>). 슬롯 표는
 /// 오프셋 대신 덩이 번호로 적고, 머리말은 적을 때 다시 셈한다 — 그래야 덩이 하나를
-/// 손으로 늘리고 줄여도 파일이 깨지지 않는다. 덩이 안의 명령은 아직 날바이트다.
-/// 나중에 명령 하나씩 뜯어낸다.
+/// 손으로 늘리고 줄여도 파일이 깨지지 않는다.
 ///
-/// <b>원본이 갈려도 저절로 다시 뜨지는 않는다.</b> 도장은 적어 두되 견주어 버리지는
-/// 않는다 — 사람이 고쳐 둔 대본을 게임 파일이 갈렸다고 말없이 지울 수는 없다.
-/// 다시 뜨고 싶으면 편집기의 「원본에서 다시 뜨기」를 누른다.
+/// <b>앱이 새로 실려도 적어 둔 것은 저절로 안 바뀐다.</b> 사람이 고쳐 둔 대본을 말없이
+/// 지울 수는 없다. 실린 원본으로 되돌리려면 편집기의 「원본에서 다시 뜨기」를 누른다.
 /// </remarks>
 public sealed class DisevBook
 {
@@ -34,11 +32,27 @@ public sealed class DisevBook
     public const string CacheName = "발견이벤트";
 
     /// <summary>
+    /// 이 집이 다룰 수 있는 <b>대본 책</b> 셋 — 발견 이벤트와 미리 만든 주인공 둘의 이야기다.
+    /// </summary>
+    /// <remarks>
+    /// <c>STORY0.CDS</c> · <c>STORY1.CDS</c> 는 <b>그릇도 말도 DISEV.CDS 와 같다</b> — 같은
+    /// Ls12 아카이브에 같은 명령을 쓴다(파트 열일곱). 다른 것은 파트 번호가 발견물 번호가
+    /// 아니라 <b>마당 안의 장면 번호</b>라는 것뿐이라, 읽고 고치는 길은 그대로 쓴다.
+    /// </remarks>
+    public static readonly (string Cache, string Title, string Source)[] Books =
+    [
+        (CacheName, "발견 이벤트", "DISEV.CDS"),
+        ("이야기0", "이야기 0(라몬)", "STORY0.CDS"),
+        ("이야기1", "이야기 1(에밀리오)", "STORY1.CDS"),
+    ];
+
+    /// <summary>
     /// 알맹이 모양 판. 1 은 파트 통째 <c>Hex</c>, 2 는 덩이별 16진 글, 3 은 덩이마다 분기로 가른
-    /// 줄 나무(<see cref="DisevTree"/>), 4 는 그 줄을 명령 하나씩 떼고 음원·EVSTILL·대사를 칸으로 푼 것이다.
+    /// 줄 나무(<see cref="DisevTree"/>), 4 는 그 줄을 명령 하나씩 떼고 음원·EVSTILL·대사를 칸으로 푼 것,
+    /// 5 는 발견 처리(<c>Discover</c>)·아이템 획득(<c>GetItem</c>)·AVI(<c>Avi</c>)·특수 조우(<c>Encounter</c>)·능력치 더하기/빼기(<c>Stat</c>)까지 칸으로 풀고 <c>33</c> 을 제 명령으로 뗀 것이다.
     /// 옛 판도 읽어서 새 판으로 옮겨 적는다.
     /// </summary>
-    private const int SnapshotVersion = 4;
+    private const int SnapshotVersion = 5;
 
     /// <summary>대본 한 파트.</summary>
     /// <param name="Index">발견물 번호이자 파트 번호(0~273).</param>
@@ -65,20 +79,37 @@ public sealed class DisevBook
 
     private readonly List<byte[]> _parts;
     private readonly bool[] _edited;
-    private string _stamp;
+    private readonly string _stamp;
 
-    private DisevBook(List<byte[]> parts, string stamp)
+    /// <summary>이 책이 적히는 이름(<see cref="Books"/> 의 첫 칸).</summary>
+    private readonly string _cache;
+
+    /// <summary>이 책이 적히는 이름. 편집기가 자리를 적을 때 쓴다.</summary>
+    public string Cache => _cache;
+
+    private DisevBook(List<byte[]> parts, string stamp, string cache)
     {
         _parts = parts;
         _edited = new bool[parts.Count];
         _stamp = stamp;
+        _cache = cache;
     }
 
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
     /// <summary>적어 둔 파일 자리.</summary>
-    public static string Path_ => TableCache.PathFor(CacheName);
+    public static string Path_ => PathOf(CacheName);
+
+    /// <summary>그 책이 적히는 자리.</summary>
+    public static string PathOf(string cache) => TableCache.PathFor(cache);
+
+    /// <summary>앱 옆에 실어 둔 원본 대본 — 게임 파일을 한 번 떠서 앱과 함께 싣는다.</summary>
+    public static string BundledPath => BundledPathOf(CacheName);
+
+    /// <summary>그 책의 실어 둔 원본 자리.</summary>
+    public static string BundledPathOf(string cache) =>
+        System.IO.Path.Combine(AppContext.BaseDirectory, cache + ".json");
 
     /// <summary>파트 수. 274 다.</summary>
     public int Count => _parts.Count;
@@ -104,52 +135,59 @@ public sealed class DisevBook
     }
 
     /// <summary>
-    /// 대본을 연다. 적어 둔 것이 있으면 그것을, 없으면 <c>DISEV.CDS</c> 를 떠서 적고 그것을.
+    /// 대본을 연다. 적어 둔 것이 있으면 그것을, 없으면 앱에 실린 원본을 적고 그것을.
     /// </summary>
-    /// <param name="gameDirectory">게임 폴더. 적어 둔 것이 있으면 비어 있어도 열린다.</param>
-    public static DisevBook? Open(string gameDirectory)
+    public static DisevBook? Open(string cache = CacheName)
     {
         LastError = "";
 
         // 판 1 은 버리지 않고 옮겨 적는다 — 사람이 고쳐 둔 대본이 들어 있을 수 있다.
-        var cached = TableCache.Read<Snapshot>(CacheName);
+        var cached = TableCache.Read<Snapshot>(cache);
         if (cached is { Version: >= 1 and <= SnapshotVersion } && cached.Data.Parts.Count > 0)
         {
-            var book = FromEntries(cached.Data.Parts, cached.Stamp);
+            var book = FromEntries(cached.Data.Parts, cached.Stamp, cache);
             if (book != null && cached.Version != SnapshotVersion) book.Write();
             return book;
         }
 
-        return Dump(gameDirectory);
+        return Reset(cache);
     }
 
     /// <summary>
-    /// <c>DISEV.CDS</c> 를 통째로 떠서 <c>발견이벤트.json</c> 에 적고 그것을 연다.
+    /// 앱에 실린 원본 대본을 <c>발견이벤트.json</c> 에 적고 그것을 연다.
     /// </summary>
     /// <remarks>적어 둔 것이 있어도 <b>덮어쓴다</b> — 「원본에서 다시 뜨기」가 이 길이다.</remarks>
-    public static DisevBook? Dump(string gameDirectory)
+    public static DisevBook? Reset(string cache = CacheName)
     {
         LastError = "";
+        if (ReadBundle(cache) is not { } bundle) return null;
 
-        if (SourcePath(gameDirectory) is not { } path)
-        {
-            LastError = "게임 폴더에서 DISEV.CDS 를 찾지 못했습니다";
-            return null;
-        }
-
-        var archive = DisevArchive.Open(path);
-        if (archive == null)
-        {
-            LastError = $"DISEV.CDS 를 읽지 못했습니다 — {DisevArchive.LastError}";
-            return null;
-        }
-
-        var parts = new List<byte[]>(archive.PartCount);
-        for (int i = 0; i < archive.PartCount; i++) parts.Add(archive.Part(i));
-
-        var book = new DisevBook(parts, StampOf(path));
-        book.Write();
+        var book = FromEntries(bundle.Data.Parts, bundle.Stamp, cache);
+        book?.Write();
         return book;
+    }
+
+    /// <summary>앱 옆에 실린 원본 대본을 읽는다. 없거나 깨졌으면 null 이고 까닭은 <see cref="LastError"/> 다.</summary>
+    private static TableCache.Cached<Snapshot>? ReadBundle(string cache)
+    {
+        string path = BundledPathOf(cache);
+        try
+        {
+            if (!File.Exists(path))
+            {
+                LastError = $"앱 폴더에 {cache}.json 이 없습니다 ({path})";
+                return null;
+            }
+
+            var bundle = JsonSerializer.Deserialize<TableCache.Cached<Snapshot>>(File.ReadAllText(path));
+            if (bundle?.Data is { Parts.Count: > 0 }) return bundle;
+            LastError = $"앱에 실린 {cache}.json 이 비었습니다";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            LastError = $"앱에 실린 {cache}.json 을 못 읽었습니다 — {ex.Message}";
+        }
+        return null;
     }
 
     /// <summary>고친 것을 적어 둔다.</summary>
@@ -160,107 +198,43 @@ public sealed class DisevBook
     }
 
     /// <summary>
-    /// 적어 둔 대본을 <c>DISEV.CDS</c> 에 굽는다 — 원본 게임에 먹일 때만 쓴다.
+    /// 그 파트를 <b>앱에 실린 원본</b>에서 도로 가져온다. 원본을 못 읽으면 아무 일도 없다.
     /// </summary>
-    /// <remarks>
-    /// <c>CDS_95.EXE</c> 는 우리 JSON 을 모른다. 굽기 전에 파트를 죄다 되읽어 대 보고
-    /// 날짜 붙인 <c>.bak</c> 을 남긴 뒤에 덮는다(<see cref="DisevArchive.Save"/>).
-    /// </remarks>
-    /// <returns>남긴 백업 파일 자리. 못 구웠으면 null 이고 까닭은 <see cref="LastError"/> 다.</returns>
-    public string? Bake(string gameDirectory)
+    public bool Restore(int index)
     {
         LastError = "";
-
-        if (SourcePath(gameDirectory) is not { } path)
-        {
-            LastError = "게임 폴더에서 DISEV.CDS 를 찾지 못했습니다";
-            return null;
-        }
-
-        var archive = DisevArchive.Open(path);
-        if (archive == null)
-        {
-            LastError = $"DISEV.CDS 를 읽지 못했습니다 — {DisevArchive.LastError}";
-            return null;
-        }
-
-        for (int i = 0; i < _parts.Count && i < archive.PartCount; i++)
-            archive.ReplacePart(i, _parts[i]);
-
-        if (!archive.HasChanges)
-        {
-            LastError = "원본과 다른 파트가 없습니다";
-            return null;
-        }
-
-        string? backup = archive.Save();
-        if (backup == null) LastError = DisevArchive.LastError;
-        else _stamp = StampOf(path);
-        return backup;
-    }
-
-    /// <summary>
-    /// 그 파트를 <b>원본에서</b> 도로 가져온다. 원본을 못 읽으면 아무 일도 없다.
-    /// </summary>
-    public bool Restore(int index, string gameDirectory)
-    {
-        LastError = "";
-
         if (index < 0 || index >= _parts.Count) return false;
-        if (SourcePath(gameDirectory) is not { } path)
+        if (ReadBundle(_cache) is not { } bundle) return false;
+
+        if (bundle.Data.Parts.FirstOrDefault(p => p.Index == index) is not { } entry)
         {
-            LastError = "게임 폴더에서 DISEV.CDS 를 찾지 못했습니다";
+            LastError = $"실린 원본에 파트 {index} 가 없습니다";
+            return false;
+        }
+        if (Join(entry, out string why) is not { Length: > 0 } data)
+        {
+            LastError = $"실린 원본의 파트 {index} 가 깨졌습니다 — {why}";
             return false;
         }
 
-        var archive = DisevArchive.Open(path);
-        if (archive == null || index >= archive.PartCount)
-        {
-            LastError = $"DISEV.CDS 를 읽지 못했습니다 — {DisevArchive.LastError}";
-            return false;
-        }
-
-        _parts[index] = archive.Part(index);
+        _parts[index] = data;
         _edited[index] = true;      // 적어 둔 책과 달라졌으니 저장할 거리가 있다
         return true;
     }
 
-    /// <summary>게임 폴더의 <c>DISEV.CDS</c>. 없으면 null.</summary>
-    private static string? SourcePath(string gameDirectory)
-    {
-        if (string.IsNullOrEmpty(gameDirectory)) return null;
-
-        string path = System.IO.Path.Combine(gameDirectory, "DISEV.CDS");
-        return File.Exists(path) ? path : null;
-    }
-
-    /// <summary>파일이 갈렸는지 알아보는 도장 — 크기와 쓴 시각이다.</summary>
-    private static string StampOf(string path)
-    {
-        try
-        {
-            var info = new FileInfo(path);
-            return $"{info.Length}:{info.LastWriteTimeUtc.Ticks}";
-        }
-        catch (IOException)
-        {
-            return "";
-        }
-    }
-
-    private static DisevBook? FromEntries(List<Entry> rows, string stamp)
+    private static DisevBook? FromEntries(List<Entry> rows, string stamp, string cache = CacheName)
     {
         var parts = new List<byte[]>(rows.Count);
         foreach (var row in rows.OrderBy(r => r.Index))
         {
             if (Join(row, out string why) is not { Length: > 0 } data)
             {
-                LastError = $"적어 둔 {CacheName}.json 의 파트 {row.Index} 가 깨졌습니다 — {why}";
+                LastError = $"{cache}.json 의 파트 {row.Index} 가 깨졌습니다 — {why}";
                 return null;
             }
             parts.Add(data);
         }
-        return new DisevBook(parts, stamp);
+        return new DisevBook(parts, stamp, cache);
     }
 
     /// <summary>
@@ -356,7 +330,7 @@ public sealed class DisevBook
         var rows = new List<Entry>(_parts.Count);
         for (int i = 0; i < _parts.Count; i++) rows.Add(Split(i, _parts[i]));
 
-        TableCache.Write(CacheName, new TableCache.Cached<Snapshot>(
+        TableCache.Write(_cache, new TableCache.Cached<Snapshot>(
             _stamp, new Snapshot(rows), "DISEV.CDS", SnapshotVersion));
     }
 }
