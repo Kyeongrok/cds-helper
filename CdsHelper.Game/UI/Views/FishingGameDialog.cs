@@ -361,6 +361,9 @@ internal sealed class FishingGameDialog : InfoDialog
         {
             FishingGame.Catch.SquidCaught => "fish-big-1.png",
             FishingGame.Catch.OctopusCaught => "fish-big-2.png",
+            // 걸린 그 놈의 그림이다 — 갈래도 보는 쪽도 헤엄칠 때 그대로다.
+            FishingGame.Catch.SmallFry or FishingGame.Catch.SmallFryToo when _game.Caught is { } one
+                => $"fish-small-{one.Kind * 2 + (one.Way == 1 ? 1 : 0)}.png",
             FishingGame.Catch.SmallFry or FishingGame.Catch.SmallFryToo => "fish-small-0.png",
             _ => null,
         };

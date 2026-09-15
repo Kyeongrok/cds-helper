@@ -67,7 +67,21 @@ public sealed class DisevEditorDialog : GameWindow
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
     };
 
-    /// <summary>「표」와 「흐름도」 두 보기. 어느 쪽에서 골라도 아래 칸은 같은 명령을 잡는다.</summary>
+    /// <summary>
+    /// 고른 덩이가 <c>발견이벤트.json</c> 에 적히는 모양 — 분기를 Yes/No 로 가른 줄 나무(<see cref="DisevTree"/>).
+    /// 저장 전이라도 지금 고친 바이트로 짠다.
+    /// </summary>
+    private readonly TextBox _json = new()
+    {
+        IsReadOnly = true,
+        AcceptsReturn = true,
+        TextWrapping = TextWrapping.Wrap,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        FontFamily = new FontFamily("Consolas, D2Coding, 맑은 고딕"),
+        BorderThickness = new Thickness(0),
+    };
+
+    /// <summary>「표」·「JSON」·「흐름도」 세 보기. 표와 흐름도는 어느 쪽에서 골라도 아래 칸이 같은 명령을 잡는다.</summary>
     private readonly TabControl _views = new() { Margin = new Thickness(4, 0, 10, 4) };
 
     /// <summary>고른 명령의 칸들이 들어앉는 자리.</summary>
@@ -179,6 +193,7 @@ public sealed class DisevEditorDialog : GameWindow
         right.Children.Add(formHost);
         _ops.Margin = new Thickness(0);
         _views.Items.Add(new TabItem { Header = "표", Content = _ops });
+        _views.Items.Add(new TabItem { Header = "JSON", Content = _json });
         _views.Items.Add(new TabItem { Header = "흐름도", Content = _flow });
         right.Children.Add(_views);
 
@@ -428,6 +443,7 @@ public sealed class DisevEditorDialog : GameWindow
     {
         _ops.ItemsSource = null;
         _flow.Content = null;
+        _json.Clear();
         _hex.Clear();
         ClearForm();
         if (_part == null || _chunks.SelectedItem is not ChunkRow chunk) return;
@@ -445,6 +461,7 @@ public sealed class DisevEditorDialog : GameWindow
         }).ToList();
 
         _hex.Text = DisevScript.Hex(_part.Chunk(chunk.Start));
+        _json.Text = DisevTree.ToJson(DisevTree.Build(_part.Chunk(chunk.Start)));
         _flow.Content = DisevFlowView.Build(DisevFlow.Build(_part.Data, ops), PickOp);
 
         // 덩이 밖으로 뛰는 상대 이동이 있으면 길이를 바꿀 때 어긋난다 — 미리 일러 준다.

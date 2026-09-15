@@ -161,7 +161,9 @@ public static class GameSave
         List<int>? TalksLost = null, Dictionary<string, int>? Closeness = null,
         List<int>? KnownCities = null, int? Ailments = null,
         int? Formation = null, List<int>? CrewShares = null, int? HomePort = null,
-        double? SeaX = null, double? SeaY = null);
+        double? SeaX = null, double? SeaY = null, int? Condition = null,
+        List<int>? Abilities = null, int? JobIndex = null, int? Age = null,
+        int? BirthMonth = null, int? BirthDay = null, int? Blood = null, int? Nation = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -213,7 +215,11 @@ public static class GameSave
                             player.Formation, [.. player.CrewShares], player.HomePort,
                             // 바다에서 적을 때만 배 자리를 적는다 — 도시면 도시 앞바다로 연다.
                             player.CityId < 0 ? player.SeaCell?.X : null,
-                            player.CityId < 0 ? player.SeaCell?.Y : null);
+                            player.CityId < 0 ? player.SeaCell?.Y : null,
+                            player.Condition,
+                            // 능력치와 신상. 이 칸들이 없어 <b>불러오면 능력이 죄다 50</b> 이었다.
+                            [.. player.Abilities], player.JobIndex, player.Age,
+                            player.BirthMonth, player.BirthDay, player.Blood, player.Nation);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

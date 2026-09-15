@@ -30,7 +30,7 @@ namespace CdsHelper.Game.UI.Views;
 public sealed class BelongingsDialog : GameWindow
 {
     /// <summary>고른 줄에 씌우는 남색. 시장 목록과 같은 색이다.</summary>
-    private static readonly Brush Picked = Freeze(Color.FromRgb(0x3A, 0x5A, 0x9A));
+    private static readonly Brush Picked = Freeze(Color.FromRgb(0x5C, 0x6F, 0x93));
 
     /// <summary>글꼴을 못 읽었을 때 물러설 글씨색.</summary>
     private static readonly Brush Ink = Freeze(Color.FromRgb(0x20, 0x18, 0x10));
@@ -47,6 +47,9 @@ public sealed class BelongingsDialog : GameWindow
     private readonly ItemArt? _art;
 
     private readonly List<(int ItemId, Border Row, string Name)> _rows = [];
+
+    /// <summary>지닌 것 — 「장비중」을 가리는 데 쓴다(갈래마다 가장 센 것 하나).</summary>
+    private readonly List<int> _bag = [];
     private readonly GameButton _decide;
     private int _at = -1;
 
@@ -61,8 +64,13 @@ public sealed class BelongingsDialog : GameWindow
         Title = "소지품 정보";
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
-        Width = 820;
-        Height = 460;
+
+        // 창은 <b>줄 수를 따라 자란다</b> — 원본도 넉 줄 남짓한 납작한 창으로 열리고
+        // 지닌 것이 늘면 아래로 길어진다. 가로는 원본이 화면의 2/3 쯤이다.
+        int lines = Math.Clamp(Math.Max(player.Items.Count, discoveries.Count),
+                               MinRows, MaxRows);
+        Width = BoardWidth;
+        Height = ChromeHeight + lines * RowHeight;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
         Background = GameUi.Back;
@@ -102,6 +110,7 @@ public sealed class BelongingsDialog : GameWindow
                 Child = Label(name, picked: false),
             });
 
+        _bag.AddRange(player.Items);
         foreach (int id in player.Items)
         {
             var row = Row(id);
@@ -148,6 +157,18 @@ public sealed class BelongingsDialog : GameWindow
         GameUi.EnableDrag(this, bands);
         KeyDown += OnKey;
     }
+
+    /// <summary>창 폭 — 원본은 화면의 2/3 쯤(640 점 자로 408)이다.</summary>
+    private const double BoardWidth = 630;
+
+    /// <summary>줄 하나가 차지하는 키. <see cref="Row"/> 의 테(위아래 2)와 글자 키를 더한 값이다.</summary>
+    private const double RowHeight = 24;
+
+    /// <summary>줄 말고 드는 키 — 테 · 제목 띠 · 단추 줄 · 양피지 칸의 안쪽 여백.</summary>
+    private const double ChromeHeight = 130;
+
+    /// <summary>처음 여는 줄 수와, 이보다 길어지지 않는 줄 수.</summary>
+    private const int MinRows = 4, MaxRows = 22;
 
     /// <summary>발견물 칸. 지금까지 발견한 것이 찾은 차례대로 놓인다.</summary>
     public StackPanel Discoveries { get; }
@@ -270,7 +291,8 @@ public sealed class BelongingsDialog : GameWindow
         if (_at < 0 || _at >= _rows.Count) return;
         if (_items?.Find(_rows[_at].ItemId) is not { } item) return;
 
-        ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art);
+        ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art,
+                            ItemInfoDialog.IsEquipped(item, _bag, _items));
     }
 
     /// <summary>소지품 정보 창을 연다.</summary>

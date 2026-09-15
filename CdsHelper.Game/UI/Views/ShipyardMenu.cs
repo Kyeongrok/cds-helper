@@ -43,6 +43,17 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private Window Owner => _menu.Window ?? _view;
 
     /// <summary>
+    /// 조선소 주인 얼굴. <b>이 집의 말은 모두 이 얼굴을 세운다</b> — 게임도 그렇다.
+    /// </summary>
+    private uint[]? Face => _game.SpeakerFace(BuildingCode, _culture);
+
+    /// <summary>주인이 한 마디 한다.</summary>
+    private void Say(string text) => ConfirmDialog.Tell(Owner, text, face: Face);
+
+    /// <summary>주인이 예·아니오를 묻는다.</summary>
+    private bool Ask(string text) => ConfirmDialog.Ask(Owner, text, face: Face);
+
+    /// <summary>
     /// 들어설 때 목수가 건네는 한마디. 게임의 <c>0x0044B4A0</c> 자리다 — 문구가
     /// <c>0x00530F38</c> 이고, 얼굴은 이 마을 문화권이 정한다(리스본은 402, 이슬람권은
     /// 315 다).
@@ -73,26 +84,24 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         var owner = Owner;
         var face = _game.SpeakerFace(BuildingCode, _culture);
 
-        ConfirmDialog.Tell(owner, "새로운 배가 갖고 싶나?", face: face);
+        Say("새로운 배가 갖고 싶나?");
 
         while (HullSelectDialog.Show(owner) is { } hull)
         {
             if (_player.Ships.Count >= Player.MaxShips)
             {
-                GameDialog.Show(owner, "이 이상 배를 늘릴 수 없습니다!");
+                Say("이 이상 배를 늘릴 수 없습니다!");
                 return;
             }
 
             int price = Math.Max(1, hull.Price * _rate / 100);
             string what = hull.Name;
-            if (!ConfirmDialog.Ask(owner,
-                    $"{what}{GameUi.Josa(what, "이", "가")} 갖고 싶다면 금화 {price}닢이 필요하네.",
-                    face: face))
+            if (!Ask($"{what}{GameUi.Josa(what, "이", "가")} 갖고 싶다면 금화 {price}닢이 필요하네."))
                 continue;
 
             if (!_player.CanAfford(price))
             {
-                GameDialog.Show(owner, "자금이 모자랍니다!");
+                Say("자금이 모자랍니다!");
                 continue;
             }
 
@@ -155,8 +164,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             return;
         }
 
-        ConfirmDialog.Tell(owner, "어느 배를 팔 건가? 봐 주겠네.",
-                           face: _game.SpeakerFace(BuildingCode, _culture));
+        Say("어느 배를 팔 건가? 봐 주겠네.");
 
         // 기함은 값이 0 이라 줄이 흐리고 안 골라진다 — 게임도 그렇게 낸다.
         var rows = _player.Ships.Select((s, i) => new ShipSellDialog.Row(
@@ -168,7 +176,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         if (picked.Count == 0) return;
 
         int paid = picked.Sum(at => Shipyard.SellPrice(_player.Ships[at], _rate));
-        if (!ConfirmDialog.Ask(owner, $"{paid}닢입니다. 좋습니까?")) return;
+        if (!Ask($"{paid}닢입니다. 좋습니까?")) return;
 
         // 뒤에서부터 뺀다 — 앞을 먼저 빼면 뒤 자리가 하나씩 밀린다.
         foreach (int at in picked.OrderByDescending(i => i)) _player.Scrap(at);
@@ -210,7 +218,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         var hurt = RepairTargets();
         if (hurt.Count == 0)
         {
-            GameDialog.Show(owner, "수리가 필요한 배는 없네!");
+            Say("수리가 필요한 배는 없네!");
             return;
         }
 
@@ -224,11 +232,11 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         var ship = hurt[at].Ship;
         int cost = CostOf(ship);
-        if (!ConfirmDialog.Ask(owner, $"수리하는데 금화 {cost}닢 필요하네. 좋나?")) return;
+        if (!Ask($"수리하는데 금화 {cost}닢 필요하네. 좋나?")) return;
 
         if (!_player.Pay(cost))
         {
-            GameDialog.Show(owner, "소지금이 모자랍니다!");
+            Say("소지금이 모자랍니다!");
             return;
         }
         ship.Repair();
@@ -256,13 +264,15 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     public void RefitShip()
     {
         var owner = Owner;
-        if (_player.Ships.Count == 0) { GameDialog.Show(owner, "배가 없습니다"); return; }
+        if (_player.Ships.Count == 0) { Say("배가 없습니다"); return; }
 
+        Say("어느 배를 개조할 건가?");                       // 0x005322E8
         int at = HintListDialog.Pick(owner,
-            [.. _player.Ships.Select((s, i) => ShipLine(s, i == _player.Flagship))],
-            "개조선박의 선택", "배가 없습니다");
+            [.. _player.Ships.Select((s, i) => RefitLine(s, i == _player.Flagship))],
+            "개조선박의 선택", "배가 없습니다", RefitHead);   // 0x00532300
         if (at < 0 || at >= _player.Ships.Count) return;
 
+        Say("어디를 개조할 건가?");                          // 0x005322C0
         _menu.Push(() => RefitMenu(_player.Ships[at]));
     }
 
@@ -321,8 +331,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         // 저주받은 것을 달고 있으면 갈아 낼 수가 없다.
         if (Figureheads.Cursed(ship.Figurehead))
         {
-            GameDialog.Show(owner,
-                $"안됐지만, 자네가 지금 달고 있는 선수상은 저주받아 풀 수가 없네. {NameOf(ship.Figurehead)}");
+            Say($"안됐지만, 자네가 지금 달고 있는 선수상은 저주받아 풀 수가 없네. {NameOf(ship.Figurehead)}");
             return;
         }
 
@@ -343,16 +352,16 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         int cost = CostOf(pick, buying);
 
         if (ship.Figurehead >= 0
-            && !ConfirmDialog.Ask(owner, "지금 붙어있는 선수상은 놓아 가고 가는가?")) return;
+            && !Ask("지금 붙어있는 선수상은 놓아 가고 가는가?")) return;
 
         if (Figureheads.Cursed(pick)
-            && !ConfirmDialog.Ask(owner, "이! 이 선수상은... 이보게, 정말 이것을 달아도 좋단 말이지?"))
+            && !Ask("이! 이 선수상은... 이보게, 정말 이것을 달아도 좋단 말이지?"))
             return;
 
-        GameDialog.Show(owner, buying
+        Say(buying
             ? $"금화 {cost}닢이네."
             : $"선수상을 단 값으로 금화 {cost}닢 받겠네.");
-        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
+        if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }
 
         // 놓고 가는 것은 팔아 준다. 지닌 것을 달았으면 소지품에서 던다.
         int back = ship.Figurehead >= 0 ? SellBack(ship.Figurehead) : 0;
@@ -361,7 +370,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         if (!buying) _player.Drop(Figureheads.ToItem(pick));
         ship.Carve(pick);
 
-        GameDialog.Show(owner, $"{NameOf(pick)}을 달았네. 좋은 항해가 되기를!");
+        Say($"{NameOf(pick)}을 달았네. 좋은 항해가 되기를!");
         _menu.Pop();
         _menu.Push(() => RefitMenu(ship));
     }
@@ -400,24 +409,24 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         var owner = Owner;
         int cost = Shipyard.MastCost(ship);
 
-        GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
-        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
-        if (!ConfirmDialog.Ask(owner, "적재용량이 조금 주는데 괜찮나?")) return;
+        Say($"금화 {cost}닢이 드네.");
+        if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }
+        if (!Ask("적재용량이 조금 주는데 괜찮나?")) return;
 
         int sail;
         if (!ship.CanChangeSail)
         {
-            if (!ConfirmDialog.Ask(owner, "마스트에는 삼각돛을 달겠네.")) return;
+            if (!Ask("마스트에는 삼각돛을 달겠네.")) return;
             sail = Ship.Lateen;
         }
         else
         {
-            GameDialog.Show(owner, "마스트에 달 돛의 종류를 정해 주게.");
+            Say("마스트에 달 돛의 종류를 정해 주게.");
             int at = HintListDialog.Pick(owner, [Ship.SailNames[Ship.Lateen], Ship.SailNames[Ship.Square]],
                                          "돛 종류", "");
             if (at < 0) return;
             sail = at == 0 ? Ship.Lateen : Ship.Square;
-            if (!ConfirmDialog.Ask(owner, sail == Ship.Lateen
+            if (!Ask(sail == Ship.Lateen
                     ? "이것은 역풍에 뛰어나네. 이 돛을 달겠네?"
                     : "이것은 순풍에 뛰어나네. 이 돛을 달겠네?")) return;
         }
@@ -454,7 +463,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             if (ship.Sails[i] != Ship.NoSail) standing.Add(i);
         if (standing.Count == 0) return;
 
-        GameDialog.Show(owner, "어느 마스트의 돛을 바꿀건가?");
+        Say("어느 마스트의 돛을 바꿀건가?");
         int pick = HintListDialog.Pick(owner,
             [.. standing.Select(i => $"{GameUi.Pad(Ship.MastNames[i], 14)}{Ship.SailNames[ship.Sails[i]]}")],
             "돛종류 변경", "");
@@ -462,13 +471,13 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         int mast = standing[pick];
         bool lateen = ship.Sails[mast] == Ship.Lateen;
-        if (!ConfirmDialog.Ask(owner, lateen
+        if (!Ask(lateen
                 ? "삼각돛을 순풍에 뛰어난 사각돛으로 바꿀 건가?"
                 : "사각돛을 역풍에 뛰어난 삼각돛으로 바꿀 건가?")) return;
 
         int cost = Shipyard.SailCost(ship);
-        if (!ConfirmDialog.Ask(owner, $"금화 {cost}닢이 드는데, 좋나?")) return;
-        if (!_player.Pay(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
+        if (!Ask($"금화 {cost}닢이 드는데, 좋나?")) return;
+        if (!_player.Pay(cost)) { Say("돈이 모자라는 것 같군."); return; }
         if (!ship.SwapSail(mast)) return;
 
         string where = Ship.MastNames[mast], what = Ship.SailNames[ship.Sails[mast]];
@@ -493,10 +502,9 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         var owner = Owner;
         int cost = Shipyard.SailCost(ship);
 
-        GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
-        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
-        if (!ConfirmDialog.Ask(owner,
-                "마스트에 부담이 되어 배가 조그마한 충격에도 약해지지만, 괜찮겠나?")) return;
+        Say($"금화 {cost}닢이 드네.");
+        if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }
+        if (!Ask("마스트에 부담이 되어 배가 조그마한 충격에도 약해지지만, 괜찮겠나?")) return;
 
         _player.Pay(cost);
         ShowRefit(owner, ship.AddSail(), ship);
@@ -520,18 +528,18 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private void ChangeTurrets(Ship ship)
     {
         var owner = Owner;
-        GameDialog.Show(owner, "포탑은 몇 개로 할건가?");
+        Say("포탑은 몇 개로 할건가?");
 
         int want = CountDialog.Ask(owner, "포탑수 결정", "포탑수", "문", ship.MaxTurrets, 1, true,
             new CountDialog.Gauge("최대포탑수", ship.MaxTurrets),
             new CountDialog.Gauge("현재의 포탑수", ship.Turrets));
         if (want < 0) return;
-        if (want == ship.Turrets) { GameDialog.Show(owner, "자네와 장난칠 여유없네."); return; }
+        if (want == ship.Turrets) { Say("자네와 장난칠 여유없네."); return; }
 
         int cost = Math.Max(0, want - ship.Turrets) * Cannon.TurretPrice;
-        GameDialog.Show(owner, cost > 0 ? $"금화 {cost}닢 받겠네." : "뗄 거라면 돈은 필요없네.");
-        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라네."); return; }
-        if (!ConfirmDialog.Ask(owner, "괜찮겠나?")) return;
+        Say(cost > 0 ? $"금화 {cost}닢 받겠네." : "뗄 거라면 돈은 필요없네.");
+        if (!_player.CanAfford(cost)) { Say("돈이 모자라네."); return; }
+        if (!Ask("괜찮겠나?")) return;
 
         var was = ship.Snapshot();
         var gun = Cannon.Of(ship.Gun);
@@ -540,10 +548,10 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         int spilled = ship.SetTurrets(want);
         if (spilled > 0 && gun != null)
         {
-            GameDialog.Show(owner, "지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
+            Say("지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
             int back = gun.Price * spilled * Cannon.BuyBackPercent / 100;
             _player.Earn(back);
-            GameDialog.Show(owner, $"금화 {back}닢을 벌었습니다.");
+            Say($"금화 {back}닢을 벌었습니다.");
         }
 
         ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
@@ -571,9 +579,9 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private void BuyCannon(Ship ship)
     {
         var owner = Owner;
-        if (ship.Turrets <= 0) { GameDialog.Show(owner, "포탑이 없으면 대포는 실을 수 없네."); return; }
+        if (ship.Turrets <= 0) { Say("포탑이 없으면 대포는 실을 수 없네."); return; }
 
-        GameDialog.Show(owner, "어느 대포를 실을 건가?");
+        Say("어느 대포를 실을 건가?");
         int at = HintListDialog.Pick(owner,
             [.. Cannon.All.Select(c => $"{GameUi.Pad(c.Name, 12)}{c.Price,6}닢{c.Weight,5}")],
             "대포 선택", "대포가 없네.");
@@ -587,16 +595,16 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         if (room <= 0)
         {
-            GameDialog.Show(owner, at == ship.Gun ? "이 대포는 더 이상 실을 수 없네."
+            Say(at == ship.Gun ? "이 대포는 더 이상 실을 수 없네."
                                                   : "이 대포는 무거워서 실을 수 없네.");
             return;
         }
-        if (!_player.CanAfford(gun.Price)) { GameDialog.Show(owner, "돈이 모자라는군."); return; }
+        if (!_player.CanAfford(gun.Price)) { Say("돈이 모자라는군."); return; }
 
-        GameDialog.Show(owner, gun.Word);
+        Say(gun.Word);
         room = Math.Min(room, _player.Gold / gun.Price);
 
-        int want = ConfirmDialog.Ask(owner, "실을 수 있을 만큼 싣겠네.")
+        int want = Ask("실을 수 있을 만큼 싣겠네.")
             ? room
             : CountDialog.Ask(owner, "얼마나 싣겠나?", "대포수", "문", room, 1, true,
                 new CountDialog.Gauge("최대대포수", ship.Turrets),
@@ -605,20 +613,19 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         int cost = gun.Price * want;
         string who = gun.Name;
-        if (!ConfirmDialog.Ask(owner,
-                $"{who}{GameUi.Josa(who, "을", "를")} {want}문 실으면 금화 {cost}닢이네. 좋은가?"))
+        if (!Ask($"{who}{GameUi.Josa(who, "을", "를")} {want}문 실으면 금화 {cost}닢이네. 좋은가?"))
             return;
-        if (!_player.Pay(cost)) { GameDialog.Show(owner, "돈이 모자라네."); return; }
+        if (!_player.Pay(cost)) { Say("돈이 모자라네."); return; }
 
         var was = ship.Snapshot();
 
         // 갈래가 갈리면 실려 있던 것은 30프로로 되사 준다.
         if (at != ship.Gun && Cannon.Of(ship.Gun) is { } old && ship.Guns > 0)
         {
-            GameDialog.Show(owner, "지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
+            Say("지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
             int back = old.Price * ship.Guns * Cannon.BuyBackPercent / 100;
             _player.Earn(back);
-            GameDialog.Show(owner, $"금화 {back}닢을 벌었습니다.");
+            Say($"금화 {back}닢을 벌었습니다.");
             ship.Load(at, want);
         }
         else
@@ -655,7 +662,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private void RenameShip(Ship ship)
     {
         var owner = Owner;
-        GameDialog.Show(owner, "배의 이름을 정해 주십시오");
+        Say("배의 이름을 정해 주십시오");
 
         // 그대로 결정했으면 고칠 게 없다 — 창은 그 둘을 가려 주지 않는다.
         if (ShipNameDialog.Ask(owner, ship.Name) is not { } name || name == ship.Name) return;
@@ -683,9 +690,9 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         var owner = Owner;
         int cost = Shipyard.RefitCost(ship);
 
-        GameDialog.Show(owner, $"금화 {cost}닢이 드네.");
-        if (!_player.CanAfford(cost)) { GameDialog.Show(owner, "돈이 모자라는 것 같군."); return; }
-        if (!ConfirmDialog.Ask(owner, Shipyard.RefitWarning(item))) return;
+        Say($"금화 {cost}닢이 드네.");
+        if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }
+        if (!Ask(Shipyard.RefitWarning(item))) return;
 
         _player.Pay(cost);
         var change = item switch
@@ -702,9 +709,39 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// <summary>
     /// 배 한 척을 줄로 적는다 — 이름과 내구·추진·적재를 붙인다. 상했으면 내구를 "지금/최대"로 낸다.
     /// </summary>
+    /// <summary>
+    /// 개조 목록의 머리글 — 게임 낱말 그대로다(<c>0x00545580</c> 벌: 선명 · 추진력 ·
+    /// 「대포명  포문수」 · 돛종류).
+    /// </summary>
+    private const string RefitHead = "        선명  추진력      대포명  포문수  돛종류";
+
+    /// <summary>돛 한 자리를 글자로 — 없음 <c>＿</c> · 삼각 <c>△</c> · 사각 <c>□</c>(0x005455F0 벌).</summary>
+    private static string SailMark(int sail) => sail switch
+    {
+        Ship.Lateen => "△",
+        Ship.Square => "□",
+        _ => "＿",
+    };
+
+    /// <summary>
+    /// 개조 목록 한 줄 — 게임 칸 그대로다. 대포 칸은 <c>%12s %2d/%2d문</c>(<c>0x005455D8</c>)
+    /// 이고, 안 실었으면 통째로 빈 칸이다.
+    /// </summary>
+    internal static string RefitLine(Ship ship, bool flag)
+    {
+        string gun = ship.Gun >= 0 && ship.Gun < Cannon.Count
+            ? $"{GameUi.Pad(Cannon.All[ship.Gun].Name, 12)} {ship.Guns,2}/{ship.Turrets,2}문"
+            : new string(' ', 19);
+        string sails = string.Concat(ship.Sails.Select(SailMark));
+
+        return $"{(flag ? "*" : " ")}{GameUi.Pad(ship.Name, 10)}"
+             + $" {ship.Speed,3}/{ship.Hull.Speed * Ship.RefitCeiling,3}"
+             + $"  {gun}  {sails}";
+    }
+
     internal static string ShipLine(Ship ship, bool flag)
     {
         string hp = ship.NeedsRepair ? $"{ship.Hp,3}/{ship.MaxHp,-3}" : $"{ship.MaxHp,3}    ";
-        return $"{(flag ? "★" : "  ")}{ship.Name}  내구{hp} 추진{ship.Speed,3} 적재{ship.Capacity,4}";
+        return $"{(flag ? "*" : " ")}{ship.Name}  내구{hp} 추진{ship.Speed,3} 적재{ship.Capacity,4}";
     }
 }

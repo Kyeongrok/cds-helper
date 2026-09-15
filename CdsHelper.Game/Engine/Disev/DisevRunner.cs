@@ -364,6 +364,22 @@ public sealed class DisevRunner
                 return 0;
             }
 
+            // 0D 0D [인물] — 그 인물(괴물)과 해전. 지도 창에서만 연다 — 판을 열 손이 거기 있다.
+            case "해전(인물)":
+            {
+                if (_owner is not UI.Views.ShipMapWindow sea) return 0;
+
+                var end = sea.SeaFight((int)Field(2, 2));
+                _result = end.Won;
+                _hasResult = true;
+                if (end.Over)
+                {
+                    LastEndedInGameOver = true;
+                    return Stop;
+                }
+                return 0;
+            }
+
             // 조건이 맞으면 뛴다. 조건 부분은 Holds 와 같은 눈으로 본다.
             case "발견물 조건 분기":
                 return _game.Player.HasFound((int)Field(3, 2)) ? (int)(short)Field(5, 2) : 0;

@@ -17,15 +17,32 @@ internal static class PersonInfoMenu
     /// <param name="owner">판을 띄울 창.</param>
     /// <param name="game">이 판.</param>
     /// <param name="menu">이 줄을 낸 커맨드 창. 고르면 접고, 물을 때는 그 위에 한 겹 쌓는다.</param>
-    public static void Show(Window owner, Engine.Game game, GameMenuHost menu)
+    /// <param name="hold">
+    /// 판이 떠 있는 동안 <b>붙잡아 달라</b>고 부르는 쪽에 알리는 손. 지도 창은 이것으로 멈춤을
+    /// 쥐고 있는다 — 창을 접으면 그 알림이 멈춤을 풀어 버려, 인물정보를 보는 사이에 배가
+    /// 계속 나아갔다.
+    /// </param>
+    public static void Show(Window owner, Engine.Game game, GameMenuHost menu,
+                            Action<bool>? hold = null)
     {
         if (game.Player.MateCount == 0)
         {
-            menu.Close();
-            PersonInfoDialog.Show(owner, game.Player, game.Directory);
+            Held(hold, () =>
+            {
+                menu.Close();
+                PersonInfoDialog.Show(owner, game.Player, game.Directory);
+            });
             return;
         }
-        menu.Push(() => Build(owner, game, menu));
+        menu.Push(() => Build(owner, game, menu, hold));
+    }
+
+    /// <summary>붙잡아 달라고 알리고, 판이 닫히면 놓아 준다.</summary>
+    private static void Held(Action<bool>? hold, Action show)
+    {
+        hold?.Invoke(true);
+        try { show(); }
+        finally { hold?.Invoke(false); }
     }
 
     /// <summary>
@@ -35,15 +52,16 @@ internal static class PersonInfoMenu
     /// <b>사람이 앉은 자리만 낸다.</b> 예전에는 넷을 다 내고 빈 자리를 흐려 두었는데,
     /// 없는 자리를 굳이 보일 까닭이 없다.
     /// </remarks>
-    private static GameMenu Build(Window owner, Engine.Game game, GameMenuHost menu)
+    private static GameMenu Build(Window owner, Engine.Game game, GameMenuHost menu,
+                                  Action<bool>? hold = null)
     {
         var rows = new List<(string, Action?)>
         {
-            ("플레이어", () =>
+            ("플레이어", () => Held(hold, () =>
             {
                 menu.Close();
                 PersonInfoDialog.Show(owner, game.Player, game.Directory);
-            }),
+            })),
         };
 
         for (int i = 0; i < Player.MaxMates; i++)
@@ -51,7 +69,7 @@ internal static class PersonInfoMenu
             int slot = i;
             string name = game.Player.MateAt(slot);
             if (name.Length == 0) continue;
-            rows.Add((Player.MateRoles[slot], () => ShowMate(owner, game, menu, slot)));
+            rows.Add((Player.MateRoles[slot], () => ShowMate(owner, game, menu, slot, hold)));
         }
 
         rows.Add(("취소", menu.Close));
@@ -65,16 +83,20 @@ internal static class PersonInfoMenu
     /// 신상은 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>) — 우리 세이브를 먼저 보고,
     /// 없으면 게임 세이브의 인물표에서 채운다. 채울 데가 없으면 못 찾았다고 알린다.
     /// </remarks>
-    private static void ShowMate(Window owner, Engine.Game game, GameMenuHost menu, int slot)
+    private static void ShowMate(Window owner, Engine.Game game, GameMenuHost menu, int slot,
+                                 Action<bool>? hold = null)
     {
         string name = game.Player.MateAt(slot);
         var who = game.MateInfo(name);
 
-        menu.Close();
+        Held(hold, () =>
+        {
+            menu.Close();
 
-        if (who is { } mate)
-            PersonInfoDialog.ShowMate(owner, mate, Player.MateRoles[slot], game.Directory);
-        else
-            NoticeDialog.Show(owner, $"{name}의 자료를 찾지 못했다");
+            if (who is { } mate)
+                PersonInfoDialog.ShowMate(owner, mate, Player.MateRoles[slot], game.Directory);
+            else
+                NoticeDialog.Show(owner, $"{name}의 자료를 찾지 못했다");
+        });
     }
 }

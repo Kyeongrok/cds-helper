@@ -1,0 +1,329 @@
+using System.Buffers.Binary;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using CdsHelper.Game.Local.Helpers;
+
+namespace CdsHelper.Game.Engine.Disev;
+
+/// <summary>
+/// 덩이 하나를 <b>분기로 가른 줄 나무</b> — <c>발견이벤트.json</c> 의 <c>Chunks</c> 한 칸이다.
+/// </summary>
+/// <remarks>
+/// 분기(<c>43 xx … [u16 상대]</c>)의 바이트 짜임은 늘 이렇다.
+/// <code>
+///   [분기 명령][안 뛸 때 줄들 = No][뛴 자리부터 = Yes …]
+///   상대값 = No 의 바이트 수
+/// </code>
+/// 그래서 JSON 에는 상대값을 적지 않는다(<see cref="DisevLine.If"/> 는 상대값 두 바이트를 뗀 머리다).
+/// 되짤 때 No 길이로 다시 셈하므로 <b>No 안을 늘리고 줄여도 그 분기가 뛰는 자리는 안 어긋난다.</b>
+///
+/// <b>다만 <c>30 1D [u16 v]</c> 는 못 고쳐 준다.</b> 대본 곳곳에 있는 이 네 바이트는 값이 늘
+/// 파트 +4+v 의 명령 머리에 떨어져(파트 25 여덟 곳 모두) 파트 기준 절대 이동으로 보인다.
+/// 아직 명령 표에 없어 날바이트 줄 속에 그대로 있으므로, 그 뒤쪽 길이를 바꾸면 어긋난다.
+///
+/// <b>Yes 가 어디까지인가.</b>
+/// <list type="bullet">
+///   <item>No 가 끝 명령(결과 코드·게임 오버)으로 멎으면 뒤따르는 줄은 Yes 로만 가므로
+///         <b>남은 줄을 다 Yes 에 넣는다.</b></item>
+///   <item>No 가 멎지 않으면 뛴 자리에서 두 갈래가 다시 만난다. 그때는 <b>Yes 가 비고</b>
+///         남은 줄은 분기 뒤에 이어 적는다 — 두 갈래가 함께 가는 줄이다.</item>
+/// </list>
+/// 분기 안의 줄이 밖으로 뛰거나 밖에서 분기 안 한가운데로 뛰어 들면 나무로 못 가르므로
+/// 그 분기는 날바이트(상대값 그대로) 줄로 둔다. 되짠 바이트가 한 바이트라도 다르면
+/// 덩이 통째로 한 줄에 둔다(<see cref="Build"/>).
+///
+/// 분기가 아닌 명령은 이어진 것끼리 한 줄로 묶는다. 명령 하나씩 뜯는 것은 나중 일이다.
+/// </remarks>
+public static class DisevTree
+{
+    /// <summary>덩이를 줄 나무로 가른다. 되짜서 원본과 같지 않으면 통째 한 줄이다.</summary>
+    /// <param name="chunk">덩이 날바이트.</param>
+    public static List<DisevLine> Build(byte[] chunk)
+    {
+        List<DisevLine> whole = [new DisevLine { Hex = DisevScript.Hex(chunk) }];
+        if (chunk.Length == 0) return whole;
+
+        var ops = DisevScript.Parse(chunk, 0, chunk.Length);
+        var builder = new Builder(chunk, ops);
+        var (lines, _) = builder.Sequence(0, chunk.Length);
+
+        return Flatten(lines, out _) is { } back && back.AsSpan().SequenceEqual(chunk) ? lines : whole;
+    }
+
+    // 발견이벤트.json 과 같은 꼴 — 들여 쓰고 한글을 \uXXXX 로 안 깬다.
+    private static readonly JsonSerializerOptions Pretty = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    /// <summary>줄 나무를 <c>발견이벤트.json</c> 에 적히는 꼴 그대로 글로 — 편집기 JSON 탭이 쓴다.</summary>
+    public static string ToJson(IReadOnlyList<DisevLine> lines) => JsonSerializer.Serialize(lines, Pretty);
+
+    /// <summary>줄 나무를 덩이 날바이트로 되짠다. 분기의 상대값은 No 길이로 다시 셈한다.</summary>
+    public static byte[]? Flatten(IReadOnlyList<DisevLine> lines, out string error)
+    {
+        error = "";
+        var output = new List<byte>();
+        return Append(output, lines, ref error) ? output.ToArray() : null;
+    }
+
+    private static bool Append(List<byte> output, IReadOnlyList<DisevLine> lines, ref string error)
+    {
+        foreach (var line in lines)
+        {
+            if (line.If == null)
+            {
+                if (DisevScript.ParseHex(line.Hex ?? "") is not { } bytes)
+                {
+                    error = $"줄을 못 읽었습니다: {line.Hex}";
+                    return false;
+                }
+                output.AddRange(bytes);
+                continue;
+            }
+
+            if (DisevScript.ParseHex(line.If) is not { Length: > 0 } head)
+            {
+                error = $"분기 머리를 못 읽었습니다: {line.If}";
+                return false;
+            }
+
+            var no = new List<byte>();
+            if (!Append(no, line.No ?? [], ref error)) return false;
+            if (no.Count > ushort.MaxValue)
+            {
+                error = $"분기 No 가 너무 깁니다({no.Count}바이트)";
+                return false;
+            }
+
+            output.AddRange(head);
+            output.Add((byte)no.Count);
+            output.Add((byte)(no.Count >> 8));
+            output.AddRange(no);
+            if (!Append(output, line.Yes ?? [], ref error)) return false;
+        }
+        return true;
+    }
+
+    private sealed class Builder
+    {
+        private readonly byte[] _chunk;
+        private readonly List<DisevScript.Op> _ops;
+        private readonly Dictionary<int, int> _index = [];
+        private readonly int?[] _targets;
+
+        public Builder(byte[] chunk, List<DisevScript.Op> ops)
+        {
+            _chunk = chunk;
+            _ops = ops;
+            for (int i = 0; i < ops.Count; i++) _index[ops[i].Offset] = i;
+            _targets = ops.Select(op => DisevFlow.TargetOf(chunk, op)).ToArray();
+        }
+
+        /// <summary>
+        /// <c>[from, to)</c> 를 줄로 짠다. 둘째 값은 이 줄들이 <b>어느 길로 가도 멎는지</b>다.
+        /// </summary>
+        public (List<DisevLine> Lines, bool Ends) Sequence(int from, int to)
+        {
+            var lines = new List<DisevLine>();
+            if (!_index.TryGetValue(from, out int i)) return (lines, false);
+
+            int run = from;
+            void Flush(int until)
+            {
+                if (until > run) lines.Add(new DisevLine { Hex = DisevScript.Hex(_chunk.AsSpan(run, until - run)) });
+            }
+
+            for (; i < _ops.Count && _ops[i].Offset < to; i++)
+            {
+                var op = _ops[i];
+                int end = op.Offset + op.Length;
+                if (_targets[i] is not { } target || target <= end || target > to || !IsBoundary(target) ||
+                    !Contained(end, target))
+                    continue;
+
+                Flush(op.Offset);
+                var (no, noEnds) = Sequence(end, target);
+                // 모르는 조건은 물음에 「거짓이면 뜀」이 붙어 오는데 Yes=거짓 이 같은 말이라 뗀다.
+                var (title, jump, fall) = DisevFlow.Question(_chunk, op);
+                title = title.Replace(" — 거짓이면 뜀", "");
+                string what = title.StartsWith(op.Kind, StringComparison.Ordinal) ? title : $"{op.Kind} · {title}";
+                var branch = new DisevLine
+                {
+                    If = DisevScript.Hex(_chunk.AsSpan(op.Offset, op.Length - 2)),
+                    Note = $"{what} — Yes={jump}(뜀), No={fall}(다음 줄)",
+                    No = no,
+                    Yes = [],
+                };
+                lines.Add(branch);
+
+                // No 가 멎으면 남은 줄은 Yes 로만 간다 — 통째로 Yes 에 넣는다.
+                if (noEnds && target < to && Contained(target, to))
+                {
+                    var (yes, yesEnds) = Sequence(target, to);
+                    branch.Yes = yes;
+                    return (lines, yesEnds);
+                }
+
+                // 멎지 않으면 뛴 자리에서 다시 만난다 — 뒤는 이어 적는다.
+                if (target >= to) return (lines, false);
+                run = target;
+                i = _index[target] - 1;
+            }
+
+            Flush(to);
+            bool ends = lines.Count > 0 && lines[^1].If == null && LastOpBefore(to) is { } last &&
+                        DisevFlow.Ends.Contains(last.Kind);
+            return (lines, ends);
+        }
+
+        private bool IsBoundary(int offset) => offset == _chunk.Length || _index.ContainsKey(offset);
+
+        private DisevScript.Op? LastOpBefore(int to)
+        {
+            for (int i = _ops.Count - 1; i >= 0; i--)
+                if (_ops[i].Offset < to) return _ops[i];
+            return null;
+        }
+
+        /// <summary>
+        /// <c>[from, to)</c> 를 나무 가지로 떼어도 되는지 — 안에서 밖으로 뛰지 않고,
+        /// 밖에서 안 한가운데로 뛰어 들지 않아야 한다.
+        /// </summary>
+        private bool Contained(int from, int to)
+        {
+            for (int i = 0; i < _ops.Count; i++)
+            {
+                if (_targets[i] is not { } target) continue;
+                bool inside = _ops[i].Offset >= from && _ops[i].Offset < to;
+                if (inside ? target < from || target > to : target > from && target < to) return false;
+            }
+            return true;
+        }
+    }
+}
+
+/// <summary>
+/// 줄 나무의 한 줄 — 날바이트 한 토막이거나 분기 하나다.
+/// </summary>
+/// <remarks>
+/// JSON 에서 날바이트 줄은 <b>16진 글 하나</b>, 분기는
+/// <c>{ "If", "Note", "Yes": [...], "No": [...] }</c> 이다. <c>Note</c> 는 사람이 읽으라고 적는
+/// 것이라 읽을 때 안 본다.
+/// </remarks>
+[JsonConverter(typeof(DisevLineConverter))]
+public sealed class DisevLine
+{
+    /// <summary>날바이트 줄. 분기면 null.</summary>
+    public string? Hex { get; set; }
+
+    /// <summary>분기 머리 — 상대값 두 바이트를 뗀 명령 바이트. 날바이트 줄이면 null.</summary>
+    public string? If { get; set; }
+
+    /// <summary>분기 풀이. 적을 때만 쓴다.</summary>
+    public string? Note { get; set; }
+
+    /// <summary>조건 명령이 뛴 쪽.</summary>
+    public List<DisevLine>? Yes { get; set; }
+
+    /// <summary>뛰지 않고 다음 줄로 간 쪽.</summary>
+    public List<DisevLine>? No { get; set; }
+}
+
+/// <summary>
+/// <see cref="DisevLine"/> 을 글 하나 또는 분기 객체로 적고 읽는다.
+/// </summary>
+/// <remarks>
+/// <c>Chunks</c> 한 칸도 이것으로 읽는다 — 판 2 파일은 덩이가 <b>글 하나</b>였으므로
+/// 글이 오면 한 줄짜리 나무로 받는다(<see cref="DisevChunkConverter"/>).
+/// </remarks>
+public sealed class DisevLineConverter : JsonConverter<DisevLine>
+{
+    public override DisevLine? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String) return new DisevLine { Hex = reader.GetString() };
+        if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException("줄은 글이나 분기 객체라야 합니다");
+
+        var line = new DisevLine { Yes = [], No = [] };
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+        {
+            string? name = reader.GetString();
+            reader.Read();
+            switch (name)
+            {
+                case "If": line.If = reader.GetString(); break;
+                case "Note": line.Note = reader.GetString(); break;
+                case "Yes": line.Yes = JsonSerializer.Deserialize<List<DisevLine>>(ref reader, options) ?? []; break;
+                case "No": line.No = JsonSerializer.Deserialize<List<DisevLine>>(ref reader, options) ?? []; break;
+                default: reader.Skip(); break;
+            }
+        }
+        if (line.If == null) throw new JsonException("분기 객체에 If 가 없습니다");
+        return line;
+    }
+
+    public override void Write(Utf8JsonWriter writer, DisevLine value, JsonSerializerOptions options)
+    {
+        if (value.If == null)
+        {
+            writer.WriteStringValue(value.Hex ?? "");
+            return;
+        }
+
+        writer.WriteStartObject();
+        writer.WriteString("If", value.If);
+        if (value.Note != null) writer.WriteString("Note", value.Note);
+        writer.WritePropertyName("Yes");
+        JsonSerializer.Serialize(writer, value.Yes ?? [], options);
+        writer.WritePropertyName("No");
+        JsonSerializer.Serialize(writer, value.No ?? [], options);
+        writer.WriteEndObject();
+    }
+}
+
+/// <summary>덩이 한 칸 — 판 3 은 줄 배열, 판 2 는 16진 글 하나다.</summary>
+public sealed class DisevChunkConverter : JsonConverter<List<DisevLine>>
+{
+    public override List<DisevLine>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String) return [new DisevLine { Hex = reader.GetString() }];
+
+        var lines = new List<DisevLine>();
+        if (reader.TokenType != JsonTokenType.StartArray) throw new JsonException("덩이는 글이나 배열이라야 합니다");
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            lines.Add(JsonSerializer.Deserialize<DisevLine>(ref reader, options)!);
+        return lines;
+    }
+
+    public override void Write(Utf8JsonWriter writer, List<DisevLine> value, JsonSerializerOptions options)
+    {
+        writer.WriteStartArray();
+        foreach (var line in value) JsonSerializer.Serialize(writer, line, options);
+        writer.WriteEndArray();
+    }
+}
+
+/// <summary><c>Chunks</c> 목록 — 칸마다 <see cref="DisevChunkConverter"/> 로 읽는다.</summary>
+public sealed class DisevChunksConverter : JsonConverter<List<List<DisevLine>>>
+{
+    private static readonly DisevChunkConverter Chunk = new();
+
+    public override List<List<DisevLine>>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        if (reader.TokenType != JsonTokenType.StartArray) throw new JsonException("Chunks 는 배열이라야 합니다");
+
+        var chunks = new List<List<DisevLine>>();
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            chunks.Add(Chunk.Read(ref reader, typeof(List<DisevLine>), options) ?? []);
+        return chunks;
+    }
+
+    public override void Write(Utf8JsonWriter writer, List<List<DisevLine>> value, JsonSerializerOptions options)
+    {
+        writer.WriteStartArray();
+        foreach (var chunk in value) Chunk.Write(writer, chunk, options);
+        writer.WriteEndArray();
+    }
+}

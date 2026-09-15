@@ -52,6 +52,10 @@ public sealed class GameSettingsData
     /// <summary>지도 위의 까만 조작 줄을 보일지.</summary>
     public bool ShowToolBar { get; set; } = true;
 
+    /// <summary>저장·발견물 지도 단축키(글쇠 이름). 비면 기본값을 쓴다.</summary>
+    public string SaveKey { get; set; } = "V";
+    public string MapKey { get; set; } = "D";
+
     /// <summary>지도 위에 만난 사람 상자를 겹쳐 보일지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowPeopleOverlay { get; set; }
 
@@ -368,6 +372,22 @@ public static class GameSettings
     {
         get => Get(d => d.SmoothSprites);
         set => Set(d => d.SmoothSprites = value);
+    }
+
+    /// <summary>
+    /// <b>저장</b> 단축키. 글쇠 이름(<see cref="System.Windows.Input.Key"/>)이고 기본은 <c>V</c> 다.
+    /// </summary>
+    public static string SaveKey
+    {
+        get => Get(d => d.SaveKey);
+        set => Set(d => d.SaveKey = value);
+    }
+
+    /// <summary><b>발견물 지도</b> 단축키. 기본은 <c>D</c> 다.</summary>
+    public static string MapKey
+    {
+        get => Get(d => d.MapKey);
+        set => Set(d => d.MapKey = value);
     }
 
     /// <summary>몇 사람까지 적어 둘지.</summary>

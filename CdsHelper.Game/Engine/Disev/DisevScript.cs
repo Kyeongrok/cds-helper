@@ -137,6 +137,10 @@ public static class DisevScript
         // 결과는 「이겼는가」로 남아 43 47 이 이기면 뛴다. 전멸하면 게임이 먼저 게임 오버를 걸고
         // 해석기가 그 자리에서 빠진다(0x0040A471 → 0x0040BDB3).
         new(Sig(0x2F, 0x0D), 4, "육상전(인물)"),
+        // 0D 0D [u16 인물] — 그 인물이 이끄는 적과 <b>해전</b>. 바다 괴물 넷이 이것으로 덤빈다
+        // (시서펜트 272 · 크라켄 271 · 식인상어 273 · 맨터 274 — 인물 표 뒤쪽의 괴물 자리다).
+        // 육상전과 같이 결과가 남아 43 47 이 이기면 뛴다.
+        new(Sig(0x0D, 0x0D), 4, "해전(인물)"),
         new(Sig(0x2F, 0x08), 4, "육상전(도시)"),
         // 26 0F [u16] — 다음 인물 대화 명령(0x00408BFC → 0x004AA700)에 넘길 갈래를 둔다([ebp-0x6C]).
         // 파르테논 대본에서는 쓰는 곳이 없다. 길이만 알면 된다.
@@ -383,6 +387,22 @@ public static class DisevScript
                     length = 3;
                 }
                 ops.Add(new Op(i, length, label.Split(':')[0], label, Hex(span.Slice(i, length)), true));
+                i += length;
+                continue;
+            }
+
+            // 32 — 값 식 하나를 받는 명령. 크노소스(파트 25)가 본문 첫 줄에 쓴다.
+            //   32 1A [u32]            상수 (여섯 바이트)
+            //   32 20 [u32] [u32]      무작위 (열 바이트)
+            // <b>길이를 모르면 뒤가 통째로 밀린다.</b> 예전에는 이 열 바이트를 「미확인」으로
+            // 묶다가 그 속의 <c>00 05 00 00</c> 을 「아이템 0 획득」으로 읽어, 크노소스에서
+            // <b>잠수폭탄</b>이 나왔다(제대로는 파트 끝의 <c>00 05 32 00</c> 으로 미노타우로스의
+            // 도끼 하나뿐이다).
+            if (data[i] == 0x32 && i + 1 < end && data[i + 1] is 0x1A or 0x20)
+            {
+                int length = Math.Min(data[i + 1] == 0x1A ? 6 : 10, end - i);
+                var value = span.Slice(i, length);
+                ops.Add(new Op(i, length, "값 식(32)", "값 식(32)", Hex(value), true));
                 i += length;
                 continue;
             }

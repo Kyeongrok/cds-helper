@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -77,6 +77,7 @@ internal sealed class EventAnimationPopup : Window
             EventAnimation.Blizzard => new BlizzardScene(),
             EventAnimation.Bush => new BushScene(),
             EventAnimation.Tornado => new TornadoScene(),
+            EventAnimation.Aurora => new AuroraScene(),
             _ => null,
         };
         if (play == null || !play.Load(anims)) return;
@@ -89,6 +90,7 @@ internal sealed class EventAnimationPopup : Window
         int track = play.StopsMusic ? game.Bgm.Track : -1;
         if (track >= 0) game.Bgm.Stop();
         var sfx = game.Sfx;
+        play.Sfx = sfx;
         if (play.SoundPart >= 0) sfx?.Play(play.SoundPart);
 
         var popup = new EventAnimationPopup(area, scale) { Owner = owner };
@@ -117,6 +119,7 @@ internal sealed class EventAnimationPopup : Window
             if (closing) { frame.Continue = false; return; }
             surface.Draws.Clear();
             bool done = play.Step(step++, surface.Draws);
+            surface.Dim = play.Dim;
             surface.InvalidateVisual();
             if (!done) return;
             if (surface.Draws.Count == 0) frame.Continue = false;
@@ -146,9 +149,19 @@ internal sealed class EventAnimationPopup : Window
     {
         public List<Draw> Draws { get; } = [];
 
+        /// <summary>지도를 덮는 검은 막의 짙기(0 없음 ~ 1 깜깜). 오로라가 쓴다.</summary>
+        public double Dim { get; set; }
+
         protected override void OnRender(DrawingContext dc)
         {
             dc.PushClip(new RectangleGeometry(new Rect(RenderSize)));
+            if (Dim > 0)
+            {
+                var shade = new SolidColorBrush(Color.FromArgb(
+                    (byte)Math.Clamp(Dim * 255, 0, 255), 0, 0, 0));
+                shade.Freeze();
+                dc.DrawRectangle(shade, null, new Rect(RenderSize));
+            }
             foreach (var d in Draws)
                 dc.DrawImage(d.Art, new Rect(d.X * scale, d.Y * scale,
                                              d.Art.PixelWidth * scale, d.Art.PixelHeight * scale));
@@ -189,6 +202,12 @@ internal sealed class EventAnimationPopup : Window
         /// <summary>도는 동안 곡을 끊는가.</summary>
         public virtual bool StopsMusic => false;
 
+        /// <summary>이번 걸음에 지도를 덮을 검은 막의 짙기(0~1). 덮지 않는 장면은 0 이다.</summary>
+        public virtual double Dim => 0;
+
+        /// <summary>도는 도중에 소리를 내는 장면이 쓴다(오로라가 열 걸음째에 낸다).</summary>
+        public SoundBank? Sfx { get; set; }
+
         public abstract bool Load(EventAnimation anims);
 
         /// <param name="w">지도 폭(게임 점). 게임의 <c>[0x005AA2D8]</c>.</param>
@@ -219,6 +238,103 @@ internal sealed class EventAnimationPopup : Window
     /// y 는 네 토막 포물선이다 — 네 등분 자리마다 가운데(H/2)와 ±50 을 오간다.
     /// W 가 640 이면 한 걸음 8점이라 104걸음(10.4초)쯤 돈다.
     /// </remarks>
+    /// <summary>
+    /// 11 오로라 — 지도를 깜깜하게 덮고 밤하늘에 빛의 장막을 펼친다(<c>0x0061D280</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00499200  파트 18, 640 x 4224(640x192 스물두 장), 팔레트 44
+    ///   0x004991A0  첫자리  x = (W − 640) / 2 · y = 0      ; 가로 한가운데, 지도 꼭대기
+    ///   0x004992A0  한 걸음([0x0061D780])
+    ///     걸음 &lt; 4        0x0049A1A0(4 − 걸음)   ; 4 가 제 밝기 · 0 이 깜깜 — 어두워진다
+    ///     4 ~ 9           장 0
+    ///     걸음 == 10      소리 0x3A(0x004225A0)
+    ///     10 ~ 13         장 걸음 − 9             ; 1 2 3 4
+    ///     14 ~ 20         장 0
+    ///     21 ~ 41         장 걸음 − 16            ; 5 …
+    ///     48 ~ 51         0x0049A1A0(걸음 − 47)   ; 1 2 3 4 — 도로 밝아진다
+    ///     52              끝(0x0049939A)
+    /// </code>
+    /// <b>장 번호가 스물두 장을 넘어선다</b> — 마지막 걸음들이 26번까지 가리키는데 띠에는
+    /// 스물두 장뿐이라 여기서는 마지막 장에 붙여 둔다. 게임은 버퍼 밖을 그대로 읽는 듯한데
+    /// 그것까지 흉내낼 값어치가 없다.
+    ///
+    /// 검은 막은 우리 것이다 — 게임은 팔레트를 단계별로 어둡게 하지만(<c>0x0049A1A0</c>)
+    /// 우리는 지도 위에 검은 네모를 덮어 같은 꼴을 낸다.
+    /// </remarks>
+    private sealed class AuroraScene : Scene
+    {
+        private const int FrameW = 640, FrameH = 0xC0;
+        private const int DarkStep = 4, SoundStep = 10, LightStep = 48, EndStep = 52;
+
+        /// <summary>
+        /// 우리 걸음 <b>둘</b>이 게임 한 걸음이다 — 원본은 이 장면이 <b>10초 넘게</b> 돈다.
+        /// </summary>
+        /// <remarks>
+        /// 걸음 표대로면 쉰두 걸음(5.2초)인데 원본은 그 갑절쯤 간다. 장면 객체가 한 틱에
+        /// 한 걸음씩 세지 않는 듯한데 거기까지는 못 짚어, 눈으로 잰 길이에 맞춰 늘린다.
+        /// </remarks>
+        private const int Slow = 2;
+
+        /// <summary>
+        /// 가장 어두울 때의 짙기. <b>완전히 덮지 않는다</b> — 원본도 뭍과 물결이 비쳐 보인다.
+        /// </summary>
+        private const double DarkMost = 0.82;
+
+        private BitmapSource[] _art = [];
+        private int _x, _y;
+        private double _dim;
+        private bool _rang;
+
+        public override bool StopsMusic => true;
+
+        public override double Dim => _dim;
+
+        /// <summary>여는 참에는 소리가 없다 — 열 걸음째에 0x3A 를 낸다.</summary>
+        public override int SoundPart => -1;
+
+        public override bool Load(EventAnimation anims)
+        {
+            _art = Frames(anims, 18, FrameW, FrameH, 0x2C) ?? [];
+            return _art.Length > 0;
+        }
+
+        public override void Start(int w, int h, Point? ship, Random rng)
+        {
+            _x = (w - FrameW) / 2;
+            _y = 0;
+            _dim = 0;
+            _rang = false;
+        }
+
+        public override bool Step(int count, List<Draw> draws)
+        {
+            int step = count / Slow;                 // 게임 걸음
+            if (step >= EndStep) { _dim = 0; return true; }
+
+            // 어두워지고 밝아지는 동안에는 그림이 없다 — 지도만 여닫힌다.
+            if (step < DarkStep) { _dim = DarkMost * step / DarkStep; return false; }
+            if (step >= LightStep) { _dim = DarkMost * (EndStep - step) / DarkStep; return false; }
+
+            _dim = DarkMost;
+
+            if (step >= SoundStep && !_rang)
+            {
+                _rang = true;
+                Sfx?.Play(0x3A - WaveBank.FirstSoundId);
+            }
+
+            int frame = step switch
+            {
+                >= SoundStep and < 14 => step - 9,
+                >= 21 and < 42 => step - 16,
+                _ => 0,
+            };
+            draws.Add(new Draw(_art[Math.Clamp(frame, 0, _art.Length - 1)], _x, _y));
+            return false;
+        }
+    }
+
     private sealed class TornadoScene : Scene
     {
         private BitmapSource[] _art = [];

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -106,6 +106,24 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     private readonly Canvas _fx = new() { IsHitTestVisible = false };
 
     private readonly Canvas _board = new() { Width = ScreenWidth, Height = ScreenHeight, ClipToBounds = true };
+
+    /// <summary>
+    /// 밀리는 층 — 바다·칸·배·연출이 여기 얹힌다. 틀과 나침반은 <see cref="_board"/> 에 붙박이다.
+    /// </summary>
+    /// <remarks>
+    /// 원본도 바탕과 칸만 스크롤 값을 빼고 찍는다(볼트 61 · 66) —
+    /// <c>바다 (0x40 − 스크롤X, 0x20 − 스크롤Y)</c> · <c>칸 X*32 − 스크롤X + 0x38</c>.
+    /// </remarks>
+    private readonly Canvas _field = new();
+
+    /// <summary>판이 밀린 만큼(원본 함대 <c>+0x0888</c> · <c>+0x088C</c>).</summary>
+    private readonly TranslateTransform _slide = new(0, 0);
+
+    /// <summary>가장자리 띠에 커서가 든 동안 판을 미는 눈금.</summary>
+    private readonly DispatcherTimer _scrollTimer =
+        new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(40) };
+
+    private int _scrollWay = -1;
     private readonly Canvas _marks = new() { IsHitTestVisible = false };
     private readonly Canvas _path = new() { IsHitTestVisible = false };
     private readonly Dictionary<int, Image> _shipArt = [];
@@ -165,8 +183,13 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         };
         Loaded += (_, _) => _flameTimer.Start();
         Closed += (_, _) => _flameTimer.Stop();
+        // 밀리는 층을 먼저 깔고, 그 위에 붙박이 틀을 얹는다.
+        _field.RenderTransform = _slide;
+        Panel.SetZIndex(_field, 5);
+        _board.Children.Add(_field);
+
         Panel.SetZIndex(_fx, 25);
-        _board.Children.Add(_fx);
+        _field.Children.Add(_fx);
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -176,7 +199,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         Background = Brushes.Black;
 
         // 바다는 (0x40, 0x20) 에 깔린다 — 틀 아래로 들어간 만큼은 가려진다.
-        Put(_board, art.Sea(), 0x40, 0x20, CombatArt.SeaWidth, CombatArt.SeaHeight, z: 0);
+        Put(_field, art.Sea(), 0x40, 0x20, CombatArt.SeaWidth, CombatArt.SeaHeight, z: 0);
 
         // 틀 — 넓은 화면(800) 갈래의 파트 4 를 자른 것이다(볼트 61 의 5-2 절).
         //   위 띠 (0,0) 800x32 · 기둥 머리 (0,32)·(736,32) 64x32 · 기둥 (0,64)·(736,64) 64x504 · 아래 띠 (0,560)
@@ -209,16 +232,16 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         DragCompass(rose);
 
         Panel.SetZIndex(_marks, 5);
-        _board.Children.Add(_marks);
+        _field.Children.Add(_marks);
         Panel.SetZIndex(_path, 6);
-        _board.Children.Add(_path);
+        _field.Children.Add(_path);
 
         foreach (var ship in battle.Ships)
         {
             var image = new Image { Width = CombatArt.ShipSize, Height = CombatArt.ShipSize, IsHitTestVisible = false };
             RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
             Panel.SetZIndex(image, 10);
-            _board.Children.Add(image);
+            _field.Children.Add(image);
             _shipArt[ship.Index] = image;
 
             var flame = new Image
@@ -227,12 +250,16 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
             };
             RenderOptions.SetBitmapScalingMode(flame, GameUi.SpriteScaling);
             Panel.SetZIndex(flame, 11);
-            _board.Children.Add(flame);
+            _field.Children.Add(flame);
             _flames[ship.Index] = flame;
         }
 
         _board.Background = Brushes.Transparent;
         _board.MouseLeftButtonUp += Touch;
+        _board.MouseMove += (_, e) => AimScroll(e.GetPosition(_board));
+        _board.MouseLeave += (_, _) => { _scrollWay = -1; _scrollTimer.Stop(); };
+        _scrollTimer.Tick += (_, _) => Slide(_scrollWay);
+        Closed += (_, _) => _scrollTimer.Stop();
         _board.LayoutTransform = new ScaleTransform(zoom, zoom);
 
         // 판 아래에 말 줄은 없다 — 원본은 말을 모두 창으로 띄운다.
@@ -242,7 +269,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         MouseRightButtonUp += (_, e) =>
         {
             if (_running) return;
-            var (x, y) = CellAt(e.GetPosition(_board));
+            var spot = e.GetPosition(_board);
+            var (x, y) = CellAt(new Point(spot.X + _scrollX, spot.Y + _scrollY));
             if (x >= 0 && _battle.ShipAt(x, y) is { } ship)
             {
                 SeaShipInfoDialog.Show(this, ship);
@@ -252,11 +280,18 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                                  [("항복한다", Surrender), ("게임 복귀", () => { })]);
         };
 
-        Loaded += (_, _) =>
+        Loaded += (_, _) => Redraw();
+
+        // 들머리 — <b>판이 펼쳐진 뒤에</b> 바람과 퇴각지점을 알리고 이동 지시를 재촉한다(0x0043C4E0).
+        //
+        // <b>Loaded 로는 이르다.</b> 우리 창은 Show() 안에서 Loaded 가 올라오는데 그때는 판이
+        // 아직 한 번도 안 그려졌다. 거기서 말을 띄우면 판은 안 보이고 <b>바다 지도 위에 대사만</b>
+        // 떴다. ContentRendered 는 첫 그림이 나간 뒤에 오므로 그제서야 말한다.
+        bool said = false;
+        ContentRendered += (_, _) =>
         {
-            Redraw();
-            // 들머리 — <b>판이 펼쳐진 뒤에</b> 바람과 퇴각지점을 알리고 이동 지시를 재촉한다(0x0043C4E0).
-            // 판이 뜨기 전에 알렸더니 해전 화면 없이 바다 지도 위에 대사만 떴다.
+            if (said) return;
+            said = true;
             Say(_battle.WindNotice());
             Say(_battle.OrderPrompt());
         };
@@ -399,6 +434,60 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     // ── 받기 ──────────────────────────────────────────────────────────────
 
     /// <summary>화면 점에서 가장 가까운 칸.</summary>
+    /// <summary>
+    /// 가장자리 <b>64점 띠</b>에 커서가 들면 판이 그쪽으로 밀린다(<c>0x0043C6B6</c>).
+    /// </summary>
+    /// <remarks>
+    /// 원본은 커서 자리만 보고 <c>+0x08D0</c>(커서 모양·미는 쪽)을 매긴다 — 누르지 않아도
+    /// 민다. 아래 띠의 <c>Set</c>·<c>Cancel</c> 자리에 들면 미는 것을 멈춘다.
+    /// </remarks>
+    private void AimScroll(Point at)
+    {
+        int way = -1;
+        if (at.Y >= BandHeight && at.Y < BottomBandTop)
+        {
+            if (at.X < EdgeBand) way = 3;                       // 왼쪽
+            else if (at.X >= ScreenWidth - EdgeBand) way = 1;   // 오른쪽
+            else if (at.Y < BandHeight + EdgeBand) way = 0;     // 위
+            else if (at.Y >= BottomBandTop - EdgeBand) way = 2; // 아래
+        }
+
+        _scrollWay = way;
+        if (way < 0) _scrollTimer.Stop();
+        else if (!_scrollTimer.IsEnabled) _scrollTimer.Start();
+    }
+
+    /// <summary>판을 그쪽으로 한 눈금 민다. 세계 밖으로는 안 나간다.</summary>
+    private void Slide(int way)
+    {
+        if (way < 0) { _scrollTimer.Stop(); return; }
+
+        double x = _scrollX + (way == 1 ? ScrollStep : way == 3 ? -ScrollStep : 0);
+        double y = _scrollY + (way == 2 ? ScrollStep : way == 0 ? -ScrollStep : 0);
+        Scroll(x, y);
+    }
+
+    /// <summary>판이 밀린 만큼을 박는다.</summary>
+    private void Scroll(double x, double y)
+    {
+        _scrollX = Math.Clamp(x, 0, Math.Max(0, WorldWidth - (ScreenWidth - EdgeBand * 2)));
+        _scrollY = Math.Clamp(y, 0, Math.Max(0, WorldHeight - (BottomBandTop - BandHeight)));
+        _slide.X = -_scrollX;
+        _slide.Y = -_scrollY;
+    }
+
+    /// <summary>판이 밀린 만큼.</summary>
+    private double _scrollX, _scrollY;
+
+    /// <summary>가장자리 띠 폭과 한 번에 미는 눈금.</summary>
+    private const double EdgeBand = 64, ScrollStep = 8;
+
+    /// <summary>
+    /// 칸이 차지하는 넓이 — 스물세 칸 x 열일곱 줄에 배 그림 넓이를 더한 것이다.
+    /// </summary>
+    private const double WorldWidth = (SeaBattle.Cols - 1) * CombatArt.Cell + 0x38 + CombatArt.ShipSize,
+                         WorldHeight = SeaBattle.Rows * CombatArt.Cell + 16 + CombatArt.ShipSize;
+
     private static (int X, int Y) CellAt(Point at)
     {
         int bestX = -1, bestY = -1;
@@ -431,7 +520,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
             return;
         }
 
-        var (x, y) = CellAt(at);
+        var (x, y) = CellAt(new Point(at.X + _scrollX, at.Y + _scrollY));
         if (x < 0) return;
 
         var here = _battle.ShipAt(x, y);
@@ -810,13 +899,13 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                     if (splash != null) _fx.Children.Remove(splash);
                 }
             }
+
+            // <b>피해 숫자는 발마다 바로 뜬다</b>(0x00437330 이 발 고리 <b>안</b>에 있다).
+            // 세 발을 다 쏘고 합을 한 번 찍었더니 마지막에만 숫자가 떴다.
+            Wait(FxFrame * 2);
+            if (shot.Hit && shot.Damage > 0) ShowNumbers((volley.Target, shot.Damage));
         }
 
-        Wait(FxFrame * 2);
-
-        // 피해 숫자 — 맞은 발의 합. 가라앉으면 연출 갈래 1(Sink)이 뒤따른다.
-        int total = volley.Shots.Where(s => s.Hit).Sum(s => s.Damage);
-        if (total > 0) ShowNumbers((volley.Target, total));
     }
 
     /// <summary>
@@ -1075,8 +1164,9 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     /// <param name="duel">결투 판을 여는 쪽. 이기면 true — 없으면 일기토가 안 열린다.</param>
     public static Outcome Fight(Window owner, Player player, in Enemy foe, Random rng, uint[]? face,
                                 (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
-                                uint[]? foeFace = null, Func<Window, bool?>? duel = null) =>
-        Engage(owner, player, foe, rng, face, seaWind, sfx, foeFace, duel: duel).Outcome;
+                                uint[]? foeFace = null, Func<Window, bool?>? duel = null,
+                                BgmPlayer? bgm = null) =>
+        Engage(owner, player, foe, rng, face, seaWind, sfx, foeFace, duel: duel, bgm: bgm).Outcome;
 
     /// <summary>
     /// 해전을 벌이고 끝의 알맹이를 낸다. 그림을 못 읽었으면 도망친 것으로 치고 값 치르기는 안 부른다.
@@ -1086,7 +1176,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     public static Report Engage(Window owner, Player player, in Enemy foe, Random rng, uint[]? face,
                                 (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
                                 uint[]? foeFace = null, Action<Window, Report>? settle = null,
-                                Func<Window, bool?>? duel = null)
+                                Func<Window, bool?>? duel = null, BgmPlayer? bgm = null)
     {
         var art = CombatArt.Open();
         if (art == null)
@@ -1171,7 +1261,12 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         {
             Owner = owner,
         };
-        dialog.ShowDialog();
+        // 싸우는 동안은 전투 곡(28)이 돈다 — 육상전과 같은 곡이다. 끝나면 돌던 곡으로 되돌린다.
+        int was = bgm?.Track ?? -1;
+        bgm?.Play(BgmPlayer.BattleTrack);
+        try { dialog.ShowDialog(); }
+        finally { if (was >= 0) bgm?.Play(was); }
+
         return new Report(dialog.Result, battle.EnemyDowned, battle.EnemyCaptured);
     }
 

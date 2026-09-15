@@ -247,18 +247,37 @@ public sealed class DuelStage : Canvas
         clock.Start();
     }
 
-    /// <summary>쓰러지는 모습으로 멈춘다.</summary>
+    /// <summary>
+    /// 판을 끝맺는다 — 진 쪽은 쓰러지고 <b>이긴 쪽은 승리 몸짓</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 둘 다 여섯 장짜리라 열여섯 눈금에 한 번 돈다(<see cref="DuelMotions"/>). 판 눈금
+    /// (<c>_timer</c>)을 그대로 쓰면 말·피해 알림이 다시 울리므로 여기서만 도는 눈금을 따로 둔다.
+    /// 예전에는 마지막 장으로 곧장 넘겨 <b>이긴 쪽이 찌른 자세 그대로</b> 서 있었다.
+    /// </remarks>
     public void Fall(bool mine)
     {
         _timer.Stop();
         var fall = DuelMotions.Find(DuelMotions.Fall);
-        if (mine) _myMotion = fall;
-        else _foeMotion = fall;
+        var win = DuelMotions.Find(DuelMotions.Victory);
+        _myMotion = mine ? fall : win;
+        _foeMotion = mine ? win : fall;
 
         _walkTick = -1;
-        _tick = Ticks;
+        _tick = 0;
         Draw();
+
+        var clock = new DispatcherTimer(DispatcherPriority.Render) { Interval = TickTime };
+        clock.Tick += (_, _) =>
+        {
+            if (++_tick >= EndTicks) { _tick = EndTicks; clock.Stop(); }
+            Draw();
+        };
+        clock.Start();
     }
+
+    /// <summary>끝맺는 몸짓 한 바퀴에 드는 눈금 — 여섯 장을 두 눈금씩이다.</summary>
+    private const int EndTicks = 16;
 
     /// <summary>그 몸짓을 적어 둔 표에서 찾는다.</summary>
     /// <param name="way">0 이면 제자리 갈래를 쓴다 — 맞부딪힘이거나 벽에 닿았을 때다.</param>

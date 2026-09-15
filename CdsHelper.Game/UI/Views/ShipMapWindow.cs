@@ -459,6 +459,8 @@ public sealed class ShipMapWindow : Window
             ("제독 정보", () => PlayerInfoDialog.Show(this, _game)),
             // 누가 어느 도시로 가고 있는지는 지도에 배만 떠 있어 알 길이 없다.
             ("인물 이동", () => PersonMoveDialog.Show(this, _game)),
+            // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
+            ("발견물 지도", ShowDiscoveryMap),
             ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
         shell.Children.Add(titleBar);
@@ -584,6 +586,31 @@ public sealed class ShipMapWindow : Window
     /// 지도가 화면에서 차지한 자리(WPF 단위). 도시 화면이 이 자리를 통째로 덮는다 —
     /// 게임도 도시에 들어가면 지도 영역이 남색으로 덮인다.
     /// </summary>
+    /// <summary>
+    /// 발견물 지도를 연다 — 온 지도를 밝힌 양피지 위에 발견물 자리와 내 자리를 찍는다.
+    /// </summary>
+    /// <remarks>
+    /// 바탕은 항해지도를 짓는 손을 그대로 쓰되 <b>다 밝힌 지도</b>로 부른다. 놀이에는 없는
+    /// 창이라 햄버거 차림표에 둔다 — 원본 항해지도는 표식을 하나도 안 찍는다.
+    /// </remarks>
+    private void ShowDiscoveryMap()
+    {
+        var all = new ExploredMap();
+        all.RevealAll();
+
+        var chart = _host.Chart(all, out int w, out int h);
+        if (chart == null) { NoticeDialog.Show(this, "지도를 아직 못 읽었습니다"); return; }
+
+        var at = _host.ShipCell is { } cell ? ((double, double)?)(cell.CellX, cell.CellY) : null;
+        DiscoveryMapDialog.Show(this, chart, w, h, _game.Discoveries?.Table, _game.Player, at);
+    }
+
+    /// <summary>
+    /// 놀이 끝 화면을 연다. 게임 화면만 덮고(제목 줄·위아래 띠는 남는다) 곡을 8번으로 바꾼다.
+    /// </summary>
+    private bool GameOver(int picture = GameOverDialog.MutinyLost) =>
+        GameOverDialog.Show(this, _game.EventStills, picture, MapAreaOnScreen(), _game.Bgm);
+
     private Rect MapAreaOnScreen()
     {
         var source = PresentationSource.FromVisual(this);
@@ -691,19 +718,36 @@ public sealed class ShipMapWindow : Window
     /// <summary>도시정보 창. 상단 띠 밑에 붙여 띄운다.</summary>
     private GameMenuHost? _infoMenuHost;
 
-    private GameMenuHost InfoMenu => _infoMenuHost ??= new GameMenuHost(this);
+    private GameMenuHost InfoMenu
+    {
+        get
+        {
+            if (_infoMenuHost != null) return _infoMenuHost;
+            _infoMenuHost = new GameMenuHost(this);
+            // 바다에서 여는 편집 창 때문에 멈춤을 잡아 둔다 — 도시·뭍에서는 이미 서 있어 뜻이 없다.
+            _infoMenuHost.Closed += () =>
+            {
+                if (_asking || _host.SeaBlocked) return;
+                _host.Paused = false;
+            };
+            return _infoMenuHost;
+        }
+    }
 
     /// <summary>
-    /// 상단 띠에 무엇을 띄울지 고르는 창을 낸다. 게임은 도시 안에서만 이 창을 내므로
-    /// 바다에서는 아무 일도 안 한다.
+    /// 상단 띠를 오른쪽 단추로 눌렀을 때 — 띠에 <b>무엇을 띄울지</b> 켜고 끄는 창이다.
     /// </summary>
+    /// <remarks>
+    /// 게임은 도시 안에서만 이 창을 내지만 우리는 <b>바다에서도</b> 낸다 — 띠는 어디서나
+    /// 서 있는데 바다에서만 못 고치면 칸을 켜려고 도시에 들어가야 한다. 바다에서는 창이
+    /// 떠 있는 동안 배를 세운다.
+    /// </remarks>
     private void ShowCityInfoMenu(FrameworkElement bar, Point at)
     {
-        // 도시 안에서도 뭍을 걸을 때도 낸다 — 어느 쪽이든 띠는 그대로 서 있다.
-        if (!_host.InCity && !_host.IsOnLand) return;
         if (InfoMenu.IsOpen) { InfoMenu.Focus(); return; }
 
         InfoMenu.Open(BuildCityInfo, ToScreen(bar, new Point(at.X, bar.ActualHeight)));
+        if (!_host.InCity && !_host.IsOnLand) _host.Paused = true;
     }
 
     /// <summary>
@@ -1304,7 +1348,7 @@ public sealed class ShipMapWindow : Window
         var foeFace = PersonFace(leaderId);
         SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
                               (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
-                              foeFace, SeaDuel(leaderId, foe.Name, foeFace));
+                              foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm);
     }
 
     /// <summary>그 인물의 얼굴. 인물표를 못 읽었으면 null.</summary>
@@ -1742,8 +1786,27 @@ public sealed class ShipMapWindow : Window
     /// 지도 창 자체에서 누른 V — 이 창은 <see cref="GameWindow"/> 가 아니라 글쇠를 따로 받는다.
     /// 해상에서도 저장이 된다.
     /// </summary>
+    /// <summary>
+    /// 단축키로 <b>발견물 지도</b>를 연다 — 어느 창에서 눌러도 여기로 온다.
+    /// </summary>
+    /// <remarks>지도가 떠 있을 때만 연다. 이미 딴 창이 떠 있으면 그 위에 얹힌다.</remarks>
+    internal void MapByKey()
+    {
+        if (!ReferenceEquals(_screen.Content, _mapRoot)) return;
+        ShowDiscoveryMap();
+    }
+
     private void OnMapKey(object sender, KeyEventArgs e)
     {
+        // ESC — 떠 있는 커맨드·도시정보 창을 접는다. 창이 제 글쇠를 받는 것은 그 창에
+        // <b>초점이 있을 때뿐</b>인데, 상자를 닫고 나면 초점이 지도 창으로 돌아와 있어
+        // 그때부터 ESC 가 안 먹었다(피드백 fb-ui-15).
+        if (e.Key == Key.Escape && !e.Handled)
+        {
+            if (CommandMenu.IsOpen) { CommandMenu.Close(); e.Handled = true; return; }
+            if (InfoMenu.IsOpen) { InfoMenu.Close(); e.Handled = true; return; }
+        }
+
         if (e.Key != Key.V || e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
         if (e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase) return;
         if (!ReferenceEquals(_screen.Content, _mapRoot)) return;
@@ -1795,6 +1858,8 @@ public sealed class ShipMapWindow : Window
             // 배가 얼마나 빨리 가는지는 함대와 돛 효율표가 정한다 — 지도는 그 둘을 모른다.
             _host.FleetSpeed = (dir, speed, heading, onLand) =>
                 Sailing.SpeedOf(_game.Player, _game.Sails, dir, speed, heading, onLand);
+            // 뱃머리가 도는 빠르기도 기함 종류가 정한다(0x00569FC0) — 큰 배일수록 굼뜨다.
+            _host.TurnRateOf = () => Sailing.TurnRateOf(_game.Player.FlagshipHull?.Hull);
             if (!_host.Start(_game.Directory)) { _status.Text = _host.Status; return; }
             _host.ShowFlowArrows = GameSettings.ShowFlowArrows;
             _started = true;
@@ -1826,6 +1891,8 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreMateBook(saved.MateBook);
             if (saved.Fatigue is { } tired) _game.Player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _game.Player.SetDaysAtSea(atSea);
+            // 컨디션. 이 판 앞의 세이브에는 없어 성한 채로 연다.
+            if (saved.Condition is { } fit) _game.Player.SetCondition(fit);
             // 서 있던 해상재해. 판 27 앞의 세이브에는 없어 없는 채로 연다.
             if (saved.Ailments is { } ail) _game.Player.SetAilments(ail);
             // 대열과 배마다 승원(편성). 판 28 앞의 세이브에는 없어 대열 0 · 고르게 나눈 채로 연다.
@@ -1838,6 +1905,16 @@ public sealed class ShipMapWindow : Window
             // 아내와 후손. 판 22 앞의 세이브에는 없어 홀로 시작한다.
             _game.Player.RestoreFamily(saved.Spouse, saved.Heirs,
                                        saved.SpouseId ?? -1, saved.Liking);
+
+            // 능력치·직업·신상. 이 판 앞의 세이브에는 없어 기본값(여섯 다 50 · 탐험가 · 스물다섯)
+            // 으로 열린다 — 적어 두기 전에는 새로 지은 주인공도 불러오면 죄다 50 이었다.
+            if (saved.Abilities is { Count: > 0 } stats) _game.Player.SetAbilities(stats);
+            if (saved.JobIndex is { } job) _game.Player.JobIndex = job;
+            if (saved.Age is { } age) _game.Player.Age = age;
+            if (saved.BirthMonth is { } birthMonth) _game.Player.BirthMonth = birthMonth;
+            if (saved.BirthDay is { } birthDay) _game.Player.BirthDay = birthDay;
+            if (saved.Blood is { } blood) _game.Player.Blood = blood;
+            if (saved.Nation is { } nation) _game.Player.Nation = nation;
 
             // 이름은 판 24 부터 적힌다 — 그 앞 세이브에서는 빈 채로 둔다.
             if (!string.IsNullOrEmpty(saved.Name)) _game.Player.Name = saved.Name;
@@ -1948,6 +2025,16 @@ public sealed class ShipMapWindow : Window
         if (_host.SeaBlocked) return;
         if (CommandMenu.IsOpen) { CommandMenu.Focus(); return; }
 
+        CommandMenu.Open(CommandMenuBox, ToScreen(anchor, at));
+        _host.Paused = true;
+    }
+
+    /// <summary>
+    /// 해상 커맨드 창의 줄들. <b>지을 때마다 새로 본다</b> — 바다냐 뭍이냐에 따라 줄이 갈리므로,
+    /// 상륙한 자리에서 <see cref="GameMenuHost.Refresh"/> 하면 그대로 승선 줄이 된다.
+    /// </summary>
+    private GameMenu CommandMenuBox()
+    {
         void Close() => CommandMenu.Close();
 
         // 바다에 있으면 상륙, 뭍에 있으면 출항. <b>갈 데가 없으면 줄 자체를 안 낸다</b> —
@@ -1970,10 +2057,15 @@ public sealed class ShipMapWindow : Window
         {
             items.Add(("상륙", () =>
             {
-                bool landed = _host.Land();
-                if (landed) _game.Bgm.Play(BgmPlayer.LandTrack);
-                Close();
-                if (landed) EndVoyage();                 // 상륙하면 쥐·병이 풀린다
+                if (!_host.Land()) { Close(); return; }
+                _game.Bgm.Play(BgmPlayer.LandTrack);
+
+                // 재해가 풀려 <b>부관이 한 마디 할 때만</b> 창을 남긴다 — 닫으면 그 자리에서
+                // 멈춤이 풀려 말이 뜨는 동안 말(馬)이 벌써 달려 나가고, 읽고 나면 바로 승선할
+                // 수도 있기 때문이다. 아무 말 없이 상륙했으면 <b>곧바로 닫아</b> 그 자리에서
+                // 움직이게 둔다.
+                if (EndVoyage()) CommandMenu.Refresh();
+                else Close();
             }));
         }
 
@@ -2002,10 +2094,7 @@ public sealed class ShipMapWindow : Window
 
         // 넓히는 것은 GameUi 가 창을 지으며 한다 — 커맨드 창만이 아니라 도시 창·시설 창도
         // 같이 넓어야 모양이 맞는다.
-        var box = new GameMenu("커맨드", null, [.. items]);
-
-        CommandMenu.Open(() => box, ToScreen(anchor, at));
-        _host.Paused = true;
+        return new GameMenu("커맨드", null, [.. items]);
     }
 
     /// <summary>
@@ -2083,9 +2172,12 @@ public sealed class ShipMapWindow : Window
         // 바다에서는 함대좌표 칸에 지금 자리를 적는다. 도시 안이라면 게임처럼 "---" 다.
         ("함대정보", () => Info(() => FleetInfoDialog.Show(this, _game.Player, CoordLine(), _game.Items))),
         // 부하가 있으면 게임처럼 누구를 볼지 먼저 묻는다 — 도시 창과 한 벌이다.
-        ("인물정보", () => Info(() => PersonInfoMenu.Show(this, _game, CommandMenu))),
+        ("인물정보", PersonInfo),
+        // 설명문과 그림을 <b>같이 넘긴다</b> — null 로 두어 바다에서 연 소지품 창만
+        // 그림도 설명도 없이 떴다(도시 창은 넘기고 있었다).
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
-            this, _game.Player, _game.Items, null, null, GameInfo.DiscoveryNames(_game)))),
+            this, _game.Player, _game.Items, _game.ItemText, _game.ItemPictures,
+            GameInfo.DiscoveryNames(_game)))),
         ("힌트정보", () => Info(() => HintListDialog.Show(this, GameInfo.HintNames(_game)))),
         ("계약정보", () => Info(ShowContract)),
         ("지도를 본다", () => CommandMenu.Push(MapMenuBox)),
@@ -2157,17 +2249,102 @@ public sealed class ShipMapWindow : Window
     /// 지도 아래 띠에 한마디 적는다. 게임이 창을 띄우지 않고 알리는 자리다.
     /// </summary>
     /// <remarks>도시 창처럼 이 창이 거느린 쪽에서도 부른다.</remarks>
-    public void Say(string text) => _note.Text = text;
+    /// <summary>
+    /// 하단 띠에 한 줄 적는다 — 게임처럼 <b>네 번 깜빡이고</b> 한참 뒤에 지워진다.
+    /// </summary>
+    /// <remarks>
+    /// 띠 알림 객체(<c>0x00580C48</c>)의 한 틱이 <c>0x0040DE80</c> 이다.
+    /// <code>
+    ///   c = [+0xC0]
+    ///   if (c &lt; 0x28)            ; 마흔 틱 동안
+    ///       c++ ; if (c % 10 == 0) 다시 그린다      ; 열 틱마다 — 이것이 깜빡임이다
+    ///   else
+    ///       n = [+0xBC]           ; 적을 때 넘긴 값 x 20 (0x0040E15A, 5 를 넘기므로 100)
+    ///       if (n) { n-- ; if (n == 0) 다시 그린다 } ; 다 세면 지운다
+    /// </code>
+    /// 곧 <b>마흔 틱 동안 열 틱마다 깜빡이고, 그 뒤 백 틱을 버티다 사라진다.</b>
+    /// 적는 손(<c>0x0040E0A0</c>)은 적은 뒤 늘 소리 <c>0x1D</c> 를 낸다.
+    ///
+    /// 빈 글을 주면 그 자리에서 지운다.
+    /// </remarks>
+    public void Say(string text)
+    {
+        _note.Text = text;
+        _note.Visibility = Visibility.Visible;
+        _noteTick = 0;
+
+        _noteTimer ??= new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), NoteTick);
+        if (text.Length == 0) _noteTimer.Stop();
+        else _noteTimer.Start();
+    }
+
+    /// <summary>띠 알림이 깜빡이는 동안의 틱 수(<c>0x28</c>)와 한 번 깜빡이는 사이(10틱).</summary>
+    private const int NoteBlinkTicks = 0x28, NoteBlinkEvery = 10;
+
+    /// <summary>깜빡임이 끝난 뒤 버티는 틱 수 — 게임이 넘기는 5 에 20 을 곱한 값이다.</summary>
+    private const int NoteHoldTicks = 100;
+
+    private DispatcherTimerLite? _noteTimer;
+    private int _noteTick;
+
+    private void NoteTick()
+    {
+        _noteTick++;
+
+        if (_noteTick <= NoteBlinkTicks)
+        {
+            // 열 틱마다 한 틱을 비운다 — 게임이 그 자리에서 띠를 다시 그리며 깜빡이는 것이다.
+            _note.Visibility = _noteTick % NoteBlinkEvery == 0
+                ? Visibility.Hidden
+                : Visibility.Visible;
+            return;
+        }
+
+        _note.Visibility = Visibility.Visible;
+        if (_noteTick < NoteBlinkTicks + NoteHoldTicks) return;
+
+        _note.Text = "";
+        _noteTimer?.Stop();
+    }
 
     /// <summary>정보 판 하나를 띄운다 — 커맨드 창은 접고, 배는 세워 둔 채다.</summary>
     private void Info(Action show)
     {
         // 창을 닫으면 Closed 가 멈춤을 푼다. 그런데 판이 뜨는 동안에도 <b>계속 멎어
         // 있어야</b> 한다 — 안 그러면 인물정보를 보는 사이에 구름과 물결만 흘러 다닌다.
-        CommandMenu.Close();
+        // 커맨드 창은 오므라든 뒤에 닫혀 그 알림이 <b>판이 떠 있는 사이에</b> 오므로,
+        // _asking 을 세워 그 손이 멈춤을 밟지 못하게 한다.
+        _asking = true;
         _host.Paused = true;
+        CommandMenu.Close();
         try { show(); }
-        finally { _host.Paused = false; }
+        finally { _asking = false; _host.Paused = false; }
+    }
+
+    /// <summary>
+    /// 인물정보 — 부하가 있으면 <b>이 창 위에 한 겹</b>을 쌓아 누구를 볼지 묻는다.
+    /// </summary>
+    /// <remarks>
+    /// <b>먼저 닫으면 안 된다.</b> 커맨드 창은 점으로 오므라든 뒤에 닫히는데
+    /// (<c>MenuWindow.CloseZoomed</c>), 그 사이에 겹을 쌓으면 쌓은 겹이 닫히는 창에 실려
+    /// <b>그대로 같이 닫힌다</b> — 「인물정보를 눌러도 아무것도 안 열리던」 것이 이것이다.
+    /// 부하가 없을 때는 물을 것이 없으니 예전처럼 곧장 판을 낸다.
+    /// </remarks>
+    private void PersonInfo()
+    {
+        if (_game.Player.MateCount == 0)
+        {
+            Info(() => PersonInfoDialog.Show(this, _game.Player, _game.Directory));
+            return;
+        }
+
+        // 판이 떠 있는 동안 멈춤을 쥐고 있는다 — 창이 접히며 오는 알림이 풀지 못하게
+        // _asking 도 함께 세운다(Info 와 같은 길이다).
+        PersonInfoMenu.Show(this, _game, CommandMenu, hold =>
+        {
+            _asking = hold;
+            _host.Paused = hold;
+        });
     }
 
     /// <summary>해상 커맨드 창. 하나만 띄운다.</summary>
@@ -2329,7 +2506,7 @@ public sealed class ShipMapWindow : Window
 
         if (end.GameOver)
         {
-            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+            GameOver();
             Dispatcher.BeginInvoke(ReturnToTitle);
             return false;
         }
@@ -2412,7 +2589,7 @@ public sealed class ShipMapWindow : Window
             {
                 _host.Paused = true;
                 _asking = true;                      // 창이 떠 있는 동안 하루 셈이 다시 안 돌게
-                GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+                GameOver();
                 _asking = false;
                 Dispatcher.BeginInvoke(ReturnToTitle);
                 return;
@@ -2428,14 +2605,20 @@ public sealed class ShipMapWindow : Window
     /// 그중 <c>0x0048E5E0</c> 은 풀기 전에 서 있던 재해마다 부관이 한 줄씩 말한다.
     /// 세 자리 가운데 어느 것이 상륙·입항인지는 아직 이름표를 안 붙여, 둘 다 말하게 둔다.
     /// </remarks>
-    private void EndVoyage()
+    /// <returns>부관이 한 마디라도 했으면 참 — 서 있던 재해가 있었다는 뜻이다.</returns>
+    private bool EndVoyage()
     {
         var player = _game.Player;
         var was = player.CureAilments();
         player.SetDaysAtSea(0);
 
+        bool said = false;
         foreach (string line in SeaEvents.CureWords(was))
+        {
             ConfirmDialog.Tell(this, line, face: MateFace());
+            said = true;
+        }
+        return said;
     }
 
     /// <summary>
@@ -2919,7 +3102,7 @@ public sealed class ShipMapWindow : Window
         var report = SeaCombatDialog.Engage(this, player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx, foeFace,
                                             (board, end) => SettleRaid(board, end, nation, capital, rng),
-                                            SeaDuel(who.Id, who.Name, foeFace));
+                                            SeaDuel(who.Id, who.Name, foeFace), _game.Bgm);
 
         // 판이 어떻게 끝났든 상대는 제 나라 수도로 돌아가 예순 날 쉰다 — 곧바로 다시 못 만난다.
         world.SendHome(who, capital);
@@ -2927,7 +3110,7 @@ public sealed class ShipMapWindow : Window
         if (report.Outcome != SeaCombatDialog.Outcome.Defeated) return false;
 
         // 패배 — 0x0044AF40(0x5A4D18, 2). 끝 까닭별 그림 번호는 아직 못 갈라 반란 패배 그림을 쓴다.
-        GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+        GameOver();
         return true;
     }
 
@@ -3280,7 +3463,7 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void Tell(SeaEvents.Day day)
     {
-        var lines = new List<(string Text, bool Mate)>();
+        var lines = new List<(string Text, Where To)>();
 
         if (day.WaterLow || day.FoodLow)
         {
@@ -3288,16 +3471,17 @@ public sealed class ShipMapWindow : Window
             bool both = day.WaterLow && day.FoodLow;
             string water = day.WaterLow ? (both ? "물도 " : "물이 ") : "";
             string food = day.FoodLow ? (both ? "식량도 " : "식량이 ") : "";
-            lines.Add(($"제독, {water}{food}얼마 남지 않았습니다!", false));
+            lines.Add(($"제독, {water}{food}얼마 남지 않았습니다!", Where.Strip));
         }
 
         if (day.WaterOut && day.FoodOut)
-            lines.Add(("제독, 물도 식량도 바닥을 드러내고 있습니다. 빨리 상륙하지 않으면 전멸입니다!", true));
+            lines.Add(("제독, 물도 식량도 바닥을 드러내고 있습니다. 빨리 상륙하지 않으면 전멸입니다!",
+                       Where.Mate));
         else if (day.WaterOut || day.FoodOut)
         {
             string what = day.WaterOut ? "물" : "식량";
             lines.Add(($"제독, {what}{GameUi.Josa(what, "이", "가")} 바닥을 드러내고 있습니다, " +
-                       "빨리 상륙합시다!", true));
+                       "빨리 상륙합시다!", Where.Mate));
         }
 
         if (day.Weary > 0)
@@ -3306,25 +3490,57 @@ public sealed class ShipMapWindow : Window
                 50 => "선원들이 지쳐있습니다",
                 70 => "선원들이 지쳐있습니다. 이제 상륙합시다!",
                 _ => "선원들의 피로가 한계에 달하고 있습니다. 이대로라면 죽는 사람이 나오고 맙니다!",
-            }, false));
+            }, Where.Strip));
+
+        // 지쳐 죽어 승원이 모자라졌으면 부관이 한 줄 한다(0x004759A5). 죽은 수는 따로 안 알린다 —
+        // 게임도 선원 칸이 줄어드는 것으로만 보인다.
+        if (day.Short.Length > 0) lines.Add((day.Short, Where.Mate));
 
         if (lines.Count == 0) return;
 
-        _asking = true;
-        _host.Paused = true;
+        // 띠에 적는 줄은 창을 안 띄우므로 멈출 것도 없다 — 창이 있을 때만 멈춘다.
+        bool boxes = lines.Any(one => one.To != Where.Strip);
+        if (boxes) { _asking = true; _host.Paused = true; }
         try
         {
-            foreach (var (text, mate) in lines)
-            {
-                if (mate) ConfirmDialog.Tell(this, text, face: MateFace());
-                else NoticeDialog.Show(this, text);
-            }
+            foreach (var (text, to) in lines)
+                switch (to)
+                {
+                    // 문턱 알림은 <b>하단 띠</b>다 — 게임의 0x0040E0A0 이고, 적은 뒤 늘
+                    // 소리 0x1D 를 낸다. 창으로 내면 확인을 눌러야 해 항해가 뚝뚝 끊긴다.
+                    case Where.Strip:
+                        Say(text);
+                        _game.Sfx?.Play(SoundBank.BandNoticePart);
+                        break;
+                    case Where.Mate:
+                        ConfirmDialog.Tell(this, text, face: MateFace());
+                        break;
+                    default:
+                        NoticeDialog.Show(this, text);
+                        break;
+                }
         }
         finally
         {
-            _host.Paused = false;
-            _asking = false;
+            if (boxes) { _host.Paused = false; _asking = false; }
         }
+    }
+
+    /// <summary>오늘 있었던 일을 <b>어디에</b> 적는지.</summary>
+    /// <remarks>
+    /// 게임이 두 손을 나눠 쓴다 — 문턱 알림은 띠(<c>0x0040E0A0</c>)에 적고, 바닥났다는 말은
+    /// 화자를 세워 말 창(<c>0x00478280</c>)에 낸다.
+    /// </remarks>
+    private enum Where
+    {
+        /// <summary>하단 띠에 한 줄.</summary>
+        Strip,
+
+        /// <summary>얼굴 없는 알림 창.</summary>
+        Notice,
+
+        /// <summary>부관(아니면 뱃사람) 얼굴을 세운 말 창.</summary>
+        Mate,
     }
 
     /// <summary>한 걸음(<c>0.1초</c>) 몇 번을 하루로 세는지.</summary>
@@ -3407,12 +3623,12 @@ public sealed class ShipMapWindow : Window
             var foeFace = PersonFace(leaderId);
             var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
                                                 (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
-                                                foeFace, SeaDuel(leaderId, foe.Name, foeFace));
+                                                foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm);
 
             // 기함을 잃으면(격침·나포·일기토 패배) 놀이가 끝난다 — 보이는 함대 해전(FightFolk)과 같다.
             if (outcome == SeaCombatDialog.Outcome.Defeated)
             {
-                GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+                GameOver();
                 over = true;
             }
         }
@@ -3429,6 +3645,33 @@ public sealed class ShipMapWindow : Window
     /// <summary>
     /// 적장 — 인물표(능력·기능 날값)와 인물 밑표(나라·직업)에서 짓는다. 못 읽은 칸은 붙박이 값이다.
     /// </summary>
+    /// <summary>
+    /// 발견 대본이 거는 해전(<c>0D 0D [인물]</c>) — 바다 괴물 넷이 이것으로 덤빈다.
+    /// </summary>
+    /// <remarks>
+    /// 조우 해전과 같은 길이다 — 적장을 인물 표에서 떠 오고, 판의 바람은 함대 자리의
+    /// 바다 바람이다(<c>0x00441F1C</c>). 기함을 잃으면 놀이가 끝난다.
+    /// </remarks>
+    /// <returns>이겼는지와, 져서 놀이가 끝났는지.</returns>
+    internal (bool Won, bool Over) SeaFight(int person)
+    {
+        var rng = _game.Random;
+        var leader = CaptainOf(person) ?? Encounter.CaptainOf(person);
+        string name = _game.World?.Table.Find(person)?.Name ?? "괴물";
+        var foe = Encounter.OfPerson(leader, name);
+        var foeFace = PersonFace(person);
+
+        var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, MateFace(),
+                                            (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
+                                            foeFace, SeaDuel(person, name, foeFace), _game.Bgm);
+
+        if (outcome != SeaCombatDialog.Outcome.Defeated)
+            return (outcome == SeaCombatDialog.Outcome.Won, false);
+
+        GameOver();
+        return (false, true);
+    }
+
     private Captain? CaptainOf(int id)
     {
         var row = _game.World?.Table.Find(id);
@@ -3683,7 +3926,7 @@ public sealed class ShipMapWindow : Window
                 $"제독은 {beast}의 먹이가 되었다. 항해는 여기서 끝났다.");
 
             // 그러고 나서 사건 스틸 한 장과 CONTINUE? 물음이다(0x00410CC2).
-            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+            GameOver();
         }
         finally
         {
@@ -3912,7 +4155,7 @@ public sealed class ShipMapWindow : Window
             if (DisevRunner.LastEndedInGameOver)
             {
                 over = true;
-                GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost);
+                GameOver();
             }
 
             // 대본이 돌았으면 발견은 <b>대본의 01 0B 만</b> 적는다 — 게임의 발견 판정(0x0048D3F0)은

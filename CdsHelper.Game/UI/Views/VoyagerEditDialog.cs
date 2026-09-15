@@ -29,6 +29,8 @@ public sealed class VoyagerEditDialog : GameWindow
         CanUserDeleteRows = false,
         HeadersVisibility = DataGridHeadersVisibility.Column,
         SelectionMode = DataGridSelectionMode.Single,
+        // 머리글을 눌러 정렬한다 — 언제 무엇이 채이는지 보려면 연·월 차례가 제일 쓸모 있다.
+        CanUserSortColumns = true,
         Margin = new Thickness(10, 10, 10, 4),
     };
 
@@ -82,8 +84,8 @@ public sealed class VoyagerEditDialog : GameWindow
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         Col("사람", nameof(Row.Who), 170, readOnly: true);
-        Col("해", nameof(Row.Year), 60);
-        Col("달", nameof(Row.Month), 44);
+        _year = Col("년", nameof(Row.Year), 60);
+        _month = Col("월", nameof(Row.Month), 44);
         Col("발견물", nameof(Row.Discovery), 70);
         Col("이름", nameof(Row.Name), 200, readOnly: true);
         Col("한번", nameof(Row.OnceMark), 48, readOnly: true);
@@ -150,14 +152,22 @@ public sealed class VoyagerEditDialog : GameWindow
     /// <summary>지금 한 사람만 보고 있는지. 그때만 고칠 수 있다.</summary>
     private bool Editing => Picked != All;
 
-    private void Col(string header, string path, double width, bool readOnly = false) =>
-        _grid.Columns.Add(new DataGridTextColumn
+    /// <summary>연·월 칸 — 처음 정렬 화살표를 세워 두려고 들고 있는다.</summary>
+    private readonly DataGridTextColumn _year, _month;
+
+    private DataGridTextColumn Col(string header, string path, double width, bool readOnly = false)
+    {
+        var column = new DataGridTextColumn
         {
             Header = header,
             Binding = new System.Windows.Data.Binding(path),
             Width = new DataGridLength(width),
             IsReadOnly = readOnly,
-        });
+            SortMemberPath = path,
+        };
+        _grid.Columns.Add(column);
+        return column;
+    }
 
     private void Load()
     {
@@ -214,6 +224,19 @@ public sealed class VoyagerEditDialog : GameWindow
         _add.IsEnabled = _drop.IsEnabled = _reset.IsEnabled = Editing;
 
         _grid.ItemsSource = rows;
+
+        // <b>처음은 연·월 오름차순</b>이다 — 표 차례(사람별)로는 언제 채이는지 안 보인다.
+        // 머리글을 누르면 그 뒤로는 고른 차례를 따른다.
+        _grid.Items.SortDescriptions.Clear();
+        _grid.Items.SortDescriptions.Add(
+            new System.ComponentModel.SortDescription(nameof(Row.Year),
+                                                      System.ComponentModel.ListSortDirection.Ascending));
+        _grid.Items.SortDescriptions.Add(
+            new System.ComponentModel.SortDescription(nameof(Row.Month),
+                                                      System.ComponentModel.ListSortDirection.Ascending));
+        _year.SortDirection = System.ComponentModel.ListSortDirection.Ascending;
+        _month.SortDirection = System.ComponentModel.ListSortDirection.Ascending;
+        _grid.Items.Refresh();
 
         int edited = VoyagerEdits.Count;
         int once = rows.Count(r => r.OnceMark.Length > 0);

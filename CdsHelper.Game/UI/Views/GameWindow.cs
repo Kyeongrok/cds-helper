@@ -51,14 +51,29 @@ public class GameWindow : Window
 
     private static void OnAnyKey(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.V || e.Handled) return;
-        if (Keyboard.Modifiers != ModifierKeys.None) return;
+        if (e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
         if (e.OriginalSource is TextBoxBase or PasswordBox) return;
         if (sender is not Window window) return;
 
-        ShipMapWindow.Current?.SaveByKey(window);
-        e.Handled = true;
+        if (e.Key == KeyOf(Local.Settings.GameSettings.SaveKey, Key.V))
+        {
+            ShipMapWindow.Current?.SaveByKey(window);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == KeyOf(Local.Settings.GameSettings.MapKey, Key.D))
+        {
+            ShipMapWindow.Current?.MapByKey();
+            e.Handled = true;
+        }
     }
+
+    /// <summary>적어 둔 글쇠 이름을 글쇠로. 비었거나 모르는 이름이면 기본값이다.</summary>
+    private static Key KeyOf(string name, Key fallback) =>
+        !string.IsNullOrWhiteSpace(name) && Enum.TryParse(name, ignoreCase: true, out Key key)
+            ? key
+            : fallback;
 
     private bool? _result;
 

@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.UI.Views;
+﻿namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
 /// 한 마디 알리고 확인만 받는 창 — <see cref="ConfirmDialog"/> 를 부르는 <b>이름 하나</b>다.
@@ -30,8 +30,48 @@ public static class NoticeDialog
     /// </remarks>
     public static void Explain(System.Windows.Window owner, string text,
                                string title = "게임 설명") =>
-        ConfirmDialog.Tell(owner, text, title, null, ExplainCells * GameUi.CellWidth);
+        ConfirmDialog.Tell(owner, Wrap(text, ExplainWidth), title, null,
+                           ExplainCells * GameUi.CellWidth);
 
     /// <summary>설명 글을 들이는 글자 수.</summary>
     private const int ExplainCells = 3;
+
+    /// <summary>
+    /// 설명 글 한 줄이 담는 <b>반각 글자 수</b>. 원본 창이 이 자리에서 글을 접는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 화면이 640점이고 설명 창이 그 안에 드는지라 한 줄이 예순 자 남짓이다.
+    /// <b>접지 않으면 창이 가로로 한없이 길어진다</b> — 미궁 64의 설명은 한 줄이 백 자를
+    /// 넘어, 우리 창이 화면을 꽉 채웠다.
+    /// </remarks>
+    private const int ExplainWidth = 62;
+
+    /// <summary>
+    /// 글을 반각 <paramref name="cells"/> 자에서 접는다. 한글·기호는 두 칸으로 센다 —
+    /// 원본 글꼴이 반각·전각 둘뿐이라 그것으로 족하다. <b>낱말을 가리지 않고 접는다</b>(원본도
+    /// 「이동합 / 니다.」처럼 글자 자리에서 끊는다).
+    /// </summary>
+    private static string Wrap(string text, int cells)
+    {
+        var made = new System.Text.StringBuilder(text.Length + 16);
+
+        foreach (string line in text.Split(System.Environment.NewLine))
+        {
+            int width = 0;
+            foreach (char c in line)
+            {
+                int w = c > 0x7F ? 2 : 1;
+                if (width + w > cells)
+                {
+                    made.Append(System.Environment.NewLine);
+                    width = 0;
+                }
+                made.Append(c);
+                width += w;
+            }
+            made.Append(System.Environment.NewLine);
+        }
+
+        return made.ToString().TrimEnd();
+    }
 }

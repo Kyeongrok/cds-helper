@@ -61,7 +61,8 @@ public sealed class HintListDialog : GameWindow
 
     private readonly GameButton _decide;
 
-    private HintListDialog(IReadOnlyList<string> hints, bool choosing, string caption)
+    private HintListDialog(IReadOnlyList<string> hints, bool choosing, string caption,
+                           string header = "")
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -71,6 +72,22 @@ public sealed class HintListDialog : GameWindow
         Background = GameUi.Back;
 
         var list = new StackPanel();
+
+        // 머리글 — 고를 수 없는 줄 하나를 맨 위에 둔다(조선소 개조 목록이 쓴다).
+        if (header.Length > 0)
+            list.Children.Add(new Border
+            {
+                Margin = new Thickness(1),
+                Padding = new Thickness(RowPad, 0, RowPad, 0),
+                Child = new GameUi.GameLabel(GameFont.BlackColor, GameUi.ItemTextHeight)
+                {
+                    Text = header,
+                    Bold = false,
+                    FallbackBrush = Brushes.Black,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                },
+            });
+
         for (int i = 0; i < hints.Count; i++)
         {
             int index = i;
@@ -240,9 +257,11 @@ public sealed class HintListDialog : GameWindow
     /// 게임도 창 하나를 「취득 힌트 일람」과 「스폰서 일람」 두 군데에 쓴다
     /// (<c>0x004769A0</c> 와 <c>0x00476660</c> 이 같은 모양이다).
     /// </remarks>
+    /// <param name="header">줄 위에 얹을 머리글. 빈 글이면 안 얹는다.</param>
     public static int Pick(Window owner, IReadOnlyList<string> items,
                            string caption = "취득 힌트 일람",
-                           string whenEmpty = "설득 가능한 힌트가 없습니다")
+                           string whenEmpty = "설득 가능한 힌트가 없습니다",
+                           string header = "")
     {
         if (items.Count == 0)
         {
@@ -250,7 +269,7 @@ public sealed class HintListDialog : GameWindow
             return -1;
         }
 
-        var dlg = new HintListDialog(items, choosing: true, caption) { Owner = owner };
+        var dlg = new HintListDialog(items, choosing: true, caption, header) { Owner = owner };
         dlg.ShowDialog();
         return dlg._picked;
     }

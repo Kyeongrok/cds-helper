@@ -71,6 +71,9 @@ public sealed class SoundBank : IDisposable
     /// </remarks>
     public const int ClashPart = 72 - WaveBank.FirstSoundId;
 
+    /// <summary>일기토에서 이겼을 때 나는 소리(사운드 ID <b>77</b>).</summary>
+    public const int DuelWinPart = 77 - WaveBank.FirstSoundId;
+
     /// <summary>
     /// 아래 띠에 말을 넣을 때 나는 소리 — <b>사운드 ID 0x1D</b>, 곧 파트 1 이다.
     /// </summary>
