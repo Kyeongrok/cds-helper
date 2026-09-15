@@ -163,7 +163,9 @@ public static class GameSave
         int? Formation = null, List<int>? CrewShares = null, int? HomePort = null,
         double? SeaX = null, double? SeaY = null, int? Condition = null,
         List<int>? Abilities = null, int? JobIndex = null, int? Age = null,
-        int? BirthMonth = null, int? BirthDay = null, int? Blood = null, int? Nation = null);
+        int? BirthMonth = null, int? BirthDay = null, int? Blood = null, int? Nation = null,
+        List<Support.Local.Models.Player.Cargo>? Cargo = null,
+        Dictionary<int, List<int>>? TradeStock = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -219,7 +221,9 @@ public static class GameSave
                             player.Condition,
                             // 능력치와 신상. 이 칸들이 없어 <b>불러오면 능력이 죄다 50</b> 이었다.
                             [.. player.Abilities], player.JobIndex, player.Age,
-                            player.BirthMonth, player.BirthDay, player.Blood, player.Nation);
+                            player.BirthMonth, player.BirthDay, player.Blood, player.Nation,
+                            Cargo: [.. player.CargoHold],
+                            TradeStock: player.TradeStock.ToDictionary(e => e.Key, e => e.Value.ToList()));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

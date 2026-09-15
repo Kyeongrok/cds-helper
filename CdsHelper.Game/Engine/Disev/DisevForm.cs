@@ -316,7 +316,9 @@ public static class DisevForm
 
     /// <summary>자리표 이름표. 무손실로 푼 글에는 이 꼴로 들어 있다.</summary>
     private static readonly (string Text, byte Value)[] Tokens =
-        [("<남방대륙>", 0x6C), ("<제독>", 0x93), ("<대륙>", 0x77), ("<협>", 0x76)];
+        [("<남방대륙>", 0x6C), ("<제독>", 0x93), ("<대륙>", 0x77), ("<협>", 0x76),
+         ("<(이)라는>", 0x78), ("<(이)>", 0x63), ("<이/가>", 0x66), ("<은/는>", 0x67),
+         ("<와/과>", 0x73)];
 
     private const string TokenPrefix = "<자리표 0x";
 

@@ -34,6 +34,9 @@ internal interface ITownScreen
     /// <summary>시장에 팔 수 있는지 — 아이템 표까지 있어야 한다.</summary>
     bool CanSellGoods { get; }
 
+    /// <summary>교역소에서 매매할 수 있는지 — 교역소 표와 교역품 표를 읽었어야 한다.</summary>
+    bool CanTrade { get; }
+
     /// <summary>함대편성 창을 열 만한지 — 그 안의 네 줄 가운데 하나라도 살아 있어야 한다.</summary>
     bool CanFormFleet { get; }
 
@@ -101,6 +104,9 @@ internal interface ITownScreen
     void RefitShip();
     void BuyGoods();
     void SellGoods();
+
+    /// <summary>교역소 「매매」 — 교역품을 담아 두었다가 한 번에 사고판다.</summary>
+    void Trade();
 
     /// <summary>여관 숙박.</summary>
     void Stay();

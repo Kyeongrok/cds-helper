@@ -607,7 +607,21 @@ public sealed class ShipMapWindow : Window
 
         var at = _host.ShipCell is { } cell ? ((double, double)?)(cell.CellX, cell.CellY) : null;
         DiscoveryMapDialog.Show(this, chart, w, h, _game.Discoveries?.Table, _game.Player, at,
-                                WindTable.Open(_game.Directory));
+                                WindTable.Open(_game.Directory), WarpTo);
+    }
+
+    /// <summary>
+    /// 발견물 지도에서 오른쪽 단추로 짚은 칸으로 함대를 옮긴다. 옮긴 칸을 돌려준다.
+    /// </summary>
+    /// <remarks>
+    /// 도시 안이거나 뭍에 올라 있으면 안 옮긴다 — 그 자리에서 배만 바다로 빼면 상륙·입항
+    /// 상태가 어긋난다. 바다에서는 가까운 물칸에 <b>닻을 내린 채</b> 선다(PlaceAtSea).
+    /// </remarks>
+    private (double X, double Y)? WarpTo(double cellX, double cellY)
+    {
+        if (_host.SeaBlocked || _host.IsOnLand) return null;
+        if (!_host.PlaceAtSea(cellX, cellY)) return null;
+        return _host.ShipCell is { } cell ? (cell.X, cell.Y) : null;
     }
 
     /// <summary>
@@ -1931,6 +1945,9 @@ public sealed class ShipMapWindow : Window
                                  gunsInStats: saved.Version >= GameSave.GunsInStatsFrom,
                                  sailsInStats: saved.Version >= GameSave.SailsInStatsFrom);
             _game.Player.RestoreMateBook(saved.MateBook);
+            // 실은 교역품과 교역소 재고. 이 판 앞의 세이브에는 없어 빈 짐 · 처음 재고로 연다.
+            _game.Player.RestoreCargo(saved.Cargo);
+            _game.Player.RestoreTradeStock(saved.TradeStock);
             if (saved.Fatigue is { } tired) _game.Player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _game.Player.SetDaysAtSea(atSea);
             // 컨디션. 이 판 앞의 세이브에는 없어 성한 채로 연다.

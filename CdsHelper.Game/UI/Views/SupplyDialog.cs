@@ -365,8 +365,8 @@ public sealed class SupplyDialog : GameWindow
         int haveMaterial = _player.SupplyOf(SupplyKind.Material);
         int haveAmmo = _player.SupplyOf(SupplyKind.Ammo);
 
-        int room = (_player.Capacity - haveMaterial - haveAmmo) / 2;
-        int free = _player.Tonnage - _player.GunWeight
+        int room = (_player.Capacity - _player.CargoCount - haveMaterial - haveAmmo) / 2;
+        int free = _player.Tonnage - _player.GunWeight - _player.CargoWeight
                    - haveMaterial * material.UnitWeight - haveAmmo * ammo.UnitWeight;
         int byWeight = free / (food.UnitWeight + water.UnitWeight);
         int pair = Math.Max(0, Math.Min(room, byWeight));

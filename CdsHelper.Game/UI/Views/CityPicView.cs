@@ -758,6 +758,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
             case FacilityKind.Library: Books.Greet(); break;
             case FacilityKind.Tavern: Guests.Greet(); break;
             case FacilityKind.Market: Shop.Greet(); break;
+            case FacilityKind.TradingPost: TradePostDialog.Greet(this, _game, _cultureNo); break;
         }
     }
 
@@ -1217,6 +1218,14 @@ public sealed class CityPicView : GameWindow, ITownScreen
     private Market? _market;
     private bool _marketTried;
 
+    /// <summary>교역소 매매 규칙. 교역소 표 · 교역품 표를 못 읽으면 null 이고 「매매」 줄이 흐리다.</summary>
+    private TradePost? TradeRules =>
+        _tradePost ??= _game.Trade is { } trade && _game.Goods is { } goods
+            ? new TradePost(trade, goods, _game.Rates, _game.CityRows, _game.Nations)
+            : null;
+
+    private TradePost? _tradePost;
+
     /// <summary>이 건물에 앉아 있는 후원자. 없으면 null.</summary>
     private Patron? PatronAt(string kind) => Patrons.At(kind, KindsHere);
 
@@ -1387,6 +1396,13 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
     void ITownScreen.BuyGoods() => Shop.Buy();
     void ITownScreen.SellGoods() => Shop.Sell();
+    bool ITownScreen.CanTrade => TradeRules != null;
+
+    void ITownScreen.Trade()
+    {
+        if (TradeRules is { } rules)
+            TradePostDialog.Show(Menu.Window ?? this, _game, rules, _cityId, _player.CityName, _cultureNo);
+    }
 
     void ITownScreen.Stay() => Stay();
     void ITownScreen.ShowMates() => MateRosterDialog.Show(this, _player);

@@ -651,7 +651,9 @@ public sealed class DisevRunner
         int end = Array.IndexOf(raw, (byte)0, textStart);
         if (end < 0) end = raw.Length;
 
-        var (speaker, body) = DisevScript.DecodeDialogue(raw.AsSpan(textStart, end - textStart));
+        // 자리표(※ｓ·※Ｈ …)에 제독 이름과 조사를 채워 넣는다.
+        var (speaker, body) = DisevScript.DecodeDialogue(raw.AsSpan(textStart, end - textStart),
+                                                        _game.Player.Name);
         if (body.Length == 0) return;
 
         // <b>부관이 없으면 부관 대사는 통째로 건너뛴다.</b> 말할 사람이 없는데 말이 나오면
