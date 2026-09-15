@@ -11,7 +11,9 @@ namespace CdsHelper.Game.UI.Views;
 /// 발견 대본 흐름도 — <see cref="DisevFlow.Graph"/> 을 왼쪽에서 오른쪽으로 편 그림이다.
 /// </summary>
 /// <remarks>
-/// 분기는 파란 마름모, 묶음은 초록 네모, 멎는 묶음은 갈색 네모다. 칸(열)은 들머리에서 가장 긴
+/// 분기는 파란 마름모다. 묶음은 <b>명령 하나에 상자 하나</b>를 세로로 쌓고 작은 화살로 잇는다 —
+/// 상자는 초록, 끝 명령(결과 코드·게임 오버) 상자는 갈색이고, 누르면 그 명령을 고른다.
+/// 묶음으로 드는 화살은 첫 상자에, 나가는 화살은 마지막 상자에 붙는다. 칸(열)은 들머리에서 가장 긴
 /// 앞으로 가는 길의 걸음 수로 잡고, 한 열 안에서는 앞 노드 높이에 맞춘다.
 /// <b>분기의 아니오(다음 줄)는 마름모 오른쪽 꼭짓점에서 같은 줄로, 예(뛰는 쪽)는 아래 꼭짓점에서
 /// 내려 마름모보다 밑 줄로</b> 간다. 예 노드는 가는 길에 걸리는 사이 열 노드 밑으로 민다.
@@ -21,7 +23,9 @@ internal static class DisevFlowView
 {
     private const double BoxW = 280, DiamondW = 190, DiamondH = 90, OutsideW = 190, OutsideH = 44;
     private const double LineH = 18, Pad = 8, GapX = 80, GapY = 28, Edge0 = 16;
-    private const int MaxLines = 10, MaxChars = 34;
+    /// <summary>묶음 속 명령 상자 하나의 높이와 상자 사이(작은 화살 자리).</summary>
+    private const double OpH = 30, OpGap = 14;
+    private const int MaxChars = 34;
 
     private static readonly Brush LineBrush = Solid(0x44, 0x72, 0xC4);
     private static readonly Brush StrokeBrush = Solid(0x1F, 0x38, 0x64);
@@ -70,6 +74,10 @@ internal static class DisevFlowView
 
         bool IsDown(DisevFlow.Edge e) => e.Jump && nodes[e.From].Kind == DisevFlow.NodeKind.Decision;
 
+        // 화살이 붙는 높이(노드 윗변에서) — 쌓인 묶음은 드는 쪽이 첫 상자, 나가는 쪽이 마지막 상자 가운데다.
+        double InOff(int i) => IsStack(nodes[i]) ? OpH / 2 : size[i].Height / 2;
+        double OutOff(int i) => IsStack(nodes[i]) ? size[i].Height - OpH / 2 : size[i].Height / 2;
+
         // 예 노드의 윗변 — 마름모 밑으로 내리고, 가로 화살이 사이 열 노드를 꿰지 않게 더 민다.
         // 열은 왼쪽부터 놓으므로 사이 열은 이미 자리가 잡혀 있다.
         double BelowDecision(int decision, int target)
@@ -78,12 +86,12 @@ internal static class DisevFlowView
             for (bool moved = true; moved;)
             {
                 moved = false;
-                double line = want + size[target].Height / 2;
+                double line = want + InOff(target);
                 for (int k = 0; k < n; k++)
                 {
                     if (col[k] <= col[decision] || col[k] >= col[target]) continue;
                     if (line < y[k] - GapY / 2 || line > y[k] + size[k].Height + GapY / 2) continue;
-                    want = y[k] + size[k].Height + GapY - size[target].Height / 2;
+                    want = y[k] + size[k].Height + GapY - InOff(target);
                     moved = true;
                 }
             }
@@ -100,7 +108,7 @@ internal static class DisevFlowView
                     bool down = has && IsDown(from);
                     double want = !has ? Edge0
                         : down ? BelowDecision(from.From, i)
-                        : y[from.From] + size[from.From].Height / 2 - size[i].Height / 2;
+                        : y[from.From] + OutOff(from.From) - InOff(i);
                     // 아니오가 먼저(같은 줄), 예는 맨 뒤(밑 줄)다.
                     int rank = !has ? 1 : down ? 2 : from.Label.Length > 0 ? 0 : 1;
                     return (Node: i, Want: want, Label: rank);
@@ -125,8 +133,8 @@ internal static class DisevFlowView
             // 예는 마름모 아래 꼭짓점, 그 밖은 오른쪽 가운데에서 나간다.
             bool down = IsDown(e);
             double sx = down ? colX[col[e.From]] + size[e.From].Width / 2 : colX[col[e.From]] + size[e.From].Width;
-            double sy = down ? y[e.From] + size[e.From].Height : y[e.From] + size[e.From].Height / 2;
-            double tx = colX[col[e.To]], ty = y[e.To] + size[e.To].Height / 2;
+            double sy = down ? y[e.From] + size[e.From].Height : y[e.From] + OutOff(e.From);
+            double tx = colX[col[e.To]], ty = y[e.To] + InOff(e.To);
             var line = new Polyline { Stroke = LineBrush, StrokeThickness = 1.2 };
             double labelX, labelY = ty - 19;
 
@@ -181,9 +189,11 @@ internal static class DisevFlowView
         for (int i = 0; i < n; i++)
         {
             var node = nodes[i];
-            var element = Draw(node, size[i]);
+            var element = Draw(node, size[i], pick);
             element.Cursor = Cursors.Hand;
-            element.ToolTip = node.Ops.Count > 0 ? string.Join(Environment.NewLine, node.Ops.Select(o => o.Text)) : node.Title;
+            // 쌓인 묶음은 상자마다 제 풀이를 달았으니 겉에는 안 단다.
+            if (!IsStack(node))
+                element.ToolTip = node.Ops.Count > 0 ? string.Join(Environment.NewLine, node.Ops.Select(o => o.Text)) : node.Title;
             int offset = node.Offset;
             element.MouseLeftButtonUp += (_, args) => { args.Handled = true; pick(offset); };
 
@@ -201,11 +211,48 @@ internal static class DisevFlowView
     {
         DisevFlow.NodeKind.Decision => new Size(DiamondW, DiamondH),
         DisevFlow.NodeKind.Outside => new Size(OutsideW, OutsideH),
-        _ => new Size(BoxW, Pad * 2 + Math.Min(node.Ops.Count, MaxLines) * LineH),
+        _ => new Size(BoxW, node.Ops.Count * OpH + Math.Max(0, node.Ops.Count - 1) * OpGap),
     };
 
-    private static FrameworkElement Draw(DisevFlow.Node node, Size size)
+    /// <summary>명령 상자를 쌓아 그리는 노드인가 — 묶음과 멎는 묶음.</summary>
+    private static bool IsStack(DisevFlow.Node node) =>
+        node.Kind is DisevFlow.NodeKind.Block or DisevFlow.NodeKind.End;
+
+    private static FrameworkElement Draw(DisevFlow.Node node, Size size, Action<int> pick)
     {
+        if (IsStack(node))
+        {
+            var stack = new StackPanel { Width = size.Width };
+            for (int k = 0; k < node.Ops.Count; k++)
+            {
+                var op = node.Ops[k];
+                if (k > 0) stack.Children.Add(DownArrow(size.Width));
+
+                var box = new Border
+                {
+                    Height = OpH,
+                    Background = DisevFlow.Ends.Contains(op.Kind) ? EndFill : BlockFill,
+                    BorderBrush = StrokeBrush,
+                    BorderThickness = new Thickness(1),
+                    Cursor = Cursors.Hand,
+                    ToolTip = op.Text,
+                    Child = new TextBlock
+                    {
+                        Text = Short(op.Text),
+                        Foreground = Brushes.White,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(Pad, 0, Pad, 0),
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    },
+                };
+                // 상자를 누르면 노드 첫 명령이 아니라 그 명령을 고른다 — 겉 노드 손은 안 돌게 막는다.
+                int offset = op.Offset;
+                box.MouseLeftButtonUp += (_, args) => { args.Handled = true; pick(offset); };
+                stack.Children.Add(box);
+            }
+            return stack;
+        }
+
         if (node.Kind == DisevFlow.NodeKind.Decision)
         {
             var grid = new Grid { Width = size.Width, Height = size.Height, Background = Brushes.Transparent };
@@ -229,30 +276,38 @@ internal static class DisevFlowView
             return grid;
         }
 
+        // 남은 것은 덩이 밖 자리뿐이다.
         var lines = new StackPanel { Margin = new Thickness(Pad, Pad - 1, Pad, 0) };
-        if (node.Kind == DisevFlow.NodeKind.Outside)
-            lines.Children.Add(Text(node.Title));
-        else
-        {
-            bool cut = node.Ops.Count > MaxLines;
-            foreach (var op in node.Ops.Take(cut ? MaxLines - 1 : MaxLines)) lines.Children.Add(Text(Short(op.Text)));
-            if (cut) lines.Children.Add(Text($"… 외 {node.Ops.Count - (MaxLines - 1)}줄"));
-        }
+        lines.Children.Add(Text(node.Title));
 
         return new Border
         {
             Width = size.Width,
             Height = size.Height,
-            Background = node.Kind switch
-            {
-                DisevFlow.NodeKind.End => EndFill,
-                DisevFlow.NodeKind.Outside => OutsideFill,
-                _ => BlockFill,
-            },
+            Background = OutsideFill,
             BorderBrush = StrokeBrush,
             BorderThickness = new Thickness(1),
             Child = lines,
         };
+    }
+
+    /// <summary>쌓인 상자 사이의 작은 아래 화살.</summary>
+    private static Canvas DownArrow(double width)
+    {
+        double cx = width / 2;
+        var canvas = new Canvas { Width = width, Height = OpGap };
+        canvas.Children.Add(new Line
+        {
+            X1 = cx, Y1 = 0, X2 = cx, Y2 = OpGap - 5,
+            Stroke = LineBrush,
+            StrokeThickness = 1.2,
+        });
+        canvas.Children.Add(new Polygon
+        {
+            Fill = LineBrush,
+            Points = [new(cx, OpGap), new(cx - 4, OpGap - 6), new(cx + 4, OpGap - 6)],
+        });
+        return canvas;
     }
 
     private static TextBlock Text(string text) => new()

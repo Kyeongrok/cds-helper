@@ -541,10 +541,22 @@ public sealed class SeaBattle
     }
 
     /// <summary>
+    /// <b>바다 괴물과의 판</b>인지(원본 판 종류 0). 괴물은 달아나지 않는다.
+    /// </summary>
+    /// <remarks>
+    /// 발견 대본이 거는 해전(<c>0D 0D [인물]</c>)이 이 갈래다 — 크라켄·시서펜트·식인상어·맨터.
+    /// 괴물이 「제독이 무서워서 도망간 것 같군요」 하고 사라지면 발견이 그대로 물거품이 된다.
+    /// </remarks>
+    public bool Monster { get; set; }
+
+    /// <summary>
     /// 물러설 배인지 — 내구 10 이하, 승원이 필요승원+10 이하, 또는 아군 수/3 이 적 수 이상.
+    /// <b>괴물은 안 물러선다.</b>
     /// </summary>
     private bool WantsRetreat(Ship ship, bool mine)
     {
+        if (!mine && Monster) return false;
+
         int ours = Ships.Count(s => s.Mine && s.CanAct);
         int theirs = Ships.Count(s => !s.Mine && s.CanAct);
         int enemyCount = mine ? ours : theirs;      // 배의 편

@@ -199,7 +199,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         Background = Brushes.Black;
 
         // 바다는 (0x40, 0x20) 에 깔린다 — 틀 아래로 들어간 만큼은 가려진다.
-        Put(_field, art.Sea(), 0x40, 0x20, CombatArt.SeaWidth, CombatArt.SeaHeight, z: 0);
+        Put(_field, art.Sea(), SeaLeft, SeaTop, CombatArt.SeaWidth, CombatArt.SeaHeight, z: 0);
 
         // 틀 — 넓은 화면(800) 갈래의 파트 4 를 자른 것이다(볼트 61 의 5-2 절).
         //   위 띠 (0,0) 800x32 · 기둥 머리 (0,32)·(736,32) 64x32 · 기둥 (0,64)·(736,64) 64x504 · 아래 띠 (0,560)
@@ -467,14 +467,31 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         Scroll(x, y);
     }
 
-    /// <summary>판이 밀린 만큼을 박는다.</summary>
+    /// <summary>
+    /// 판이 밀린 만큼을 박는다. <b>바다 그림 밖으로는 안 민다</b> — 더 밀면 그림이 끝나
+    /// 검은 바닥이 드러난다.
+    /// </summary>
+    /// <remarks>
+    /// 바다(<c>800x600</c>)는 <c>(0x40, 0x20)</c> 에 깔리므로 틀 안쪽(<c>64~736</c> ·
+    /// <c>32~560</c>)을 덮는 것은 가로 128 · 세로 72 까지다. 칸이 차지하는 넓이로 잰
+    /// 값(136 · 80)보다 조금 작은데, 그 여덟 점이 <b>오른쪽·아래에 검은 띠</b>로 났다.
+    /// 끝 칸은 이 안에서도 다 드러난다.
+    /// </remarks>
     private void Scroll(double x, double y)
     {
-        _scrollX = Math.Clamp(x, 0, Math.Max(0, WorldWidth - (ScreenWidth - EdgeBand * 2)));
-        _scrollY = Math.Clamp(y, 0, Math.Max(0, WorldHeight - (BottomBandTop - BandHeight)));
+        double cellsX = WorldWidth - (ScreenWidth - EdgeBand * 2);
+        double cellsY = WorldHeight - (BottomBandTop - BandHeight);
+        double seaX = SeaLeft + CombatArt.SeaWidth - (ScreenWidth - EdgeBand);
+        double seaY = SeaTop + CombatArt.SeaHeight - BottomBandTop;
+
+        _scrollX = Math.Clamp(x, 0, Math.Max(0, Math.Min(cellsX, seaX)));
+        _scrollY = Math.Clamp(y, 0, Math.Max(0, Math.Min(cellsY, seaY)));
         _slide.X = -_scrollX;
         _slide.Y = -_scrollY;
     }
+
+    /// <summary>바다 그림이 깔리는 자리(<c>0x40, 0x20</c>).</summary>
+    private const double SeaLeft = 0x40, SeaTop = 0x20;
 
     /// <summary>판이 밀린 만큼.</summary>
     private double _scrollX, _scrollY;
@@ -1165,8 +1182,9 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     public static Outcome Fight(Window owner, Player player, in Enemy foe, Random rng, uint[]? face,
                                 (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
                                 uint[]? foeFace = null, Func<Window, bool?>? duel = null,
-                                BgmPlayer? bgm = null) =>
-        Engage(owner, player, foe, rng, face, seaWind, sfx, foeFace, duel: duel, bgm: bgm).Outcome;
+                                BgmPlayer? bgm = null, bool monster = false) =>
+        Engage(owner, player, foe, rng, face, seaWind, sfx, foeFace, duel: duel, bgm: bgm,
+               monster: monster).Outcome;
 
     /// <summary>
     /// 해전을 벌이고 끝의 알맹이를 낸다. 그림을 못 읽었으면 도망친 것으로 치고 값 치르기는 안 부른다.
@@ -1176,7 +1194,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     public static Report Engage(Window owner, Player player, in Enemy foe, Random rng, uint[]? face,
                                 (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
                                 uint[]? foeFace = null, Action<Window, Report>? settle = null,
-                                Func<Window, bool?>? duel = null, BgmPlayer? bgm = null)
+                                Func<Window, bool?>? duel = null, BgmPlayer? bgm = null,
+                                bool monster = false)
     {
         var art = CombatArt.Open();
         if (art == null)
@@ -1188,6 +1207,9 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         var battle = seaWind is { } w
             ? SeaBattle.FromSeaWind(rng, w.Dir, w.Strength)
             : new SeaBattle(rng, rng.Next(SeaBattle.Ways), rng.Next(3) + 1);
+
+        // 바다 괴물과의 판은 달아나는 길이 없다(원본 판 종류 0).
+        battle.Monster = monster;
 
         // 제독 값(0x00441D8A) — 제독·부관(부하 첫 자리) 가운데 큰 값이다. 능력은 +1, 기능은 그대로,
         // 운세칸[0] 은 제독 것(0x00477FE0). 무력도 +1 이다(예전에는 +1 을 안 먹였다).

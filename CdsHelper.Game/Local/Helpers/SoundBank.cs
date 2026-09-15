@@ -83,10 +83,24 @@ public sealed class SoundBank : IDisposable
     /// </remarks>
     public const int BandNoticePart = 0x1D - WaveBank.FirstSoundId;
 
-    private readonly WaveBank _bank;
+    private readonly WaveBank? _bank;
     private readonly SoundPlayer _player = new();
 
-    private SoundBank(WaveBank bank) => _bank = bank;
+    private SoundBank(WaveBank? bank) => _bank = bank;
+
+    /// <summary>
+    /// 뽑아 둔 효과음이 든 곳 — <b>게임 폴더가 없어도</b> 소리가 나게 미리 풀어 둔 것이다
+    /// (<c>tools/extract_sfx.py</c>). 배 그림 <c>asset/ship</c>·아이템 그림
+    /// <c>asset/item</c> 과 같은 길이다.
+    /// </summary>
+    /// <remarks>파일 이름은 <b>파트 번호</b>고, 사운드 ID 는 여기에 28 을 더한 값이다.</remarks>
+    public const string AssetDirectory = "asset/sfx";
+
+    /// <summary>뽑아 둔 효과음 수(WAVES.CDS 의 파트 수와 같다).</summary>
+    public const int AssetParts = 50;
+
+    /// <summary>뽑아 둔 것을 읽어 든 벌. 한 번 읽은 것은 들고 있는다.</summary>
+    private readonly byte[]?[] _asset = new byte[]?[AssetParts];
 
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
@@ -95,9 +109,28 @@ public sealed class SoundBank : IDisposable
     public static SoundBank? Open(string gameDirectory)
     {
         LastError = "";
-        var bank = WaveBank.LoadFromDirectory(gameDirectory);
-        if (bank == null) { LastError = WaveBank.LastError; return null; }
-        return new SoundBank(bank);
+
+        var bank = gameDirectory.Length > 0 ? WaveBank.LoadFromDirectory(gameDirectory) : null;
+        if (bank != null) return new SoundBank(bank);
+
+        // 게임 폴더가 없거나 WAVES.CDS 를 못 읽으면 <b>뽑아 둔 것</b>으로 물러선다.
+        LastError = gameDirectory.Length > 0 ? WaveBank.LastError : "게임 폴더를 모릅니다";
+        return Directory.Exists(Path.Combine(AppContext.BaseDirectory, AssetDirectory))
+            ? new SoundBank(null)
+            : null;
+    }
+
+    /// <summary>뽑아 둔 효과음 한 자락. 없으면 null.</summary>
+    private byte[]? AssetWav(int part)
+    {
+        if (part < 0 || part >= AssetParts) return null;
+        if (_asset[part] is { } held) return held;
+
+        var path = Path.Combine(AppContext.BaseDirectory, AssetDirectory, $"sfx-{part:D2}.wav");
+        if (!File.Exists(path)) return null;
+
+        try { return _asset[part] = File.ReadAllBytes(path); }
+        catch (Exception) { return null; }
     }
 
     private static SoundBank? _shared;
@@ -109,7 +142,8 @@ public sealed class SoundBank : IDisposable
     /// </summary>
     public static SoundBank? Shared(string gameDirectory)
     {
-        if (string.IsNullOrEmpty(gameDirectory)) return null;
+        // 폴더를 몰라도 연다 — 뽑아 둔 것으로 소리는 난다.
+        gameDirectory ??= "";
         if (_shared != null && _sharedDirectory == gameDirectory) return _shared;
 
         _shared?.Dispose();
@@ -128,7 +162,8 @@ public sealed class SoundBank : IDisposable
         if (!GameSettings.SfxEnabled) return;
         try
         {
-            var wav = _bank.Wav(part);
+            // 게임 것을 먼저 보고, 없으면 뽑아 둔 것으로 낸다.
+            var wav = _bank?.Wav(part) ?? AssetWav(part);
             if (wav == null) return;
 
             // SoundPlayer 는 스트림을 물고 있으므로 틀 때마다 새로 잡아 넘긴다.
