@@ -35,9 +35,10 @@ public sealed class DisevBook
 
     /// <summary>
     /// 알맹이 모양 판. 1 은 파트 통째 <c>Hex</c>, 2 는 덩이별 16진 글, 3 은 덩이마다 분기로 가른
-    /// 줄 나무(<see cref="DisevTree"/>)다. 옛 판도 읽어서 새 판으로 옮겨 적는다.
+    /// 줄 나무(<see cref="DisevTree"/>), 4 는 그 줄을 명령 하나씩 떼고 음원·EVSTILL·대사를 칸으로 푼 것이다.
+    /// 옛 판도 읽어서 새 판으로 옮겨 적는다.
     /// </summary>
-    private const int SnapshotVersion = 3;
+    private const int SnapshotVersion = 4;
 
     /// <summary>대본 한 파트.</summary>
     /// <param name="Index">발견물 번호이자 파트 번호(0~273).</param>

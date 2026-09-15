@@ -32,7 +32,16 @@ namespace CdsHelper.Game.Engine.Disev;
 /// 그 분기는 날바이트(상대값 그대로) 줄로 둔다. 되짠 바이트가 한 바이트라도 다르면
 /// 덩이 통째로 한 줄에 둔다(<see cref="Build"/>).
 ///
-/// 분기가 아닌 명령은 이어진 것끼리 한 줄로 묶는다. 명령 하나씩 뜯는 것은 나중 일이다.
+/// 분기가 아닌 명령은 <b>명령 하나에 한 줄</b>이다. 뜻을 아는 것은 칸으로 푼다.
+/// <code>
+///   음원 재생   0E 03 [u16]                    → { "Sound": 75 }
+///   EVSTILL     00 1F [u16]                    → { "EvStill": 3 }
+///   대사        [플래그] 0A [화자 81 46] 글 00  → { "Speaker": "부관", "Flag": 11, "Say": "…" }
+/// </code>
+/// 화자는 <see cref="DisevScript.SpeakerNames"/> 에 있으면 이름, 없으면 <c>SpeakerTag</c> 에 16진이다.
+/// <c>Flag</c> 는 흔한 <c>00 0A</c> 면 안 적고, 플래그 바이트 없이 <c>0A</c> 로 바로 열면 <c>null</c> 로 적는다.
+/// 글의 전각 사이띄개는 반각으로 적는다. 칸으로 풀어 되짠 것이 원본과 한 바이트라도
+/// 다르면 그 명령은 16진 글로 둔다. 나머지 명령도 16진 글 한 줄씩이다.
 /// </remarks>
 public static class DisevTree
 {
@@ -68,10 +77,89 @@ public static class DisevTree
         return Append(output, lines, ref error) ? output.ToArray() : null;
     }
 
+    /// <summary>
+    /// 칸으로 풀 수 있는 명령이면 그 줄을 짓는다 — 음원 재생 · EVSTILL · 대사. 못 풀면 null.
+    /// </summary>
+    private static DisevLine? Describe(byte[] raw, string kind)
+    {
+        switch (kind)
+        {
+            case "음원 재생" when raw is [0x0E, 0x03, _, _]:
+                return new DisevLine { Sound = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
+
+            case "EVSTILL 이미지 표시" when raw is [0x00, 0x1F, _, _]:
+                return new DisevLine { EvStill = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
+
+            case "대사":
+            {
+                // 편집기 칸과 같은 가름 — [창 플래그] 0A [화자 태그 81 46] 본문 00.
+                var (flag, tag) = DisevForm.SplitDialogue(raw);
+                int textStart = (flag == null ? 1 : 2) + (tag.Length > 0 ? tag.Length + 2 : 0);
+                int textEnd = raw.Length > 0 && raw[^1] == 0x00 ? raw.Length - 1 : raw.Length;
+                var (_, body) = DisevScript.DecodeDialogue(
+                    raw.AsSpan(textStart, Math.Max(0, textEnd - textStart)), normalize: false);
+
+                // 전각 사이띄개는 JSON 에서 　 으로 깨져 보이므로 반각으로 적는다 —
+                // 되짤 때 BuildDialogue 가 반각을 전각으로 올리니 바이트는 같다(원본에 반각이 있으면 16진으로 남는다).
+                var line = new DisevLine { Say = body.Replace('　', ' '), Flag = flag };
+                if (tag.Length > 0)
+                {
+                    if (DisevScript.SpeakerNames.TryGetValue(Convert.ToHexString(tag), out var name)) line.Speaker = name;
+                    else line.SpeakerTag = DisevScript.Hex(tag);
+                }
+                return line;
+            }
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>화자 이름 → 태그 16진(띄어쓰기 없음). 이름이 겹치면 먼저 것.</summary>
+    private static readonly Dictionary<string, string> SpeakerTags = BuildSpeakerTags();
+
+    private static Dictionary<string, string> BuildSpeakerTags()
+    {
+        var tags = new Dictionary<string, string>();
+        foreach (var (tag, name) in DisevScript.SpeakerNames) tags.TryAdd(name, tag);
+        return tags;
+    }
+
     private static bool Append(List<byte> output, IReadOnlyList<DisevLine> lines, ref string error)
     {
         foreach (var line in lines)
         {
+            if (line.Sound is { } sound)
+            {
+                output.AddRange([0x0E, 0x03, (byte)sound, (byte)(sound >> 8)]);
+                continue;
+            }
+
+            if (line.EvStill is { } still)
+            {
+                output.AddRange([0x00, 0x1F, (byte)still, (byte)(still >> 8)]);
+                continue;
+            }
+
+            if (line.Say is { } say)
+            {
+                byte[]? tag = line.Speaker != null
+                    ? SpeakerTags.TryGetValue(line.Speaker, out var known) ? Convert.FromHexString(known) : null
+                    : line.SpeakerTag != null ? DisevScript.ParseHex(line.SpeakerTag) : [];
+                if (tag == null)
+                {
+                    error = $"화자를 모릅니다: {line.Speaker ?? line.SpeakerTag}";
+                    return false;
+                }
+                if (line.Flag is < 0 or > 255)
+                {
+                    error = $"창 플래그는 0 ~ 255 라야 합니다: {line.Flag}";
+                    return false;
+                }
+                output.AddRange(DisevForm.BuildDialogue(line.Flag, tag, say));
+                continue;
+            }
+
             if (line.If == null)
             {
                 if (DisevScript.ParseHex(line.Hex ?? "") is not { } bytes)
@@ -129,21 +217,17 @@ public static class DisevTree
             var lines = new List<DisevLine>();
             if (!_index.TryGetValue(from, out int i)) return (lines, false);
 
-            int run = from;
-            void Flush(int until)
-            {
-                if (until > run) lines.Add(new DisevLine { Hex = DisevScript.Hex(_chunk.AsSpan(run, until - run)) });
-            }
-
             for (; i < _ops.Count && _ops[i].Offset < to; i++)
             {
                 var op = _ops[i];
                 int end = op.Offset + op.Length;
                 if (_targets[i] is not { } target || target <= end || target > to || !IsBoundary(target) ||
                     !Contained(end, target))
+                {
+                    lines.Add(LineOf(op));
                     continue;
+                }
 
-                Flush(op.Offset);
                 var (no, noEnds) = Sequence(end, target);
                 // 모르는 조건은 물음에 「거짓이면 뜀」이 붙어 오는데 Yes=거짓 이 같은 말이라 뗀다.
                 var (title, jump, fall) = DisevFlow.Question(_chunk, op);
@@ -168,14 +252,21 @@ public static class DisevTree
 
                 // 멎지 않으면 뛴 자리에서 다시 만난다 — 뒤는 이어 적는다.
                 if (target >= to) return (lines, false);
-                run = target;
                 i = _index[target] - 1;
             }
 
-            Flush(to);
             bool ends = lines.Count > 0 && lines[^1].If == null && LastOpBefore(to) is { } last &&
                         DisevFlow.Ends.Contains(last.Kind);
             return (lines, ends);
+        }
+
+        /// <summary>명령 하나를 줄로. 칸으로 푼 것이 되짜서 같지 않으면 16진 글로 둔다.</summary>
+        private DisevLine LineOf(DisevScript.Op op)
+        {
+            var raw = _chunk.AsSpan(op.Offset, Math.Min(op.Length, _chunk.Length - op.Offset)).ToArray();
+            var hex = new DisevLine { Hex = DisevScript.Hex(raw) };
+            if (Describe(raw, op.Kind) is not { } line) return hex;
+            return Flatten([line], out _) is { } back && back.AsSpan().SequenceEqual(raw) ? line : hex;
         }
 
         private bool IsBoundary(int offset) => offset == _chunk.Length || _index.ContainsKey(offset);
@@ -209,14 +300,33 @@ public static class DisevTree
 /// </summary>
 /// <remarks>
 /// JSON 에서 날바이트 줄은 <b>16진 글 하나</b>, 분기는
-/// <c>{ "If", "Note", "Yes": [...], "No": [...] }</c> 이다. <c>Note</c> 는 사람이 읽으라고 적는
-/// 것이라 읽을 때 안 본다.
+/// <c>{ "If", "Note", "Yes": [...], "No": [...] }</c>, 칸으로 푼 명령은 <c>{ "Sound" }</c> ·
+/// <c>{ "EvStill" }</c> · <c>{ "Speaker", "Flag", "Say" }</c> 이다. <c>Note</c> 는 사람이 읽으라고
+/// 적는 것이라 읽을 때 안 본다.
 /// </remarks>
 [JsonConverter(typeof(DisevLineConverter))]
 public sealed class DisevLine
 {
-    /// <summary>날바이트 줄. 분기면 null.</summary>
+    /// <summary>날바이트 줄. 다른 갈래면 null.</summary>
     public string? Hex { get; set; }
+
+    /// <summary>음원 재생(<c>0E 03</c>) 슬롯.</summary>
+    public int? Sound { get; set; }
+
+    /// <summary>EVSTILL 이미지 표시(<c>00 1F</c>) 슬롯.</summary>
+    public int? EvStill { get; set; }
+
+    /// <summary>대사 본문 — 무손실로 푼 글(<see cref="DisevForm.BuildDialogue"/> 가 되돌린다).</summary>
+    public string? Say { get; set; }
+
+    /// <summary>대사 화자 이름(<see cref="DisevScript.SpeakerNames"/>).</summary>
+    public string? Speaker { get; set; }
+
+    /// <summary>이름을 모르는 화자 태그 16진.</summary>
+    public string? SpeakerTag { get; set; }
+
+    /// <summary>대사 창 플래그. null 이면 <c>0A</c> 로 바로 연다. JSON 에서 키가 없으면 0 이다.</summary>
+    public int? Flag { get; set; }
 
     /// <summary>분기 머리 — 상대값 두 바이트를 뗀 명령 바이트. 날바이트 줄이면 null.</summary>
     public string? If { get; set; }
@@ -245,13 +355,20 @@ public sealed class DisevLineConverter : JsonConverter<DisevLine>
         if (reader.TokenType == JsonTokenType.String) return new DisevLine { Hex = reader.GetString() };
         if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException("줄은 글이나 분기 객체라야 합니다");
 
-        var line = new DisevLine { Yes = [], No = [] };
+        // Flag 는 흔한 0 을 안 적으므로 키가 없으면 0 이다. 플래그 바이트가 없는 대사만 null 로 적힌다.
+        var line = new DisevLine { Flag = 0 };
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             string? name = reader.GetString();
             reader.Read();
             switch (name)
             {
+                case "Sound": line.Sound = reader.GetInt32(); break;
+                case "EvStill": line.EvStill = reader.GetInt32(); break;
+                case "Say": line.Say = reader.GetString(); break;
+                case "Speaker": line.Speaker = reader.GetString(); break;
+                case "SpeakerTag": line.SpeakerTag = reader.GetString(); break;
+                case "Flag": line.Flag = reader.TokenType == JsonTokenType.Null ? null : reader.GetInt32(); break;
                 case "If": line.If = reader.GetString(); break;
                 case "Note": line.Note = reader.GetString(); break;
                 case "Yes": line.Yes = JsonSerializer.Deserialize<List<DisevLine>>(ref reader, options) ?? []; break;
@@ -259,12 +376,46 @@ public sealed class DisevLineConverter : JsonConverter<DisevLine>
                 default: reader.Skip(); break;
             }
         }
-        if (line.If == null) throw new JsonException("분기 객체에 If 가 없습니다");
+        if (line.If == null && line.Sound == null && line.EvStill == null && line.Say == null)
+            throw new JsonException("줄 객체에 If · Sound · EvStill · Say 가운데 하나가 있어야 합니다");
+        if (line.If != null)
+        {
+            line.Yes ??= [];
+            line.No ??= [];
+        }
         return line;
     }
 
     public override void Write(Utf8JsonWriter writer, DisevLine value, JsonSerializerOptions options)
     {
+        if (value.Sound is { } sound)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("Sound", sound);
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (value.EvStill is { } still)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("EvStill", still);
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (value.Say is { } say)
+        {
+            writer.WriteStartObject();
+            if (value.Speaker != null) writer.WriteString("Speaker", value.Speaker);
+            if (value.SpeakerTag != null) writer.WriteString("SpeakerTag", value.SpeakerTag);
+            if (value.Flag is not { } flag) writer.WriteNull("Flag");
+            else if (flag != 0) writer.WriteNumber("Flag", flag);
+            writer.WriteString("Say", say);
+            writer.WriteEndObject();
+            return;
+        }
+
         if (value.If == null)
         {
             writer.WriteStringValue(value.Hex ?? "");

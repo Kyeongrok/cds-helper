@@ -279,7 +279,15 @@ public sealed class ConfirmDialog : GameWindow
                            uint[]? face = null, Action<Window>? place = null)
     {
         var box = new ConfirmDialog(text, title, yesNo: true, face, 0) { Owner = owner };
-        if (place != null) box.Loaded += (_, _) => place(box);
+        if (place != null)
+        {
+            // <b>Loaded 한 번으로는 모자란다.</b> 크기를 알맹이에 맞춰 잡는 창이라
+            // (SizeToContent) WPF 가 그 뒤에 주인 창 가운데로 <b>다시 앉히는데</b>, 그러면
+            // 우리가 잡아 둔 자리가 지워진다. 첫 그림이 나간 뒤에 한 번 더 잡는다.
+            box.WindowStartupLocation = WindowStartupLocation.Manual;
+            box.Loaded += (_, _) => place(box);
+            box.ContentRendered += (_, _) => place(box);
+        }
         return box.ShowDialog() == true;
     }
 

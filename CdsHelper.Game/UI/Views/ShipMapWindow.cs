@@ -1807,15 +1807,39 @@ public sealed class ShipMapWindow : Window
             if (InfoMenu.IsOpen) { InfoMenu.Close(); e.Handled = true; return; }
         }
 
-        if (e.Key != Key.V || e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
+        if (e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
         if (e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase) return;
         if (!ReferenceEquals(_screen.Content, _mapRoot)) return;
 
-        bool paused = _host.Paused;
-        _host.Paused = true;               // 묻는 동안 배가 흘러가지 않게
-        try { SaveByKey(this); }
-        finally { _host.Paused = paused; }
+        // <b>이 창은 GameWindow 가 아니다</b> — 공용 글쇠 손(GameWindow 의 클래스 손)이
+        // 여기까지 오지 않는다. 그래서 지도 창에서는 이 자리에서 같은 글쇠를 받는다.
+        // 예전에는 지도 글쇠가 <b>창이 하나 떠 있을 때만</b> 먹어, 커맨드를 열고 눌러야 했다.
+        if (e.Key == KeyOf(GameSettings.MapKey, Key.D))
+        {
+            e.Handled = true;
+            Hold(ShowDiscoveryMap);
+            return;
+        }
+
+        if (e.Key != KeyOf(GameSettings.SaveKey, Key.V)) return;
+
         e.Handled = true;
+        Hold(() => SaveByKey(this));
+    }
+
+    /// <summary>글쇠 이름을 글쇠로. 비었거나 모르는 이름이면 기본값이다.</summary>
+    private static Key KeyOf(string name, Key fallback) =>
+        !string.IsNullOrWhiteSpace(name) && Enum.TryParse(name, ignoreCase: true, out Key key)
+            ? key
+            : fallback;
+
+    /// <summary>창이 떠 있는 동안 배를 세운다 — 묻는 사이에 흘러가지 않게.</summary>
+    private void Hold(Action show)
+    {
+        bool paused = _host.Paused;
+        _host.Paused = true;
+        try { show(); }
+        finally { _host.Paused = paused; }
     }
 
     public void LoadGame()
@@ -3663,7 +3687,8 @@ public sealed class ShipMapWindow : Window
 
         var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
-                                            foeFace, SeaDuel(person, name, foeFace), _game.Bgm);
+                                            foeFace, SeaDuel(person, name, foeFace), _game.Bgm,
+                                            monster: true);
 
         if (outcome != SeaCombatDialog.Outcome.Defeated)
             return (outcome == SeaCombatDialog.Outcome.Won, false);
