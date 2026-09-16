@@ -165,7 +165,8 @@ public static class GameSave
         List<int>? Abilities = null, int? JobIndex = null, int? Age = null,
         int? BirthMonth = null, int? BirthDay = null, int? Blood = null, int? Nation = null,
         List<Support.Local.Models.Player.Cargo>? Cargo = null,
-        Dictionary<int, List<int>>? TradeStock = null);
+        Dictionary<int, List<int>>? TradeStock = null,
+        List<int>? OpenedHints = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -223,7 +224,8 @@ public static class GameSave
                             [.. player.Abilities], player.JobIndex, player.Age,
                             player.BirthMonth, player.BirthDay, player.Blood, player.Nation,
                             Cargo: [.. player.CargoHold],
-                            TradeStock: player.TradeStock.ToDictionary(e => e.Key, e => e.Value.ToList()));
+                            TradeStock: player.TradeStock.ToDictionary(e => e.Key, e => e.Value.ToList()),
+                            OpenedHints: [.. player.OpenedHints]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

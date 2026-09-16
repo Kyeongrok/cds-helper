@@ -61,9 +61,26 @@ public sealed class DiscoveryLog
 
     /// <summary>
     /// 그 발견물이 <b>열려 있는지</b>. 표의 <c>+0x24</c> 가 서 있으면 처음부터 열려 있고,
-    /// 아니면 그것을 가리키는 힌트를 얻어야 열린다.
+    /// 아니면 그것을 가리키는 힌트로 <b>계약을 맺어야</b> 열린다 — 힌트만 쥐고 있는 것으로는
+    /// 안 열린다.
     /// </summary>
     /// <remarks>
+    /// EXE 를 직접 뜯어 확인했다 — 발견물 인스턴스의 열림 깃발(<c>+0x16</c> 비트 <c>0x08</c>,
+    /// <c>0x004AAD20</c> 이 이 깃발을 본다)을 세우는 자리는 실행 파일을 통틀어 <b>둘뿐</b>이다.
+    /// <code>
+    ///   0x004AA9A0   새 판을 열 때 표 +0x24(OpenAtStart)로 세운다
+    ///   0x004ADEE0   계약을 맺을 때(Contract.cs) 그 힌트가 가리키는 발견물에 세운다
+    /// </code>
+    /// 힌트를 얻는 자리(도서관 <c>LibraryDialog</c>, 술집)에는 이 깃발을 세우는 코드가
+    /// 아예 없다 — 힌트는 <b>계약을 맺을 때 고를 거리</b>일 뿐, 그 자체로는 아무것도 열지
+    /// 않는다. 담비처럼 손쉬운 것도 마찬가지다 — 계약이 하도 쉽게 받아들여져 눈에 안 띌
+    /// 뿐이지, 희망봉 같은 큰 발견과 매한가지로 계약 없이는 자리에 가도 안 잡힌다.
+    ///
+    /// 계약이 기한을 넘기거나 깨져도 이 깃발을 지우는 코드가 없어(<c>AND</c> 명령이 아예
+    /// 없다) 한 번 열리면 계속 열려 있다. 그래서 지금 <see cref="Player.Contract"/> 가
+    /// 아니라 <b>맺어 본 적 있는 힌트를 전부</b> 담는 <see cref="Player.OpenedHints"/> 로
+    /// 따진다.
+    ///
     /// 힌트와 발견물은 번호로 짝을 맺는다 — 힌트의 <see cref="HintTable.Hint.Discovery"/> 와
     /// 발견물의 <see cref="DiscoveryTable.Record.Hint"/> 가 같으면 그 짝이다.
     /// </remarks>
@@ -72,7 +89,7 @@ public sealed class DiscoveryLog
         if (row.OpenAtStart) return true;
         if (_hints == null) return false;
 
-        foreach (int id in player.Hints)
+        foreach (int id in player.OpenedHints)
             if (_hints.Find(id) is { } hint && hint.Discovery == row.Hint) return true;
         return false;
     }
