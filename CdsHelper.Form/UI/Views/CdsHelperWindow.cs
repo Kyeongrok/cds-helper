@@ -23,6 +23,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_MovieBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PortraitBookMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_CityCultureMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_NationEditMenu, Type = typeof(MenuItem))]
@@ -56,6 +57,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
+    private const string PART_MovieBankMenu = "PART_MovieBankMenu";
     private const string PART_PortraitBookMenu = "PART_PortraitBookMenu";
     private const string PART_CityCultureMenu = "PART_CityCultureMenu";
     private const string PART_NationEditMenu = "PART_NationEditMenu";
@@ -154,6 +156,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_WaveBankMenu) is MenuItem waveBankMenu)
         {
             waveBankMenu.Click += OnWaveBankMenuClick;
+        }
+
+        if (GetTemplateChild(PART_MovieBankMenu) is MenuItem movieBankMenu)
+        {
+            movieBankMenu.Click += OnMovieBankMenuClick;
         }
 
         if (GetTemplateChild(PART_PortraitBookMenu) is MenuItem portraitBookMenu)
@@ -363,6 +370,16 @@ public class CdsHelperWindow : CdsWindow
     private void OnWaveBankMenuClick(object sender, RoutedEventArgs e)
     {
         var dialog = new WaveBankDialog
+        {
+            Owner = this
+        };
+        dialog.ShowDialog();
+    }
+
+    // 게임 AVI 동영상을 늘어놓고, 갈아 끼울 동영상을 asset/movie 에 올리는 창.
+    private void OnMovieBankMenuClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new MovieBankDialog
         {
             Owner = this
         };

@@ -1,4 +1,4 @@
-using CdsHelper.Game.Local.Helpers;
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Market;
@@ -20,7 +20,10 @@ namespace CdsHelper.Game.Engine.Market;
 ///
 /// <b>아직 안 옮긴 것</b> — 향신료(인도·향료제도 발견)와 커피·담배·카카오·차(신대륙 발견)의
 /// 발견 뒤 햇수 보정(<c>0x004805D0</c> · <c>0x004807E0</c>), 도시상태 보정(<c>0x00480290</c>,
-/// 우리 도시는 늘 통상이다), 매달 시세가 흔들리는 것, 판매 게이트를 켜는 발견 대본 명령.
+/// 우리 도시는 늘 통상이다), 매달 시세가 흔들리는 것.
+///
+/// <b>판매 게이트</b>(<c>0x0058BAB0</c>)는 처음 값(<see cref="TradeTable.OnSale"/>)에 발견 대본이 켠 것
+/// (<see cref="Player.ActiveGoods"/>)을 더해 본다 — 상아는 코끼리의 무덤을 찾기 전까지 교역소에 안 나온다.
 /// </remarks>
 public sealed class TradePost
 {
@@ -89,10 +92,10 @@ public sealed class TradePost
     /// 게임은 도시 형편 비트 0(아는 도시)도 본다. 그 비트는 항해하다 다가서면 켜지는데 우리 쪽은
     /// 판 첫값만 들고 있어, 그대로 보면 나중에 알게 된 도시의 특산품이 영영 안 나온다. 그래서 뺐다.
     /// </remarks>
-    public int SpecialOf(int city)
+    public int SpecialOf(Player player, int city)
     {
         int kind = _table.SpecialOf(city);
-        if (kind < 0 || !_table.OnSale(kind)) return -1;
+        if (kind < 0 || !OnSale(player, kind)) return -1;
         if (_cities is { } rows && (rows.FlagsOf(city) & CityExeTable.UnfoundedBit) != 0) return -1;
         return kind;
     }
@@ -111,14 +114,14 @@ public sealed class TradePost
         if (region < 0) return rows;
 
         var stock = StockOf(player, city);
-        int special = SpecialOf(city);
+        int special = SpecialOf(player, city);
         int cell = 0;
         foreach (int kind in _table.CommonOf(region))
         {
             if (kind == special) continue;
             if (cell >= TradeTable.CommonSlots) break;
-            if (_table.OnSale(kind))
-                rows.Add(new Row(kind, city, cell, BuyPrice(city, kind), stock[cell]));
+            if (OnSale(player, kind))
+                rows.Add(new Row(kind, city, cell, BuyPrice(player, city, kind), stock[cell]));
             cell++;
         }
 
@@ -129,10 +132,15 @@ public sealed class TradePost
 
     private void AddSpecial(Player player, int from, int here, List<Row> rows)
     {
-        int kind = SpecialOf(from);
+        int kind = SpecialOf(player, from);
         if (kind < 0) return;
-        rows.Add(new Row(kind, from, SpecialCell, BuyPrice(here, kind), StockOf(player, from)[SpecialCell]));
+        rows.Add(new Row(kind, from, SpecialCell, BuyPrice(player, here, kind), StockOf(player, from)[SpecialCell]));
     }
+
+    /// <summary>
+    /// 그 교역품을 파는지 — 판매 게이트 <c>0x0058BAB0[교역품]</c>. 처음부터 켜졌거나 발견 대본(<c>01 15</c>)이 켰으면 참.
+    /// </summary>
+    public bool OnSale(Player player, int kind) => _table.OnSale(kind) || player.IsGoodsActive(kind);
 
     /// <summary>그 도시에 교역소 물건이 하나라도 있는지.</summary>
     public bool HasGoods(Player player, int city) => RowsOf(player, city).Count > 0;
@@ -152,12 +160,12 @@ public sealed class TradePost
     /// </code>
     /// cds95-mod 가 리스본에서 대 본 값: 시세 130 · 대포 155 → 매각 201 · 구입 301.
     /// </remarks>
-    public int SellPrice(int city, int kind)
+    public int SellPrice(Player player, int city, int kind)
     {
         int basis = _table.BasePrice(_table.RegionOf(city), kind);
-        if (SpecialOf(city) == kind) basis = Math.Min(basis, _table.SpecialPriceOf(city));
+        if (SpecialOf(player, city) == kind) basis = Math.Min(basis, _table.SpecialPriceOf(city));
         foreach (int inland in _table.InlandOf(city))
-            if (SpecialOf(inland) == kind)
+            if (SpecialOf(player, inland) == kind)
             {
                 basis = Math.Min(basis, _table.SpecialPriceOf(inland));
                 break;
@@ -170,7 +178,7 @@ public sealed class TradePost
     }
 
     /// <summary>구입 단가 — 매각가의 3/2.</summary>
-    public int BuyPrice(int city, int kind) => SellPrice(city, kind) * 3 / 2;
+    public int BuyPrice(Player player, int city, int kind) => SellPrice(player, city, kind) * 3 / 2;
 
     /// <summary>한 개 무게.</summary>
     public int WeightOf(int kind) => _goods.Find(kind)?.Weight ?? 0;
@@ -234,7 +242,7 @@ public sealed class TradePost
     /// <summary>팔 것의 총액 — 매각가는 원산지와 상관없이 이 도시 값이다.</summary>
     public int GainOf(Player player, int city, Deal deal) =>
         deal.Sells.Sum(s => s.Slot >= 0 && s.Slot < player.CargoHold.Count
-                                ? s.Count * SellPrice(city, player.CargoHold[s.Slot].Kind) : 0);
+                                ? s.Count * SellPrice(player, city, player.CargoHold[s.Slot].Kind) : 0);
 
     /// <summary>
     /// 거래를 따져 본다 — 먼저 팔고(번 돈으로 산다) 그 다음 산다. 아무것도 바꾸지 않는다.

@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Engine.Sea;
+﻿namespace CdsHelper.Game.Engine.Sea;
 
 /// <summary>
 /// 지도에 보이는 인물 함대와의 만남 — 운세 칸, 해전 뒤 명성·악명·전리품, 우호 거래 값의 셈.
@@ -56,6 +56,63 @@ public static class FleetRaid
             slots[k] = Math.Clamp(ZodiacFortune[zodiac, k] + BloodFortune[b, k], 0, 2);
         return slots;
     }
+
+    /// <summary>별자리 경계(<c>0x00547260</c>, 월*100+일, 3월 21일 목양좌부터 열둘).</summary>
+    private static readonly (int From, int To)[] ZodiacRanges =
+    [
+        (321, 420), (421, 521), (522, 621), (622, 722), (723, 822), (823, 923),
+        (924, 1023), (1024, 1122), (1123, 1221), (1222, 1320), (1321, 1418), (1419, 1520),
+    ];
+
+    /// <summary>
+    /// 운명 코드마다 성미 한 칸 보정(<c>0x0051ACA0</c> 32바이트 줄의 <c>+0x18</c> 칸 · <c>+0x1C</c> 값).
+    /// 앞의 여섯 dword 는 능력치 보정이라 여기서는 안 쓴다. 16~31 은 서른여섯부터의 줄이다.
+    /// </summary>
+    private static readonly (int Slot, int Add)[] FortuneCodeBonus =
+    [
+        (0, 0), (1, 1), (7, -1), (3, -1), (0, 1), (1, -1), (3, 1), (2, -1),
+        (5, -1), (4, 1), (2, 1), (6, 1), (7, 1), (4, -1), (0, -1), (5, 1),
+        (6, 1), (2, 1), (1, -1), (4, -1), (1, 1), (2, -1), (7, -1), (5, 1),
+        (0, 0), (3, 1), (3, -1), (7, 1), (5, -1), (4, 1), (6, -1), (0, 1),
+    ];
+
+    /// <summary>
+    /// <b>제독</b>의 성미 여덟 칸(<c>vtbl+0x24</c> = <c>0x0047CB70</c>). 여급 궁합·델포이 계시가 이 값이다.
+    /// </summary>
+    /// <remarks>
+    /// NPC 식(<see cref="FortuneOf"/>)과 별자리 잡는 법이 다르다 — 제독은 <b>생일</b>로 잡는다.
+    /// <code>
+    ///   별자리 = 0x0042E620(달, 날)   v = 달*100+날, 321 보다 작으면 +1200, 경계표 0x00547260
+    ///   칸[k]  = 별자리표[별자리][k] + 혈액형표[혈액형][k]           ; 0x00477FE0
+    ///   줄     = 운명 코드(+0x08) + (나이 ≥ 36 ? 16 : 0)             ; 0x0047CAF0
+    ///   칸[줄표[줄].+0x18] += 줄표[줄].+0x1C                         ; 0x0051ACA0
+    ///   칸[k]  = clamp(칸[k], 0, 2)                                  ; 0x0049E540
+    /// </code>
+    /// 1월 1일 · O형 · 운명 코드 0 이면 2,1,2,1,0,0,1,1 — 계시가 「거만·집착·냉혹·편협」이다.
+    /// </remarks>
+    public static int[] AdmiralFortuneOf(int month, int day, int blood, int fortuneCode, int age)
+    {
+        int v = month * 100 + day;
+        if (v < 321) v += 1200;
+        int zodiac = Array.FindIndex(ZodiacRanges, r => r.From <= v && v <= r.To);
+        if (zodiac < 0) zodiac = 0;
+
+        int b = Math.Clamp(blood, 0, 3);
+        var slots = new int[FortuneSlots];
+        for (int k = 0; k < FortuneSlots; k++)
+            slots[k] = ZodiacFortune[zodiac, k] + BloodFortune[b, k];
+
+        int row = Math.Clamp(fortuneCode, 0, 15) + (age >= 36 ? 16 : 0);
+        var (slot, add) = FortuneCodeBonus[row];
+        slots[slot] += add;
+
+        for (int k = 0; k < FortuneSlots; k++) slots[k] = Math.Clamp(slots[k], 0, 2);
+        return slots;
+    }
+
+    /// <summary>제독의 성미 여덟 칸 — <see cref="AdmiralFortuneOf(int,int,int,int,int)"/> 에 제 값을 넣는다.</summary>
+    public static int[] AdmiralFortuneOf(Support.Local.Models.Player player) =>
+        AdmiralFortuneOf(player.BirthMonth, player.BirthDay, player.Blood, player.Fortune, player.Age);
 
     // ── 해전 뒤 — 0x004350F0 (플래그 0) ─────────────────────────────────────
 

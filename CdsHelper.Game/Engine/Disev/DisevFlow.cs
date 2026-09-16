@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.Engine.Disev;
@@ -13,7 +13,7 @@ namespace CdsHelper.Game.Engine.Disev;
 ///   <item>어느 분기·이동이 뛰어 드는 명령</item>
 ///   <item>분기·이동·끝 명령 바로 뒤 명령</item>
 /// </list>
-/// 분기(<c>43 xx</c> 가운데 「이동」이 아닌 것)는 <b>마름모</b>가 된다. 러너가 그렇듯 조건이 서면
+/// 분기(<c>43 xx</c>)는 <b>마름모</b>가 되고, 조건 없는 절대 이동(<c>30 1D</c>)은 화살 하나다. 러너가 그렇듯 조건이 서면
 /// 뛰고(<b>예</b>) 아니면 다음 줄로 간다(<b>아니오</b>) — <c>43 47</c> 이면 미니게임·육상전을
 /// 이겼을 때가 예다(<see cref="DisevRunner"/>).
 /// </remarks>
@@ -51,8 +51,27 @@ public static class DisevFlow
     internal static readonly HashSet<string> Ends =
         ["덩이/갈래 끝", "게임 오버", "이벤트 결과 코드 0", "이벤트 결과 코드 1", "이벤트 결과 코드 2"];
 
-    /// <summary>조건 없이 뛰는 명령(<c>43 45</c>).</summary>
-    private const string Goto = "이동";
+    /// <summary>
+    /// 조건 없이 뛰는 명령(<c>30 1D [u16 v]</c> → 파트 +4+v, <c>0x0040A48D</c>).
+    /// </summary>
+    /// <remarks>
+    /// 예전에는 <c>43 45</c> 를 조건 없는 이동으로 그렸다. 그것은 「결과가 거짓이면 뜀」이라 마름모다.
+    /// </remarks>
+    private const string Goto = "절대 이동";
+
+    /// <summary>
+    /// 흐름도가 쓰는 뛰는 자리 — 분기(<see cref="TargetOf"/>)에 절대 이동을 더한다. <paramref name="data"/> 는 파트 알맹이라야 한다.
+    /// </summary>
+    /// <remarks>
+    /// 절대 이동은 <see cref="TargetOf"/> 에 안 넣는다 — 나무(<see cref="DisevTree"/>)는 덩이만 떼어 읽어
+    /// 자리가 파트 기준이 아니고, 분기처럼 No 길이로 되짜면 값이 틀어진다.
+    /// </remarks>
+    private static int? FlowTargetOf(byte[] data, DisevScript.Op op)
+    {
+        if (op.Kind != Goto) return TargetOf(data, op);
+        if (op.Offset + 4 > data.Length) return null;
+        return 4 + BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(op.Offset + 2));
+    }
 
     /// <summary>
     /// 명령이 뛰어 가는 파트 안 자리. 뛰는 명령이 아니면 null.
@@ -82,7 +101,7 @@ public static class DisevFlow
 
         var index = new Dictionary<int, int>();
         for (int i = 0; i < ops.Count; i++) index[ops[i].Offset] = i;
-        var targets = ops.Select(op => TargetOf(data, op)).ToArray();
+        var targets = ops.Select(op => FlowTargetOf(data, op)).ToArray();
 
         var leaders = new SortedSet<int> { 0 };
         for (int i = 0; i < ops.Count; i++)
@@ -165,6 +184,7 @@ public static class DisevFlow
     /// <c>43</c> 은 뒤 조건 명령을 셈한 뒤 <b>그 값이 0(거짓)일 때만</b> 뛴다(<c>0x0040B19C</c> 가 뜀 표시만
     /// 세우고 <c>0x0040BCF9</c> 가 가른다). 그래서 아는 조건은 <b>뛰는 쪽이 「예」</b>가 되게 물음을 뒤집어 적는다.
     /// <code>
+    ///   43 45        조건 45 = 결과 그대로       → 결과가 거짓(아니오·짐)이면 뛴다
     ///   43 47        조건 47 = 결과가 0         → 이기면(예) 뛴다
     ///   43 12 05     조건 12 05 = 아이템 없음   → 가졌으면 뛴다 (0x00409022)
     ///   43 12 0E     조건 12 0E = 힌트 못 얻음  → 얻었으면 뛴다 (0x00409043)
@@ -177,16 +197,26 @@ public static class DisevFlow
     {
         int U16(int at) => op.Offset + at + 2 <= data.Length
             ? BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(op.Offset + at)) : 0;
-        uint U32(int at) => op.Offset + at + 4 <= data.Length
-            ? BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(op.Offset + at)) : 0;
+        int Byte(int at) => op.Offset + at < data.Length ? data[op.Offset + at] : 0;
 
         return op.Kind switch
         {
-            "예/아니오 응답 분기" => ("결과", Yes, No),
+            "결과 참 시 이동" => ("결과가 참(예·이김)인가", Yes, No),
+            "결과 거짓 시 이동" => ("결과가 거짓(아니오·짐)인가", Yes, No),
+            "이전 조건 참 시 이동" => ("앞 조건이 참이었나", Yes, No),
+            "부관 고용 시 이동" => ("부관이 있나", Yes, No),
+            "선택지 분기" => ($"고른 값이 {Byte(3)} 이 아닌가", Yes, No),
             "아이템 조건 분기" => ($"아이템 {U16(3)} 가졌나", Yes, No),
+            "아이템 미소지 분기" => ($"아이템 {U16(3)} 없나", Yes, No),
             "힌트 조건 분기" => ($"힌트 {U16(3)} 얻었나", Yes, No),
+            "힌트 미활성 분기" => ($"힌트 {U16(3)} 없나", Yes, No),
             "발견물 조건 분기" => ($"발견물 {U16(3)} 찾았나", Yes, No),
-            "소지금 비교 분기" => ($"소지금 {U32(6)} 이상인가", Yes, No),
+            "미발견 분기" => ($"발견물 {U16(3)} 못 찾았나", Yes, No),
+            "기준 연도 분기" => ($"{U16(3)}년 전인가", Yes, No),
+            "연도 상한 분기" => ($"{U16(3)}년 뒤인가", Yes, No),
+            "연도 범위 분기" => ($"{U16(3)}~{U16(6)}년 밖인가", Yes, No),
+            "도시 분기" => ($"지금 도시가 {U16(3)} 이 아닌가", Yes, No),
+            DisevScript.CompareKind => ($"{Condition(op).Replace(" 이면 이동", "")} 인가", Yes, No),
             _ => ($"{Condition(op)} — 거짓이면 뜀", "거짓", "참"),
         };
     }

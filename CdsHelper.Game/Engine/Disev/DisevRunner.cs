@@ -1,4 +1,6 @@
 ﻿using System.IO;
+using System.Buffers.Binary;
+using System.Text.Json.Nodes;
 using System.Windows;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Game.Local.Helpers;
@@ -91,10 +93,23 @@ public sealed class DisevRunner
     /// 기제의 3대 피라미드(파트 26)가 성배 퍼즐 뒤에 이 값으로 갈라진다 — 이기면 앵크를 얻고,
     /// 지면 「왕릉을 침해한 죄를 죽음으로 대신해라!」 뒤 <c>4A</c>(게임 오버)다.
     /// </remarks>
-    private bool _result;
+    /// <remarks>
+    /// <b>밑값은 참이다</b> — 해석기가 들어서며 1 을 넣는다(<c>0x00408125</c>). 예전에는 거짓으로 두고
+    /// 결과를 모르면 43 45 를 늘 뛰게 했는데, 이제 물음(0B 0A)·선택지·판정이 결과를 세우므로 게임대로 둔다.
+    /// </remarks>
+    private bool _result = true;
 
-    /// <summary>이번 대본에서 미니게임이나 육상전이 결과를 남겼는지. 「이동」(43 45)이 본다.</summary>
-    private bool _hasResult;
+    /// <summary>
+    /// 바로 앞 조건의 값 — 해석기의 <c>[ebp-0x14]</c>. 43 뒤 조건을 셀 때마다 <c>0x0040BCD2</c> 가 적고,
+    /// 43 4B 가 읽는다(<c>0x0040B23F</c>).
+    /// </summary>
+    private bool _lastCondition = true;
+
+    /// <summary>
+    /// 다중 선택지(10|18 0A)에서 고른 값 — 고른 자리 + 대본의 밑값이다(<c>[ebp-0x44]</c>, <c>0x00408FB8</c>).
+    /// 43 11 0A [u8] 이 이것과 견준다.
+    /// </summary>
+    private int _choice = -1;
 
     /// <summary>대본이 <c>26 1C 02</c> 로 빌려 준 아군 병력. 없으면 −1(함대 선원을 쓴다).</summary>
     private int _borrowedMen = -1;
@@ -144,6 +159,64 @@ public sealed class DisevRunner
     }
 
     /// <summary>
+    /// 한 줄을 호출로 푼 것 — <see cref="DisevCalls"/> 표가 짓는다.
+    /// </summary>
+    /// <param name="Op">파트 안 자리·길이.</param>
+    /// <param name="Raw">명령 바이트.</param>
+    /// <param name="Call">호출 이름. 분기·절대 이동·모르는 바이트면 null.</param>
+    /// <param name="Args">호출(또는 분기 조건식)의 인자.</param>
+    /// <param name="Condition">분기면 <b>원문 그대로의</b> 조건식 이름 — 이것이 거짓이면 뛴다.</param>
+    /// <param name="Target">분기·절대 이동이 뛰는 파트 안 자리.</param>
+    private sealed record Line(DisevScript.Op Op, byte[] Raw, DisevCall? Call, JsonObject Args,
+                               DisevCall? Condition, int? Target);
+
+    /// <summary>파트 안 한 토막을 줄로 푼다.</summary>
+    private static List<Line> Lines(DisevPart part, int from, int to)
+    {
+        var data = part.Data;
+        var lines = new List<Line>();
+        foreach (var op in DisevScript.Parse(data, from, to))
+        {
+            var raw = data.AsSpan(op.Offset, Math.Min(op.Length, data.Length - op.Offset)).ToArray();
+
+            if (op.Kind == "절대 이동" && raw.Length == 4)
+            {
+                lines.Add(new Line(op, raw, null, [], null, 4 + BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2))));
+                continue;
+            }
+            if (DisevFlow.TargetOf(data, op) is { } target && DisevCalls.ConditionOf(raw[..^2]) is { } condition)
+            {
+                lines.Add(new Line(op, raw, null, condition.Args, condition.Call, target));
+                continue;
+            }
+            var call = DisevCalls.Decode(raw);
+            lines.Add(new Line(op, raw, call?.Call, call?.Args ?? [], null, null));
+        }
+        return lines;
+    }
+
+    /// <summary>
+    /// 그 발견물 대본이 판매를 켜는 교역품들(<c>01 15</c>). 대본이 없으면 빈 목록이다.
+    /// </summary>
+    /// <remarks>
+    /// 교역품 켬을 세이브에 적기 전의 판을 불러올 때 쓴다 — 이미 발견한 것의 대본을 훑어 켜 준다.
+    /// 갈래는 가리지 않는다.
+    /// </remarks>
+    public static IEnumerable<int> GoodsActivatedBy(Game game, int discoveryId)
+    {
+        if (Open(game.Directory) is not { } book || discoveryId < 0 || discoveryId >= book.Count) yield break;
+        if (DisevPart.Parse(book.Part(discoveryId), out _) is not { } part) yield break;
+
+        foreach (int start in part.ChunkStarts)
+        {
+            var (from, to) = part.ChunkRange(start);
+            foreach (var line in Lines(part, from, to))
+                if (line.Call == DisevCall.ActivateGoods && line.Args["Goods"] is { } goods)
+                    yield return (int)long.Parse(goods.ToJsonString());
+        }
+    }
+
+    /// <summary>
     /// 조건이 맞는 첫 슬롯의 본문 자리. 없으면 -1.
     /// </summary>
     /// <remarks>
@@ -156,293 +229,377 @@ public sealed class DisevRunner
         foreach (var slot in part.Slots)
         {
             var (from, to) = part.ChunkRange(slot.Condition);
-            if (Passes(DisevScript.Parse(part.Data, from, to))) return slot.Body;
+            if (Passes(Lines(part, from, to))) return slot.Body;
         }
         return part.Slots.Count > 0 ? part.Slots[0].Body : -1;
     }
 
-    /// <summary>조건 덩이가 통과인지. 모르는 조건은 통과로 친다.</summary>
-    private bool Passes(List<DisevScript.Op> ops)
+    /// <summary>
+    /// 조건 덩이가 통과인지 — 조건식 호출을 AND 로 잇고 <c>Or</c>(50) 에서 끊는다(<c>0x00407EB1</c>).
+    /// 뜻을 모르는 조건식은 통과로 친다 — 막으면 대본이 통째로 안 돈다.
+    /// </summary>
+    private bool Passes(List<Line> lines)
     {
-        foreach (var op in ops)
+        bool group = true;
+        foreach (var line in lines)
         {
-            if (op.Kind == "덩이/갈래 끝") break;
-            if (!Holds(op)) return false;
-        }
-        return true;
-    }
-
-    /// <summary>조건 한 줄이 참인지. 아는 것만 본다.</summary>
-    private bool Holds(DisevScript.Op op)
-    {
-        var raw = DisevScript.ParseHex(op.Hex);
-        if (raw == null) return true;
-
-        long Field(int at, int width) =>
-            DisevForm.Read(raw, new DisevForm.Field("", at, width));
-
-        switch (op.Kind)
-        {
-            case "발견 완료 조건":
-                return _game.Player.HasFound((int)Field(2, 2));
-            case "미발견 조건":
-                return !_game.Player.HasFound((int)Field(2, 2));
-            case "아이템 소지 조건":
-                return _game.Player.Items.Contains((int)Field(2, 2));
-            case "아이템 비소지 조건":
-                return !_game.Player.Items.Contains((int)Field(2, 2));
-            case "연도 조건":
-                return _game.Player.Date.Year >= Field(2, 2);
-            case "연도 상한 조건":
-                return _game.Player.Date.Year <= Field(2, 2);
-            case "연도 범위 조건":
-                return _game.Player.Date.Year >= Field(2, 2)
-                    && _game.Player.Date.Year <= Field(5, 2);
-            case "무작위 확률 조건":
+            if (line.Call is DisevCall.End) break;
+            if (line.Call is DisevCall.Or)
             {
-                long denominator = Field(2, 4);
-                return denominator > 0 && _game.Random.Next((int)denominator) < Field(7, 4);
+                if (group) return true;
+                group = true;
+                continue;
             }
+            if (line.Call is { } call && Evaluate(call, line.Args) is false) group = false;
+        }
+        return group;
+    }
+
+    /// <summary>
+    /// 조건식 한 번 부르기. 뜻을 모르면 null.
+    /// </summary>
+    /// <remarks>이름은 조건식의 <b>원문</b>이다 — 분기는 이 값이 거짓일 때 뛴다.</remarks>
+    private bool? Evaluate(DisevCall condition, JsonObject args)
+    {
+        var player = _game.Player;
+        int I(string key) => args[key] is { } node ? (int)long.Parse(node.ToJsonString()) : 0;
+        int year = player.Date.Year;
+
+        switch (condition)
+        {
+            case DisevCall.Result: return _result;                                   // 45 (0x0040B1B4)
+            case DisevCall.ResultFalse: return !_result;                             // 47 (0x0040B1C8)
+            case DisevCall.LastConditionFalse: return !_lastCondition;               // 4B (0x0040B23F)
+            case DisevCall.NoAide: return player.MateAt(0).Length == 0;              // 56 (0x0040B368)
+            case DisevCall.ChoiceIs: return _choice == I("Value");                   // 11 0A (0x00408FC0)
+            case DisevCall.HintActive: return HintHeld(I("Hint"));                   // 0F 0E
+            case DisevCall.HintInactive: return !HintHeld(I("Hint"));                // 12 0E (0x0040902F)
+            case DisevCall.HasItem: return player.HasItem(I("Item"));                // 0F 05 (0x00408EC8)
+            case DisevCall.LacksItem: return !player.HasItem(I("Item"));             // 12 05 (0x00409022)
+            case DisevCall.Discovered: return player.HasFound(I("Discovery"));       // 02 0B (0x004089C2)
+            case DisevCall.NotDiscovered: return !player.HasFound(I("Discovery"));   // 3A 0B (0x0040AB27)
+            case DisevCall.DiscoveryDone: return player.HasFound(I("Discovery"));
+            case DisevCall.DiscoveryNotDone: return !player.HasFound(I("Discovery"));
+            case DisevCall.YearAtLeast: return year >= I("Year");
+            case DisevCall.YearAtMost: return I("Year") >= year;                     // 39 16 (0x0040AAF0)
+            case DisevCall.YearIs: return year == I("Year");                         // 1C 16 (0x00409704)
+            case DisevCall.YearBetween: return year >= I("From") && year <= I("To");
+            case DisevCall.InCity: return player.CityId == I("City");                // 17 08 (0x00409074)
+            case DisevCall.RandomChance:
+            {
+                int denominator = I("Denominator");
+                return denominator > 0 && _game.Random.Next(denominator) < I("Success");
+            }
+            case DisevCall.GreaterThan:
+            case DisevCall.GreaterOrEqual:
+            case DisevCall.LessThan:
+            case DisevCall.LessOrEqual:
+            case DisevCall.EqualTo:
+            {
+                // 비교 뜀표 0x0040C380 — 2A A>B · 2B A≥B · 2C A<B · 2D A≤B · 2E A==B.
+                if (ValueOf(args["A"] as JsonObject) is not { } a || ValueOf(args["B"] as JsonObject) is not { } b) return null;
+                return condition switch
+                {
+                    DisevCall.GreaterThan => a > b,
+                    DisevCall.GreaterOrEqual => a >= b,
+                    DisevCall.LessThan => a < b,
+                    DisevCall.LessOrEqual => a <= b,
+                    _ => a == b,
+                };
+            }
+            // 위치(17 00·10·19)·인물(37)·연월(1B 17)·도시 국적(28)·STORY 파일(6D·6E)·계약 없음(5A) 은 아직 안 옮겼다.
             default:
-                // 뜻을 모르는 조건은 막지 않는다 — 막으면 대본이 통째로 안 돈다.
-                return true;
+                return null;
         }
     }
 
-    /// <summary>본문 덩이를 차례대로 밟는다.</summary>
+    /// <summary>본문 덩이를 차례대로 밟는다. 점프는 파트 안 어디로든 간다 — 절대 이동은 덩이를 건너뛴다.</summary>
     private void RunChunk(DisevPart part, int start)
     {
-        var (from, to) = part.ChunkRange(start);
-        var ops = DisevScript.Parse(part.Data, from, to);
+        var lines = new List<Line>();
+        foreach (int chunk in part.ChunkStarts)
+        {
+            var (from, to) = part.ChunkRange(chunk);
+            lines.AddRange(Lines(part, from, to));
+        }
 
-        // 자리로 줄을 찾을 수 있게 해 둔다 — 분기가 바이트 자리로 뛴다.
         var at = new Dictionary<int, int>();
-        for (int i = 0; i < ops.Count; i++) at[ops[i].Offset] = i;
+        for (int i = 0; i < lines.Count; i++) at[lines[i].Op.Offset] = i;
+        if (!at.TryGetValue(part.ChunkRange(start).Start, out int index)) return;
 
         // 대본이 꼬여 제자리를 맴돌 수 있다. 줄 수의 몇 곱으로 끊는다.
-        int budget = Math.Max(64, ops.Count * 8);
+        int budget = Math.Max(64, lines.Count * 8);
 
-        for (int i = 0; i < ops.Count && budget-- > 0; )
+        while (index < lines.Count && budget-- > 0)
         {
-            var op = ops[i];
-            if (op.Kind == "덩이/갈래 끝") return;
+            var line = lines[index];
+            if (line.Call is DisevCall.End) return;
 
-            int jump = Step(op);
+            int? jump = Step(line);
             if (jump == Stop) return;
-            if (jump == 0) { i++; continue; }
-
-            // 상대 이동은 <b>그 명령이 끝난 자리</b>에서 잰다.
-            int target = op.Offset + op.Length + jump;
-            if (!at.TryGetValue(target, out int next)) return;   // 덩이 밖이면 멈춘다
-            i = next;
+            if (jump is not { } target) { index++; continue; }
+            if (!at.TryGetValue(target, out index)) return;   // 명령 머리가 아니면 멈춘다
         }
     }
 
     /// <summary>
-    /// 명령 한 줄을 치른다. 뛰어야 하면 상대 이동값을, 아니면 0 을 낸다.
+    /// 한 줄을 치른다 — 뛰어야 하면 파트 안 자리를, 멈춰야 하면 <see cref="Stop"/> 을, 아니면 null 을 낸다.
     /// </summary>
-    private int Step(DisevScript.Op op)
+    private int? Step(Line line)
     {
-        var raw = DisevScript.ParseHex(op.Hex);
-        if (raw == null) return 0;
+        var args = line.Args;
+        int I(string key) => args[key] is { } node ? (int)long.Parse(node.ToJsonString()) : 0;
 
-        long Field(int at, int width) =>
-            DisevForm.Read(raw, new DisevForm.Field("", at, width));
+        // 절대 이동(30 1D) — 파트 +4+v(0x0040A48D).
+        if (line.Condition == null && line.Target is { } absolute) return absolute;
 
-        switch (op.Kind)
+        // 분기(43) — 조건식을 부르고 거짓이면 뛴다(0x0040BCF9). 뜻을 모르면 안 뛴다.
+        if (line.Condition is { } condition)
         {
-            case "대사":
-                Speak(raw);
-                return 0;
+            if (Evaluate(condition, args) is not { } value) return null;
+            _lastCondition = value;
+            return value ? null : line.Target;
+        }
 
-            case "AVI 재생":
-                // 파트 안의 두 꼴 — 00 02 [u16] 은 슬롯이 +2, 02 [u16] 은 +1 이다.
-                MoviePlayer.Play(_owner, DiscoveryDialog.MovieOf(
-                    _game.Directory, (int)Field(op.Length == 4 ? 2 : 1, 2)));
-                return 0;
+        switch (line.Call)
+        {
+            case DisevCall.Say:
+            case DisevCall.AskYesNo:
+            case DisevCall.SayBare:
+                Speak(line.Raw);
+                return null;
 
-            case "음원 재생":
-                PlaySound((int)Field(2, 2));
-                return 0;
+            case DisevCall.AskChoice:
+            case DisevCall.AskChoiceWide:
+                _choice = Choose(line.Raw);
+                return null;
+
+            case DisevCall.PlayVideo:
+                MoviePlayer.Play(_owner, DiscoveryDialog.MovieOf(_game.Directory, I("Id")));
+                return null;
+
+            case DisevCall.PlaySound:
+                PlaySound(I("Id"));
+                return null;
 
             // 00 0C [u16 n] — DISCOVER.CDS 파트 n 을 가운데에 틀고 돌아온다(0x00408429).
-            case "CG 애니메이션 재생" when op.Length == 4:
-                DiscoveryClipPlayer.Play(_owner, _game.Clips, (int)Field(2, 2));
-                return 0;
+            case DisevCall.PlayCgAnimation:
+                DiscoveryClipPlayer.Play(_owner, _game.Clips, I("Id"));
+                return null;
 
             // 그림은 바로 안 낸다 — 다음 대사와 한 창에 함께 낸다.
-            case "DSTILL 이미지 재생":
-                _pendingStill = (int)Field(1, 2);
+            case DisevCall.ShowDStill:
+                _pendingStill = I("Id");
                 _pendingIsEvent = false;
-                return 0;
-            case "EVSTILL 이미지 표시":
+                return null;
+            case DisevCall.ShowEvStill:
                 // <b>딴 파일이다.</b> 예전에는 이 번호를 DSTILL 에 대고 찾아 엉뚱한 그림이
                 // 나왔다 — EVSTILL.CDS 는 사건 스틸 열여섯 장으로 따로 있다.
-                _pendingStill = (int)Field(2, 2);
+                _pendingStill = I("Id");
                 _pendingIsEvent = true;
-                return 0;
+                return null;
 
-            case "능력치 증가":
-                Adjust((int)Field(2, 2), +(int)Field(5, 4));
-                return 0;
-            case "능력치 감소":
-                Adjust((int)Field(2, 2), -(int)Field(5, 4));
-                return 0;
-
-            case "아이템 획득":
-                Obtain((int)Field(2, 2));
-                return 0;
-            case "아이템 상실":
-                _game.Player.Drop((int)Field(2, 2));
-                return 0;
-
-            case "발견물 등록/발견 처리":
+            // 00 1E [n] — 특수 조우 연출(0x004085D2). 지도 창이 아닌 데서 돌면 그릴 자리가 없어 건너뛴다.
+            case DisevCall.SpecialEncounter:
             {
-                // 해석기는 <c>01 0B</c> 만 보고 이 명령으로 친다 — 다른 자료 속에 우연히 든 두 바이트도
-                // 걸린다. 스톤헨지 대본의 0x129 자리(「01 0B 0A 95」)가 그래서 발견물 38154 로 적혔다.
-                // 게임 명령은 발견물 274칸 가운데 하나만 켜므로 표에 없는 번호는 버린다.
+                int n = I("Scene");
+                if (n < DisevScript.Encounters.Length && _owner is UI.Views.ShipMapWindow map)
+                    map.PlayEventScene(DisevScript.Encounters[n].Scene);
+                return null;
+            }
+
+            case DisevCall.AddStat:
+                if (ValueOf(args["Value"] as JsonObject) is { } plus) Adjust(I("Stat"), +(int)plus);
+                return null;
+            case DisevCall.SubStat:
+                if (ValueOf(args["Value"] as JsonObject) is { } minus) Adjust(I("Stat"), -(int)minus);
+                return null;
+
+            // 26 1C [칸] — 육상전에 넘길 두 묶음과 소지금만 받는다(0x0040A15C 의 뜀표 0x0040C314).
+            //   칸 2  아군 임시 묶음의 병력(0x0040A1F9 → 0x0045FF40)
+            //   칸 16 적 대장 묶음의 병력(0x0040A242 → 0x0045FF40)
+            case DisevCall.SetStat:
+            {
+                if (ValueOf(args["Value"] as JsonObject) is not { } set) return null;
+                int value = (int)set;
+                switch (I("Stat"))
+                {
+                    case 2: _borrowedMen = value; break;
+                    case 16: _foeMen = value; break;
+                    case 3:
+                        // 소지금을 그 값으로 — 델포이(파트 24)가 공물 5000 이 없으면 0 으로 만든다.
+                        if (value < _game.Player.Gold) _game.Player.Pay(_game.Player.Gold - value);
+                        else _game.Player.Earn(value - _game.Player.Gold);
+                        break;
+                }
+                return null;
+            }
+
+            // 46 — 결과를 거짓으로(0x0040B1BC).
+            case DisevCall.ClearResult:
+                _result = false;
+                return null;
+
+            // 35 1C [u16 칸] — 그 능력으로 판정해 결과를 세운다. 무력 6 · 운 18 · 지력 21 · 신앙심 23 만
+            // 판정하고 다른 번호는 결과를 그대로 둔다(cds_disev_editor v1.0: R(100) ≤ 값 + 1).
+            case DisevCall.AbilityCheck:
+            {
+                int? value = I("Stat") switch
+                {
+                    6 => _game.Player.AbilityOf(Support.Local.Models.Ability.Might),
+                    18 => _game.Player.AbilityOf(Support.Local.Models.Ability.Luck),
+                    21 => _game.Player.AbilityOf(Support.Local.Models.Ability.Mind),
+                    23 => _game.Player.Abilities.Length > 5 ? _game.Player.Abilities[5] : null,
+                    _ => null,
+                };
+                if (value is { } v) _result = _game.Random.Next(100) <= v + 1;
+                return null;
+            }
+
+            case DisevCall.GiveHint:
+                _game.Player.GainHint(I("Hint"));
+                return null;
+
+            // 01 15 [교역품] — 판매 게이트 0x0058BAB0[교역품] = 1(0x004088D8). 교역소가 그 품목을 팔기 시작한다.
+            case DisevCall.ActivateGoods:
+                _game.Player.ActivateGoods(I("Goods"));
+                return null;
+
+            // 05 05 — 16칸 소지품에 넣는다. 아이템 획득(00 05)과 달리 알림 창은 없다.
+            case DisevCall.AddEventItem:
+                _game.Player.Take(I("Item"));
+                return null;
+            case DisevCall.GiveItem:
+                Obtain(I("Item"));
+                return null;
+            case DisevCall.RemoveItem:
+                _game.Player.Drop(I("Item"));
+                return null;
+
+            case DisevCall.Discover:
+            {
                 // <b>발견과 그 물건은 이 명령만 준다</b> — 발견 판정 0x0048D3F0 은 대본을 돌린 뒤 결과
                 // 코드만 보고(0·1 이면 인스턴스 +0x17 비트 1) 발견을 따로 적지 않는다. 존왕의 술잔은
                 // 낚시에 지면 「놓쳤습니다」 뒤 4E 로 끝나 여기까지 안 온다. 물건 알림은 대본 대사가 한다.
-                int id = (int)Field(2, 2);
+                // 게임 명령은 발견물 칸 가운데 하나만 켜므로 표에 없는 번호는 버린다.
+                int id = I("Discovery");
                 if (_game.Discoveries is { } log && log.Table.Find(id) != null) log.Discover(_game.Player, id);
-                return 0;
+                return null;
             }
 
-            case "금화 증가":
-                _game.Player.Earn((int)Field(2, 4));
-                return 0;
-            case "금화 감소":
-                _game.Player.Pay((int)Field(2, 4));
-                return 0;
+            case DisevCall.AddGold:
+                _game.Player.Earn(I("Amount"));
+                return null;
+            case DisevCall.SubGold:
+                _game.Player.Pay(I("Amount"));
+                return null;
 
-            // 43 45 — 조건이 「마지막 결과」 그대로라 <b>결과가 거짓일 때만</b> 뛴다(0x0040B1B4).
-            // 러너는 예/아니오 물음을 아직 안 풀어 결과를 모르는 때가 많다. 그때는 예전처럼
-            // 늘 뛰고, 미니게임·육상전이 결과를 남긴 뒤에만 게임대로 가른다. 파르테논(파트 23)의
-            // +0x2C0 이 그 자리다 — 이긴 뒤 늘 뛰면 「우리가 이겼습니다!」와 방패를 건너뛴다.
-            case "이동":
-                return _hasResult && _result ? 0 : (int)(short)Field(2, 2);
-
-            // 43 12 0E — 그 힌트를 얻었거나 보고까지 했으면 뛴다(0x0040902F).
-            case "힌트 조건 분기":
+            // 31 — 델포이 신탁(0x0040A4C0). 제독 성미 여덟 칸 가운데 0·2 인 것만 낱말로 잇는다(1 은 건너뜀).
+            // 원본은 자녀 적성·배우자·남은 수명 경고도 잇는다고 cds_disev_editor v1.0 이 적었는데 그쪽은 아직 안 옮겼다.
+            case DisevCall.DelphiOracle:
             {
-                int hint = (int)Field(3, 2);
-                bool held = _game.Player.HasHint(hint)
-                            || (_game.Discoveries?.IsHintDone(_game.Player, hint) ?? false);
-                return held ? (int)(short)Field(5, 2) : 0;
-            }
-
-            // 26 1C [칸] — 육상전에 넘길 두 묶음만 받는다(0x0040A15C 의 뜀표 0x0040C314).
-            //   칸 2  아군 임시 묶음의 병력(0x0040A1F9 → 0x0045FF40)
-            //   칸 16 적 대장 묶음의 병력(0x0040A242 → 0x0045FF40)
-            // 그 밖의 칸은 아직 안 옮겼다.
-            case "능력치/기한 설정":
-            {
-                int slot = (int)Field(2, 2);
-                int value = op.Length >= 13
-                    ? (int)Field(9, 4) + _game.Random.Next((int)Math.Max(1, Field(5, 4)))
-                    : (int)Field(5, 4);
-                if (slot == 2) _borrowedMen = value;
-                else if (slot == 16) _foeMen = value;
-                return 0;
+                var slots = Sea.FleetRaid.AdmiralFortuneOf(_game.Player);
+                var words = slots.Select((v, k) => v switch { 0 => TraitWords[k].Low, 2 => TraitWords[k].High, _ => null })
+                                 .Where(w => w != null).ToArray();
+                if (words.Length > 0) TalkDialog.Say(_owner, null, "", "〈무당〉 " + string.Join("! ", words) + "!");
+                return null;
             }
 
             // 육상전 — 이겼는지를 남기고, 전멸했으면 그 자리에서 게임 오버로 멈춘다.
-            case "육상전(인물)":
-            case "육상전(도시)":
+            case DisevCall.LandBattle:
+            case DisevCall.LandBattleCity:
             {
-                var battle = op.Kind == "육상전(인물)"
-                    ? LeaderBattle((int)Field(2, 2))
-                    : CityBattle((int)Field(2, 2));
+                var battle = line.Call == DisevCall.LandBattle ? LeaderBattle(I("Person")) : CityBattle(I("City"));
                 _result = LandBattleScene.Run(_owner, _game, battle, _dice);
-                _hasResult = true;
                 if (battle.Wiped)
                 {
                     LastEndedInGameOver = true;
                     return Stop;
                 }
-                return 0;
+                return null;
             }
 
             // 0D 0D [인물] — 그 인물(괴물)과 해전. 지도 창에서만 연다 — 판을 열 손이 거기 있다.
-            case "해전(인물)":
+            case DisevCall.SeaBattle:
             {
-                if (_owner is not UI.Views.ShipMapWindow sea) return 0;
+                if (_owner is not UI.Views.ShipMapWindow sea) return null;
 
-                var end = sea.SeaFight((int)Field(2, 2));
+                var end = sea.SeaFight(I("Person"));
                 _result = end.Won;
-                _hasResult = true;
                 if (end.Over)
                 {
                     LastEndedInGameOver = true;
                     return Stop;
                 }
-                return 0;
+                return null;
             }
-
-            // 조건이 맞으면 뛴다. 조건 부분은 Holds 와 같은 눈으로 본다.
-            case "발견물 조건 분기":
-                return _game.Player.HasFound((int)Field(3, 2)) ? (int)(short)Field(5, 2) : 0;
-            case "아이템 조건 분기":
-                return _game.Player.Items.Contains((int)Field(3, 2)) ? (int)(short)Field(5, 2) : 0;
-            // 00 1E [n] — 특수 조우 연출(0x004085D2). 지도 위에서 사건 애니메이션 장면을 튼다.
-            // 지도 창이 아닌 데서 돌면(개발 창 따위) 그릴 자리가 없어 건너뛴다. 8 넘으면 게임도 건너뛴다.
-            case "특수 조우 연출":
-            {
-                int n = (int)Field(2, 2);
-                if (n < DisevScript.Encounters.Length && _owner is UI.Views.ShipMapWindow map)
-                    map.PlayEventScene(DisevScript.Encounters[n].Scene);
-                return 0;
-            }
-
-            // 43 2C 1C 03 00 1A [금액] — 조건 2C 는 「소지금 < 금액」(0x0040A359)이고 43 은 조건이 <b>거짓일 때</b>
-            // 뛴다(0x0040BCF9). 곧 금액 <b>이상</b> 있으면 뛴다. 예전에는 거꾸로 모자랄 때 뛰었다.
-            case "소지금 비교 분기":
-                return _game.Player.Gold >= Field(6, 4) ? (int)(short)Field(10, 2) : 0;
 
             // 미니게임 한 판 — 이겼는지를 들고 있다가 조건 47 이 읽는다.
-            case "미니게임":
-                _result = PlayMinigame((int)Field(2, 2));
-                _hasResult = true;
-                return 0;
+            case DisevCall.Minigame:
+                _result = PlayMinigame(I("Game"));
+                return null;
 
-            // 0E 14|1A [u32 판자] 04 [u16 n] — 코인 게임·발라몬의 탑(0x00408DF7). 가운데가 04 가 아니거나
-            // 번호가 4·5 가 아니면 아무것도 안 하고 결과도 안 건드린다.
-            case "퍼즐 미니게임" when Field(6, 1) == 0x04:
-                switch ((DisevMinigame)Field(7, 2))
+            // 0E 14|1A [u32 판자] 04 [u16 n] — 코인 게임·발라몬의 탑(0x00408DF7). 번호가 4·5 가 아니면
+            // 아무것도 안 하고 결과도 안 건드린다.
+            case DisevCall.PuzzleMinigame:
+            case DisevCall.PuzzleMinigame1A:
+                switch ((DisevMinigame)I("Game"))
                 {
                     case DisevMinigame.Coin:
                         _result = CoinPuzzleDialog.Play(_owner, _game.Random);
-                        _hasResult = true;
                         break;
                     case DisevMinigame.Tower:
-                        _result = TowerPuzzleDialog.Play(_owner, _game.Random, (int)Field(2, 4));
-                        _hasResult = true;
+                        _result = TowerPuzzleDialog.Play(_owner, _game.Random, I("Discs"));
                         break;
                 }
-                return 0;
-
-            // 조건 47 은 「마지막 결과가 0 인가」라 <b>이겼으면 뛴다</b>(0x0040B1C8 → 0x0040BCF9).
-            case "예/아니오 응답 분기":
-                return _result ? (int)(short)Field(2, 2) : 0;
+                return null;
 
             // 게임 오버 — 대본을 멈추고 부른 쪽에 알린다.
-            case "게임 오버":
+            case DisevCall.GameOver:
                 LastEndedInGameOver = true;
                 return Stop;
 
             // 결과 코드를 적고 대본을 끝낸다(0x0040BDD5 벌). 스핑크스에게 쫓겨나면 여기서 멎는다.
-            case "이벤트 결과 코드 0":
-            case "이벤트 결과 코드 1":
-            case "이벤트 결과 코드 2":
+            case DisevCall.EndDone:
+            case DisevCall.EndFailed:
+            case DisevCall.EndUnhandled:
                 return Stop;
 
-            // 외부 분기는 그 파일을 안 뜯어서 안 뛴다 — 다음 줄로 그냥 간다.
-            case "STORY0.CDS 외 분기":
-            case "STORY1.CDS 외 분기":
             default:
-                return 0;
+                return null;
         }
+    }
+
+    /// <summary>성미 여덟 칸의 낱말 짝(0 · 2) — <c>0x00538A28</c> 부터다.</summary>
+    private static readonly (string Low, string High)[] TraitWords =
+    [
+        ("소심", "거만"), ("우유부단", "독선"), ("변덕", "집착"), ("겁장이", "무모"),
+        ("냉혹", "팔방 미인"), ("편협", "욕심장이"), ("무신경", "신경질"), ("낭비가", "깍쟁이"),
+    ];
+
+    /// <summary>그 힌트를 얻었거나 이미 보고까지 했는지.</summary>
+    private bool HintHeld(int hint) =>
+        _game.Player.HasHint(hint) || (_game.Discoveries?.IsHintDone(_game.Player, hint) ?? false);
+
+    /// <summary>
+    /// 다중 선택지를 띄우고 고른 값(자리 + 밑값)을 낸다. 선택지는 <c>81 5E</c>(여기서는 「/」)로 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 앞 대사 창 밑에 세로 메뉴를 세운다(<c>0x004878A0</c>). 물러나면 마지막 줄을 고른 것으로 친다 —
+    /// 대본의 마지막 선택지가 늘 「도망간다」·「떠난다」 쪽은 아니지만, 메뉴를 그냥 닫을 길을 막을 수는 없다.
+    /// </remarks>
+    private int Choose(byte[] raw)
+    {
+        int term = Array.IndexOf(raw, (byte)0, 2);
+        if (term < 0) return -1;
+        int baseValue = term + 1 < raw.Length ? raw[term + 1] : 0;
+
+        var (_, text) = DisevScript.DecodeDialogue(raw.AsSpan(2, term - 2), _game.Player.Name);
+        var choices = text.Split('/').Select(c => c.Trim()).Where(c => c.Length > 0).ToArray();
+        if (choices.Length == 0) return baseValue;
+
+        int picked = ChoiceDialog.Ask(_owner, "", choices[..^1], choices[^1]);
+        return (picked >= 0 ? picked : choices.Length - 1) + baseValue;
     }
 
     /// <summary>
@@ -656,10 +813,22 @@ public sealed class DisevRunner
                                                         _game.Player.Name);
         if (body.Length == 0) return;
 
-        // <b>부관이 없으면 부관 대사는 통째로 건너뛴다.</b> 말할 사람이 없는데 말이 나오면
-        // 안 된다 — 몽생미셸(파트 65)의 +0x0032 가 그 줄이다. 성문에서도 게임이 같은
-        // 잣대를 쓴다(0x00468EF0 이 부하 첫 자리를 본다).
-        if (speaker == Aide && _game.Player.MateAt(0).Length == 0) return;
+        // <b>감찰관이 없으면 감찰관 대사는 통째로 건너뛴다</b> — 화자 해석기 0x0040C880 이 감찰관 객체를 못 찾으면
+        // 0 을 돌려 그 줄을 안 낸다. 감찰관은 후원자 계약마다 하나 딸려 오므로 계약이 없으면 없다.
+        //
+        // <b>부관은 없어도 말한다</b> — 대신 기본 화자(뱃사람, MALE #299)가 선다(0x00478280, <see cref="Game.AideFace"/>).
+        // 예전에는 부관 대사도 건너뛰었는데, 그러면 델포이의 「신의 계시를 받으시겠습니까?」 같은 물음이 통째로 빠졌다.
+        if (speaker is Inspector or "검사관" && string.IsNullOrEmpty(_game.Player.Contract?.Inspector)) return;
+
+        // <b>0B 0A [대사] 는 물음이다</b>(0x00408B5B) — 창 0x0040C880 을 YES/NO 로 띄우고
+        // 결과 = (단추 == 2), 2 가 YES 다. 뒤따르는 43 45 · 43 47 이 이 결과로 가른다.
+        // 델포이의 성지 「신의 계시를 받으시겠습니까?」가 이 꼴이다 — 예전에는 창 플래그로만
+        // 보고 그냥 대사로 흘려 묻지도 않고 지나갔다.
+        if (raw.Length > 1 && raw[0] == 0x0B && raw[1] == 0x0A)
+        {
+            _result = ConfirmDialog.Ask(_owner, body, face: FaceOf(speaker));
+            return;
+        }
 
         // 앞줄이 그림을 걸어 두었으면 그림과 글을 한 창에 낸다.
         if (_pendingStill >= 0)
@@ -686,12 +855,46 @@ public sealed class DisevRunner
     {
         null or "" => null,
         Aide => MateFace(),
-        "검사관" or "감찰관" => _game.Faces?.TryGetBgra(Town.Inspector.Face, female: false),
+        Inspector or "검사관" => _game.Faces?.TryGetBgra(Town.Inspector.Face, female: false),
         _ => FacilityFace(speaker),
     };
 
+    /// <summary>
+    /// 값 식 <c>1C [u16 칸]</c> 이 내는 값(<c>0x00406E76</c> 의 뜀표 <c>0x00407310</c>). 아는 칸만 낸다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   3  0x005B6194  소지금
+    ///   5  vtbl+0x24   제독 성미 여덟 칸 가운데 [5](편협 0 · 1 · 욕심장이 2) — 생일·혈액형·운명 코드·나이로
+    ///                  센다(<see cref="Sea.FleetRaid.AdmiralFortuneOf(Support.Local.Models.Player)"/>)
+    ///   6  0x005B60C8  무력 + 1
+    /// </code>
+    /// </remarks>
+    private long? ValueOf(JsonObject? expr)
+    {
+        if (expr == null) return null;
+        long N(JsonNode? node) => node == null ? 0 : long.Parse(node.ToJsonString());
+
+        if (expr["Const"] is { } constant) return N(constant);
+        if (expr["Random"] is JsonObject random)
+            return N(random["From"]) + _game.Random.Next((int)Math.Max(1, N(random["Width"])));
+        if (expr["Stat"] is not { } stat) return null;   // 적재량(Cargo)은 아직 안 옮겼다
+
+        var player = _game.Player;
+        return N(stat) switch
+        {
+            3 => player.Gold,
+            5 => Sea.FleetRaid.AdmiralFortuneOf(player)[5],
+            6 => player.AbilityOf(Support.Local.Models.Ability.Might) + 1,
+            _ => null,
+        };
+    }
+
     /// <summary>부관 화자 이름. 대본에는 CP932 로 <c>副官</c> 이라 적혀 있다.</summary>
     private const string Aide = "부관";
+
+    /// <summary>감찰관 화자 이름. 대본에는 CP932 로 <c>監察官</c> 이다. 예전 이름 「검사관」도 받는다.</summary>
+    private const string Inspector = "감찰관";
 
     /// <summary>
     /// 시설 화자의 건물 코드. 화자표(<c>0x0056823C[건물][문화권]</c>)를 그대로 탄다.

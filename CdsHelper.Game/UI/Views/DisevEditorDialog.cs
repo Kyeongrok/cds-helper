@@ -455,7 +455,9 @@ public sealed class DisevEditorDialog : GameWindow
             Op = op,
         }).ToList();
 
-        _json.Text = DisevTree.ToJson(DisevTree.Build(_part.Chunk(chunk.Start)));
+        // JSON 탭은 발견이벤트.json 에 적히는 꼴 그대로다 — 라벨이 파트 전체에서 매겨지므로 파트를 통째 푼 뒤 이 덩이만 보인다.
+        int chunkIndex = _part.ChunkStarts.ToList().IndexOf(chunk.Start);
+        _json.Text = DisevTree.ToJson(DisevTree.BuildPart(_part)[chunkIndex]);
         _flow.Content = DisevFlowView.Build(DisevFlow.Build(_part.Data, ops), PickOp, Describe, ActionFor);
 
         // 덩이 밖으로 뛰는 상대 이동이 있으면 길이를 바꿀 때 어긋난다 — 미리 일러 준다.

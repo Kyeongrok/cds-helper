@@ -1230,7 +1230,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
             Charm: Best(player.AbilityOf(Ability.Charm), mate?.Charm) + 1,
             Sword: Best(SkillOf(Skill.Sword), mate?.Sword),
             Shooting: Best(SkillOf(Skill.Shooting), mate?.Shooting),
-            Fortune: FleetRaid.FortuneOf(player.Face, player.Blood, player.Nation)[0]);
+            Fortune: FleetRaid.AdmiralFortuneOf(player)[0]);
         // 적장 값(0x00440F23) — 적장 한 사람 값 그대로다(능력은 이미 +1 된 날값).
         var leader = foe.Leader ?? Encounter.CaptainOf(Encounter.PirateLeader);
         battle.EnemySide = new SeaBattle.Side(leader.Gunnery, leader.Might, leader.Luck,

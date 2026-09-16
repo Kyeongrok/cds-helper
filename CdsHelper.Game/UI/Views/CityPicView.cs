@@ -43,6 +43,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </summary>
     private FleetLabelWindow? _shipNote;
 
+    /// <summary>기능·언어 쪽지. 개발 창에서 켜 두었을 때만 뜬다(<see cref="GameSettings.ShowSkillOverlay"/>).</summary>
+    private SkillOverlayWindow? _skillNote;
+
+    /// <summary>쪽지 글자 크기 — 함대 쪽지와 같게 그림 배율을 따른다.</summary>
+    private double _noteFontSize = 13;
+
     /// <summary>
     /// 사건이 도는 동안 그림을 덮는 <b>파란 막</b>.
     /// </summary>
@@ -63,6 +69,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     {
         _shade.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         _shipNote?.Shade(on);
+        _skillNote?.Shade(on);
     }
 
     /// <summary>건물 이름표들. 명령 창이 열리면 다 감춘다.</summary>
@@ -374,14 +381,28 @@ public sealed class CityPicView : GameWindow, ITownScreen
         Loaded += (_, _) =>
         {
             _shipNote = FleetLabelWindow.Attach(this, 13 * scale);
+            _noteFontSize = 13 * scale;
             RefreshShipLabel();
+            SyncSkillNote();
         };
+        // 개발 창에서 켜고 끄면 떠 있는 도시 창에도 곧바로 든다.
+        GameSettings.ShowSkillOverlayChanged += SyncSkillNote;
         // 도시 창이 닫히면 쪽지도 같이 접는다(주인 창이 닫히면 따라 닫히지만, 펼침 효과로
         // 미끄러지는 동안 닫는 자리도 있어 손으로 짚어 둔다).
-        Closed += (_, _) => { _shipNote?.Close(); _shipNote = null; };
+        Closed += (_, _) =>
+        {
+            GameSettings.ShowSkillOverlayChanged -= SyncSkillNote;
+            _shipNote?.Close(); _shipNote = null;
+            _skillNote?.Close(); _skillNote = null;
+        };
 
         // 조선소에서 배를 사거나 이름을 바꾸고 돌아오면 이 창이 다시 활성화된다 — 그때 고쳐 쓴다.
-        Activated += (_, _) => RefreshShipLabel();
+        // 술집에서 부하를 들이고 돌아와도 같다 — 기능·언어 쪽지도 새로 채운다.
+        Activated += (_, _) =>
+        {
+            RefreshShipLabel();
+            _skillNote?.Refresh(_player);
+        };
 
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
         bool harborPlaced = false;
@@ -1029,6 +1050,19 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
             HintDetailDialog.Show(owner, hint, _game.Hints.CategoryOf(hint.Category),
                                   _player.Fame, _player.MateCount > 0);
+        }
+    }
+
+    /// <summary>기능·언어 쪽지를 설정대로 붙이거나 걷는다.</summary>
+    private void SyncSkillNote()
+    {
+        if (!IsLoaded) return;
+        if (GameSettings.ShowSkillOverlay)
+            _skillNote ??= SkillOverlayWindow.Attach(this, _player, _noteFontSize);
+        else
+        {
+            _skillNote?.Close();
+            _skillNote = null;
         }
     }
 

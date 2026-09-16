@@ -39,6 +39,30 @@ public static class DisevScript
 
     private static byte[] Sig(params byte[] bytes) => bytes;
 
+    /// <summary><c>43 2B~2E 1C</c> 비교 분기의 갈래 이름. 어떤 비교인지는 둘째 바이트에 있다.</summary>
+    public const string CompareKind = "상태값 비교 분기";
+
+    /// <summary>
+    /// <c>43 2B~2E 1C [u16] [값 식] [u16]</c> 의 길이. 값 식 머리 바이트로 갈린다. 모르는 꼴이면 −1.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   1A [u32]          상수          12
+    ///   14 [u32]          상수(옛 표기) 12
+    ///   00 [u16]          u16 상수      10
+    ///   1C [u16]          다른 상태값   10
+    ///   20 [u32 폭][u32]  무작위        16
+    /// </code>
+    /// 예전에는 늘 12 로 읽어 10·16 꼴 뒤가 통째로 밀렸다(cds_disev_editor v1.0 이 짚었다).
+    /// </remarks>
+    public static int CompareLength(byte operand) => operand switch
+    {
+        0x1A or 0x14 => 12,
+        0x00 or 0x1C => 10,
+        0x20 => 16,
+        _ => -1,
+    };
+
     /// <summary>
     /// 아는 명령 꼴. <b>차례가 중요하다</b> — 앞머리가 겹치면 긴 쪽이 먼저 와야 한다.
     /// </summary>
@@ -46,6 +70,7 @@ public static class DisevScript
     [
         // 00 은 본문 하위 명령 묶음이다. 00 02 [u16] 를 먼저 잡지 않으면
         // 뒤의 02 0A 00 을 빈 대사로 잘못 읽는다.
+        new(Sig(0x00, 0x01), 4, "DSTILL 이미지 표시"),
         new(Sig(0x00, 0x02), 4, "AVI 재생"),
         new(Sig(0x00, 0x1F), 4, "EVSTILL 이미지 표시"),
         // 00 1E [u16 n] — 특수 조우 연출. 0x004085D2 가 n(0~8)을 뜀표 0x0040C160 으로 가려 사건 애니메이션
@@ -56,27 +81,45 @@ public static class DisevScript
         // 0C 는 00 없이 오면 인물 대화(0C 0D)만 뜻이 있다(0x00408BA4).
         new(Sig(0x00, 0x0C), 4, "CG 애니메이션 재생"),
         new(Sig(0x43, 0x2C, 0x08), 15, "교역품 조건 분기", 13),
-        new(Sig(0x43, 0x2D, 0x1C), 12, "능력치 비교 분기", 10),
-        new(Sig(0x43, 0x2E, 0x1C), 12, "능력치 비교2 분기", 10),
-        new(Sig(0x43, 0x2B, 0x1C), 12, "능력치 비교3 분기", 10),
-        new(Sig(0x43, 0x2C, 0x1C), 12, "소지금 비교 분기", 10),
+        // 43 2B|2C|2D|2E 1C [u16 칸] [값 식] [u16 이동] — 값 식에 따라 길이가 다르다(<see cref="CompareLength"/>).
+        // Parse 가 먼저 잡고, 여기 셋은 흐름도가 뛰는 자리를 찾는 데만 쓴다(길이로 가른다).
+        new(Sig(0x43, 0x2B, 0x1C), 12, CompareKind, 10),
+        new(Sig(0x43, 0x2B, 0x1C), 10, CompareKind, 8),
+        new(Sig(0x43, 0x2B, 0x1C), 16, CompareKind, 14),
         new(Sig(0x43, 0x12, 0x05), 7, "아이템 조건 분기", 5),
         // 43 12 0E [u16 힌트] [u16 이동] — 조건 12 0E 는 힌트 상태(+4)의 아래 두 비트가 0 이면 1 을
         // 낸다(0x0040902F). 43 은 조건이 0 일 때 뛰므로 <b>그 힌트를 얻었거나 보고했으면 뛴다</b>.
         // 파르테논 신전(파트 23)이 이것으로 힌트 없는 손님을 「길이 막혀 있습니다」로 돌려보낸다.
         new(Sig(0x43, 0x12, 0x0E), 7, "힌트 조건 분기", 5),
         new(Sig(0x43, 0x3A, 0x0B), 7, "발견물 조건 분기", 5),
-        new(Sig(0x43, 0x0F, 0x0E), 7, "미확인 0F0E 분기", 5),
+        // 조건 0F 0E = 힌트가 서 있음 → 43 은 <b>힌트가 없으면</b> 뛴다(cds_disev_editor v1.0).
+        new(Sig(0x43, 0x0F, 0x0E), 7, "힌트 미활성 분기", 5),
+        // 조건 0F 05 = 아이템 있음(0x00408EC8) → <b>없으면</b> 뛴다.
+        new(Sig(0x43, 0x0F, 0x05), 7, "아이템 미소지 분기", 5),
+        // 조건 02 0B = 0x004AAD80(발견물) 그대로(0x004089C2) — 3A 0B 의 반대다. 찾았으면 참이라 <b>못 찾았으면</b> 뛴다.
+        new(Sig(0x43, 0x02, 0x0B), 7, "미발견 분기", 5),
+        // 아래는 cds_disev_editor v1.0 이 짚은 꼴이다. 1C 16 은 연도 == X(0x00409704), 39 16 은 X ≥ 연도(0x0040AAF0),
+        // 17 08 은 지금 도시 == X(0x00409074) 로 EXE 에서 맞춰 보았다.
+        new(Sig(0x43, 0x1B, 0x16), 7, "기준 연도 분기", 5),
+        new(Sig(0x43, 0x39, 0x16), 7, "연도 상한 분기", 5),
+        new(Sig(0x43, 0x36, 0x16), 10, "연도 범위 분기", 8),
+        new(Sig(0x43, 0x17, 0x08), 7, "도시 분기", 5),
+        new(Sig(0x43, 0x37, 0x0D), 7, "인물 조우 분기", 5),
+        new(Sig(0x43, 0x37, 0x12), 7, "후원자 활성 분기", 5),
+        new(Sig(0x43, 0x28, 0x00), 10, "도시 국적 분기", 8),
         new(Sig(0x43, 0x00, 0x15), 6, "미확인 0015 분기", 4),
         new(Sig(0x43, 0x11), 6, "선택지 분기", 4),
         // 43 45 는 늘 뛰는 것이 아니다 — 조건 45 가 「마지막 결과」를 그대로 내므로(0x0040B1B4)
         // <b>결과가 거짓일 때만</b> 뛴다. 결과 밑값은 1 이다(0x00408125). 대본은 이것을 예/아니오
         // 물음 뒤의 갈림으로 쓰는데, 그 물음을 러너가 아직 안 풀어 이름은 「이동」으로 둔다.
-        new(Sig(0x43, 0x45), 4, "이동", 2),
+        new(Sig(0x43, 0x45), 4, "결과 거짓 시 이동", 2),
         // 43 은 조건 머리다(0x0040B19C) — 뒤따르는 조건이 0 이면 u16 만큼 뛴다(0x0040BCF9).
         // 조건 47 은 「마지막 결과가 0 인가」(0x0040B1C8)라 <b>미니게임을 이겼으면 뛴다</b>.
-        new(Sig(0x43, 0x47), 4, "예/아니오 응답 분기", 2),
-        new(Sig(0x43, 0x4B), 4, "미확인 4B 분기", 2),
+        new(Sig(0x43, 0x47), 4, "결과 참 시 이동", 2),
+        // 조건 4B = 바로 앞 조건 값([ebp-0x14], 0x0040BCD2 가 적는다)이 0 인가(0x0040B23F) → 앞 조건이 <b>참이면</b> 뛴다.
+        new(Sig(0x43, 0x4B), 4, "이전 조건 참 시 이동", 2),
+        // 조건 56 = 부관 자리(0x0047CC50(0))가 −1 인가(0x0040B368) → <b>부관이 있으면</b> 뛴다.
+        new(Sig(0x43, 0x56), 4, "부관 고용 시 이동", 2),
         new(Sig(0x43, 0x6D), 4, "STORY0.CDS 외 분기", 2),
         new(Sig(0x43, 0x6E), 4, "STORY1.CDS 외 분기", 2),
         new(Sig(0x17, 0x00), 4, "국가 조건"),
@@ -85,7 +128,8 @@ public static class DisevScript
         new(Sig(0x17, 0x19), 4, "문화권 조건"),
         new(Sig(0x1B, 0x16), 4, "연도 조건"),
         new(Sig(0x1B, 0x17), 6, "연월 조건"),
-        new(Sig(0x1C, 0x16), 4, "연도 상한 조건"),
+        // 1C 16 — cds_disev_editor v1.0 은 「기준 연도 일치」(연도 == X)라 적는다. 예전 이름은 「연도 상한」이었다.
+        new(Sig(0x1C, 0x16), 4, "기준 연도 일치 조건"),
         new(Sig(0x36, 0x16), 7, "연도 범위 조건"),
         new(Sig(0x1B, 0x0B), 4, "발견 완료 조건"),
         new(Sig(0x5E, 0x0B), 4, "미발견 조건"),
@@ -105,14 +149,22 @@ public static class DisevScript
         // 집어 「소심! 우유부단! …」처럼 잇고, 1 이면 건너뛴다. 낱말 짝은 0x00538A28 부터다
         // (소심↔거만 · 우유부단↔독선 · 변덕↔집착 · 겁장이↔무모 · 냉혹↔팔방 미인 ·
         //  편협↔욕심장이 · 무신경↔신경질 · 낭비가↔깍쟁이). 델포이 무당이 이것을 쓴다.
-        new(Sig(0x31), 1, "성격 알리기"),
-        new(Sig(0x33), 1, "EVSTILL 닫기"),
-        new(Sig(0x48), 1, "화면 떠 두기(48)"),
-        new(Sig(0x49), 1, "화면 되돌리기(49)"),
+        new(Sig(0x31), 1, "델포이 신탁 출력"),
+        // 30 1D [u16 v] — 파트 <b>+4+v</b> 로 가는 절대 이동(0x0040A48D: [해석기+4] + v 를 읽는 자리에 넣는다).
+        // 길이를 몰라 「30 1D v」 세 바이트만 묶었더니 v 의 뒤 바이트가 다음 명령 머리로 읽혔다 —
+        // 델포이(파트 24)의 「30 1D A5 01」 이 「01 0B …」 발견 처리로 잘못 풀렸다.
+        new(Sig(0x30, 0x1D), 4, "절대 이동"),
+        new(Sig(0x33), 1, "이미지 표시 종료"),
+        new(Sig(0x48), 1, "대화창 숨김"),
+        new(Sig(0x49), 1, "대화창 표시"),
+        // 46 — 공용 결과를 거짓으로 둔다(0x0040B1BC).
+        new(Sig(0x46), 1, "결과 거짓 설정"),
         // 4A 는 놀이를 끝낸다 — 0x0044AF40(0x5A4D18, 0) 이다(0x0040BDBA).
         new(Sig(0x4A), 1, "게임 오버"),
         new(Sig(0x37, 0x0D), 4, "인물 런타임 조건"),
         new(Sig(0x37, 0x12), 4, "후원자 런타임 조건"),
+        // 26 1C 1A 00 08 [u16 도시] — 그 도시를 주인공 나라로 바꾼다. 26 1C 보다 먼저 잡아야 9바이트로 안 읽힌다.
+        new(Sig(0x26, 0x1C, 0x1A, 0x00, 0x08), 7, "도시 국적 변경"),
         new(Sig(0x19, 0x1C), 9, "능력치 증가"),
         new(Sig(0x1A, 0x1C), 9, "능력치 감소"),
         new(Sig(0x26, 0x1C), 9, "능력치/기한 설정"),
@@ -125,9 +177,27 @@ public static class DisevScript
         new(Sig(0x12, 0x0E), 4, "힌트 상태 미활성 조건"),
         new(Sig(0x00, 0x05), 4, "아이템 획득"),
         new(Sig(0x57, 0x05), 4, "아이템 상실"),
-        new(Sig(0x01, 0x15), 4, "이벤트 플래그 설정"),
+        new(Sig(0x01, 0x0B), 4, "발견물 등록/발견 처리"),
+        new(Sig(0x01, 0x15), 4, "교역품 활성화"),
+        new(Sig(0x05, 0x05), 4, "이벤트 아이템 등록"),
+        new(Sig(0x26, 0x05), 4, "이벤트 아이템 처리"),
+        new(Sig(0x05, 0x0E), 4, "힌트 획득"),
         new(Sig(0x26, 0x08), 4, "신도시 생성"),
         new(Sig(0x26, 0x10), 7, "특수 건물 생성"),
+        new(Sig(0x22, 0x00), 4, "국가 멸망 처리"),
+        new(Sig(0x38, 0x0D), 4, "인물 조우 처리"),
+        new(Sig(0x3D, 0x0D), 4, "통역 고용·교체"),
+        new(Sig(0x23, 0x08), 4, "도시 점령지 설정"),
+        new(Sig(0x25, 0x08), 4, "도시 점령지 해제"),
+        new(Sig(0x22, 0x08), 4, "도시 제거"),
+        new(Sig(0x22, 0x10), 7, "도시 시설 제거"),
+        new(Sig(0x3C, 0x08), 4, "이벤트 대상 도시 이동"),
+        new(Sig(0x34, 0x1C), 9, "투입 인원 절반"),
+        // 35 1C [u16 칸] — 그 능력으로 판정해 결과를 세운다(6 무력 · 18 운 · 21 지력 · 23 신앙심).
+        new(Sig(0x35, 0x1C), 4, "능력 판정"),
+        new(Sig(0x66, 0x03), 4, "음원 정지"),
+        // 0C 0D [u16 인물] — 그 인물과 일기토. 26 0F 가 고른 FIGHTER.CDS 벌을 쓴다.
+        new(Sig(0x0C, 0x0D), 4, "일기토"),
         new(Sig(0x06, 0x4D), 2, "다음 단계"),
         new(Sig(0x04, 0x4D), 2, "이벤트 완전 종료"),
         new(Sig(0x06, 0xFF), 1, "다음 단계"),
@@ -150,9 +220,9 @@ public static class DisevScript
         // 육상전과 같이 결과가 남아 43 47 이 이기면 뛴다.
         new(Sig(0x0D, 0x0D), 4, "해전(인물)"),
         new(Sig(0x2F, 0x08), 4, "육상전(도시)"),
-        // 26 0F [u16] — 다음 인물 대화 명령(0x00408BFC → 0x004AA700)에 넘길 갈래를 둔다([ebp-0x6C]).
-        // 파르테논 대본에서는 쓰는 곳이 없다. 길이만 알면 된다.
-        new(Sig(0x26, 0x0F), 4, "인물 대화 갈래 설정"),
+        // 26 0F [u16 0~6] — 다음 일기토(0C 0D)가 FIGHTER.CDS 에서 읽을 그림 벌을 둔다([ebp-0x6C] → 0x004AA700).
+        // cds_disev_editor v1.0 이 짚었다. 예전 이름은 「인물 대화 갈래 설정」이었다.
+        new(Sig(0x26, 0x0F), 4, "일기토 연출 세트 설정"),
         new(Sig(0x5A), 1, "후원자 계약 없음 조건"),
         // 50 — 조건 덩이에서 앞 조건과 다음 조건을 OR 로 묶는다(0x00407EB1). 50 이 없으면 AND 다.
         new(Sig(0x50), 1, "OR 연결"),
@@ -184,10 +254,15 @@ public static class DisevScript
     /// <summary>능력치 번호 → 이름. 빈 자리는 아직 못 짚은 것이다.</summary>
     public static readonly IReadOnlyDictionary<int, string> StatNames = new Dictionary<int, string>
     {
+        // cds_disev_editor v1.0 의 STAT_TARGETS 를 받았다. 5·19·30 은 제독 성미 칸, 9 는 부관 성미 칸이다.
         [0] = "피로도", [1] = "규율", [2] = "총 선원 수", [3] = "소지금", [4] = "악명",
-        [6] = "무력", [7] = "체력", [8] = "생명력", [10] = "동승 인물 체력",
-        [11] = "동승 인물 생명력", [17] = "명성", [18] = "운", [20] = "현재 함선 내구도",
-        [21] = "지력", [22] = "매력", [23] = "신앙심",
+        [5] = "주인공 성격[5] 로맨틱", [6] = "무력", [7] = "체력", [8] = "생명력",
+        [9] = "부관 성격[0] 당당", [10] = "부관 체력", [11] = "부관 생명력", [12] = "부관 사격술",
+        [13] = "부관 무력", [14] = "부관 역사학", [15] = "주인공 아프리카토착어", [16] = "육상전 상대 병력 수",
+        [17] = "명성", [18] = "운", [19] = "주인공 성격[0] 당당", [20] = "현재 함선 내구도",
+        [21] = "지력", [22] = "매력", [23] = "신앙심", [24] = "부관 지력", [25] = "주인공 과학",
+        [26] = "주인공 국적 경로(0 포르투갈 · 1 에스파니아)", [27] = "후원자 계약 남은 기한(일)",
+        [29] = "STORY 의뢰 남은 기한(일)", [30] = "주인공 성격[7] 견실",
     };
 
     /// <summary>
@@ -207,7 +282,7 @@ public static class DisevScript
         ["83578387834183938181836F838D8358"] = "조안 바로스", ["8F6889AE"] = "여관",
         ["836B83578393834B8181836B834E8345"] = "누진가 누쿠우", ["95BA8E6D"] = "병사",
         ["8EE5906C8CF6"] = "주인공", ["91A291448F8A"] = "조선소", ["837D8380838B815B834E"] = "맘루크",
-        ["83438346836A83608346838A"] = "예니체리", ["8AC48E408AAF"] = "검사관",
+        ["83438346836A83608346838A"] = "예니체리", ["8AC48E408AAF"] = "감찰관",
         ["8343839383668342834982CC8EF197CC"] = "인디오의 족장", ["89A495E682CC94D4906C"] = "왕묘의 파수꾼",
         ["92868D9182CC9856906C"] = "중국의 노인", ["939091AF82CC93AA"] = "도적 두목",
         ["83578383838F82CC9856906C"] = "자와의 노인", ["83438393836882CC9856906C"] = "인도의 노인",
@@ -339,9 +414,60 @@ public static class DisevScript
                 }
             }
 
-            // 대사 — 0A 로 바로 열거나, 창 플래그 한 바이트 뒤에 0A 가 온다.
-            var form = data[i] == 0x0A ? null : FormAt(data, i, end);
-            if (data[i] == 0x0A || (form == null && i + 1 < end && data[i + 1] == 0x0A))
+            // 43 2B~2E 1C — 값 식에 따라 길이가 다른 비교 분기. 표보다 먼저 잡는다.
+            if (data[i] == 0x43 && i + 6 <= end && data[i + 1] is >= 0x2B and <= 0x2E && data[i + 2] == 0x1C &&
+                CompareLength(data[i + 5]) is > 0 and var compareLength && i + compareLength <= end)
+            {
+                var raw = span.Slice(i, compareLength);
+                ops.Add(new Op(i, compareLength, CompareKind, DescribeCompare(raw, i), Hex(raw), true));
+                i += compareLength;
+                continue;
+            }
+
+            // 19 1C [u16 칸] 1C [u16 피연산자] — 상태값에 계산값을 더한다(7바이트). 9바이트 「능력치 증가」보다 먼저.
+            if (data[i] == 0x19 && i + 7 <= end && data[i + 1] == 0x1C && data[i + 4] == 0x1C)
+            {
+                var raw = span.Slice(i, 7);
+                ops.Add(new Op(i, 7, "상태값 참조 증가",
+                    $"상태값 참조 증가: {StatName(U16(raw, 2))} += {StatName(U16(raw, 5), "피연산자")}", Hex(raw), true));
+                i += 7;
+                continue;
+            }
+
+            // 20 0A [글] 00 08 [u16 도시] — 도시 소문 등록. 대사처럼 보이지만 창은 안 뜬다.
+            if (data[i] == 0x20 && i + 2 < end && data[i + 1] == 0x0A)
+            {
+                int term = Array.IndexOf(data, (byte)0, i + 2, end - (i + 2));
+                if (term >= 0 && term + 4 <= end && data[term + 1] == 0x08)
+                {
+                    var (_, rumor) = DecodeDialogue(span[(i + 2)..term]);
+                    ops.Add(new Op(i, term + 4 - i, "도시 소문 등록",
+                        $"도시 소문 등록: 도시 {U16(span, term + 2)} ← \"{rumor}\"", Hex(span[i..(term + 4)]), true));
+                    i = term + 4;
+                    continue;
+                }
+            }
+
+            // 10|18 0A [글, 선택지는 81 5E 로 가름] 00 [u8 밑값] — 다중 선택지(0x00408EF4 · 0x0040914F).
+            // 고른 자리 + 밑값이 선택값([ebp-0x44])이 되고 43 11 0A [u8] 이 그것과 견준다.
+            if (data[i] is 0x10 or 0x18 && i + 2 < end && data[i + 1] == 0x0A)
+            {
+                int term = Array.IndexOf(data, (byte)0, i + 2, end - (i + 2));
+                if (term >= 0 && term + 2 <= end)
+                {
+                    var (speaker, choices) = DecodeDialogue(span[(i + 2)..term]);
+                    string who = speaker == null ? "" : $", 화자 {speaker}";
+                    ops.Add(new Op(i, term + 2 - i, "다중 선택지 대사",
+                        $"다중 선택지 대사{who}: \"{choices}\" (선택값 밑 {data[term + 1]})", Hex(span[i..(term + 2)]), true));
+                    i = term + 2;
+                    continue;
+                }
+            }
+
+            // 대사 — 0A 로 바로 열거나, 창 플래그(00 보통 · 0B 예/아니오) 한 바이트 뒤에 0A 가 온다.
+            // 플래그를 이 둘로만 받는다 — 예전에는 모르는 명령 뒤에 0A 만 오면(43 56 0A 00 따위)
+            // 「창 플래그 43 대사」로 NUL 까지 먹었다.
+            if (data[i] == 0x0A || (data[i] is 0x00 or 0x0B && i + 1 < end && data[i + 1] == 0x0A))
             {
                 int? flag = data[i] == 0x0A ? null : data[i];
                 int textStart = flag == null ? i + 1 : i + 2;
@@ -351,56 +477,20 @@ public static class DisevScript
 
                 var (speaker, body) = DecodeDialogue(span[textStart..terminator]);
                 string who = speaker == null ? "" : $", 화자 {speaker}";
-                string label = flag is null or 0
-                    ? $"대사{who}: \"{body}\""
-                    : $"대사(창 플래그 {flag}{who}): \"{body}\"";
+                string label = flag switch
+                {
+                    null or 0 => $"대사{who}: \"{body}\"",
+                    0x0B => $"예/아니오 대사{who}: \"{body}\"",
+                    _ => $"대사(창 플래그 {flag}{who}): \"{body}\"",
+                };
                 ops.Add(new Op(i, next - i, "대사", label, Hex(span[i..next]), true));
                 i = next;
                 continue;
             }
 
-            // 01/02/0C <u16> 는 그림·동영상 재생이다. 01 0B 만 발견 처리와 겹친다.
-            if (i + 3 <= end && data[i] is 0x01 or 0x02 or 0x0C)
-            {
-                byte opcode = data[i];
-                int value = U16(span, i + 1);
-                string label;
-                int length;
-                if (opcode == 0x01 && data[i + 1] == 0x0B)
-                {
-                    if (stillSlot == 11 && value == 11)
-                    {
-                        label = "DSTILL 정지 이미지 재생: 슬롯 11 (EXE 매핑으로 판별)";
-                        length = 3;
-                    }
-                    else if (i + 4 <= end)
-                    {
-                        label = $"발견물 등록/발견 처리: ID {U16(span, i + 2)}";
-                        length = 4;
-                    }
-                    else
-                    {
-                        label = "01 0B: 정지 이미지 11 / 발견 처리 경계 불명";
-                        length = 3;
-                    }
-                }
-                else
-                {
-                    string media = opcode switch
-                    {
-                        0x01 => "DSTILL 이미지",
-                        0x02 => "AVI",
-                        _ => "CG 애니메이션",
-                    };
-                    label = $"{media} 재생: 슬롯 {value}";
-                    length = 3;
-                }
-                ops.Add(new Op(i, length, label.Split(':')[0], label, Hex(span.Slice(i, length)), true));
-                i += length;
-                continue;
-            }
-
-            // 32 — 값 식 하나를 받는 명령. 크노소스(파트 25)가 본문 첫 줄에 쓴다.
+            // 미디어는 늘 00 01|02|0C [u16] 네 바이트다(표에 있다). 예전에는 00 없이 온 01·02·0C 를
+            // 세 바이트 그림·동영상으로 먼저 잡아, 01 15(교역품)·0C 0D(일기토)·43 02 0B 속 02 0B 를 오독했다.
+            // 32 — 날짜 경과(cds_disev_editor v1.0). 값 식 하나를 받는다. 크노소스(파트 25)가 본문 첫 줄에 쓴다.
             //   32 1A [u32]            상수 (여섯 바이트)
             //   32 20 [u32] [u32]      무작위 (열 바이트)
             // <b>길이를 모르면 뒤가 통째로 밀린다.</b> 예전에는 이 열 바이트를 「미확인」으로
@@ -411,12 +501,15 @@ public static class DisevScript
             {
                 int length = Math.Min(data[i + 1] == 0x1A ? 6 : 10, end - i);
                 var value = span.Slice(i, length);
-                ops.Add(new Op(i, length, "값 식(32)", "값 식(32)", Hex(value), true));
+                string days = data[i + 1] == 0x1A
+                    ? $"{U32(value, 2)}일"
+                    : $"무작위 {U32(value, 6)}~{U32(value, 6) + Math.Max(U32(value, 2) - 1, 0)}일";
+                ops.Add(new Op(i, length, "날짜 경과", $"날짜 경과: {days}", Hex(value), true));
                 i += length;
                 continue;
             }
 
-            form = FormAt(data, i, end);
+            var form = FormAt(data, i, end);
             if (form is { } known)
             {
                 int length = known.Length;
@@ -456,8 +549,9 @@ public static class DisevScript
     private static bool LikelyStart(byte[] data, int offset, int end)
     {
         if (offset >= end) return false;
-        if (data[offset] is 0xFF or 0x0A or 0x01 or 0x02 or 0x0C) return true;
-        if (offset + 1 < end && data[offset + 1] == 0x0A) return true;
+        if (data[offset] is 0xFF or 0x0A) return true;
+        if (offset + 1 < end && data[offset + 1] == 0x0A && data[offset] is 0x00 or 0x0B or 0x10 or 0x18 or 0x1F or 0x20)
+            return true;
         return FormAt(data, offset, end) != null;
     }
 
@@ -496,8 +590,8 @@ public static class DisevScript
                 return $"연도 >= {U16(raw, 2)}";
             case "연월 조건":
                 return $"연월 조건: {U16(raw, 4)}년 {raw[2]}월";
-            case "연도 상한 조건":
-                return $"연도 <= {U16(raw, 2)}";
+            case "기준 연도 일치 조건":
+                return $"연도 == {U16(raw, 2)}";
             case "연도 범위 조건":
                 return $"연도 범위: {U16(raw, 2)}~{U16(raw, 5)}";
             case "무작위 확률 조건":
@@ -555,7 +649,42 @@ public static class DisevScript
             case "힌트 상태 미활성 조건":
                 return $"{kind}: 힌트 상태 ID {U16(raw, 2)}";
             case "신도시 생성":
-                return $"신도시 생성: 도시 ID {U16(raw, 2)}";
+            case "도시 점령지 설정":
+            case "도시 점령지 해제":
+            case "도시 제거":
+            case "이벤트 대상 도시 이동":
+                return $"{kind}: 도시 ID {U16(raw, 2)}";
+            case "도시 국적 변경":
+                return $"도시 국적 변경: 도시 ID {U16(raw, 5)} → 주인공 나라";
+            case "도시 시설 제거":
+                return $"도시 시설 제거: 시설 비트 {U16(raw, 2)}, 도시 {U16(raw, 5)}";
+            case "국가 멸망 처리":
+                return $"국가 멸망 처리: 나라 {U16(raw, 2)}";
+            case "인물 조우 처리":
+            case "통역 고용·교체":
+            case "일기토":
+                return $"{kind}: 인물 {U16(raw, 2)}";
+            case "일기토 연출 세트 설정":
+                return $"일기토 연출 세트: {U16(raw, 2)}";
+            case "힌트 획득":
+                return $"힌트 획득: 힌트 {U16(raw, 2)}";
+            case "교역품 활성화":
+                return $"교역품 활성화: 교역품 {U16(raw, 2)}";
+            case "이벤트 아이템 등록":
+            case "이벤트 아이템 처리":
+                return $"{kind}: 아이템 ID {U16(raw, 2)}";
+            case "음원 정지":
+                return $"음원 정지: 슬롯 {U16(raw, 2)}";
+            case "DSTILL 이미지 표시":
+                return $"DSTILL 이미지 표시: 슬롯 {U16(raw, 2)}";
+            case "발견물 등록/발견 처리":
+                return $"발견물 등록/발견 처리: ID {U16(raw, 2)}";
+            case "절대 이동":
+                return $"절대 이동 → 파트 +0x{4 + U16(raw, 2):X}";
+            case "능력 판정":
+                return $"능력 판정: {StatName(U16(raw, 2))}";
+            case "투입 인원 절반":
+                return "투입 인원 절반(올림)";
             case "특수 건물 생성":
                 return $"특수 건물 생성: 건물 {U16(raw, 2)}, 도시 {U16(raw, 5)}";
         }
@@ -569,7 +698,16 @@ public static class DisevScript
             int target = offset + form.Length + relative;
             string extra = kind switch
             {
-                "아이템 조건 분기" => $", 아이템 ID {U16(raw, 3)}",
+                "아이템 조건 분기" or "아이템 미소지 분기" => $", 아이템 ID {U16(raw, 3)}",
+                "힌트 미활성 분기" => $", 힌트 {U16(raw, 3)}",
+                "미발견 분기" => $", 발견물 {U16(raw, 3)}",
+                "기준 연도 분기" or "연도 상한 분기" => $", 연도 {U16(raw, 3)}",
+                "연도 범위 분기" => $", 연도 {U16(raw, 3)}~{U16(raw, 6)}",
+                "도시 분기" => $", 도시 {U16(raw, 3)}",
+                "인물 조우 분기" => $", 인물 {U16(raw, 3)}",
+                "후원자 활성 분기" => $", 후원자 {U16(raw, 3)}",
+                "도시 국적 분기" => $", 나라 {U16(raw, 3)}, 도시 {U16(raw, 6)}",
+                "선택지 분기" => $", 선택값 {raw[3]}",
                 "교역품 조건 분기" =>
                     $", 원산 도시 {U16(raw, 3)}, 교역품 {U16(raw, 6)}, 수량 {U32(raw, 9)}",
                 _ => "",
@@ -577,6 +715,50 @@ public static class DisevScript
             return $"{kind}{extra}, 상대 +0x{relative:X} → 파트 +0x{target:X}";
         }
         return kind;
+    }
+
+    /// <summary>
+    /// 성격 칸 상태값 — 값 0·2 가 무슨 낱말인지(<c>0x00538A28</c> 짝, 1 은 보통). 성격 칸이 아니면 null.
+    /// </summary>
+    /// <remarks>
+    /// 성격 여덟 칸(당당·강인·의지·용감·친절·로맨틱·섬세·견실)은 한 칸이 0·1·2 값 하나다. 칸 번호와 상태값 번호의
+    /// 짝은 cds_disev_editor v1.0 이 신탁 출력과 맞춰 짚은 것이고, 5 번만 EXE 게터(<c>0x00406F0E</c>)로 확인했다.
+    /// </remarks>
+    public static (string Low, string High)? TraitWordsOf(int stat) => stat switch
+    {
+        5 => ("편협", "욕심장이"),
+        9 or 19 => ("소심", "거만"),
+        30 => ("낭비가", "깍쟁이"),
+        _ => null,
+    };
+
+    /// <summary>상수 값에 성격 낱말을 붙인다 — 「2(욕심장이)」.</summary>
+    private static string TraitValue(int stat, long value) => TraitWordsOf(stat) is { } words
+        ? value switch { 0 => $"0({words.Low})", 1 => "1(보통)", 2 => $"2({words.High})", _ => value.ToString() }
+        : value.ToString();
+
+    /// <summary>비교 분기 풀이 — 무엇을 무엇과 견주고, <b>언제 뛰는지</b>.</summary>
+    private static string DescribeCompare(ReadOnlySpan<byte> raw, int offset)
+    {
+        int stat = U16(raw, 3);
+        string left = StatName(stat);
+        string right = raw[5] switch
+        {
+            0x1A or 0x14 => TraitValue(stat, U32(raw, 6)),
+            0x00 => TraitValue(stat, U16(raw, 6)),
+            0x1C => StatName(U16(raw, 6)),
+            _ => $"무작위 {U32(raw, 10)}~{U32(raw, 10) + Math.Max(U32(raw, 6) - 1, 0)}",
+        };
+        // 43 은 조건이 거짓일 때 뛴다 — 뛰는 때를 적는다(2B A≥B · 2C A<B · 2D A≤B · 2E A==B 의 반대).
+        string jumpsWhen = raw[1] switch
+        {
+            0x2B => "<",
+            0x2C => ">=",
+            0x2D => ">",
+            _ => "!=",
+        };
+        int relative = U16(raw, raw.Length - 2);
+        return $"{left} {jumpsWhen} {right} 이면 이동, 상대 +0x{relative:X} → 파트 +0x{offset + raw.Length + relative:X}";
     }
 
     /// <summary>능력치 이름. 모르는 번호면 <paramref name="fallback"/> 뒤에 번호를 붙인다.</summary>

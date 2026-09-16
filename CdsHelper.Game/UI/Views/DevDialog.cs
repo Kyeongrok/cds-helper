@@ -78,6 +78,10 @@ public sealed class DevDialog : GameWindow
         rows.Children.Add(Toggle("정보", options.PeopleOn(), options.SetPeople,
             "말을 걸어 본 여급의 친밀도·궁합과, 만난 인물 목록을 지도 위에 띄웁니다"));
 
+        // 기능·언어 — 햄버거에 있던 창을 옮겼다. 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 쪽지로 뜬다.
+        rows.Children.Add(Toggle("기능·언어", GameSettings.ShowSkillOverlay, on => GameSettings.ShowSkillOverlay = on,
+            "도시에 들어가면 제독과 부하 넷의 기능·언어를 도시 그림 왼쪽에 띄웁니다. 끌어 옮기면 그 자리를 기억합니다"));
+
         // 점그림을 이웃과 섞어 늘일지. 화면을 키워 놓았을 때 계단을 갈아 준다.
         rows.Children.Add(Toggle("이웃 섞기", GameSettings.SmoothSprites,
             GameUi.SetSpriteSmoothing,

@@ -59,6 +59,9 @@ public sealed class GameSettingsData
     /// <summary>지도 위에 만난 사람 상자를 겹쳐 보일지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowPeopleOverlay { get; set; }
 
+    /// <summary>도시에 들어가면 도시 그림 왼쪽에 기능·언어 쪽지를 띄울지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
+    public bool ShowSkillOverlay { get; set; }
+
     /// <summary>
     /// 게임 상단 띠에 켜 둔 칸 이름들("날짜"·"소지금" …). 한 번도 안 건드렸으면 null 이라
     /// 부르는 쪽 기본값이 선다.
@@ -450,6 +453,23 @@ public static class GameSettings
         get => Get(d => d.ShowPeopleOverlay);
         set => Set(d => d.ShowPeopleOverlay = value);
     }
+
+    /// <summary>
+    /// 도시에 들어가면 <b>기능·언어</b> 쪽지를 도시 그림 왼쪽에 띄울지. 개발 창의 「기능·언어」가 켜고 끈다.
+    /// 바꾸면 <see cref="ShowSkillOverlayChanged"/> 로 알려 떠 있는 도시 창이 곧바로 붙이거나 걷는다.
+    /// </summary>
+    public static bool ShowSkillOverlay
+    {
+        get => Get(d => d.ShowSkillOverlay);
+        set
+        {
+            Set(d => d.ShowSkillOverlay = value);
+            ShowSkillOverlayChanged?.Invoke();
+        }
+    }
+
+    /// <summary><see cref="ShowSkillOverlay"/> 가 바뀌었다.</summary>
+    public static event Action? ShowSkillOverlayChanged;
 
     /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>
     public static bool ShowToolBar

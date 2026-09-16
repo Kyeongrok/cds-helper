@@ -275,6 +275,10 @@
                                             x:Name="PART_WaveBankMenu"
                                             Header="효과음 보기"
                                             ToolTip="WAVES.CDS 에 든 게임 효과음" />
+                                        <MenuItem
+                                            x:Name="PART_MovieBankMenu"
+                                            Header="동영상 보기"
+                                            ToolTip="게임 AVI 동영상을 틀어 보고, 갈아 끼울 동영상을 asset/movie 에 올린다 — 올린 것이 있으면 놀이가 그것을 먼저 튼다" />
                                     </MenuItem>
                                     <MenuItem Header="개발">
                                         <MenuItem
