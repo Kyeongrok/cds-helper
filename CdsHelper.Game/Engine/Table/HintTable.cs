@@ -115,11 +115,23 @@ public sealed class HintTable
     /// <summary>갈래 이름 8개(번호 차례).</summary>
     public IReadOnlyList<string> CategoryNames { get; }
 
-    /// <summary>표에 있는 힌트 전부.</summary>
-    /// <remarks>사람이 고쳐 둔 것이 있으면 그것이 이긴다(<see cref="HintEdits"/>).</remarks>
-    public IReadOnlyList<Hint> Hints => [.. _hints.Select(HintEdits.Apply)];
+    /// <summary>
+    /// 표에 있는 힌트 전부 — 원본 186줄에 <see cref="HintEdits"/> 로 더한 새 힌트를 얹은 것.
+    /// </summary>
+    /// <remarks>사람이 고쳐 둔 것이 있으면 그것이 이긴다.</remarks>
+    public IReadOnlyList<Hint> Hints
+    {
+        get
+        {
+            var merged = _hints.Select(HintEdits.Apply).ToList();
+            var baseIds = _hints.Select(h => h.Id).ToHashSet();
+            foreach (var (id, entry) in HintEdits.All)
+                if (!baseIds.Contains(id)) merged.Add(HintEdits.Synthesize(entry));
+            return merged;
+        }
+    }
 
-    /// <summary>고치기 전 게임 값. 되돌리거나 견줄 때 쓴다.</summary>
+    /// <summary>고치기 전 게임 값. 되돌리거나 견줄 때 쓴다. 원본에 없던 번호면 null.</summary>
     public Hint? Original(int id)
     {
         if (id < 0) return null;
@@ -129,12 +141,18 @@ public sealed class HintTable
         return null;
     }
 
-    /// <summary>그 번호의 힌트. 표 밖이면 null.</summary>
+    /// <summary>
+    /// 그 번호의 힌트. 원본에 없어도 <see cref="HintEdits"/> 로 더한 것이면 나온다.
+    /// </summary>
     /// <remarks>
     /// 186줄이 다 차 있어 자리와 번호가 늘 같지만, 옛 판의 JSON 이 남아 있을 수도 있으므로
     /// 자리로 먼저 짚어 보고 번호가 다르면 훑는다.
     /// </remarks>
-    public Hint? Find(int id) => Original(id) is { } row ? HintEdits.Apply(row) : null;
+    public Hint? Find(int id)
+    {
+        if (Original(id) is { } row) return HintEdits.Apply(row);
+        return HintEdits.Of(id) is { } entry ? HintEdits.Synthesize(entry) : null;
+    }
 
     /// <summary>그 힌트의 이름. 표 밖이면 번호로 물러선다.</summary>
     public string NameOf(int id) => Find(id)?.Name ?? $"힌트 {id}";

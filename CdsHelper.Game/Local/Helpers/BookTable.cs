@@ -102,10 +102,27 @@ public sealed class BookTable
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>책 전부(257권).</summary>
-    public IReadOnlyList<Book> Books => _books;
+    /// <summary>
+    /// 책 전부 — 원본 257권에 <see cref="BookEdits"/> 로 더하거나 갈아 끼운 것을 얹은 것.
+    /// </summary>
+    public IReadOnlyList<Book> Books
+    {
+        get
+        {
+            var edits = BookEdits.All;
+            var merged = new List<Book>(_books.Count + edits.Count);
+            foreach (var b in _books)
+                merged.Add(edits.TryGetValue(b.Index, out var edited) ? edited : b);
+            foreach (var (id, b) in edits)
+                if (_books.All(o => o.Index != id)) merged.Add(b);
+            return merged;
+        }
+    }
 
-    /// <summary>그 힌트를 알아들으려면 있어야 하는 것. 번호가 표 밖이면 기능 -1.</summary>
+    /// <summary><see cref="BookEdits"/> 로 덧씌우기 전의 원본 게임 값. 표 밖이면 null.</summary>
+    public Book? Original(int id) => id >= 0 && id < _books.Count ? _books[id] : null;
+
+    /// <summary>그 힌트를 알아들으려면 있어야 하는 것. 번호가 표 밖이면 기능 -1(조건 없음).</summary>
     public HintNeed NeedFor(int hint) =>
         hint >= 0 && hint < _hintNeeds.Length ? _hintNeeds[hint] : new HintNeed(-1, 0);
 
@@ -116,7 +133,7 @@ public sealed class BookTable
     public List<Book> InLibrary(int cityId, int year)
     {
         var got = new List<Book>();
-        foreach (var b in _books)
+        foreach (var b in Books)
             if (b.Year <= year && b.Cities.Contains(cityId))
                 got.Add(b);
         return got;

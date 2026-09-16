@@ -35,6 +35,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_MenuDesignerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_TavernHintMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DiscoveryEditMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_BookEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_MotionMakerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_VideoShrinkMenu, Type = typeof(MenuItem))]
@@ -67,6 +68,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_MenuDesignerMenu = "PART_MenuDesignerMenu";
     private const string PART_TavernHintMenu = "PART_TavernHintMenu";
     private const string PART_DiscoveryEditMenu = "PART_DiscoveryEditMenu";
+    private const string PART_BookEditMenu = "PART_BookEditMenu";
     private const string PART_MotionMakerMenu = "PART_MotionMakerMenu";
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_VideoShrinkMenu = "PART_VideoShrinkMenu";
@@ -217,6 +219,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_DiscoveryEditMenu) is MenuItem discoveryEditMenu)
         {
             discoveryEditMenu.Click += OnDiscoveryEditMenuClick;
+        }
+
+        if (GetTemplateChild(PART_BookEditMenu) is MenuItem bookEditMenu)
+        {
+            bookEditMenu.Click += OnBookEditMenuClick;
         }
 
         if (GetTemplateChild(PART_MotionMakerMenu) is MenuItem motionMakerMenu)
@@ -439,6 +446,12 @@ public class CdsHelperWindow : CdsWindow
     private void OnDiscoveryEditMenuClick(object sender, RoutedEventArgs e)
     {
         CdsHelper.Game.UI.Views.DiscoveryEditDialog.Show(this);
+    }
+
+    // 책 257권을 보고 고치거나, 원본에 없던 새 책을 더하는 창.
+    private void OnBookEditMenuClick(object sender, RoutedEventArgs e)
+    {
+        CdsHelper.Game.UI.Views.BookEditDialog.Show(this);
     }
 
     // 일기토 그림을 늘어놓고 번호를 적어 이어 돌려 보는 창. 몸짓 차례를 코드에 적기
