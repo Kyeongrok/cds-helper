@@ -317,12 +317,14 @@ public static class Encounter
     /// 게임은 이 주사위를 <b>화면에 보이는 함대에 두 칸 안으로 붙지 않았을 때</b>만 굴리고
     /// (<c>0x0048C049</c>, 볼트 <c>59.분석-해적 조우</c> 5·6절), 걸리면
     /// <c>0x004435B0(인물, 0, 1)</c> 로 교섭·도망·응전 창을 연다. 유럽 구역은 인물 262(해적),
-    /// 81칸 표에 걸린 것이 있으면 268(추격대)인데 그 표를 아직 못 짚어 <b>해적만</b> 낸다.
+    /// 81칸 표(후원자)에 뒤쫓는 이가 있으면 268(추격대) 이다(<c>0x0048CB00</c> → <c>0x0044FD60</c>) —
+    /// 감찰관을 처벌해 배신한 후원자의 원래 기한이 지난 때다(<paramref name="chased"/>).
     /// 동쪽 구역은 인물 265(이슬람)다.
     /// </remarks>
+    /// <param name="chased">뒤쫓는 후원자가 있는지(<c>Player.Pursuers</c>).</param>
     /// <param name="lookup">인물 번호로 적장을 찾는다. null 이거나 못 찾으면 붙박이 값(<see cref="CaptainOf"/>)이다.</param>
     public static Enemy? AtSea(double lat, double lon, int steps, Random rng,
-                               Func<int, Captain?>? lookup = null)
+                               Func<int, Captain?>? lookup = null, bool chased = false)
     {
         if (RollOf(lat, lon) is not { } roll) return null;
 
@@ -331,10 +333,14 @@ public static class Encounter
             if (rng.Next(roll) != 0) continue;
             return roll == LevantRoll
                 ? Make(EnemyKind.Islam, IslamLeader, rng, lookup)
+                : chased ? Make(EnemyKind.Chaser, ChaserLeader, rng, lookup)
                 : Make(EnemyKind.Pirate, PirateLeader, rng, lookup);
         }
         return null;
     }
+
+    /// <summary>추격대를 이끄는 인물 — 인물 밑표의 「상금 벌기」(<c>0x0048CB00</c> 이 늘 이 번호를 넘긴다).</summary>
+    public const int ChaserLeader = 268;
 
     /// <summary>바다 주사위가 부르는 인물 — 유럽 해적 262 · 이슬람 265(<c>0x0048CABA</c>).</summary>
     public const int PirateLeader = 262, IslamLeader = 265;

@@ -167,7 +167,9 @@ public static class GameSave
         List<Support.Local.Models.Player.Cargo>? Cargo = null,
         Dictionary<int, List<int>>? TradeStock = null,
         List<int>? OpenedHints = null,
-        List<int>? ActiveGoods = null);
+        List<int>? ActiveGoods = null,
+        List<Support.Local.Models.Player.Betrayal>? Betrayals = null,
+        Dictionary<string, DateTime>? Sulks = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -228,7 +230,10 @@ public static class GameSave
                             TradeStock: player.TradeStock.ToDictionary(e => e.Key, e => e.Value.ToList()),
                             OpenedHints: [.. player.OpenedHints],
                             // 발견으로 판매가 켜진 교역품. 이 칸 앞의 세이브는 불러올 때 발견물 대본에서 다시 찾는다.
-                            ActiveGoods: [.. player.ActiveGoods]);
+                            ActiveGoods: [.. player.ActiveGoods],
+                            // 감찰관을 처벌해 배신한 후원자와, 기분이 상한 후원자.
+                            Betrayals: [.. player.Betrayals],
+                            Sulks: player.Sulks.ToDictionary(e => e.Key, e => e.Value));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

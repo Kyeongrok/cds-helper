@@ -1143,6 +1143,92 @@ public sealed class Player
         if (openedHints != null) foreach (int hint in openedHints) _openedHints.Add(hint);
     }
 
+    /// <summary>
+    /// 감찰관을 처벌해 <b>배신한 후원자</b> 한 사람 — 게임의 후원자 플래그 비트 13(<c>0x0044FC6D</c>).
+    /// </summary>
+    /// <param name="Sponsor">후원자 이름.</param>
+    /// <param name="City">계약을 맺었던 도시.</param>
+    /// <param name="DueOn">원래 계약의 기한. 이 날이 지나야 추격이 시작된다(후원자 <c>+0x30</c> 남은 날수 ≤ 0).</param>
+    public readonly record struct Betrayal(string Sponsor, string City, DateTime DueOn);
+
+    private readonly Dictionary<string, Betrayal> _betrayals = [];
+
+    /// <summary>배신한 후원자들. 그 후원자를 찾아가 결판을 내야(<c>0x0044FBE7</c>) 지워진다.</summary>
+    public IReadOnlyCollection<Betrayal> Betrayals => _betrayals.Values;
+
+    /// <summary>그 후원자를 배신했는지.</summary>
+    public bool IsBetrayed(string sponsor) => _betrayals.ContainsKey(sponsor);
+
+    /// <summary>후원자를 배신했다고 적는다.</summary>
+    public void Betray(string sponsor, string city, DateTime dueOn) =>
+        _betrayals[sponsor] = new Betrayal(sponsor, city, dueOn);
+
+    /// <summary>결판이 났다 — 배신 표시를 지운다.</summary>
+    public void SettleBetrayal(string sponsor) => _betrayals.Remove(sponsor);
+
+    /// <summary>지금 뒤쫓고 있는 후원자들 — 원래 계약의 기한이 지난 배신이다.</summary>
+    public IEnumerable<Betrayal> Pursuers => _betrayals.Values.Where(b => b.DueOn <= Date);
+
+    /// <summary>세이브를 되돌릴 때.</summary>
+    public void RestoreBetrayals(IEnumerable<Betrayal>? betrayals)
+    {
+        _betrayals.Clear();
+        if (betrayals != null)
+            foreach (var b in betrayals)
+                if (!string.IsNullOrEmpty(b.Sponsor)) _betrayals[b.Sponsor] = b;
+    }
+
+    private readonly Dictionary<string, DateTime> _sulks = [];
+
+    /// <summary>후원자가 기분이 상해 있는 날수 — 이만큼 지나면 풀린다(<c>0x004A2AD0</c>).</summary>
+    public const int SulkDays = 30;
+
+    /// <summary>
+    /// 기분이 상한 후원자와 그 날 — 게임의 후원자 플래그 비트 14. 켜져 있으면 설득을 문간에서 돌려보낸다.
+    /// </summary>
+    public IReadOnlyDictionary<string, DateTime> Sulks => _sulks;
+
+    /// <summary>후원자 기분을 상하게 한다(설득 거절 · 계약 결판 뒤).</summary>
+    public void Sulk(string sponsor)
+    {
+        if (!string.IsNullOrEmpty(sponsor)) _sulks[sponsor] = Date;
+    }
+
+    /// <summary>그 후원자가 아직 기분이 상해 있는지.</summary>
+    public bool IsSulking(string sponsor) =>
+        _sulks.TryGetValue(sponsor, out var since) && (Date - since).TotalDays < SulkDays;
+
+    /// <summary>세이브를 되돌릴 때.</summary>
+    public void RestoreSulks(Dictionary<string, DateTime>? sulks)
+    {
+        _sulks.Clear();
+        if (sulks != null) foreach (var (name, since) in sulks) _sulks[name] = since;
+    }
+
+    /// <summary>예금을 그 몫만 남기고 잃는다(도둑 — <c>0x00450060</c> 은 30% 만 남긴다).</summary>
+    public void LoseSavings(int keepPercent) =>
+        Savings = Math.Clamp(Savings * Math.Clamp(keepPercent, 0, 100) / 100, 0, MaxGold);
+
+    /// <summary>자택 보관 칸에서 한 칸을 잃는다.</summary>
+    public void LoseStored(int index)
+    {
+        if (index >= 0 && index < _stored.Count) _stored.RemoveAt(index);
+    }
+
+    /// <summary>소지품과 보관 칸을 다 잃는다(감옥).</summary>
+    public void LoseBelongings()
+    {
+        _items.Clear();
+        _stored.Clear();
+    }
+
+    /// <summary>계류해 둔 배까지 모든 배를 잃는다(감옥).</summary>
+    public void LoseAllShips()
+    {
+        ClearShips();
+        _docked.Clear();
+    }
+
     private readonly HashSet<int> _activeGoods = [];
 
     /// <summary>

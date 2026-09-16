@@ -2066,6 +2066,8 @@ public sealed class ShipMapWindow : Window
             // 발견으로 판매가 켜진 교역품. 이 칸이 없던 세이브는 <b>발견한 발견물의 대본</b>에서 교역품 활성화
             // (01 15)를 찾아 켠다 — 상아(코끼리의 무덤)·후추 따위를 찾아 놓고도 교역소에 안 나오면 안 된다.
             // 대본 안의 갈래는 가리지 않고 그 파트에 적힌 것을 다 켠다.
+            _game.Player.RestoreBetrayals(saved.Betrayals);
+            _game.Player.RestoreSulks(saved.Sulks);
             _game.Player.RestoreActiveGoods(saved.ActiveGoods ??
                 _game.Player.Discoveries.SelectMany(id => Engine.Disev.DisevRunner.GoodsActivatedBy(_game, id)));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
@@ -3721,7 +3723,8 @@ public sealed class ShipMapWindow : Window
         if (_game.Player.Ships.Count == 0) return;          // 배가 없으면 붙을 일이 없다
 
         var (lat, lon) = _host.ShipLatLon;
-        if (Encounter.AtSea(lat, lon, steps, _game.Random, CaptainOf) is not { } foe) return;
+        if (Encounter.AtSea(lat, lon, steps, _game.Random, CaptainOf,
+                            chased: _game.Player.Pursuers.Any()) is not { } foe) return;
         var rng = _game.Random;
 
         bool over = false;
@@ -3729,6 +3732,17 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
+            // 추격대면 적장이 먼저 이름을 댄다(0x00455690) — 뒤쫓는 후원자 하나를 골라 그 명령이라 한다.
+            if (foe.Kind == EnemyKind.Chaser && _game.Player.Pursuers.ToList() is { Count: > 0 } chasers)
+            {
+                var who = chasers[rng.Next(chasers.Count)];
+                var boss = _game.Sponsors?.FindByName(who.Sponsor);
+                string me = _game.Player.Name, lord = $"{boss?.Name ?? who.Sponsor} {boss?.Honorific ?? "각하"}";
+                ConfirmDialog.Tell(this,
+                    $"네가 {me}{GameUi.Josa(me, "이", "")}군. 찾고 있었다! {lord}께서 너를 토벌하라는 명령이다. 각오해라.",
+                    Encounter.TitleOf(foe.Kind), PersonFace(Encounter.ChaserLeader));
+            }
+
             // 조우의 말은 모두 한 사람이 한다 — 부관, 없으면 뱃사람(0x004555BC 가 처음에 집는다).
             var face = MateFace();
             ConfirmDialog.Tell(this, Encounter.GreetOf(foe, rng), Encounter.TitleOf(foe.Kind), face);

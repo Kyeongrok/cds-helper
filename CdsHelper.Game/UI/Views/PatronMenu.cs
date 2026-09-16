@@ -104,6 +104,82 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             return;
         }
 
+        // 딴 후원자와 계약 중이면 <b>감찰관이 막는다</b>(0x0044EB70 case 0 → 0x0044FC80). 그 후원자와의 계약이면
+        // 이 줄 대신 「계약중단」이 뜨므로 여기 올 일이 없다.
+        string? punished = null;
+        if (_player.Contract is { } deal && !Contracted(patron))
+        {
+            if (!InspectorLetsGo(deal)) return;
+            punished = deal.Sponsor;
+        }
+
+        try
+        {
+            PersuadeBody(patron);
+        }
+        finally
+        {
+            // 감찰관을 처벌했으면 건물을 나설 때 부관이 걱정한다(0x0044E6C0, +0xBC == 2) —
+            // 새 계약을 맺었는지에 따라 말이 갈린다.
+            if (punished != null)
+                TalkDialog.Say(_view, _game.AideFace, "",
+                    _player.Contract is { } now && now.Sponsor == patron.Name
+                        ? "처벌한 것이 안 좋았던 것 같습니다. 일단, 전 스폰서에게는 접근하지 않는 편이 좋겠군요."
+                        : "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 가까이 하지 않는 것이 좋을 것 같군요.");
+        }
+    }
+
+    /// <summary>
+    /// 계약 중에 딴 후원자를 설득하려 할 때 감찰관이 막는다(<c>0x0044FC80</c>). 처벌하고 넘어가면 true.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   맡은 발견물을 이미 찾았으면   감찰관 「농담이지요! … 보고하지 않으면 안됩니다!」 → 끝 (0x005324E0 · 0x00532538)
+    ///   부관   「제독, 지금 스폰서와의 계약을 백지화할 작정이십니까?」 (0x0054C3D8)
+    ///   감찰관 「노, 농담을! 그러면 제 입장이 곤란해집니다. 생각을 바꿔 주십시오.」
+    ///   [감찰관을 처벌한다 / 생각을 바꾼다]
+    ///     생각을 바꾼다 → 「농담이시겠지요.」 → 끝
+    ///     처벌한다     → 「예에엣! 요, 용서를~!!」 「자, 얌전히 이쪽으로 오게!」
+    ///                    → 옛 후원자 친밀도 −50 · 배신 표시(비트 13) · 계약 해제(0x0044EE30(2)) → 설득을 잇는다
+    /// </code>
+    /// 계약금을 돌려 달라는 말은 없고, 옛 후원자의 남은 기한도 안 지운다 — 그 기한이 다 흐르면 추격이 시작된다.
+    /// </remarks>
+    private bool InspectorLetsGo(Contract deal)
+    {
+        var inspectorFace = _game.Faces?.TryGetBgra(Inspector.Face, female: false);
+        void Inspector_(string words) => TalkDialog.Say(_view, inspectorFace, "", words);
+
+        var old = _game.Sponsors?.FindByName(deal.Sponsor);
+        string oldName = $"{old?.Name ?? deal.Sponsor} {old?.Honorific ?? "각하"}";
+
+        if (Palace.ReportTargets(_player, deal.Sponsor, deal.City, _game.Discoveries?.Table, _game.Hints).Count > 0)
+        {
+            Inspector_(deal.City == _cityName
+                ? $"농담이지요! 빨리 {oldName}에게 보고하지 않으면 안됩니다!"
+                : $"농담이지요! 지금은 한 시각이라도 빨리 {deal.City}에 돌아가 {oldName}에게 보고하지 않으면 안됩니다!");
+            return false;
+        }
+
+        TalkDialog.Say(_view, _game.AideFace, "", "제독, 지금 스폰서와의 계약을 백지화할 작정이십니까?");
+        Inspector_("노, 농담을! 그러면 제 입장이 곤란해집니다. 생각을 바꿔 주십시오.");
+        if (ChoiceDialog.Pick(_view, "", ["감찰관을 처벌한다", "생각을 바꾼다"]) != 0)
+        {
+            Inspector_("농담이시겠지요.");
+            return false;
+        }
+
+        Inspector_("예에엣! 요, 용서를~!!");
+        GameDialog.Show(_view, "자, 얌전히 이쪽으로 오게!");
+
+        _player.Endear(deal.Sponsor, -50);
+        _player.Betray(deal.Sponsor, deal.City, deal.DueOn);
+        _player.EndContract();
+        return true;
+    }
+
+    private void PersuadeBody(Patron patron)
+    {
+
         var sponsor = _game.Sponsors?.FindByName(patron.Name);
         string shown = sponsor?.Name ?? patron.Name;             // 게임 이름은 가운뎃점이 들어간다
         string sir = sponsor?.Honorific ?? "각하";
@@ -112,6 +188,14 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var face = FaceOf(patron);
         void Say(string words) => TalkDialog.Say(_view, face, "", words);
         void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
+
+        // 기분이 상한 후원자는 문간에서 돌려보낸다(0x004AEFC1, 후원자 비트 14) — 설득을 물렸거나
+        // 계약 결판을 치른 뒤 30일 동안이다(0x004A2AD0 이 푼다).
+        if (_player.IsSulking(patron.Name))
+        {
+            Steward($"{shown} {sir}께서는 꽤 기분이 안좋은 상태이니 여기서 일단 돌아가 주십시오.");
+            return;
+        }
 
         // 첫 관문은 명성이다. 모자라면 집사가 문간에서 돌려보낸다(게임 0x004AE1F0).
         //
@@ -192,6 +276,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 갈래, 안목·웅변·매력 굴림 차례다.
         var verdict = Decide(it, patron, _game.Sponsors?.FindByName(patron.Name),
                              face, Say, mine.Count > 1);
+        // 아주 물리면 후원자가 기분이 상한다(0x004AE72A) — 한 달 동안 문간에서 돌려보낸다.
+        if (verdict is Persuasion.Verdict.Refused) _player.Sulk(patron.Name);
         if (verdict is Persuasion.Verdict.Refused or Persuasion.Verdict.TooBig
                     or Persuasion.Verdict.AskAnother) return;
 
@@ -488,7 +574,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// </remarks>
     /// <returns>붙일 줄이 없으면 빈 문자열 — 그러면 후원자 줄이 아예 안 뜬다.</returns>
     public string PatronRow(Patron patron) =>
-        CanReport(patron) ? Facility.Report
+        // 감찰관을 처벌해 배신한 후원자면 「계약중단」 하나뿐이다(0x0044E630 이 +0xB0 = 3).
+        _player.IsBetrayed(patron.Name) ? Facility.Break
+      : CanReport(patron) ? Facility.Report
       : Contracted(patron) ? Facility.Break
       : CanPersuade ? Facility.Persuade
       : "";
@@ -726,6 +814,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
     private void BreakContractNow(Patron patron)
     {
+        if (_player.IsBetrayed(patron.Name))
+        {
+            Reckon(patron);
+            return;
+        }
+
         if (_player.Contract is not { } contract) return;
 
         var owner = Owner;
@@ -778,6 +872,164 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 물었다.");
         RecontractMates();
     }
+
+    /// <summary>
+    /// 감찰관을 처벌한 뒤 옛 후원자를 찾아갔을 때의 결판(<c>0x0044F8F0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   집사 인사 → 집사 보고 → 후원자 한마디
+    ///   관용 굴림(0x0044FC10)   기한 안: 성미[4] &gt; 0, 지남: 성미[4] == 2 라야 굴린다
+    ///                           rand(150 · 200) &lt; 친밀도 + 운 + 1 — 못 넘으면 감옥
+    ///   「감찰관은 어디에 있나?」 [병에 걸려 죽었다 / 도망쳤다]
+    ///   거짓말 1   rand(120 · 150) ≤ 지력 + 1 — 못 넘으면 감찰관이 직접 나와 들킨다 → 친밀도 −20 · 감옥
+    ///   거짓말 2   후원자 표 +0x30 &lt; rand(운 + 1) — 못 넘으면 「감찰관이 돌아오지 않을 이유가 없다!」 → −20 · 감옥
+    ///   위약금     후원자 표 +0x20 × (성미[4] + 1) × 1000 — 못 내면 감옥
+    ///              내면 악명 +(rand100 + 150)×(199 − 매력)/100 · 친밀도 −20
+    ///   끝에 배신 표시를 지우고(0x0044FBE7) 기분을 상하게 둔다
+    /// </code>
+    /// 후원자 성미는 NPC 셈(얼굴·혈액형·나라, <see cref="Sea.FleetRaid.FortuneOf"/>)으로 센다 — 후원자 객체의
+    /// 가상 함수가 같은 셈인지는 확인하지 못했다. 대사는 신분마다 세 벌인데 한 벌만 쓴다.
+    /// </remarks>
+    private void Reckon(Patron patron)
+    {
+        var betrayal = _player.Betrayals.First(b => b.Sponsor == patron.Name);
+        bool inTime = _player.Date < betrayal.DueOn;
+        var sponsor = _game.Sponsors?.FindByName(patron.Name);
+        string shown = sponsor?.Name ?? patron.Name;
+        string sir = sponsor?.Honorific ?? "각하";
+        string me = _player.Name;
+        var dice = new GameRandom(Environment.TickCount);
+
+        var face = FaceOf(patron);
+        void Say(string words) => TalkDialog.Say(_view, face, "", words);
+        void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
+
+        _cityMenu.Close();
+        bool over = false;
+        _game.Bgm.Play(BgmPlayer.SponsorTrack);
+        try
+        {
+            Steward(inTime
+                ? $"아니, {me}님. {shown} {sir}에게 볼 일이시라면 안내하겠습니다만."
+                : $"너는, {me}... 용케도 얼굴을 내밀었군. 그 배짱을 보아 {shown} {sir}{GameUi.Josa(sir, "을", "를")} 만나게 해 주지.");
+            Steward($"{sir}. {me}{GameUi.Josa(me, "이", "가")} 왔습니다. 조금 전의 계약을 없었던 일로 하자고 합니다만...");
+            Say(inTime ? "후~, 계약을 파기하리라고는." : "사람을 기다리게 해 놓구선... 장난을 치다니!");
+
+            int[] fortune = SponsorFortune(sponsor);
+            int kindness = fortune[4];
+            int luck = _player.AbilityOf(Ability.Luck), mind = _player.AbilityOf(Ability.Mind),
+                charm = _player.AbilityOf(Ability.Charm);
+
+            bool mercy = (inTime ? kindness > 0 : kindness == 2)
+                         && dice.Next(inTime ? 150 : 200) < _player.ClosenessOf(patron.Name) + luck + 1;
+            if (!mercy)
+            {
+                Say("이 놈을 감옥에 쳐 넣어라!");
+                over = Jail(patron, dice);
+                return;
+            }
+
+            Say(inTime
+                ? "안됐지만, 싫다는 자를 억지로 보내서 좋을 일은 없지. 좋다. 계약은 없었던 일로 하지.\n그건 그렇고, 감찰관은 어디에 있나?"
+                : "어쩔 수 없다. 너같이 무능한 자에게 맡긴 내가 어리석었다. 좋다. 계약은 없었던 일로 하지.\n그런데 자네에게 붙인 감찰관은 어디에 있는가?");
+            string word = ChoiceDialog.Pick(_view, "", ["병에 걸려 죽었다", "도망쳤다"]) == 1 ? "도망쳤다" : "죽었다";
+
+            if (dice.Next(inTime ? 120 : 150) > mind + 1)
+            {
+                TalkDialog.Say(_view, _game.Faces?.TryGetBgra(Inspector.Face, female: false), "",
+                               $"나라면 여기 있지만, 여행지에서 {word}니 누구를 말하는 건가?");
+                Say("이 거짓말장이를 감옥에 집어 넣어라!");
+                _player.Endear(patron.Name, -20);
+                over = Jail(patron, dice);
+                return;
+            }
+
+            if ((sponsor?.Closeness ?? 60) >= dice.Next(luck + 1))
+            {
+                Say("감찰관이 돌아오지 않을 이유가 없다! 자네, 뭔가 불리한 일이 있어 없앤게 아닌가! 그 녀석을 감옥에 쳐 넣어라.");
+                _player.Endear(patron.Name, -20);
+                over = Jail(patron, dice);
+                return;
+            }
+
+            int penalty = (sponsor?.Eye ?? 50) * (kindness + 1) * 1000;
+            Say($"그래... 그건 어쩔 수 없군. 그럼 위약금으로 금화 {penalty}닢을 받겠다.");
+            if (!_player.Pay(penalty))
+            {
+                GameDialog.Show(_view, "위약금을 지불할 수 없습니다!");
+                Say("이 바보 같은 녀석!");
+                over = Jail(patron, dice);
+                return;
+            }
+
+            GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 지불했다!");
+            _player.Infamy += (dice.Next(100) + 150) * Math.Max(0, 199 - charm) / 100;
+            _player.Endear(patron.Name, -20);
+        }
+        finally
+        {
+            // 어느 결과든 결판은 났다 — 추격이 끝나고 한동안 기분이 상해 있다.
+            _player.SettleBetrayal(patron.Name);
+            _player.Sulk(patron.Name);
+            _game.Bgm.Play(_cityTrack);
+            if (over) EndGame();
+        }
+    }
+
+    /// <summary>
+    /// 감옥(<c>0x0044EF20</c>). 놀이가 끝났으면 true.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   항구가 없는 도시   「%s%s 감옥에서 일생을 마쳤다....」 → GAME OVER
+    ///   항구 도시          「그리고 %d년의 세월이 흘렀다」  년 = rand(2) + (109 − 운)/10
+    ///                      체력·매력 −5×년 · 소지금 0 · 명성 −2000 · 악명 +(rand300 + 500)×(199 − 매력)/100
+    ///                      그 후원자 친밀도 0 · 소지품·보관품·배를 잃는다 → 「용케도 살아 있었군. 끈질긴 놈이군.」
+    /// </code>
+    /// 항구 여부는 게임이 도시 객체 <c>+0x1C</c> 비트 0 으로 보는데, 우리는 그 도시에 항구 건물이 있는지로 가른다.
+    /// 부하·아내·아이를 어떻게 하는지(<c>0x004534E0</c> · <c>0x00465900</c> · <c>0x0047D640</c>)는 아직 안 옮겼다.
+    /// </remarks>
+    private bool Jail(Patron patron, GameRandom dice)
+    {
+        string me = _player.Name;
+        bool harbor = _game.Buildings?.InCity(_cityId).Any(b => b.Kind == "항구") ?? true;
+        if (!harbor)
+        {
+            GameDialog.Show(_view, $"{me}{GameUi.Josa(me, "은", "는")} 감옥에서 일생을 마쳤다....");
+            return true;
+        }
+
+        int luck = _player.AbilityOf(Ability.Luck), charm = _player.AbilityOf(Ability.Charm);
+        int years = dice.Next(2) + (109 - luck) / 10;
+        GameDialog.Show(_view, $"그리고 {years}년의 세월이 흘렀다");
+
+        _player.AdvanceDays(years * 365);
+        var stats = _player.Abilities.ToArray();
+        stats[Ability.Body] = Math.Max(Ability.Min, stats[Ability.Body] - 5 * years);
+        stats[Ability.Charm] = Math.Max(Ability.Min, stats[Ability.Charm] - 5 * years);
+        _player.SetAbilities(stats);
+        _player.SetGold(0);
+        _player.Fame = Math.Max(0, _player.Fame - 2000);
+        _player.Infamy += (dice.Next(300) + 500) * Math.Max(0, 199 - charm) / 100;
+        _player.Endear(patron.Name, -Player.MaxCloseness);
+        _player.LoseBelongings();
+        _player.LoseAllShips();
+
+        TalkDialog.Say(_view, FaceOf(patron), "", "용케도 살아 있었군. 끈질긴 놈이군.");
+        return false;
+    }
+
+    /// <summary>놀이를 끝낸다 — 도시 발견 대본이 게임 오버로 끝날 때와 같은 차례다.</summary>
+    private void EndGame()
+    {
+        GameOverDialog.Show(_view, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+        if (_view.Owner is ShipMapWindow map) _view.Dispatcher.BeginInvoke(map.ReturnToTitle);
+    }
+
+    /// <summary>후원자 성미 여덟 칸. 표를 못 읽었으면 다 보통(1)이다.</summary>
+    internal static int[] SponsorFortune(SponsorTable.Sponsor? sponsor) =>
+        sponsor is { } s ? Engine.Sea.FleetRaid.FortuneOf(s.Face, s.Blood, s.Nation) : [1, 1, 1, 1, 1, 1, 1, 1];
 
     /// <summary>
     /// 계약이 끝나면 <b>부하마다 다시 태울지</b> 묻는다(게임 <c>0x00454160</c>).
