@@ -52,11 +52,20 @@ public sealed class TavernHintEditDialog : GameWindow
         ToolTip = "일련번호로 발견물을 못 찾거나, 그 발견물에 자리가 없는 줄만 낸다",
     };
 
+    private readonly Button _add = new()
+    {
+        Content = "새 힌트 추가",
+        Padding = new Thickness(10, 2, 10, 2),
+        Margin = new Thickness(12, 0, 0, 0),
+        ToolTip = "원본에 없던 새 힌트 번호를 하나 더한다 — 커스텀 발견물의 짝을 지을 때 쓴다",
+    };
+
     private readonly Button _reset = new()
     {
         Content = "이 줄 되돌리기",
         Padding = new Thickness(10, 2, 10, 2),
-        Margin = new Thickness(12, 0, 0, 0),
+        Margin = new Thickness(6, 0, 0, 0),
+        ToolTip = "원본에 있던 번호면 게임 값으로 돌아가고, 여기서 새로 더한 번호면 통째로 없어진다",
     };
 
     private readonly Button _resetAll = new()
@@ -109,6 +118,7 @@ public sealed class TavernHintEditDialog : GameWindow
         _oddOnly.Checked += (_, _) => Rebuild();
         _oddOnly.Unchecked += (_, _) => Rebuild();
 
+        _add.Click += (_, _) => AddNew();
         _reset.Click += (_, _) =>
         {
             if (_grid.SelectedItem is Row row) HintEdits.Reset(row.Id);
@@ -126,7 +136,7 @@ public sealed class TavernHintEditDialog : GameWindow
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(10, 10, 10, 0),
-            Children = { label, _search, _oddOnly, _reset, _resetAll },
+            Children = { label, _search, _oddOnly, _add, _reset, _resetAll },
         };
 
         var page = new DockPanel();
@@ -281,6 +291,19 @@ public sealed class TavernHintEditDialog : GameWindow
                 false);
     }
 
+    /// <summary>다음 빈 번호로 새 힌트 하나를 더한다.</summary>
+    private void AddNew()
+    {
+        if (_hints is not { } hints) return;
+
+        int nextId = hints.Hints.Select(h => h.Id).DefaultIfEmpty(-1).Max() + 1;
+        HintEdits.Set(nextId, "새 힌트", 1, 0, 10000, 3, -1, "");
+
+        Rebuild();
+        if (_grid.ItemsSource is List<Row> rows)
+            _grid.SelectedItem = rows.FirstOrDefault(r => r.Id == nextId);
+    }
+
     /// <summary>고친 칸만 골라 적어 둔다 — 게임 값과 같으면 씌우지 않는다.</summary>
     private void Collect()
     {
@@ -288,15 +311,20 @@ public sealed class TavernHintEditDialog : GameWindow
 
         foreach (var row in rows)
         {
-            if (hints.Original(row.Id) is not { } game) continue;
-            HintEdits.Set(row.Id,
-                          row.Name == game.Name ? null : row.Name,
-                          row.Grade == game.Grade ? null : row.Grade,
-                          row.Category == game.Category ? null : row.Category,
-                          row.Funds == game.Funds ? null : row.Funds,
-                          row.Deadline == game.Deadline ? null : row.Deadline,
-                          row.Discovery == game.Discovery ? null : row.Discovery,
-                          row.Text == game.Text ? null : row.Text);
+            // 원본에 있던 번호면 게임 값과 다른 칸만 씌운다. 원본에 없던(여기서 더한) 번호면
+            // 견줄 게임 값이 없으니 칸 그대로 통째로 적는다.
+            if (hints.Original(row.Id) is { } game)
+                HintEdits.Set(row.Id,
+                              row.Name == game.Name ? null : row.Name,
+                              row.Grade == game.Grade ? null : row.Grade,
+                              row.Category == game.Category ? null : row.Category,
+                              row.Funds == game.Funds ? null : row.Funds,
+                              row.Deadline == game.Deadline ? null : row.Deadline,
+                              row.Discovery == game.Discovery ? null : row.Discovery,
+                              row.Text == game.Text ? null : row.Text);
+            else
+                HintEdits.Set(row.Id, row.Name, row.Grade, row.Category, row.Funds,
+                              row.Deadline, row.Discovery, row.Text);
         }
         Rebuild();
     }

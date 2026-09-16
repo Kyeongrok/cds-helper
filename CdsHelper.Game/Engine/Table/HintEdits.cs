@@ -16,9 +16,6 @@ public static class HintEdits
     /// <summary>적어 둘 파일 이름(<c>힌트-고친것.json</c>).</summary>
     private const string CacheName = "힌트-고친것";
 
-    /// <summary>힌트 줄 수. 표 밖 번호는 받지 않는다.</summary>
-    private const int RowCount = 186;
-
     /// <summary>고쳐 둔 한 줄. 안 고친 칸은 null 이라 게임 값이 그대로 남는다.</summary>
     /// <param name="Discovery">
     /// 가리킬 발견물 <b>일련번호</b>. 표에서 몇째 줄인지가 아니다
@@ -58,11 +55,25 @@ public static class HintEdits
         };
     }
 
-    /// <summary>그 힌트를 고쳐 씌운다. 죄다 null 이면 씌운 것을 걷는다.</summary>
+    /// <summary>
+    /// 밑감(게임 줄)이 없는 번호를 위해, 고친 칸만으로 힌트 하나를 짓는다 — 안 채운 칸은
+    /// 무난한 기본값으로 채운다. 원본에 있던 번호는 <see cref="Apply"/> 를 쓴다.
+    /// </summary>
+    public static HintTable.Hint Synthesize(Entry e) => new(
+        e.Id, e.Name ?? $"새 힌트 {e.Id}", e.Grade ?? 1, e.Category ?? 0,
+        e.Funds ?? 10000, e.Deadline ?? 3, e.Discovery ?? -1, e.Text ?? "");
+
+    /// <summary>
+    /// 그 힌트를 고쳐 씌운다. 죄다 null 이면 씌운 것을 걷는다.
+    /// </summary>
+    /// <remarks>
+    /// 번호를 186 아래로 막지 않는다 — 원본에 있던 186줄을 고치는 것과, 원본에 없던 새
+    /// 힌트를 더하는 것이 같은 길이다. 새 번호면 <see cref="Synthesize"/> 가 기본값을 채운다.
+    /// </remarks>
     public static void Set(int id, string? name, int? grade, int? category, int? funds,
                            int? deadline, int? discovery, string? text)
     {
-        if (id < 0 || id >= RowCount) return;
+        if (id < 0) return;
 
         if (name == null && grade == null && category == null && funds == null
             && deadline == null && discovery == null && text == null)
@@ -96,7 +107,7 @@ public static class HintEdits
         var saved = TableCache.Read<Snapshot>(CacheName);
         var map = new Dictionary<int, Entry>();
         foreach (var row in saved?.Data.Hints ?? [])
-            if (row.Id >= 0 && row.Id < RowCount) map[row.Id] = row;
+            if (row.Id >= 0) map[row.Id] = row;
         return map;
     }
 
