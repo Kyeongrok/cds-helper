@@ -668,6 +668,15 @@ public sealed class Player
     /// <remarks>게임은 플레이어 객체의 소지금(<c>+0xF4</c>) 옆에 나란히 둔다.</remarks>
     public int Savings { get; private set; }
 
+    /// <summary>예금을 그 값으로 둔다(세대교체 — 4/5 만 물려준다).</summary>
+    public void SetSavings(int savings) => Savings = Math.Clamp(savings, 0, MaxGold);
+
+    /// <summary>낯튼 사람을 다 잊는다(세대교체 — 새 제독은 아무도 모른다).</summary>
+    public void ForgetEveryone() => _met.Clear();
+
+    /// <summary>여급 친밀도를 다 지운다(세대교체 — <c>0x00461E6C</c>).</summary>
+    public void ClearLiking() => _liking.Clear();
+
     /// <summary>
     /// 그만큼 저금한다. 소지금이 모자라거나 저금 칸이 다 찼으면 할 수 있는 만큼만 한다.
     /// </summary>
@@ -830,10 +839,60 @@ public sealed class Player
     /// </remarks>
     public string Spouse { get; private set; } = "";
 
-    /// <summary>얻은 후손들. 차례가 곧 태어난 차례다.</summary>
-    public IReadOnlyList<string> Heirs => _heirs;
+    /// <summary>
+    /// 아이 하나 — 게임의 아이 배열 한 칸(<c>0x005B5A28</c>, 828바이트 x 둘).
+    /// </summary>
+    /// <param name="Name">이름.</param>
+    /// <param name="Daughter">딸인지(<c>+0x10</c> 이 1).</param>
+    /// <param name="Born">태어나는 날(<c>+0xE8</c>·<c>+0xEC</c>·<c>+0xF0</c>). 잉태 열 달 뒤라 그 전에는 아직 배 속이다.</param>
+    /// <param name="Abilities">능력치 여섯(<c>+0x20</c>). 세대교체하면 이것이 제독 능력치가 된다.</param>
+    /// <param name="Skills">기능 열셋(<c>+0x40</c>, <see cref="Skill.Names"/> 차례).</param>
+    /// <param name="Tongues">언어 열넷(<c>+0x74</c>, <see cref="Skill.Languages"/> 차례).</param>
+    public sealed record Child(string Name, bool Daughter, DateTime Born, int[] Abilities, int[] Skills, int[] Tongues)
+    {
+        /// <summary>그 날의 나이. 아직 안 태어났으면 음수다.</summary>
+        public int AgeOn(DateTime now) =>
+            now.Year - Born.Year - (now.Month < Born.Month || (now.Month == Born.Month && now.Day < Born.Day) ? 1 : 0);
 
-    private readonly List<string> _heirs = [];
+        /// <summary>그 날 태어나 있는지.</summary>
+        public bool IsBornBy(DateTime now) => Born <= now;
+    }
+
+    /// <summary>게임이 드는 아이 칸 수 — 둘이다.</summary>
+    public const int MaxChildren = 2;
+
+    private readonly List<Child> _children = [];
+
+    /// <summary>아이들. 차례가 곧 잉태한 차례다.</summary>
+    public IReadOnlyList<Child> Children => _children;
+
+    /// <summary>얻은 후손 이름들.</summary>
+    public IReadOnlyList<string> Heirs => [.. _children.Select(c => c.Name)];
+
+    /// <summary>아이를 하나 더한다. 칸이 없으면 false.</summary>
+    public bool AddChild(Child child)
+    {
+        if (_children.Count >= MaxChildren) return false;
+        _children.Add(child);
+        return true;
+    }
+
+    /// <summary>아이 기록을 갈아 끼운다(교육으로 기능이 올랐을 때).</summary>
+    public void ReplaceChild(Child before, Child after)
+    {
+        int at = _children.IndexOf(before);
+        if (at >= 0) _children[at] = after;
+    }
+
+    /// <summary>아이 칸을 비운다(세대교체 — <c>0x0047D640</c>).</summary>
+    public void ClearChildren() => _children.Clear();
+
+    /// <summary>세이브를 되돌릴 때.</summary>
+    public void RestoreChildren(IEnumerable<Child>? children)
+    {
+        _children.Clear();
+        if (children != null) foreach (var c in children) AddChild(c);
+    }
 
     /// <summary>
     /// 맺어진 여급의 번호. 없으면 -1.
@@ -871,11 +930,16 @@ public sealed class Player
         SpouseId = Spouse.Length == 0 ? -1 : barmaid;
     }
 
-    /// <summary>후손을 하나 얻는다.</summary>
+    /// <summary>
+    /// 이름만 있는 후손을 하나 얻는다 — 아이 칸이 생기기 전 세이브를 되돌릴 때 쓴다. 오늘 태어난 것으로,
+    /// 첫째는 아들 · 둘째는 딸로, 능력은 비워 둔다(불러오는 쪽이 아버지 값으로 다시 채운다).
+    /// </summary>
     public void AddHeir(string name)
     {
         string given = (name ?? "").Trim();
-        if (given.Length > 0) _heirs.Add(given);
+        if (given.Length == 0) return;
+        AddChild(new Child(given, _children.Count > 0, Date, new int[6], new int[Skill.Names.Length],
+                           new int[Skill.Languages.Length]));
     }
 
     /// <summary>적어 둔 것을 되돌린다.</summary>
@@ -884,7 +948,7 @@ public sealed class Player
     {
         Spouse = (spouse ?? "").Trim();
         SpouseId = Spouse.Length == 0 ? -1 : spouseId;
-        _heirs.Clear();
+        _children.Clear();
         foreach (string h in heirs ?? []) AddHeir(h);
 
         _liking.Clear();

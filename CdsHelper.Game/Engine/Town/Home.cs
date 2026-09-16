@@ -60,5 +60,136 @@ public static class Home
     /// <summary>
     /// 이번에 후손을 얻었는지. <b>여덟에 둘</b>이라 네 번에 한 번 꼴이다.
     /// </summary>
-    public static bool HeirBorn(Random random) => random.Next(HeirRoll) < HeirWin;
+    /// <remarks>
+    /// 게임은 굴리기 전에 빈 아이 칸이 있고(<c>0x004AB9F0</c>) 막내가 이미 태어났는지(아내 <c>+0x38 == -1</c>)를 본다 —
+    /// 둘 다 차 있거나 배 속에 아이가 있으면 굴림과 상관없이 안 된다.
+    /// </remarks>
+    public static bool HeirBorn(Player player, Random random) =>
+        player.Children.Count < Player.MaxChildren
+        && player.Children.All(c => c.IsBornBy(player.Date))
+        && random.Next(HeirRoll) < HeirWin;
+
+    /// <summary>
+    /// 아이를 잉태한다(<c>0x00460C50</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   성별      rand(2) == 0 이면 딸. 이미 아이가 있으면 그 반대 성별
+    ///   태어나는 날  지금 달 + 10 (넘치면 이듬해), 날은 그 달 끝날(게임 굴림 고리가 늘 끝날 쪽으로 멎는다)
+    ///   능력치    아버지 값 + rand(20) − 10 + 1, 1~100 (0x004610C0)
+    ///   기능      아버지가 3 인 것은 3, 아닌 것 가운데 하나를 골라 2 (0x00460F1C)
+    ///   언어      아버지가 3 인 것은 3 (0x00460EB8)
+    /// </code>
+    /// 게임은 능력치마다 폭을 조금씩 달리하고(칸에 따라 30 · −15), 딸에게 +5, 아내 직업 보정표(<c>0x0051ACA0</c> ·
+    /// <c>0x0051B0A0</c>)를 얹으며, 아내 고향 말도 준다. 뜀표 칸마다의 짝을 다 짚지 못해 밑값 셈만 옮겼다.
+    /// </remarks>
+    public static Player.Child Conceive(Player father, Random random, string name)
+    {
+        bool daughter = father.Children.Count > 0 ? !father.Children[^1].Daughter : random.Next(2) == 0;
+
+        var due = father.Date.AddMonths(10);
+        due = new DateTime(due.Year, due.Month, DateTime.DaysInMonth(due.Year, due.Month));
+
+        var abilities = new int[6];
+        for (int i = 0; i < abilities.Length; i++)
+            abilities[i] = Math.Clamp(father.AbilityOf(i) + random.Next(20) - 10 + 1, 1, 100);
+
+        return Bless(father, random, new Player.Child(name, daughter, due, abilities,
+                                                      new int[Skill.Names.Length], new int[Skill.Languages.Length]));
+    }
+
+    /// <summary>기능·언어를 아버지에게서 받는다 — 잉태할 때와, 이름만 있는 옛 세이브 아이를 채울 때 쓴다.</summary>
+    public static Player.Child Bless(Player father, Random random, Player.Child child)
+    {
+        var skills = Skill.Names.Select(n => father.LevelOf(n) >= Skill.MaxLevel ? Skill.MaxLevel : 0).ToArray();
+        var empty = Enumerable.Range(0, skills.Length).Where(i => skills[i] == 0).ToList();
+        if (empty.Count > 0) skills[empty[random.Next(empty.Count)]] = 2;
+
+        var tongues = Skill.Languages.Select(n => father.TongueOf(n) >= Skill.MaxLevel ? Skill.MaxLevel : 0).ToArray();
+
+        var abilities = child.Abilities.All(a => a == 0)
+            ? Enumerable.Range(0, 6).Select(i => Math.Clamp(father.AbilityOf(i) + random.Next(20) - 10 + 1, 1, 100)).ToArray()
+            : child.Abilities;
+        return child with { Abilities = abilities, Skills = skills, Tongues = tongues };
+    }
+
+    /// <summary>교육 나이 — 열 살부터(<c>0x0046181E</c>).</summary>
+    public const int EducateAge = 10;
+
+    /// <summary>
+    /// 아버지가 아이보다 높은 것 — 가르칠 수 있는 기능(<c>0x004AC040</c>, 열셋)과 언어(<c>0x004AC090</c>, 열넷).
+    /// </summary>
+    /// <returns>(기능인가, 칸 번호) 차례 — 기능이 먼저다.</returns>
+    public static List<(bool Skill, int Index)> Teachable(Player father, Player.Child child)
+    {
+        var list = new List<(bool, int)>();
+        for (int i = 0; i < Skill.Names.Length && i < child.Skills.Length; i++)
+            if (father.LevelOf(Skill.Names[i]) > child.Skills[i]) list.Add((true, i));
+        for (int i = 0; i < Skill.Languages.Length && i < child.Tongues.Length; i++)
+            if (father.TongueOf(Skill.Languages[i]) > child.Tongues[i]) list.Add((false, i));
+        return list;
+    }
+
+    /// <summary>
+    /// 더 배울 수 있는지(<c>0x004696E0</c> 기능 · <c>0x00469750</c> 언어).
+    /// </summary>
+    /// <remarks>
+    /// 단계마다 무게를 매겨 더한 값이 지력으로 정한 한도 밑이라야 한다.
+    /// <code>
+    ///   점수 = (3단계 수 × 2 + 2단계 수) × 3 + 1단계 수
+    ///   한도 = (지력 × 3 + 3) / 5            ; 지력은 아이 칸 +0x24
+    ///   점수 &lt; 한도 라야 배운다
+    /// </code>
+    /// 언어 쪽(<c>0x00469750</c>)은 같은 꼴로 보고 옮겼다 — 따로 확인하지는 않았다.
+    /// </remarks>
+    public static bool CanLearnMore(Player.Child child, bool skill)
+    {
+        var levels = skill ? child.Skills : child.Tongues;
+        int ones = levels.Count(l => l == 1), twos = levels.Count(l => l == 2), threes = levels.Count(l => l == 3);
+        int score = (threes * 2 + twos) * 3 + ones;
+        int mind = child.Abilities.Length > 1 ? child.Abilities[1] : 0;
+        return score < (mind * 3 + 3) / 5;
+    }
+
+    /// <summary>
+    /// 한 단계 가르치는 데 드는 날(<c>0x00461440</c>) — (120 − (지력 + 1)) / 10 × 다음 단계 × 30.
+    /// </summary>
+    public static int EducateDays(Player.Child child, int nextLevel)
+    {
+        int mind = child.Abilities.Length > 1 ? child.Abilities[1] : 0;
+        return (120 - (mind + 1)) / 10 * nextLevel * 30;
+    }
+
+    /// <summary>
+    /// 기능을 익힌 아이가 하는 말(<c>0x00461640</c> 의 뜀표) — 기능마다 (2단계, 3단계) 한 쌍이다.
+    /// </summary>
+    public static readonly (string Two, string Three)[] SkillRemarks =
+    [
+        ("이제 항해술은 완벽해! 빨리 바다로 나가고 싶군.", "항해술은 이제 됐으니 빨리 아버지 배에 태워줘요."),
+        ("탐험 수칙인건 알겠지만, 걷는건 싫군.", "괜찮아! 숲도 사막도 위험하니까, 주위를 주의하면 되는 거죠?"),
+        ("상대방이 상단공격을 하면 웅크리면 되죠?", "솜씨가 많이 늘었다! 워낙 칼싸움을 좋아하거든."),
+        ("흠-, 대포도 여러 종류가 있군요.", "대포는 화약을 조심해야 하죠? 괜찮아요."),
+        ("잘 보세요. 저 돌을 맞출테니…! 아, 빗나갔다.", "이것이 화승총이고, 이쪽이 머스켓총. 다 알았어요."),
+        ("항해중엔 영양부족이 되니, 보리를 먹어야 되는거군···", "흠, 응급처지는 이렇게 하는 거구나. 이러면 다쳐도 걱정 없네요."),
+        ("과연 상대방의 마음을 꿰뚫어 보는군. 그럼 이것으로 교섭이라면 걱정없어요.", "조리있게 말하는 건 어렵구나···"),
+        ("멀리 있는 것과의 거리를 잴 때는···인지를 세워서···", "육분의나 나침반을 쓰는 방법은 다 이해했어요. 다음은 해보는 일만 남았군요."),
+        ("역사란 재미있군. 옛날 세계를 한번 보고 싶네.", "나도 역사에 이름을 남길 수 있는 위대한 인물이 되고 싶어."),
+        ("돈을 많이 모아서 어머니에게 큰 집을 지어 드릴께요.", "무역의 비결은···시세와 특산품에 있지요!"),
+        ("아무때나 배가 고장나도 걱정없어요!", "완벽하게 수리했어요. 조선소 아저씨 못지 않아요."),
+        ("성경책을 다 외웠어요. 옛? 암송해 보라고요? 내, 내일 할께요.", "신학은 심오하군요. 터득하려면 열심히 공부해야겠어요."),
+        ("실험은 재미있군요! 더 가르쳐 줘요.", "좀 알것 같아요. 앞으로는 과학의 시대가 되겠지요!"),
+    ];
+
+    /// <summary>세대교체 나이 — 열여덟부터(<c>0x00461AF4</c>).</summary>
+    public const int SucceedAge = 18;
+
+    /// <summary>뒤를 이을 아들 — 성별 0 가운데 가장 나이 많은 것(<c>0x004AB790(0, 0)</c>). 없으면 null.</summary>
+    public static Player.Child? EldestSon(Player player) =>
+        player.Children.Where(c => !c.Daughter).OrderBy(c => c.Born).FirstOrDefault();
+
+    /// <summary>물려받는 명성(<c>0x00461B66</c>) — 3000 밑 0 · 6000 밑 1/5 · 그 위 1/5 + 1000.</summary>
+    public static int InheritedFame(int fame) => fame < 3000 ? 0 : fame < 6000 ? fame / 5 : fame / 5 + 1000;
+
+    /// <summary>물려받는 악명(<c>0x00461B9E</c>) — 2000 밑 0 · 5000 밑 1/8 · 그 위 1/8 + 1000.</summary>
+    public static int InheritedInfamy(int infamy) => infamy < 2000 ? 0 : infamy < 5000 ? infamy / 8 : infamy / 8 + 1000;
 }

@@ -57,7 +57,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     {
         if (!CanLeaveHeir) return;
 
-        bool born = Home.HeirBorn(_random);
+        bool born = Home.HeirBorn(_player, _random);
 
         // 애니메이션은 도시 그림 위에서 돈다 — 명령 창이 아니라 그림이 든다.
         (_view as CityPicView)?.PlayHeir(born);
@@ -71,18 +71,216 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
             return;
         }
 
-        string name = HeirName();
-        _player.AddHeir(name);
-        GameDialog.Show(Owner, $"{_player.Spouse}님이 아이를 낳았습니다. 이름은 {name}입니다!");
+        var child = Home.Conceive(_player, _random, HeirName());
+        _player.AddChild(child);
+        GameDialog.Show(Owner, $"{_player.Spouse}님이 아이를 가졌습니다. {child.Born:yyyy년 M월}에 태어날 {(child.Daughter ? "딸" : "아들")}의 이름은 {child.Name}입니다!");
+    }
+
+    // ── 교육 ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 「교육」 — 게임의 <c>0x004617D0</c> 이다. 맏아들에게 아버지가 더 잘하는 기능·언어를 한 단계 가르친다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   아들이 없거나 10세 밑이면 아내가 말하고 끝
+    ///     아들·딸 둘 다   「%s%s %d세, %s%s %d세에요. %s에게는 교육은 아직 무리에요.」
+    ///     아들만          「%s%s 아직 %d세에요. 교육은 아직 일러요」
+    ///     딸만            「%s%s 아직 %d세예요. 가정 교육은 나에게 맡겨 주세요.」
+    ///   계약 중이면 아내 「여보, 당신 지금 계약중이죠? … 일을 먼저 끝낸 다음에 해 주세요.」
+    ///   가르칠 것(아버지 &gt; 아이)이 없으면 「더 이상 가르칠 것이 없습니다!」
+    ///   「교육 가능 기능」에서 고른다 → 0x00461470
+    ///     한도(Home.CanLearnMore)를 넘으면 「더 이상 기능을 습득할 수 없습니다!」 / 「… 언어를 …」
+    ///     날이 간다(Home.EducateDays) → 한 단계 오른다 → 「%s%s %s%s 터득했습니다!」 → 아이 소감
+    /// </code>
+    /// 게임은 날을 보내며 교육 애니메이션(<c>0x004A5AE0(0x14, 1)</c>)을 돌리고 능력치 쪽 무엇(<c>0x00469820(날/10)</c>)을
+    /// 건드리는데, 그 둘은 아직 안 옮겼다. 아내가 없으면 막는 말도 없이 끝난다 — 게임 그대로다.
+    /// </remarks>
+    public void Educate()
+    {
+        var owner = Owner;
+        void Wife(string words)
+        {
+            if (_player.Spouse.Length > 0) TalkDialog.Say(owner, null, _player.Spouse, words);
+        }
+        string Is(string name) => name + GameUi.Josa(name, "은", "는");
+
+        var son = Home.EldestSon(_player);
+        var daughter = _player.Children.Where(c => c.Daughter).OrderBy(c => c.Born).FirstOrDefault();
+        int sonAge = son?.AgeOn(_player.Date) ?? -1;
+
+        if (son == null || sonAge < Home.EducateAge)
+        {
+            if (son != null && daughter != null)
+                Wife($"{Is(son.Name)} {Math.Max(0, sonAge)}세, {Is(daughter.Name)} {Math.Max(0, daughter.AgeOn(_player.Date))}세에요. 아이들에게는 교육은 아직 무리에요.");
+            else if (son != null)
+                Wife($"{Is(son.Name)} 아직 {Math.Max(0, sonAge)}세에요. 교육은 아직 일러요");
+            else if (daughter != null)
+                Wife($"{Is(daughter.Name)} 아직 {Math.Max(0, daughter.AgeOn(_player.Date))}세예요. 가정 교육은 나에게 맡겨 주세요.");
+            return;
+        }
+
+        if (_player.Contract != null)
+        {
+            Wife("여보, 당신 지금 계약중이죠? 아이에게 가르쳐 주는 건 고맙지만, 일을 먼저 끝낸 다음에 해 주세요.");
+            return;
+        }
+
+        var teachable = Home.Teachable(_player, son);
+        if (teachable.Count == 0)
+        {
+            GameDialog.Show(owner, "더 이상 가르칠 것이 없습니다!");
+            return;
+        }
+
+        var rows = teachable.Select(t => t.Skill
+            ? $"{Skill.Names[t.Index]}  {son.Skills[t.Index]}"
+            : $"{Skill.Languages[t.Index]}  {son.Tongues[t.Index]}").ToList();
+        int pick = ChoiceDialog.Ask(owner, "교육 가능 기능", rows, "취소");
+        if (pick < 0 || pick >= teachable.Count) return;
+        var (isSkill, index) = teachable[pick];
+
+        if (!Home.CanLearnMore(son, isSkill))
+        {
+            GameDialog.Show(owner, isSkill ? "더 이상 기능을 습득할 수 없습니다!" : "더 이상 언어를 습득할 수 없습니다!");
+            return;
+        }
+
+        int next = (isSkill ? son.Skills[index] : son.Tongues[index]) + 1;
+        _player.AdvanceDays(Home.EducateDays(son, next));
+
+        var skills = (int[])son.Skills.Clone();
+        var tongues = (int[])son.Tongues.Clone();
+        if (isSkill) skills[index] = next; else tongues[index] = next;
+        _player.ReplaceChild(son, son with { Skills = skills, Tongues = tongues });
+
+        string what = isSkill ? Skill.Names[index] : Skill.Languages[index];
+        GameDialog.Show(owner, $"{Is(son.Name)} {what}{GameUi.Josa(what, "을", "를")} 터득했습니다!");
+
+        // 아이 소감 — 기능은 2·3 단계에서 기능마다 한마디, 언어는 2 단계에서 그 말로 뽐내고 3 단계에서 딴 나라를 그린다.
+        string? remark = isSkill
+            ? next == 3 ? Home.SkillRemarks[index].Three : next == 2 ? Home.SkillRemarks[index].Two : null
+            : next == 2 ? $"{what}{GameUi.Josa(what, "을", "를")} 유창하게 할 수 있어요! [안×하×요]···어때?"
+            : next == 3 ? "세계에는 여러가지 언어가 있네요. 딴 나라에 가보고 싶어." : null;
+        if (remark != null) TalkDialog.Say(owner, null, son.Name, remark);
+    }
+
+    // ── 세대교체 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 「세대교체」 — 게임의 <c>0x00461A90</c> 이다. 맏아들이 제독 자리를 잇는다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   아들이 없으면 끝
+    ///   18세 밑이면   아내 「%s에게는 책임이 너무 무거운 것 같아요. 당신도 아직 일할 수 있잖아요.」
+    ///   계약 중이면   아내 「여보, 당신 지금 계약중이 아니에요? 자기 계약은 스스로 끝내 주세요.」
+    ///   「%s에게 뒤를 잇게 하겠습니까?」 → 예라야 잇는다
+    ///   금화 2/3 · 저금 4/5 · 명성·악명은 Home.InheritedFame/Infamy
+    ///   부하를 모두 내보낸다(0x004534E0)
+    ///   제독 자리를 아들로 갈아 끼운다(0x0047D4B0) — 이름·생년월일·능력치·기능·언어가 아들 것이 된다
+    ///   [플레이어 정보 / 직업 변경 / 게임 재개]
+    ///   사건 그림 9 · 소리 0x4D → 「%s의 아들 %s%s %s%s서의 첫걸음을 내디뎠다.」
+    ///   딸이 있으면 작별 인사 · 아이 칸을 비운다
+    ///   후원자 친밀도 0 · 배신 표시를 지운다(0x00461E40) · 여급 친밀도를 지운다 · 낯튼 사람을 잊는다
+    /// </code>
+    /// 게임이 18세 밑·계약 중일 때 내는 건 아내 대사뿐이라, 아내가 없으면 아무 말 없이 끝난다 — 그대로 옮겼다.
+    /// 얼굴(운명 코드)은 아버지 것을 그대로 쓴다(게임도 아이 칸 +0x334 에 아버지 값을 넣어 두었다 되돌린다).
+    /// </remarks>
+    public void Succeed()
+    {
+        var owner = Owner;
+        void Wife(string words)
+        {
+            if (_player.Spouse.Length > 0) TalkDialog.Say(owner, null, _player.Spouse, words);
+        }
+
+        if (Home.EldestSon(_player) is not { } son) return;
+
+        int age = son.AgeOn(_player.Date);
+        if (age < Home.SucceedAge)
+        {
+            Wife($"{son.Name}에게는 책임이 너무 무거운 것 같아요. 당신도 아직 일할 수 있잖아요.");
+            return;
+        }
+        if (_player.Contract != null)
+        {
+            Wife("여보, 당신 지금 계약중이 아니에요? 자기 계약은 스스로 끝내 주세요.");
+            return;
+        }
+        if (!ConfirmDialog.Ask(owner, $"{son.Name}에게 뒤를 잇게 하겠습니까?")) return;
+
+        string father = _player.Name;
+
+        // 물려주는 것 — 온전히는 못 준다.
+        _player.SetGold(_player.Gold * 2 / 3);
+        _player.SetSavings(_player.Savings * 4 / 5);
+        _player.Fame = Home.InheritedFame(_player.Fame);
+        _player.Infamy = Home.InheritedInfamy(_player.Infamy);
+
+        // 부하를 다 내보낸다.
+        for (int slot = 0; slot < _player.Mates.Count; slot++) _player.SetMate(slot, "");
+
+        // 제독 자리를 아들로.
+        _player.Given = son.Name;
+        _player.Name = _player.Family.Length > 0 ? $"{son.Name}·{_player.Family}" : son.Name;
+        _player.BirthMonth = son.Born.Month;
+        _player.BirthDay = son.Born.Day;
+        _player.BirthYear = son.Born.Year;
+        _player.SetAbilities(son.Abilities);
+        for (int i = 0; i < Skill.Names.Length && i < son.Skills.Length; i++) _player.SetSkill(Skill.Names[i], son.Skills[i]);
+        for (int i = 0; i < Skill.Languages.Length && i < son.Tongues.Length; i++) _player.SetTongue(Skill.Languages[i], son.Tongues[i]);
+
+        // 플레이어 정보 · 직업 변경 · 게임 재개 — 게임 재개를 고를 때까지 돈다.
+        while (true)
+        {
+            int pick = ChoiceDialog.Pick(owner, "세대교체", ["플레이어 정보", "직업 변경", "게임 재개"]);
+            if (pick == 0) PlayerInfoDialog.Show(owner, _game);
+            else if (pick == 1)
+            {
+                int job = ChoiceDialog.Ask(owner, "직업 변경",
+                                           [.. Job.All.Take(Job.Choosable).Select(j => j.Name)], "취소");
+                if (job >= 0 && job < Job.Choosable) _player.JobIndex = job;
+            }
+            else if (pick == 2) break;
+        }
+
+        _game.Sfx?.Play(0x4D - Support.Local.Helpers.WaveBank.FirstSoundId);
+        string jobName = _player.Work.Name;
+        DiscoveryDialog.Show(owner, _game.EventStills, 9,
+            $"{father}의 아들 {son.Name}{GameUi.Josa(son.Name, "은", "는")} {jobName}{GameUi.Josa(jobName, "으로", "로")}서의 첫걸음을 내디뎠다.");
+
+        // 딸이 있으면 작별 인사를 한다.
+        if (_player.Children.FirstOrDefault(c => c.Daughter) is { } daughter)
+        {
+            int her = daughter.AgeOn(_player.Date);
+            string? words = her >= 15
+                ? (_player.Age > her ? "이것으로 오빠도 성인이 되는거네! 가끔 오빠 집에 놀러 갈께." : "나는 시집가지만 앞으로 열심히 노력해!")
+                : her >= 5 ? "오빠, 안녕! 가끔 놀러 갈께요." : null;
+            if (words != null) TalkDialog.Say(owner, null, daughter.Name, words);
+        }
+
+        _player.ClearChildren();
+
+        // 새 제독은 세상과 새로 인연을 맺는다.
+        _player.RestoreCloseness(null);
+        _player.RestoreBetrayals(null);
+        _player.ClearLiking();
+        _player.ForgetEveryone();
     }
 
     /// <summary>
-    /// 아이 이름. 게임은 이름 표에서 뽑는데 우리는 <b>주인공의 성</b>에 차례를 붙인다.
+    /// 아이 이름. 게임은 이름 표에서 뽑는데(<c>0x004611E0</c>) 우리는 <b>제독의 이름</b>에 차례를 붙인다.
     /// </summary>
+    /// <remarks>
+    /// 세대교체하면 이 이름이 제독의 이름(명)이 되고 성은 그대로라, 성까지 넣으면 「…·벨라스케스·벨라스케스」가 된다.
+    /// 그래서 명만 쓴다 — 첫째가 「카를로스 2세」다.
+    /// </remarks>
     private string HeirName()
     {
-        string family = _player.Name.Length > 0 ? _player.Name : "이름 없는";
-        return $"{family} {_player.Heirs.Count + 1}세";
+        string given = _player.Given.Length > 0 ? _player.Given
+                     : _player.Name.Length > 0 ? _player.Name : "이름 없는";
+        return $"{given} {_player.Children.Count + 2}세";
     }
 
     /// <summary>

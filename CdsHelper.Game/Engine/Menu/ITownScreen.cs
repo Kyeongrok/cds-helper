@@ -55,6 +55,12 @@ internal interface ITownScreen
     /// <summary>후손을 남길 수 있는지.</summary>
     bool CanLeaveHeir { get; }
 
+    /// <summary>세대교체 줄을 누를 수 있는지 — 아이가 하나라도 있어야 한다.</summary>
+    bool CanSucceed { get; }
+
+    /// <summary>교육 줄을 누를 수 있는지 — 아이가 하나라도 있어야 한다.</summary>
+    bool CanEducate { get; }
+
     /// <summary>
     /// 이 마을 술집에서 포카를 할 수 있는지 — 이베리아·북유럽·지중해 문화권만이다(<c>0x0042FB00</c>).
     /// </summary>
@@ -113,6 +119,8 @@ internal interface ITownScreen
 
     void ShowMates();
     void LeaveHeir();
+    void Succeed();
+    void Educate();
     void OpenRestMenu();
     void OpenSavingsMenu();
     void OpenStorage();
