@@ -1462,6 +1462,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     bool ITownScreen.CanSellShip => _player.Ships.Count > 1;
     bool ITownScreen.CanRead => Books.CanRead;
     bool ITownScreen.CanLeaveHeir => Home.CanLeaveHeir(_player);
+    bool ITownScreen.CanSucceed => _player.Children.Count > 0;
+    bool ITownScreen.CanEducate => _player.Children.Count > 0;
 
     void ITownScreen.CloseMenu() => CloseMenu();
 
@@ -1546,6 +1548,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.ShowMates() => MateRosterDialog.Show(this, _player);
 
     void ITownScreen.LeaveHeir() => HomeRooms.LeaveHeir();
+    void ITownScreen.Succeed() => HomeRooms.Succeed();
+    void ITownScreen.Educate() => HomeRooms.Educate();
     void ITownScreen.OpenRestMenu() => Menu.Push(HomeRooms.RestMenu);
     void ITownScreen.OpenSavingsMenu() => Menu.Push(HomeRooms.SavingsMenu);
     void ITownScreen.OpenStorage() => StorageDialog.Show(Menu.Window ?? this, _player, _game.Items);

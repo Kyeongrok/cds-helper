@@ -2066,6 +2066,10 @@ public sealed class ShipMapWindow : Window
             // 발견으로 판매가 켜진 교역품. 이 칸이 없던 세이브는 <b>발견한 발견물의 대본</b>에서 교역품 활성화
             // (01 15)를 찾아 켠다 — 상아(코끼리의 무덤)·후추 따위를 찾아 놓고도 교역소에 안 나오면 안 된다.
             // 대본 안의 갈래는 가리지 않고 그 파트에 적힌 것을 다 켠다.
+            // 아이. 이 칸이 없던 세이브는 이름만 있어 RestoreFamily 가 빈 아이를 앉혀 두었다 — 아버지 값으로 채운다.
+            if (saved.Children != null) _game.Player.RestoreChildren(saved.Children);
+            else if (_game.Player.Children.Count > 0)
+                _game.Player.RestoreChildren([.. _game.Player.Children.Select(c => Engine.Town.Home.Bless(_game.Player, _game.Random, c))]);
             _game.Player.RestoreBetrayals(saved.Betrayals);
             _game.Player.RestoreSulks(saved.Sulks);
             _game.Player.RestoreActiveGoods(saved.ActiveGoods ??

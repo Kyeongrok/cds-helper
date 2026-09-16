@@ -102,6 +102,8 @@ internal static class TownMenu
             TownWork.MateForm => screen.ShowMates,
 
             TownWork.Heir when screen.CanLeaveHeir => screen.LeaveHeir,
+            TownWork.Succeed when screen.CanSucceed => screen.Succeed,
+            TownWork.Educate when screen.CanEducate => screen.Educate,
             TownWork.Rest => screen.OpenRestMenu,
             TownWork.Savings => screen.OpenSavingsMenu,
             // 게임도 지닌 것이 없으면 이 줄을 흐리게 둔다 — 맡길 것이 없으면 열 일도 없다.

@@ -169,7 +169,8 @@ public static class GameSave
         List<int>? OpenedHints = null,
         List<int>? ActiveGoods = null,
         List<Support.Local.Models.Player.Betrayal>? Betrayals = null,
-        Dictionary<string, DateTime>? Sulks = null);
+        Dictionary<string, DateTime>? Sulks = null,
+        List<Support.Local.Models.Player.Child>? Children = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -233,7 +234,9 @@ public static class GameSave
                             ActiveGoods: [.. player.ActiveGoods],
                             // 감찰관을 처벌해 배신한 후원자와, 기분이 상한 후원자.
                             Betrayals: [.. player.Betrayals],
-                            Sulks: player.Sulks.ToDictionary(e => e.Key, e => e.Value));
+                            Sulks: player.Sulks.ToDictionary(e => e.Key, e => e.Value),
+                            // 아이 — 성별·태어나는 날·능력치·기능·언어. 이 칸 앞의 세이브는 이름(Heirs)만 있다.
+                            Children: [.. player.Children]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
