@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Local.Helpers;
+﻿namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
 /// 교역소 표 — 지역마다 무엇을 파는지와 교역품 기준가, 도시마다의 특산품 값.
@@ -40,7 +40,8 @@ public sealed class TradeTable
     /// </summary>
     /// <remarks>
     /// 쌀 · 후추 · 커피 · 차 · 골동품 · 노예 따위 27종이 꺼진 채 시작하고, 발견 대본 한 명령
-    /// (<c>0x004088D8</c>)만 켠다. 그 명령은 아직 옮기지 않아 지금은 처음 값 그대로다.
+    /// (<c>0x004088D8</c>)만 켠다. 켠 것은 <c>Player.ActiveGoods</c> 에 들고, 교역소는 둘을 함께 본다
+    /// (<c>TradePost.OnSale</c>).
     /// </remarks>
     public bool OnSale(int kind) => kind >= 0 && kind < _s.Gate.Length && _s.Gate[kind];
 

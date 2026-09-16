@@ -53,14 +53,16 @@ public static class DisevForm
     public static Field[] FieldsFor(DisevScript.Op op)
     {
         // 대사는 길이가 자유라 칸으로 안 다룬다 — 창이 따로 받는다.
-        if (op.Kind == "대사") return [];
+        if (op.Kind is "대사" or "다중 선택지 대사" or "도시 소문 등록") return [];
 
         switch (op.Kind)
         {
             case "AVI 재생" when op.Length == 4:
             case "CG 애니메이션 재생" when op.Length == 4:
             case "EVSTILL 이미지 표시":
+            case "DSTILL 이미지 표시":
             case "음원 재생":
+            case "음원 정지":
                 return F(new Field("슬롯", 2, 2));
 
             case "미니게임":
@@ -73,11 +75,6 @@ public static class DisevForm
             case "퍼즐 미니게임" when op.Length == 9:
                 return F(new Field("미니게임", 7, 2, Lookup.Minigame), new Field("판자", 2, 4));
 
-            case "DSTILL 이미지 재생":
-            case "AVI 재생":
-            case "CG 애니메이션 재생":
-                return F(new Field("슬롯", 1, 2));
-
             case "발견물 등록/발견 처리":
                 return F(new Field("발견물", 2, 2, Lookup.Discovery));
 
@@ -89,7 +86,7 @@ public static class DisevForm
                 return F(new Field("도시", 2, 2, Lookup.City));
 
             case "연도 조건":
-            case "연도 상한 조건":
+            case "기준 연도 일치 조건":
                 return F(new Field("연도", 2, 2));
             case "연월 조건":
                 return F(new Field("월", 2, 1), new Field("연도", 4, 2));
@@ -104,7 +101,33 @@ public static class DisevForm
             case "아이템 비소지 조건":
             case "아이템 획득":
             case "아이템 상실":
+            case "이벤트 아이템 등록":
+            case "이벤트 아이템 처리":
                 return F(new Field("아이템", 2, 2, Lookup.Item));
+
+            case "힌트 획득":
+                return F(new Field("힌트", 2, 2));
+            case "교역품 활성화":
+                return F(new Field("교역품", 2, 2));
+            case "국가 멸망 처리":
+                return F(new Field("나라", 2, 2));
+            case "도시 점령지 설정":
+            case "도시 점령지 해제":
+            case "도시 제거":
+            case "이벤트 대상 도시 이동":
+                return F(new Field("도시", 2, 2, Lookup.City));
+            case "도시 국적 변경":
+                return F(new Field("도시", 5, 2, Lookup.City));
+            case "도시 시설 제거":
+                return F(new Field("시설 비트", 2, 2), new Field("도시", 5, 2, Lookup.City));
+            case "인물 조우 처리":
+            case "통역 고용·교체":
+            case "일기토":
+                return F(new Field("인물", 2, 2));
+            case "능력 판정":
+                return F(new Field("능력", 2, 2, Lookup.Stat));
+            case "상태값 참조 증가":
+                return F(new Field("상태값", 2, 2, Lookup.Stat), new Field("피연산자", 5, 2, Lookup.Stat));
 
             case "힌트 상태 활성 조건":
             case "힌트 상태 미활성 조건":
@@ -112,8 +135,9 @@ public static class DisevForm
 
             case "인물 런타임 조건":
             case "후원자 런타임 조건":
-            case "인물 대화 갈래 설정":
                 return F(new Field("번호", 2, 2));
+            case "일기토 연출 세트 설정":
+                return F(new Field("세트(0~6)", 2, 2));
 
             case "육상전(인물)":
                 return F(new Field("적 대장 인물", 2, 2));
@@ -122,9 +146,6 @@ public static class DisevForm
 
             case "힌트 조건 분기":
                 return F(new Field("힌트", 3, 2), new Field("상대 이동", 5, 2, Lookup.Relative));
-
-            case "이벤트 플래그 설정":
-                return F(new Field("플래그", 2, 2));
 
             case "금화 증가":
             case "금화 감소":
@@ -153,34 +174,58 @@ public static class DisevForm
             case "특수 건물 생성":
                 return F(new Field("건물", 2, 2), new Field("도시", 5, 2, Lookup.City));
 
-            case "이동":
-            case "예/아니오 응답 분기":
-            case "미확인 4B 분기":
+            case "결과 거짓 시 이동":
+            case "결과 참 시 이동":
+            case "이전 조건 참 시 이동":
+            case "부관 고용 시 이동":
             case "STORY0.CDS 외 분기":
             case "STORY1.CDS 외 분기":
                 return F(new Field("상대 이동", 2, 2, Lookup.Relative));
 
             case "선택지 분기":
-                return F(new Field("상대 이동", 4, 2, Lookup.Relative));
+                return F(new Field("선택값", 3, 1), new Field("상대 이동", 4, 2, Lookup.Relative));
 
             case "미확인 0015 분기":
                 return F(new Field("값", 2, 2), new Field("상대 이동", 4, 2, Lookup.Relative));
 
             case "아이템 조건 분기":
+            case "아이템 미소지 분기":
                 return F(new Field("아이템", 3, 2, Lookup.Item),
                          new Field("상대 이동", 5, 2, Lookup.Relative));
             case "발견물 조건 분기":
+            case "미발견 분기":
                 return F(new Field("발견물", 3, 2, Lookup.Discovery),
                          new Field("상대 이동", 5, 2, Lookup.Relative));
-            case "미확인 0F0E 분기":
-                return F(new Field("값", 3, 2), new Field("상대 이동", 5, 2, Lookup.Relative));
+            case "힌트 미활성 분기":
+                return F(new Field("힌트", 3, 2), new Field("상대 이동", 5, 2, Lookup.Relative));
+            case "기준 연도 분기":
+            case "연도 상한 분기":
+                return F(new Field("연도", 3, 2), new Field("상대 이동", 5, 2, Lookup.Relative));
+            case "연도 범위 분기":
+                return F(new Field("시작 연도", 3, 2), new Field("끝 연도", 6, 2),
+                         new Field("상대 이동", 8, 2, Lookup.Relative));
+            case "도시 분기":
+                return F(new Field("도시", 3, 2, Lookup.City), new Field("상대 이동", 5, 2, Lookup.Relative));
+            case "인물 조우 분기":
+            case "후원자 활성 분기":
+                return F(new Field("번호", 3, 2), new Field("상대 이동", 5, 2, Lookup.Relative));
+            case "도시 국적 분기":
+                return F(new Field("나라", 3, 2), new Field("도시", 6, 2, Lookup.City),
+                         new Field("상대 이동", 8, 2, Lookup.Relative));
 
-            case "능력치 비교 분기":
-            case "능력치 비교2 분기":
-            case "능력치 비교3 분기":
-            case "소지금 비교 분기":
-                return F(new Field("능력치", 3, 2, Lookup.Stat), new Field("값", 6, 4),
+            // 43 2B~2E 1C [u16 칸] [값 식] [u16 이동] — 값 식 꼴마다 칸 자리가 다르다.
+            case DisevScript.CompareKind when op.Length == 12:
+                return F(new Field("상태값", 3, 2, Lookup.Stat), new Field("값", 6, 4),
                          new Field("상대 이동", 10, 2, Lookup.Relative));
+            case DisevScript.CompareKind when op.Length == 10 && op.Hex.Length >= 17 && op.Hex.Substring(15, 2) == "1C":
+                return F(new Field("상태값", 3, 2, Lookup.Stat), new Field("견줄 상태값", 6, 2, Lookup.Stat),
+                         new Field("상대 이동", 8, 2, Lookup.Relative));
+            case DisevScript.CompareKind when op.Length == 10:
+                return F(new Field("상태값", 3, 2, Lookup.Stat), new Field("값", 6, 2),
+                         new Field("상대 이동", 8, 2, Lookup.Relative));
+            case DisevScript.CompareKind when op.Length == 16:
+                return F(new Field("상태값", 3, 2, Lookup.Stat), new Field("무작위 폭", 6, 4),
+                         new Field("시작값", 10, 4), new Field("상대 이동", 14, 2, Lookup.Relative));
 
             case "교역품 조건 분기":
                 return F(new Field("원산 도시", 3, 2, Lookup.City), new Field("교역품", 6, 2),

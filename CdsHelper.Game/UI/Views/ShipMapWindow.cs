@@ -475,8 +475,7 @@ public sealed class ShipMapWindow : Window
             ("인물 이동", () => PersonMoveDialog.Show(this, _game)),
             // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
             ("발견물 지도", ShowDiscoveryMap),
-            // 기능·언어를 제독과 부하 넷을 나란히 놓고 본다 — 도구 앱의 「스킬」 칸이다.
-            ("기능·언어", () => SkillBoardDialog.Show(this, _game.Player, PersonTable.Open())),
+            // 「기능·언어」는 개발 창 체크상자로 옮겼다 — 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 뜬다.
             // 도구 앱은 따로 도는 exe 다. 게임을 하다 표를 손볼 일이 생기면 여기서 띄운다.
             ("도구 앱", RunHelperApp),
             ("개발", ShowDevDialog));
@@ -485,10 +484,13 @@ public sealed class ShipMapWindow : Window
         shell.Children.Add(_screen);
         Content = shell;
 
-        // 대화 상자가 떠 있는 동안은 <b>게임 화면과 햄버거만</b> 손을 안 받게 덮는다 —
+        // 대화 상자가 떠 있는 동안은 <b>게임 화면만</b> 손을 안 받게 덮는다 —
         // 제목 줄의 최소화·최대화·닫기는 살아 있어야 오른쪽 위 단추로 게임을 끝낼 수
-        // 있다(원본이 그렇다). 햄버거를 덮는 것은 상자 위에서 또 상자를 열지 못하게다.
-        GameWindow.Cover(this, hamburger == null ? [_screen] : [_screen, hamburger]);
+        // 있다(원본이 그렇다).
+        // <b>시험하는 동안은 햄버거도 열어 둔다</b> — 미니게임·대사 창 위에서도 설정·개발 창을 연다.
+        // 대본이 도는 중에 판을 바꾸면(개발·발견물 지도) 발견·보상이 엉뚱한 상태에 적힐 수 있고, 상자 위에
+        // 상자를 열면 기다리는 고리가 겹친다. 내놓을 때는 다시 덮는다: [_screen, hamburger].
+        GameWindow.Cover(this, [_screen]);
 
         PreviewKeyDown += OnTitleKey;   // 타이틀에서만 먹는다(그 안에서 화면을 본다)
         KeyDown += OnMapKey;            // 지도에서 V 저장
@@ -2012,8 +2014,6 @@ public sealed class ShipMapWindow : Window
             // 대열과 배마다 승원(편성). 판 28 앞의 세이브에는 없어 대열 0 · 고르게 나눈 채로 연다.
             if (saved.Formation is { } formation) _game.Player.SetFormation(formation);
             _game.Player.SetCrewShares(saved.CrewShares);
-            // 모항. 판 29 앞의 세이브에는 없어 새 판이 여는 도시(리스본·세빌리아)로 둔다.
-            _game.Player.SetHomePort(saved.HomePort ?? StartCity().Id);
             // 밝힌 바다. 판 21 앞의 세이브에는 없어 빈 채로 시작한다.
             _game.Player.Explored.Restore(saved.Explored);
             // 아내와 후손. 판 22 앞의 세이브에는 없어 홀로 시작한다.
@@ -2024,11 +2024,16 @@ public sealed class ShipMapWindow : Window
             // 으로 열린다 — 적어 두기 전에는 새로 지은 주인공도 불러오면 죄다 50 이었다.
             if (saved.Abilities is { Count: > 0 } stats) _game.Player.SetAbilities(stats);
             if (saved.JobIndex is { } job) _game.Player.JobIndex = job;
-            if (saved.Age is { } age) _game.Player.Age = age;
+            // 나이는 생년월일로 세는 값이라 생일을 먼저 넣고 나이로 태어난 해를 맞춘다.
             if (saved.BirthMonth is { } birthMonth) _game.Player.BirthMonth = birthMonth;
             if (saved.BirthDay is { } birthDay) _game.Player.BirthDay = birthDay;
+            if (saved.Age is { } age) _game.Player.Age = age;
             if (saved.Blood is { } blood) _game.Player.Blood = blood;
             if (saved.Nation is { } nation) _game.Player.Nation = nation;
+
+            // 모항. 판 29 앞의 세이브에는 없어 새 판이 여는 도시(리스본·세빌리아)로 둔다.
+            // <b>국적을 넣은 뒤에</b> 고른다 — 앞에서 고르면 국적이 아직 밑값 0 이라 에스파니아도 리스본이 모항이 됐다.
+            _game.Player.SetHomePort(saved.HomePort ?? StartCity().Id);
 
             // 이름은 판 24 부터 적힌다 — 그 앞 세이브에서는 빈 채로 둔다.
             if (!string.IsNullOrEmpty(saved.Name)) _game.Player.Name = saved.Name;
@@ -2057,6 +2062,12 @@ public sealed class ShipMapWindow : Window
             // 열어 둔 채로 이어야 한다 — 안 그러면 불러오자마자 그 발견물이 다시 잠긴다.
             _game.Player.RestoreOpenedHints(
                 saved.OpenedHints ?? (saved.Contract is { } deal ? [deal.Hint] : null));
+
+            // 발견으로 판매가 켜진 교역품. 이 칸이 없던 세이브는 <b>발견한 발견물의 대본</b>에서 교역품 활성화
+            // (01 15)를 찾아 켠다 — 상아(코끼리의 무덤)·후추 따위를 찾아 놓고도 교역소에 안 나오면 안 된다.
+            // 대본 안의 갈래는 가리지 않고 그 파트에 적힌 것을 다 켠다.
+            _game.Player.RestoreActiveGoods(saved.ActiveGoods ??
+                _game.Player.Discoveries.SelectMany(id => Engine.Disev.DisevRunner.GoodsActivatedBy(_game, id)));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;

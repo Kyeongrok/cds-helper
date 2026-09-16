@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Models;
 using CdsHelper.Game.Engine.Sea;
@@ -116,16 +117,13 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     }
 
     /// <summary>
-    /// 선체 번호 차례(<c>0x004FC1E0</c>). 동영상 <c>S00</c>~<c>S07</c> 이 이 차례와 짝이다.
+    /// 그 선체의 동영상 자리 — 올려 둔 것이 먼저, 없으면 게임 폴더 원본이다.
+    /// 게임 선체가 아니면(등록해 넣은 배) null — 안 튼다.
     /// </summary>
-    private static readonly string[] MovieHulls =
-        ["코구", "카라벨", "대형카라벨", "카락", "대형카락", "중카락", "갤리온", "다우"];
-
-    /// <summary>그 선체의 동영상 자리. 게임 선체가 아니면(등록해 넣은 배) null — 안 튼다.</summary>
     private string? MovieOf(Hull hull)
     {
-        int n = Array.IndexOf(MovieHulls, hull.Name);
-        return n < 0 ? null : System.IO.Path.Combine(_game.Directory, "AVI", $"S{n:00}_0001.AVI");
+        int n = MovieFiles.Hulls.IndexOf(hull.Name);
+        return n < 0 ? null : MovieFiles.Resolve(_game.Directory, MovieFiles.HullStem(n));
     }
 
     /// <summary>고칠 배가 있는지. 없으면 게임처럼 "수리" 줄이 흐리다.</summary>

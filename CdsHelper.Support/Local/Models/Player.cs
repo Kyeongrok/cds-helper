@@ -116,8 +116,23 @@ public sealed class Player
     /// <summary>명. 화면에는 <c>"%s·%s"</c>(<c>0x00571B08</c>) 로 성과 붙여 낸다.</summary>
     public string Given { get; set; } = "";
 
-    /// <summary>나이. 게임은 25로 시작한다.</summary>
-    public int Age { get; set; } = 25;
+    /// <summary>
+    /// 나이. 게임은 25로 시작한다. <b>생년월일과 오늘 날짜로 센다</b>(<c>0x0047CB20</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 나이 칸을 들고 있지 않다 — 올해 − 태어난 해이고, 올해 생일이 아직이면 하나 뺀다.
+    /// 예전에는 박아 둔 값이라 해가 바뀌어도 안 늘어서, 서른여섯부터 달라지는 얼굴·여급 궁합·
+    /// 성미가 영영 안 바뀌었다. 넣을 때는 그 나이가 되게 태어난 해를 거꾸로 맞춘다.
+    /// </remarks>
+    public int Age
+    {
+        get => Date.Year - BirthYear - (BirthdayAhead ? 1 : 0);
+        set => BirthYear = Date.Year - value - (BirthdayAhead ? 1 : 0);
+    }
+
+    /// <summary>올해 생일이 아직 안 왔는지.</summary>
+    private bool BirthdayAhead =>
+        BirthMonth > Date.Month || (BirthMonth == Date.Month && BirthDay > Date.Day);
 
     /// <summary>생일(달·날).</summary>
     public int BirthMonth { get; set; } = 1;
@@ -200,10 +215,10 @@ public sealed class Player
         Family = family.Trim();
         Given = given.Trim();
         Name = Family.Length > 0 ? $"{Given}·{Family}" : Given;
-        Age = Math.Clamp(age, MinAge, MaxAge);
-        BirthYear = Date.Year - Age;
         BirthMonth = Math.Clamp(month, 1, 12);
         BirthDay = Math.Clamp(day, 1, 31);
+        // 생일을 먼저 넣어야 나이에서 태어난 해가 바로 나온다.
+        Age = Math.Clamp(age, MinAge, MaxAge);
         Blood = Math.Clamp(blood, 0, BloodTypes.Length - 1);
         Nation = Math.Clamp(nation, 0, Nations.Length - 1);
         Face = Math.Max(0, face);
@@ -1126,6 +1141,31 @@ public sealed class Player
     {
         _openedHints.Clear();
         if (openedHints != null) foreach (int hint in openedHints) _openedHints.Add(hint);
+    }
+
+    private readonly HashSet<int> _activeGoods = [];
+
+    /// <summary>
+    /// 발견으로 판매가 켜진 교역품 번호 — 게임의 판매 게이트 <c>0x0058BAB0[교역품]</c> 를 1 로 세운 것들이다.
+    /// </summary>
+    /// <remarks>
+    /// 새 판은 교역품 표 <c>+0x84</c> 로 게이트를 채우는데(<c>0x0042E2A0</c>) 상아·후추·커피 따위 27종이 꺼진 채
+    /// 시작한다. 발견 대본의 <c>01 15 [교역품]</c>(<c>0x004088D8</c>)만 켜고, 끄는 코드는 없다.
+    /// 여기에는 <b>대본이 켠 것만</b> 든다 — 처음부터 켜진 것은 교역소 표(<c>TradeTable.OnSale</c>)가 안다.
+    /// </remarks>
+    public IReadOnlyCollection<int> ActiveGoods => _activeGoods;
+
+    /// <summary>교역품 판매를 켠다. 새로 켰으면 true.</summary>
+    public bool ActivateGoods(int kind) => kind >= 0 && _activeGoods.Add(kind);
+
+    /// <summary>발견으로 판매가 켜진 교역품인지.</summary>
+    public bool IsGoodsActive(int kind) => _activeGoods.Contains(kind);
+
+    /// <summary>세이브를 되돌릴 때 켜 둔 교역품을 그대로 채운다.</summary>
+    public void RestoreActiveGoods(IEnumerable<int>? kinds)
+    {
+        _activeGoods.Clear();
+        if (kinds != null) foreach (int kind in kinds) ActivateGoods(kind);
     }
 
     private readonly HashSet<int> _announced = [];

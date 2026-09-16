@@ -166,7 +166,8 @@ public static class GameSave
         int? BirthMonth = null, int? BirthDay = null, int? Blood = null, int? Nation = null,
         List<Support.Local.Models.Player.Cargo>? Cargo = null,
         Dictionary<int, List<int>>? TradeStock = null,
-        List<int>? OpenedHints = null);
+        List<int>? OpenedHints = null,
+        List<int>? ActiveGoods = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -225,7 +226,9 @@ public static class GameSave
                             player.BirthMonth, player.BirthDay, player.Blood, player.Nation,
                             Cargo: [.. player.CargoHold],
                             TradeStock: player.TradeStock.ToDictionary(e => e.Key, e => e.Value.ToList()),
-                            OpenedHints: [.. player.OpenedHints]);
+                            OpenedHints: [.. player.OpenedHints],
+                            // 발견으로 판매가 켜진 교역품. 이 칸 앞의 세이브는 불러올 때 발견물 대본에서 다시 찾는다.
+                            ActiveGoods: [.. player.ActiveGoods]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

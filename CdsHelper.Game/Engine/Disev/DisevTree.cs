@@ -1,67 +1,249 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using CdsHelper.Game.Local.Helpers;
 
 namespace CdsHelper.Game.Engine.Disev;
 
 /// <summary>
-/// 덩이 하나를 <b>분기로 가른 줄 나무</b> — <c>발견이벤트.json</c> 의 <c>Chunks</c> 한 칸이다.
+/// 파트 하나를 <b>함수 호출 줄 배열</b>로 — <c>발견이벤트.json</c> 의 <c>Chunks</c> 다.
 /// </summary>
 /// <remarks>
-/// 분기(<c>43 xx … [u16 상대]</c>)의 바이트 짜임은 늘 이렇다.
+/// 대본은 작은 가상 기계 코드다. 명령 하나가 게임 함수 한 번 부르기고(<see cref="DisevCall"/>), 분기는 조건식을 불러
+/// 그 값으로 뛴다. 그래서 줄을 원본 차례 그대로 늘어놓고 <b>호출 이름 + 인자</b>로 적는다.
 /// <code>
-///   [분기 명령][안 뛸 때 줄들 = No][뛴 자리부터 = Yes …]
-///   상대값 = No 의 바이트 수
+///   { "OpCode": "00 02", "Call": "PlayVideo", "Args": { "Id": 55 } }
+///   { "OpCode": "43 2E", "GotoUnless": { "Call": "EqualTo", "Args": { "A": { "Stat": 5 }, "B": { "Const": 2 } } }, "Target": "L017A" }
+///   { "OpCode": "00 0A", "Call": "Say", "Args": { "Speaker": "부관", "Text": "계시를 받으시겠습니까?" } }
+///   { "OpCode": "30 1D", "Goto": "L01A9" }
+///   { "Label": "L017A", "OpCode": "0B 0A", "Call": "AskYesNo", "Args": { "Speaker": "부관", "Text": "신의 계시를 받으시겠습니까?" } }
+///   { "OpCode": "43 47", "GotoIf": { "Call": "Result" }, "Target": "L01A9" }
 /// </code>
-/// 그래서 JSON 에는 상대값을 적지 않는다(<see cref="DisevLine.If"/> 는 상대값 두 바이트를 뗀 머리다).
-/// 되짤 때 No 길이로 다시 셈하므로 <b>No 안을 늘리고 줄여도 그 분기가 뛰는 자리는 안 어긋난다.</b>
-///
-/// <b>다만 <c>30 1D [u16 v]</c> 는 못 고쳐 준다.</b> 대본 곳곳에 있는 이 네 바이트는 값이 늘
-/// 파트 +4+v 의 명령 머리에 떨어져(파트 25 여덟 곳 모두) 파트 기준 절대 이동으로 보인다.
-/// 아직 명령 표에 없어 날바이트 줄 속에 그대로 있으므로, 그 뒤쪽 길이를 바꾸면 어긋난다.
-///
-/// <b>Yes 가 어디까지인가.</b>
 /// <list type="bullet">
-///   <item>No 가 끝 명령(결과 코드·게임 오버)으로 멎으면 뒤따르는 줄은 Yes 로만 가므로
-///         <b>남은 줄을 다 Yes 에 넣는다.</b></item>
-///   <item>No 가 멎지 않으면 뛴 자리에서 두 갈래가 다시 만난다. 그때는 <b>Yes 가 비고</b>
-///         남은 줄은 분기 뒤에 이어 적는다 — 두 갈래가 함께 가는 줄이다.</item>
+///   <item><c>Call</c>·<c>Args</c> — 호출 이름과 인자. 바이트 꼴은 <see cref="DisevCalls"/> 표 하나가 짝짓는다.
+///         뜻을 모르는 바이트는 <c>{ "Call": "Raw", "Args": { "Bytes": "…" } }</c> 다.</item>
+///   <item><c>GotoIf</c>·<c>GotoUnless</c> + <c>Target</c> — 분기(<c>43</c>). 조건식 호출이 참이면/거짓이면 라벨로 뛴다.
+///         원본은 늘 「거짓이면 뜀」이라, 거꾸로 이름이 있는 조건식은 <c>GotoIf</c> 로 적는다
+///         (<c>43 12 0E</c> = 조건 「힌트 없음」 → <c>GotoIf HintActive</c>).</item>
+///   <item><c>Goto</c> — 절대 이동(<c>30 1D</c>, 파트 +4 기준).</item>
+///   <item><c>Label</c> — 어느 점프가 여기로 오면 붙는다. 이름은 원본 파트 안 자리(<c>L</c>+16진 넷)다.</item>
+///   <item><c>OpCode</c>·<c>Note</c> — 사람이 읽으라고 붙인다. 읽을 때 안 본다(바이트는 Call·Args 가 정한다).</item>
 /// </list>
-/// 분기 안의 줄이 밖으로 뛰거나 밖에서 분기 안 한가운데로 뛰어 들면 나무로 못 가르므로
-/// 그 분기는 날바이트(상대값 그대로) 줄로 둔다. 되짠 바이트가 한 바이트라도 다르면
-/// 덩이 통째로 한 줄에 둔다(<see cref="Build"/>).
+/// 되짤 때 분기는 명령 끝에서 잰 상대 거리, 절대 이동은 파트 +4 기준 자리를 다시 세므로 어느 줄의 길이를 바꿔도
+/// 점프가 안 어긋난다. 점프가 명령 머리가 아닌 자리로 가면 라벨을 못 달아 <c>Raw</c> 로 둔다.
+/// 되짠 파트가 원본과 한 바이트라도 다르면 부른 쪽(<see cref="DisevBook"/>)이 파트 통째 16진으로 둔다.
 ///
-/// 분기가 아닌 명령은 <b>명령 하나에 한 줄</b>이다. 뜻을 아는 것은 칸으로 푼다.
-/// <code>
-///   음원 재생   0E 03 [u16]                    → { "Sound": 75 }
-///   EVSTILL     00 1F [u16]                    → { "EvStill": 3 }
-///   발견 처리   01 0B [u16]                    → { "Discover": 4 }
-///   아이템 획득 00 05 [u16]                    → { "GetItem": 172 }
-///   AVI 재생    00 02 [u16]                    → { "Avi": 1 }
-///   특수 조우   00 1E [u16]                    → { "Encounter": 0 }
-///   능력치 +/-  19|1A 1C [u16] 1A [u32]        → { "Stat": 1, "StatName": "규율", "Add": 5 } (빼기는 "Sub")
-///   대사        [플래그] 0A [화자 81 46] 글 00  → { "Speaker": "부관", "Flag": 11, "Say": "…" }
-/// </code>
-/// 화자는 <see cref="DisevScript.SpeakerNames"/> 에 있으면 이름, 없으면 <c>SpeakerTag</c> 에 16진이다.
-/// <c>Flag</c> 는 흔한 <c>00 0A</c> 면 안 적고, 플래그 바이트 없이 <c>0A</c> 로 바로 열면 <c>null</c> 로 적는다.
-/// 글의 전각 사이띄개는 반각으로 적는다. 칸으로 풀어 되짠 것이 원본과 한 바이트라도
-/// 다르면 그 명령은 16진 글로 둔다. 나머지 명령도 16진 글 한 줄씩이다.
+/// 옛 판의 줄(나무 <c>If</c>·<c>Yes</c>·<c>No</c>, 칸 <c>Say</c>·<c>Sound</c> …, <c>OpCode</c>+<c>Goto</c>, 16진 글)도 그대로 읽힌다.
 /// </remarks>
 public static class DisevTree
 {
-    /// <summary>덩이를 줄 나무로 가른다. 되짜서 원본과 같지 않으면 통째 한 줄이다.</summary>
-    /// <param name="chunk">덩이 날바이트.</param>
-    public static List<DisevLine> Build(byte[] chunk)
+    /// <summary>라벨 이름 — 원본 파트 안 자리.</summary>
+    private static string LabelOf(int offset) => $"L{offset:X4}";
+
+    /// <summary>
+    /// 파트의 덩이들을 평평한 줄 배열로 푼다. 차례는 <see cref="DisevPart.ChunkStarts"/> 그대로다.
+    /// </summary>
+    public static List<List<DisevLine>> BuildPart(DisevPart part)
     {
-        List<DisevLine> whole = [new DisevLine { Hex = DisevScript.Hex(chunk) }];
-        if (chunk.Length == 0) return whole;
+        var data = part.Data;
+        var chunks = new List<List<DisevScript.Op>>();
+        var heads = new HashSet<int>();
+        foreach (int start in part.ChunkStarts)
+        {
+            var (from, to) = part.ChunkRange(start);
+            var ops = DisevScript.Parse(data, from, to);
+            chunks.Add(ops);
+            foreach (var op in ops) heads.Add(op.Offset);
+        }
 
-        var ops = DisevScript.Parse(chunk, 0, chunk.Length);
-        var builder = new Builder(chunk, ops);
-        var (lines, _) = builder.Sequence(0, chunk.Length);
+        // 먼저 점프 자리를 모은다 — 명령 머리에 떨어지는 것만 라벨이 된다.
+        var targets = new Dictionary<int, int>();
+        foreach (var ops in chunks)
+            foreach (var op in ops)
+                if (JumpTargetOf(data, op) is { } target && heads.Contains(target))
+                    targets[op.Offset] = target;
+        var labelled = targets.Values.ToHashSet();
 
-        return Flatten(lines, out _) is { } back && back.AsSpan().SequenceEqual(chunk) ? lines : whole;
+        var result = new List<List<DisevLine>>(chunks.Count);
+        foreach (var ops in chunks)
+        {
+            var lines = new List<DisevLine>(ops.Count);
+            foreach (var op in ops)
+            {
+                var line = LineOf(data, op, targets.TryGetValue(op.Offset, out int t) ? t : null);
+                if (labelled.Contains(op.Offset)) line.Label = LabelOf(op.Offset);
+                lines.Add(line);
+            }
+            result.Add(lines);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// 명령이 뛰는 파트 안 자리 — 분기(<see cref="DisevFlow.TargetOf"/>)와 절대 이동(<c>30 1D</c> → +4+v).
+    /// </summary>
+    private static int? JumpTargetOf(byte[] data, DisevScript.Op op)
+    {
+        if (IsAbsoluteGoto(op)) return 4 + BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(op.Offset + 2));
+        return DisevFlow.TargetOf(data, op);
+    }
+
+    private static bool IsAbsoluteGoto(DisevScript.Op op) =>
+        op.Kind == "절대 이동" && op.Length == 4;
+
+    /// <summary>명령 하나를 호출 줄로. 표에 없거나 되짜서 같지 않으면 <c>Raw</c> 다.</summary>
+    private static DisevLine LineOf(byte[] data, DisevScript.Op op, int? target)
+    {
+        var raw = data.AsSpan(op.Offset, Math.Min(op.Length, data.Length - op.Offset)).ToArray();
+        string note = NoteOf(op);
+
+        if (target is { } to)
+        {
+            if (IsAbsoluteGoto(op)) return new DisevLine { Hex = "30 1D", Goto = LabelOf(to), Note = note };
+
+            // 점프값(끝 두 바이트)을 뗀 머리가 43 [조건식] 이면 조건식 호출로 푼다.
+            if (DisevCalls.DecodeBranch(raw[..^2]) is { } branch)
+            {
+                var condition = ConditionNode(branch.Branch.Condition, branch.Branch.Args);
+                return new DisevLine
+                {
+                    Hex = branch.OpCode,
+                    GotoIf = branch.Branch.If ? condition : null,
+                    GotoUnless = branch.Branch.If ? null : condition,
+                    Target = LabelOf(to),
+                    Note = note,
+                };
+            }
+        }
+
+        if (target == null && DisevCalls.Decode(raw) is { } call)
+        {
+            // 대사 무리는 Args.Text 가 곧 풀이라 Note 를 또 달지 않는다.
+            bool speech = call.Call is DisevCall.Say or DisevCall.AskYesNo or DisevCall.SayBare or DisevCall.AskChoice
+                or DisevCall.AskChoiceWide or DisevCall.SetDiscoveryName or DisevCall.InputDiscoveryName or DisevCall.AddCityRumor;
+            return new DisevLine
+            {
+                Hex = call.OpCode, Call = call.Call, Args = call.Args.Count > 0 ? call.Args : null, Note = speech ? null : note,
+            };
+        }
+
+        return new DisevLine
+        {
+            Call = DisevCall.Raw,
+            Args = new JsonObject { ["Bytes"] = DisevScript.Hex(raw) },
+            Note = note,
+        };
+    }
+
+    private static JsonObject ConditionNode(DisevCall condition, JsonObject args)
+    {
+        var node = new JsonObject { ["Call"] = condition.ToString() };
+        if (args.Count > 0) node["Args"] = args;
+        return node;
+    }
+
+    /// <summary>줄에 붙일 풀이 — 원본 자리에 매인 꼬리(상대 +0x… → 파트 +0x…)는 뗀다. 고치면 틀리기 때문이다.</summary>
+    private static string NoteOf(DisevScript.Op op)
+    {
+        string text = op.Text;
+        int cut = text.IndexOf(", 상대 ", StringComparison.Ordinal);
+        if (cut < 0) cut = text.IndexOf(" → 파트 ", StringComparison.Ordinal);
+        return cut > 0 ? text[..cut] : text;
+    }
+
+    /// <summary>
+    /// 줄 배열을 덩이 날바이트들로 되짠다 — 라벨을 찾아 점프값을 다시 센다.
+    /// </summary>
+    /// <param name="chunks">덩이마다 줄 배열.</param>
+    /// <param name="headerEnd">첫 덩이가 서는 파트 안 자리(머리말 뒤).</param>
+    /// <param name="error">못 짰으면 까닭.</param>
+    public static List<byte[]>? FlattenPart(IReadOnlyList<List<DisevLine>> chunks, int headerEnd, out string error)
+    {
+        error = "";
+
+        // 1) 줄마다 바이트(점프는 자리만 비워 둔다)와 자리를 잡는다.
+        var pieces = new List<List<(DisevLine Line, List<byte> Bytes, int At)>>(chunks.Count);
+        var labels = new Dictionary<string, int>();
+        int at = headerEnd;
+        for (int c = 0; c < chunks.Count; c++)
+        {
+            var list = new List<(DisevLine, List<byte>, int)>();
+            foreach (var line in chunks[c])
+            {
+                var bytes = new List<byte>();
+                if (line.GotoIf != null || line.GotoUnless != null)
+                {
+                    var node = line.GotoIf ?? line.GotoUnless!;
+                    if (!Enum.TryParse(node["Call"]?.GetValue<string>(), out DisevCall condition))
+                    {
+                        error = $"분기 조건식 이름을 모릅니다: {node["Call"]}";
+                        return null;
+                    }
+                    if (DisevCalls.EncodeBranch(line.GotoIf != null, condition, node["Args"] as JsonObject, out error)
+                        is not { } head) return null;
+                    bytes.AddRange(head);
+                    bytes.Add(0);
+                    bytes.Add(0);
+                }
+                else if (line.Goto != null)
+                {
+                    // 새 판은 30 1D 만 Goto 로 적는다. 판 8·9 는 분기 머리를 OpCode 에 넣고 Goto 를 달았다.
+                    byte[] head = line.Call == null && DisevScript.ParseHex(line.Hex ?? "") is { Length: > 0 } old ? old : [0x30, 0x1D];
+                    bytes.AddRange(head);
+                    bytes.Add(0);
+                    bytes.Add(0);
+                }
+                else if (line.Call is { } call)
+                {
+                    if (DisevCalls.Encode(call, line.Args, out error) is not { } built) return null;
+                    bytes.AddRange(built);
+                }
+                else if (!Append(bytes, [line], ref error))
+                {
+                    return null;
+                }
+
+                if (line.Label != null && !labels.TryAdd(line.Label, at))
+                {
+                    error = $"라벨이 겹칩니다: {line.Label}";
+                    return null;
+                }
+                list.Add((line, bytes, at));
+                at += bytes.Count;
+            }
+            pieces.Add(list);
+        }
+
+        // 2) 점프값을 채운다.
+        var output = new List<byte[]>(pieces.Count);
+        foreach (var list in pieces)
+        {
+            var chunk = new List<byte>();
+            foreach (var (line, bytes, start) in list)
+            {
+                if ((line.Target ?? line.Goto) is { } label)
+                {
+                    if (!labels.TryGetValue(label, out int target))
+                    {
+                        error = $"없는 라벨로 뜁니다: {label}";
+                        return null;
+                    }
+                    bool absolute = bytes.Count == 4 && bytes[0] == 0x30 && bytes[1] == 0x1D;
+                    int value = absolute ? target - 4 : target - (start + bytes.Count);
+                    if (value is < 0 or > ushort.MaxValue)
+                    {
+                        error = $"{label} 로 뛸 수 없습니다 — " + (absolute ? "파트 앞쪽 밖" : "뒤로 뛰는 분기");
+                        return null;
+                    }
+                    bytes[^2] = (byte)value;
+                    bytes[^1] = (byte)(value >> 8);
+                }
+                chunk.AddRange(bytes);
+            }
+            output.Add(chunk.ToArray());
+        }
+        return output;
     }
 
     // 발견이벤트.json 과 같은 꼴 — 들여 쓰고 한글을 \uXXXX 로 안 깬다.
@@ -82,78 +264,19 @@ public static class DisevTree
         return Append(output, lines, ref error) ? output.ToArray() : null;
     }
 
-    /// <summary>
-    /// 칸으로 풀 수 있는 명령이면 그 줄을 짓는다 — 음원 재생 · EVSTILL · 대사. 못 풀면 null.
-    /// </summary>
-    private static DisevLine? Describe(byte[] raw, string kind)
-    {
-        switch (kind)
-        {
-            case "음원 재생" when raw is [0x0E, 0x03, _, _]:
-                return new DisevLine { Sound = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
-
-            case "EVSTILL 이미지 표시" when raw is [0x00, 0x1F, _, _]:
-                return new DisevLine { EvStill = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
-
-            case "발견물 등록/발견 처리" when raw is [0x01, 0x0B, _, _]:
-                return new DisevLine { Discover = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
-
-            case "아이템 획득" when raw is [0x00, 0x05, _, _]:
-                return new DisevLine { GetItem = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
-
-            // 19|1A 1C [u16 능력치] 1A [u32 값] — 더하기·빼기 한 핸들러(0x00409352). 무작위(20) 꼴 13바이트는 16진으로 둔다.
-            case "능력치 증가" or "능력치 감소" when raw.Length == 9 && raw[1] == 0x1C && raw[4] == 0x1A:
-            {
-                int stat = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2));
-                long value = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(5));
-                return new DisevLine
-                {
-                    Stat = stat,
-                    StatName = DisevScript.StatNames.TryGetValue(stat, out var name) ? name : null,
-                    Add = raw[0] == 0x19 ? value : null,
-                    Sub = raw[0] == 0x1A ? value : null,
-                };
-            }
-
-            case "특수 조우 연출" when raw is [0x00, 0x1E, _, _]:
-                return new DisevLine { Encounter = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
-
-            // AVI 는 00 02 [u16] 네 바이트 꼴만 푼다. 00 없이 온 02 [u16] 세 바이트 꼴은 16진으로 둔다.
-            case "AVI 재생" when raw is [0x00, 0x02, _, _]:
-                return new DisevLine { Avi = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(2)) };
-
-            case "대사":
-            {
-                // 편집기 칸과 같은 가름 — [창 플래그] 0A [화자 태그 81 46] 본문 00.
-                var (flag, tag) = DisevForm.SplitDialogue(raw);
-                int textStart = (flag == null ? 1 : 2) + (tag.Length > 0 ? tag.Length + 2 : 0);
-                int textEnd = raw.Length > 0 && raw[^1] == 0x00 ? raw.Length - 1 : raw.Length;
-                var (_, body) = DisevScript.DecodeDialogue(
-                    raw.AsSpan(textStart, Math.Max(0, textEnd - textStart)), normalize: false);
-
-                // 전각 사이띄개는 JSON 에서 　 으로 깨져 보이므로 반각으로 적는다 —
-                // 되짤 때 BuildDialogue 가 반각을 전각으로 올리니 바이트는 같다(원본에 반각이 있으면 16진으로 남는다).
-                var line = new DisevLine { Say = body.Replace('　', ' '), Flag = flag };
-                if (tag.Length > 0)
-                {
-                    if (DisevScript.SpeakerNames.TryGetValue(Convert.ToHexString(tag), out var name)) line.Speaker = name;
-                    else line.SpeakerTag = DisevScript.Hex(tag);
-                }
-                return line;
-            }
-
-            default:
-                return null;
-        }
-    }
-
     /// <summary>화자 이름 → 태그 16진(띄어쓰기 없음). 이름이 겹치면 먼저 것.</summary>
     private static readonly Dictionary<string, string> SpeakerTags = BuildSpeakerTags();
+
+    /// <summary>화자 이름의 태그 바이트. 모르는 이름이면 null.</summary>
+    public static byte[]? SpeakerTagOf(string name) =>
+        SpeakerTags.TryGetValue(name, out var tag) ? Convert.FromHexString(tag) : null;
 
     private static Dictionary<string, string> BuildSpeakerTags()
     {
         var tags = new Dictionary<string, string>();
         foreach (var (tag, name) in DisevScript.SpeakerNames) tags.TryAdd(name, tag);
+        // 監察官 은 예전에 「검사관」으로 적었다 — 그때 적어 둔 발견이벤트.json 도 읽히게 옛 이름을 남긴다.
+        if (tags.TryGetValue("감찰관", out var inspector)) tags.TryAdd("검사관", inspector);
         return tags;
     }
 
@@ -267,122 +390,48 @@ public static class DisevTree
         }
         return true;
     }
-
-    private sealed class Builder
-    {
-        private readonly byte[] _chunk;
-        private readonly List<DisevScript.Op> _ops;
-        private readonly Dictionary<int, int> _index = [];
-        private readonly int?[] _targets;
-
-        public Builder(byte[] chunk, List<DisevScript.Op> ops)
-        {
-            _chunk = chunk;
-            _ops = ops;
-            for (int i = 0; i < ops.Count; i++) _index[ops[i].Offset] = i;
-            _targets = ops.Select(op => DisevFlow.TargetOf(chunk, op)).ToArray();
-        }
-
-        /// <summary>
-        /// <c>[from, to)</c> 를 줄로 짠다. 둘째 값은 이 줄들이 <b>어느 길로 가도 멎는지</b>다.
-        /// </summary>
-        public (List<DisevLine> Lines, bool Ends) Sequence(int from, int to)
-        {
-            var lines = new List<DisevLine>();
-            if (!_index.TryGetValue(from, out int i)) return (lines, false);
-
-            for (; i < _ops.Count && _ops[i].Offset < to; i++)
-            {
-                var op = _ops[i];
-                int end = op.Offset + op.Length;
-                if (_targets[i] is not { } target || target <= end || target > to || !IsBoundary(target) ||
-                    !Contained(end, target))
-                {
-                    lines.Add(LineOf(op));
-                    continue;
-                }
-
-                var (no, noEnds) = Sequence(end, target);
-                // 모르는 조건은 물음에 「거짓이면 뜀」이 붙어 오는데 Yes=거짓 이 같은 말이라 뗀다.
-                var (title, jump, fall) = DisevFlow.Question(_chunk, op);
-                title = title.Replace(" — 거짓이면 뜀", "");
-                string what = title.StartsWith(op.Kind, StringComparison.Ordinal) ? title : $"{op.Kind} · {title}";
-                var branch = new DisevLine
-                {
-                    If = DisevScript.Hex(_chunk.AsSpan(op.Offset, op.Length - 2)),
-                    Note = $"{what} — Yes={jump}(뜀), No={fall}(다음 줄)",
-                    No = no,
-                    Yes = [],
-                };
-                lines.Add(branch);
-
-                // No 가 멎으면 남은 줄은 Yes 로만 간다 — 통째로 Yes 에 넣는다.
-                if (noEnds && target < to && Contained(target, to))
-                {
-                    var (yes, yesEnds) = Sequence(target, to);
-                    branch.Yes = yes;
-                    return (lines, yesEnds);
-                }
-
-                // 멎지 않으면 뛴 자리에서 다시 만난다 — 뒤는 이어 적는다.
-                if (target >= to) return (lines, false);
-                i = _index[target] - 1;
-            }
-
-            bool ends = lines.Count > 0 && lines[^1].If == null && LastOpBefore(to) is { } last &&
-                        DisevFlow.Ends.Contains(last.Kind);
-            return (lines, ends);
-        }
-
-        /// <summary>명령 하나를 줄로. 칸으로 푼 것이 되짜서 같지 않으면 16진 글로 둔다.</summary>
-        private DisevLine LineOf(DisevScript.Op op)
-        {
-            var raw = _chunk.AsSpan(op.Offset, Math.Min(op.Length, _chunk.Length - op.Offset)).ToArray();
-            var hex = new DisevLine { Hex = DisevScript.Hex(raw) };
-            if (Describe(raw, op.Kind) is not { } line) return hex;
-            return Flatten([line], out _) is { } back && back.AsSpan().SequenceEqual(raw) ? line : hex;
-        }
-
-        private bool IsBoundary(int offset) => offset == _chunk.Length || _index.ContainsKey(offset);
-
-        private DisevScript.Op? LastOpBefore(int to)
-        {
-            for (int i = _ops.Count - 1; i >= 0; i--)
-                if (_ops[i].Offset < to) return _ops[i];
-            return null;
-        }
-
-        /// <summary>
-        /// <c>[from, to)</c> 를 나무 가지로 떼어도 되는지 — 안에서 밖으로 뛰지 않고,
-        /// 밖에서 안 한가운데로 뛰어 들지 않아야 한다.
-        /// </summary>
-        private bool Contained(int from, int to)
-        {
-            for (int i = 0; i < _ops.Count; i++)
-            {
-                if (_targets[i] is not { } target) continue;
-                bool inside = _ops[i].Offset >= from && _ops[i].Offset < to;
-                if (inside ? target < from || target > to : target > from && target < to) return false;
-            }
-            return true;
-        }
-    }
 }
 
 /// <summary>
-/// 줄 나무의 한 줄 — 날바이트 한 토막이거나 분기 하나다.
+/// 대본 한 줄 — 명령 하나다(옛 판에서 읽은 나무 분기면 <see cref="If"/> 가 선다).
 /// </summary>
 /// <remarks>
 /// JSON 에서 날바이트 줄은 <b>16진 글 하나</b>, 분기는
 /// <c>{ "If", "Note", "Yes": [...], "No": [...] }</c>, 칸으로 푼 명령은 <c>{ "Sound" }</c> ·
 /// <c>{ "EvStill" }</c> · <c>{ "Speaker", "Flag", "Say" }</c> 이다. <c>Note</c> 는 사람이 읽으라고
 /// 적는 것이라 읽을 때 안 본다.
+///
+/// 칸으로 못 푼 명령은 <c>{ "OpCode", "Note" }</c> 객체로 적는다 — <c>OpCode</c> 가 그 명령의
+/// 바이트 전부고 <c>Note</c> 가 풀이다(「델포이 신탁 출력」 따위). 이름 붙인 명령이면 <c>Command</c> 가 붙는다.
+/// 풀이·이름은 읽을 때 안 본다.
+/// 16진 글 하나로 적힌 옛 줄과 <c>Hex</c> 키로 적힌 판 6 줄도 그대로 읽힌다.
 /// </remarks>
 [JsonConverter(typeof(DisevLineConverter))]
 public sealed class DisevLine
 {
     /// <summary>날바이트 줄. 다른 갈래면 null.</summary>
     public string? Hex { get; set; }
+
+    /// <summary>호출 이름(<see cref="DisevCall"/>).</summary>
+    public DisevCall? Call { get; set; }
+
+    /// <summary>호출 인자.</summary>
+    public JsonObject? Args { get; set; }
+
+    /// <summary>분기 — 이 조건식 호출이 참이면 <see cref="Target"/> 으로 뛴다.</summary>
+    public JsonObject? GotoIf { get; set; }
+
+    /// <summary>분기 — 이 조건식 호출이 거짓이면 <see cref="Target"/> 으로 뛴다.</summary>
+    public JsonObject? GotoUnless { get; set; }
+
+    /// <summary>분기가 뛰는 라벨.</summary>
+    public string? Target { get; set; }
+
+    /// <summary>이 줄의 라벨 — 어느 점프가 여기로 온다.</summary>
+    public string? Label { get; set; }
+
+    /// <summary>절대 이동(<c>30 1D</c>)이 가는 라벨. 판 8·9 에서는 분기도 이것에 적고 머리를 <see cref="Hex"/> 에 두었다.</summary>
+    public string? Goto { get; set; }
 
     /// <summary>음원 재생(<c>0E 03</c>) 슬롯.</summary>
     public int? Sound { get; set; }
@@ -461,6 +510,20 @@ public sealed class DisevLineConverter : JsonConverter<DisevLine>
             reader.Read();
             switch (name)
             {
+                case "Hex":
+                case "OpCode": line.Hex = reader.GetString(); break;
+                case "Label": line.Label = reader.GetString(); break;
+                case "Call":
+                    if (!Enum.TryParse(reader.GetString(), out DisevCall call))
+                        throw new JsonException($"모르는 호출입니다: {reader.GetString()}");
+                    line.Call = call;
+                    break;
+                case "Args": line.Args = JsonNode.Parse(ref reader) as JsonObject; break;
+                case "GotoIf": line.GotoIf = JsonNode.Parse(ref reader) as JsonObject; break;
+                case "GotoUnless": line.GotoUnless = JsonNode.Parse(ref reader) as JsonObject; break;
+                case "Target": line.Target = reader.GetString(); break;
+                // Category(판 6~8)·Command 는 읽기용이라 안 본다 — 바이트는 OpCode 와 칸이 정한다.
+                case "Goto": line.Goto = reader.GetString(); break;
                 case "Sound": line.Sound = reader.GetInt32(); break;
                 case "EvStill": line.EvStill = reader.GetInt32(); break;
                 case "Discover": line.Discover = reader.GetInt32(); break;
@@ -481,105 +544,97 @@ public sealed class DisevLineConverter : JsonConverter<DisevLine>
                 default: reader.Skip(); break;
             }
         }
-        if (line.If == null && line.Sound == null && line.EvStill == null && line.Discover == null &&
+        if (line.Call == null && line.GotoIf == null && line.GotoUnless == null && line.Goto == null &&
+            line.If == null && line.Hex == null && line.Sound == null && line.EvStill == null && line.Discover == null &&
             line.GetItem == null && line.Avi == null && line.Encounter == null && line.Stat == null && line.Say == null)
-            throw new JsonException("줄 객체에 If · Sound · EvStill · Discover · GetItem · Avi · Encounter · Stat · Say 가운데 하나가 있어야 합니다");
+            throw new JsonException("줄 객체에 Call · GotoIf · GotoUnless · Goto · If · OpCode · Sound · EvStill · Discover · GetItem · Avi · Encounter · Stat · Say 가운데 하나가 있어야 합니다");
         if (line.If != null)
         {
             line.Yes ??= [];
             line.No ??= [];
+        }
+        // 대사는 OpCode 가 곧 명령이다 — 00 0A · 0B 0A · 0A. 옛 판은 Flag 로 적었다.
+        if (line.Say != null && line.Hex != null)
+        {
+            var head = DisevScript.ParseHex(line.Hex);
+            line.Flag = head switch
+            {
+                [0x0A] => null,
+                [var flag, 0x0A] => flag,
+                _ => throw new JsonException($"대사 OpCode 는 00 0A · 0B 0A · 0A 가운데 하나라야 합니다: {line.Hex}"),
+            };
         }
         return line;
     }
 
     public override void Write(Utf8JsonWriter writer, DisevLine value, JsonSerializerOptions options)
     {
-        if (value.Sound is { } sound)
+        // 옛 판에서 읽어 들인 나무 분기 — 그대로 적는다.
+        if (value.If != null)
         {
             writer.WriteStartObject();
-            writer.WriteNumber("Sound", sound);
+            writer.WriteString("If", value.If);
+            if (value.Note != null) writer.WriteString("Note", value.Note);
+            writer.WritePropertyName("Yes");
+            JsonSerializer.Serialize(writer, value.Yes ?? [], options);
+            writer.WritePropertyName("No");
+            JsonSerializer.Serialize(writer, value.No ?? [], options);
             writer.WriteEndObject();
             return;
         }
 
-        if (value.EvStill is { } still)
+        // 새 판 줄 — 호출·분기·절대 이동.
+        if (value.Call != null || value.GotoIf != null || value.GotoUnless != null || (value.Goto != null && value.Say == null))
         {
             writer.WriteStartObject();
-            writer.WriteNumber("EvStill", still);
+            if (value.Label != null) writer.WriteString("Label", value.Label);
+            if (value.Hex != null) writer.WriteString("OpCode", value.Hex);
+            if (value.Call is { } call) writer.WriteString("Call", call.ToString());
+            if (value.Args != null) { writer.WritePropertyName("Args"); value.Args.WriteTo(writer); }
+            if (value.GotoIf != null) { writer.WritePropertyName("GotoIf"); value.GotoIf.WriteTo(writer); }
+            if (value.GotoUnless != null) { writer.WritePropertyName("GotoUnless"); value.GotoUnless.WriteTo(writer); }
+            if (value.Target != null) writer.WriteString("Target", value.Target);
+            if (value.Goto != null) writer.WriteString("Goto", value.Goto);
+            if (value.Note != null) writer.WriteString("Note", value.Note);
             writer.WriteEndObject();
             return;
         }
 
-        if (value.Discover is { } found)
-        {
-            writer.WriteStartObject();
-            writer.WriteNumber("Discover", found);
-            writer.WriteEndObject();
-            return;
-        }
-
-        if (value.GetItem is { } item)
-        {
-            writer.WriteStartObject();
-            writer.WriteNumber("GetItem", item);
-            writer.WriteEndObject();
-            return;
-        }
-
-        if (value.Avi is { } avi)
-        {
-            writer.WriteStartObject();
-            writer.WriteNumber("Avi", avi);
-            writer.WriteEndObject();
-            return;
-        }
-
-        if (value.Encounter is { } encounter)
-        {
-            writer.WriteStartObject();
-            writer.WriteNumber("Encounter", encounter);
-            writer.WriteEndObject();
-            return;
-        }
-
-        if (value.Stat is { } stat)
-        {
-            writer.WriteStartObject();
-            writer.WriteNumber("Stat", stat);
-            if (value.StatName != null) writer.WriteString("StatName", value.StatName);
-            if (value.Add is { } add) writer.WriteNumber("Add", add);
-            if (value.Sub is { } sub) writer.WriteNumber("Sub", sub);
-            writer.WriteEndObject();
-            return;
-        }
-
-        if (value.Say is { } say)
-        {
-            writer.WriteStartObject();
-            if (value.Speaker != null) writer.WriteString("Speaker", value.Speaker);
-            if (value.SpeakerTag != null) writer.WriteString("SpeakerTag", value.SpeakerTag);
-            if (value.Flag is not { } flag) writer.WriteNull("Flag");
-            else if (flag != 0) writer.WriteNumber("Flag", flag);
-            writer.WriteString("Say", say);
-            writer.WriteEndObject();
-            return;
-        }
-
-        if (value.If == null)
+        // 옛 판에서 읽어 들인 줄 — 날바이트는 글 하나, 칸으로 푼 것은 그 칸대로.
+        bool structured = value.Sound != null || value.EvStill != null || value.Discover != null || value.GetItem != null
+                          || value.Avi != null || value.Encounter != null || value.Stat != null || value.Say != null;
+        if (!structured)
         {
             writer.WriteStringValue(value.Hex ?? "");
             return;
         }
 
         writer.WriteStartObject();
-        writer.WriteString("If", value.If);
+        if (value.Label != null) writer.WriteString("Label", value.Label);
+        if (value.Hex != null) writer.WriteString("OpCode", value.Hex);
+        else if (value.Say != null) writer.WriteString("OpCode", value.Flag is { } f ? $"{f:X2} 0A" : "0A");
+        if (value.Sound is { } sound) writer.WriteNumber("Sound", sound);
+        if (value.EvStill is { } still) writer.WriteNumber("EvStill", still);
+        if (value.Discover is { } found) writer.WriteNumber("Discover", found);
+        if (value.GetItem is { } item) writer.WriteNumber("GetItem", item);
+        if (value.Avi is { } avi) writer.WriteNumber("Avi", avi);
+        if (value.Encounter is { } encounter) writer.WriteNumber("Encounter", encounter);
+        if (value.Stat is { } stat)
+        {
+            writer.WriteNumber("Stat", stat);
+            if (value.Add is { } add) writer.WriteNumber("Add", add);
+            if (value.Sub is { } sub) writer.WriteNumber("Sub", sub);
+        }
+        if (value.Say is { } say)
+        {
+            if (value.Speaker != null) writer.WriteString("Speaker", value.Speaker);
+            if (value.SpeakerTag != null) writer.WriteString("SpeakerTag", value.SpeakerTag);
+            writer.WriteString("Say", say);
+        }
         if (value.Note != null) writer.WriteString("Note", value.Note);
-        writer.WritePropertyName("Yes");
-        JsonSerializer.Serialize(writer, value.Yes ?? [], options);
-        writer.WritePropertyName("No");
-        JsonSerializer.Serialize(writer, value.No ?? [], options);
         writer.WriteEndObject();
     }
+
 }
 
 /// <summary>덩이 한 칸 — 판 3 은 줄 배열, 판 2 는 16진 글 하나다.</summary>

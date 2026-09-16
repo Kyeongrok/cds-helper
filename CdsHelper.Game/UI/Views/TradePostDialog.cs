@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -123,7 +123,7 @@ public sealed class TradePostDialog : GameWindow
     private int Profit => Enumerable.Range(0, _player.CargoHold.Count).Sum(s =>
     {
         var c = _player.CargoHold[s];
-        return _sell[s] * (_post.SellPrice(_city, c.Kind) - _post.BuyPrice(c.Origin, c.Kind));
+        return _sell[s] * (_post.SellPrice(_player, _city, c.Kind) - _post.BuyPrice(_player, c.Origin, c.Kind));
     });
 
     private int Pending(int kind, int origin) =>
@@ -359,7 +359,7 @@ public sealed class TradePostDialog : GameWindow
     {
         var row = _rows[i];
         int q = _qty[i], rest = Math.Max(0, row.Supply - q);
-        string name = row.Kind == _post.SpecialOf(_city) && row.Origin == _city
+        string name = row.Kind == _post.SpecialOf(_player, _city) && row.Origin == _city
             ? $"★ {_post.NameOf(row.Kind)}" : _post.NameOf(row.Kind);
 
         var lines = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -386,8 +386,8 @@ public sealed class TradePostDialog : GameWindow
         int have = r.Slot >= 0 ? _player.CargoHold[r.Slot].Count : 0;
         int pend = Pending(r.Kind, r.Origin);
         int sell = r.Slot >= 0 ? _sell[r.Slot] : 0;
-        int here = _post.SellPrice(_city, r.Kind);
-        int buy = _post.BuyPrice(r.Origin, r.Kind);
+        int here = _post.SellPrice(_player, _city, r.Kind);
+        int buy = _post.BuyPrice(_player, r.Origin, r.Kind);
         int diff = here - buy;
 
         var lines = new StackPanel { VerticalAlignment = VerticalAlignment.Center };

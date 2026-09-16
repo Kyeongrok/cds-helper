@@ -31,18 +31,7 @@ public sealed class SkillBoardDialog : Window
         ShowInTaskbar = false;
         ResizeMode = ResizeMode.NoResize;
 
-        var board = new SkillGroupBox
-        {
-            Header = "스킬",
-            Margin = new Thickness(10),
-            Skills = Build(player, people, language: false),
-            Languages = Build(player, people, language: true),
-            Column1Label = "제독",
-            Column2Label = Player.MateRoles[0],
-            Column3Label = Player.MateRoles[1],
-            Column4Label = Player.MateRoles[2],
-            Column5Label = Player.MateRoles[3],
-        };
+        var board = BuildBoard(player, people, new Thickness(10));
 
         var close = new Button
         {
@@ -61,11 +50,25 @@ public sealed class SkillBoardDialog : Window
         KeyDown += (_, e) => { if (e.Key is System.Windows.Input.Key.Escape) Close(); };
     }
 
+    /// <summary>기능·언어 판 — 창과 도시 쪽지(<see cref="SkillOverlayWindow"/>)가 같이 쓴다.</summary>
+    internal static SkillGroupBox BuildBoard(Player player, PersonTable? people, Thickness margin) => new()
+    {
+        Header = "스킬",
+        Margin = margin,
+        Skills = Build(player, people, language: false),
+        Languages = Build(player, people, language: true),
+        Column1Label = "제독",
+        Column2Label = Player.MateRoles[0],
+        Column3Label = Player.MateRoles[1],
+        Column4Label = Player.MateRoles[2],
+        Column5Label = Player.MateRoles[3],
+    };
+
     /// <summary>
     /// 줄 하나씩 — 제독과 부하 넷의 자리를 나란히 채운다.
     /// </summary>
     /// <param name="language">참이면 언어 열넷, 아니면 기능 열셋이다.</param>
-    private static List<SkillDisplayItem> Build(Player player, PersonTable? people, bool language)
+    internal static List<SkillDisplayItem> Build(Player player, PersonTable? people, bool language)
     {
         var names = language ? Skill.Languages : Skill.Names;
         var mates = new PersonTable.Row?[Player.MaxMates];

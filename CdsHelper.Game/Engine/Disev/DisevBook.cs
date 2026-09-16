@@ -50,9 +50,14 @@ public sealed class DisevBook
     /// 알맹이 모양 판. 1 은 파트 통째 <c>Hex</c>, 2 는 덩이별 16진 글, 3 은 덩이마다 분기로 가른
     /// 줄 나무(<see cref="DisevTree"/>), 4 는 그 줄을 명령 하나씩 떼고 음원·EVSTILL·대사를 칸으로 푼 것,
     /// 5 는 발견 처리(<c>Discover</c>)·아이템 획득(<c>GetItem</c>)·AVI(<c>Avi</c>)·특수 조우(<c>Encounter</c>)·능력치 더하기/빼기(<c>Stat</c>)까지 칸으로 풀고 <c>33</c> 을 제 명령으로 뗀 것이다.
+    /// 6 은 cds_disev_editor v1.0 대조로 명령 길이를 바로잡아 다시 가르고, 줄마다 분류(<c>Category</c>)를 붙인 것이다.
+    /// 7 은 칸으로 못 푼 명령을 16진 글 대신 <c>{ Category, OpCode, Note }</c> 로 적은 것이다.
+    /// 8 은 나무를 버리고 원본 차례 그대로 <b>평평한 줄 배열 + 라벨</b>(<c>Label</c>·<c>Goto</c>)로 적은 것이다.
+    /// 9 는 분류(<c>Category</c>)를 빼고 <c>00</c> 무리 명령 이름(<c>Command</c>)을 붙인 것이다.
+    /// 10 은 줄을 <b>함수 호출</b>로 적은 것이다 — <c>Call</c>·<c>Args</c>, 분기는 <c>GotoIf</c>·<c>GotoUnless</c>·<c>Target</c>(<see cref="DisevCalls"/>).
     /// 옛 판도 읽어서 새 판으로 옮겨 적는다.
     /// </summary>
-    private const int SnapshotVersion = 5;
+    private const int SnapshotVersion = 10;
 
     /// <summary>대본 한 파트.</summary>
     /// <param name="Index">발견물 번호이자 파트 번호(0~273).</param>
@@ -255,7 +260,7 @@ public sealed class DisevBook
             index,
             part.Step,
             part.Slots.Select(s => new SlotEntry(IndexOf(starts, s.Condition), IndexOf(starts, s.Body))).ToList(),
-            starts.Select(s => DisevTree.Build(part.Chunk(s))).ToList());
+            DisevTree.BuildPart(part));
 
         return Join(entry, out _) is { } back && back.AsSpan().SequenceEqual(data) ? entry : whole;
     }
@@ -290,16 +295,23 @@ public sealed class DisevBook
         var output = new List<byte>(headerEnd + 1024);
         output.AddRange(new byte[headerEnd]);
 
+        // 라벨은 파트 전체에서 찾는다 — 절대 이동(30 1D)이 덩이를 건너 뛴다.
+        if (DisevTree.FlattenPart(chunks, headerEnd, out string why) is not { } pieces)
+        {
+            error = why;
+            return null;
+        }
+
         var at = new int[chunks.Count];
         for (int i = 0; i < chunks.Count; i++)
         {
-            if (DisevTree.Flatten(chunks[i], out string why) is not { Length: > 0 } bytes)
+            if (pieces[i].Length == 0)
             {
-                error = $"덩이 {i} 를 못 읽었습니다 — {why}";
+                error = $"덩이 {i} 가 비었습니다";
                 return null;
             }
             at[i] = output.Count;
-            output.AddRange(bytes);
+            output.AddRange(pieces[i]);
         }
 
         if (output.Count > 0xFFFF + 4)

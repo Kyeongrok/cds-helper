@@ -255,12 +255,12 @@ public sealed class DiscoveryDialog : GameWindow
         what.Top = owner.Top + (owner.ActualHeight - what.ActualHeight) / 2 - lift;
     }
 
-    /// <summary>그 발견물의 동영상 파일 자리. 없으면 null.</summary>
+    /// <summary>
+    /// 그 발견물의 동영상 파일 자리. 올려 둔 것(<c>asset/movie</c>)이 먼저고, 없으면 게임 폴더의
+    /// 원본이다(<see cref="MovieFiles"/>). 둘 다 없으면 null.
+    /// </summary>
     public static string? MovieOf(string gameDirectory, int movie) =>
-        movie < 0 || gameDirectory.Length == 0
-            ? null
-            : System.IO.Path.Combine(gameDirectory, DiscoveryTable.MovieFolder,
-                                     $"I{movie:00}_0000.AVI");
+        movie < 0 ? null : MovieFiles.Resolve(gameDirectory, MovieFiles.DiscoveryStem(movie));
 
     /// <summary>그림이 없을 때의 글 칸 너비. 게임 알림창의 가장 좁은 폭이다.</summary>
     private const double MinWidth_ = 272;
