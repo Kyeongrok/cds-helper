@@ -20,8 +20,8 @@ namespace CdsHelper.Game.UI.Views;
 /// "외국인은 들어올 수 없다" 고 말한 뒤에야 차림표가 뜬다. 말을 못 알아들으면 글자가
 /// ×로 뭉개지고, 대원 중에도 아는 이가 없으면 한 마디 덧붙는다.
 ///
-/// <b>공격은 아직 못 옮겼다.</b> 육상전(<c>0x0044A870</c>, 볼트 <c>65.분석-육상전</c>)이
-/// 통째로 남은 숙제라, 물음까지는 게임 그대로 묻고 나서 아직이라고 이른다.
+/// 공격은 부대배치 → 육상전(<c>0x0044A870</c>, 볼트 <c>65.분석-육상전</c>)이다. 이기면 문이 열리고,
+/// 부대가 모두 쓰러지면 게임 오버, 퇴각하면 차림표로 돌아간다.
 /// </remarks>
 internal static class HostileCityMenu
 {
@@ -60,7 +60,13 @@ internal static class HostileCityMenu
         }
         finally
         {
-            scene?.Close();
+            // 닫기 전에 임자 창(지도)을 앞으로 세운다 — 안 그러면 떠 있던 창이 사라지는 순간
+            // 윈도가 초점을 딴 앱 창으로 넘긴다(「떠난다」로 물러설 때 그랬다). 도시 그림 창과 같은 다룸이다.
+            if (scene != null)
+            {
+                owner.Activate();
+                scene.Close();
+            }
         }
     }
 
@@ -117,7 +123,13 @@ internal static class HostileCityMenu
                     var field = new LandBattle(line, player, aide,
                                                game.CityRows?.ScaleOf(city) ?? 0,
                                                nation, culture, CityField, dice);
-                    if (!LandBattleScene.Run(owner, game, field, dice)) break;
+                    if (!LandBattleScene.Run(owner, game, field, dice))
+                    {
+                        // 부대가 모두 쓰러졌으면 놀이가 끝난다 — 마을 공략에서 지면 게임 오버다.
+                        // 퇴각했으면(Wiped 가 안 선다) 차림표로 돌아간다.
+                        if (field.Wiped) return new Outcome(Entered: false, GameOver: true);
+                        break;
+                    }
 
                     // 이겼으면 그 도시는 그 뒤로 그냥 열린다 — 교섭·잠입으로 뚫었을 때와
                     // 같다("제독, 이것으로 마을에 들어갈 수 있습니다").
