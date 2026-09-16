@@ -7,10 +7,13 @@ using CdsHelper.Support.Local.Settings;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// 술집 힌트를 보고 고치는 창 — 힌트 186줄과 그 힌트가 가리키는 발견물·목적지.
+/// 힌트 186줄을 보고 고치거나, 원본에 없던 새 힌트를 더하는 창.
 /// </summary>
 /// <remarks>
-/// 술집 주인은 계약한 힌트를 놓고 <b>어느 쪽으로 가라</b>고 일러 준다. 그 말은 이렇게 나온다.
+/// <b>힌트 자체</b>(이름·등급·갈래·자금·기한·가리키는 발견물·설명)가 이 창의 본디 임자다.
+/// 「목적지」·「술집이 이르는 곳」 두 칸은 그 힌트 자체의 값이 아니라, <b>술집 주인이
+/// 그 힌트를 놓고 어느 쪽으로 가라고 일러 주는지</b>를 셈해서 곁다리로 보여 주는 것뿐이다
+/// (계약한 힌트 하나에 곁들는 한 줄짜리 안내다) — 셈은 이렇다.
 /// <code>
 ///   힌트 줄의 +0x08 ─ 일련번호 ─→ 발견물 줄의 +0x08 로 짝을 맺고
 ///   그 발견물이 앉은 사각형 ─→ 안에 든 도시(없으면 가장 가까운 도시)
@@ -18,11 +21,10 @@ namespace CdsHelper.Game.UI.Views;
 /// </code>
 /// 그래서 <b>일련번호 한 칸만 틀려도</b> 엉뚱한 데로 가라고 한다 — 「카르낙 거석군」
 /// (일련번호 107)을 줄 번호로 잘못 알고 표의 107째 줄을 짚으면 「로제타석」이 나와
-/// 브르타뉴 대신 중근동을 일러 주었다. 그 자리가 오른쪽 세 칸이라, 고치기 전에 눈으로
-/// 대 볼 수 있게 함께 낸다.
+/// 브르타뉴 대신 중근동을 일러 주었다. 고치기 전에 눈으로 대 볼 수 있게 함께 낸다.
 ///
-/// <b>적어 둔 힌트표.json 을 직접 고치지 않는다</b> — 고친 것만 따로 적어 두고
-/// (<see cref="HintEdits"/>) 표가 읽힐 때 얹는다. 그래서 여기서 고치면 놀이 안의 술집도
+/// <b>적어 둔 힌트표.json 을 직접 고치지 않는다</b> — 고치거나 더한 것만 따로 적어 두고
+/// (<see cref="HintEdits"/>) 표가 읽힐 때 얹는다. 그래서 여기서 고치면 놀이 안의 술집·도서관도
 /// 그대로 따라온다.
 /// </remarks>
 public sealed class TavernHintEditDialog : GameWindow
@@ -49,7 +51,8 @@ public sealed class TavernHintEditDialog : GameWindow
         Content = "짝이 안 맞는 줄만",
         VerticalAlignment = VerticalAlignment.Center,
         Margin = new Thickness(12, 0, 0, 0),
-        ToolTip = "일련번호로 발견물을 못 찾거나, 그 발견물에 자리가 없는 줄만 낸다",
+        ToolTip = "일련번호로 발견물을 못 찾거나, 그 발견물에 자리가 없거나, "
+                + "어느 책에도 안 물려 있어 도서관에서 절대 못 얻는 줄만 낸다",
     };
 
     private readonly Button _add = new()
@@ -85,10 +88,11 @@ public sealed class TavernHintEditDialog : GameWindow
     private DiscoveryTable? _discoveries;
     private CityExeTable? _cities;
     private CityTable? _cityNames;
+    private BookTable? _books;
 
     public TavernHintEditDialog()
     {
-        Title = "술집 힌트 고치기";
+        Title = "힌트 고치기 · 더하기";
         Width = 1180;
         Height = 700;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -102,9 +106,12 @@ public sealed class TavernHintEditDialog : GameWindow
         Col("기한", nameof(Row.Deadline), 48);
         Col("일련번호", nameof(Row.Discovery), 66);
         Col("가리키는 발견물", nameof(Row.DiscoveryName), 150, readOnly: true);
-        Col("목적지", nameof(Row.TargetCity), 110, readOnly: true);
-        Col("술집이 이르는 곳", nameof(Row.Bearing), 110, readOnly: true);
+        Col("수록된 책", nameof(Row.Books), 160, readOnly: true);
         Col("설명", nameof(Row.Text), 260);
+        // 여기부터 둘은 힌트 자체의 칸이 아니라, 술집 주인이 이 힌트를 놓고 어느 쪽으로
+        // 가라 이르는지 셈해서 곁다리로 보여 주는 것뿐이다.
+        Col("(곁다리)목적지", nameof(Row.TargetCity), 110, readOnly: true);
+        Col("(곁다리)술집 안내", nameof(Row.Bearing), 110, readOnly: true);
         Col("고침", nameof(Row.Mark), 44, readOnly: true);
 
         _grid.CellEditEnding += (_, e) =>
@@ -170,10 +177,14 @@ public sealed class TavernHintEditDialog : GameWindow
         public string TargetCity { get; init; } = "";
         public string Bearing { get; init; } = "";
 
+        /// <summary>이 힌트를 물고 있는 책 이름들. 하나도 없으면 「(없음)」 — 그러면 도서관에서
+        /// 아무리 책을 읽어도 이 힌트는 절대 안 나온다(<c>LibraryDialog.Shown</c> 참고).</summary>
+        public string Books { get; init; } = "";
+
         /// <summary>손으로 고친 줄에만 <c>●</c> 가 선다.</summary>
         public string Mark { get; init; } = "";
 
-        /// <summary>발견물을 못 찾았거나 그 발견물에 자리가 없는 줄.</summary>
+        /// <summary>발견물을 못 찾았거나, 그 발견물에 자리가 없거나, 어느 책에도 안 물린 줄.</summary>
         public bool Odd { get; init; }
     }
 
@@ -193,6 +204,7 @@ public sealed class TavernHintEditDialog : GameWindow
         _discoveries = DiscoveryTable.Open(dir);
         _cities = CityExeTable.Open(dir);
         _cityNames = CityTable.Open();
+        _books = BookTable.Open(dir);
 
         if (_hints == null)
         {
@@ -212,10 +224,15 @@ public sealed class TavernHintEditDialog : GameWindow
         string find = _search.Text.Trim();
 
         var rows = new List<Row>();
-        int odd = 0;
+        int odd = 0, noBook = 0;
         foreach (var hint in hints.Hints)
         {
-            var (name, city, bearing, bad) = Aim(hint.Discovery);
+            var (name, city, bearing, aimBad) = Aim(hint.Discovery);
+            string books = BooksOf(hint.Id);
+            // 책 표를 못 읽었으면(_books == null) 모르는 것이지 없는 것이 아니다 — 나쁨으로 안 친다.
+            bool bookless = _books != null && books.Length == 0;
+            if (bookless) noBook++;
+            bool bad = aimBad || bookless;
             if (bad) odd++;
 
             var row = new Row
@@ -232,6 +249,7 @@ public sealed class TavernHintEditDialog : GameWindow
                 DiscoveryName = name,
                 TargetCity = city,
                 Bearing = bearing,
+                Books = _books == null ? "(모름)" : books.Length == 0 ? "(없음)" : books,
                 Odd = bad,
                 Mark = HintEdits.Of(hint.Id) == null ? "" : "●",
             };
@@ -248,15 +266,23 @@ public sealed class TavernHintEditDialog : GameWindow
         int edits = HintEdits.All.Count;
         _status.Text = $"힌트 {hints.Hints.Count}줄 가운데 {rows.Count}줄 — 게임 표 0x004D8E80"
                      + (odd == 0 ? "" : $" · 짝이 안 맞는 줄 {odd}")
+                     + (noBook == 0 ? "" : $"(그중 어느 책에도 안 물린 줄 {noBook})")
                      + (edits == 0 ? "" : $" · 손으로 고친 줄 {edits}")
                      + "   ·   「일련번호」는 발견물 표의 몇째 줄인지가 아니라 발견물 줄의"
-                     + " +0x08 과 맞대어 보는 번호다   ·   고친 것은 놀이 안에서도 그대로 쓰인다";
+                     + " +0x08 과 맞대어 보는 번호다   ·   힌트는 어느 책에도 안 물려 있으면"
+                     + " 도서관에서 절대 안 나온다(「수록된 책」 참고)   ·   고친 것은 놀이 안에서도 그대로 쓰인다";
     }
+
+    /// <summary>이 힌트 번호를 물고 있는 책 이름들. 하나도 없으면 빈 글.</summary>
+    private string BooksOf(int hintId) =>
+        _books == null ? ""
+        : string.Join(", ", _books.Books.Where(b => b.Hints.Contains(hintId)).Select(b => b.Title));
 
     private static bool Matches(Row row, string find) =>
         row.Name.Contains(find, StringComparison.OrdinalIgnoreCase)
         || row.DiscoveryName.Contains(find, StringComparison.OrdinalIgnoreCase)
         || row.TargetCity.Contains(find, StringComparison.OrdinalIgnoreCase)
+        || row.Books.Contains(find, StringComparison.OrdinalIgnoreCase)
         || row.Text.Contains(find, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>

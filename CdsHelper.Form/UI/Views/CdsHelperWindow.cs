@@ -435,8 +435,8 @@ public class CdsHelperWindow : CdsWindow
         dialog.ShowDialog();
     }
 
-    // 술집 힌트 186줄을 보고 고치는 창. 힌트가 가리키는 발견물과, 술집 주인이 어느 쪽으로
-    // 가라 이를지를 함께 내어 짝이 어긋난 줄을 눈으로 찾을 수 있게 한다.
+    // 힌트 186줄을 보고 고치거나 새로 더하는 창. 가리키는 발견물·수록된 책과, 술집 주인이
+    // 어느 쪽으로 가라 이를지(곁다리 정보 한 칸)를 함께 내어 짝이 어긋난 줄을 눈으로 찾는다.
     private void OnTavernHintMenuClick(object sender, RoutedEventArgs e)
     {
         CdsHelper.Game.UI.Views.TavernHintEditDialog.Show(this);

@@ -1255,7 +1255,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// <summary>
     /// 그 문화권을 술집이 부르는 이름. 표 밖이면 「먼 바다」다.
     /// </summary>
-    /// <remarks>술집 힌트 편집기가 같은 말을 미리 내 보이려고 함께 쓴다.</remarks>
+    /// <remarks>힌트 편집기가 같은 말을 미리 내 보이려고 함께 쓴다.</remarks>
     public static string BearingName(int culture) =>
         culture >= 0 && culture < Bearings.Length ? Bearings[culture] : "먼 바다";
 
