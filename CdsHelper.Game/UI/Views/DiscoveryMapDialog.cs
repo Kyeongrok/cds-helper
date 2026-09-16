@@ -164,11 +164,12 @@ public sealed class DiscoveryMapDialog : GameWindow
         _world.RenderTransform = moves;
 
         int shown = 0, done = 0;
-        for (int id = 0; id < DiscoveryTable.Count; id++)
+        // 0~Count-1 로만 돌면 DiscoveryEdits 로 더한 줄(274 이상)이 안 뜬다 — table.Discoveries 를 돈다.
+        foreach (var row in table.Discoveries)
         {
-            if (table.Find(id) is not { } row || !row.HasPlace) continue;
+            if (!row.HasPlace) continue;
 
-            bool found = player.HasFound(id);
+            bool found = player.HasFound(row.Id);
             // 자리는 네모라 한가운데를 찍는다.
             Mark((row.X1 + row.X2) / 2.0 / ExploredMap.CellsPerBlock,
                  (row.Y1 + row.Y2) / 2.0 / ExploredMap.CellsPerBlock,

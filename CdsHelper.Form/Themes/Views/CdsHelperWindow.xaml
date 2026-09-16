@@ -297,6 +297,10 @@
                                             x:Name="PART_TavernHintMenu"
                                             Header="술집 힌트"
                                             ToolTip="힌트 186줄을 보고 고친다 — 어느 발견물을 가리키는지, 술집이 어느 쪽으로 가라 이르는지 함께 낸다" />
+                                        <MenuItem
+                                            x:Name="PART_DiscoveryEditMenu"
+                                            Header="발견물"
+                                            ToolTip="발견물 274줄을 보고 고치거나, 원본에 없던 새 발견물을 더한다" />
                                     </MenuItem>
                                     <MenuItem x:Name="PART_HelpMenu" Header="도움말" />
                                 </Menu>

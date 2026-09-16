@@ -86,6 +86,7 @@ public sealed class Player
     private readonly List<Ship> _ships = [];
     private readonly Dictionary<string, int> _skills = [];
     private readonly HashSet<int> _hints = [];
+    private readonly HashSet<int> _openedHints = [];
 
     /// <summary>카라벨 한 척과 시작 소지금으로 시작한다.</summary>
     public Player()
@@ -1090,17 +1091,42 @@ public sealed class Player
     public Contract? Contract { get; private set; }
 
     /// <summary>
+    /// 계약을 맺어 본 적 있는 힌트 — 힌트만 쥐고 있어서는 안 열리고, <b>계약까지 맺어야</b>
+    /// 그 힌트가 가리키는 발견물이 자리 판정에 걸린다(<see cref="Discovery.DiscoveryLog.IsOpen"/>).
+    /// </summary>
+    /// <remarks>
+    /// EXE 를 뜯어 보면 발견물 인스턴스의 열림 깃발(<c>+0x16</c> 비트 <c>0x08</c>)을 새 판을 열 때
+    /// 말고 나중에 세우는 자리는 <b>딱 하나</b>, 계약 맺기(<c>0x004ADEE0</c>)뿐이다 —
+    /// 힌트를 얻는 자리(도서관·술집)에는 그런 코드가 없다. 계약이 기한을 넘기거나 깨져도
+    /// 이 깃발을 지우는 코드는 없어(<c>AND</c> 명령이 아예 없다) 한 번 열리면 계속 열려 있다.
+    /// 그래서 지금 맺은 계약뿐 아니라 <b>맺어 본 적 있는 계약을 전부</b> 든다.
+    /// </remarks>
+    public IReadOnlyCollection<int> OpenedHints => _openedHints;
+
+    /// <summary>
     /// 계약을 맺는다. 선금은 그 자리에서 받는다 — 게임도 그렇다(<c>0x004ADF3E</c>).
     /// 이미 맺은 것이 있으면 갈아 끼운다(게임도 계약을 하나만 든다).
     /// </summary>
     public void Sign(Contract contract)
     {
         Contract = contract;
+        _openedHints.Add(contract.Hint);
         Earn(contract.Advance);
     }
 
     /// <summary>계약을 지운다(기한 넘김·파기). 돈은 건드리지 않는다.</summary>
+    /// <remarks>
+    /// <see cref="OpenedHints"/> 는 건드리지 않는다 — 원본도 계약이 끝났다고 열어 둔 발견물을
+    /// 다시 잠그지는 않는다.
+    /// </remarks>
     public void EndContract() => Contract = null;
+
+    /// <summary>세이브를 되돌릴 때 계약을 맺어 본 힌트를 그대로 채운다.</summary>
+    public void RestoreOpenedHints(IEnumerable<int>? openedHints)
+    {
+        _openedHints.Clear();
+        if (openedHints != null) foreach (int hint in openedHints) _openedHints.Add(hint);
+    }
 
     private readonly HashSet<int> _announced = [];
 

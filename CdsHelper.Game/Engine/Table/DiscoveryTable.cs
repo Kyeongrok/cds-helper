@@ -146,11 +146,33 @@ public sealed class DiscoveryTable
     /// <summary>왜 못 읽었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>표에 있는 발견물 전부. 색인이 곧 발견물 번호다.</summary>
-    public IReadOnlyList<Record> Discoveries => _rows;
+    /// <summary>
+    /// 표에 있는 발견물 전부 — 원본 274줄에 <see cref="DiscoveryEdits"/> 로 더하거나 갈아 끼운
+    /// 것을 얹은 것. 색인이 곧 발견물 번호이던 것은 원본 274줄까지만 그렇다.
+    /// </summary>
+    public IReadOnlyList<Record> Discoveries
+    {
+        get
+        {
+            var edits = DiscoveryEdits.All;
+            var merged = new List<Record>(_rows.Length + edits.Count);
+            foreach (var row in _rows)
+                merged.Add(edits.TryGetValue(row.Id, out var edited) ? edited : row);
+            foreach (var (id, row) in edits)
+                if (id < 0 || id >= _rows.Length) merged.Add(row);
+            return merged;
+        }
+    }
 
-    /// <summary>그 번호의 발견물. 표 밖이면 null.</summary>
-    public Record? Find(int id) => id >= 0 && id < _rows.Length ? _rows[id] : null;
+    /// <summary>그 번호의 발견물. 표 밖이면 null 이었지만, 더해 둔 것이 있으면 그것이 나온다.</summary>
+    public Record? Find(int id)
+    {
+        if (DiscoveryEdits.Of(id) is { } edited) return edited;
+        return id >= 0 && id < _rows.Length ? _rows[id] : null;
+    }
+
+    /// <summary><see cref="DiscoveryEdits"/> 로 덧씌우기 전의 원본 게임 값. 표 밖이면 null.</summary>
+    public Record? Original(int id) => id >= 0 && id < _rows.Length ? _rows[id] : null;
 
     /// <summary>그 번호의 이름. 표 밖이면 번호로 물러선다.</summary>
     public string NameOf(int id) => Find(id)?.Name ?? $"발견물 {id}";
@@ -168,7 +190,7 @@ public sealed class DiscoveryTable
     public Record? FindBySerial(int serial)
     {
         if (serial < 0) return null;
-        foreach (var row in _rows)
+        foreach (var row in Discoveries)
             if (row.Hint == serial) return row;
         return null;
     }
