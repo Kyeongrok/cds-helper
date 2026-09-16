@@ -511,6 +511,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </summary>
     private void Enter(CityBuildingTable.Building building)
     {
+        // 배신한 후원자의 나라에서는 건물에 들어서다 보복을 당한다(0x004A267D → 0x00450140).
+        if (Ambushed()) return;
+
         var facility = Facility.For(building.Kind);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
         Discover(building);                              // 이 건물이 곧 발견물일 수 있다
@@ -520,6 +523,107 @@ public sealed class CityPicView : GameWindow, ITownScreen
         ShowMenu(() => BuildMenu(facility, building.Name, building.Code, building.TeachMask,
                                  building.Kind),
                  facility.BgmTrack);
+    }
+
+    /// <summary>
+    /// 뭍의 추격 — 배신한 후원자의 보복(<c>0x00450140</c>). 건물에 못 들어가게 됐으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 뒤쫓는 후원자(원래 기한이 지난 배신) 가운데 <b>이 도시와 나라가 같은</b> 사람만 본다.
+    /// <code>
+    ///   그중 성미[2] == 2(집착)가 있으면 도둑 (0x00450060)
+    ///     rand(3) == 0 이고 보관품이나 예금이 있으면 — 보관품은 칸마다 1/3 로 사라지고 예금은 30% 만 남는다
+    ///     「여보, 미안해요. 내가 없는 동안 도둑이 들었어요!」 / 「도둑이 들었습니다. 스폰서의 보복이겠지요.」
+    ///   아니면 현상금 사냥꾼 (0x0044FEB0) — rand(100) &gt; 운 + 1 이면
+    ///     「어이... 저 자, 벽보의...」「확실히...」 부관 「왠지 분위기가 않좋군요, 도망칩시다.」
+    ///     r = rand(100) — r ≤ 96 이고 체력 + 1 &gt; r 이면 달아난다 「후우~, 더 이상 쫓아오지 않는군요 …」
+    ///     r &gt; 96 이면 곧바로 붙잡힌다, 아니면 일기토(인물 268) — 지면 붙잡힌다
+    ///     붙잡히면 「좋아, 상금 걸린 자를 붙잡았다!」 → 후원자 「정신이 드나? …」 → GAME OVER
+    /// </code>
+    /// 게임이 일기토 결과 3 을 따로 끝내는 갈래(<c>0x0044AF40(4)</c>)는 우리 일기토에 그 결과가 없어 안 옮겼다.
+    /// </remarks>
+    private bool Ambushed()
+    {
+        int nation = _game.CityRows?.NationOf(_cityId) ?? -1;
+        if (nation < 0) return false;
+
+        var hunters = _player.Pursuers
+            .Select(b => (Betrayal: b, Sponsor: _game.Sponsors?.FindByName(b.Sponsor)))
+            .Where(p => p.Sponsor is { } s && s.Nation == nation)
+            .ToList();
+        if (hunters.Count == 0) return false;
+
+        var dice = _game.Random;
+        var aide = _game.AideFace;
+
+        // 가) 집착하는 후원자가 있으면 도둑을 보낸다.
+        if (hunters.Any(h => PatronMenu.SponsorFortune(h.Sponsor)[2] == 2))
+        {
+            if (dice.Next(3) != 0 || (_player.Stored.Count == 0 && _player.Savings == 0)) return false;
+
+            for (int i = _player.Stored.Count - 1; i >= 0; i--)
+                if (dice.Next(3) == 0) _player.LoseStored(i);
+            _player.LoseSavings(30);
+
+            if (_player.Spouse.Length > 0)
+                TalkDialog.Say(this, null, _player.Spouse, "여보, 미안해요. 내가 없는 동안 도둑이 들었어요!");
+            else
+                TalkDialog.Say(this, aide, "", "도둑이 들었습니다. 스폰서의 보복이겠지요.");
+            return true;
+        }
+
+        // 나) 현상금 사냥꾼.
+        if (dice.Next(100) <= _player.AbilityOf(Ability.Luck) + 1) return false;
+
+        GameDialog.Show(this, "어이... 저 자, 벽보의...");
+        GameDialog.Show(this, "확실히...");
+        TalkDialog.Say(this, aide, "", "왠지 분위기가 않좋군요, 도망칩시다.");
+
+        int r = dice.Next(100);
+        if (r <= 96 && _player.AbilityOf(Ability.Body) + 1 > r)
+        {
+            TalkDialog.Say(this, aide, "", "후우~, 더 이상 쫓아오지 않는군요. 제독, 여긴 너무 위험합니다. 빨리 마을을 떠납시다.");
+            return true;
+        }
+
+        if (r <= 96 && HunterDuel() != false)
+        {
+            TalkDialog.Say(this, aide, "", "후우~, 더 이상 쫓아오지 않는군요. 제독, 여긴 너무 위험합니다. 빨리 마을을 떠납시다.");
+            return true;
+        }
+
+        var boss = hunters[dice.Next(hunters.Count)].Sponsor!.Value;
+        GameDialog.Show(this, "좋아, 상금 걸린 자를 붙잡았다!");
+        TalkDialog.Say(this, _game.Faces?.TryGetBgra(boss.Face, boss.IsFemale), "",
+            "정신이 드나? 바보같은 녀석, 얌전히 용서를 빌었더라면 도와 주었을 것을..., 쓸데없는 수고를 하게 하다니!");
+        GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+        if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
+        return true;
+    }
+
+    /// <summary>현상금 사냥꾼(인물 268)과 일기토. 이기면 true, 지면 false, 판을 못 열면 null.</summary>
+    private bool? HunterDuel()
+    {
+        const int hunter = Engine.Sea.Encounter.ChaserLeader;
+        var row = PersonTable.Open()?.Find(hunter);
+        if (row == null || row.Stats.Length < 5) return null;
+
+        int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
+        var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        var mine = new Engine.Town.Duel.Fighter(_player.Name.Length > 0 ? _player.Name : "제독",
+            _player.AbilityOf(Ability.Body), _player.AbilityOf(Ability.Might),
+            _player.LevelOf(Skill.Names[Skill.Sword]), _player.AbilityOf(Ability.Luck), 0, 0);
+
+        var dice = new GameRandom(Environment.TickCount);
+        var duel = new Engine.Town.Duel(mine, foe, _player.Items.Contains(Engine.Town.Duel.EdithShieldId),
+                                        Environment.TickCount);
+        var face = _game.PersonTemplates?.Find(hunter) is { } t ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
+        DuelDialog.Show(this, duel, dice, face, _game.Fighters, FighterSprites.SetForCulture(_cultureNo),
+                        myFace: _game.Faces?.TryGetBgra(PortraitAges.At(_player.Face, _player.Age, false, _game.Faces),
+                                                        female: false),
+                        arena: "duel-tavern", bgm: _game.Bgm);
+        _player.Hurt(duel.BodyLost);
+        return duel.Won;
     }
 
     /// <summary>
