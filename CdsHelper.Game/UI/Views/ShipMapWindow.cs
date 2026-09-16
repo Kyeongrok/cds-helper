@@ -283,16 +283,28 @@ public sealed class ShipMapWindow : Window
         };
         toLisbon.Click += (_, _) => { follow.IsChecked = true; _host.ResetToLisbon(); };
 
+        // 자동항해가 걸려 있을 때만 나온다 — 손으로 끄는 길은 이 단추뿐이다(마우스로
+        // 조타를 시도해도 풀리지 않는다).
+        var stopAuto = new Button
+        {
+            Content = "자동항해 해제",
+            Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(4, 0, 0, 0),
+            Visibility = Visibility.Collapsed,
+        };
+        stopAuto.Click += (_, _) => { _host.StopAutoSail(); Say("자동항해를 껐습니다"); };
+        _stopAutoButton = stopAuto;
+
         var hint = new TextBlock
         {
-            Text = "왼쪽 클릭: 정박/닻 올리기 · Ctrl+클릭: 배 놓기",
+            Text = "왼쪽 클릭: 정박/닻 올리기 · Ctrl+클릭: 배 놓기 · Shift+오른쪽 클릭: 자동항해",
             Foreground = Brushes.Gray,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 0, 0),
         };
 
-        // 도시 화면이 떠 있는 동안 잠그는 줄. 셋 다 바다에서만 뜻이 있는 조작이다.
-        _seaControls = [steer, follow, recenter, toLisbon];
+        // 도시 화면이 떠 있는 동안 잠그는 줄. 넷 다 바다에서만 뜻이 있는 조작이다.
+        _seaControls = [steer, follow, recenter, toLisbon, stopAuto];
 
         var bar = new DockPanel { Background = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)), LastChildFill = true };
         bar.Children.Add(steer);
@@ -303,6 +315,8 @@ public sealed class ShipMapWindow : Window
         DockPanel.SetDock(recenter, Dock.Left);
         bar.Children.Add(toLisbon);
         DockPanel.SetDock(toLisbon, Dock.Left);
+        bar.Children.Add(stopAuto);
+        DockPanel.SetDock(stopAuto, Dock.Left);
         bar.Children.Add(hint);
         DockPanel.SetDock(hint, Dock.Left);
         bar.Children.Add(_status);
@@ -491,6 +505,12 @@ public sealed class ShipMapWindow : Window
             // 도시 안에서는 함대 커맨드 창을 안 낸다 — 도시 화면이 제 커맨드 창을 따로 낸다.
             // 물음창으로 멎어 있을 때도 안 낸다.
             if (_host.SeaBlocked || _host.Paused) return;
+            // Shift 를 누른 채면 커맨드 창 대신 그 자리로 자동항해를 건다.
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && !_host.IsOnLand)
+            {
+                if (_host.MouseCell is { } at) Say(AutoSail(at.X, at.Y));
+                return;
+            }
             ShowCommandMenu(input, e.GetPosition(input));
         };
         input.MouseLeftButtonDown += (_, e) =>
@@ -523,6 +543,7 @@ public sealed class ShipMapWindow : Window
             SyncMouse();
             _status.Text = _focusNote.Length > 0 ? $"{_host.Status}    {_focusNote}"
                                                  : _host.Status;
+            _stopAutoButton.Visibility = _host.AutoSailing ? Visibility.Visible : Visibility.Collapsed;
             CheckPort();
             SpotCities();
             _folkEntered = MeetFolk();
@@ -567,6 +588,10 @@ public sealed class ShipMapWindow : Window
         // 지도에 남의 배를 낸다 — 누가 어디 있는지는 인물 세상이 안다.
         _host.FolkAt = FolkAfloat;
 
+        // 자동항해가 도착하거나 막혀서 스스로 멎으면 아래 띠로 알린다.
+        _host.AutoSailEnded += Say;
+        Closed += (_, _) => _host.AutoSailEnded -= Say;
+
         GameUi.CarryOwnedWindows(this);
 
         // 창이 물러나거나 접히면 좌표 상자도 같이 감춘다 — 제 창이라 그냥 두면 남의 앱 위에 뜬다.
@@ -607,7 +632,7 @@ public sealed class ShipMapWindow : Window
 
         var at = _host.ShipCell is { } cell ? ((double, double)?)(cell.CellX, cell.CellY) : null;
         DiscoveryMapDialog.Show(this, chart, w, h, _game.Discoveries?.Table, _game.Player, at,
-                                WindTable.Open(_game.Directory), WarpTo);
+                                WindTable.Open(_game.Directory), WarpTo, AutoSail);
     }
 
     /// <summary>
@@ -622,6 +647,33 @@ public sealed class ShipMapWindow : Window
         if (_host.SeaBlocked || _host.IsOnLand) return null;
         if (!_host.PlaceAtSea(cellX, cellY)) return null;
         return _host.ShipCell is { } cell ? (cell.X, cell.Y) : null;
+    }
+
+    /// <summary>
+    /// 그 칸까지 자동항해를 건다 — 지도 클릭(주 지도 Shift+오른쪽 클릭 · 발견물지도
+    /// Shift+오른쪽 클릭)과 도시 이름 고르기(<see cref="AutoSailDialog"/>)가 같이 쓴다.
+    /// </summary>
+    private string AutoSail(double cellX, double cellY)
+    {
+        var (ok, message) = _host.StartAutoSail(cellX, cellY);
+        return message;
+    }
+
+    /// <summary>도시 이름으로 자동항해 목적지를 고르는 창을 연다 — 지금 아는 도시만 나온다.</summary>
+    private void ShowAutoSailDialog()
+    {
+        var cities = Enumerable.Range(0, GameMapCoords.CityCount)
+            .Where(id => _game.CityVisible(id))
+            .Select(id => (Id: id, Name: _game.CityName(id)));
+
+        AutoSailDialog.Show(this, cities, id =>
+        {
+            if (!GameMapCoords.TryCityCell(id, out double cx, out double cy))
+                return (false, "그 도시의 좌표를 모릅니다");
+            var (ok, message) = _host.StartAutoSail(cx, cy);
+            if (ok) Say(message);
+            return (ok, message);
+        });
     }
 
     /// <summary>
@@ -702,6 +754,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>도시 화면이 떠 있는 동안 잠그는 조작 줄 단추들.</summary>
     private Control[] _seaControls = [];
+
+    /// <summary>자동항해가 걸려 있을 때만 보이는 "자동항해 해제" 단추.</summary>
+    private Button _stopAutoButton = null!;
 
     /// <summary>
     /// 도시 화면을 여닫는다. 들어가 있는 동안은 바다 명령이 전부 막힌다 —
@@ -1998,6 +2053,10 @@ public sealed class ShipMapWindow : Window
             _game.Player.SetFortune(saved.Fortune ?? _game.Player.Face);
             if (saved.Morale is { } morale) _game.Player.SetMorale(morale);
             _game.Player.RestoreContract(GameSave.ContractOf(saved));
+            // 계약 맺어 본 힌트. 이 칸이 없던 옛 세이브라도 지금 맺고 있는 계약만큼은
+            // 열어 둔 채로 이어야 한다 — 안 그러면 불러오자마자 그 발견물이 다시 잠긴다.
+            _game.Player.RestoreOpenedHints(
+                saved.OpenedHints ?? (saved.Contract is { } deal ? [deal.Hint] : null));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
             // 적어 둔 도시 앞바다에 배를 놓는다. 그 도시는 이미 들렀으니 곧바로 다시 묻지 않는다.
             if (saved.CityId >= 0 && _host.PlaceAtCity(saved.CityId)) _askedCity = saved.CityId;
@@ -2142,6 +2201,10 @@ public sealed class ShipMapWindow : Window
                 items.Add(("대열", () => { Close(); FormationDialog.Show(this, _game.Player); }));
         }
         items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
+        // 게임에는 없는 줄이다. 목적지를 도시 이름으로 골라 손을 놓고 몬다 — 지도를
+        // Shift+오른쪽 클릭해 바로 찍는 길도 따로 있다.
+        if (!_host.IsOnLand)
+            items.Add(("자동항해…", () => { Close(); ShowAutoSailDialog(); }));
         // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는
         // 방위를 바로 아는 편이 낫다 — 그래서 켜고 끌 수 있게 여기에 둔다.
         items.Add((_host.ShowFlowArrows ? "화살표를 감춘다" : "바람과 해류를 본다", () =>

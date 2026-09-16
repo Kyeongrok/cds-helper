@@ -72,6 +72,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             float4 Arrows;
             float4 Clouds[6];
             float4 Folk[16];
+            float4 Route[32];
         };
 
         struct VSOut { float4 pos : SV_Position; };
@@ -151,6 +152,27 @@ public sealed unsafe class MapD3DRenderer : IDisposable
             return col;
         }
 
+        float2 SegClosest(float2 p, float2 a, float2 b)
+        {
+            float2 ab = b - a;
+            float t = saturate(dot(p - a, ab) / max(dot(ab, ab), 1e-5));
+            return a + ab * t;
+        }
+
+        float3 RouteOver(float3 col, float2 px)
+        {
+            float best = 1e6;
+            [loop] for (int r = 0; r < 31; r++)
+            {
+                if (Route[r].w <= 0 || Route[r + 1].w <= 0) continue;
+                float d = distance(px, SegClosest(px, Route[r].xy, Route[r + 1].xy));
+                best = min(best, d);
+            }
+            const float core = 1.3, soft = 2.6;
+            float a = 1.0 - saturate((best - core) / (soft - core));
+            return lerp(col, float3(1.00, 0.55, 0.10), a);
+        }
+
         float4 PS(VSOut i) : SV_Target
         {
             if (OverlayRect.z > 0)
@@ -207,6 +229,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
                 float4 a = ArrowsAt(cellRaw, i.pos.xy);
                 col.rgb = lerp(col.rgb, a.rgb, a.a);
             }
+            col.rgb = RouteOver(col.rgb, i.pos.xy);
             return Tint(CloudsOver(FolkOver(col, i.pos.xy), i.pos.xy));
         }
         """;
@@ -226,6 +249,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         public float ArrowOn, ArrowGrid, ArrowCols, ArrowRows;
         public fixed float Clouds[MaxClouds * 4];   // x, y, 그림번호, 보일지
         public fixed float Folk[MaxFolk * 4];       // x, y, 뱃머리(0~3), 배수
+        public fixed float Route[MaxRoutePoints * 4]; // x, y, (안 씀), 켜졌는지
     }
 
     /// <summary>
@@ -233,6 +257,32 @@ public sealed unsafe class MapD3DRenderer : IDisposable
     /// <c>cmp … 0x10</c>).
     /// </summary>
     public const int MaxFolk = 16;
+
+    /// <summary>지도에 그릴 수 있는 자동항해 항로 마디 수. 셰이더의 배열 크기와 같다.</summary>
+    public const int MaxRoutePoints = 32;
+
+    /// <summary>
+    /// 항로 마디 하나. <paramref name="X"/>·<paramref name="Y"/> 는 화면 자리(실픽셀).
+    /// 마지막 마디 다음 칸은 <paramref name="Active"/> 를 거짓으로 두어 선을 끊는다.
+    /// </summary>
+    public readonly record struct RouteDraw(float X, float Y, bool Active);
+
+    private readonly float[] _route = new float[MaxRoutePoints * 4];
+
+    /// <summary>
+    /// 이번 프레임에 그릴 항로. 이웃한 두 마디가 <b>둘 다 켜져 있을 때만</b> 그 사이를 잇는다 —
+    /// 자동항해 중이 아니면 <see cref="ReadOnlySpan{T}.Empty"/> 를 준다.
+    /// </summary>
+    public void SetRoute(ReadOnlySpan<RouteDraw> points)
+    {
+        Array.Clear(_route);
+        for (int i = 0; i < points.Length && i < MaxRoutePoints; i++)
+        {
+            _route[i * 4 + 0] = points[i].X;
+            _route[i * 4 + 1] = points[i].Y;
+            _route[i * 4 + 3] = points[i].Active ? 1 : 0;
+        }
+    }
 
     /// <summary>
     /// 남의 그림 장수 — 배 넉 장(북·서·남·동)에 말 넉 장을 이어 붙인 여덟 장이다.
@@ -760,6 +810,7 @@ public sealed unsafe class MapD3DRenderer : IDisposable
         };
         for (int i = 0; i < _clouds.Length; i++) cb.Clouds[i] = _clouds[i];
         for (int i = 0; i < _folk.Length; i++) cb.Folk[i] = _folk[i];
+        for (int i = 0; i < _route.Length; i++) cb.Route[i] = _route[i];
 
         var map = _ctx.Map(_cb, 0, Vortice.Direct3D11.MapMode.WriteDiscard);
         *(FrameCb*)map.DataPointer = cb;

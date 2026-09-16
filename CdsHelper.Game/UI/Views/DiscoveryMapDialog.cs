@@ -96,6 +96,12 @@ public sealed class DiscoveryMapDialog : GameWindow
     /// </summary>
     private readonly Func<double, double, (double X, double Y)?>? _warp;
 
+    /// <summary>
+    /// Shift + 오른쪽 단추로 짚은 자리로 자동항해를 거는 손. 칸 자리를 받아 알림 말을
+    /// 돌려준다. 안 주면 자동항해 걸기가 아예 없다.
+    /// </summary>
+    private readonly Func<double, double, string>? _autoSail;
+
     /// <summary>내 자리 점. 옮기면 이 점을 따라 옮긴다.</summary>
     private System.Windows.Shapes.Ellipse? _shipDot;
 
@@ -113,9 +119,11 @@ public sealed class DiscoveryMapDialog : GameWindow
 
     private DiscoveryMapDialog(uint[] chart, int width, int height,
                                DiscoveryTable table, Player player, (double X, double Y)? ship, WindTable? wind,
-                               Func<double, double, (double X, double Y)?>? warp)
+                               Func<double, double, (double X, double Y)?>? warp,
+                               Func<double, double, string>? autoSail)
     {
         _warp = warp;
+        _autoSail = autoSail;
         _chartW = width;
         _chartH = height;
         _month = player.Date.Month;
@@ -210,12 +218,14 @@ public sealed class DiscoveryMapDialog : GameWindow
             _dragging = false;
             viewport.ReleaseMouseCapture();
         };
-        // 오른쪽 단추 — 짚은 자리로 함대를 옮긴다.
+        // 오른쪽 단추 — 짚은 자리로 함대를 옮긴다. Shift 를 누른 채면 그 자리로 자동항해를 건다.
         viewport.MouseRightButtonUp += (_, e) =>
         {
             e.Handled = true;
             var at = e.GetPosition(viewport);
-            Warp(_vx + at.X / Z, _vy + at.Y / Z);
+            double px = _vx + at.X / Z, py = _vy + at.Y / Z;
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) AutoSailTo(px, py);
+            else Warp(px, py);
         };
 
         _note = new TextBlock
@@ -322,6 +332,7 @@ public sealed class DiscoveryMapDialog : GameWindow
         _note.Text = $"발견물 {_found}곳 · 찾은 것 {_done}곳 · 배율 x{Z:0.#}"
                    + "   (휠 키우기·줄이기 · 끌어서 옮기기"
                    + (_warp != null ? " · 오른쪽 단추 그 자리로 옮기기" : "")
+                   + (_autoSail != null ? " · Shift+오른쪽 단추 그 자리로 자동항해" : "")
                    + " · 빨강 찾음 · 회색 아직 · 파랑 내 자리"
                    + (_hasFlows
                        ? $" · 보라 풍향 {(WindTable.IsFirstHalf(_month) ? "1~6월" : "7~12월")} · 청록 해류)"
@@ -471,18 +482,30 @@ public sealed class DiscoveryMapDialog : GameWindow
         Apply();
     }
 
+    /// <summary>짚은 자리(지도 점)로 자동항해를 건다.</summary>
+    private void AutoSailTo(double px, double py)
+    {
+        if (_autoSail == null) return;
+        _said = "   ·   " + _autoSail(px * ExploredMap.CellsPerBlock, py * ExploredMap.CellsPerBlock);
+        Apply();
+    }
+
     /// <summary>창을 연다. 지도를 못 지으면 아무 일도 안 한다.</summary>
     /// <param name="wind">바람표. 없으면 풍향 · 해류 단추가 안 나온다.</param>
     /// <param name="warp">
     /// 오른쪽 단추로 짚은 자리로 함대를 옮기는 손. 안 주면 옮기기가 없다.
     /// </param>
+    /// <param name="autoSail">
+    /// Shift + 오른쪽 단추로 짚은 자리로 자동항해를 거는 손. 안 주면 자동항해 걸기가 없다.
+    /// </param>
     public static void Show(Window owner, uint[]? chart, int width, int height,
                             DiscoveryTable? table, Player player, (double X, double Y)? ship,
                             WindTable? wind = null,
-                            Func<double, double, (double X, double Y)?>? warp = null)
+                            Func<double, double, (double X, double Y)?>? warp = null,
+                            Func<double, double, string>? autoSail = null)
     {
         if (chart == null || table == null || width <= 0 || height <= 0) return;
-        new DiscoveryMapDialog(chart, width, height, table, player, ship, wind, warp)
+        new DiscoveryMapDialog(chart, width, height, table, player, ship, wind, warp, autoSail)
         { Owner = owner }.ShowDialog();
     }
 }
