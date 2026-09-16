@@ -75,6 +75,8 @@ public sealed class GameOverDialog : GameWindow
                     double want = Top + drop + tall + Gap;
                     double most = Top + Height - box.ActualHeight - Gap;
                     box.Top = Math.Min(want, Math.Max(Top + Gap, most));
+                    // 손으로 앉히면 가로도 우리가 잡아야 한다 — 안 잡으면 창이 OS 기본 자리(화면 왼쪽 위)로 간다.
+                    box.Left = Left + (Width - box.ActualWidth) / 2;
                 });
             Close();
         };

@@ -682,7 +682,11 @@ internal sealed class LandBattleScene : GameWindow
     {
         int slot = bout[0].Actor;
         if (slot < 0 || slot >= StandAt.Length) return;
-        if (!_battle.Units[slot].Standing) return;
+        // 판은 턴이 <b>끝난 뒤</b>를 들고 있다 — 쏘고 나서 같은 턴에 쓰러진 부대(포병이
+        // 흔히 그렇다)도 제 차례에는 서 있었으니 <b>그때의 병사수</b>로 본다.
+        if (_battle.Units[slot].Kind < 0) return;
+        int men = _menNow is { } snap && slot < snap.Count ? snap[slot] : _battle.Units[slot].Men;
+        if (men <= 0) return;
 
         // 노린 데가 있는 줄 하나가 몸짓 한 바퀴다.
         var blows = bout.Where(line => line.Target >= 0).ToList();
@@ -841,6 +845,14 @@ internal sealed class LandBattleScene : GameWindow
         if (won) _game?.Sfx?.Play(LandUnits.Sound.Won);
         else if (retreated) _game?.Sfx?.Play(LandUnits.Sound.Retreat);
 
+        // 다 쓰러진 자리(0x00449908)는 부상병 복귀(0x00449570)를 안 부르고 곧장 게임 오버다.
+        if (!won && !retreated)
+        {
+            _battle.Wiped = true;
+            NoticeDialog.Show(this, "부대는 모두 쓰러졌다…", "");
+            return;
+        }
+
         var spoils = _battle.Finish(won, dice);
         var player = game.Player;
 
@@ -850,12 +862,7 @@ internal sealed class LandBattleScene : GameWindow
         if (spoils.Back > 0)
             NoticeDialog.Show(this, $"{spoils.Back}명의 부상병이 복귀했다", "");
 
-        if (!won)
-        {
-            if (!retreated) _battle.Wiped = true;
-            if (!retreated) NoticeDialog.Show(this, "부대는 모두 쓰러졌다…", "");
-            return;
-        }
+        if (!won) return;
 
         player.SetGold(player.Gold + spoils.Loot);
         NoticeDialog.Show(this, $"전리품으로서 금화 {spoils.Loot}닢을 손에 넣었다", "");
