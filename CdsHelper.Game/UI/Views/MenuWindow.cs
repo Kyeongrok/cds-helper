@@ -75,6 +75,12 @@ public sealed class MenuWindow : GameWindow
     /// </remarks>
     private bool _closed;
 
+    /// <summary>
+    /// 닫히는 중인지. 주인 창이 닫히며 이 창을 거두는 도중에 오므리기가 끝나 <c>Close()</c> 를 또 부르면
+    /// 「창을 닫는 중에는 … Close … 를 호출할 수 없습니다」로 터진다 — 그 틈을 막는다.
+    /// </summary>
+    private bool _closing;
+
     /// <summary>점에서 펼친다. 자리를 다 잡은 뒤에 부른다.</summary>
     private void Grow() => Zoom(grow: true, done: null);
 
@@ -88,7 +94,7 @@ public sealed class MenuWindow : GameWindow
         // 자리는 그대로 두므로(Hidden) 접히는 크기가 달라지지 않는다.
         if (_root.Child is { } inside) inside.Visibility = Visibility.Hidden;
 
-        Zoom(grow: false, done: () => { if (!_closed) Close(); });
+        Zoom(grow: false, done: () => { if (!_closed && !_closing) Close(); });
     }
 
     private void Zoom(bool grow, Action? done)
@@ -175,7 +181,7 @@ public sealed class MenuWindow : GameWindow
         // 안 나와서 <b>다른 앱으로 새어 나간다</b> — 도서관에서 나올 때 편집기나 터미널이
         // 잠깐 앞으로 나왔다 들어오던 것이 그것이다. 부수기 전에 주인을 띄워 두면
         // 고를 것이 이미 정해져 있어 샐 일이 없다.
-        Closing += (_, _) => Owner?.Activate();
+        Closing += (_, _) => { _closing = true; Owner?.Activate(); };
 
         // 그래도 새면 붙들어 온다(위 한 줄로 안 잡히는 자리가 남아 있을 수 있다).
         FocusWatch.KeepInApp(this);

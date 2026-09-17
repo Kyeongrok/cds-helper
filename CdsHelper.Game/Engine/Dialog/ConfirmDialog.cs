@@ -300,10 +300,18 @@ public sealed class ConfirmDialog : GameWindow
     /// 가운데다. 이때 둘은 <b>한 덩이로 게임 창 가운데</b>에 앉는다.
     /// </param>
     public static void Tell(Window owner, string text, string? title = null,
-                            uint[]? face = null, double indent = 0, Window? under = null)
+                            uint[]? face = null, double indent = 0, Window? under = null,
+                            Action<Window>? place = null)
     {
         var box = new ConfirmDialog(text, title, yesNo: false, face, indent) { Owner = owner };
         if (under != null) GameUi.PlaceUnder(box, under, GameUi.RootOf(owner));
+        if (place != null)
+        {
+            // Ask 와 같다 — 알맹이에 맞춰 크기를 잡은 뒤 WPF 가 다시 앉히므로 첫 그림 뒤에 한 번 더 잡는다.
+            box.WindowStartupLocation = WindowStartupLocation.Manual;
+            box.Loaded += (_, _) => place(box);
+            box.ContentRendered += (_, _) => place(box);
+        }
         box.ShowDialog();
     }
 }

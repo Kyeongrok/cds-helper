@@ -90,8 +90,8 @@ public sealed class DiscoveryDialog : GameWindow
         }
     }
 
-    /// <summary>그림 창과 알림 창 사이 틈.</summary>
-    private const double StillGap = 12;
+    /// <summary>그림 창과 알림 창 사이 틈 — 원본 갈무리에서 둘이 <b>맞닿아</b> 있다.</summary>
+    private const double StillGap = 0;
 
     private DiscoveryDialog(string text, string? title)
     {
@@ -171,8 +171,12 @@ public sealed class DiscoveryDialog : GameWindow
     /// <param name="text">적을 글("히랄다탑을 발견했다!").</param>
     /// <param name="movie">틀 동영상 파일. 없으면 null 이고 그때 그림을 본다.</param>
     /// <param name="title">제목 띠에 적을 이름. 없으면 띠가 안 붙는다.</param>
+    /// <param name="face">
+    /// 말하는 사람 얼굴. 주면 글 창이 <b>얼굴 대화창</b>(<see cref="ConfirmDialog"/>)이 된다 — 발견 대본에서 부관이
+    /// 그림을 보며 한마디 하는 자리가 그렇다(원본 갈무리: 그림 바로 밑에 얼굴 창이 붙고 폭은 그림보다 넓다).
+    /// </param>
     public static void Show(Window owner, DiscoveryStills? stills, int picture, string text,
-                            string? movie = null, string? title = null)
+                            string? movie = null, string? title = null, uint[]? face = null)
     {
         BitmapSource? art = null;
         double width = MinWidth_;
@@ -197,6 +201,21 @@ public sealed class DiscoveryDialog : GameWindow
             Centre(show, owner, up: true);
         }
 
+        if (face != null)
+        {
+            // 얼굴 대화창을 그림 바로 밑 가운데에 붙인다.
+            try
+            {
+                ConfirmDialog.Tell(owner, text, face: face, place: show == null ? null : box =>
+                {
+                    box.Left = show.Left + (show.ActualWidth - box.ActualWidth) / 2;
+                    box.Top = show.Top + show.ActualHeight + StillGap;
+                });
+            }
+            finally { stop?.Invoke(); show?.Close(); }
+            return;
+        }
+
         var say = new DiscoveryDialog(text, title) { Owner = owner };
         if (show != null)
         {
@@ -211,6 +230,29 @@ public sealed class DiscoveryDialog : GameWindow
 
         try { say.ShowDialog(); }
         finally { stop?.Invoke(); show?.Close(); }
+    }
+
+    /// <summary>
+    /// 그림 <b>한 장만</b> 띄우고 누르면 닫는다 — 글 창이 안 붙는다.
+    /// </summary>
+    /// <remarks>
+    /// 보고·발표가 발견물을 다시 보일 때(<c>0x004AAF30</c>)는 DSTILL 그림을 판에 찍고(<c>0x004AD640</c>) 손을 기다릴 뿐,
+    /// 이름 줄도 확인 단추도 없다. 이름은 바로 앞의 「…의 발견을 보고했다!!」가 이미 말했다.
+    /// </remarks>
+    public static void ShowPicture(Window owner, DiscoveryStills? stills, int picture)
+    {
+        if (stills == null || picture < 0 || stills.TryGetBgra(picture, out int w, out int h) is not { } bgra) return;
+
+        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
+        bmp.Freeze();
+        if (Picture(bmp, null, w, out _) is not { } art) return;
+
+        var show = new Still(art, w + FrameGrow) { Owner = owner, IsHitTestVisible = true, Cursor = System.Windows.Input.Cursors.Hand };
+        show.MouseLeftButtonUp += (_, _) => show.Close();
+        show.MouseRightButtonUp += (_, _) => show.Close();
+        show.KeyDown += (_, _) => show.Close();
+        show.Loaded += (_, _) => Centre(show, owner, up: false);
+        show.ShowDialog();
     }
 
     /// <summary>그림 창 속에 넣을 것. 그림도 동영상도 없으면 null.</summary>

@@ -39,6 +39,14 @@ public sealed class DevDialog : GameWindow
         public Func<bool> PeopleOn { get; init; } = () => false;
         public Action<bool> SetPeople { get; init; } = _ => { };
 
+        /// <summary>제독 컨디션(HP) 상자.</summary>
+        public Func<bool> ConditionOn { get; init; } = () => false;
+        public Action<bool> SetCondition { get; init; } = _ => { };
+
+        /// <summary>미니맵 — 발견물 지도를 작게 잘라 배를 따라간다.</summary>
+        public Func<bool> MiniMapOn { get; init; } = () => false;
+        public Action<bool> SetMiniMap { get; init; } = _ => { };
+
         /// <summary>지도 위의 까만 조작 줄(체크상자·안내 글).</summary>
         public Func<bool> ToolBarOn { get; init; } = () => false;
         public Action<bool> SetToolBar { get; init; } = _ => { };
@@ -80,6 +88,14 @@ public sealed class DevDialog : GameWindow
         // 만난 사람 — 좌표 상자와 같은 꼴로 지도 오른쪽 위에 겹쳐 낸다. 기본은 꺼짐이다.
         rows.Children.Add(Toggle("정보", options.PeopleOn(), options.SetPeople,
             "말을 걸어 본 여급의 친밀도·궁합과, 만난 인물 목록을 지도 위에 띄웁니다"));
+
+        // 컨디션 — 제독 HP(0x005B60D8)를 지도 왼쪽 아래에 막대로 띄운다. 300·100 문턱도 같이 그린다.
+        rows.Children.Add(Toggle("컨디션", options.ConditionOn(), options.SetCondition,
+            "제독 컨디션(HP, 0~2000)을 지도 왼쪽 아래에 띄웁니다. 300·100 아래면 부관이 쉬라고 하고, 0 이면 쓰러집니다"));
+
+        // 미니맵 — D 로 여는 발견물 지도를 항해·뭍 이동 중에 오른쪽 아래에 작게 띄운다.
+        rows.Children.Add(Toggle("미니맵", options.MiniMapOn(), options.SetMiniMap,
+            "항해·뭍 이동 중에 발견물 지도를 지도 오른쪽 아래에 작게 띄웁니다. 배를 가운데 두고 따라갑니다(빨강 찾음 · 회색 아직 · 파랑 내 자리)"));
 
         // 기능·언어 — 햄버거에 있던 창을 옮겼다. 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 쪽지로 뜬다.
         rows.Children.Add(Toggle("기능·언어", GameSettings.ShowSkillOverlay, on => GameSettings.ShowSkillOverlay = on,

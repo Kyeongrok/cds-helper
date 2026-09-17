@@ -59,6 +59,12 @@ public sealed class GameSettingsData
     /// <summary>지도 위에 만난 사람 상자를 겹쳐 보일지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowPeopleOverlay { get; set; }
 
+    /// <summary>지도 위에 제독 컨디션(HP) 상자를 겹쳐 보일지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
+    public bool ShowConditionOverlay { get; set; }
+
+    /// <summary>항해·뭍 이동 중에 지도 오른쪽 아래에 미니맵을 띄울지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
+    public bool ShowMiniMap { get; set; }
+
     /// <summary>도시에 들어가면 도시 그림 왼쪽에 기능·언어 쪽지를 띄울지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowSkillOverlay { get; set; }
 
@@ -452,6 +458,22 @@ public static class GameSettings
     {
         get => Get(d => d.ShowPeopleOverlay);
         set => Set(d => d.ShowPeopleOverlay = value);
+    }
+
+    /// <summary>
+    /// 지도 위에 <b>제독 컨디션(HP)</b> 상자를 겹쳐 보일지. 개발 창의 「컨디션」이 켜고 끈다.
+    /// </summary>
+    public static bool ShowConditionOverlay
+    {
+        get => Get(d => d.ShowConditionOverlay);
+        set => Set(d => d.ShowConditionOverlay = value);
+    }
+
+    /// <summary>항해·뭍 이동 중 <b>미니맵</b>을 지도 오른쪽 아래에 띄울지. 개발 창의 「미니맵」이 켜고 끈다.</summary>
+    public static bool ShowMiniMap
+    {
+        get => Get(d => d.ShowMiniMap);
+        set => Set(d => d.ShowMiniMap = value);
     }
 
     /// <summary>

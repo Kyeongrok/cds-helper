@@ -449,31 +449,41 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // (0x004AF249 가 0 이 아니면 0x004AF28A 로 간다).
         if (at < 0 || at == 2) return true;
 
+        // 말투는 후원자마다 셋이다(0x00469450): 여자면 존댓말(1), 직업 코드 18~21 이면 둘째 반말(2), 그 밖은 0.
+        var sponsor = _game.Sponsors?.FindByName(patron.Name);
+        int style = sponsor is { IsFemale: true } ? 1 : sponsor is { JobCode: >= 18 and <= 21 } ? 2 : 0;
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
         if (at == 0)
         {
             int raised = To10(funds * 13 / 10);
-            if (patron.Wealth < raised)
+            if (patron.Wealth < raised || years <= 1)
             {
-                Say("탐욕스러운 놈! 너 같은 녀석에게 볼일 없다. 썩 꺼져라!");
+                Say(Pick3("탐욕스러운 놈! 너 같은 녀석에게 볼일 없다. 썩 꺼져라!",
+                          "장래성이 있는 자라 생각했었는데 안됐습니다. 물러가 주십시오!",
+                          "너 같이 욕심많은 녀석에게 원조할 수 없다! 썩 꺼져라!!"));
                 return false;
             }
 
             funds = raised;
-            years /= 2;
-            Say($"흐음, 좋다. 돈은 전부 {funds}닢 주겠다. " +
-                $"그대신 기간은 {years}년으로 줄어드네. 이의없겠지.");
+            years = years * 5 / 10;
+            Say(string.Format(Pick3(
+                "흐음, 좋다. 돈은 전부 {0}닢 주겠다. 그대신 기간은 {1}년으로 줄어드네. 이의없겠지.",
+                "좋습니다. 금화는 전부 {0}닢 드리겠습니다. 그대신, 기간은 {1}년으로 하겠습니다. 좋지요.",
+                "뭐, 돈을 더 달라고. 흐~음, 그렇다면 전부 금화 {0}닢을 주겠다. 그대신, 기간은 {1}년이네."), funds, years));
         }
         else
         {
             funds = To10(funds * 7 / 10);
             years = years > 1 ? years * 15 / 10 : years + 1;
-            Say($"흐음, 좋다. 기간은 {years}년으로 늘려도 상관없네. " +
-                $"그대신 돈은 전부 {funds}닢 이상 줄 수 없네. 이의없겠지.");
+            Say(string.Format(Pick3(
+                "흐음, 좋다. 기간은 {0}년으로 늘려도 상관없네. 그대신 돈은 전부 {1}닢 이상 줄 수 없네. 이의없겠지.",
+                "알겠습니다. 그러면, 기간을 {0}년으로 하지요. 그대신 금화는 전부 {1}닢으로 하겠습니다. 좋습니까?",
+                "그것도 그렇군. 그러면, 기간을 {0}년으로 늘리지. 그렇다면 돈은 전부 {1}닢이 되겠군."), years, funds));
         }
 
-        // 새 값으로 한 번만 되묻는다. 마다하면 이야기가 끝난다.
-        return ConfirmDialog.Ask(_view, $"기간{years}년 금화 {funds}닢으로 하겠습니까?",
-                                 face: face);
+        // <b>되묻지 않는다</b> — 게임은 새 값을 이르고 곧장 1 을 내 계약으로 간다(0x004AEE15).
+        return true;
     }
 
     /// <summary>10닢 단위로 내린다 — 게임의 <c>/10*10</c> 꼴이다.</summary>
@@ -676,7 +686,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             if (row.Movie >= 0)
                 MoviePlayer.Play(_view, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
             else if (row.Picture >= 0)
-                DiscoveryDialog.Show(_view, _game.Stills, row.Picture, row.Name);
+                DiscoveryDialog.ShowPicture(_view, _game.Stills, row.Picture);   // 그림만 — 이름 창은 안 붙는다(0x004AD640)
 
             _player.Announce(row.Id);
 

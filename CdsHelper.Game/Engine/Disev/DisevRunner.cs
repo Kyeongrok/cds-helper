@@ -1011,7 +1011,7 @@ public sealed class DisevRunner
             int still = _pendingStill;
             _pendingStill = -1;
             DiscoveryDialog.Show(_owner, _pendingIsEvent ? _game.EventStills : _game.Stills,
-                                 still, body);
+                                 still, body, face: FaceOf(speaker));
             return;
         }
 
