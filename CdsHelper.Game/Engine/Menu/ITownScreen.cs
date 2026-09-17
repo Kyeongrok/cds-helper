@@ -117,6 +117,9 @@ internal interface ITownScreen
     /// <summary>교역소 「매매」 — 교역품을 담아 두었다가 한 번에 사고판다.</summary>
     void Trade();
 
+    /// <summary>교역소 「회화」 — 돈벌이 이야기나 특산품 자랑.</summary>
+    void TradeTalk();
+
     /// <summary>여관 숙박.</summary>
     void Stay();
 

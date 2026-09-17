@@ -29,9 +29,8 @@ namespace CdsHelper.Game.UI.Views;
 /// <item>나라·언어 — 나라 표(<see cref="NationTable"/>). 도시에는 나라 번호만 있고 말은
 /// 나라가 낸다. 정복하면 말이 바뀌기 때문이다.</item>
 /// <item>규모·특산품 — EXE 도시 표(<see cref="CityExeTable"/>).</item>
-/// <item>시세 — <see cref="MarketRates"/>. 지금은 모든 도시가 100 이다.</item>
-/// <item>상태 — 아직 흉내내지 않아 늘 "통상" 이다. 게임은 놀이 중에 대조선·전쟁 따위로
-/// 바뀌는데 그 길을 아직 안 만들었다.</item>
+/// <item>시세 — <see cref="MarketRates"/>. 거래가 밀고 매달 흔들린다.</item>
+/// <item>상태 — <see cref="CityState"/>(도시정보 「상태 %s」, <c>0x00470564</c>). 역사 대본이 전쟁·전염병·대조선 따위로 바꾼다.</item>
 /// </list>
 /// </remarks>
 public sealed class CityInfoDialog : GameWindow
@@ -50,9 +49,6 @@ public sealed class CityInfoDialog : GameWindow
     /// 전체의 71% 였다 — 5/7 이지 5/8 이 아니다.
     /// </remarks>
     private const int MaxScale = 7;
-
-    /// <summary>아직 흉내내지 않는 줄. 게임은 놀이 중에 바뀐다.</summary>
-    private const string DefaultState = "통상";
 
     private static SolidColorBrush Freeze(Color c)
     {
@@ -92,7 +88,7 @@ public sealed class CityInfoDialog : GameWindow
 
         var rows = new StackPanel { Margin = new Thickness(36, 18, 24, 6) };
         rows.Children.Add(Row("규모", ScaleBar(cities?.ScaleOf(cityId) ?? 0)));
-        rows.Children.Add(Row("상태", Text(DefaultState, 15)));
+        rows.Children.Add(Row("상태", Text(CityState.NameOf(rates.StateOf(cityId)), 15)));
         rows.Children.Add(Row("시세", Text($"{rates.Of(cityId)}", 15)));
         rows.Children.Add(Row("언어", Text(language, 15)));
 

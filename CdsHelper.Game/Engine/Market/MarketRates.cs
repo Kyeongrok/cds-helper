@@ -7,13 +7,9 @@ namespace CdsHelper.Game.Engine.Market;
 /// </summary>
 /// <remarks>
 /// 시세는 <b>백분율</b>이다 — 100 이 정가고, 130 이면 정가의 1.3 배를 부른다.
-/// 게임 실물은 도시마다 125~134 쯤에 흩어져 있다(cds95-mod 의 시세 일람으로 확인:
-/// 리스본 128 · 바르셀로나 125 · 빌바오 134). 그 값이 어디서 오고 어떻게 움직이는지는
-/// 아직 안 밝혔으므로 <b>지금은 전부 100</b> 으로 둔다.
-///
-/// 값 셈은 이미 시세를 거치게 해 두었다(<see cref="BuyPrice"/>). 그래서 나중에 시세를
-/// 구현할 때 <see cref="Open"/> 이 표를 채우도록 고치기만 하면 값이 저절로 따라 움직인다 —
-/// 부르는 쪽은 한 줄도 안 고쳐도 된다.
+/// 첫값은 도시 표 <c>+0x2C</c> 로 어디나 100 이고, 거래가 밀고(<see cref="TradePost.Apply"/>)
+/// 매달 1일에 흔들린다(<see cref="Drift"/>). 아즈텍왕국이 발견되면 목표가 130 으로 올라
+/// 게임 실물의 125~134(리스본 128 · 바르셀로나 125 · 빌바오 134)가 그 뒤의 모습이다.
 ///
 /// 게임 실물에서 재어 본 것:
 /// <code>
@@ -33,22 +29,31 @@ public sealed class MarketRates
     /// </summary>
     public const int MinRate = 1, MaxRate = 1000;
 
-    /// <summary>정가에서 벗어난 도시만 담는다. 없는 도시는 <see cref="Par"/> 다.</summary>
-    private readonly Dictionary<int, int> _rates = [];
+    /// <summary>값은 주인공(<see cref="Player.CityRates"/>)이 든다 — 세이브에 같이 적히고, 새 판이면 새로 비운다.</summary>
+    private readonly Game _game;
 
-    /// <summary>그 도시의 시세. 모르는 도시는 100.</summary>
-    public int Of(int cityId) => _rates.TryGetValue(cityId, out int rate) ? rate : Par;
+    internal MarketRates(Game game) => _game = game;
 
-    /// <summary>시세를 적어 넣는다. 100 이면 표에서 지운다 — 기본값과 같으니 들 까닭이 없다.</summary>
-    public void Set(int cityId, int rate)
+    /// <summary>그 도시의 시세. 모르는 도시는 100. 묻기 전에 밀린 달을 먼저 센다(<see cref="Game.CatchUpMonths"/>).</summary>
+    public int Of(int cityId)
     {
-        rate = Math.Clamp(rate, MinRate, MaxRate);
-        if (rate == Par) _rates.Remove(cityId);
-        else _rates[cityId] = rate;
+        _game.CatchUpMonths();
+        return _game.Player.CityRateOf(cityId);
     }
 
-    /// <summary>정가에서 벗어나 있는 도시들. 지금은 늘 비어 있다.</summary>
-    public IReadOnlyDictionary<int, int> Adjusted => _rates;
+    /// <summary>시세를 적어 넣는다. 100 이면 표에서 지운다 — 기본값과 같으니 들 까닭이 없다.</summary>
+    public void Set(int cityId, int rate) =>
+        _game.Player.SetCityRate(cityId, Math.Clamp(rate, MinRate, MaxRate));
+
+    /// <summary>그 도시 상태(<see cref="CityState"/>). 시세처럼 밀린 달을 먼저 센다.</summary>
+    public int StateOf(int cityId)
+    {
+        _game.CatchUpMonths();
+        return _game.Player.CityStateOf(cityId);
+    }
+
+    /// <summary>정가에서 벗어나 있는 도시들.</summary>
+    public IReadOnlyDictionary<int, int> Adjusted => _game.Player.CityRates;
 
     /// <summary>살 때 내는 값 — 정가에 그 도시 시세를 먹인 것이다.</summary>
     public int BuyPrice(int listPrice, int cityId) => Apply(listPrice, Of(cityId));
@@ -105,7 +110,27 @@ public sealed class MarketRates
         price >= RoundFrom ? price / 100 * 100 : price;
 
     /// <summary>
-    /// 시세 표를 연다. <b>지금은 모든 도시가 100</b> 이다 — 시세를 구현하면 여기서 채운다.
+    /// 매달 1일의 흔들림(<c>0x0042A280</c> 끝) — 도시마다 ±4 굴린 뒤 목표 쪽으로 1~4 당긴다.
     /// </summary>
-    public static MarketRates Open() => new();
+    /// <remarks>
+    /// <code>
+    ///   T = 100 · 아즈텍왕국(192)을 누가 찾았으면 130 · 잉카제국(193)까지면 170     (0x004AAD80)
+    ///   v = clamp(시세 + rand%9 - 4, 1, 250)
+    ///   v &gt; T 이면 v -= rand%4+1 · v &lt; T 이면 v += rand%4+1
+    /// </code>
+    /// </remarks>
+    public static void Drift(Player player, Random random, int cityCount, bool aztec, bool inca)
+    {
+        int target = aztec ? (inca ? 170 : 130) : Par;
+        for (int city = 0; city < cityCount; city++)
+        {
+            int v = Math.Clamp(player.CityRateOf(city) + random.Next(9) - 4, 1, 250);
+            if (v > target) v -= random.Next(4) + 1;
+            else if (v < target) v += random.Next(4) + 1;
+            player.SetCityRate(city, v);
+        }
+    }
+
+    /// <summary>아즈텍왕국 · 잉카제국 발견물 번호 — 시세 목표를 올린다.</summary>
+    public const int Aztec = 192, Inca = 193;
 }

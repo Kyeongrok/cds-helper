@@ -172,7 +172,11 @@ public static class GameSave
         Dictionary<string, DateTime>? Sulks = null,
         List<Support.Local.Models.Player.Child>? Children = null,
         string? ActiveStoryBook = null, DateTime? StoryQuestDeadline = null,
-        Dictionary<string, int>? StoryProgress = null, List<string>? ClosedStoryArcs = null);
+        Dictionary<string, int>? StoryProgress = null, List<string>? ClosedStoryArcs = null,
+        Dictionary<int, int>? CityRates = null, int? RatesMonth = null,
+        Dictionary<int, int>? CityStates = null, int? HistoryMonth = null,
+        Dictionary<int, int>? HistoryNations = null, List<int>? HistoryDone = null,
+        Dictionary<int, int>? AnnouncedYears = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -243,7 +247,16 @@ public static class GameSave
                             ActiveStoryBook: player.ActiveStoryBook,
                             StoryQuestDeadline: player.StoryQuestDeadline,
                             StoryProgress: player.StoryProgress.ToDictionary(e => e.Key, e => e.Value),
-                            ClosedStoryArcs: [.. player.ClosedStoryArcs]);
+                            ClosedStoryArcs: [.. player.ClosedStoryArcs],
+                            // 도시 시세·상태와 역사 대본 진행. 이 칸 앞의 세이브는 시세 100 · 역사를 1480년부터 되짚는다.
+                            CityRates: player.CityRates.ToDictionary(e => e.Key, e => e.Value),
+                            RatesMonth: player.RatesMonth,
+                            CityStates: player.CityStates.ToDictionary(e => e.Key, e => e.Value),
+                            HistoryMonth: player.HistoryMonth,
+                            HistoryNations: player.HistoryNations.ToDictionary(e => e.Key, e => e.Value),
+                            HistoryDone: [.. player.HistoryDone],
+                            // 발표한 해 — 향신료·신대륙 기호품 값이 여기서부터 햇수를 센다.
+                            AnnouncedYears: player.AnnouncedYears.ToDictionary(e => e.Key, e => e.Value));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

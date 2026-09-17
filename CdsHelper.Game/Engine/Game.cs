@@ -85,6 +85,7 @@ public sealed class Game
         _itemArt = null;
         _discoveries = null; _discoveriesTried = false;
         _voyagers = null; _voyagersTried = false;
+        _history = null; _historyTried = false;
         _stills = null; _stillsTried = false;
         _fighters = null; _fightersTried = false;
         _book = null; _bookTried = false;
@@ -139,12 +140,72 @@ public sealed class Game
     /// 도시 시세. 시장·여관·상단 띠가 <b>한 벌</b>을 나눠 쓴다.
     /// </summary>
     /// <remarks>
-    /// 지금은 어느 도시나 100 이라 어디서 만들든 값이 같지만, 시세가 돌아다니게 되면
-    /// 벌이 갈린 만큼 값도 갈린다 — 그래서 여기 하나로 모아 둔다.
+    /// 값 자체는 주인공이 들고(세이브에 함께 적힌다), 이것은 그 값을 읽고 쓰는 창구다 —
+    /// 새 판으로 주인공을 갈아 끼워도 창구는 그대로 따라간다.
     /// </remarks>
-    public MarketRates Rates => _rates ??= MarketRates.Open();
+    public MarketRates Rates => _rates ??= new MarketRates(this);
 
     private MarketRates? _rates;
+
+    /// <summary>역사 대본(<c>HIST_EV.CDS</c> · <c>HISTCHR.CDS</c>) — 도시 상태를 바꾼다.</summary>
+    public CityHistory? History =>
+        Once(ref _history, ref _historyTried, CityHistory.Open, () => "HIST_EV.CDS 를 못 읽었습니다", "역사 대본");
+
+    private CityHistory? _history;
+    private bool _historyTried;
+
+    /// <summary>밀린 달을 세는 중인지 — 세는 동안 시세를 물어도 다시 들어오지 않게.</summary>
+    private bool _catchingUp;
+
+    /// <summary>한꺼번에 흔들 시세 달 수. 오래 건너뛰어도 목표 가까이 모이고 나면 더 셀 까닭이 없다.</summary>
+    private const int MaxDriftMonths = 36;
+
+    /// <summary>
+    /// 달이 바뀐 만큼 게임의 달 셈(<c>0x0044B2A0</c>)을 따라잡는다 — 시세 흔들림, 그 다음 역사 대본.
+    /// </summary>
+    /// <remarks>
+    /// 날짜는 항해·숙박·수련 따위 여러 곳에서 넘어가므로, 달마다 부르는 대신 <b>값을 물을 때</b> 밀린 달을 센다.
+    /// 시세를 한 번도 안 센 판(새 판·옛 세이브)은 지금 달부터 세고, 역사 대본을 안 돌린 판은
+    /// 1480년 1월부터 되짚는다 — 날짜로 정해지는 것이라 옛 세이브도 그 해의 도시 상태로 열린다.
+    /// </remarks>
+    public void CatchUpMonths()
+    {
+        var player = Player;
+        if (_catchingUp || player.Date.Year < CityHistory.FirstYear) return;
+
+        int now = CityHistory.MonthKey(player.Date.Year, player.Date.Month);
+        if (player.RatesMonth == 0 || player.RatesMonth > now) player.SetRatesMonth(now);
+        if (player.HistoryMonth == 0 || player.HistoryMonth > now) player.SetHistoryMonth(CityHistory.StartKey);
+        if (player.RatesMonth == now && player.HistoryMonth == now) return;
+
+        _catchingUp = true;
+        try
+        {
+            var voyagers = Voyagers;
+            bool Found(int id, DateTime when) =>
+                player.HasFound(id) || (voyagers?.TakenBy(id, when) ?? -1) >= 0;
+
+            int first = Math.Min(player.RatesMonth, player.HistoryMonth) + 1;
+            for (int key = first; key <= now; key++)
+            {
+                int year = (key - 1) / 12, month = (key - 1) % 12 + 1;
+                var when = new DateTime(year, month, 1);
+
+                if (key > player.RatesMonth && now - key < MaxDriftMonths)
+                    MarketRates.Drift(player, Random, CityExeTable.Count,
+                                      Found(MarketRates.Aztec, when), Found(MarketRates.Inca, when));
+
+                if (key > player.HistoryMonth)
+                    History?.RunMonth(player, year, month, CityRows, Found);
+            }
+            player.SetRatesMonth(now);
+            player.SetHistoryMonth(now);
+        }
+        finally
+        {
+            _catchingUp = false;
+        }
+    }
 
     /// <summary>교역소 표(CDS_95.EXE). 지역 공통품 · 기준가 · 도시 특산가다.</summary>
     public TradeTable? Trade =>

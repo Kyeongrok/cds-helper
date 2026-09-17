@@ -99,6 +99,7 @@ internal static class TownMenu
             TownWork.BuyGoods when screen.CanBuyGoods => screen.BuyGoods,
             TownWork.SellGoods when screen.CanSellGoods => screen.SellGoods,
             TownWork.Trade when screen.CanTrade => screen.Trade,
+            TownWork.Talk when screen.CanTrade => screen.TradeTalk,
 
             TownWork.Stay => screen.Stay,
             TownWork.MateForm => screen.ShowMates,

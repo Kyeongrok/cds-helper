@@ -1144,6 +1144,66 @@ public sealed class CityPicView : GameWindow, ITownScreen
     private readonly Random _random = new();
 
     /// <summary>
+    /// 교역소 「회화」(<c>0x00481A10</c>) — 도시 상태로 비싸게 팔리는 것이 있으면 금화 1닢에 일러 주고,
+    /// 없으면 그 도시 특산품을 자랑한다.
+    /// </summary>
+    /// <remarks>
+    /// 특산품 자랑은 (도시 번호 + (해-1480)/8) 을 씨로 네 갈래 중 하나다(노예면 늘 권하는 말). 재고가 있는지로
+    /// 말끝이 갈린다. 넷째 갈래의 둘째 이름은 원본이 「리스본산와인」을 만든 버퍼를 곧바로 교역품 이름으로
+    /// 덮어써서(<c>0x0042E310</c> 이 한 버퍼를 쓴다) 결국 교역품 이름만 나온다 — 그대로 옮겼다.
+    /// </remarks>
+    private void TradeTalk()
+    {
+        if (TradeRules is not { } rules || _game.Goods is not { } goods) return;
+        var owner = Menu.Window ?? this;
+        var face = _game.SpeakerFace(TradePostDialog.TradingPostCode, _cultureNo);
+        void Say(string text) => ConfirmDialog.Tell(owner, text, face: face);
+
+        if (rules.TipOf(_player, _cityId, _random) is { } tip)
+        {
+            if (!ConfirmDialog.Ask(owner, "나리, 돈벌이 이야기가 있는데, 금화 1닢으로 어떠신가?", face: face))
+            {
+                Say("듣고 싶지 않다면 그만두게나.");
+                return;
+            }
+            if (_player.Gold < 1)
+            {
+                Say("응? 빈털터리인가?");
+                return;
+            }
+            Say($"지금, 이 마을에서는 {tip.Name}{NameToken.Of(tip.Name, 0)} 비싸게 팔리네.");
+            _player.SetGold(_player.Gold - 1);
+            return;
+        }
+
+        int special = rules.SpecialOf(_player, _cityId);
+        if (goods.Find(special) is not { } item)
+        {
+            Say("지금은 아무 흥미있는 이야기거리가 없네.");
+            return;
+        }
+
+        bool stocked = rules.StockOf(_player, _cityId)[TradePost.SpecialCell] > 0;
+        string g = item.Name, city = _cityName;
+        string recommend = $"으-음, 그렇군. 우리집에서 취급하고 있는 것 중에는, {g}{NameToken.Of(g, 2)} "
+                           + (stocked ? "권하고 싶네." : "권하고 싶네마는.");
+        if (g == "노예")
+        {
+            Say(recommend);
+            return;
+        }
+
+        Say(TradePost.BoastKind(_cityId, _player.Date.Year) switch
+        {
+            0 => $"{city}{NameToken.Of(city, 9)} {g}의 " + (stocked ? "본산지라네. 다른 것에 비할 수 없네." : "본산지네. 빨리 사 놓고 또 오게나."),
+            1 => $"{city}에 와서 {g}{NameToken.Of(g, 2)} " + (stocked ? "사지 않으면 손해보네." : "사야지! 지금은 품절이지만."),
+            2 => recommend,
+            _ => $"우리집에서 취급하고 있는 {g}{NameToken.Of(g, 1)} 다른 것에 뒤지지 않네. {g}"
+                 + (stocked ? $"{NameToken.Of(g, 1)} 최고지." : $"{NameToken.Of(g, 2)} 원한다면 다음에 들여올 때까지 기다리게."),
+        });
+    }
+
+    /// <summary>
     /// 소지품 정보 창을 낸다. 아이템 표를 못 읽어도 열린다 — 이름이 번호로 나올 뿐이다.
     /// </summary>
     private void ShowBelongings()
@@ -1404,7 +1464,6 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 System.Diagnostics.Debug.WriteLine($"[City] 아이템 표 없음: {ItemTable.LastError}");
                 return null;
             }
-            // 시세는 아직 다 100 이다. 나중에 채우면 값이 저절로 따라 움직인다.
             _market = new Market(items, _game.Rates, _game.CityRows);
             return _market;
         }
@@ -1416,7 +1475,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// <summary>교역소 매매 규칙. 교역소 표 · 교역품 표를 못 읽으면 null 이고 「매매」 줄이 흐리다.</summary>
     private TradePost? TradeRules =>
         _tradePost ??= _game.Trade is { } trade && _game.Goods is { } goods
-            ? new TradePost(trade, goods, _game.Rates, _game.CityRows, _game.Nations)
+            ? new TradePost(trade, goods, _game.Rates, _game.CityRows, _game.Nations, _game.Discoveries?.Table)
             : null;
 
     private TradePost? _tradePost;
@@ -1601,6 +1660,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
         if (TradeRules is { } rules)
             TradePostDialog.Show(Menu.Window ?? this, _game, rules, _cityId, _player.CityName, _cultureNo);
     }
+
+    void ITownScreen.TradeTalk() => TradeTalk();
 
     void ITownScreen.Stay() => Stay();
     void ITownScreen.ShowMates() => MateRosterDialog.Show(this, _player);
