@@ -1043,6 +1043,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         _player?.Drop(SeaBattle.MineItem);          // 한 번 쓰면 그 칸이 빈다
     }
 
+    void SeaBattle.IStage.RapidFire() => Say(SeaBattle.RapidFireWord);
+
     void SeaBattle.IStage.Volley(SeaBattle.Volley volley) => Animate(volley);
 
     void SeaBattle.IStage.Notice(string text) => ConfirmDialog.Tell(this, text, BattleTitle);
@@ -1240,6 +1242,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         // 탄약 = 함대 보급품 탄약 x 10(볼트 85). 잠수폭탄은 소지품 칸마다 굴린다(볼트 94 3.1).
         battle.Ammo = player.SupplyOf(SupplyKind.Ammo) * 10;
         battle.Mines = player.Items.Count(id => id == SeaBattle.MineItem);
+        // 속사포는 판을 열 때 한 번 굴려 정해진다(0x00441EA5) — 먹으면 그 판 내내 여덟 발이다.
+        battle.ArmRapidFire(player.Items.Count(id => id == SeaBattle.RapidFireItem));
         var ours = new List<(SeaBattle.Ship, Support.Local.Models.Ship)>();
 
         // 기함이 0번이다. 승원은 바다 커맨드 「편성」이 나눠 둔 배마다의 몫이고, 자리는 「대열」이 정한다.
