@@ -550,15 +550,47 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return;
         }
 
-        // 무명 손님은 <b>소문만</b> 건넨다 — 고용도 결투도 없다.
-        // 그 도시에 살아 있는 역사 소문이 있으면 반은 그것이다(0x004A43F0: rand(2) → 코드 9, 0x004A3080).
+        // 무명 손님은 <b>이야기만</b> 건넨다 — 고용도 결투도 없다(0x004A4E60).
         var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
+        var dice = _game.Random;
         _game.CatchUpMonths();
-        var local = _player.RumorsOf(_cityId);
-        string line = local.Count > 0 && _game.Random.Next(2) != 0
-            ? local[_game.Random.Next(local.Count)]
-            : TavernRumors.Of(_cultureNo, _game.Random);
-        ConfirmDialog.Tell(_view, line, face: face);
+
+        // 손님 말은 그 도시 나라의 말이다(0x004A1530). 제독·부관(자리 0·3) 누구도 모르면 못 듣는다.
+        var rows = _game.CityRows;
+        int nationId = rows?.NationOf(_cityId) ?? -1;
+        int language = _game.Nations?.Find(nationId)?.Language ?? -1;
+        int mine = language is >= 0 and < 14 ? _player.TongueOf(Skill.Languages[language]) : FluentTongue;
+        int best = mine;
+        string relayer = "";
+        if (language is >= 0 and < 14)
+            foreach (int slot in (int[])[FirstMateSlot, InterpreterSlot])
+                if (RowOf(_player.MateAt(slot)) is { } mate && mate.Languages[language] > best)
+                {
+                    best = mate.Languages[language];
+                    relayer = _player.MateAt(slot);
+                }
+        if (best <= 0)
+        {
+            ConfirmDialog.Tell(_view, StrangerTalk.Lost, face: face);
+            return;
+        }
+
+        // 반쯤은 그 나라 수도에서 온 손님이다(0x004A14F0) — 이야기 갈래를 수도 문화권으로 고른다.
+        int culture = _cultureNo;
+        if (dice.Next(2) != 0 && _game.Nations?.Find(nationId) is { Capital: >= 0 } nation)
+            culture = rows?.CultureOf(nation.Capital) ?? culture;
+
+        (string, int)? woman = _game.Barmaids?.Standing(_cityId, _player.Date.Year) is { } her
+                               && her.Id != _player.SpouseId
+            ? (her.Name, her.Personality) : null;
+        string? line = StrangerTalk.Pick(culture, _cultureNo, _player.RumorsOf(_cityId), woman,
+                                         () => TavernRumors.Of(culture, dice), dice);
+        if (line == null) return;
+
+        // 제독 수준으로 뭉개 들려주고, 부관이 더 잘하면 부관이 옮긴다(0x004690A0).
+        ConfirmDialog.Tell(_view, StrangerTalk.Garble(line, mine, dice), face: face);
+        if (relayer.Length > 0 && _player.MateInfoOf(relayer) is { } who)
+            TalkDialog.Say(_view, MateFace(who), "", StrangerTalk.Relay(StrangerTalk.Garble(line, best, dice), false));
     }
 
     /// <summary>
