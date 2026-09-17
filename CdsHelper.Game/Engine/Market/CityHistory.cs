@@ -23,7 +23,7 @@ namespace CdsHelper.Game.Engine.Market;
 /// 여기서 옮기는 것은 <b>도시 상태</b>(<c>21 08 [도시] 18 [상태]</c>), <b>나라 바뀜</b>(<c>21 08 [도시] 00 [나라]</c>,
 /// 수도면 나라째), <b>규모 ±</b>(<c>19/1A 08</c>)다. 도시 세우기는 <see cref="CityFounding"/> 이 따로 센다.
 /// <b>소문</b>(<c>20 0A</c>)은 도시 소문 가게에 적는다(술집·여관 무명 손님이 반쯤 이것을 말한다).
-/// 나라 멸망/등장·건물 비트·힌트 깃발은 길이만 읽고 넘긴다.
+/// <b>건물 비트</b>(<c>22/26 10</c>, 왕궁을 세우고 헐기)도 적는다. 나라 멸망/등장·힌트 깃발은 길이만 읽고 넘긴다.
 ///
 /// 원본 데이터의 버릇도 그대로 남는다 — 파트 20 은 두 칸 날짜가 같아(1499/7) 해제 칸이 영영 안 돌아
 /// 라구사·파마가스타·간디아는 전쟁, 베니스는 대조선으로 남는다.
@@ -263,9 +263,19 @@ public sealed class CityHistory
                 case (0x26, 0x0E):                                              // 힌트 깃발
                     i += 4;
                     break;
-                case (0x22 or 0x26, 0x10):                                      // 건물 비트
+                case (0x22 or 0x26, 0x10) when i + 6 < end:                     // 건물 비트 끄기·켜기(0x409DD1 · 0x40A118)
+                {
+                    int bit = U16(p, i + 2), city = U16(p, i + 5);
+                    if (cities != null && city < CityExeTable.Count && bit < 16)
+                    {
+                        int word = player.CityBuildings.TryGetValue(city, out int had) ? had
+                                   : Math.Max(0, cities.StartBuildingsOf(city));
+                        word = a == 0x26 ? word | 1 << bit : word & ~(1 << bit);
+                        player.SetCityBuildings(city, word);
+                    }
                     i += 7;
                     break;
+                }
                 case (0x43, 0x2B) when i + 11 < end && p[i + 2] == 0x1C:        // 능력 >= 값 이 아니면 뜀
                 {
                     int stat = U16(p, i + 3);

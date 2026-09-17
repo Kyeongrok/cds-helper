@@ -2125,6 +2125,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityRates(saved.CityRates, saved.RatesMonth);
             _game.Player.RestoreCityStates(saved.CityStates);
             _game.Player.RestoreCityScales(saved.CityScales);
+            _game.Player.RestoreCityBuildings(saved.CityBuildings);
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
             _game.Player.RestoreAnnouncedYears(saved.AnnouncedYears);

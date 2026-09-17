@@ -42,7 +42,7 @@ public sealed class CityExeTable
     private const string CacheName = "도시표-게임";
 
     /// <summary>알맹이 모양 판. 지역 무리를 더하며 5 로 올렸다.</summary>
-    private const int Version = 7;
+    private const int Version = 8;
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -102,6 +102,17 @@ public sealed class CityExeTable
     /// </remarks>
     private const int FlagOffset = 0x62;
 
+    /// <summary>
+    /// 건물 낱말(<c>+0x60</c>) — 비트 n 이 건물 코드 n(0 항구 · 2 왕궁 · 6 조선소 · 10 성문 · 11 저택 · 12~15 NPC 저택).
+    /// 놀이를 열면 도시 레코드 <c>+0x1C</c> 로 옮겨지고(<c>0x00429A1D</c>) 역사 대본이 켜고 끈다.
+    /// </summary>
+    private const int BuildingOffset = 0x60;
+
+    /// <summary>
+    /// 자택 코드. 이 비트는 새 판이 모항에만 세우는 「모항」 표시라(<c>0x0045E449</c>) 건물이 있고 없음과 따로 본다.
+    /// </summary>
+    public const int HomeCode = 11;
+
     /// <summary>「이미 아는 도시」 비트와 「아직 안 세워짐」 비트.</summary>
     public const int KnownBit = 1, UnfoundedBit = 4;
 
@@ -122,7 +133,7 @@ public sealed class CityExeTable
     internal sealed record Snapshot(int[][] Stock, int[] Cultures, int[] Scales,
                                     int[] Nations, int[][] Specials,
                                     int[] CellX, int[] CellY, int[] Reach, int[] Regions,
-                                    ushort[][] Erase, int[] Flags);
+                                    ushort[][] Erase, int[] Flags, int[]? Buildings = null);
 
     private readonly int[][] _stock;
     private readonly int[] _cultures;
@@ -132,9 +143,11 @@ public sealed class CityExeTable
     private readonly int[] _cellX, _cellY, _reach, _regions;
     private readonly ushort[][] _erase;
     private readonly int[] _flags;
+    private readonly int[] _buildings;
 
     private CityExeTable(Snapshot snapshot)
     {
+        _buildings = snapshot.Buildings ?? [];
         _stock = snapshot.Stock;
         _cultures = snapshot.Cultures;
         _scales = snapshot.Scales;
@@ -232,6 +245,28 @@ public sealed class CityExeTable
     /// <summary>덧씌움 블록의 한 변.</summary>
     public const int EraseWidth = EraseSide;
 
+    /// <summary>
+    /// 그 도시에 그 건물이 <b>지금</b> 있는지 — 건물 낱말의 비트 하나. 맵 포인트 목록·도시 그림 누르기·방향키가
+    /// 비트가 꺼진 건물을 건너뛴다(<c>0x0049304E</c> · <c>0x00491D40</c> · <c>0x00491981</c>). 그림은 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// 역사 대본이 바꾼 값(<see cref="Player.CityBuildings"/>)이 먼저다. 표를 못 읽은 옛 굽기면 늘 있다고 본다.
+    /// 자택(<see cref="HomeCode"/>)은 모항 표시라 여기서 가리지 않는다.
+    /// </remarks>
+    public bool HasBuilding(int cityId, int code)
+    {
+        if (code == HomeCode || code is < 0 or > 15) return true;
+        int word;
+        if (Live?.CityBuildings.TryGetValue(cityId, out int changed) == true) word = changed;
+        else if (cityId >= 0 && cityId < _buildings.Length) word = _buildings[cityId];
+        else return true;
+        return (word >> code & 1) != 0;
+    }
+
+    /// <summary>표에 적힌 처음 건물 낱말. 모르면 -1.</summary>
+    public int StartBuildingsOf(int cityId) =>
+        cityId >= 0 && cityId < _buildings.Length ? _buildings[cityId] : -1;
+
     /// <summary>그 도시의 형편 낱말(<c>+0x62</c>). 범위 밖이면 0.</summary>
     public int FlagsOf(int cityId) =>
         cityId >= 0 && cityId < _flags.Length ? _flags[cityId] : 0;
@@ -316,6 +351,7 @@ public sealed class CityExeTable
         var regions = new int[Count];
         var erase = new ushort[Count][];
         var flags = new int[Count];
+        var buildings = new int[Count];
         for (int city = 0; city < Count; city++)
         {
             int row = TableVa + city * RowSize;
@@ -327,6 +363,7 @@ public sealed class CityExeTable
                 block[i] = (ushort)(exe.Word(row + EraseOffset + i * 2) & 0xFFFF);
             erase[city] = block;
             flags[city] = (int)(exe.Word(row + FlagOffset) & 0xFFFF);
+            buildings[city] = (int)(exe.Word(row + BuildingOffset) & 0xFFFF);
 
             cellX[city] = exe.Int(row + CellXOffset);
             cellY[city] = exe.Int(row + CellYOffset);
@@ -370,6 +407,6 @@ public sealed class CityExeTable
         }
 
         return new Snapshot(stock, cultures, scales, nations, specials, cellX, cellY, reach,
-                            regions, erase, flags);
+                            regions, erase, flags, buildings);
     }
 }

@@ -406,7 +406,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
         bool harborPlaced = false;
-        foreach (var building in _table.InCity(cityId))
+        foreach (var building in Standing(cityId))
         {
             AddSpot(building, scale);
             if (building.Kind == "항구") harborPlaced = true;
@@ -1069,7 +1069,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </remarks>
     private void EnterMapPoint()
     {
-        var spots = _table.InCity(_cityId);
+        var spots = Standing(_cityId);
         if (spots.Count == 0)
         {
             NoticeDialog.Show(this, "맵 포인트 데이터가 없습니다");
@@ -1309,6 +1309,13 @@ public sealed class CityPicView : GameWindow, ITownScreen
     private bool Commented(int code) =>
         BuildingAt(code) is { } b && b.IsDiscovery && b.Comment.Length > 0
         && _player.HasFound(b.Discovery);
+
+    /// <summary>
+    /// 지금 서 있는 건물들 — 건물 표에 있어도 건물 낱말 비트가 꺼져 있으면 뺀다(<see cref="CityExeTable.HasBuilding"/>).
+    /// 스톡홀름·이스파한·우르겐치·카슈가르 왕궁은 역사 대본이 세우기 전까지 안 들어가진다.
+    /// </summary>
+    private List<CityBuildingTable.Building> Standing(int cityId) =>
+        [.. _table.InCity(cityId).Where(b => _game.CityRows?.HasBuilding(cityId, b.Code) ?? true)];
 
     /// <summary>그 자리의 건물 줄. 못 찾으면 null.</summary>
     private CityBuildingTable.Building? BuildingAt(int code)
