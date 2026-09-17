@@ -66,8 +66,8 @@ public sealed class SeaBattle
         public int Y { get; internal set; }
         /// <summary>뱃머리 0~5. 0 이 위(Y−), 시계 방향이다.</summary>
         public int Way { get; internal set; }
-        /// <summary>추진력(배 칸 <c>+0x14</c>).</summary>
-        public int Speed { get; init; }
+        /// <summary>추진력(배 칸 <c>+0x14</c>). 큰 한 방(대포 35문 넘는 배)에 맞으면 준다.</summary>
+        public int Speed { get; internal set; }
         /// <summary>마스트 셋의 돛(0 없음 · 1 삼각 · 2 사각) — 이동력 셈의 a·b·c.</summary>
         public int[] Sails { get; init; } = new int[3];
         /// <summary>선수상 번호. 0x21 이면 이동력 +1.</summary>
@@ -719,6 +719,9 @@ public sealed class SeaBattle
         /// <summary>잠수폭탄을 썼다 — 「다 빈치선생님의 수중기뢰를 씁시다.」(<c>0x0056AE60</c>), 소지품에서 뺀다.</summary>
         void Mine();
 
+        /// <summary>속사포를 꺼낸다(<c>0x004384E8</c>) — 판마다 한 번, 부관 얼굴로 「속사포를 씁시다.」.</summary>
+        void RapidFire();
+
         /// <summary>포격 한 번(<c>0x004384E8</c>).</summary>
         void Volley(Volley volley);
 
@@ -856,8 +859,36 @@ public sealed class SeaBattle
     /// <summary>한 번의 포격 — 쏜 배, 과녁, 발들, 과녁이 가라앉았는지.</summary>
     public sealed record Volley(Ship Shooter, Ship Target, IReadOnlyList<Shot> Shots, bool Sunk);
 
-    /// <summary>한 번에 쏘는 발 수(속사포면 여덟).</summary>
-    public const int ShotsPerVolley = 3;
+    /// <summary>한 번에 쏘는 발 수(<c>0x00436DDC</c>) — 여느 때 셋, 속사포를 지닌 내 배는 여덟.</summary>
+    public const int ShotsPerVolley = 3, RapidShots = 8;
+
+    /// <summary>속사포 아이템 번호(소지품).</summary>
+    public const int RapidFireItem = 1;
+
+    /// <summary>
+    /// 속사포 형편(<c>[함대+0x834]</c>) — 0 없음 · 1 지녔지만 아직 안 알림 · 2 알렸음.
+    /// </summary>
+    public int RapidFire { get; private set; }
+
+    /// <summary>속사포를 꺼내며 부관이 하는 말(<c>0x0056AF08</c>).</summary>
+    public const string RapidFireWord = "속사포를 씁시다.";
+
+    /// <summary>
+    /// 판을 열 때 속사포가 먹는지 굴린다(<c>0x00441EA5</c>) — 소지품 칸마다 한 번, 먹으면 그 판 내내 여덟 발이다.
+    /// </summary>
+    /// <remarks>
+    /// 굴림은 <c>rand(100) &lt; 포술 x 5 + 방어 / 15</c> 다. <b>망가지는 길은 없다</b> — 망가짐 판정
+    /// (<c>0x00438D5E</c>)이 해를 1947 과 견주어 영영 안 걸린다.
+    /// </remarks>
+    public void ArmRapidFire(int carried)
+    {
+        for (int i = 0; i < carried; i++)
+            if (_rng.Next(100) < MineSide.Gunnery * 5 + MineSide.Defense / 15)
+            {
+                RapidFire = 1;
+                return;
+            }
+    }
 
     /// <summary>대포 위력 — 세이커 3 · 캘버린 4 · 페리에 5 · 카논 8(<c>0x0043699D</c> 벌).</summary>
     public static int GunPower(int gun) => gun switch { 0 => 3, 1 => 4, 2 => 5, 3 => 8, _ => 0 };
@@ -874,7 +905,9 @@ public sealed class SeaBattle
     ///   과녁 내구 = max(0, 내구 − 피해) — 0 이면 남은 발을 거두고 가라앉는다
     ///   아군이면 탄약 −= 쏜 발 수
     /// </code>
-    /// 선수상 보정(0x1D·0x22·0x23·0x1A)과 과녁 추진력 깎기, 속사포는 아직 안 옮겼다.
+    /// 큰 한 방 뒤에 <b>선수상</b>이 값을 비튼다(<c>0x00437065</c>) — 쏘는 쪽이 내 배면 불꽃신 6/5 · 사신 2배 ·
+    /// 마왕 2/3(저주다), 적이 쏘면 맞는 내 배의 여신상이 4/5 로 깎는다. <b>화면에 뜨는 숫자는 이 보정 앞의 값이다</b>
+    /// (원본이 숫자를 먼저 적어 두고 안 고친다).
     /// </remarks>
     private Volley? Fire(Ship ship)
     {
@@ -908,7 +941,14 @@ public sealed class SeaBattle
 
         var shots = new List<Shot>();
         bool bigUsed = false;
-        for (int i = 0; i < ShotsPerVolley; i++)
+        // 속사포는 내 배만, 한 번에 여덟 발이다(0x00436DDC). 명중률도 피해도 그대로다.
+        int volley = ship.Mine && RapidFire > 0 ? RapidShots : ShotsPerVolley;
+        if (ship.Mine && RapidFire == 1)
+        {
+            RapidFire = 2;                         // 알리는 것은 판에 한 번뿐이다(0x004384E8)
+            _stage?.RapidFire();
+        }
+        for (int i = 0; i < volley; i++)
         {
             int odds = Math.Max(1, 6 * gunnery + (int)(17 * Math.Sqrt(ship.Guns)) - 24);
             if (_rng.Next(100) >= odds)
@@ -928,14 +968,34 @@ public sealed class SeaBattle
                 if (ship.Guns >= 25)
                 {
                     damage *= 2;
-                    if (ship.Guns >= 35) target.Guns = Math.Max(0, target.Guns - (_rng.Next(3) + 3));
+                    if (ship.Guns >= 35)
+                    {
+                        // 과녁의 추진력과 대포가 함께 깎인다(0x00436F80). 대포는 쏜 쪽 솜씨로 갈린다.
+                        target.Speed = Math.Max(0, target.Speed - (_rng.Next(4) + 5));
+                        int skill = me.Might / 4 + gunnery * 10;
+                        target.Guns = Math.Max(0, target.Guns
+                                                  - (skill > 40 ? _rng.Next(3) + 3 : _rng.Next(2) + 1));
+                    }
                 }
                 else if (ship.Guns >= 20) damage = damage * 3 / 2;
                 else damage = damage * 6 / 5;
             }
 
-            target.Hp = Math.Max(0, target.Hp - damage);
+            // 숫자는 선수상 보정 <b>앞</b>의 값이다 — 원본도 먼저 적어 두고 고치지 않는다(0x00436F0F).
             shots.Add(new Shot(true, damage, big));
+
+            // 선수상(0x00437065) — 쏘는 쪽이 내 배면 쏘는 배의 것, 적이 쏘면 맞는 내 배의 것을 본다.
+            if (ship.Mine)
+                damage = ship.Figurehead switch
+                {
+                    FlameGod => damage * 6 / 5,
+                    DeathGod => damage * 2,
+                    DemonKing => damage * 2 / 3,
+                    _ => damage,
+                };
+            else if (target.Figurehead == Goddess) damage = damage * 4 / 5;
+
+            target.Hp = Math.Max(0, target.Hp - damage);
             if (target.Hp == 0) break;
         }
 
@@ -1011,9 +1071,13 @@ public sealed class SeaBattle
 
     // ── 가까운 싸움 — 충돌·백병전·불·나포·일기토·총격 ──────────────────────
 
-    /// <summary>선수상 번호(표 <c>0x0054A0A0</c>) — 해신 · 수룡 · 청룡 · 백호 · 불사조 · 마왕.</summary>
-    public const int SeaGod = 0x1B, WaterDragon = 0x1C, BlueDragon = 0x1E, WhiteTiger = 0x1F,
-                     Phoenix = 0x20, DemonKing = 0x23;
+    /// <summary>
+    /// 선수상 번호(표 <c>0x0054A0A0</c>, 아이템 번호는 여기에 213 을 더한 값) —
+    /// 여신 · 해신 · 수룡 · 불꽃신 · 청룡 · 백호 · 불사조 · 사신 · 마왕.
+    /// </summary>
+    public const int Goddess = 0x1A, SeaGod = 0x1B, WaterDragon = 0x1C, FlameGod = 0x1D,
+                     BlueDragon = 0x1E, WhiteTiger = 0x1F, Phoenix = 0x20, DeathGod = 0x22,
+                     DemonKing = 0x23;
 
     /// <summary>
     /// 적장 운세칸[3](<c>0x004319D0([+0x120])</c>) — 아군 기함이 적 기함을 받을 때 일기토 굴림에 든다.
