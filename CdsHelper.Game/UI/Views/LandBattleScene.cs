@@ -140,10 +140,11 @@ internal sealed class LandBattleScene : GameWindow
             if (order == LandBattle.Duel)
             {
                 if (!Asked()) continue;
-                bool beat = Fought(dice);
-                fight.End(beat);
-                Settle(beat, retreated: false, dice);
-                return beat;
+                var end = Fought(dice);
+                fight.End(end == DuelEnd.Won);
+                if (end == DuelEnd.Slain) { Slain(); return false; }
+                Settle(end == DuelEnd.Won, retreated: end == DuelEnd.Lost, dice);
+                return end == DuelEnd.Won;
             }
 
             // 「묘책」은 턴을 안 쓴다 — 걸어 두고 명령을 다시 고른다(0x004490D0).
@@ -157,16 +158,18 @@ internal sealed class LandBattleScene : GameWindow
             // 0x0044938E). 물리면 여느 턴으로 돌아간다.
             if (_battle.FoeDuelOffered(dice) && ConfirmDialog.Ask(this, LandBattle.FoeDuelWord))
             {
-                bool met = Fought(dice);
-                fight.End(met);
-                Settle(met, retreated: false, dice);
-                return met;
+                var met = Fought(dice);
+                fight.End(met == DuelEnd.Won);
+                if (met == DuelEnd.Slain) { Slain(); return false; }
+                Settle(met == DuelEnd.Won, retreated: met == DuelEnd.Lost, dice);
+                return met == DuelEnd.Won;
             }
 
             // 「돌격」은 턴 첫머리에 한 번 소리를 낸다(0x0044932E).
             if (order == LandBattle.Charge) _game?.Sfx?.Play(LandUnits.Sound.Charge);
 
             var lines = fight.Turn(order, _battle.FoeOrder(dice));
+            _ruseThisTurn = false;                  // 턴이 넘어가면 묘책을 다시 걸 수 있다(0x00449DDA)
             Play(lines, fight.Opening);
 
             if (fight.Over is { } won)
@@ -223,7 +226,7 @@ internal sealed class LandBattleScene : GameWindow
             NoticeDialog.Show(this, _battle.TurnWord, "");
             return ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
                                      _battle.OrderRows(canDuel: _battle.DuelOffered(dice),
-                                                       canRuse: _battle.AnyRuseLeft),
+                                                       canRuse: !_ruseThisTurn),
                                      Corner, exitRow: false);
         }
         finally
@@ -246,32 +249,36 @@ internal sealed class LandBattleScene : GameWindow
     /// <summary>차림표를 판 구석에서 띄우는 만큼(판 점).</summary>
     private const double MenuPad = 16;
 
+    /// <summary>이번 턴에 묘책을 이미 걸었는지 — 게임도 턴마다 하나뿐이다(<c>0x00449BA0</c>의 <c>+0x54</c>).</summary>
+    private bool _ruseThisTurn;
+
     /// <summary>
-    /// 「묘책」 — 기습·함정·암살자 가운데 하나를 건다(<c>0x004490D0</c>).
+    /// 「묘책」 — 기습·함정·암살자·심판 가운데 하나를 건다(<c>0x004490D0</c>).
     /// </summary>
     /// <remarks>
-    /// 한 판에 하나씩만 쓴다. 어그러지면 제 발등을 찍으므로 문화권마다의 성공률
-    /// (<c>0x00549B80</c>)이 그대로 값이 된다.
+    /// 묘책마다 <b>한 판에 한 번</b>이고 <b>한 턴에 하나</b>다. 어그러지면 제 발등을 찍으므로 문화권마다의
+    /// 성공률(<c>0x00549B80</c>)이 그대로 값이 된다. 「심판」은 굴림 없이 양쪽을 다 치는 대신
+    /// <b>사해사본</b>(아이템 184)을 지녀야 열린다.
     /// </remarks>
     private void Wile(LandFight fight, GameRandom dice)
     {
         int pick;
         _showMen = true;
         Redraw();
-        try { pick = ChoiceDialog.Pick(this, $" {LandBattle.RuseTitle} ", _battle.RuseRows(),
+        bool scroll = _game?.Player.Items.Contains(LandBattle.JudgementItem) ?? false;
+        try { pick = ChoiceDialog.Pick(this, $" {LandBattle.RuseTitle} ", _battle.RuseRows(scroll),
                                        Corner, exitRow: false); }
         finally { _showMen = false; Redraw(); }
 
-        if (pick < 0 || pick == LandBattle.Judgement) return;
+        if (pick < 0) return;
+        _ruseThisTurn = true;
 
-        var said = fight.Ruse(pick, dice, out bool asked);
+        var said = fight.Ruse(pick, dice, out _);
         foreach (var line in said)
         {
             if (line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
-            if (line.Text.Length == 0) continue;
-            // 기습이 먹히면 그대로 물음이 된다("선제 공격을 가하겠습니까?").
-            if (asked) ConfirmDialog.Ask(this, line.Text);
-            else NoticeDialog.Show(this, line.Text, "");
+            // 게임은 「기습성공!…」도 알림이다 — 물음이 아니라 읽고 넘기는 줄이다(0x0049E3E0).
+            if (line.Text.Length > 0) NoticeDialog.Show(this, line.Text, "");
         }
         Redraw();
     }
@@ -287,9 +294,21 @@ internal sealed class LandBattleScene : GameWindow
     /// <summary>일기토를 걸겠냐고 묻는다 — 게임도 「상대해 주마!」로 먼저 이른다.</summary>
     private bool Asked() => ConfirmDialog.Ask(this, "상대해 주마!");
 
-    private bool Fought(GameRandom dice)
+    /// <summary>일기토가 끝나는 세 갈래(<c>0x00449870</c> 이 보는 <c>+0x3C</c> — 0·1 이김 · 2 짐 · 4 죽음).</summary>
+    private enum DuelEnd { Won, Lost, Slain }
+
+    /// <summary>
+    /// 일기토에서 베였다 — 구출 굴림 없이 그대로 끝난다(<c>0x00449890</c> 이 <c>+0x90 == 3</c> 이면 건너뛴다).
+    /// </summary>
+    private void Slain()
     {
-        if (_game is not { } game) return false;
+        _battle.Wiped = true;
+        NoticeDialog.Show(this, "GAME OVER 입니다", "");
+    }
+
+    private DuelEnd Fought(GameRandom dice)
+    {
+        if (_game is not { } game) return DuelEnd.Lost;
 
         var me = game.Player;
         var mine = new Duel.Fighter(me.Name.Length > 0 ? me.Name : "제독",
@@ -301,7 +320,10 @@ internal sealed class LandBattleScene : GameWindow
                                    _battle.FoeLuck, 0, 0);
 
         var duel = new Duel(mine, foe, shield: false, dice.Next());
-        return DuelDialog.Show(this, duel, dice, null, bgm: _game?.Bgm);
+        if (DuelDialog.Show(this, duel, dice, null, bgm: _game?.Bgm)) return DuelEnd.Won;
+
+        // 지면 여느 일기토와 같이 갈린다 — 도망·용서면 퇴각한 셈이고, 베이면 그대로 GAME OVER 다.
+        return duel.FateOf(me.Fame) == Duel.Fate.Slain ? DuelEnd.Slain : DuelEnd.Lost;
     }
 
     /// <summary>

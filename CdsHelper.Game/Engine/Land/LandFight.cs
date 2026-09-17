@@ -158,34 +158,55 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         switch (ruse)
         {
             case LandBattle.Ambush:
-                // 성사면 먼저 칠지 묻고, 어그러지면 적이 먼저 친다(0x00447E10).
+                // 성사면 아군이, 어그러지면 적이 먼저 친다(0x00447E10). 둘 다 <b>알림</b>이지 물음이 아니다.
                 said.Add(new Line(won ? "기습성공! 선제 공격을 가하겠습니까?"
                                       : "기습실패! 복병을 만났다!"));
                 _ambush = won ? 1 : -1;
-                asked = won;
                 break;
 
             case LandBattle.Trap:
-                int caught = Any(!won, dice);
+                // 문구는 부대 이름이 안 들어간 붙박이다(0x0056D360 · 0x0056D378).
+                int caught = Any(!won, dice, leader: true);
                 if (caught >= 0)
                 {
                     _frozen.Add(caught);
-                    said.Add(new Line($"{Name(caught)}이(가) 함정에 빠졌다!"));
+                    said.Add(new Line(won ? "적부대는 함정에 빠졌다!" : "아군부대가 함정에 빠졌다!"));
                 }
                 break;
 
             case LandBattle.Assassin:
-                // 상대 부대가 하나뿐이면 아무 일도 안 일어난다.
+                // 상대 부대가 하나뿐이면 아무 일도 안 일어난다(0x00447530).
                 int side = won ? LandBattle.FirstFoe : 0;
-                if (Count(side) <= 1) { said.Add(new Line("암살자는 실패했다!")); break; }
+                if (Count(side) <= 1)
+                {
+                    said.Add(new Line(won ? "암살자는 실패했다!" : "암살자는 실패했다!"));
+                    break;
+                }
 
-                int killed = Any(!won, dice);
+                // 총대장 부대는 안 노린다(0x004476C0 의 둘째 인자 0).
+                int killed = Any(!won, dice, leader: false);
                 if (killed >= 0)
                 {
                     battle.SetMen(killed, 0);
-                    said.Add(new Line($"{Name(killed)}이(가) 몰살당했다!"));
+                    said.Add(new Line(won ? "암살자는 적의 한 부대를 전멸시켰다!"
+                                          : "암살자는 배반하여 아군의 한 부대를 전멸시켰다!"));
                     Done();
                 }
+                break;
+
+            case LandBattle.Judgement:
+                // 하늘에서 벼락이 — 굴림 없이 <b>양쪽</b> 선 부대를 다 친다(0x00448F80).
+                said.Add(new Line("하늘에서 벼락이···!"));
+                for (int slot = 0; slot < LandBattle.PerSide * 2; slot++)
+                {
+                    if (!Alive(slot)) continue;
+                    int hurt = (dice.Next(100) == 0 ? dice.Next(1000) : dice.Next(100)) + 1;
+                    int men = battle.Units[slot].Men;
+                    hurt = Math.Min(hurt, men);
+                    battle.SetMen(slot, men - hurt);
+                    said.Add(new Line("", Actor: slot, Target: slot, Damage: hurt, Men: Snapshot()));
+                }
+                Done();
                 break;
         }
 
@@ -201,12 +222,16 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         return said;
     }
 
-    /// <summary>그 편에서 아무 부대 하나. 없으면 −1.</summary>
-    private int Any(bool mine, GameRandom dice)
+    /// <summary>
+    /// 그 편에서 아무 부대 하나. 없으면 −1.
+    /// </summary>
+    /// <param name="leader">총대장 부대도 고를지(<c>0x004476C0</c> 의 둘째 인자) — 암살자는 안 고른다.</param>
+    private int Any(bool mine, GameRandom dice, bool leader)
     {
         int side = mine ? 0 : LandBattle.FirstFoe;
         var live = new List<int>();
-        for (int i = side; i < side + LandBattle.PerSide; i++) if (Alive(i)) live.Add(i);
+        for (int i = side; i < side + LandBattle.PerSide; i++)
+            if (Alive(i) && (leader || !battle.Units[i].IsLeader)) live.Add(i);
         return live.Count == 0 ? -1 : live[dice.Next(live.Count)];
     }
 

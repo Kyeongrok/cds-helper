@@ -3735,7 +3735,10 @@ public sealed class ShipMapWindow : Window
         var dice = new GameRandom(Environment.TickCount);
         int ground = _host.TerrainClass;      // 짐승·회오리는 2, 독충은 6 에서만 난다
 
-        // 회오리가 먼저다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
+        // 유성이 먼저다(0x00427D05) — 지형도 안 보고, 잃는 것도 없이 말 셋으로 끝난다.
+        if (LandEvents.Meteor(dice, _game.Player.Date.Month)) { Meteor(); return; }
+
+        // 다음이 회오리다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
         if (LandEvents.Tornado(dice, ground, _game.Player.Date.Year)) { Tornado(dice); return; }
 
         if (LandEvents.Meet(dice, ground, []) is not { } met) return;
@@ -3767,6 +3770,30 @@ public sealed class ShipMapWindow : Window
             NoticeDialog.Show(this, end.Cornered ? "위험하다! 제독, 도망칠 수 없습니다!"
                                                  : "우와앗, 안되겠다, 제독");
             NoticeDialog.Show(this, $"대원 {end.Dead}명이 사망했습니다.");
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
+    /// <summary>
+    /// 유성이 흐른다(<c>0x00427D05</c>) — 부관이 하늘을 가리키고, 그림이 한 번 돈 뒤 두 마디를 더 한다.
+    /// 잃는 것도 얻는 것도 없다.
+    /// </summary>
+    private void Meteor()
+    {
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var face = MateFace();
+            var lines = LandEvents.MeteorLines;
+            ConfirmDialog.Tell(this, lines[0], face: face);
+            PlayEventScene(EventAnimation.Meteor);     // 0x00427D59 — 아직 안 그리는 장면이라 조용히 넘어간다
+            ConfirmDialog.Tell(this, lines[1], face: face);
+            ConfirmDialog.Tell(this, lines[2], face: face);
         }
         finally
         {

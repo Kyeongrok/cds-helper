@@ -47,6 +47,12 @@ public sealed class EventAnimation
     public const int Tornado = 13;
 
     /// <summary>
+    /// 유성 장면 — 뭍에서 8월·12월에 유성이 흐르면(<c>0x00427D59</c>). <b>아직 안 그린다</b> —
+    /// 부르면 조용히 넘어가고 말만 난다.
+    /// </summary>
+    public const int Meteor = 12;
+
+    /// <summary>
     /// 오로라 장면 — 발견 대본의 <c>00 1E 04</c>(특수 조우 4)가 부른다(<c>0x0061D280</c>).
     /// </summary>
     /// <remarks>
