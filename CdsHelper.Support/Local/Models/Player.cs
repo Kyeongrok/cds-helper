@@ -855,7 +855,12 @@ public sealed class Player
     /// <param name="Abilities">능력치 여섯(<c>+0x20</c>). 세대교체하면 이것이 제독 능력치가 된다.</param>
     /// <param name="Skills">기능 열셋(<c>+0x40</c>, <see cref="Skill.Names"/> 차례).</param>
     /// <param name="Tongues">언어 열넷(<c>+0x74</c>, <see cref="Skill.Languages"/> 차례).</param>
-    public sealed record Child(string Name, bool Daughter, DateTime Born, int[] Abilities, int[] Skills, int[] Tongues)
+    /// <param name="Introduced">
+    /// 자택에서 이미 소개했는지. 원본에는 없는 칸이다 — 자택에 갈 때마다 <b>누구를 내보일지</b>
+    /// 고르는 규칙(<c>0x004AB980</c>)을 못 짚어서, 여기서는 한 번 알린 아이는 다시 안 낸다.
+    /// </param>
+    public sealed record Child(string Name, bool Daughter, DateTime Born, int[] Abilities, int[] Skills,
+                               int[] Tongues, bool Introduced = false)
     {
         /// <summary>그 날의 나이. 아직 안 태어났으면 음수다.</summary>
         public int AgeOn(DateTime now) =>
@@ -893,6 +898,9 @@ public sealed class Player
 
     /// <summary>아이 칸을 비운다(세대교체 — <c>0x0047D640</c>).</summary>
     public void ClearChildren() => _children.Clear();
+
+    /// <summary>아이 하나를 칸에서 뺀다(딸이 시집갈 때 — <c>0x00460180</c>). 없었으면 false.</summary>
+    public bool RemoveChild(Child child) => _children.Remove(child);
 
     /// <summary>세이브를 되돌릴 때.</summary>
     public void RestoreChildren(IEnumerable<Child>? children)

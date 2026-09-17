@@ -909,6 +909,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
             case FacilityKind.Tavern: Guests.Greet(); break;
             case FacilityKind.Market: Shop.Greet(); break;
             case FacilityKind.TradingPost: TradePostDialog.Greet(this, _game, _cultureNo); break;
+            case FacilityKind.Home: HomeRooms.Greet(); break;
         }
     }
 

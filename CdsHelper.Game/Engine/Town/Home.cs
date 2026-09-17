@@ -113,6 +113,51 @@ public static class Home
         return child with { Abilities = abilities, Skills = skills, Tongues = tongues };
     }
 
+    // ── 자택에 가면 — 아이 소개 ──────────────────────────────────────────────
+
+    /// <summary>이름을 지을 때 글자 수(원본 인물 이름 칸을 따라 넉넉히 잡았다).</summary>
+    public const int ChildNameMaxLength = 8;
+
+    /// <summary>
+    /// 아직 소개 안 한, 이미 태어난 아이들 — 태어난 차례대로(<c>0x0045FFC0</c>).
+    /// </summary>
+    public static List<Player.Child> NotIntroduced(Player player) =>
+        [.. player.Children.Where(c => !c.Introduced && c.IsBornBy(player.Date)).OrderBy(c => c.Born)];
+
+    /// <summary>
+    /// 아이를 소개하는 말(<c>0x00460070</c>, <c>0x00539398</c>·<c>0x005393E8</c>).
+    /// </summary>
+    public static string IntroductionOf(Player.Child child, DateTime today)
+    {
+        int age = child.AgeOn(today);
+        return age > 0
+            ? $"보세요, 당신의 아이에요. 올해 {age}세가 되지요. 이름은 {child.Name}. 신부님이 지어 주셨어요."
+            : $"보세요, 당신의 아이에요. 이름은 {child.Name}…";
+    }
+
+    // ── 딸의 결혼 ────────────────────────────────────────────────────────────
+
+    /// <summary>이야기가 열리는 주사위(<c>0x00460180</c> 의 <c>rand(5) == 0</c>) — 다섯에 하나.</summary>
+    public const int MarriageRoll = 5;
+
+    /// <summary>딸이 결혼 이야기를 꺼낼 수 있는 나이(열다섯).</summary>
+    public const int MarriageAge = 15;
+
+    /// <summary>이야기가 열리는 데 있어야 하는 저금(만 닢).</summary>
+    public const int MarriageSavings = 10000;
+
+    /// <summary>결혼 준비금(<c>0x0047CC00(-10000)</c>).</summary>
+    public const int MarriageDowry = 10000;
+
+    /// <summary>
+    /// 지금 결혼 이야기를 꺼낼 수 있는 맏딸 — 아내가 있고 저금이 <see cref="MarriageSavings"/>
+    /// 이상이며, 그 딸이 <see cref="MarriageAge"/> 이상이라야 한다. 없으면 null.
+    /// </summary>
+    public static Player.Child? MarriageableDaughter(Player player) =>
+        player.Spouse.Length == 0 || player.Savings < MarriageSavings ? null
+        : player.Children.Where(c => c.Daughter && c.AgeOn(player.Date) >= MarriageAge)
+                         .OrderBy(c => c.Born).FirstOrDefault();
+
     /// <summary>교육 나이 — 열 살부터(<c>0x0046181E</c>).</summary>
     public const int EducateAge = 10;
 
