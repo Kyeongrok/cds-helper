@@ -679,7 +679,7 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 도구 앱(CdsHelper.exe)을 띄운다. 이미 떠 있으면 그 창을 앞으로 부른다.
+    /// 도구 앱(Editor.exe)을 띄운다. 이미 떠 있으면 그 창을 앞으로 부른다.
     /// </summary>
     /// <remarks>
     /// 게임은 그대로 돈다 — 딴 프로세스라 여기서 멎게 할 까닭이 없다. 다만 도구에서 표를
@@ -2140,6 +2140,13 @@ public sealed class ShipMapWindow : Window
                 _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         },
         GameDirectory = _game.Directory,
+        // 게임에는 없는 것이라 해상 커맨드에서 개발 창으로 옮겼다(fb-ui-21). 지도를 Shift+오른쪽 클릭해
+        // 바로 찍는 길은 그대로다.
+        AutoSail = () =>
+        {
+            if (_host.IsOnLand) Say("바다에 있을 때만 자동항해를 쓸 수 있습니다");
+            else ShowAutoSailDialog();
+        },
     });
 
     /// <summary>
@@ -2218,10 +2225,6 @@ public sealed class ShipMapWindow : Window
                 items.Add(("대열", () => { Close(); FormationDialog.Show(this, _game.Player); }));
         }
         items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
-        // 게임에는 없는 줄이다. 목적지를 도시 이름으로 골라 손을 놓고 몬다 — 지도를
-        // Shift+오른쪽 클릭해 바로 찍는 길도 따로 있다.
-        if (!_host.IsOnLand)
-            items.Add(("자동항해…", () => { Close(); ShowAutoSailDialog(); }));
         // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는
         // 방위를 바로 아는 편이 낫다 — 그래서 켜고 끌 수 있게 여기에 둔다.
         items.Add((_host.ShowFlowArrows ? "화살표를 감춘다" : "바람과 해류를 본다", () =>
@@ -2320,7 +2323,9 @@ public sealed class ShipMapWindow : Window
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
             this, _game.Player, _game.Items, _game.ItemText, _game.ItemPictures,
             GameInfo.DiscoveryNames(_game)))),
-        ("힌트정보", () => Info(() => HintListDialog.Show(this, GameInfo.HintNames(_game)))),
+        // 도시 커맨드(CityPicView.ShowHints)와 같은 창이다 — 보고까지 마친 힌트만 빼고, 고르면 설명을 편다.
+        // 예전에는 발견만 한 힌트까지 빼는 딴 목록(GameInfo.HintNames)을 써서 바다에서는 비어 보였다(fb-ui-20).
+        ("힌트정보", () => Info(ShowHints)),
         ("계약정보", () => Info(ShowContract)),
         ("지도를 본다", () => CommandMenu.Push(MapMenuBox)),
         ("돌아간다", CommandMenu.Pop),
@@ -2450,6 +2455,23 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>정보 판 하나를 띄운다 — 커맨드 창은 접고, 배는 세워 둔 채다.</summary>
+    /// <summary>얻은 힌트를 늘어놓고, 한 줄을 고르면 그 이야기를 편다 — 도시 쪽과 한 벌이다.</summary>
+    private void ShowHints()
+    {
+        var player = _game.Player;
+        var ids = _game.Discoveries?.LiveHints(player) ?? [.. player.Hints.Order()];
+
+        while (true)
+        {
+            int at = HintListDialog.Pick(this, [.. ids.Select(id => GameInfo.HintLabel(_game, id))]);
+            if (at < 0 || at >= ids.Count) return;
+            if (_game.Hints?.Find(ids[at]) is not { } hint) return;
+
+            HintDetailDialog.Show(this, hint, _game.Hints.CategoryOf(hint.Category),
+                                  player.Fame, player.MateCount > 0);
+        }
+    }
+
     private void Info(Action show)
     {
         // 창을 닫으면 Closed 가 멈춤을 푼다. 그런데 판이 뜨는 동안에도 <b>계속 멎어
@@ -4410,7 +4432,7 @@ public sealed class ShipMapWindow : Window
         // 도는 곡은 문화권마다 다르다 — 세우타 같은 중근동 도시는 딴 곡이다.
         // 문화권은 건물에 들어갈 때 뜨는 타원 사진을 고르는 데도 쓴다(BuildingPhoto).
         string culture = _game.CultureOf(city);
-        int track = BgmPlayer.CityTrackFor(culture);
+        int track = BgmPlayer.CityTrackFor(culture, _game.CityRows?.CultureOf(city) ?? -1);
 
         var dialog = CityPicView.Open(this, _game, city, name, MapAreaOnScreen(), track, culture);
         if (dialog == null) return false;

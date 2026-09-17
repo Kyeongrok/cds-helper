@@ -143,7 +143,16 @@ public sealed class BgmPlayer : IDisposable
     /// 이름으로 받는 길이다. 자료에 적힌 이름은 "이슬람" 인데 게임에서 부르는 말은
     /// "중근동" 이다 — 둘 다 받는다. 번호를 알면 <see cref="CityTrackForCulture"/> 가 낫다.
     /// </remarks>
-    public static int CityTrackFor(string? culturalSphere) => culturalSphere switch
+    public static int CityTrackFor(string? culturalSphere) => CityTrackFor(culturalSphere, -1);
+
+    /// <summary>
+    /// 이름으로 고르되, <b>표에 없는 이름</b>(「발칸」 따위)이거나 이름이 비었으면 EXE 문화권 번호로 고른다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이름을 안 보고 도시 레코드 <c>+0x58</c> 의 번호만 본다(<c>0x004929E7</c>). 앱 도시 자료에는
+    /// 간디아가 「발칸」으로 적혀 있어 이름으로만 고르면 기본 곡(이베리아, 10)이 났다 — 원본은 지중해(5)다.
+    /// </remarks>
+    public static int CityTrackFor(string? culturalSphere, int exeCulture) => culturalSphere switch
     {
         "이베리아" => CityTrackByCulture[0],
         "북유럽" => CityTrackByCulture[1],
@@ -156,7 +165,7 @@ public sealed class BgmPlayer : IDisposable
         "동남아시아" => CityTrackByCulture[8],
         "일본" => CityTrackByCulture[9],
         "아메리카" => CityTrackByCulture[10],
-        _ => CityTrack,
+        _ => CityTrackForCulture(exeCulture),
     };
 
     /// <summary>

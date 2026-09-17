@@ -12,7 +12,7 @@ namespace CdsHelper.Support.Local.Helpers;
 /// 새로 넣는 기능이 그 <c>bin</c> 사본을 고치는 바람에 탈이 셋이었다.
 /// <list type="number">
 ///   <item>다시 구우면 넣은 얼굴이 원본으로 덮여 날아간다.</item>
-///   <item>앱마다 사본이 따로라 <c>CdsHelperPlay</c> 에서 넣은 얼굴을
+///   <item>앱마다 사본이 따로라 <c>CostaDelSol</c> 에서 넣은 얼굴을
 ///         <c>CdsHelper</c> 가 못 본다.</item>
 ///   <item>저장소에 이진 파일이 남아 얼굴을 넣을 때마다 <c>git</c> 이 흔들린다.</item>
 /// </list>

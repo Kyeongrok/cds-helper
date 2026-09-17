@@ -269,7 +269,7 @@ public class CdsHelperWindow : CdsWindow
             worldMapMenu.Click += (_, _) => NavigateAndSync("WorldMapContent");
         }
 
-        // 발견물 그림은 햄버거 차림표에서 「요소」 메뉴로 옮겼다 — 본문 자리에 그대로 띄운다.
+        // 발견물 그림은 햄버거 차림표에서 「요소」를 거쳐 「에셋」 메뉴로 옮겼다(fb-ui-23) — 본문 자리에 그대로 띄운다.
         if (GetTemplateChild(PART_DiscoveryStillMenu) is MenuItem discoveryStillMenu)
         {
             discoveryStillMenu.Click += (_, _) => NavigateAndSync("DiscoveryStillContent");

@@ -106,7 +106,8 @@ public static class MovieFiles
     /// </summary>
     public static string UploadDirectory()
     {
-        var dir = SourceDirectory() ?? Path.Combine(AppContext.BaseDirectory, AssetDirectory);
+        // 내놓은 판은 <b>%APPDATA%</b> 에 쓴다 — 단일 파일 exe 는 굽힌 자리가 임시 풀림 폴더라 거기 쓰면 판이 바뀔 때 사라진다.
+        var dir = SourceDirectory() ?? UserDirectory;
         Directory.CreateDirectory(dir);
         return dir;
     }
@@ -150,8 +151,13 @@ public static class MovieFiles
     private static IEnumerable<string> AssetDirectories()
     {
         if (SourceDirectory() is { } near) yield return near;
+        yield return UserDirectory;
         yield return Path.Combine(AppContext.BaseDirectory, AssetDirectory);
     }
+
+    /// <summary>내놓은 판에서 올린 동영상이 드는 곳 — <c>%APPDATA%\CdsHelpersset\movie</c>.</summary>
+    private static string UserDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CdsHelper", "asset", "movie");
 
     private static string? _source;
     private static bool _sourceLooked;
