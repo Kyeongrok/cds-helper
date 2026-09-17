@@ -332,6 +332,9 @@ internal sealed class AbilityMakeDialog : InfoDialog
 
         player.JobIndex = dialog._job;
         player.SetAbilities(dialog._stats);
+        // 컨디션(HP, 0x005B60D8)은 체력으로 정한다 — 0x0045D5A3 이 체력 x 20 을 10~2000 으로 잘라 두고
+        // 마무리(0x0045E485)가 옮겨 박는다. 초심자 주인공은 (체력 x 4 + 4) x 5 다(Beginner).
+        player.SetCondition(Math.Clamp(dialog._stats[Ability.Body] * 20, 10, Player.ConditionMax));
         player.SetGold(Ability.GoldFor(dialog._stats[Ability.Body]));
         return dialog._left;
     }
