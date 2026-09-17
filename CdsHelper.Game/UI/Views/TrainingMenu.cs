@@ -171,6 +171,8 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
         int days = (200 - Player.AbilityOf(Ability.Mind)) * months * 30 / 100;
 
         Blackout(() => Player.AdvanceDays(days));
+        // 배우는 동안 쉰 셈으로 HP 가 지난 날의 10분의 1 만큼 찬다(0x00491270).
+        Player.SetCondition(Player.Condition + days / 10);
 
         if (IsTongue(name)) Player.SetTongue(name, level + 1);
         else Player.SetSkill(name, level + 1);
