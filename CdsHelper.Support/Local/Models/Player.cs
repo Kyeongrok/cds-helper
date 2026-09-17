@@ -1346,8 +1346,32 @@ public sealed class Player
     public bool HasAnnounced(int discovery) => _announced.Contains(discovery);
 
     /// <summary>발표한 것으로 적는다. 발견한 적 없거나 이미 발표했으면 false.</summary>
-    public bool Announce(int discovery) =>
-        HasFound(discovery) && _announced.Add(discovery);
+    public bool Announce(int discovery)
+    {
+        if (!HasFound(discovery) || !_announced.Add(discovery)) return false;
+        _announcedYear[discovery] = Date.Year;
+        return true;
+    }
+
+    private readonly Dictionary<int, int> _announcedYear = [];
+
+    /// <summary>
+    /// 발표한 해 — 발견물 인스턴스 칸 2 의 <c>+0x28</c>. 향신료·신대륙 기호품 값이 이 해부터 지난 햇수로 갈린다.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> AnnouncedYears => _announcedYear;
+
+    /// <summary>그것을 발표한 해. 발표 안 했으면 null. 해를 안 적던 옛 세이브는 불러온 해로 본다.</summary>
+    public int? AnnouncedYearOf(int discovery) =>
+        !_announced.Contains(discovery) ? null
+        : _announcedYear.TryGetValue(discovery, out int year) ? year : null;
+
+    /// <summary>세이브에서 발표한 해를 되돌린다. 없는 것은 지금 해로 채운다.</summary>
+    public void RestoreAnnouncedYears(IReadOnlyDictionary<int, int>? years)
+    {
+        _announcedYear.Clear();
+        foreach (int id in _announced)
+            _announcedYear[id] = years != null && years.TryGetValue(id, out int y) ? y : Date.Year;
+    }
 
     /// <summary>세이브를 되돌릴 때 계약을 그대로 박는다. 선금을 다시 주지 않는다.</summary>
     public void RestoreContract(Contract? contract) => Contract = contract;
@@ -1815,6 +1839,113 @@ public sealed class Player
         _tradeStock.Clear();
         foreach (var (city, cells) in stock ?? new Dictionary<int, List<int>>())
             SetTradeStock(city, cells);
+    }
+
+    // ── 도시 시세 · 도시 상태 ───────────────────────────────────────────────
+
+    /// <summary>시세 기준값. 이 값인 도시는 표에 안 둔다.</summary>
+    public const int ParRate = 100;
+
+    private readonly Dictionary<int, int> _cityRates = [];
+
+    /// <summary>
+    /// 100 에서 벗어난 도시 시세 — 도시 레코드(<c>0x005863A8</c> + 도시 x 92)의 <c>+0x0C</c>.
+    /// </summary>
+    /// <remarks>
+    /// 첫값은 도시 표 <c>+0x2C</c> 로 어디나 100 이다. 거래가 밀고(<c>0x00481430</c>) 매달 1일에
+    /// 흔들린다(<c>0x0042A280</c>). 없는 도시는 100 이다.
+    /// </remarks>
+    public IReadOnlyDictionary<int, int> CityRates => _cityRates;
+
+    /// <summary>그 도시 시세. 모르는 도시는 100.</summary>
+    public int CityRateOf(int cityId) => _cityRates.TryGetValue(cityId, out int rate) ? rate : ParRate;
+
+    /// <summary>그 도시 시세를 박는다. 100 이면 표에서 지운다.</summary>
+    public void SetCityRate(int cityId, int rate)
+    {
+        if (cityId < 0) return;
+        if (rate == ParRate) _cityRates.Remove(cityId);
+        else _cityRates[cityId] = rate;
+    }
+
+    /// <summary>시세를 마지막으로 흔든 달(해 x 12 + 달). 0 이면 아직 안 셌다 — 지금 달부터 센다.</summary>
+    public int RatesMonth { get; private set; }
+
+    /// <summary>시세를 흔든 달을 적는다.</summary>
+    public void SetRatesMonth(int monthKey) => RatesMonth = Math.Max(0, monthKey);
+
+    /// <summary>세이브에서 시세를 되돌린다. 옛 세이브(null)면 다들 100 이다.</summary>
+    public void RestoreCityRates(IReadOnlyDictionary<int, int>? rates, int? month)
+    {
+        _cityRates.Clear();
+        foreach (var (city, rate) in rates ?? new Dictionary<int, int>()) SetCityRate(city, rate);
+        RatesMonth = Math.Max(0, month ?? 0);
+    }
+
+    private readonly Dictionary<int, int> _cityStates = [];
+
+    /// <summary>
+    /// 통상(0)이 아닌 도시 상태 — 도시 레코드 <c>+0x40</c>. 기한이 없어 대본이 바꿀 때까지 그대로다.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> CityStates => _cityStates;
+
+    /// <summary>그 도시 상태(0 통상 ~ 13 대조선).</summary>
+    public int CityStateOf(int cityId) => _cityStates.TryGetValue(cityId, out int state) ? state : 0;
+
+    /// <summary>그 도시 상태를 박는다. 0(통상)이면 표에서 지운다.</summary>
+    public void SetCityState(int cityId, int state)
+    {
+        if (cityId < 0) return;
+        if (state == 0) _cityStates.Remove(cityId);
+        else _cityStates[cityId] = state;
+    }
+
+    /// <summary>세이브에서 도시 상태를 되돌린다.</summary>
+    public void RestoreCityStates(IReadOnlyDictionary<int, int>? states)
+    {
+        _cityStates.Clear();
+        foreach (var (city, state) in states ?? new Dictionary<int, int>()) SetCityState(city, state);
+    }
+
+    /// <summary>
+    /// 역사 대본(<c>HIST_EV.CDS</c> · <c>HISTCHR.CDS</c>)을 마지막으로 돌린 달(해 x 12 + 달).
+    /// 0 이면 아직 안 돌렸다 — 놀이 첫 달부터 되짚는다.
+    /// </summary>
+    public int HistoryMonth { get; private set; }
+
+    /// <summary>역사 대본을 돌린 달을 적는다.</summary>
+    public void SetHistoryMonth(int monthKey) => HistoryMonth = Math.Max(0, monthKey);
+
+    private readonly Dictionary<int, int> _historyNations = [];
+
+    /// <summary>역사 대본(<c>21 08 [도시] 00 [나라]</c>)이 바꾼 도시의 나라. 대본의 나라 조건이 본다.</summary>
+    public IReadOnlyDictionary<int, int> HistoryNations => _historyNations;
+
+    /// <summary>역사 대본이 바꾼 나라를 적는다.</summary>
+    public void SetHistoryNation(int cityId, int nation)
+    {
+        if (cityId >= 0) _historyNations[cityId] = nation;
+    }
+
+    private readonly HashSet<int> _historyDone = [];
+
+    /// <summary>
+    /// 「그 달부터」(<c>1B</c>) 조건으로 한 번 돈 역사 대본 칸(파트 x 100 + 칸). 게임은 몸통이 조건을 깨서
+    /// 다시 안 돌게 하는데, 우리는 도시 세우기를 따로 셈하므로 한 번 돈 것을 적어 둔다.
+    /// </summary>
+    public IReadOnlyCollection<int> HistoryDone => _historyDone;
+
+    /// <summary>그 칸을 돈 것으로 적는다.</summary>
+    public void MarkHistoryDone(int slotKey) => _historyDone.Add(slotKey);
+
+    /// <summary>세이브에서 역사 대본 진행을 되돌린다. 옛 세이브(null)면 첫 달부터 다시 되짚는다.</summary>
+    public void RestoreHistory(int? month, IReadOnlyDictionary<int, int>? nations, IEnumerable<int>? done)
+    {
+        HistoryMonth = Math.Max(0, month ?? 0);
+        _historyNations.Clear();
+        foreach (var (city, nation) in nations ?? new Dictionary<int, int>()) SetHistoryNation(city, nation);
+        _historyDone.Clear();
+        foreach (int key in done ?? []) _historyDone.Add(key);
     }
 
     /// <summary>세이브에서 짐을 되돌린다. 옛 세이브(null)면 빈 채로 둔다.</summary>

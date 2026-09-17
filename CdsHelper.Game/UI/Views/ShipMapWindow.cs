@@ -15,6 +15,7 @@ using Prism.Ioc;
 using CdsHelper.Game.Engine.Discovery;
 using CdsHelper.Game.Engine.Disev;
 using CdsHelper.Game.Engine.Land;
+using CdsHelper.Game.Engine.Market;
 using CdsHelper.Game.Engine.Menu;
 using CdsHelper.Game.Engine.Sea;
 using CdsHelper.Game.Engine.Town;
@@ -2120,6 +2121,11 @@ public sealed class ShipMapWindow : Window
             // 실은 교역품과 교역소 재고. 이 판 앞의 세이브에는 없어 빈 짐 · 처음 재고로 연다.
             _game.Player.RestoreCargo(saved.Cargo);
             _game.Player.RestoreTradeStock(saved.TradeStock);
+            // 도시 시세·상태와 역사 대본 진행. 옛 세이브면 시세는 100, 상태는 1480년부터 되짚어 채운다.
+            _game.Player.RestoreCityRates(saved.CityRates, saved.RatesMonth);
+            _game.Player.RestoreCityStates(saved.CityStates);
+            _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
+            _game.Player.RestoreAnnouncedYears(saved.AnnouncedYears);
             if (saved.Fatigue is { } tired) _game.Player.SetFatigue(tired);
             if (saved.DaysAtSea is { } atSea) _game.Player.SetDaysAtSea(atSea);
             // 컨디션. 이 판 앞의 세이브에는 없어 성한 채로 연다.
@@ -2725,6 +2731,9 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void EnterCity(int city)
     {
+        // 전염병 걸린 함대가 통상인 마을에 들면 마을에 옮는다(0x00477124) — 병이 풀리기 전에 본다.
+        if (_game.Player.Has(SeaAilment.Plague)) SpreadPlague(city);
+
         // 마을에 닿으면 항해가 끝난다 — 쥐·병이 풀리고 부관이 알린다.
         EndVoyage();
         if (_asking) return;
@@ -2750,6 +2759,19 @@ public sealed class ShipMapWindow : Window
                 _asking = false;
             }
         }
+    }
+
+    /// <summary>
+    /// 함대의 전염병이 마을에 옮는다 — 상태가 통상일 때만 전염병이 되고 영영 안 풀린다(<c>0x00477124</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 입항의 열흘을 흘린 뒤, 병을 풀기(<c>0x00476F50</c>) 전에 이것을 본다. 말은 얼굴 없는 창이다.
+    /// </remarks>
+    private void SpreadPlague(int city)
+    {
+        if (_game.Rates.StateOf(city) != CityState.Normal) return;
+        _game.Player.SetCityState(city, CityState.Plague);
+        NoticeDialog.Show(this, CityState.SpreadWord);
     }
 
     /// <summary>

@@ -277,7 +277,7 @@ public sealed class TradePostDialog : GameWindow
         _root.Children.Clear();
 
         var body = new StackPanel { IsHitTestVisible = !_bargainOn };
-        var title = GameUi.TitleBar($"매매 — {_cityName} · 시세 {_game.Rates.Of(_city)} · 통상", Close);
+        var title = GameUi.TitleBar($"매매 — {_cityName} · 시세 {_game.Rates.Of(_city)} · {CityState.NameOf(_game.Rates.StateOf(_city))}", Close);
         GameUi.EnableDrag(this, title);
         body.Children.Add(title);
 

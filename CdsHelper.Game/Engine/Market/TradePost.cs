@@ -18,9 +18,8 @@ namespace CdsHelper.Game.Engine.Market;
 /// 창(<see cref="UI.Views.TradePostDialog"/>)은 cds95-mod 의 MarketUtilKR 매매 창을 옮긴 것이고,
 /// 규칙은 모두 여기서만 정한다.
 ///
-/// <b>아직 안 옮긴 것</b> — 향신료(인도·향료제도 발견)와 커피·담배·카카오·차(신대륙 발견)의
-/// 발견 뒤 햇수 보정(<c>0x004805D0</c> · <c>0x004807E0</c>), 도시상태 보정(<c>0x00480290</c>,
-/// 우리 도시는 늘 통상이다), 매달 시세가 흔들리는 것.
+/// 값은 향신료·신대륙 기호품의 햇수 보정(<see cref="GoodsTrend"/>)을 거쳐 시세를 곱하고, 맨 끝에
+/// 도시 상태 보정(<see cref="CityState.Adjust"/>)을 건다.
 ///
 /// <b>판매 게이트</b>(<c>0x0058BAB0</c>)는 처음 값(<see cref="TradeTable.OnSale"/>)에 발견 대본이 켠 것
 /// (<see cref="Player.ActiveGoods"/>)을 더해 본다 — 상아는 코끼리의 무덤을 찾기 전까지 교역소에 안 나온다.
@@ -70,15 +69,17 @@ public sealed class TradePost
     private readonly MarketRates _rates;
     private readonly CityExeTable? _cities;
     private readonly NationTable? _nations;
+    private readonly GoodsTrend _trend;
 
     public TradePost(TradeTable table, GoodsTable goods, MarketRates rates,
-                     CityExeTable? cities, NationTable? nations)
+                     CityExeTable? cities, NationTable? nations, DiscoveryTable? discoveries = null)
     {
         _table = table;
         _goods = goods;
         _rates = rates;
         _cities = cities;
         _nations = nations;
+        _trend = new GoodsTrend(discoveries);
     }
 
     public GoodsTable Goods => _goods;
@@ -156,7 +157,9 @@ public sealed class TradePost
     ///   그 도시 특산품이면        기준가 = min(기준가, 도시 특산가)        0x480530
     ///   연결 내륙도시 특산품이면  기준가 = min(기준가, 그 도시 특산가)     0x480560
     ///   금·은(분류 2)             값 = 기준가                             시세를 안 곱한다
-    ///   그 밖                     값 = 기준가 x 시세 / 100 (0 이면 1)
+    ///   향신료·커피·담배·카카오·차  기준가를 햇수로 비튼 뒤 시세           0x4805D0 · 0x4807E0
+    ///   그 밖                     값 = 기준가 x 시세 / 100 (0 이면 1)     0x429DC0
+    ///   끝으로                    도시 상태 보정, 1 밑이면 1              0x480290
     /// </code>
     /// cds95-mod 가 리스본에서 대 본 값: 시세 130 · 대포 155 → 매각 201 · 구입 301.
     /// </remarks>
@@ -171,11 +174,44 @@ public sealed class TradePost
                 break;
             }
 
-        int price = _goods.Find(kind)?.Category == PreciousCategory
-            ? basis
-            : (int)((long)basis * _rates.Of(city) / MarketRates.Par);
+        if (_goods.Find(kind) is not { } goods) return Math.Max(1, basis);
+
+        int price;
+        if (goods.Category == PreciousCategory) price = basis;
+        else
+        {
+            if (_trend.Moves(goods))
+                basis = _trend.Adjust(player, _cities?.CultureOf(city) ?? -1, goods, basis);
+            price = (int)((long)basis * _rates.Of(city) / MarketRates.Par);
+            if (basis > 0 && price < 1) price = 1;
+        }
+
+        price = CityState.Adjust(_rates.StateOf(city), goods, price);
         return Math.Max(1, price);
     }
+
+    /// <summary>그 도시 상태.</summary>
+    public int StateOf(int city) => _rates.StateOf(city);
+
+    // ── 회화 ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 돈벌이 이야기 거리(<c>0x004801D0</c>) — 판매 게이트가 켜진 교역품 가운데 이 도시 상태로 값이 <b>오르는</b> 것
+    /// (보정에 100 을 넣어 100 보다 크게 나오는 것) 하나를 고른다. 없으면 null.
+    /// </summary>
+    public GoodsTable.Goods? TipOf(Player player, int city, Random random)
+    {
+        int state = _rates.StateOf(city);
+        var hot = _goods.Items.Where(g => OnSale(player, g.Id) && CityState.Adjust(state, g, 100) > 100).ToList();
+        return hot.Count == 0 ? null : hot[random.Next(hot.Count)];
+    }
+
+    /// <summary>
+    /// 특산품 자랑의 갈래(<c>0x00481AEB</c>) — 도시 번호와 (해-1480)/8 을 씨로 삼아 0~3 을 굴린다.
+    /// 같은 도시에서는 8년 동안 같은 말이 나온다.
+    /// </summary>
+    public static int BoastKind(int city, int year) =>
+        new Random(city + (year - 1480) / 8).Next(4);
 
     /// <summary>구입 단가 — 매각가의 3/2.</summary>
     public int BuyPrice(Player player, int city, int kind) => SellPrice(player, city, kind) * 3 / 2;
