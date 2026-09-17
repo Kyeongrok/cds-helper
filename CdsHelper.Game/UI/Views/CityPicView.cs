@@ -1684,6 +1684,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
         EncyclopediaDialog.Show(Menu.Window ?? this, _game.Directory, _player,
                                 _game.Discoveries?.Table, _game.Hints, _game.Book);
 
+    void ITownScreen.ShowChronicle() =>
+        ChronicleDialog.ShowChronicle(Menu.Window ?? this, _player, _game.Discoveries?.Table);
+
     void ITownScreen.ReadBooks() =>
         Books.Read(Menu.Window ?? this, text => (Owner as ShipMapWindow)?.Say(text));
 

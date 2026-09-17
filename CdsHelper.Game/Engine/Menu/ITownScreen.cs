@@ -120,6 +120,9 @@ internal interface ITownScreen
     /// <summary>교역소 「회화」 — 돈벌이 이야기나 특산품 자랑.</summary>
     void TradeTalk();
 
+    /// <summary>자택 「연표를 본다」 — 발견·보고를 날짜 차례로 늘어놓는다.</summary>
+    void ShowChronicle();
+
     /// <summary>여관 숙박.</summary>
     void Stay();
 
