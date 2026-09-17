@@ -636,7 +636,7 @@ public sealed class LandBattle
     /// </summary>
     /// <remarks>
     /// <c>0x00449080</c> 이 <c>표[문화권*3 + 묘책] &gt;= rand(100)</c> 으로 가른다.
-    /// 값은 20 · 40 · 60 · 80 넷뿐이다. 심판은 표 밖이라(디버그 전용) 안 쓴다.
+    /// 값은 20 · 40 · 60 · 80 넷뿐이다. <b>심판은 굴리지 않는다</b> — 늘 떨어진다.
     /// </remarks>
     private static readonly int[] RuseOdds =
     [
@@ -651,24 +651,28 @@ public sealed class LandBattle
     /// <summary>그 묘책을 아직 안 썼는지.</summary>
     public bool RuseLeft(int ruse) => (_usedRuses & (1 << ruse)) == 0;
 
-    /// <summary>아직 쓸 수 있는 묘책이 하나라도 있는지.</summary>
-    public bool AnyRuseLeft =>
-        RuseLeft(Ambush) || RuseLeft(Trap) || RuseLeft(Assassin);
+    /// <summary>
+    /// 「심판」을 여는 아이템 — <b>사해사본</b>(아이템 184, <c>0x004490F9</c> 가 소지품 열여섯 칸을 뒤진다).
+    /// </summary>
+    public const int JudgementItem = 184;
 
-    /// <summary>묘책 차림표의 줄들. 쓴 것은 꺼진다.</summary>
-    public IReadOnlyList<(string Text, bool On)> RuseRows() =>
+    /// <summary>묘책 차림표의 줄들. 쓴 것은 꺼지고, 심판은 사해사본을 지녀야 열린다.</summary>
+    public IReadOnlyList<(string Text, bool On)> RuseRows(bool hasJudgementItem) =>
     [
         (Ruses[Ambush], RuseLeft(Ambush)),
         (Ruses[Trap], RuseLeft(Trap)),
         (Ruses[Assassin], RuseLeft(Assassin)),
-        // 심판은 디버그 아이템(0xB8)이 있어야 열린다 — 우리는 안 낸다.
-        (Ruses[Judgement], false),
+        (Ruses[Judgement], hasJudgementItem && RuseLeft(Judgement)),
     ];
 
-    /// <summary>그 묘책을 걸어 본다. 먹혔으면 참이고, 어느 쪽이든 한 번 쓰면 없어진다.</summary>
+    /// <summary>
+    /// 그 묘책을 걸어 본다. 먹혔으면 참이고, 어느 쪽이든 한 번 쓰면 없어진다.
+    /// <b>심판은 안 굴린다</b> — 늘 떨어지고 양쪽을 다 친다(<c>0x00448F80</c>).
+    /// </summary>
     public bool TryRuse(int ruse, GameRandom dice)
     {
         _usedRuses |= 1 << ruse;
+        if (ruse == Judgement) return true;
 
         int at = Math.Clamp(Culture, 0, 10) * 3 + ruse;
         return at < RuseOdds.Length && RuseOdds[at] >= dice.Next(100);

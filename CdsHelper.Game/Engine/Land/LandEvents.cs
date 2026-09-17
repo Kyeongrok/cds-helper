@@ -16,8 +16,10 @@ namespace CdsHelper.Game.Engine.Land;
 /// </code>
 /// 회오리(<c>0x00427DB8</c>)는 짜임이 다르다 — <b>고를 것이 없고</b> 그냥 당한다.
 ///
-/// <b>아직 안 옮긴 것</b> — 같은 덩이의 유성(<c>0x00427D05</c>, 소원 빌기)과
-/// 일식(「태양이 사라지고 있습니다!」).
+/// 유성(<c>0x00427D05</c>)도 같은 덩이에 있다 — <see cref="Meteor"/>.
+///
+/// <b>일식은 안 옮겼다 — 원본에서 절대 안 난다.</b> 조건이 「경도 &lt; 5000 이고 경도 ≥ 35000」
+/// (<c>0x00427EAE</c>·<c>0x00427EBE</c>)이라 서로 어긋난다. 원본 데이터의 흠이라 옮길 것이 없다.
 /// </remarks>
 public static class LandEvents
 {
@@ -141,6 +143,28 @@ public static class LandEvents
 
         return new Outcome(false, Kill(player, met, dice), Cornered: true);
     }
+
+    /// <summary>유성이 흐를 확률의 분모(<c>0x00427D1B</c>).</summary>
+    public const int MeteorOdds = 200;
+
+    /// <summary>유성이 흐르는 달 둘(<c>0x00427D05</c>) — 8월과 12월이다.</summary>
+    public static readonly int[] MeteorMonths = [8, 12];
+
+    /// <summary>
+    /// 오늘 유성이 흐르는지 — <b>8월·12월에만</b>, 이백에 하나다. 지형은 안 본다.
+    /// </summary>
+    public static bool Meteor(GameRandom dice, int month) =>
+        MeteorMonths.Contains(month) && dice.Next(MeteorOdds) == 0;
+
+    /// <summary>
+    /// 유성이 흐를 때 부관이 하는 말 셋(<c>0x00533B50</c> 부터). 잃는 것도 얻는 것도 없다.
+    /// </summary>
+    public static readonly string[] MeteorLines =
+    [
+        "제독, 하늘을 보십시오.",
+        "무언가 빌었습니까? 유성이 없어지기 전에 소원을 빌면 이루어진다고 합니다.",
+        "예? 저는 무얼 빌었냐구요? 창피하니까 비밀로 해 두지요.",
+    ];
 
     /// <summary>회오리가 칠 확률의 분모(<c>0x00427DC8</c>).</summary>
     public const int TornadoOdds = 500;
