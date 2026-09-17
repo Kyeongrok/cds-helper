@@ -87,10 +87,12 @@ public sealed class CityHistory
         var when = new DateTime(year, month, 1);
 
         // HISTCHR — 사람마다 그 달에 맞는 첫 칸 하나. 날짜 조건(1C)만 있는 칸에서 상태 명령만 본다.
-        foreach (var part in _persons)
+        for (int who = 0; who < _persons.Length; who++)
         {
+            var part = _persons[who];
             if (Pick(part, year, month, when, player, cities, found, -1) is not { } body) continue;
             Run(part, body.Body, BodyEnd(part, body.Body), player, cities, nations, when, statesOnly: true);
+            SpeakLines(part, body.Body, BodyEnd(part, body.Body), player, who, when);
         }
 
         for (int i = 0; i < _parts.Length; i++)
@@ -277,6 +279,25 @@ public sealed class CityHistory
                 default:
                     return;
             }
+        }
+    }
+
+    /// <summary>
+    /// 사람 대본의 <c>26 0A [글] 00</c> — 그 사람이 술집에서 「정보를 듣는다」에 할 말을 적는다(<c>0x0040A082</c>).
+    /// 글 속 바이트는 0x81 이상이라 <c>26 0A</c> 꼴과 헷갈리지 않는다.
+    /// </summary>
+    private static void SpeakLines(byte[] p, int i, int end, Player player, int who, DateTime when)
+    {
+        end = Math.Min(end, p.Length);
+        for (; i + 2 < end; i++)
+        {
+            if (p[i] != 0x26 || p[i + 1] != 0x0A) continue;
+            int zero = Array.IndexOf(p, (byte)0, i + 2);
+            if (zero < 0 || zero > end) return;
+            string text = DisevScript.DecodeDialogue(p.AsSpan(i + 2, zero - i - 2), normalize: true,
+                                                     player: player.Name).Body;
+            player.SetPersonLine(who, text, when);
+            i = zero;
         }
     }
 

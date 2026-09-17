@@ -1984,11 +1984,32 @@ public sealed class Player
         [.. _rumors.Where(r => r.City == city && (Date - r.Added).TotalDays < RumorDays).Select(r => r.Text)];
 
     /// <summary>세이브에서 소문을 되돌린다.</summary>
-    public void RestoreRumors(IEnumerable<Rumor>? rumors)
+    public void RestoreRumors(IEnumerable<Rumor>? rumors, IEnumerable<Rumor>? personLines = null)
     {
         _rumors.Clear();
         if (rumors != null) _rumors.AddRange(rumors);
+        _personLines.Clear();
+        foreach (var line in personLines ?? []) _personLines[line.City] = line;
     }
+
+    private readonly Dictionary<int, Rumor> _personLines = [];
+
+    /// <summary>
+    /// 역사 항해자가 제 입으로 하는 말(<c>0x005AA278</c>) — 사람마다 <b>마지막 한 줄</b>만 남고(<c>0x0040A0C4</c> 가
+    /// 지우고 적는다) 180일이 지나면 안 보인다. <see cref="Rumor.City"/> 칸에 인물 번호를 담는다.
+    /// </summary>
+    public IReadOnlyCollection<Rumor> PersonLines => _personLines.Values;
+
+    /// <summary>그 사람의 말을 적는다(<c>26 0A [글]</c>, <c>0x0040A082</c>).</summary>
+    public void SetPersonLine(int person, string text, DateTime added)
+    {
+        if (person >= 0 && text.Length > 0) _personLines[person] = new Rumor(person, added, text);
+    }
+
+    /// <summary>그 사람의 살아 있는 말. 없으면 null.</summary>
+    public string? PersonLineOf(int person) =>
+        _personLines.TryGetValue(person, out var line) && (Date - line.Added).TotalDays < RumorDays
+            ? line.Text : null;
 
     private readonly HashSet<int> _historyDone = [];
 
@@ -2010,6 +2031,7 @@ public sealed class Player
         {
             _cityScales.Clear();
             _rumors.Clear();
+            _personLines.Clear();
         }
         _historyNations.Clear();
         foreach (var (city, nation) in nations ?? new Dictionary<int, int>()) SetHistoryNation(city, nation);
