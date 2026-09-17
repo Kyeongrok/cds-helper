@@ -126,6 +126,20 @@ public sealed class DiscoveryTable
         [JsonIgnore] public bool GivesItem => ItemId >= 0;
 
         /// <summary>
+        /// <b>모조품</b>인지 — 유적 번호(<see cref="Hint"/>)가 같은 진짜 유물의 싸구려 대역이다
+        /// (「싸구려 도자기」·「유리해골」 따위).
+        /// </summary>
+        /// <remarks>
+        /// EXE 발견물 표(<c>0x0051C540</c>, 274줄)를 유적 번호로 훑으면 227~130 번대 진짜
+        /// 유물 스물여덟 자리가 <b>230~257번에 그대로 다시 나온다</b> — 이름만 「깨어진」·
+        /// 「금도금」·「목조」·「장식용」·「싸구려」 따위로 바뀌고 유적 번호와 보수 구간은
+        /// 진짜와 같은 자리에 묶인다. 번호 앞뒤(225~229 교역품, 258~ 동식물·인물)는 이 결에서
+        /// 벗어나 번호 구간이 깔끔하게 갈린다 — 원본이 모조품 스물여덟 자리를 표 한 구석에
+        /// 몰아 적어 둔 것으로 보인다(<see cref="Engine.Town.Palace.CounterfeitCaught"/> 참고).
+        /// </remarks>
+        [JsonIgnore] public bool IsCounterfeit => Id is >= 230 and <= 257;
+
+        /// <summary>
         /// 좁을수록 앞세우려고 재는 값. 게임이 쓰는 것 그대로 <b>가로 길이의 제곱</b>이다
         /// (<c>0x004256D9</c>) — 세로는 안 본다.
         /// </summary>

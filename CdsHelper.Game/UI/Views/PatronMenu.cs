@@ -641,7 +641,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 명성 <see cref="Palace.FameFor"/>, 친밀도 <see cref="Palace.ClosenessFor"/>,
     /// 후원자에게 쌓이는 값 <see cref="Palace.CreditFor"/> 다.
     ///
-    /// 아직 안 옮긴 것 — 모조품 갈래("이것은 모조품이네", <c>0x00530BC8</c>), 선대의 계약.
+    /// 모조품 갈래("이것은 모조품이네", <c>0x00530BC8</c>)는 <see cref="ReportCounterfeit"/> 로
+    /// 옮겼다. 아직 안 옮긴 것 — 선대의 계약.
     /// </remarks>
     public void Report(Patron patron) => Alone(() => ReportNow(patron));
 
@@ -660,7 +661,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         string me = _player.Name;
         int fame = 0, closer = 0;
 
-        foreach (var row in rows)
+        void Credit(DiscoveryTable.Record row)
         {
             GameDialog.Show(_view,
                 $"{me}{GameUi.Josa(me, "은", "는")} {row.Name}의 발견을 보고했다!!");
@@ -704,6 +705,14 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             fame += up;
         }
 
+        foreach (var row in rows)
+        {
+            // 모조품(0x00412460)은 들키지 않으면 진짜와 똑같이 통과된다 — 들켰을 때만
+            // 따로 간다(Report(Patron) 의 볼트 주석 참고).
+            if (row.IsCounterfeit && ReportCounterfeit(patron, row)) continue;
+            Credit(row);
+        }
+
         if (fame == 0 && closer == 0)
             TalkDialog.Say(_view, FaceOf(patron), "", "굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.");
 
@@ -711,6 +720,39 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.Earn(paid);
         _player.EndContract();
         return paid;
+    }
+
+    /// <summary>
+    /// 모조품을 들고 왔을 때 후원자가 알아보는지 가늠한다(<c>0x00412020</c> 안쪽,
+    /// 볼트 <c>23.분석-발견과 보고(발견물 인스턴스)</c> 부록).
+    /// </summary>
+    /// <remarks>
+    /// 안 들키면(<see cref="Palace.CounterfeitCaught"/> 가 거짓) <b>아무 일도 안 하고
+    /// false 를 내</b> — 부른 쪽(<see cref="ReportEach"/>)이 진짜와 똑같이 사례를 친다.
+    /// 들켰으면 후원자 표의 <b>정적</b> 친밀도(<see cref="SponsorTable.Sponsor.Closeness"/>)와
+    /// 운으로 다시 가늠해 봐줄지 정한다 — 봐주면 다음 기회를 주고 악명만 조금 오르고,
+    /// 못 봐주면 사이가 상한다.
+    /// </remarks>
+    /// <returns>이 발견물의 사례를 건너뛰어야 하면 true.</returns>
+    private bool ReportCounterfeit(Patron patron, DiscoveryTable.Record row)
+    {
+        var sponsorRow = _game.Sponsors?.FindByName(patron.Name);
+        int luck = _player.AbilityOf(Ability.Luck);
+        if (!Palace.CounterfeitCaught(sponsorRow?.Closeness ?? 0, luck, _random)) return false;
+
+        string me = _player.Name;
+        if (Palace.CounterfeitForgiven(_player.ClosenessOf(patron.Name), luck, _random))
+        {
+            TalkDialog.Say(_view, FaceOf(patron), "",
+                $"안됐지만, {me}, 이것은 모조품이네. 자네에게 한번 더 기회를 주겠다. 기한까지 진짜를 발견해 오게.");
+            _player.Infamy += Palace.CounterfeitInfamyRoll(_random);
+        }
+        else
+        {
+            TalkDialog.Say(_view, FaceOf(patron), "", "이런 모조품으로 나를 속이려 했나!");
+            _player.Sulk(patron.Name);
+        }
+        return true;
     }
 
     /// <summary>
