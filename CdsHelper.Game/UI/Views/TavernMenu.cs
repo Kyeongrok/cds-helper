@@ -699,10 +699,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             if (at == duelAt) { Duel(who, face); return; }
             if (at == hearAt)
             {
-                // 게임은 이 사람 몫으로 대본이 넣어 둔 말(0x005AA278 목록)이 있으면 그중 하나를,
+                // 게임은 이 사람 몫으로 대본이 넣어 둔 말(0x005AA278, 역사 항해자 대본 26 0A)이 살아 있으면 그것을,
                 // 없으면 <b>그 사람 고향 문화권의 소문</b>을 한 마디 한다(0x004A45E0 → 0x004A4790
-                // → 0x004A4630 갈래 0 → 0x004A3740). 대본 목록은 아직 안 옮겨 소문만 낸다.
-                TalkDialog.Say(_view, face, "", TavernRumors.Of(HomeCulture(who.Index), _game.Random));
+                // → 0x004A4630 갈래 0 → 0x004A3740).
+                _game.CatchUpMonths();
+                TalkDialog.Say(_view, face, "", _player.PersonLineOf(who.Index)
+                                                ?? TavernRumors.Of(HomeCulture(who.Index), _game.Random));
                 heard = true;
                 continue;
             }
