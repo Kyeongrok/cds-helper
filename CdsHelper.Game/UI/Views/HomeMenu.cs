@@ -31,6 +31,65 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// <summary>물음창을 얹을 창 — 명령 창이 떠 있으면 그 위다.</summary>
     private Window Owner => _menu.Window ?? _view;
 
+    // ── 자택에 들면 ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 자택에 들면 먼저 하는 일 — 아직 안 알린 아이를 소개하고, 맏딸이 나이 차고
+    /// 저금이 넉넉하면 결혼 이야기를 듣는다. 게임의 <c>0x0045FFC0</c> 이다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CityPicView"/> 가 건물에 들 때마다(<c>Greet</c>) 자택이면 이것을 부른다.
+    /// 다섯 살 밑이면 연출(사건 그림)을 함께 낸다는 원본 갈래는 아직 안 옮겼다 — 대사만 낸다.
+    /// </remarks>
+    public void Greet()
+    {
+        var owner = Owner;
+
+        foreach (var child in Home.NotIntroduced(_player)) Introduce(owner, child);
+
+        if (_random.Next(Home.MarriageRoll) == 0 && Home.MarriageableDaughter(_player) is { } daughter)
+            ProposeMarriage(owner, daughter);
+    }
+
+    /// <summary>아이 하나를 소개하고, 바라면 이름을 새로 짓는다(<c>0x00460070</c>).</summary>
+    private void Introduce(Window owner, Player.Child child)
+    {
+        string words = Home.IntroductionOf(child, _player.Date);
+        if (_player.Spouse.Length > 0) TalkDialog.Say(owner, null, _player.Spouse, words);
+        else GameDialog.Show(owner, words);
+
+        var named = child;
+        if (ConfirmDialog.Ask(owner, "새로운 이름을 짓겠습니까?"))
+        {
+            GameDialog.Show(owner, "아이의 이름을 결정해 주십시오!");
+            if (TextInputDialog.Ask(owner, child.Name, Home.ChildNameMaxLength,
+                                    child.Daughter ? "딸의 이름" : "아들의 이름") is { Length: > 0 } name)
+                named = named with { Name = name };
+        }
+        _player.ReplaceChild(child, named with { Introduced = true });
+    }
+
+    /// <summary>
+    /// 딸이 결혼해도 되냐고 묻는다(<c>0x00460180</c>). <b>아니오를 골라도 결국 허락한다</b> —
+    /// 원본 그대로다.
+    /// </summary>
+    private void ProposeMarriage(Window owner, Player.Child daughter)
+    {
+        if (!ConfirmDialog.Ask(owner,
+                "아버지, 할 이야기가 있어요. 저 좋아하는 사람이 있는데… 아버지, 결혼해도 되겠지요?"))
+        {
+            TalkDialog.Say(owner, null, daughter.Name, "너무 해요! 아버지, 그런 슬픈 말씀 하지 마세요!");
+            TalkDialog.Say(owner, null, _player.Spouse, "당신, 딸의 부탁하니, 제발 허락해 주세요.");
+        }
+
+        TalkDialog.Say(owner, null, daughter.Name, "고마워요, 아버지! 꼭 행복하겠어요.");
+        TalkDialog.Say(owner, null, _player.Spouse,
+            $"…그건 그렇고, 당신 결혼 준비금으로 금화를 {Home.MarriageDowry}닢 준비해 주세요!");
+
+        _player.SetSavings(_player.Savings - Home.MarriageDowry);
+        _player.RemoveChild(daughter);
+    }
+
     // ── 후손을 남긴다 ────────────────────────────────────────────────────────
 
     /// <summary>아내가 있어야 눌린다 — 없으면 줄이 흐리다.</summary>
