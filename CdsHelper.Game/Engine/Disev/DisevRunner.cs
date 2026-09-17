@@ -628,6 +628,9 @@ public sealed class DisevRunner
                 var words = slots.Select((v, k) => v switch { 0 => TraitWords[k].Low, 2 => TraitWords[k].High, _ => null })
                                  .Where(w => w != null).ToArray();
                 if (words.Length > 0) TalkDialog.Say(_owner, null, "", "〈무당〉 " + string.Join("! ", words) + "!");
+                // 그 뒤로 아이·반려자·수명을 일러 주고 맺는다(0x0040A615~0x0040A758, Town.Oracle).
+                foreach (string said in Town.Oracle.Words(_game))
+                    TalkDialog.Say(_owner, null, "", said);
                 return null;
             }
 

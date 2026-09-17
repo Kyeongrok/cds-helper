@@ -35,8 +35,10 @@ namespace CdsHelper.Game.UI.Views;
 /// <param name="buildingCode">건물 코드(교회 3 · 조합 9 · 학자 저택 12~15).</param>
 /// <param name="culture">이 마을 문화권. 가르치는 사람 얼굴이 여기 따라 갈린다.</param>
 /// <param name="buildings">건물 표. 가르침 비트를 기술 이름으로 푼다.</param>
+/// <param name="cityId">이 마을 — 가르치는 사람이 쓰는 말(그 나라 말)을 여기서 찾는다.</param>
+/// <param name="patronFace">그 건물에 앉은 후원자 얼굴. 있으면 시설 사람 대신 이 얼굴로 말한다.</param>
 internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCode, int culture,
-                                   CityBuildingTable buildings)
+                                   CityBuildingTable buildings, int cityId, uint[]? patronFace = null)
 {
     private const int Church = 3, Guild = 9;
 
@@ -45,11 +47,12 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
     private readonly int _buildingCode = buildingCode;
     private readonly int _culture = culture;
     private readonly CityBuildingTable _buildings = buildings;
+    private readonly int _cityId = cityId;
 
     private Player Player => _game.Player;
 
-    /// <summary>가르치는 사람의 얼굴. 화자표가 건물과 문화권으로 정한다.</summary>
-    private uint[]? Face => _game.SpeakerFace(_buildingCode, _culture);
+    /// <summary>가르치는 사람의 얼굴. 후원자가 앉은 건물이면 그 후원자, 아니면 화자표가 건물과 문화권으로 정한다.</summary>
+    private uint[]? Face => patronFace ?? _game.SpeakerFace(_buildingCode, _culture);
 
     /// <summary>건물 갈래로 셋 중 하나를 고른다(<c>0x00490D90</c>).</summary>
     private T Pick<T>(T church, T guild, T scholar) =>
@@ -61,8 +64,28 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
     public void Greet() { }
 
     /// <summary>"수련" — 가르칠 것을 늘어놓고, 하나 배우면 끝나고, 종료면 배웅한다.</summary>
+    /// <remarks>
+    /// 차림을 열기 전에 두 문을 본다(<c>0x004914C8</c> · <c>0x004914D3</c>). 둘 다 얼굴 없는 알림이다.
+    /// <list type="number">
+    /// <item><c>0x00490DF0</c> — 기능도 언어도 더 못 배우면 「더 이상 기능을 습득할 수 없습니다」(<see cref="CanLearnMore"/>).</item>
+    /// <item><c>0x00490E60</c> — 가르치는 사람과 <b>통하는 말이 하나도 없으면</b> 「말이 통하지 않는 상대로부터 배울 수는 없습니다」.
+    ///       <c>0x00478050</c> 이 언어 열넷마다 min(내 것, 그 사람 것)의 가장 큰 값을 보고 0 이면 막는다.
+    ///       그 사람 말은 <c>0x00477EE0</c> — <b>마을 나라의 말</b>과 <b>그 건물이 가르치는 언어</b>가 3, 나머지 0 이다.</item>
+    /// </list>
+    /// </remarks>
     public void Teach(uint teachMask)
     {
+        if (!CanLearnMore(tongues: false) && !CanLearnMore(tongues: true))
+        {
+            NoticeDialog.Show(_view, "더 이상 기능을 습득할 수 없습니다");
+            return;
+        }
+        if (!SharesTongue(teachMask))
+        {
+            NoticeDialog.Show(_view, "말이 통하지 않는 상대로부터 배울 수는 없습니다");
+            return;
+        }
+
         var skills = _buildings.Teaches(teachMask);
         if (skills.Count == 0)
         {
@@ -83,9 +106,44 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
 
     private int LevelOf(string name) => IsTongue(name) ? Player.TongueOf(name) : Player.LevelOf(name);
 
+    /// <summary>
+    /// 기능(또는 언어)을 한 자리 더 배울 수 있는지(<c>0x004696E0</c> · <c>0x00469750</c>).
+    /// </summary>
+    /// <remarks>
+    /// 열셋(언어는 열넷) 자리마다 <b>1 이면 1 · 2 면 3 · 3 이면 6</b> 을 더한 값이
+    /// <b>(지력 x 3 + 3) / 5</b> 보다 작아야 한다. 지력 73 이면 44 까지다.
+    /// </remarks>
+    private bool CanLearnMore(bool tongues)
+    {
+        var names = tongues ? Skill.Languages : Skill.Names;
+        int weight = 0;
+        foreach (string name in names)
+            weight += (tongues ? Player.TongueOf(name) : Player.LevelOf(name)) switch { 1 => 1, 2 => 3, 3 => 6, _ => 0 };
+        return weight < (Player.AbilityOf(Ability.Mind) * 3 + 3) / 5;
+    }
+
+    /// <summary>가르치는 사람과 통하는 말이 하나라도 있는지(<c>0x00490E30</c>).</summary>
+    private bool SharesTongue(uint teachMask)
+    {
+        var spoken = new HashSet<string>(_buildings.Teaches(teachMask).Where(IsTongue));
+        int nation = _game.CityRows?.NationOf(_cityId) ?? -1;
+        if (_game.Nations?.Find(nation) is { } row && row.Language >= 0 && row.Language < Skill.Languages.Length)
+            spoken.Add(Skill.Languages[row.Language]);
+        // 나라 말을 모르는 판(표를 못 읽음)이면 막지 않는다 — 막으면 수련이 통째로 닫힌다.
+        if (spoken.Count == 0) return true;
+        return spoken.Any(name => Player.TongueOf(name) > 0);
+    }
+
     /// <summary>한 자리 배운다(<c>0x00491110</c>). 배웠으면 true — 목록이 닫힌다.</summary>
     private bool Learn(string name)
     {
+        // 더 배울 자리가 없으면 먼저 막는다(0x00491122 — 숙달 여부보다 앞이다).
+        if (!CanLearnMore(IsTongue(name)))
+        {
+            NoticeDialog.Show(_view, IsTongue(name) ? "더 이상 언어를 습득할 수 없습니다!" : "더 이상 기능을 습득할 수 없습니다!");
+            return false;
+        }
+
         int level = LevelOf(name);
         if (level >= Skill.MaxLevel)
         {
