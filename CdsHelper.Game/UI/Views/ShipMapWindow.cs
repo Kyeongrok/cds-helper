@@ -179,6 +179,30 @@ public sealed class ShipMapWindow : Window
     /// <summary>만난 사람 상자를 켜 두었는지.</summary>
     private bool _peopleWanted = GameSettings.ShowPeopleOverlay;
 
+    /// <summary>제독 컨디션(HP) 상자 — 지도 왼쪽 아래. 개발 창의 「컨디션」으로 켠다.</summary>
+    private Popup _vital = null!;
+
+    /// <summary>컨디션 상자를 켜 두었는지.</summary>
+    private bool _vitalWanted = GameSettings.ShowConditionOverlay;
+
+    /// <summary>미니맵 — 지도 오른쪽 아래. 개발 창의 「미니맵」으로 켠다.</summary>
+    private Popup _miniPopup = null!;
+    private readonly MiniMapView _mini = new();
+    private bool _miniWanted = GameSettings.ShowMiniMap;
+
+    /// <summary>컨디션 글 한 줄.</summary>
+    private readonly TextBlock _vitalText = new()
+    {
+        Foreground = Brushes.White,
+        FontFamily = new FontFamily("Consolas"),
+        FontSize = 12,
+    };
+
+    /// <summary>컨디션 막대 — 판 폭이 2000 이다.</summary>
+    private readonly Canvas _vitalBar = new() { Width = VitalBarWidth, Height = 10, Margin = new Thickness(0, 4, 0, 0) };
+
+    private const double VitalBarWidth = 220;
+
     /// <summary>좌표 상자를 켜 두었는지. 실제로 뜨는지는 <see cref="SyncOverlay"/> 가 정한다.</summary>
     private bool _overlayWanted = GameSettings.ShowCoordOverlay;
 
@@ -382,6 +406,40 @@ public sealed class ShipMapWindow : Window
         };
         surface.Children.Add(_people);
 
+        // 컨디션 상자는 지도 왼쪽 아래다. 높이가 늘 같으므로 아래 끝에서 그만큼 끌어올린다.
+        _vital = new Popup
+        {
+            PlacementTarget = input,
+            Placement = PlacementMode.Bottom,
+            HorizontalOffset = 10,
+            VerticalOffset = -56,
+            AllowsTransparency = true,
+            StaysOpen = true,
+            IsHitTestVisible = false,
+            Child = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0xB4, 0x10, 0x10, 0x10)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0xC8, 0x0B, 0x05, 0x05)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(10, 5, 10, 6),
+                IsHitTestVisible = false,
+                Child = new StackPanel { Children = { _vitalText, _vitalBar } },
+            },
+        };
+        surface.Children.Add(_vital);
+
+        // 미니맵은 지도 오른쪽 아래다. 자리는 띄울 때 지도 크기로 다시 잡는다(SyncOverlay).
+        _miniPopup = new Popup
+        {
+            PlacementTarget = input,
+            Placement = PlacementMode.Relative,
+            AllowsTransparency = true,
+            StaysOpen = true,
+            IsHitTestVisible = false,
+            Child = _mini,
+        };
+        surface.Children.Add(_miniPopup);
+
         // 게임 상단 띠. 어느 칸을 띄울지는 도시정보 창에서 켜고 끈다(띠를 오른쪽 단추로 누른다).
         // 이동 모드(정박·해상 이동) 칸은 뺐다 — 게임 띠에 없는 칸이다.
         var gameCells = new StackPanel { Orientation = Orientation.Horizontal };
@@ -578,6 +636,8 @@ public sealed class ShipMapWindow : Window
             _language.Text = CityLanguage();
             _rate.Text = CityRate();
             if (_overlay.IsOpen) FillOverlay(lat, lon);
+            if (_vital.IsOpen) FillVital();
+            if (_miniWanted) SyncMiniMap();
             SyncSeaMusic();
         });
         Loaded += OnLoaded;
@@ -923,6 +983,12 @@ public sealed class ShipMapWindow : Window
         bool people = _peopleWanted && room;
         if (people) FillPeople();
         _people.IsOpen = people;
+
+        bool vital = _vitalWanted && room;
+        if (vital) FillVital();
+        _vital.IsOpen = vital;
+
+        SyncMiniMap();
     }
 
     /// <summary>
@@ -961,6 +1027,59 @@ public sealed class ShipMapWindow : Window
                       + (i < right.Count ? right[i] : ""));
 
         _peopleText.Text = string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// 미니맵을 띄울 때인지 따지고 배 자리로 옮긴다 — 켜 두었고, 지도가 앞이고, <b>도시 밖</b>(항해·뭍 이동)일 때만.
+    /// </summary>
+    private void SyncMiniMap()
+    {
+        bool room = _miniWanted && _started && IsActive
+                    && WindowState != WindowState.Minimized
+                    && ReferenceEquals(_screen.Content, _mapRoot)
+                    && !_host.SeaBlocked
+                    && _host.ShipCell is not null;
+        if (room && !_mini.HasChart)
+        {
+            var all = new ExploredMap();
+            all.RevealAll();
+            if (_host.Chart(all, out int w, out int h) is { } chart) _mini.SetChart(chart, w, h);
+            else room = false;
+        }
+
+        if (room && _host.ShipCell is { } cell)
+        {
+            _mini.Update(_game.Discoveries?.Table, _game.Player, cell.CellX, cell.CellY);
+            _miniPopup.HorizontalOffset = Math.Max(0, _input.ActualWidth - MiniMapView.ViewW - 10);
+            _miniPopup.VerticalOffset = Math.Max(0, _input.ActualHeight - MiniMapView.ViewH - 10);
+        }
+        _miniPopup.IsOpen = room;
+    }
+
+    /// <summary>
+    /// 컨디션 상자를 채운다 — 「컨디션 1520 / 2000 · 괜찮음」과 막대. 막대에는 300·100 문턱을 금으로 긋는다
+    /// (<see cref="Vitality.Pale"/> · <see cref="Vitality.Faint"/>).
+    /// </summary>
+    private void FillVital()
+    {
+        int hp = _game.Player.Condition;
+        string state = hp <= 0 ? "쓰러짐" : hp < Vitality.Faint ? "위험" : hp < Vitality.Pale ? "창백" : "괜찮음";
+        _vitalText.Text = $"컨디션 {hp,4} / {Player.ConditionMax} · {state}";
+
+        var fill = hp < Vitality.Faint ? Color.FromRgb(0xD0, 0x40, 0x30)
+                 : hp < Vitality.Pale ? Color.FromRgb(0xE0, 0xA0, 0x30)
+                 : Color.FromRgb(0x50, 0xB0, 0x60);
+        double Scale(int v) => VitalBarWidth * Math.Clamp(v, 0, Player.ConditionMax) / Player.ConditionMax;
+
+        _vitalBar.Children.Clear();
+        _vitalBar.Children.Add(new System.Windows.Shapes.Rectangle { Width = VitalBarWidth, Height = 10, Fill = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF)) });
+        _vitalBar.Children.Add(new System.Windows.Shapes.Rectangle { Width = Scale(hp), Height = 10, Fill = new SolidColorBrush(fill) });
+        foreach (int mark in new[] { Vitality.Faint, Vitality.Pale })
+        {
+            var tick = new System.Windows.Shapes.Rectangle { Width = 1, Height = 10, Fill = Brushes.Gold };
+            Canvas.SetLeft(tick, Scale(mark));
+            _vitalBar.Children.Add(tick);
+        }
     }
 
     /// <summary>여급 칸의 너비(글자 칸). 한글 한 자를 두 칸으로 센다.</summary>
@@ -2118,6 +2237,20 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void ShowDevDialog() => DevDialog.Show(this, _game.Player, new DevDialog.Options
     {
+        MiniMapOn = () => _miniWanted,
+        SetMiniMap = on =>
+        {
+            _miniWanted = on;
+            GameSettings.ShowMiniMap = on;   // 다음에 켤 때도 그대로
+            SyncOverlay();
+        },
+        ConditionOn = () => _vitalWanted,
+        SetCondition = on =>
+        {
+            _vitalWanted = on;
+            GameSettings.ShowConditionOverlay = on;   // 다음에 켤 때도 그대로
+            SyncOverlay();
+        },
         PeopleOn = () => _peopleWanted,
         SetPeople = on =>
         {
