@@ -196,6 +196,49 @@ public static class Palace
     public static int ScoopedRewardFor(int amount, bool inTime) =>
         inTime ? To100(amount / 4) : 0;
 
+    /// <summary>
+    /// <b>모조품</b>(<see cref="DiscoveryTable.Record.IsCounterfeit"/>)을 보고했을 때 후원자가
+    /// 그 자리에서 알아보는지(<c>0x00412460</c>, <c>0x00412020</c> 안쪽).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   412464  0x004AD830(후원자)                  ; 후원자 표 그 줄
+    ///   412469  eax = 줄.+0x30                       ; 정적 친밀도 밑값(SponsorTable.Closeness)
+    ///   412472  eax = eax*2 - [0x5B60D0]              ; [0x5B60D0] = 능력치[4] = 운
+    ///   412479  eax = max(10, eax - 1)
+    ///   412483  들킴 = (eax &gt; roll(100))
+    /// </code>
+    /// 정적 친밀도 밑값(놀이 내내 안 바뀌는 표 값)이 높을수록, 내 운이 낮을수록 잘 들킨다.
+    /// <b>안 들키면 진짜를 가져온 것처럼 그대로 통과된다</b> — 사례·명성·친밀도가 다 오른다.
+    /// </remarks>
+    public static bool CounterfeitCaught(int sponsorTableCloseness, int luck, Random random) =>
+        random.Next(100) < Math.Max(CounterfeitCatchFloor, sponsorTableCloseness * 2 - luck - 1);
+
+    /// <summary>모조품 판정 문턱의 바닥값(<c>cmp eax,0xa; mov eax,0xa</c>).</summary>
+    public const int CounterfeitCatchFloor = 10;
+
+    /// <summary>
+    /// 들킨 모조품을 후원자가 <b>한 번 더 봐 주는지</b>(<c>0x004124C0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   4124c4  ecx = 후원자.+0x20                    ; 동적 친밀도(놀이 중에 쌓인 것, 0~100)
+    ///   4124cb  ecx += [0x5B60D0]                      ; + 운
+    ///   4124d1  ecx = min(97, ecx + 1)
+    ///   4124dc  봐줌 = (ecx &gt; roll(100))
+    /// </code>
+    /// 봐주면 "이것은 모조품이네, 기회를 한번 더 주겠다" 하고 물건은 안 주지만 크게
+    /// 나무라지도 않는다(<see cref="CounterfeitInfamyRoll"/> 만큼 악명이 오른다). 못 봐주면
+    /// "이런 모조품으로 나를 속이려 했나!" 하고 사이가 상한다(<see cref="Support.Local.Models.Player.Sulk"/>).
+    /// </remarks>
+    public static bool CounterfeitForgiven(int playerCloseness, int luck, Random random) =>
+        random.Next(100) < Math.Min(ForgiveCap, playerCloseness + luck + 1);
+
+    /// <summary>
+    /// 봐준 모조품이 올리는 악명 — <c>rand(10)+1</c>(<c>0x00412427</c>).
+    /// </summary>
+    public static int CounterfeitInfamyRoll(Random random) => random.Next(10) + 1;
+
     /// <summary>기한 안에 깰 때 굴리는 주사위 폭(<c>add $0x64,%eax</c>).</summary>
     public const int OnTimeRoll = 100;
 
