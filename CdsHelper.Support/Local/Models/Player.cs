@@ -2011,6 +2011,24 @@ public sealed class Player
         _personLines.TryGetValue(person, out var line) && (Date - line.Added).TotalDays < RumorDays
             ? line.Text : null;
 
+    private readonly Dictionary<int, int> _cityBuildings = [];
+
+    /// <summary>역사 대본(<c>22/26 10 [비트] 08 [도시]</c>)이 바꾼 건물 낱말 — 도시 레코드 <c>+0x1C</c>.</summary>
+    public IReadOnlyDictionary<int, int> CityBuildings => _cityBuildings;
+
+    /// <summary>바뀐 건물 낱말을 적는다.</summary>
+    public void SetCityBuildings(int cityId, int word)
+    {
+        if (cityId >= 0) _cityBuildings[cityId] = word & 0xFFFF;
+    }
+
+    /// <summary>세이브에서 바뀐 건물 낱말을 되돌린다.</summary>
+    public void RestoreCityBuildings(IReadOnlyDictionary<int, int>? words)
+    {
+        _cityBuildings.Clear();
+        foreach (var (city, word) in words ?? new Dictionary<int, int>()) SetCityBuildings(city, word);
+    }
+
     private readonly HashSet<int> _historyDone = [];
 
     /// <summary>
@@ -2030,6 +2048,7 @@ public sealed class Player
         if (HistoryMonth == 0)
         {
             _cityScales.Clear();
+            _cityBuildings.Clear();
             _rumors.Clear();
             _personLines.Clear();
         }

@@ -406,8 +406,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             if (seat.Person < 0)
             {
                 string label = seat.Art.Female ? "여" : "남";
+                // 무명 남자 손님은 자리를 지을 때 어디서 왔는지와 할 이야기가 정해진다(0x004A15C0).
+                var talk = seat.Art.Female ? null : SeatStranger();
                 art.Add(new(bgra, seat.Art.Width, seat.Art.Height, label,
-                            () => Alone(() => MeetStranger(seat.Art.Female))));
+                            () => Alone(() => MeetStranger(seat.Art.Female, talk))));
             }
             else
             {
@@ -540,7 +542,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// <summary>
     /// 이름 없는 손님을 눌렀을 때. 게임 문구를 그대로 옮겼다(<c>0x0054AC40</c>·<c>0x0054AB98</c>).
     /// </summary>
-    private void MeetStranger(bool female)
+    private void MeetStranger(bool female, StrangerSeat? seat)
     {
         // 여자 손님은 예전 그대로 — 한잔 사서 낯을 트는 자리다.
         if (female)
@@ -551,9 +553,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         }
 
         // 무명 손님은 <b>이야기만</b> 건넨다 — 고용도 결투도 없다(0x004A4E60).
-        var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
+        seat ??= SeatStranger();
+        var face = _game.Faces?.TryGetBgra(TavernRumors.StrangerFace(seat.Culture), female: false)
+                   ?? _game.SpeakerFace(BuildingCode, _cultureNo);
         var dice = _game.Random;
-        _game.CatchUpMonths();
 
         // 손님 말은 그 도시 나라의 말이다(0x004A1530). 제독·부관(자리 0·3) 누구도 모르면 못 듣는다.
         var rows = _game.CityRows;
@@ -575,22 +578,37 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return;
         }
 
-        // 반쯤은 그 나라 수도에서 온 손님이다(0x004A14F0) — 이야기 갈래를 수도 문화권으로 고른다.
-        int culture = _cultureNo;
-        if (dice.Next(2) != 0 && _game.Nations?.Find(nationId) is { Capital: >= 0 } nation)
-            culture = rows?.CultureOf(nation.Capital) ?? culture;
-
-        (string, int)? woman = _game.Barmaids?.Standing(_cityId, _player.Date.Year) is { } her
-                               && her.Id != _player.SpouseId
-            ? (her.Name, her.Personality) : null;
-        string? line = StrangerTalk.Pick(culture, _cultureNo, _player.RumorsOf(_cityId), woman,
-                                         () => TavernRumors.Of(culture, dice), dice);
+        string? line = seat.Line;
         if (line == null) return;
 
         // 제독 수준으로 뭉개 들려주고, 부관이 더 잘하면 부관이 옮긴다(0x004690A0).
         ConfirmDialog.Tell(_view, StrangerTalk.Garble(line, mine, dice), face: face);
         if (relayer.Length > 0 && _player.MateInfoOf(relayer) is { } who)
             TalkDialog.Say(_view, MateFace(who), "", StrangerTalk.Relay(StrangerTalk.Garble(line, best, dice), false));
+    }
+
+    /// <summary>무명 손님 자리 — 온 곳의 문화권(얼굴이 여기서 갈린다)과 할 이야기.</summary>
+    private sealed record StrangerSeat(int Culture, string? Line);
+
+    /// <summary>
+    /// 무명 손님 자리를 짓는다(<c>0x004A15C0</c>) — 반쯤은 그 나라 <b>수도</b>에서 온 손님이라(<c>0x004A14F0</c>)
+    /// 얼굴과 이야기 갈래가 수도 문화권을 따르고, 이야기는 이때 하나로 정해진다(<c>0x004A43F0</c>).
+    /// </summary>
+    private StrangerSeat SeatStranger()
+    {
+        var dice = _game.Random;
+        _game.CatchUpMonths();
+        int culture = _cultureNo;
+        int nationId = _game.CityRows?.NationOf(_cityId) ?? -1;
+        if (dice.Next(2) != 0 && _game.Nations?.Find(nationId) is { Capital: >= 0 } nation)
+            culture = _game.CityRows?.CultureOf(nation.Capital) ?? culture;
+
+        (string, int)? woman = _game.Barmaids?.Standing(_cityId, _player.Date.Year) is { } her
+                               && her.Id != _player.SpouseId
+            ? (her.Name, her.Personality) : null;
+        string? line = StrangerTalk.Pick(culture, _cultureNo, _player.RumorsOf(_cityId), woman,
+                                         () => TavernRumors.Of(culture, dice), dice);
+        return new StrangerSeat(culture, line);
     }
 
     /// <summary>
