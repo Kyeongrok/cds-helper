@@ -176,7 +176,8 @@ public static class GameSave
         Dictionary<int, int>? CityRates = null, int? RatesMonth = null,
         Dictionary<int, int>? CityStates = null, int? HistoryMonth = null,
         Dictionary<int, int>? HistoryNations = null, List<int>? HistoryDone = null,
-        Dictionary<int, int>? AnnouncedYears = null, Dictionary<int, int>? CityScales = null,
+        Dictionary<int, int>? AnnouncedYears = null,
+        Dictionary<int, DateTime>? AnnouncedOn = null, Dictionary<int, DateTime>? FoundOn = null, Dictionary<int, int>? CityScales = null,
         List<Support.Local.Models.Player.Rumor>? Rumors = null,
         List<Support.Local.Models.Player.Rumor>? PersonLines = null,
         Dictionary<int, int>? CityBuildings = null, Dictionary<int, int>? NationStatus = null);
@@ -259,7 +260,10 @@ public static class GameSave
                             HistoryNations: player.HistoryNations.ToDictionary(e => e.Key, e => e.Value),
                             HistoryDone: [.. player.HistoryDone],
                             // 발표한 해 — 향신료·신대륙 기호품 값이 여기서부터 햇수를 센다.
-                            AnnouncedYears: player.AnnouncedYears.ToDictionary(e => e.Key, e => e.Value),
+                            AnnouncedYears: player.AnnouncedOn.ToDictionary(e => e.Key, e => e.Value.Year),
+                            // 연표가 쓰는 날짜. 이 칸 앞의 세이브는 해만 있어 1월로 연다.
+                            AnnouncedOn: player.AnnouncedOn.ToDictionary(e => e.Key, e => e.Value),
+                            FoundOn: player.FoundOn.ToDictionary(e => e.Key, e => e.Value),
                             CityScales: player.CityScales.ToDictionary(e => e.Key, e => e.Value),
                             Rumors: [.. player.Rumors],
                             PersonLines: [.. player.PersonLines],

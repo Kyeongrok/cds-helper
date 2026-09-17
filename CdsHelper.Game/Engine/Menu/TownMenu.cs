@@ -114,6 +114,7 @@ internal static class TownMenu
 
             // 백과사전 — 갈래마다 한 권씩, 발견한 것이 한 쪽씩 쌓인다.
             TownWork.Encyclopedia => screen.ShowEncyclopedia,
+            TownWork.Chronicle => screen.ShowChronicle,
             TownWork.Read when screen.CanRead => screen.ReadBooks,
 
             _ => null,

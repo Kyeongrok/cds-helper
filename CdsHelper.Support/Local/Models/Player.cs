@@ -1174,8 +1174,28 @@ public sealed class Player
     public bool Discover(int discovery)
     {
         if (discovery < 0 || !_found.Add(discovery)) return false;
+        _foundOn[discovery] = Date;
         Contract?.Add(discovery);
         return true;
+    }
+
+    private readonly Dictionary<int, DateTime> _foundOn = [];
+
+    /// <summary>
+    /// 발견한 날 — 발견물 인스턴스 칸 0 의 <c>+0x28</c>(해) · <c>+0x2C</c>(달)이다. 연표가 이 날로 줄을 세운다.
+    /// </summary>
+    public IReadOnlyDictionary<int, DateTime> FoundOn => _foundOn;
+
+    /// <summary>그것을 발견한 날. 안 찾았거나 날을 안 적던 옛 세이브면 null.</summary>
+    public DateTime? FoundDateOf(int discovery) =>
+        _foundOn.TryGetValue(discovery, out var when) ? when : null;
+
+    /// <summary>세이브에서 발견한 날을 되돌린다.</summary>
+    public void RestoreFoundDates(IReadOnlyDictionary<int, DateTime>? dates)
+    {
+        _foundOn.Clear();
+        foreach (var (id, when) in dates ?? new Dictionary<int, DateTime>())
+            if (_found.Contains(id)) _foundOn[id] = when;
     }
 
     /// <summary>
@@ -1349,28 +1369,34 @@ public sealed class Player
     public bool Announce(int discovery)
     {
         if (!HasFound(discovery) || !_announced.Add(discovery)) return false;
-        _announcedYear[discovery] = Date.Year;
+        _announcedOn[discovery] = Date;
         return true;
     }
 
-    private readonly Dictionary<int, int> _announcedYear = [];
+    private readonly Dictionary<int, DateTime> _announcedOn = [];
 
     /// <summary>
-    /// 발표한 해 — 발견물 인스턴스 칸 2 의 <c>+0x28</c>. 향신료·신대륙 기호품 값이 이 해부터 지난 햇수로 갈린다.
+    /// 보고·발표한 날 — 발견물 인스턴스 칸 2 의 <c>+0x28</c>(해) · <c>+0x2C</c>(달). 향신료·신대륙 기호품 값이
+    /// 이 해부터 지난 햇수로 갈리고, 연표가 이 날로 줄을 세운다.
     /// </summary>
-    public IReadOnlyDictionary<int, int> AnnouncedYears => _announcedYear;
+    public IReadOnlyDictionary<int, DateTime> AnnouncedOn => _announcedOn;
 
-    /// <summary>그것을 발표한 해. 발표 안 했으면 null. 해를 안 적던 옛 세이브는 불러온 해로 본다.</summary>
-    public int? AnnouncedYearOf(int discovery) =>
-        !_announced.Contains(discovery) ? null
-        : _announcedYear.TryGetValue(discovery, out int year) ? year : null;
+    /// <summary>그것을 발표한 해. 발표 안 했으면 null.</summary>
+    public int? AnnouncedYearOf(int discovery) => AnnouncedDateOf(discovery)?.Year;
 
-    /// <summary>세이브에서 발표한 해를 되돌린다. 없는 것은 지금 해로 채운다.</summary>
-    public void RestoreAnnouncedYears(IReadOnlyDictionary<int, int>? years)
+    /// <summary>그것을 발표한 날. 발표 안 했으면 null.</summary>
+    public DateTime? AnnouncedDateOf(int discovery) =>
+        _announced.Contains(discovery) && _announcedOn.TryGetValue(discovery, out var when) ? when : null;
+
+    /// <summary>세이브에서 발표한 날을 되돌린다. 해만 적힌 옛 세이브는 그 해 1월로, 그것도 없으면 지금 날로 본다.</summary>
+    public void RestoreAnnouncedDates(IReadOnlyDictionary<int, DateTime>? dates,
+                                      IReadOnlyDictionary<int, int>? years = null)
     {
-        _announcedYear.Clear();
+        _announcedOn.Clear();
         foreach (int id in _announced)
-            _announcedYear[id] = years != null && years.TryGetValue(id, out int y) ? y : Date.Year;
+            _announcedOn[id] = dates != null && dates.TryGetValue(id, out var when) ? when
+                : years != null && years.TryGetValue(id, out int y) ? new DateTime(y, 1, 1)
+                : Date;
     }
 
     /// <summary>세이브를 되돌릴 때 계약을 그대로 박는다. 선금을 다시 주지 않는다.</summary>
