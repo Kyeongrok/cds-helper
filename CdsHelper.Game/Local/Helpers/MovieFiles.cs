@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -32,6 +32,39 @@ public static class MovieFiles
 
     /// <summary>발견물 동영상 줄기. <c>AVI\I{번호:00}_0000.AVI</c> 다.</summary>
     public static string DiscoveryStem(int movie) => $"I{movie:00}_0000";
+
+    /// <summary>원본 발견물 동영상 수(<c>I00</c>~<c>I69</c>). 새로 더하는 것은 이 뒤 번호를 받는다.</summary>
+    public const int OriginalDiscoveryMovies = 70;
+
+    /// <summary>올려 둔 발견물 동영상 번호들(<c>I{번호}_0000.*</c>). 원본 자리를 갈아 끼운 것도 든다.</summary>
+    public static SortedSet<int> UploadedDiscoveryNumbers()
+    {
+        var numbers = new SortedSet<int>();
+        foreach (var dir in AssetDirectories())
+        {
+            if (!Directory.Exists(dir)) continue;
+            foreach (var path in Directory.EnumerateFiles(dir, "I*_0000.*"))
+            {
+                var name = Path.GetFileNameWithoutExtension(path);
+                if (!Extensions.Contains(Path.GetExtension(path).ToLowerInvariant())) continue;
+                if (int.TryParse(name[1..^5], out int n) && n >= 0) numbers.Add(n);
+            }
+        }
+        return numbers;
+    }
+
+    /// <summary>
+    /// 새 동영상이 받을 번호 — <see cref="OriginalDiscoveryMovies"/> 부터, 올린 것도 없고 <paramref name="taken"/>
+    /// (발견물 표가 이미 쓰는 번호)에도 없는 첫 번호.
+    /// </summary>
+    public static int NextFreeDiscoveryNumber(IEnumerable<int> taken)
+    {
+        var used = UploadedDiscoveryNumbers();
+        used.UnionWith(taken);
+        int n = OriginalDiscoveryMovies;
+        while (used.Contains(n)) n++;
+        return n;
+    }
 
     /// <summary>
     /// 선체 번호 차례(<c>0x004FC1E0</c>). 동영상 <c>S00</c>~<c>S07</c> 이 이 차례와 짝이다.

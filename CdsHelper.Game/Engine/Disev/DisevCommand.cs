@@ -34,7 +34,7 @@ public enum DisevCall
 
     // ── 상태 변경 ─────────────────────────────────────────────
     AddStat, SubStat, SetStat, SetStat22, HalveTroops, AddGold, SubGold, AddAffinity, SubAffinity,
-    MeetPerson, HireInterpreter, ChangeCityNation, OccupyCity, ReleaseCity, RemoveCity, RemoveFacility,
+    MeetPerson, MeetSponsor, HireInterpreter, SetAide, ChangeCityNation, OccupyCity, ReleaseCity, RemoveCity, RemoveFacility,
     MoveEventTarget, DestroyNation,
 
     // ── 판정·전투·미니게임·시간 ───────────────────────────────
@@ -42,13 +42,13 @@ public enum DisevCall
     Wait, AdvanceDays,
 
     // ── 끝 ───────────────────────────────────────────────────
-    ClearResult, GameOver, EndDone, EndFailed, EndUnhandled, NextStep, NextStepFF, EndEventCompletely, End,
+    ClearResult, GameOver, EndDone, EndFailed, EndUnhandled, NextStep, NextStepFF, AdvanceStep, CloseStory, EndEventCompletely, End,
 
     // ── 조건식 ───────────────────────────────────────────────
     Result, ResultFalse, LastConditionFalse, LastCondition, NoAide, HasAide, ChoiceIs, ChoiceIsNot,
     HintActive, HintInactive, HasItem, LacksItem, Discovered, NotDiscovered, DiscoveryDone, DiscoveryNotDone,
     YearAtLeast, YearBefore, YearAtMost, YearAfter, YearIs, YearBetween, YearOutside, YearMonthIs,
-    InNation, InCity, NotInCity, InBuilding, InCulture, PersonUnmet, PersonMet, SponsorActive, SponsorInactive,
+    InNation, InCity, NotInCity, InBuilding, NotInBuilding, BuildingCommand, SponsorVisitEnded, HasFleet, InCulture, PersonUnmet, PersonMet, SponsorActive, SponsorInactive,
     CityNationCheck, Story0, NotStory0, Story1, NotStory1, Unknown0015, NoContract, Or, RandomChance,
     GreaterThan, GreaterOrEqual, LessThan, LessOrEqual, EqualTo, NotEqualTo,
 }
@@ -111,7 +111,12 @@ public static class DisevCalls
         S(DisevCall.BuildSpecialBuilding, "26 10 u16 08 u16", "Building", "City"),
         S(DisevCall.DestroyNation, "22 00 u16", "Nation"),
         S(DisevCall.MeetPerson, "38 0D u16", "Person"),
+        // 38 12 [후원자] — 그 후원자의 「첫 알현 전」 표(런타임 +0x28 비트 15)를 지운다(0x0040AACA → 0x004ADAC0(15)).
+        // 그러면 문간 명성 관문(0x0044E740)이 그 후원자에게는 안 걸린다. 초심자 이야기가 파브리스·에란쪼를 이것으로 연다.
+        S(DisevCall.MeetSponsor, "38 12 u16", "Sponsor"),
         S(DisevCall.HireInterpreter, "3D 0D u16", "Person"),
+        // 40 0D [인물] — 그 인물을 부관 자리(0)에 앉힌다(0x0040B027 → 0x0047CC30(0, 인물)). 초심자의 롯꼬·후안이 이것으로 온다.
+        S(DisevCall.SetAide, "40 0D u16", "Person"),
         S(DisevCall.OccupyCity, "23 08 u16", "City"),
         S(DisevCall.ReleaseCity, "25 08 u16", "City"),
         S(DisevCall.RemoveCity, "22 08 u16", "City"),
@@ -154,6 +159,10 @@ public static class DisevCalls
         S(DisevCall.NextStep, "06 4D"),
         S(DisevCall.EndEventCompletely, "04 4D"),
         S(DisevCall.NextStepFF, "06 FF"),
+        // 06 한 바이트 — 이야기 단계를 하나 올리고 대본은 이어 간다(0x00408B2F: 맥락 +4 = 1, +0x10 = 1).
+        S(DisevCall.AdvanceStep, "06"),
+        // 04 한 바이트 — 이야기 책을 닫는다(0x004089EC: 맥락 +4 = 2 → 진행 카운터 −1). 대본은 이어 간다.
+        S(DisevCall.CloseStory, "04"),
         S(DisevCall.End, "FF"),
     ];
 
@@ -184,6 +193,15 @@ public static class DisevCalls
         C(DisevCall.InNation, null, "17 00 u16", "Nation"),
         C(DisevCall.InCity, DisevCall.NotInCity, "17 08 u16", "City"),
         C(DisevCall.InBuilding, null, "17 10 u16", "Building"),
+        // 41 08 · 41 10 — 그 도시·건물이 <b>아니면</b> 참(0x00407C63). 건물은 건물에 들어선 사건일 때만 본다.
+        C(DisevCall.NotInCity, DisevCall.InCity, "41 08 u16", "City"),
+        C(DisevCall.NotInBuilding, DisevCall.InBuilding, "41 10 u16", "Building"),
+        // 42 10 [건물] 21 [명령] — 건물 차림표에서 그 명령을 고른 사건(맥락 갈래 4, 0x004A248C)일 때 참(0x00407D31).
+        C(DisevCall.BuildingCommand, null, "42 10 u16 21 u16", "Building", "Command"),
+        // 65 — 후원자 건물을 나서는 사건(맥락 갈래 5, 0x0044E72F)일 때 참(0x00407E7C).
+        C(DisevCall.SponsorVisitEnded, null, "65"),
+        // 59 — 함대에 배가 한 척이라도 있으면 참(0x00407DA9 → 0x00473CD0 이 여덟 자리를 훑는다).
+        C(DisevCall.HasFleet, null, "59"),
         C(DisevCall.InCulture, null, "17 19 u16", "Culture"),
         C(DisevCall.PersonUnmet, DisevCall.PersonMet, "37 0D u16", "Person"),
         C(DisevCall.SponsorActive, DisevCall.SponsorInactive, "37 12 u16", "Sponsor"),

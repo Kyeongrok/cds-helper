@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -26,7 +26,10 @@ namespace CdsHelper.Main.UI.Views;
 public sealed class MovieBankDialog : Window
 {
     /// <summary>원본 발견물 동영상 수(<c>I00</c>~<c>I69</c>).</summary>
-    private const int DiscoveryMovies = 70;
+    private const int DiscoveryMovies = MovieFiles.OriginalDiscoveryMovies;
+
+    /// <summary>발견물 표가 쓰는 동영상 번호 — 새 번호를 줄 때 피한다.</summary>
+    private readonly HashSet<int> _usedByTable = [];
 
     private readonly DataGrid _grid;
     private readonly TextBlock _status;
@@ -104,12 +107,13 @@ public sealed class MovieBankDialog : Window
         bar.Children.Add(MakeButton("▶ 재생", () => PlaySelected(original: false)));
         bar.Children.Add(MakeButton("▶ 원본 재생", () => PlaySelected(original: true)));
         bar.Children.Add(MakeButton("■ 멈춤", ClosePreview));
+        bar.Children.Add(MakeButton("새 동영상 추가…", AddNew));
         bar.Children.Add(MakeButton("올리기…", PickAndUpload));
         bar.Children.Add(MakeButton("올린 것 지우기", RemoveSelected));
         bar.Children.Add(MakeButton("폴더 열기", OpenFolder));
         bar.Children.Add(new TextBlock
         {
-            Text = "줄을 두 번 찍으면 틉니다 · 파일을 창에 끌어다 놓으면 고른 줄로 올라갑니다",
+            Text = "두 번 찍으면 틉니다 · 끌어다 놓으면 고른 줄로(고른 줄이 없으면 새 번호로) 올라갑니다",
             Foreground = Brushes.Gray,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
@@ -180,9 +184,15 @@ public sealed class MovieBankDialog : Window
                 }
 
         var rows = new List<Row>();
-        foreach (int n in Enumerable.Range(0, DiscoveryMovies).Union(users.Keys).OrderBy(n => n))
-            rows.Add(MakeRow("발견물", MovieFiles.DiscoveryStem(n),
-                             users.TryGetValue(n, out var names) ? string.Join(", ", names) : ""));
+        _usedByTable.Clear();
+        _usedByTable.UnionWith(users.Keys);
+
+        // 새로 더한 번호(70 이상)는 발견물 표에 없어도 올린 파일이 있으면 줄로 낸다 — 대본의 「동영상 재생」이 부른다.
+        foreach (int n in Enumerable.Range(0, DiscoveryMovies).Union(users.Keys)
+                     .Union(MovieFiles.UploadedDiscoveryNumbers()).OrderBy(n => n))
+            rows.Add(MakeRow(n < DiscoveryMovies ? "발견물" : "추가", MovieFiles.DiscoveryStem(n),
+                             users.TryGetValue(n, out var names) ? string.Join(", ", names)
+                             : n >= DiscoveryMovies ? $"대본 「동영상 재생 {n}」" : ""));
 
         var hulls = MovieFiles.Hulls;
         for (int h = 0; h < hulls.Count; h++)
@@ -253,11 +263,44 @@ public sealed class MovieBankDialog : Window
         if (dlg.ShowDialog(this) == true) Upload(dlg.FileName);
     }
 
+    /// <summary>
+    /// 새 동영상을 <b>빈 번호</b>(70 부터)로 더한다. 발견 이벤트 편집기의 「동영상 넣기」가 그 번호로 부른다.
+    /// </summary>
+    private void AddNew()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "새로 더할 동영상",
+            Filter = MovieFiles.OpenFilter,
+        };
+        if (dlg.ShowDialog(this) == true) AddNew(dlg.FileName);
+    }
+
+    private void AddNew(string source)
+    {
+        ClosePreview();
+        try
+        {
+            int n = MovieFiles.NextFreeDiscoveryNumber(_usedByTable);
+            string stem = MovieFiles.DiscoveryStem(n);
+            var target = MovieFiles.Upload(source, stem);
+            Refill();
+            _grid.SelectedItem = (_grid.ItemsSource as List<Row>)?.FirstOrDefault(r => r.Stem == stem);
+            _grid.ScrollIntoView(_grid.SelectedItem);
+            _status.Text = $"{Path.GetFileName(source)} → 동영상 {n} ({target}) — " +
+                           "발견 이벤트 편집기에서 「동영상 넣기」로 이 번호를 고르면 대본 사이에 틉니다";
+        }
+        catch (Exception ex)
+        {
+            _status.Text = $"더하지 못했습니다 — {ex.Message}";
+        }
+    }
+
     private void Upload(string source)
     {
         if (Selected is not { } row)
         {
-            _status.Text = "먼저 갈아 끼울 줄을 고르세요";
+            AddNew(source);
             return;
         }
 

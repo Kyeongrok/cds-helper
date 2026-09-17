@@ -66,7 +66,9 @@ internal static class TownMenu
 
             // 배가 한 척도 없으면 줄 자체가 흐리다(출항·보급·선원편성 셋이 그렇다).
             TownWork.Sail when screen.HasShips => screen.Sail,
-            TownWork.Supply when screen.HasShips => screen.Supply,
+            // 보급은 선원도 있어야 켜진다 — 항구 차림표 표 0x00567CD8 의 보급 줄이 0x00476CE0
+            // (출항 조건 && 선원 수 0x0040E360 > 0)을 받는다. 선원이 없으면 실을 양도 셈이 안 선다.
+            TownWork.Supply when screen.HasShips && screen.HasCrew => screen.Supply,
             TownWork.CrewForm when screen.HasShips => screen.OpenCrewForm,
 
             // 성문 — 마을을 나서 뭍을 걷는다. 배는 항구에 그대로 둔다.

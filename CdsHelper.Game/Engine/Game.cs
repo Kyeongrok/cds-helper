@@ -255,6 +255,10 @@ public sealed class Game
         Once(ref _templates, ref _templatesTried, PersonTemplate.Open,
              () => PersonTemplate.LastError, "인물 밑표");
 
+    /// <summary>대본 화자 이름(일본어) → 후원자·인물 번호(CDS_95.EXE).</summary>
+    public Table.SpeakerNameTable? SpeakerNames =>
+        Once(ref _speakerNames, ref _speakerNamesTried, Table.SpeakerNameTable.Open, () => "", "화자 이름표");
+
     /// <summary>WORLD.CDS 칸. 지도 창 없이 뭍인지 볼 때 쓴다 — 인물 이동의 끝점을 잡는다.</summary>
     public WorldCells? Cells =>
         Once(ref _cells, ref _cellsTried, WorldCells.Open, () => WorldCells.LastError, "WORLD.CDS 칸");
@@ -552,6 +556,8 @@ public sealed class Game
     private bool _eventAnimsTried;
     private TavernGuests? _guests;
     private PersonTemplate? _templates;
+    private Table.SpeakerNameTable? _speakerNames;
+    private bool _speakerNamesTried;
     private bool _templatesTried;
     private WorldCells? _cells;
     private bool _cellsTried;

@@ -207,7 +207,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         //
         // 아직 안 하는 것 — 게임에는 집사에게 뇌물을 주어 이 관문을 뚫는 길이 있다
         // ("매수한다" / "포기하고 돌아간다" → "집사에게 뇌물을 주겠습니다. 좋습니까?").
-        if (_player.Fame < patron.Fame)
+        //
+        // <b>식이 문간(0x0044E740)과 다르다.</b> 0x004AE260 은 후원자 안목(표 +0x20) x 100 을 명성 + 1500 과
+        // 견준다 — 문간은 안목 x 70 을 명성 그대로와 견준다(patrons.json 의 fame 이 그 값이다). 예전에는 문간 식을
+        // 여기에도 써서, 명성 1500 인 초심자 라몬이 안목 24 인 파브리스(2400 ≤ 3000)에게 막혔다.
+        int eye = _game.Sponsors?.FindByName(patron.Name)?.Eye ?? patron.Fame / 70;
+        if (eye * 100 > _player.Fame + 1500)
         {
             // 문 앞에서 돌려보낼 때 소리가 한 번 난다(닻 소리와 같은 파트다).
             _game.Sfx?.Play(SoundBank.TurnedAwayPart);
@@ -396,9 +401,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         Say($"모험의 도움을 위해서 배 {ships}척을 항구에 준비시켜 놓겠네. "
           + "마음대로 사용해도 상관없네.");
 
-        // 배가 한 척이라도 있으면 빌릴지 묻는다. 한 척도 없으면 묻지 않고 그냥 준다
-        // (0x00410718 이 0x00410800 으로 가려, 0 이면 물음창을 건너뛴다).
-        if ((_player.Ships.Count > 0 || _player.DockedAt(_cityId).Count > 0)
+        // <b>내 배</b>가 한 척이라도 있으면 빌릴지 묻는다. 한 척도 없으면 묻지 않고 그냥 준다
+        // (0x00410718 이 0x00410800 으로 가려, 0 이면 물음창을 건너뛴다). 그 셈(0x0040E210 · 0x0040E320)은
+        // 제독 것인 배만 센다 — <b>빌린 배는 안 친다</b>. 그래서 배를 안 산 초심자는 늘 묻지 않고 받는다.
+        if ((_player.Ships.Any(s => !s.Lent) || _player.DockedAt(_cityId).Any(s => !s.Lent))
             && !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?"))
         {
             Say("그런가. 그렇다면, 좋을 대로 하게.");

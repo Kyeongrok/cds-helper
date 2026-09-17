@@ -97,6 +97,23 @@ public sealed class DisevEditorDialog : GameWindow
     private readonly Button _applyOp = Bar("명령 적용");
     private readonly Button _wide = Bar("전각으로");
 
+    /// <summary>더할 명령 갈래 — 지금은 동영상 재생 · DSTILL 그림 둘이다(<see cref="AddKinds"/>).</summary>
+    private readonly ComboBox _addKind = new() { Width = 150, Margin = new Thickness(6, 0, 4, 0), VerticalContentAlignment = VerticalAlignment.Center };
+
+    /// <summary>더할 명령의 값 — 갈래에 따라 동영상 번호 · DSTILL 그림 번호를 고른다.</summary>
+    private readonly ComboBox _addValue = new() { Width = 260, Margin = new Thickness(0, 0, 4, 0), VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly Button _addAbove = Bar("위로 추가");
+    private readonly Button _addBelow = Bar("아래로 추가");
+    private readonly Button _removeOp = Bar("명령 빼기");
+    private readonly TextBlock _addTarget = new() { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(8, 0, 0, 0) };
+
+    /// <summary>순서도에서 더할 수 있는 명령 갈래.</summary>
+    private static readonly (DisevCall Call, string Text)[] AddKinds =
+    [
+        (DisevCall.PlayVideo, "동영상 재생"),
+        (DisevCall.ShowDStill, "DSTILL 그림 표시"),
+    ];
+
     private readonly Button _open = Bar("게임 폴더 고르기");
     private readonly Button _revert = Bar("이 발견물만 원본으로");
     private readonly Button _revertAll = Bar("원본에서 다시 뜨기");
@@ -137,6 +154,14 @@ public sealed class DisevEditorDialog : GameWindow
 
         _open.Click += (_, _) => Pick();
         _applyOp.Click += (_, _) => ApplyOp();
+        _addAbove.Click += (_, _) => EditLines(below: false, remove: false);
+        _addBelow.Click += (_, _) => EditLines(below: true, remove: false);
+        _removeOp.Click += (_, _) => EditLines(below: false, remove: true);
+        foreach (var (_, text) in AddKinds) _addKind.Items.Add(text);
+        _addKind.SelectedIndex = 0;
+        _addKind.SelectionChanged += (_, _) => FillAddValues();
+        // 펼칠 때마다 다시 채운다 — 창을 띄운 채로 에셋-동영상에서 새로 올려도 바로 보인다.
+        _addValue.DropDownOpened += (_, _) => FillAddValues();
         _wide.Click += (_, _) => { if (_textBox != null) _textBox.Text = DisevForm.ToWide(_textBox.Text); };
         _revert.Click += (_, _) => RevertOne();
         _revertAll.Click += (_, _) => RevertAll();
@@ -149,7 +174,7 @@ public sealed class DisevEditorDialog : GameWindow
         _category.SelectionChanged += (_, _) => RefreshDiscoveries();
         _book_.SelectionChanged += (_, _) => { if (_gameDir != null) Load(_gameDir); };
         _chunks.SelectionChanged += (_, _) => ShowChunk();
-        _ops.SelectionChanged += (_, _) => BuildForm();
+        _ops.SelectionChanged += (_, _) => { BuildForm(); ShowAddTarget(); };
 
         var bar = new StackPanel
         {
@@ -165,12 +190,24 @@ public sealed class DisevEditorDialog : GameWindow
             Children = { _applyOp, _wide },
         };
 
+        // 순서도·표에서 명령 하나를 고르면 그 위나 아래에 새 명령을 넣는다.
+        var addBar = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(4, 0, 10, 6),
+            Children =
+            {
+                new TextBlock { Text = "명령 추가", VerticalAlignment = VerticalAlignment.Center },
+                _addKind, _addValue, _addAbove, _addBelow, _removeOp, _addTarget,
+            },
+        };
+
         var formHost = new Border
         {
             BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
             BorderThickness = new Thickness(0, 1, 0, 1),
             Margin = new Thickness(0, 2, 0, 2),
-            Child = new StackPanel { Children = { _form, formBar } },
+            Child = new StackPanel { Children = { _form, formBar, addBar } },
         };
 
         var right = new DockPanel();
@@ -308,6 +345,7 @@ public sealed class DisevEditorDialog : GameWindow
     {
         _gameDir = dir;
         _eventStills = null;
+        _stills = null;
         _itemDescriptions = null;
         _itemArt = null;
         string cache = DisevBook.Books[Math.Clamp(_book_.SelectedIndex, 0, DisevBook.Books.Length - 1)].Cache;
@@ -328,6 +366,8 @@ public sealed class DisevEditorDialog : GameWindow
         _cities = CityTable.Open();
 
         RefreshDiscoveries();
+        FillAddValues();
+        ShowAddTarget();
         if (_discoveries.Items.Count > 0) _discoveries.SelectedIndex = 0;
 
         string missing = _names == null ? "  (CDS_95.EXE 를 못 읽어 이름 없이 번호로만 보입니다)" : "";
@@ -495,6 +535,7 @@ public sealed class DisevEditorDialog : GameWindow
 
         if (op.Kind == "EVSTILL 이미지 표시") return ("그림", () => ShowEventStill(slot));
         if (op.Kind == "음원 재생") return ("▶", () => PlaySound(slot));
+        if (op.Kind == "AVI 재생") return ("▶", () => PlayMovie(slot));
         if (op.Kind == "아이템 획득") return ("보기", () => ShowItem(slot));
         return null;
     }
@@ -526,6 +567,59 @@ public sealed class DisevEditorDialog : GameWindow
     /// 음원 ID 로 소리를 낸다 — 게임 러너(<see cref="DisevRunner"/>)와 같은 가름이다.
     /// </summary>
     /// <remarks><c>0~27</c> 은 CD 트랙(배경음악), <c>28~77</c> 은 WAVES.CDS 효과음 파트(ID−28)다.</remarks>
+    /// <summary>동영상 재생 명령의 번호를 튼다 — 올린 것(asset/movie)이 먼저, 없으면 게임 폴더 원본이다.</summary>
+    private void PlayMovie(int movie)
+    {
+        if (DiscoveryDialog.MovieOf(_gameDir, movie) is not { } path)
+        {
+            _status.Text = $"동영상 {movie}({MovieFiles.DiscoveryStem(movie)}) 파일이 없습니다 — 에셋-동영상에서 올리세요.";
+            return;
+        }
+        _status.Text = $"동영상 {movie} — {Path.GetFileName(path)} 를 틉니다.";
+        ShowMoviePreview(movie, path);
+    }
+
+    /// <summary>띄워 둔 미리 보기 창. 새로 틀면 닫고 다시 연다.</summary>
+    private Window? _moviePreview;
+
+    /// <summary>
+    /// 편집기 가운데에 <b>작은 미리 보기 창</b>으로 튼다 — 게임 재생(<see cref="MoviePlayer"/>)처럼 화면을 덮지 않는다.
+    /// 편집기를 막지 않고, 다 돌면 마지막 장면에 멈춘 채 둔다.
+    /// </summary>
+    private void ShowMoviePreview(int movie, string path)
+    {
+        _moviePreview?.Close();
+
+        var player = new MediaElement
+        {
+            Source = new Uri(path),
+            LoadedBehavior = MediaState.Manual,
+            UnloadedBehavior = MediaState.Close,
+            Stretch = Stretch.Uniform,
+        };
+        var window = new Window
+        {
+            Title = $"동영상 {movie} — {Path.GetFileName(path)}",
+            Owner = this,
+            Width = 520,
+            Height = 420,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = Brushes.Black,
+            Content = player,
+        };
+        player.MediaFailed += (_, e) => _status.Text = $"동영상 {movie} 를 틀지 못했습니다 — {e.ErrorException?.Message}";
+        window.Loaded += (_, _) => player.Play();
+        window.Closed += (_, _) =>
+        {
+            player.Stop();
+            player.Close();
+            if (_moviePreview == window) _moviePreview = null;
+        };
+        _moviePreview = window;
+        window.Show();
+    }
+
     private void PlaySound(int soundId)
     {
         int track = WaveBank.CdTrackFromSoundId(soundId);
@@ -822,6 +916,164 @@ public sealed class DisevEditorDialog : GameWindow
 
         Commit(chunk.Start, merged.ToArray(),
                $"파트 {SelectedPart} +0x{op.Offset:X4} 「{op.Kind}」 을 {replacement.Length}바이트로 고쳤습니다");
+    }
+
+    /// <summary>고른 갈래의 값 칸을 채운다 — 동영상은 틀 파일이 있는 번호만, DSTILL 은 그림 전부.</summary>
+    private void FillAddValues()
+    {
+        int keep = (_addValue.SelectedItem as ValueChoice)?.Id ?? -1;
+        var call = AddKinds[Math.Clamp(_addKind.SelectedIndex, 0, AddKinds.Length - 1)].Call;
+        var choices = new List<ValueChoice>();
+
+        if (call == DisevCall.PlayVideo)
+        {
+            // 발견물 표가 그 번호를 쓰면 이름을 붙인다.
+            var users = (_names?.Discoveries ?? []).Where(d => d.Movie >= 0)
+                .GroupBy(d => d.Movie).ToDictionary(g => g.Key, g => string.Join(", ", g.Select(d => d.Name)));
+            foreach (int n in Enumerable.Range(0, MovieFiles.OriginalDiscoveryMovies)
+                         .Union(MovieFiles.UploadedDiscoveryNumbers()).OrderBy(n => n))
+            {
+                string stem = MovieFiles.DiscoveryStem(n);
+                string who = users.TryGetValue(n, out var names) ? $" · {names}" : "";
+                if (MovieFiles.Uploaded(stem) is { } up)
+                    choices.Add(new ValueChoice(n, $"{n} · 올린 것 {Path.GetFileName(up)}{who}"));
+                else if (MovieFiles.Original(_gameDir, stem) != null)
+                    choices.Add(new ValueChoice(n, $"{n} · 원본{who}"));
+            }
+        }
+        else
+        {
+            _stills ??= DiscoveryStills.Open(_gameDir);
+            var users = (_names?.Discoveries ?? []).Where(d => d.Picture >= 0)
+                .GroupBy(d => d.Picture).ToDictionary(g => g.Key, g => string.Join(", ", g.Select(d => d.Name)));
+            int count = Math.Max(_stills?.Count ?? 0, users.Count == 0 ? 0 : users.Keys.Max() + 1);
+            for (int n = 0; n < count; n++)
+                choices.Add(new ValueChoice(n, users.TryGetValue(n, out var names) ? $"{n} · {names}" : $"{n}"));
+        }
+
+        _addValue.ItemsSource = choices;
+        _addValue.SelectedItem = choices.FirstOrDefault(c => c.Id == keep)
+                                 ?? (call == DisevCall.PlayVideo
+                                     ? choices.LastOrDefault(c => c.Id >= MovieFiles.OriginalDiscoveryMovies)
+                                     : null)
+                                 ?? choices.FirstOrDefault();
+    }
+
+    /// <summary>DSTILL 그림 묶음 — 값 칸의 그림 수를 셀 때 쓴다. 게임 폴더를 새로 열면 버린다.</summary>
+    private DiscoveryStills? _stills;
+
+    /// <summary>값 칸 한 줄.</summary>
+    private sealed record ValueChoice(int Id, string Text)
+    {
+        public override string ToString() => Text;
+    }
+
+    /// <summary>추가 줄 옆에 지금 기준이 되는 명령을 적고, 고른 것이 없으면 단추를 끈다.</summary>
+    private void ShowAddTarget()
+    {
+        bool picked = _ops.SelectedItem is OpRow;
+        _addAbove.IsEnabled = _addBelow.IsEnabled = _removeOp.IsEnabled = picked;
+        _addTarget.Text = _ops.SelectedItem is OpRow row
+            ? $"기준: {row.At} {row.Op.Kind}"
+            : "순서도나 표에서 명령을 하나 고르세요";
+    }
+
+    /// <summary>
+    /// 고른 명령의 <b>위나 아래</b>에 새 명령(동영상 재생 <c>00 02</c> · DSTILL 그림 <c>00 01</c>)을 넣거나, 고른 명령을 뺀다.
+    /// </summary>
+    /// <remarks>
+    /// 바이트를 그 자리에 끼우지 않는다 — 덩이를 줄 나무(<see cref="DisevTree"/>)로 풀어 줄을 넣고 빼고,
+    /// 파트를 다시 짠다(<see cref="DisevBook.JoinChunks"/>). 그래야 덩이 밖으로 뛰는 분기·절대 이동도 라벨을 따라
+    /// 새 자리로 다시 셈한다. 위로 넣으면 그 명령으로 뛰던 분기는 <b>새 명령부터</b> 돈다(라벨이 새 줄로 옮는다).
+    /// DSTILL 그림은 게임처럼 <b>다음 대사와 한 창에</b> 뜬다.
+    /// </remarks>
+    private void EditLines(bool below, bool remove)
+    {
+        if (_book == null || _part == null || _chunks.SelectedItem is not ChunkRow chunk) return;
+
+        var chunks = DisevTree.BuildPart(_part);
+        int chunkIndex = _part.ChunkStarts.ToList().IndexOf(chunk.Start);
+        if (chunkIndex < 0) return;
+        var lines = chunks[chunkIndex];
+
+        int at = _ops.SelectedIndex;
+        if (at < 0 || at >= lines.Count)
+        {
+            _status.Text = "순서도나 표에서 기준이 될 명령을 먼저 고르세요.";
+            return;
+        }
+
+        string message;
+        int select;
+        if (remove)
+        {
+            var gone = lines[at];
+            if (gone.Call == DisevCall.End && at == lines.Count - 1)
+            {
+                _status.Text = "덩이 끝(FF)은 뺄 수 없습니다.";
+                return;
+            }
+            // 이리로 뛰던 점프는 다음 줄로 옮긴다.
+            if (gone.Label != null)
+            {
+                if (at + 1 >= lines.Count || lines[at + 1].Label != null)
+                {
+                    _status.Text = $"이 명령으로 뛰는 점프({gone.Label})가 있어 뺄 수 없습니다.";
+                    return;
+                }
+                lines[at + 1].Label = gone.Label;
+            }
+            lines.RemoveAt(at);
+            message = $"파트 {SelectedPart} 에서 「{(_ops.SelectedItem as OpRow)?.Op.Kind}」 을 뺐습니다";
+            select = Math.Min(at, lines.Count - 1);
+        }
+        else
+        {
+            var (call, kindText) = AddKinds[Math.Clamp(_addKind.SelectedIndex, 0, AddKinds.Length - 1)];
+            if (_addValue.SelectedItem is not ValueChoice value)
+            {
+                _status.Text = call == DisevCall.PlayVideo
+                    ? "넣을 동영상이 없습니다 — 에셋-동영상에서 「새 동영상 추가」로 먼저 올리세요."
+                    : "DSTILL 그림을 못 읽었습니다 — 게임 폴더를 골라 주세요.";
+                return;
+            }
+            if (below && lines[at].Call == DisevCall.End && at == lines.Count - 1)
+            {
+                _status.Text = "덩이 끝(FF) 아래에는 넣을 수 없습니다 — 위로 추가하세요.";
+                return;
+            }
+
+            var line = new DisevLine
+            {
+                Call = call,
+                Args = new System.Text.Json.Nodes.JsonObject { ["Id"] = value.Id },
+            };
+            int where = below ? at + 1 : at;
+            if (!below)
+            {
+                // 위로 넣으면 그 명령으로 뛰던 분기가 새 명령부터 돌게 라벨을 옮긴다.
+                line.Label = lines[at].Label;
+                lines[at].Label = null;
+            }
+            lines.Insert(where, line);
+            message = $"파트 {SelectedPart} 에 「{kindText} {value.Id}」 을 {(below ? "아래" : "위")}로 넣었습니다";
+            select = where;
+        }
+
+        var rebuilt = DisevBook.JoinChunks(_part, chunks, out string error);
+        if (rebuilt == null || DisevPart.Parse(rebuilt, out _) == null)
+        {
+            _status.Text = $"못 고쳤습니다 — {error}";
+            return;
+        }
+
+        int part = SelectedPart;
+        _book.Replace(part, rebuilt);
+        RefreshDiscoveries();
+        ShowPart();
+        if (chunkIndex < _chunks.Items.Count) _chunks.SelectedIndex = chunkIndex;
+        if (select >= 0 && select < _ops.Items.Count) _ops.SelectedIndex = select;
+        _status.Text = message + " — 아직 적어 두지 않았습니다. 「저장」을 눌러야 들어갑니다.";
     }
 
     /// <summary>고친 덩이를 파트에 넣고 화면을 다시 그린다.</summary>

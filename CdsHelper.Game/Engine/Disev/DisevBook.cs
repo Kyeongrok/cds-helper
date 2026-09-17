@@ -55,9 +55,10 @@ public sealed class DisevBook
     /// 8 은 나무를 버리고 원본 차례 그대로 <b>평평한 줄 배열 + 라벨</b>(<c>Label</c>·<c>Goto</c>)로 적은 것이다.
     /// 9 는 분류(<c>Category</c>)를 빼고 <c>00</c> 무리 명령 이름(<c>Command</c>)을 붙인 것이다.
     /// 10 은 줄을 <b>함수 호출</b>로 적은 것이다 — <c>Call</c>·<c>Args</c>, 분기는 <c>GotoIf</c>·<c>GotoUnless</c>·<c>Target</c>(<see cref="DisevCalls"/>).
+    /// 11 은 조건 41 08 · 41 10 · 42 10 · 65 · 59 와 06 한 바이트를, 12 는 40 0D(부관 앉힘)를, 13 은 04 한 바이트(이야기 끝)를, 14 는 38 12(후원자 소개)를 읽게 되어 다시 적는다.
     /// 옛 판도 읽어서 새 판으로 옮겨 적는다.
     /// </summary>
-    private const int SnapshotVersion = 10;
+    private const int SnapshotVersion = 14;
 
     /// <summary>대본 한 파트.</summary>
     /// <param name="Index">발견물 번호이자 파트 번호(0~273).</param>
@@ -263,6 +264,19 @@ public sealed class DisevBook
             DisevTree.BuildPart(part));
 
         return Join(entry, out _) is { } back && back.AsSpan().SequenceEqual(data) ? entry : whole;
+    }
+
+    /// <summary>
+    /// 줄 나무로 고친 덩이들로 그 파트를 다시 짓는다 — 슬롯·단계는 <paramref name="part"/> 그대로, 라벨·점프는 새로 셈한다.
+    /// </summary>
+    /// <remarks>편집기가 명령을 넣고 뺄 때 쓴다. 바이트를 그 자리에 끼우면 덩이 밖으로 뛰는 이동이 어긋난다.</remarks>
+    public static byte[]? JoinChunks(DisevPart part, List<List<DisevLine>> chunks, out string error)
+    {
+        var starts = part.ChunkStarts;
+        var entry = new Entry(0, part.Step,
+            part.Slots.Select(s => new SlotEntry(IndexOf(starts, s.Condition), IndexOf(starts, s.Body))).ToList(),
+            chunks);
+        return Join(entry, out error);
     }
 
     private static int IndexOf(IReadOnlyList<int> list, int value)

@@ -1583,12 +1583,11 @@ public sealed class ShipMapWindow : Window
     ///   45ec6e            [0x5A4D1A] |= 8      ; 이 비트 때문에 나중에 은퇴를 못 한다
     ///   45ec7e  NORMAL → 0x0045BF80 신상 → 0x0045D6C0 능력치 → 0x0045DE20 지식·언어 → 0x0045E260
     /// </code>
-    /// 우리는 아직 <b>NORMAL 의 첫 걸음(신상)</b>만 옮겼다. 능력치와 지식·언어는 우리 쪽에
-    /// 보너스 포인트가 없어 그대로 시작한다. EASY 는 미리 만든 주인공 둘(라몬·데·마르시아스,
-    /// 에밀리오·알발레스)의 이름만 박고, 그 개인 이야기(STORY0/1.CDS)는
+    /// EASY 는 미리 만든 주인공 둘(라몬·데·마르시아스, 에밀리오·알발레스)을 게임이 박는
+    /// 값 그대로 앉히고(<see cref="Beginner"/>), 그 개인 이야기(STORY0/1.CDS)는
     /// <see cref="CdsHelper.Support.Local.Models.Player.ActiveStoryBook"/> 로 묶어
     /// <see cref="CityPicView"/> 가 건물을 드나들 때마다 <see cref="Engine.Discovery.StoryLog"/>
-    /// 로 찾아 튼다 — 그래서 능력치는 여기서 안 건드린다(대본이 스스로 올린다).
+    /// 로 찾아 튼다.
     ///
     /// 자세한 것은 볼트 <c>39.분석-NEW GAME(주인공 만들기와 은퇴)</c>.
     /// </remarks>
@@ -1606,25 +1605,17 @@ public sealed class ShipMapWindow : Window
         bool made = false;
         try
         {
-            // EASY 는 아직 안 옮겼다 — 줄은 그대로 두되 <b>죽은 줄</b>로 낸다. 미리 만든
-            // 주인공 둘의 이야기(STORY0/1.CDS)를 안 읽어 이름만 있는 껍데기이기 때문이다.
             int at = ChoiceDialog.Ask(this, "NEW GAME",
-                ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"],
-                dim: 0);
+                ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"]);
             if (at < 0) return;
 
             if (at == 0)
             {
-                // 미리 만든 주인공 둘. 이야기(STORY0/1.CDS)는 아직 안 읽어 이름만 쓴다.
+                // 미리 만든 주인공 둘(0x0045E670). 표는 0x00571998 두 줄이다.
                 int who = ChoiceDialog.Ask(this, "시작할 주인공을 선택해 주십시오",
-                                           ["라몬·데·마르시아스", "에밀리오·알발레스"]);
+                                           ["라몬(포르투갈)", "에밀리오(에스파니아)"]);
                 if (who < 0) return;
-                _game.Player.SetProfile(who == 0 ? "데·마르시아스" : "알발레스",
-                                   who == 0 ? "라몬" : "에밀리오",
-                                   25, 1, 1, 0, 0, who == 0 ? 0 : 1);
-                // 미리 만든 주인공의 이야기(STORY0/1.CDS)를 겪게 묶는다 — 건물·도시·연도
-                // 조건이 맞을 때마다 StoryLog 가 장면을 찾아 튼다(CityPicView.CheckStory).
-                _game.Player.SetActiveStoryBook(who == 0 ? "이야기0" : "이야기1");
+                Beginner.Apply(_game.Player, Beginner.All[who]);
             }
             else if (!MakeCharacter())
             {

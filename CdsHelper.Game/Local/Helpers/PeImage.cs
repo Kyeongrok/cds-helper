@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 
@@ -105,6 +105,16 @@ public sealed class PeImage
 
     /// <summary>그 자리의 부호 있는 dword. 표의 -1(없음)을 그대로 받으려고 둔다.</summary>
     public int Int(int va) => (int)Word(va);
+
+    /// <summary>그 자리의 날바이트 문자열(NUL 앞까지). 못 읽으면 null.</summary>
+    public byte[]? Raw(uint va, int limit = 64)
+    {
+        if (va == 0) return null;
+        int o = Offset(va);
+        if (o < 0) return null;
+        int end = Array.IndexOf(_bytes, (byte)0, o, Math.Min(limit, _bytes.Length - o));
+        return end < 0 ? null : _bytes.AsSpan(o, end - o).ToArray();
+    }
 
     /// <summary>그 자리의 CP949 문자열. 못 읽으면 null.</summary>
     public string? Text(uint va, int limit = 64)

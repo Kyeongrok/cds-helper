@@ -511,13 +511,17 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </summary>
     private void Enter(CityBuildingTable.Building building)
     {
+        // 초심자 개인 이야기(이야기0/1)가 <b>맨 먼저</b>다 — 게임은 들어서자마자 0x004AB5A0 으로
+        // 건물 사건을 보고, 장면이 돌았으면 보복·문간 관문·차림표를 다 건너뛰고 건물을 나선다
+        // (0x004A266A → 0x004A26BC). 그래서 명성이 모자라도 이야기의 저택에는 불려 들어간다.
+        if (CheckStory(building.Code)) return;
+
         // 배신한 후원자의 나라에서는 건물에 들어서다 보복을 당한다(0x004A267D → 0x00450140).
         if (Ambushed()) return;
 
         var facility = Facility.For(building.Kind);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
         Discover(building);                              // 이 건물이 곧 발견물일 수 있다
-        CheckStory(building.Code);                        // 초심자 개인 퀘스트라인(이야기0/1)
         Greet(facility, building);
         ShowPhoto(facility.Kind, building.Code);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
@@ -690,15 +694,16 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 초심자(EASY) 캐릭터의 개인 퀘스트라인(이야기0·이야기1) 한 장면을 체크한다.
     /// </summary>
     /// <remarks>
-    /// 발견 이벤트(<see cref="Discover(CityBuildingTable.Building)"/>)와 같은 자리에서 건다 —
+    /// 건물에 들어서는 <b>맨 첫머리</b>에서 건다(게임의 <c>0x004AB5A0</c>). 장면이 결과 코드 1(<c>4D</c>)로
+    /// 끝났으면 true — 그러면 부르는 쪽은 문간 관문도 차림표도 안 연다.
     /// 이야기0/1 은 발견물 표에 없는 대신 <see cref="Engine.Discovery.StoryLog"/> 가 건물·도시·
     /// 연도·명성 같은 조건을 그때그때 살펴 지금 틀 장면을 찾아 준다. 새로운 주인공(NORMAL)은
     /// <see cref="Player.ActiveStoryBook"/> 이 없어 곧장 지나간다.
     /// </remarks>
-    private void CheckStory(int building)
+    private bool CheckStory(int building)
     {
-        if (_player.ActiveStoryBook is not { } book) return;
-        if (Engine.Discovery.StoryLog.NextPart(_player, _game, building) is not { } part) return;
+        if (_player.ActiveStoryBook is not { } book) return false;
+        if (Engine.Discovery.StoryLog.NextPart(_player, _game, building) is not { } part) return false;
 
         Engine.Disev.DisevRunner.Run(this, _game, book, part, building);
         Engine.Discovery.StoryLog.Advance(_player, _game, book, part);
@@ -707,7 +712,10 @@ public sealed class CityPicView : GameWindow, ITownScreen
         {
             GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
             if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
+            return true;
         }
+        // 결과 코드가 1(4D)일 때만 건물에 못 든다(0x004AB4AC). 도서관 안내처럼 말만 하고 끝나면 그대로 들어간다.
+        return Engine.Disev.DisevRunner.LastResult == 1;
     }
 
     /// <summary>한 장이 머무는 참. 다섯 장을 이으면 1.1초쯤 된다.</summary>
@@ -740,11 +748,16 @@ public sealed class CityPicView : GameWindow, ITownScreen
         // 빼 두었는데 그것이 틀렸다.
         if (facility.Kind is FacilityKind.Church) return true;
 
+        // <b>이미 만난 후원자면 문을 안 본다.</b> 게임의 관문(0x0044E740)은 후원자 +0x28 비트 15(첫 알현 전)가
+        // 서 있을 때만 명성을 잰다(vtbl+0x34 = 0x004AD800). 첫 알현(0x004AE595)이나 이야기 대본의 38 12 가
+        // 그 비트를 지운다 — 라몬의 파브리스, 에밀리오의 에란쪼가 명성 없이 열리는 까닭이다.
+        if (_player.HasMet(patron.Name) ||
+            _game.Sponsors?.FindByName(patron.Name) is { } known && _player.HasMet(known.Name))
+            return true;
+
         bool passed = _player.Fame >= patron.Fame;
 
-        // <b>낯을 튼 뒤에는 벌을 안 돌린다.</b> 문간은 한 번 통과하면 그만이라, 갈 때마다
-        // 무릎 꿇고 청하는 그림이 도는 것이 되레 어색하다. 판정은 그대로 한다.
-        if (!_player.HasMet(patron.Name)) PlayFameCheck(passed);
+        PlayFameCheck(passed);
 
         if (passed) return true;
 
@@ -1480,6 +1493,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     // 여기 있는 것은 <b>실제로 창을 띄우고 값을 세는</b> 몫뿐이다.
 
     bool ITownScreen.HasShips => _player.Ships.Count > 0;
+    bool ITownScreen.HasCrew => _player.Crew > 0;
     bool ITownScreen.HasItems => _player.Items.Count > 0;
     bool ITownScreen.CanBuyGoods => Market != null;
     bool ITownScreen.CanSellGoods => Market != null && _game.Items != null;
