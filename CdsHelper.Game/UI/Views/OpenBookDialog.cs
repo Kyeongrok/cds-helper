@@ -60,6 +60,13 @@ public sealed class OpenBookDialog : GameWindow
     private const double TextWidth = 224, LineHeight = 16;
 
     /// <summary>
+    /// 본문 줄 높이 — 글자 16 에 줄 사이 4 를 더한 <b>20</b> 이다. 게임 글 창이 늘 이 피치로 찍는다
+    /// (물음창 높이 <c>줄수 x 20 + 71</c>, <c>0x0049D7B0</c>). 16 으로 붙여 찍으면 원본보다 줄이 빽빽하다.
+    /// 제목 칸(32)은 한 줄뿐이라 그대로 16 이다.
+    /// </summary>
+    private const double BodyLineHeight = 20;
+
+    /// <summary>
     /// 쪽 번호 자리 — (112,280) · (368,280) 에서 <b>왼쪽 맞춤</b>이다. 두 면 가운데(144/400)에서
     /// 32 왼쪽일 뿐 가운데 맞춤이 아니다(<c>0x005AA410</c>).
     /// </summary>
@@ -231,9 +238,9 @@ public sealed class OpenBookDialog : GameWindow
         y = BodyY;
         foreach (string line in Wrap(spread.Text, TextWidth))
         {
-            if (y + LineHeight > BodyY + BodyHeight) break;
+            if (y + BodyLineHeight > BodyY + BodyHeight) break;
             Ink(line, BodyX, y);
-            y += LineHeight;
+            y += BodyLineHeight;
         }
     }
 

@@ -1290,7 +1290,23 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 그 건물의 코드로 짓는다.
     /// </summary>
     private TrainingMenu Training(int buildingCode) =>
-        new(this, _game, buildingCode, _cultureNo, _table);
+        new(this, _game, buildingCode, _cultureNo, _table, _cityId, PatronFaceAt(buildingCode));
+
+    /// <summary>
+    /// 그 건물에 앉은 후원자의 얼굴. 없으면 null — 그때는 화자표의 시설 사람이 선다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 대사 얼굴을 시설 객체 <c>+0x88</c> 에서 꺼내는데, 후원자가 앉은 건물이면 그 자리가 <b>후원자</b>다 —
+    /// 교회 수련에서 신부 대신 그 교회 후원자(페르난 마르틴스 따위)가 말한다.
+    /// </remarks>
+    private uint[]? PatronFaceAt(int buildingCode)
+    {
+        var building = _table.InCity(_cityId).FirstOrDefault(b => b.Code == buildingCode);
+        if (building.Kind is not { Length: > 0 } kind || PatronAt(kind) is not { } patron) return null;
+        return _game.Sponsors?.FindByName(patron.Name) is { } sponsor
+            ? _game.Faces?.TryGetBgra(sponsor.Face, sponsor.IsFemale)
+            : null;
+    }
 
     /// <summary>이 마을 도서관 — 사서 인사와 서가는 도서관이 든다.</summary>
     private LibraryMenu Books => _books ??=
