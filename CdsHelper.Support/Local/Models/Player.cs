@@ -2011,6 +2011,29 @@ public sealed class Player
         _personLines.TryGetValue(person, out var line) && (Date - line.Added).TotalDays < RumorDays
             ? line.Text : null;
 
+    private readonly Dictionary<int, int> _nationStatus = [];
+
+    /// <summary>
+    /// 역사 대본이 바꾼 나라 형편(나라 레코드 <c>+0x04</c>) — 1 등장(<c>26 00</c>) · 2 멸망(<c>22 00</c>). 없는 나라는 표 첫값.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> NationStatus => _nationStatus;
+
+    /// <summary>나라 형편을 적는다.</summary>
+    public void SetNationStatus(int nation, int status)
+    {
+        if (nation >= 0) _nationStatus[nation] = status;
+    }
+
+    /// <summary>그 나라가 역사 대본으로 멸망했는지.</summary>
+    public bool IsNationFallen(int nation) => _nationStatus.TryGetValue(nation, out int s) && s == 2;
+
+    /// <summary>세이브에서 나라 형편을 되돌린다.</summary>
+    public void RestoreNationStatus(IReadOnlyDictionary<int, int>? status)
+    {
+        _nationStatus.Clear();
+        foreach (var (nation, s) in status ?? new Dictionary<int, int>()) SetNationStatus(nation, s);
+    }
+
     private readonly Dictionary<int, int> _cityBuildings = [];
 
     /// <summary>역사 대본(<c>22/26 10 [비트] 08 [도시]</c>)이 바꾼 건물 낱말 — 도시 레코드 <c>+0x1C</c>.</summary>
@@ -2049,6 +2072,7 @@ public sealed class Player
         {
             _cityScales.Clear();
             _cityBuildings.Clear();
+            _nationStatus.Clear();
             _rumors.Clear();
             _personLines.Clear();
         }
