@@ -1134,6 +1134,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         NoticeDialog.Show(this, "손님, 손님! 일어나세요. 벌써 아침이에요.");
         NoticeDialog.Show(this, Lodging.WakeWord(_random));
+        // 한 달 묵으면 HP 가 30~59 찬다(0x0047FCFF).
+        _player.SetCondition(_player.Condition + Vitality.InnRest(_random));
     }
 
     private Lodging? _lodging;

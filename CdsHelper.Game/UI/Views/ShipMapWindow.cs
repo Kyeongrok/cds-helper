@@ -2736,7 +2736,12 @@ public sealed class ShipMapWindow : Window
             TellFounded();
 
             // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
-            if (_host.IsOnLand) { PassLandDay(); continue; }
+            if (_host.IsOnLand)
+            {
+                PassLandDay();
+                if (!PassVitalityDay()) return;
+                continue;
+            }
 
             _game.Player.PassDayAtSea();
             var (lat, _) = _host.ShipLatLon;
@@ -2746,6 +2751,9 @@ public sealed class ShipMapWindow : Window
 
             // 서 있는 재해가 날마다 해를 끼친다 — 쥐는 식량을, 병은 선원을(0x00474DA0).
             SeaEvents.Ail(_game.Player, _game.Random);
+
+            // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0). 병 중에 0 이면 거기서 끝이다.
+            if (!PassVitalityDay()) return;
 
             // 바다에서 선원이 다 죽으면 놀이가 끝난다 — 게임도 하루 셈 끝에 도시 밖이고
             // 선원 합이 0 이면 0x0044AF40(0x5A4D18, 1) 로 GAME OVER 다(0x00475A2C).
@@ -4416,6 +4424,34 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
+    /// 도시 밖에서 하루 — 제독 HP 를 닳리고, 문턱을 막 넘었으면 부관이 말한다(<see cref="Vitality.PassDay"/>).
+    /// 병 중에 HP 가 0 이 되면 GAME OVER 로 끝낸다. 놀이가 이어지면 true.
+    /// </summary>
+    private bool PassVitalityDay()
+    {
+        var player = _game.Player;
+        if (Vitality.PassDay(player) is { } warn)
+        {
+            _host.Paused = true;
+            _asking = true;
+            TalkDialog.Say(this, MateFace(), "", warn);
+            _asking = false;
+            _host.Paused = false;
+        }
+
+        if (Vitality.DiseaseDeath(player) is not { } death) return true;
+
+        _host.Paused = true;
+        _asking = true;
+        TalkDialog.Say(this, MateFace(), "", "제독, 정신차리십시오! 제독, 제독!");
+        NoticeDialog.Show(this, death);
+        GameOver();
+        _asking = false;
+        Dispatcher.BeginInvoke(ReturnToTitle);
+        return false;
+    }
+
+    /// <summary>
     /// 입항한 도시의 그림을 지도 한가운데에 띄운다. CITYCG.CDS 가 없거나 그림을 못 풀면
     /// 조용히 넘어간다 — 그림은 덤이고, 입항은 이미 끝났다.
     /// </summary>
@@ -4443,6 +4479,22 @@ public sealed class ShipMapWindow : Window
         // 건물 조건 없이 도시·연도·명성만으로 여는 이야기 장면(장의 첫머리)은 여기서 잡는다 —
         // 건물 안에서 여는 것은 CityPicView.CheckStory 가 따로 본다.
         CheckStory(-1);
+
+        // 도시에 들어서면 HP 를 본다(0x00492717) — 0 이면 쓰러져 끝나고, 모자라면 부관이 쉬라고 한다.
+        if (_game.Player.Condition <= 0)
+        {
+            var words = Vitality.CollapseWords(_game.Player);
+            for (int i = 0; i < words.Length; i++)
+            {
+                if (i % 2 == 0) TalkDialog.Say(dialog, MateFace(), "", words[i]);
+                else NoticeDialog.Show(dialog, words[i]);
+            }
+            GameOver();
+            Dispatcher.BeginInvoke(ReturnToTitle);
+            return true;
+        }
+        if (Vitality.EntryWarning(_game.Player) is { } warn)
+            TalkDialog.Say(dialog, MateFace(), "", warn);
         // 들어가는 데 열흘 — 다만 새 판은 이미 자택 안에서 시작하므로 날을 안 보낸다.
         // 게임도 새 판은 1월 1일에 자택 명령 창이 떠 있다. 여기서 열흘을 보내 1월 11일이 되었었다.
         if (!enterHome) PassPortDays();
