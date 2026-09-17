@@ -170,7 +170,9 @@ public static class GameSave
         List<int>? ActiveGoods = null,
         List<Support.Local.Models.Player.Betrayal>? Betrayals = null,
         Dictionary<string, DateTime>? Sulks = null,
-        List<Support.Local.Models.Player.Child>? Children = null);
+        List<Support.Local.Models.Player.Child>? Children = null,
+        string? ActiveStoryBook = null, DateTime? StoryQuestDeadline = null,
+        Dictionary<string, int>? StoryProgress = null, List<string>? ClosedStoryArcs = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -236,7 +238,12 @@ public static class GameSave
                             Betrayals: [.. player.Betrayals],
                             Sulks: player.Sulks.ToDictionary(e => e.Key, e => e.Value),
                             // 아이 — 성별·태어나는 날·능력치·기능·언어. 이 칸 앞의 세이브는 이름(Heirs)만 있다.
-                            Children: [.. player.Children]);
+                            Children: [.. player.Children],
+                            // 초심자 개인 퀘스트라인(이야기0/1) — 묶인 책과 STORY 의뢰 기한, 장마다의 진행도·닫힘.
+                            ActiveStoryBook: player.ActiveStoryBook,
+                            StoryQuestDeadline: player.StoryQuestDeadline,
+                            StoryProgress: player.StoryProgress.ToDictionary(e => e.Key, e => e.Value),
+                            ClosedStoryArcs: [.. player.ClosedStoryArcs]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

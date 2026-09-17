@@ -1585,8 +1585,10 @@ public sealed class ShipMapWindow : Window
     /// </code>
     /// 우리는 아직 <b>NORMAL 의 첫 걸음(신상)</b>만 옮겼다. 능력치와 지식·언어는 우리 쪽에
     /// 보너스 포인트가 없어 그대로 시작한다. EASY 는 미리 만든 주인공 둘(라몬·데·마르시아스,
-    /// 에밀리오·알발레스)이 STORY0/1.CDS 에 걸려 있어 아직 못 옮겼다 —
-    /// 고르면 그 이름으로만 시작한다.
+    /// 에밀리오·알발레스)의 이름만 박고, 그 개인 이야기(STORY0/1.CDS)는
+    /// <see cref="CdsHelper.Support.Local.Models.Player.ActiveStoryBook"/> 로 묶어
+    /// <see cref="CityPicView"/> 가 건물을 드나들 때마다 <see cref="Engine.Discovery.StoryLog"/>
+    /// 로 찾아 튼다 — 그래서 능력치는 여기서 안 건드린다(대본이 스스로 올린다).
     ///
     /// 자세한 것은 볼트 <c>39.분석-NEW GAME(주인공 만들기와 은퇴)</c>.
     /// </remarks>
@@ -1620,6 +1622,9 @@ public sealed class ShipMapWindow : Window
                 _game.Player.SetProfile(who == 0 ? "데·마르시아스" : "알발레스",
                                    who == 0 ? "라몬" : "에밀리오",
                                    25, 1, 1, 0, 0, who == 0 ? 0 : 1);
+                // 미리 만든 주인공의 이야기(STORY0/1.CDS)를 겪게 묶는다 — 건물·도시·연도
+                // 조건이 맞을 때마다 StoryLog 가 장면을 찾아 튼다(CityPicView.CheckStory).
+                _game.Player.SetActiveStoryBook(who == 0 ? "이야기0" : "이야기1");
             }
             else if (!MakeCharacter())
             {
@@ -2072,6 +2077,10 @@ public sealed class ShipMapWindow : Window
                 _game.Player.RestoreChildren([.. _game.Player.Children.Select(c => Engine.Town.Home.Bless(_game.Player, _game.Random, c))]);
             _game.Player.RestoreBetrayals(saved.Betrayals);
             _game.Player.RestoreSulks(saved.Sulks);
+            // 초심자 개인 퀘스트라인(이야기0/1). 이 칸이 없던 세이브는 새로운 주인공(NORMAL)이거나
+            // 이 기능 앞에 지은 판이라 묶인 책이 없는 채로 연다.
+            _game.Player.RestoreStory(saved.ActiveStoryBook, saved.StoryQuestDeadline,
+                                      saved.StoryProgress, saved.ClosedStoryArcs);
             _game.Player.RestoreActiveGoods(saved.ActiveGoods ??
                 _game.Player.Discoveries.SelectMany(id => Engine.Disev.DisevRunner.GoodsActivatedBy(_game, id)));
             if (saved.Fame is { } fame) _game.Player.Fame = fame;
@@ -4271,6 +4280,26 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void Tint(bool on) => _host.Shaded = on;
 
+    /// <summary>
+    /// 초심자(EASY) 캐릭터의 개인 퀘스트라인(이야기0·이야기1) 한 장면을 체크한다 — 건물
+    /// 조건이 없는(도시·연도·명성만 보는) 장면용이다. 건물 안에서 여는 것은
+    /// <see cref="CityPicView.CheckStory"/> 가 따로 본다(같은 <see cref="StoryLog"/> 를 쓴다).
+    /// </summary>
+    private void CheckStory(int building)
+    {
+        if (_game.Player.ActiveStoryBook is not { } book) return;
+        if (StoryLog.NextPart(_game.Player, _game, building) is not { } part) return;
+
+        DisevRunner.Run(this, _game, book, part, building);
+        StoryLog.Advance(_game.Player, _game, book, part);
+
+        if (DisevRunner.LastEndedInGameOver)
+        {
+            GameOver();
+            ReturnToTitle();
+        }
+    }
+
     private void CheckDiscovery()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;
@@ -4398,6 +4427,9 @@ public sealed class ShipMapWindow : Window
         _game.Bgm.Play(track);
         SetInCity(true);          // 지도에 남색 막을 씌운다(그림 창과는 따로 논다)
         _game.Player.EnterCity(city, name);
+        // 건물 조건 없이 도시·연도·명성만으로 여는 이야기 장면(장의 첫머리)은 여기서 잡는다 —
+        // 건물 안에서 여는 것은 CityPicView.CheckStory 가 따로 본다.
+        CheckStory(-1);
         // 들어가는 데 열흘 — 다만 새 판은 이미 자택 안에서 시작하므로 날을 안 보낸다.
         // 게임도 새 판은 1월 1일에 자택 명령 창이 떠 있다. 여기서 열흘을 보내 1월 11일이 되었었다.
         if (!enterHome) PassPortDays();

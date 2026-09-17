@@ -517,6 +517,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         var facility = Facility.For(building.Kind);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
         Discover(building);                              // 이 건물이 곧 발견물일 수 있다
+        CheckStory(building.Code);                        // 초심자 개인 퀘스트라인(이야기0/1)
         Greet(facility, building);
         ShowPhoto(facility.Kind, building.Code);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
@@ -682,6 +683,30 @@ public sealed class CityPicView : GameWindow, ITownScreen
         {
             string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
             ConfirmDialog.Tell(this, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다");
+        }
+    }
+
+    /// <summary>
+    /// 초심자(EASY) 캐릭터의 개인 퀘스트라인(이야기0·이야기1) 한 장면을 체크한다.
+    /// </summary>
+    /// <remarks>
+    /// 발견 이벤트(<see cref="Discover(CityBuildingTable.Building)"/>)와 같은 자리에서 건다 —
+    /// 이야기0/1 은 발견물 표에 없는 대신 <see cref="Engine.Discovery.StoryLog"/> 가 건물·도시·
+    /// 연도·명성 같은 조건을 그때그때 살펴 지금 틀 장면을 찾아 준다. 새로운 주인공(NORMAL)은
+    /// <see cref="Player.ActiveStoryBook"/> 이 없어 곧장 지나간다.
+    /// </remarks>
+    private void CheckStory(int building)
+    {
+        if (_player.ActiveStoryBook is not { } book) return;
+        if (Engine.Discovery.StoryLog.NextPart(_player, _game, building) is not { } part) return;
+
+        Engine.Disev.DisevRunner.Run(this, _game, book, part, building);
+        Engine.Discovery.StoryLog.Advance(_player, _game, book, part);
+
+        if (Engine.Disev.DisevRunner.LastEndedInGameOver)
+        {
+            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+            if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
         }
     }
 

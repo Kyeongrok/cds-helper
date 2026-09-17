@@ -267,6 +267,13 @@ public sealed class Player
         Abilities = next;
     }
 
+    /// <summary>능력치 한 칸을 그만큼 움직인다. 모르는 칸이면 아무 일도 없다.</summary>
+    public void AdjustAbility(int which, int by)
+    {
+        if (which < 0 || which >= Abilities.Length) return;
+        Abilities[which] = Math.Clamp(Abilities[which] + by, 0, 100);
+    }
+
     /// <summary>제독의 컨디션(<c>0x005B60D8</c>). 처음 값은 <see cref="ConditionFull"/> 이다.</summary>
     public int Condition { get; private set; } = ConditionFull;
 
@@ -1336,6 +1343,64 @@ public sealed class Player
 
     /// <summary>세이브를 되돌릴 때 계약을 그대로 박는다. 선금을 다시 주지 않는다.</summary>
     public void RestoreContract(Contract? contract) => Contract = contract;
+
+    // ── 이야기(초심자 개인 퀘스트라인) ──────────────────────────────────────────
+
+    /// <summary>
+    /// 초심자(EASY)로 시작했으면 그 캐릭터의 이야기 책("이야기0"·"이야기1"). 아니면 null —
+    /// 새로운 주인공(NORMAL)은 이 이야기라인을 겪지 않는다.
+    /// </summary>
+    public string? ActiveStoryBook { get; private set; }
+
+    /// <summary>초심자 캐릭터를 그 이야기 책에 묶는다. NEW GAME 의 EASY 걸음이 부른다.</summary>
+    public void SetActiveStoryBook(string book) => ActiveStoryBook = book;
+
+    /// <summary>STORY 의뢰(이야기 속 심부름)의 기한. 아직 안 받았으면 null.</summary>
+    public DateTime? StoryQuestDeadline { get; private set; }
+
+    /// <summary>STORY 의뢰 기한을 오늘부터 그만큼 뒤로 잡는다.</summary>
+    public void SetStoryQuestDeadline(int daysFromNow) => StoryQuestDeadline = Date.AddDays(daysFromNow);
+
+    /// <summary>STORY 의뢰 남은 날수. 기한이 없거나 이미 지났으면 0.</summary>
+    public int StoryQuestDaysLeft =>
+        StoryQuestDeadline is { } due ? (int)Math.Max(0, (due - Date).TotalDays) : 0;
+
+    private readonly Dictionary<string, int> _storyProgress = [];
+    private readonly HashSet<string> _closedStoryArcs = [];
+
+    /// <summary>이야기 장(章)마다의 진행도. 열쇠는 "{책}:{장 첫 파트}".</summary>
+    public IReadOnlyDictionary<string, int> StoryProgress => _storyProgress;
+
+    /// <summary>그 장의 진행도. 아직 없으면 0.</summary>
+    public int StoryStepOf(string arcKey) => _storyProgress.GetValueOrDefault(arcKey);
+
+    /// <summary>그 장의 진행도를 그 값으로 올린다 — 내려가지는 않는다.</summary>
+    public void SetStoryStep(string arcKey, int step)
+    {
+        if (step > StoryStepOf(arcKey)) _storyProgress[arcKey] = step;
+    }
+
+    /// <summary>끝난 이야기 장(EndEventCompletely 를 겪은 것들). 열쇠는 <see cref="StoryProgress"/> 와 같다.</summary>
+    public IReadOnlyCollection<string> ClosedStoryArcs => _closedStoryArcs;
+
+    /// <summary>그 장이 끝났는지 — 끝난 장은 다시 트리거되지 않는다.</summary>
+    public bool IsStoryArcClosed(string arcKey) => _closedStoryArcs.Contains(arcKey);
+
+    /// <summary>그 장을 닫는다.</summary>
+    public void CloseStoryArc(string arcKey) => _closedStoryArcs.Add(arcKey);
+
+    /// <summary>세이브를 되돌릴 때.</summary>
+    public void RestoreStory(string? activeBook, DateTime? questDeadline,
+                             IEnumerable<KeyValuePair<string, int>>? progress,
+                             IEnumerable<string>? closedArcs)
+    {
+        ActiveStoryBook = activeBook;
+        StoryQuestDeadline = questDeadline;
+        _storyProgress.Clear();
+        foreach (var (key, step) in progress ?? []) _storyProgress[key] = step;
+        _closedStoryArcs.Clear();
+        foreach (string key in closedArcs ?? []) _closedStoryArcs.Add(key);
+    }
 
     /// <summary>
     /// 적어 둔 것을 되돌린다(불러오기). 배는 부르는 쪽이 그 도시 앞바다에 갖다 놓는다.
