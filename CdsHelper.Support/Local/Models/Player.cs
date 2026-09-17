@@ -1927,6 +1927,69 @@ public sealed class Player
         if (cityId >= 0) _historyNations[cityId] = nation;
     }
 
+    private readonly Dictionary<int, int> _cityScales = [];
+
+    /// <summary>
+    /// 역사 대본(<c>19/1A 08 [도시] 1A [값]</c>)이 바꾼 도시 규모(0~7) — 도시 레코드 <c>+0x08</c>. 없는 도시는 표 첫값이다.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> CityScales => _cityScales;
+
+    /// <summary>바뀐 도시 규모를 적는다.</summary>
+    public void SetCityScale(int cityId, int scale)
+    {
+        if (cityId >= 0) _cityScales[cityId] = Math.Clamp(scale, 0, 7);
+    }
+
+    /// <summary>세이브에서 바뀐 도시 규모를 되돌린다.</summary>
+    public void RestoreCityScales(IReadOnlyDictionary<int, int>? scales)
+    {
+        _cityScales.Clear();
+        foreach (var (city, scale) in scales ?? new Dictionary<int, int>()) SetCityScale(city, scale);
+    }
+
+    /// <summary>도시 소문 한 줄 — 역사 대본(<c>20 0A</c>)이 그 도시에 적어 둔 말.</summary>
+    public readonly record struct Rumor(int City, DateTime Added, string Text);
+
+    private readonly List<Rumor> _rumors = [];
+
+    /// <summary>
+    /// 도시 소문 가게(<c>0x005AA298</c>) — 0x10000 바이트 고리 버퍼라 넘치면 오래된 것부터 지워지고,
+    /// 적은 날로부터 <see cref="RumorDays"/> 일이 지나면 안 보인다(<c>0x0044E3E0</c>).
+    /// </summary>
+    public IReadOnlyList<Rumor> Rumors => _rumors;
+
+    /// <summary>소문이 살아 있는 날 수.</summary>
+    public const int RumorDays = 180;
+
+    /// <summary>소문 가게 크기(바이트). 한 줄은 글(CP949) 길이 + 9 바이트다.</summary>
+    private const int RumorBytes = 0x10000;
+
+    /// <summary>소문을 적는다(<c>0x0044E1D0</c>). 넘치면 오래된 줄부터 밀어낸다.</summary>
+    /// <param name="added">적는 날 — 밀린 달을 되짚을 때는 그 달이다.</param>
+    public void AddRumor(int city, string text, DateTime added)
+    {
+        if (city < 0 || text.Length == 0) return;
+        _rumors.Add(new Rumor(city, added, text));
+        static int Size(Rumor r) => r.Text.Length * 2 + 9;
+        int total = _rumors.Sum(Size);
+        while (total > RumorBytes && _rumors.Count > 1)
+        {
+            total -= Size(_rumors[0]);
+            _rumors.RemoveAt(0);
+        }
+    }
+
+    /// <summary>그 도시의 살아 있는 소문(적은 차례).</summary>
+    public List<string> RumorsOf(int city) =>
+        [.. _rumors.Where(r => r.City == city && (Date - r.Added).TotalDays < RumorDays).Select(r => r.Text)];
+
+    /// <summary>세이브에서 소문을 되돌린다.</summary>
+    public void RestoreRumors(IEnumerable<Rumor>? rumors)
+    {
+        _rumors.Clear();
+        if (rumors != null) _rumors.AddRange(rumors);
+    }
+
     private readonly HashSet<int> _historyDone = [];
 
     /// <summary>
@@ -1942,6 +2005,12 @@ public sealed class Player
     public void RestoreHistory(int? month, IReadOnlyDictionary<int, int>? nations, IEnumerable<int>? done)
     {
         HistoryMonth = Math.Max(0, month ?? 0);
+        // 역사를 처음부터 되짚는 옛 세이브면 규모·나라도 첫값부터 다시 쌓는다.
+        if (HistoryMonth == 0)
+        {
+            _cityScales.Clear();
+            _rumors.Clear();
+        }
         _historyNations.Clear();
         foreach (var (city, nation) in nations ?? new Dictionary<int, int>()) SetHistoryNation(city, nation);
         _historyDone.Clear();

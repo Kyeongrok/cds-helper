@@ -1,4 +1,5 @@
 using System.IO;
+using CdsHelper.Game.Engine.Disev;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
 using CdsHelper.Support.Local.Models;
@@ -19,9 +20,10 @@ namespace CdsHelper.Game.Engine.Market;
 /// 한 번만 도는 것은 조건이 그렇게 짜여 있어서다 — <c>1C</c>(그 해 그 달)이거나, <c>1B</c>(그 달부터)에
 /// 몸통이 스스로 깨는 조건(「그 도시가 없어야」·「나라가 아니어야」)이 붙어 있다.
 ///
-/// 여기서 옮기는 것은 <b>도시 상태</b>(<c>21 08 [도시] 18 [상태]</c>)와, 대본의 나라 조건이 볼 <b>나라 바뀜</b>
-/// (<c>21 08 [도시] 00 [나라]</c>)이다. 도시 세우기는 <see cref="CityFounding"/> 이 따로 센다.
-/// 소문(<c>20 0A</c>)·나라 멸망/등장·건물 비트·규모 ±·힌트 깃발은 길이만 읽고 넘긴다.
+/// 여기서 옮기는 것은 <b>도시 상태</b>(<c>21 08 [도시] 18 [상태]</c>), <b>나라 바뀜</b>(<c>21 08 [도시] 00 [나라]</c>,
+/// 수도면 나라째), <b>규모 ±</b>(<c>19/1A 08</c>)다. 도시 세우기는 <see cref="CityFounding"/> 이 따로 센다.
+/// <b>소문</b>(<c>20 0A</c>)은 도시 소문 가게에 적는다(술집·여관 무명 손님이 반쯤 이것을 말한다).
+/// 나라 멸망/등장·건물 비트·힌트 깃발은 길이만 읽고 넘긴다.
 ///
 /// 원본 데이터의 버릇도 그대로 남는다 — 파트 20 은 두 칸 날짜가 같아(1499/7) 해제 칸이 영영 안 돌아
 /// 라구사·파마가스타·간디아는 전쟁, 베니스는 대조선으로 남는다.
@@ -79,7 +81,8 @@ public sealed class CityHistory
     /// <summary>
     /// 한 달을 돈다 — 그 달이 막 시작되었을 때 게임이 하는 몫. 사람 대본 먼저, 그 다음 HIST_EV.
     /// </summary>
-    public void RunMonth(Player player, int year, int month, CityExeTable? cities, FoundCheck found)
+    public void RunMonth(Player player, int year, int month, CityExeTable? cities, NationTable? nations,
+                         FoundCheck found)
     {
         var when = new DateTime(year, month, 1);
 
@@ -87,7 +90,7 @@ public sealed class CityHistory
         foreach (var part in _persons)
         {
             if (Pick(part, year, month, when, player, cities, found, -1) is not { } body) continue;
-            Run(part, body.Body, BodyEnd(part, body.Body), player, statesOnly: true);
+            Run(part, body.Body, BodyEnd(part, body.Body), player, cities, nations, when, statesOnly: true);
         }
 
         for (int i = 0; i < _parts.Length; i++)
@@ -95,7 +98,7 @@ public sealed class CityHistory
             var part = _parts[i];
             if (Pick(part, year, month, when, player, cities, found, i) is not { } slot) continue;
             if (slot.Once) player.MarkHistoryDone(i * 100 + slot.Index);
-            Run(part, slot.Body, part.Length, player, statesOnly: false);
+            Run(part, slot.Body, part.Length, player, cities, nations, when, statesOnly: false);
         }
     }
 
@@ -168,7 +171,7 @@ public sealed class CityHistory
                 {
                     int nation = U16(p, i + 2), city = U16(p, i + 5);
                     int now = player.HistoryNations.TryGetValue(city, out int changed)
-                        ? changed : cities?.NationOf(city) ?? -1;
+                        ? changed : cities?.StartNationOf(city) ?? -1;
                     term = p[i] == 0x27 ? now == nation : now != nation;
                     i += 7;
                     break;
@@ -195,17 +198,21 @@ public sealed class CityHistory
     /// 몸통을 돈다(<c>0x004080F0</c>). 도시 상태와 나라 바뀜만 적고 나머지는 길이만 건넌다.
     /// 모르는 명령을 만나면 거기서 멈춘다.
     /// </summary>
-    /// <param name="statesOnly">사람 대본 — 명령 짜임이 넓어 상태 명령 꼴만 훑어 찾는다.</param>
-    private static void Run(byte[] p, int i, int end, Player player, bool statesOnly)
+    /// <param name="statesOnly">사람 대본 — 명령 짜임이 넓어 상태·나라 명령 꼴만 훑어 찾는다.</param>
+    private static void Run(byte[] p, int i, int end, Player player, CityExeTable? cities, NationTable? nations,
+                            DateTime when, bool statesOnly)
     {
         end = Math.Min(end, p.Length);
         if (statesOnly)
         {
             for (; i + 6 < end; i++)
             {
-                if (p[i] != 0x21 || p[i + 1] != 0x08 || p[i + 4] != 0x18) continue;
-                int city = U16(p, i + 2), state = U16(p, i + 5);
-                if (city < CityExeTable.Count && state < CityState.Names.Length) player.SetCityState(city, state);
+                if (p[i] != 0x21 || p[i + 1] != 0x08) continue;
+                int city = U16(p, i + 2), value = U16(p, i + 5);
+                if (city >= CityExeTable.Count) continue;
+                // 상태(18)와, 역사 항해자가 공략한 도시의 나라(00) — 고아·말라카는 포르투갈, 쿠스코는 에스파니아.
+                if (p[i + 4] == 0x18 && value < CityState.Names.Length) player.SetCityState(city, value);
+                else if (p[i + 4] == 0x00 && value < NationTable.Count) ChangeNation(player, cities, nations, city, value);
             }
             return;
         }
@@ -216,10 +223,19 @@ public sealed class CityHistory
             if (a == 0xFF) return;
             switch (a, b)
             {
-                case (0x20, 0x0A):                                              // 소문 — 글 00 [08|19] u16
+                case (0x20, 0x0A):                                              // 소문 — 글 00 [08 도시|19 문화권] u16
                 {
                     int zero = Array.IndexOf(p, (byte)0, i + 2);
-                    if (zero < 0) return;
+                    if (zero < 0 || zero + 3 >= p.Length) return;
+                    // 제독 이름 자리표는 적을 때 편다(0x004099CB → 0x0040C410).
+                    string text = DisevScript.DecodeDialogue(p.AsSpan(i + 2, zero - i - 2), normalize: true,
+                                                             player: player.Name).Body;
+                    int where = U16(p, zero + 2);
+                    if (p[zero + 1] == 0x08) player.AddRumor(where, text, when);
+                    else if (p[zero + 1] == 0x19)
+                        // 그 문화권 도시 226곳 모두 — 아직 안 선 도시도 받는다(0x00409A44).
+                        for (int c = 0; c < CityExeTable.Count; c++)
+                            if (cities?.CultureOf(c) == where) player.AddRumor(c, text, when);
                     i = zero + 4;
                     break;
                 }
@@ -227,8 +243,17 @@ public sealed class CityHistory
                 {
                     int city = U16(p, i + 2), value = U16(p, i + 5);
                     if (p[i + 4] == 0x18) player.SetCityState(city, value);
-                    else if (p[i + 4] == 0x00) player.SetHistoryNation(city, value);
+                    else if (p[i + 4] == 0x00) ChangeNation(player, cities, nations, city, value);
                     i += 7;
+                    break;
+                }
+                case (0x19 or 0x1A, 0x08) when i + 8 < end && p[i + 4] == 0x1A:   // 규모 ± (0x00409385, 0~7 로 자름)
+                {
+                    int city = U16(p, i + 2);
+                    int by = BitConverter.ToInt32(p, i + 5) * (a == 0x19 ? 1 : -1);
+                    int was = cities?.ScaleOf(city) ?? 0;
+                    player.SetCityScale(city, was + by);
+                    i += 9;
                     break;
                 }
                 case (0x01 or 0x26 or 0x22 or 0x23 or 0x25, 0x08):              // 도시 드러냄·세움·깃발
@@ -238,9 +263,6 @@ public sealed class CityHistory
                     break;
                 case (0x22 or 0x26, 0x10):                                      // 건물 비트
                     i += 7;
-                    break;
-                case (0x19 or 0x1A, 0x08):                                      // 규모 ±
-                    i += 9;
                     break;
                 case (0x43, 0x2B) when i + 11 < end && p[i + 2] == 0x1C:        // 능력 >= 값 이 아니면 뜀
                 {
@@ -256,6 +278,25 @@ public sealed class CityHistory
                     return;
             }
         }
+    }
+
+    /// <summary>
+    /// 도시의 나라를 바꾼다(<c>0x00409AB6</c>) — 그 도시가 옛 나라의 <b>수도</b>면 옛 나라 도시가 다 넘어간다.
+    /// </summary>
+    /// <remarks>
+    /// 수도는 나라 레코드(<c>0x005859C0</c> + 나라 x 16)의 <c>+0x00</c> 이다. 놀이 중에 이 칸을 바꾸는 곳을 못 찾아
+    /// 나라 표의 수도(<see cref="NationTable.Nation.Capital"/>)로 본다.
+    /// </remarks>
+    private static void ChangeNation(Player player, CityExeTable? cities, NationTable? nations, int city, int nation)
+    {
+        int old = cities?.NationOf(city) ?? -1;
+        if (old >= 0 && nations?.Find(old) is { } was && was.Capital == city && cities != null)
+        {
+            for (int c = 0; c < CityExeTable.Count; c++)
+                if (cities.NationOf(c) == old) player.SetHistoryNation(c, nation);
+            return;
+        }
+        player.SetHistoryNation(city, nation);
     }
 
     /// <summary>사람 대본 한 칸의 몸통 끝 — 그보다 뒤에서 시작하는 가장 가까운 몸통.</summary>
