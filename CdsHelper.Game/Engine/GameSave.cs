@@ -176,7 +176,8 @@ public static class GameSave
         Dictionary<int, int>? CityRates = null, int? RatesMonth = null,
         Dictionary<int, int>? CityStates = null, int? HistoryMonth = null,
         Dictionary<int, int>? HistoryNations = null, List<int>? HistoryDone = null,
-        Dictionary<int, int>? AnnouncedYears = null);
+        Dictionary<int, int>? AnnouncedYears = null, Dictionary<int, int>? CityScales = null,
+        List<Support.Local.Models.Player.Rumor>? Rumors = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -256,7 +257,9 @@ public static class GameSave
                             HistoryNations: player.HistoryNations.ToDictionary(e => e.Key, e => e.Value),
                             HistoryDone: [.. player.HistoryDone],
                             // 발표한 해 — 향신료·신대륙 기호품 값이 여기서부터 햇수를 센다.
-                            AnnouncedYears: player.AnnouncedYears.ToDictionary(e => e.Key, e => e.Value));
+                            AnnouncedYears: player.AnnouncedYears.ToDictionary(e => e.Key, e => e.Value),
+                            CityScales: player.CityScales.ToDictionary(e => e.Key, e => e.Value),
+                            Rumors: [.. player.Rumors]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

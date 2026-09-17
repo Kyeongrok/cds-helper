@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -190,7 +191,25 @@ public sealed class CityExeTable
     /// 처음 규모. 놀이 중에 도시가 자라면 이 값보다 커진다 — 게임이 돌 때의 값은 딴 자리다.
     /// </summary>
     public int ScaleOf(int cityId) =>
-        cityId >= 0 && cityId < _scales.Length ? _scales[cityId] : 0;
+        Live?.CityScales.TryGetValue(cityId, out int grown) == true ? grown
+        : cityId >= 0 && cityId < _scales.Length ? _scales[cityId] : 0;
+
+    /// <summary>
+    /// 놀이 중에 바뀐 값을 든 주인공 — 역사 대본이 바꾼 나라(<see cref="Player.HistoryNations"/>)와
+    /// 규모(<see cref="Player.CityScales"/>)가 표 첫값을 덮는다. 편집기처럼 놀이가 없는 자리면 null.
+    /// </summary>
+    public Player? Live => LivePlayer?.Invoke();
+
+    /// <summary>지금 주인공을 알려 주는 길. 새 판으로 주인공이 갈려도 따라가게 함수로 둔다.</summary>
+    public Func<Player>? LivePlayer { get; set; }
+
+    /// <summary>표에 적힌 처음 나라 — 사람이 갈아 둔 것은 들지만 놀이 중 바뀐 것은 안 든다.</summary>
+    public int StartNationOf(int cityId)
+    {
+        int changed = CityNationEdits.Of(cityId);
+        if (changed != CityNationEdits.None) return changed;
+        return cityId >= 0 && cityId < _nations.Length ? _nations[cityId] : -1;
+    }
 
     /// <summary>
     /// 그 도시를 가진 나라 번호. 모르면 -1.
@@ -224,6 +243,8 @@ public sealed class CityExeTable
 
     public int NationOf(int cityId)
     {
+        // 역사 대본이 넘긴 나라가 먼저다(1492년 그라나다 → 에스파니아 따위).
+        if (Live?.HistoryNations.TryGetValue(cityId, out int now) == true) return now;
         int changed = CityNationEdits.Of(cityId);
         if (changed != CityNationEdits.None) return changed;
         return cityId >= 0 && cityId < _nations.Length ? _nations[cityId] : -1;

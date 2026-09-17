@@ -551,8 +551,14 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         }
 
         // 무명 손님은 <b>소문만</b> 건넨다 — 고용도 결투도 없다.
+        // 그 도시에 살아 있는 역사 소문이 있으면 반은 그것이다(0x004A43F0: rand(2) → 코드 9, 0x004A3080).
         var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
-        ConfirmDialog.Tell(_view, TavernRumors.Of(_cultureNo, _game.Random), face: face);
+        _game.CatchUpMonths();
+        var local = _player.RumorsOf(_cityId);
+        string line = local.Count > 0 && _game.Random.Next(2) != 0
+            ? local[_game.Random.Next(local.Count)]
+            : TavernRumors.Of(_cultureNo, _game.Random);
+        ConfirmDialog.Tell(_view, line, face: face);
     }
 
     /// <summary>

@@ -196,7 +196,7 @@ public sealed class Game
                                       Found(MarketRates.Aztec, when), Found(MarketRates.Inca, when));
 
                 if (key > player.HistoryMonth)
-                    History?.RunMonth(player, year, month, CityRows, Found);
+                    History?.RunMonth(player, year, month, CityRows, Nations, Found);
             }
             player.SetRatesMonth(now);
             player.SetHistoryMonth(now);
@@ -222,9 +222,22 @@ public sealed class Game
     private bool _drinksTried;
 
     /// <summary>EXE 도시 표(문화권·시장 물건). 시장과 여관이 같이 쓴다.</summary>
-    public CityExeTable? CityRows =>
-        Once(ref _cityRows, ref _cityRowsTried, CityExeTable.Open,
-             () => CityExeTable.LastError, "EXE 도시 표");
+    /// <remarks>
+    /// 놀이 중 바뀐 나라·규모(역사 대본)를 덮어 읽도록 주인공을 이어 두고, 꺼낼 때마다 밀린 달을 먼저 센다
+    /// (<see cref="CatchUpMonths"/>) — 성문·도시정보가 그 달의 나라를 본다.
+    /// </remarks>
+    public CityExeTable? CityRows
+    {
+        get
+        {
+            var rows = Once(ref _cityRows, ref _cityRowsTried, CityExeTable.Open,
+                            () => CityExeTable.LastError, "EXE 도시 표");
+            if (rows == null) return null;
+            rows.LivePlayer ??= () => Player;
+            CatchUpMonths();
+            return rows;
+        }
+    }
 
     /// <summary>
     /// 시설 화자표(CDS_95.EXE). 어느 건물에서 누가 말을 거는지 — 문화권마다 다르다.

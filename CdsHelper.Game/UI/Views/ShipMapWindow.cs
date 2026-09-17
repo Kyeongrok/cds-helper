@@ -2124,6 +2124,8 @@ public sealed class ShipMapWindow : Window
             // 도시 시세·상태와 역사 대본 진행. 옛 세이브면 시세는 100, 상태는 1480년부터 되짚어 채운다.
             _game.Player.RestoreCityRates(saved.CityRates, saved.RatesMonth);
             _game.Player.RestoreCityStates(saved.CityStates);
+            _game.Player.RestoreCityScales(saved.CityScales);
+            _game.Player.RestoreRumors(saved.Rumors);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
             _game.Player.RestoreAnnouncedYears(saved.AnnouncedYears);
             if (saved.Fatigue is { } tired) _game.Player.SetFatigue(tired);
