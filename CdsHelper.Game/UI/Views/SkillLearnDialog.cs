@@ -28,7 +28,8 @@ public sealed class SkillLearnDialog : GameWindow
     /// <summary>목록 바닥 폭과, 넘치면 굴리기 시작하는 키. 게임 갈무리를 재어 맞췄다.</summary>
     private const double ListWidth = 300, ListMaxHeight = 220;
 
-    private readonly Player _player;
+    private readonly Func<string, int> _levelOf;
+    private readonly Func<string, bool> _learn;
     private readonly IReadOnlyList<string> _skills;
     private readonly GameList _list;
     private readonly GameButton _decide;
@@ -36,9 +37,10 @@ public sealed class SkillLearnDialog : GameWindow
     /// <summary>이 창에서 하나라도 배웠는지. 조합장이 나가는 말을 고르는 데 쓴다.</summary>
     private bool _learned;
 
-    private SkillLearnDialog(Player player, IReadOnlyList<string> skills)
+    private SkillLearnDialog(IReadOnlyList<string> skills, Func<string, int> levelOf, Func<string, bool> learn)
     {
-        _player = player;
+        _levelOf = levelOf;
+        _learn = learn;
         _skills = skills;
 
         WindowStyle = WindowStyle.None;
@@ -101,41 +103,20 @@ public sealed class SkillLearnDialog : GameWindow
     }
 
     /// <summary>줄에 찍는 글.</summary>
-    private string RowText(string name) => $"{name} ( LV{_player.LevelOf(name)} )";
+    private string RowText(string name) => $"{name} ( LV{_levelOf(name)} )";
 
+    /// <summary>
+    /// 결정 — 가르치는 쪽(<see cref="TrainingMenu"/>)이 값·기간을 묻고 배운다. <b>하나 배우면 창을 닫는다</b>
+    /// (게임 <c>0x00491436</c> 이 수련 차림을 끝낸다). 물리거나 못 배웠으면 목록에 남는다.
+    /// </summary>
     private void Decide()
     {
         int at = _list.Selected;
         if (at < 0 || at >= _skills.Count) return;
-        string skill = _skills[at];
 
-        int level = _player.LevelOf(skill);
-        if (level >= Skill.MaxLevel)
-        {
-            NoticeDialog.Show(this, $"{skill}은(는) 더 배울 것이 없네.");
-            return;
-        }
-
-        int months = Skill.MonthsFor(level + 1);
-        if (!ConfirmDialog.Ask(this,
-                $"배우고 싶다면 금화 {Skill.Price}닢 필요하네. " +
-                $"습득하는데는, {months}개월 정도 필요하네. 그래도 좋다면 가르쳐 주지. 괜찮은가?"))
-            return;
-
-        switch (_player.Learn(skill))
-        {
-            case LearnResult.Ok:
-                _learned = true;
-                _list.Refresh();          // 그 줄의 LV 가 올랐다
-                NoticeDialog.Show(this, $"{skill}을 습득했다!");
-                break;
-            case LearnResult.NotEnoughGold:
-                NoticeDialog.Show(this, "금화가 모자라는군. 그것으로는 안 되네.");
-                break;
-            case LearnResult.Mastered:
-                NoticeDialog.Show(this, $"{skill}은(는) 더 배울 것이 없네.");
-                break;
-        }
+        if (!_learn(_skills[at])) { _list.Refresh(); return; }
+        _learned = true;
+        Close();
     }
 
     /// <summary>
@@ -143,15 +124,12 @@ public sealed class SkillLearnDialog : GameWindow
     /// 게임은 건물 표의 비트마스크로 도시마다 다르게 준다.
     /// </summary>
     /// <returns>하나라도 배웠으면 true. 부르는 쪽이 나가는 말을 고르는 데 쓴다.</returns>
-    public static bool Show(Window owner, Player player, IReadOnlyList<string> skills)
+    public static bool Show(Window owner, IReadOnlyList<string> skills,
+                            Func<string, int> levelOf, Func<string, bool> learn)
     {
-        if (skills.Count == 0)
-        {
-            NoticeDialog.Show(owner, "여기서 가르치는 것은 없네.");
-            return false;
-        }
+        if (skills.Count == 0) return false;
 
-        var dlg = new SkillLearnDialog(player, skills) { Owner = owner };
+        var dlg = new SkillLearnDialog(skills, levelOf, learn) { Owner = owner };
         dlg.ShowDialog();
         return dlg._learned;
     }
