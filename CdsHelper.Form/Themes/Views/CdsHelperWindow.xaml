@@ -206,13 +206,13 @@
                                     <MenuItem Header="파일">
                                         <MenuItem Command="{Binding LoadSaveCommand}" Header="세이브 파일 열기" />
                                     </MenuItem>
-                                    <MenuItem x:Name="PART_WorldMapMenu" Header="세계지도" />
                                     <MenuItem x:Name="PART_SettingsMenu" Header="설정" />
                                     <MenuItem
                                         x:Name="PART_ShipMapMenu"
                                         Header="렌더링"
                                         ToolTip="함대 보기 (Direct3D)" />
                                     <MenuItem Header="도구">
+                                        <MenuItem x:Name="PART_WorldMapMenu" Header="세계지도" />
                                         <MenuItem x:Name="PART_SphinxMenu" Header="스핑크스" />
                                         <MenuItem x:Name="PART_EventQueueMenu" Header="이벤트 큐 보기" />
                                         <MenuItem x:Name="PART_DbTableViewerMenu" Header="DB 테이블 보기" />
@@ -264,13 +264,13 @@
                                             x:Name="PART_PortraitBookMenu"
                                             Header="초상화 보기"
                                             ToolTip="MALE.CDS · FEMALE.CDS 의 얼굴을 번호와 함께 본다" />
+                                    </MenuItem>
+                                    <!--  에셋 — 게임 파일에 든 소리·그림 따위를 본다  -->
+                                    <MenuItem Header="에셋">
                                         <MenuItem
                                             x:Name="PART_DiscoveryStillMenu"
                                             Header="발견물 그림"
                                             ToolTip="DSTILL.CDS 의 발견물 그림을 골라 본다" />
-                                    </MenuItem>
-                                    <!--  에셋 — 게임 파일에 든 소리·그림 따위를 본다  -->
-                                    <MenuItem Header="에셋">
                                         <MenuItem
                                             x:Name="PART_WaveBankMenu"
                                             Header="효과음 보기"

@@ -18,7 +18,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper.Maze", "CdsHelper
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper.Duel", "CdsHelper.Duel\CdsHelper.Duel.csproj", "{2F5C9A31-7C4D-4B18-9E62-1D0A6B3F4C77}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CdsHelper.Play", "CdsHelper.Play\CdsHelper.Play.csproj", "{C1704E27-6072-43DC-BB1F-04DAD0439D0D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CostaDelSol.Play", "CostaDelSol.Play\CostaDelSol.Play.csproj", "{C1704E27-6072-43DC-BB1F-04DAD0439D0D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

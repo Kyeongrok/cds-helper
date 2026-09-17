@@ -35,6 +35,9 @@ public class WorldMapContent : ContentControl
     private CheckBox? _chkShowCoast;
     private CheckBox? _chkShowWind;
     private CheckBox? _chkShowDiscoveries;
+
+    /// <summary>발견물을 그리는지. 도구 줄에서 체크상자를 뺐으므로(fb-ui-22) 상자가 없으면 늘 그린다.</summary>
+    private bool DiscoveriesOn => _chkShowDiscoveries?.IsChecked ?? true;
     private Button? _btnLeaveCity;
     private Button? _btnTrackCoordinate;
     private TextBlock? _txtCurrentCoordinate;
@@ -447,7 +450,7 @@ public class WorldMapContent : ContentControl
             Rerender();
 
             // 발견물 체크 되어 있으면 표시
-            if (_chkShowDiscoveries?.IsChecked == true)
+            if (DiscoveriesOn)
                 ShowDiscoveries();
         }
         catch (Exception ex)
@@ -591,7 +594,7 @@ public class WorldMapContent : ContentControl
         var opts = AppSettings.WorldMap;
         opts.ShowCoast = _chkShowCoast?.IsChecked == true;
         opts.ShowWind = _chkShowWind?.IsChecked == true;
-        opts.ShowDiscoveries = _chkShowDiscoveries?.IsChecked == true;
+        opts.ShowDiscoveries = DiscoveriesOn;
         opts.ShowCityLabels = _chkShowCityLabels?.IsChecked == true;
         opts.HideFound = _chkHideFound?.IsChecked == true;
         opts.ShowSpeed = _chkShowSpeed?.IsChecked == true;
@@ -605,7 +608,7 @@ public class WorldMapContent : ContentControl
 
     private void ToggleDiscoveries()
     {
-        if (_chkShowDiscoveries?.IsChecked == true)
+        if (DiscoveriesOn)
             ShowDiscoveries();
         else
             HideDiscoveries();
@@ -629,7 +632,7 @@ public class WorldMapContent : ContentControl
         }
 
         // 발견물 표시가 켜져 있으면 즉시 재빌드
-        if (_chkShowDiscoveries?.IsChecked == true)
+        if (DiscoveriesOn)
             ShowDiscoveries();
     }
 

@@ -1,11 +1,11 @@
 ---
 name: run-game
-description: 놀이 앱(CdsHelperPlay)을 닫고, 다시 구워, 띄운다. 사용자가 "실행", "실행해줘", "띄워줘", "돌려봐" 라고 하거나, 코드를 고쳐 빌드가 통과한 뒤 화면으로 확인할 일이 있을 때 쓴다.
+description: 놀이 앱(CostaDelSol)을 닫고, 다시 구워, 띄운다. 사용자가 "실행", "실행해줘", "띄워줘", "돌려봐" 라고 하거나, 코드를 고쳐 빌드가 통과한 뒤 화면으로 확인할 일이 있을 때 쓴다.
 ---
 
 # 놀이 앱 실행
 
-`CdsHelper.Play` 가 이 저장소의 실행 앱이고, 구워진 이름은 **`CdsHelperPlay.exe`** 다.
+`CostaDelSol.Play` 가 이 저장소의 실행 앱이고, 구워진 이름은 **`CostaDelSol.exe`** 다.
 
 ## 차례
 
@@ -13,7 +13,7 @@ description: 놀이 앱(CdsHelperPlay)을 닫고, 다시 구워, 띄운다. 사�
 `taskkill` 이 1 을 내는 것이 정상이다.
 
 ```bash
-taskkill //IM CdsHelperPlay.exe //F 2>/dev/null; sleep 1
+taskkill //IM CostaDelSol.exe //F 2>/dev/null; sleep 1
 dotnet build cds-helper.sln -v q --nologo
 ```
 
@@ -21,18 +21,18 @@ dotnet build cds-helper.sln -v q --nologo
 닫힐 때까지 대화가 막힌다.
 
 ```
-CdsHelper.Play/bin/Debug/net10.0-windows10.0.19041.0/win-x64/CdsHelperPlay.exe
+CostaDelSol.Play/bin/Debug/net10.0-windows10.0.19041.0/win-x64/CostaDelSol.exe
 ```
 
-띄운 뒤 `tasklist //FI "IMAGENAME eq CdsHelperPlay.exe"` 로 떴는지 한 번 확인한다.
+띄운 뒤 `tasklist //FI "IMAGENAME eq CostaDelSol.exe"` 로 떴는지 한 번 확인한다.
 
 ## 알아 둘 것
 
-- **앱이 떠 있으면 빌드가 깨진다.** `CdsHelper.Play` 가 `CdsHelper.Game.dll` ·
+- **앱이 떠 있으면 빌드가 깨진다.** `CostaDelSol.Play` 가 `CdsHelper.Game.dll` ·
   `CdsHelper.Maze.dll` 을 잠그고 있어 `MSB3027`(파일이 잠겨 있습니다)로 멎는다.
   그래서 굽기 전에 반드시 닫는다.
 - 대상 판이 올라가면 `net10.0-windows10.0.19041.0` 자리가 바뀐다. 길이 안 맞으면
-  `ls CdsHelper.Play/bin/Debug/*/win-x64/CdsHelperPlay.exe` 로 찾아 쓴다.
+  `ls CostaDelSol.Play/bin/Debug/*/win-x64/CostaDelSol.exe` 로 찾아 쓴다.
 - 앱을 닫으면 하던 판이 날아간다. 사용자가 놀이 중일 수 있으니 **닫는다는 말을 한 줄
   적고** 닫는다.
 

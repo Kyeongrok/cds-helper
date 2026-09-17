@@ -235,7 +235,7 @@ public static class DuelMotions
     /// </summary>
     /// <remarks>
     /// <b>소스 옆 <c>asset/duel</c> 을 먼저 찾는다.</b> 앱마다 <c>asset</c> 을 제 출력
-    /// 폴더로 복사해 가므로(<c>CdsHelper.csproj</c> · <c>CdsHelper.Play.csproj</c>) 굽힌
+    /// 폴더로 복사해 가므로(<c>CdsHelper.csproj</c> · <c>CostaDelSol.Play.csproj</c>) 굽힌
     /// 자리에 적으면 헬퍼와 놀이가 <b>딴 파일</b>을 보게 된다. 그래서 <c>.sln</c> 이 있는
     /// 저장소 뿌리를 거슬러 올라가 찾고, 못 찾으면(내놓은 판이면) 굽힌 자리를 쓴다.
     /// </remarks>

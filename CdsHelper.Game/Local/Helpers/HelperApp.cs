@@ -5,10 +5,10 @@ using System.Runtime.InteropServices;
 namespace CdsHelper.Game.Local.Helpers;
 
 /// <summary>
-/// 게임에서 <b>도구 앱</b>(CdsHelper.exe)을 띄운다.
+/// 게임에서 <b>도구 앱</b>(Editor.exe)을 띄운다.
 /// </summary>
 /// <remarks>
-/// 두 exe 는 따로 도는 앱이고, 게임 쪽(CdsHelper.Play)은 도구 쪽(CdsHelper.Form)을 참조하지
+/// 두 exe 는 따로 도는 앱이고, 게임 쪽(CostaDelSol.Play)은 도구 쪽(CdsHelper.Form)을 참조하지
 /// 않는다 — 참조하면 게임 하나 띄우는 데 도구 창까지 다 딸려 올라온다. 그래서 창을 여는
 /// 것이 아니라 <b>프로세스를 띄운다</b>.
 ///
@@ -22,10 +22,13 @@ namespace CdsHelper.Game.Local.Helpers;
 /// </remarks>
 public static class HelperApp
 {
-    private const string ExeName = "CdsHelper.exe";
+    private const string ExeName = "Editor.exe";
 
     /// <summary>프로세스 이름(확장자 없이). 이미 떠 있는지 이것으로 본다.</summary>
-    private const string ProcessName = "CdsHelper";
+    private const string ProcessName = "Editor";
+
+    /// <summary>도구 앱 프로젝트 폴더 — 굽고 돌릴 때 옆 프로젝트의 bin 을 찾는 데 쓴다. exe 이름과 다르다.</summary>
+    private const string ProjectFolder = "CdsHelper";
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -48,14 +51,14 @@ public static class HelperApp
         // 굽고 돌릴 때는 프로젝트마다 제 bin 을 쓴다. 판·틀·RID 가 같으니 폴더 이름
         // 하나만 갈아 끼우면 옆 프로젝트의 같은 구운 자리가 나온다.
         string mine = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
-        foreach (string play in (string[])["CdsHelper.Play", "CdsHelper.Duel", "CdsHelper.Maze"])
+        foreach (string play in (string[])["CostaDelSol.Play", "CdsHelper.Duel", "CdsHelper.Maze"])
         {
             string mark = Path.DirectorySeparatorChar + play + Path.DirectorySeparatorChar;
             int at = mine.IndexOf(mark, StringComparison.OrdinalIgnoreCase);
             if (at < 0) continue;
 
             string beside = Path.Combine(
-                mine[..at], ProcessName, mine[(at + mark.Length)..], ExeName);
+                mine[..at], ProjectFolder, mine[(at + mark.Length)..], ExeName);
             if (File.Exists(beside)) return beside;
         }
 

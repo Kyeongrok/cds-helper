@@ -43,6 +43,9 @@ public sealed class DevDialog : GameWindow
         public Func<bool> ToolBarOn { get; init; } = () => false;
         public Action<bool> SetToolBar { get; init; } = _ => { };
 
+        /// <summary>자동항해 — 목적지 도시를 골라 손을 놓고 몬다. 개발 창을 닫은 뒤 부른다.</summary>
+        public Action? AutoSail { get; init; }
+
         /// <summary>게임 폴더. 화면 조각을 뽑을 때 쓴다.</summary>
         public string GameDirectory { get; init; } = "";
     }
@@ -140,6 +143,23 @@ public sealed class DevDialog : GameWindow
             NoticeDialog.Show(this, result);
         }, 180));
         rows.Children.Add(dump);
+
+        // 자동항해 — 해상 커맨드에 있던 것을 옮겼다. 창을 닫고 나서 목적지를 고른다.
+        if (options.AutoSail is { } autoSail)
+        {
+            var sail = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+            sail.Children.Add(new TextBlock
+            {
+                Text = "항해",
+                Width = 64,
+                Foreground = GameUi.Text,
+                FontWeight = FontWeights.Bold,
+                FontSize = 15,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            sail.Children.Add(GameUi.PushButton("자동항해…", () => { Close(); autoSail(); }, 180));
+            rows.Children.Add(sail);
+        }
 
         var buttons = new StackPanel
         {
