@@ -56,6 +56,7 @@ public sealed class Ship
         Guns = Gun < 0 ? 0 : Math.Clamp(s.Guns, 0, Turrets);
         if (Guns == 0) Gun = -1;
         Hp = Math.Clamp(hp ?? MaxHp, 0, MaxHp);
+        Lent = s.Lent;
     }
 
     private static int Bound(int value, int basis) =>
@@ -79,6 +80,12 @@ public sealed class Ship
     /// 자세한 것은 <see cref="Models.Figurehead"/>.
     /// </remarks>
     public int Figurehead { get; private set; }
+
+    /// <summary>
+    /// 스폰서에게 <b>빌린 배</b>인지 — 게임은 배 레코드 <c>+0x64</c> 에 1 을 박는다(<c>0x0040FA00</c>).
+    /// 「내 배가 있나」(<c>0x00410800</c>)는 이런 배를 안 센다.
+    /// </summary>
+    public bool Lent { get; }
 
     /// <summary>선수상 가짓수(게임 표 <c>0x0054A0A0</c> 의 줄 수).</summary>
     public const int FigureheadCount = 36;
@@ -448,7 +455,8 @@ public sealed class Ship
     /// <param name="Sails">마스트 셋에 달린 돛. 안 주면 메인마스트에 삼각돛 하나다.</param>
     public sealed record Stats(int MaxHp, int Speed, int Capacity, int Tonnage, int Crew,
                                int Turrets = 0, int Gun = -1, int Guns = 0,
-                               IReadOnlyList<int>? Sails = null, int? Figurehead = null)
+                               IReadOnlyList<int>? Sails = null, int? Figurehead = null,
+                               bool Lent = false)
     {
         /// <summary>
         /// 선체 기본값 그대로. 포탑은 다 달린 채로 나오고 대포는 안 실려 있으며,
@@ -461,10 +469,10 @@ public sealed class Ship
 
     /// <summary>지금 값을 통째로.</summary>
     public Stats Snapshot() =>
-        new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns, [.. _sails], Figurehead);
+        new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns, [.. _sails], Figurehead, Lent);
 
     /// <summary>개조로 값이 갈렸는지.</summary>
-    public bool IsRefitted => Snapshot() != Stats.Of(Hull);
+    public bool IsRefitted => Snapshot() with { Lent = false } != Stats.Of(Hull);
 }
 
 /// <summary>

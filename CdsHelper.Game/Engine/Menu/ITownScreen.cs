@@ -25,6 +25,9 @@ internal interface ITownScreen
     /// <summary>배가 한 척이라도 있는지. 출항·보급·선원편성이 이것을 본다.</summary>
     bool HasShips { get; }
 
+    /// <summary>선원이 한 사람이라도 있는지. 보급이 이것도 본다(0x00476CE0 → 0x0040E360).</summary>
+    bool HasCrew { get; }
+
     /// <summary>지닌 물건이 있는지. 자택 보관이 이것을 본다.</summary>
     bool HasItems { get; }
 

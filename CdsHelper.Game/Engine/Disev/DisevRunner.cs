@@ -137,6 +137,15 @@ public sealed class DisevRunner
     public static bool LastEndedInGameOver { get; private set; }
 
     /// <summary>
+    /// 마지막으로 돌린 이야기 대본의 <b>결과 코드</b> — 밑값 2, <c>4C</c> 0 · <c>4D</c> 1 · <c>4E</c> 2(맥락 <c>+8</c>).
+    /// </summary>
+    /// <remarks>
+    /// 건물에 들어선 사건(<c>0x004AB5A0</c>)은 이것이 <b>1 일 때만</b> 참을 돌려(<c>0x004AB4AC</c>) 건물에 못 들게 한다 —
+    /// 「저택은 북쪽 초록 지붕 건물입니다」 뒤의 4D 가 그것이다. 0·2 면 말만 하고 그대로 들어간다.
+    /// </remarks>
+    public static int LastResult { get; private set; } = 2;
+
+    /// <summary>
     /// 마지막으로 돌린 대본이 <b>이벤트 완전 종료</b>(<c>04 4D</c>)로 끝났는지 — 이야기 장(章)을
     /// 닫아야 하는지는 부른 쪽(<see cref="Discovery.StoryLog"/>)이 이것을 보고 정한다.
     /// </summary>
@@ -147,6 +156,9 @@ public sealed class DisevRunner
     /// 카운터를 올려야 하는지는 부른 쪽이 이것을 보고 정한다.
     /// </summary>
     public static bool LastAdvancedStep { get; private set; }
+
+    /// <summary>마지막 대본이 이야기 단계를 몇 번 올렸는지 — <c>06</c> 마다 하나(0x00408B2F 가 맥락 +0x10 에 1 을 둔다).</summary>
+    public static int LastStepsAdvanced { get; private set; }
 
     /// <summary>대본을 여기서 멈추라는 뜻으로 <see cref="Step"/> 이 내는 값.</summary>
     private const int Stop = int.MinValue;
@@ -180,8 +192,10 @@ public sealed class DisevRunner
     public static bool Run(Window owner, Game game, string cache, int partIndex, int building)
     {
         LastEndedInGameOver = false;
+        LastResult = 2;
         LastStoryArcCompleted = false;
         LastAdvancedStep = false;
+        LastStepsAdvanced = 0;
         if (Open(game.Directory, cache) is not { } book) return false;
         if (partIndex < 0 || partIndex >= book.Count) return false;
 
@@ -320,7 +334,9 @@ public sealed class DisevRunner
                 group = true;
                 continue;
             }
-            if (line.Call is { } call && Evaluate(call, line.Args) is false) group = false;
+            // 모르는 조건이 끼면 게임은 그 파트를 통째로 안 튼다(0x00407F09) — 참으로 흘리면 안 된다.
+            if (line.Call is not { } call) return false;
+            if (Evaluate(call, line.Args) is false) group = false;
         }
         return group;
     }
@@ -357,6 +373,14 @@ public sealed class DisevRunner
             case DisevCall.InCity: return player.CityId == I("City");                // 17 08 (0x00409074)
             case DisevCall.InNation: return player.Nation == I("Nation");            // 17 00
             case DisevCall.InBuilding: return _building == I("Building");            // 17 10
+            case DisevCall.NotInCity: return player.CityId != I("City");             // 41 08 (0x00407C7E)
+            // 41 10 — 건물에 들어선 사건이면 그 건물이 아닐 때 참, 딴 사건(도시에 들어섬 따위)이면 거짓(0x00407CE8)
+            case DisevCall.NotInBuilding: return _building >= 0 && _building != I("Building");
+            // 건물 명령 고름(갈래 4)·후원자 건물 나섬(갈래 5) 사건은 아직 안 올린다 — 그 사건이 아니니 거짓이다.
+            case DisevCall.HasFleet: return player.Ships.Count > 0;                   // 59 (0x00407DA9)
+            case DisevCall.BuildingCommand:
+            case DisevCall.SponsorVisitEnded:
+                return false;
             case DisevCall.InCulture:                                                // 17 19
                 return player.CityId >= 0 && _game.CityRows?.CultureOf(player.CityId) == I("Culture");
             case DisevCall.PersonUnmet:                                              // 37 0D
@@ -665,21 +689,49 @@ public sealed class DisevRunner
             case DisevCall.EndDone:
             case DisevCall.EndFailed:
             case DisevCall.EndUnhandled:
+                LastResult = line.Call == DisevCall.EndDone ? 0 : line.Call == DisevCall.EndFailed ? 1 : 2;
                 return Stop;
 
             // 04 4D — 이야기 장(章)을 완전히 끝낸다. 부른 쪽(StoryLog)이
             // LastStoryArcCompleted 를 보고 그 장을 닫아 다시 트리거되지 않게 한다.
             case DisevCall.EndEventCompletely:
                 LastStoryArcCompleted = true;
+                LastResult = 1;                       // 04 다음의 4D
                 return Stop;
 
             // 06 4D — 이야기 장의 다음 단계로. 06 FF 는 같은 뜻이되 그 자리에서 대본도 끝낸다.
             // 부른 쪽이 LastAdvancedStep 을 보고 진행 카운터를 올린다.
+            // 40 0D — 그 인물을 부관 자리에 앉힌다. 신상은 게임 세이브 인물표에서 채운다(Game.MateInfo).
+            // 38 12 — 그 후원자를 이미 만난 것으로 친다. 문간 명성 관문이 안 걸린다(CityPicView.PassFameGate).
+            case DisevCall.MeetSponsor:
+                if (_game.Sponsors?.Sponsors.FirstOrDefault(s => s.Index == I("Sponsor")) is { Name.Length: > 0 } sponsor)
+                    _game.Player.Meet(sponsor.Name);
+                return null;
+
+            case DisevCall.SetAide:
+                if (Local.Helpers.PersonTable.Open()?.Find(I("Person")) is { Name.Length: > 0 } aide)
+                {
+                    _game.Player.SetMate(0, aide.Name);
+                    _game.MateInfo(aide.Name);
+                }
+                return null;
+
             case DisevCall.NextStep:
+                // 06 다음의 4D 는 결과 1 을 적고 끝낸다(0x0040BDF5) — 그 건물에는 안 들어간다.
                 LastAdvancedStep = true;
+                LastStepsAdvanced++;
+                LastResult = 1;
+                return Stop;
+            case DisevCall.CloseStory:
+                LastStoryArcCompleted = true;
+                return null;
+            case DisevCall.AdvanceStep:
+                LastAdvancedStep = true;
+                LastStepsAdvanced++;
                 return null;
             case DisevCall.NextStepFF:
                 LastAdvancedStep = true;
+                LastStepsAdvanced++;
                 return Stop;
 
             default:
@@ -976,8 +1028,23 @@ public sealed class DisevRunner
         null or "" => null,
         Aide => MateFace(),
         Inspector or "검사관" => _game.Faces?.TryGetBgra(Town.Inspector.Face, female: false),
-        _ => FacilityFace(speaker),
+        // 執事 — 게임은 인물 275 를 세우고 얼굴을 229 로 박는다(0x0040CA16~0x0040CA40).
+        Butler => _game.Faces?.TryGetBgra(ButlerFace, female: false),
+        _ => FacilityFace(speaker) ?? NamedFace(speaker),
     };
+
+    /// <summary>
+    /// 이름으로 선 화자(후원자·인물)의 얼굴 — 화자 칸의 일본어 이름을 두 표에서 찾는다(<c>0x0040C8E0</c> · <c>0x0040CA7D</c>).
+    /// </summary>
+    private uint[]? NamedFace(string speaker)
+    {
+        if (_game.SpeakerNames?.Find(speaker) is not { } who) return null;
+        if (who.Sponsor >= 0 && _game.Sponsors?.Sponsors.FirstOrDefault(s => s.Index == who.Sponsor) is { Name.Length: > 0 } sponsor)
+            return _game.Faces?.TryGetBgra(sponsor.Face, sponsor.IsFemale);
+        if (who.Person >= 0 && _game.PersonTemplates?.Find(who.Person) is { } person)
+            return _game.Faces?.TryGetBgra(person.Face, female: false);
+        return null;
+    }
 
     /// <summary>
     /// 값 식 <c>1C [u16 칸]</c> 이 내는 값(<c>0x00406E76</c> 의 뜀표 <c>0x00407310</c>). 아는 칸만 낸다.
@@ -1016,6 +1083,12 @@ public sealed class DisevRunner
 
     /// <summary>부관 화자 이름. 대본에는 CP932 로 <c>副官</c> 이라 적혀 있다.</summary>
     private const string Aide = "부관";
+
+    /// <summary>집사 화자 이름. 대본에는 CP932 로 <c>執事</c> 다.</summary>
+    private const string Butler = "집사";
+
+    /// <summary>집사 얼굴(<c>0x0040CA40</c> 의 <c>0xE5</c>).</summary>
+    private const int ButlerFace = 229;
 
     /// <summary>감찰관 화자 이름. 대본에는 CP932 로 <c>監察官</c> 이다. 예전 이름 「검사관」도 받는다.</summary>
     private const string Inspector = "감찰관";

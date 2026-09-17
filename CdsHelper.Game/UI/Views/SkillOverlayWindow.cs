@@ -29,8 +29,11 @@ public sealed class SkillOverlayWindow : Window
     private readonly Border _frame;
     private readonly double _fontSize;
 
-    /// <summary>막대 너비(글자 크기에 비례).</summary>
-    private double BarWidth => _fontSize * 3.6;
+    /// <summary>막대 너비(글자 크기에 비례). 숫자가 막대 안에 들어가 짧게 둔다.</summary>
+    private double BarWidth => _fontSize * 2.4;
+
+    /// <summary>막대 색 — 누구 값이든 한 색이다(바랜 양피지).</summary>
+    private static readonly SolidColorBrush BarFill = Brush("#F2E4C8");
 
     private SkillOverlayWindow(Window anchor, double fontSize)
     {
@@ -97,51 +100,19 @@ public sealed class SkillOverlayWindow : Window
         columns.Children.Add(Column("기능", SkillBoardDialog.Build(player, people, language: false)));
         columns.Children.Add(Column("언어", SkillBoardDialog.Build(player, people, language: true)));
 
-        var body = new StackPanel();
-        body.Children.Add(Legend());
-        body.Children.Add(columns);
-        _frame.Child = body;
+        _frame.Child = columns;
     }
 
-    /// <summary>누가 무슨 색인지 — 도구 앱 「스킬」 칸과 같은 색이다(<see cref="SkillDisplayItem.BestColor"/>).</summary>
-    private static readonly (string Label, string Color)[] Owners =
-    [
-        ("제독", "#2196F3"), (Player.MateRoles[0], "#4CAF50"), (Player.MateRoles[1], "#FF9800"),
-        (Player.MateRoles[2], "#9C27B0"), (Player.MateRoles[3], "#F44336"),
-    ];
-
-    private UIElement Legend()
-    {
-        var row = new WrapPanel { Margin = new Thickness(0, 0, 0, _fontSize * 0.4) };
-        foreach (var (label, color) in Owners)
-        {
-            row.Children.Add(new Border
-            {
-                Width = _fontSize * 0.8,
-                Height = _fontSize * 0.8,
-                Background = Brush(color),
-                BorderBrush = Brushes.Black,
-                BorderThickness = new Thickness(1),
-                Margin = new Thickness(0, 0, _fontSize * 0.25, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            var text = Text(label);
-            text.Margin = new Thickness(0, 0, _fontSize * 0.7, 0);
-            row.Children.Add(text);
-        }
-        return row;
-    }
-
-    /// <summary>한 갈래(기능·언어) — 이름 · 제일 높은 값 · 그 사람 색 막대.</summary>
+    /// <summary>한 갈래(기능·언어) — 이름 · 제일 높은 값을 안에 적은 막대.</summary>
     private UIElement Column(string title, List<SkillDisplayItem> items)
     {
         var grid = new Grid { Margin = new Thickness(0, 0, _fontSize * 1.2, 0) };
-        for (int c = 0; c < 3; c++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        for (int c = 0; c < 2; c++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var head = Text(title);
         head.Margin = new Thickness(0, 0, 0, _fontSize * 0.2);
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Grid.SetColumnSpan(head, 3);
+        Grid.SetColumnSpan(head, 2);
         grid.Children.Add(head);
 
         for (int i = 0; i < items.Count; i++)
@@ -152,20 +123,18 @@ public sealed class SkillOverlayWindow : Window
 
             var name = Text(item.Name);
             name.Margin = new Thickness(0, 0, _fontSize * 0.6, 0);
-            var level = Text(item.BestLevel.ToString());
-            level.Margin = new Thickness(0, 0, _fontSize * 0.5, 0);
-
-            // 막대 — 3 이 가득이다. 빈 자리는 옅은 반투명이라 바탕이 비친다.
+            // 막대 — 3 이 가득이다. 빈 자리는 옅은 반투명이라 바탕이 비친다. 값은 막대 한가운데에 적는다.
             double full = BarWidth, filled = full * Math.Clamp(item.BestLevel / 3.0, 0, 1);
             var bar = new Grid
             {
                 Width = full,
-                Height = _fontSize * 0.75,
+                Height = _fontSize * 1.05,
+                Margin = new Thickness(0, 1, 0, 1),
                 VerticalAlignment = VerticalAlignment.Center,
             };
             bar.Children.Add(new Border
             {
-                Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
+                Background = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
                 BorderBrush = Brushes.Black,
                 BorderThickness = new Thickness(1),
             });
@@ -174,18 +143,19 @@ public sealed class SkillOverlayWindow : Window
                 {
                     Width = filled,
                     HorizontalAlignment = HorizontalAlignment.Left,
-                    Background = Brush(item.BestColor),
+                    Background = BarFill,
                     BorderBrush = Brushes.Black,
                     BorderThickness = new Thickness(1),
                 });
+            var level = Text(item.BestLevel.ToString());
+            level.FontSize = _fontSize * 0.8;
+            level.HorizontalAlignment = HorizontalAlignment.Center;
+            bar.Children.Add(level);
 
             Grid.SetRow(name, row);
-            Grid.SetRow(level, row);
-            Grid.SetColumn(level, 1);
             Grid.SetRow(bar, row);
-            Grid.SetColumn(bar, 2);
+            Grid.SetColumn(bar, 1);
             grid.Children.Add(name);
-            grid.Children.Add(level);
             grid.Children.Add(bar);
         }
         return grid;

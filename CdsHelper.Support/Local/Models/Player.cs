@@ -2032,7 +2032,8 @@ public sealed class Player
         if (DockedAt(cityId).Count >= MaxDocked) return false;
 
         if (!_docked.TryGetValue(cityId, out var list)) _docked[cityId] = list = [];
-        list.Add(new Ship(hull, name: string.IsNullOrWhiteSpace(name) ? SuggestShipName() : name.Trim()));
+        list.Add(new Ship(hull, stats: Ship.Stats.Of(hull) with { Lent = true },
+                          name: string.IsNullOrWhiteSpace(name) ? SuggestShipName() : name.Trim()));
         return true;
     }
 
