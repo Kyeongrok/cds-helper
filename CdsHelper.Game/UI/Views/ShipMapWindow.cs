@@ -2126,6 +2126,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityStates(saved.CityStates);
             _game.Player.RestoreCityScales(saved.CityScales);
             _game.Player.RestoreCityBuildings(saved.CityBuildings);
+            _game.Player.RestoreNationStatus(saved.NationStatus);
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
             _game.Player.RestoreAnnouncedYears(saved.AnnouncedYears);
@@ -2736,6 +2737,8 @@ public sealed class ShipMapWindow : Window
     {
         // 전염병 걸린 함대가 통상인 마을에 들면 마을에 옮는다(0x00477124) — 병이 풀리기 전에 본다.
         if (_game.Player.Has(SeaAilment.Plague)) SpreadPlague(city);
+        // 그 다음, 후원자의 나라가 멸망했으면 이 항구에서 소문을 듣고 계약이 깨진다(0x00476F50).
+        CheckSponsorFallen(city);
 
         // 마을에 닿으면 항해가 끝난다 — 쥐·병이 풀리고 부관이 알린다.
         EndVoyage();
@@ -2775,6 +2778,59 @@ public sealed class ShipMapWindow : Window
         if (_game.Rates.StateOf(city) != CityState.Normal) return;
         _game.Player.SetCityState(city, CityState.Plague);
         NoticeDialog.Show(this, CityState.SpreadWord);
+    }
+
+    /// <summary>
+    /// 후원자의 나라가 망했다는 소문을 입항한 항구에서 듣고 계약이 깨진다(<c>0x00476F50</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   계약 중 · 항구 사람과 말이 3 으로 통함(0x00468F70, 제독·부관 자리 0·3) · 이 도시 나라 출입여부가 2 가 아님
+    ///   · 후원자 나라 형편(0x005859C0+나라*16 +4) 이 2(멸망, HIST_EV 22 00)
+    ///   → 항구 사람 · 감찰관 · 항구 사람 · 부관 네 마디, 계약 파기(0x00477050), 「%s와의 계약은 파기되었습니다!」
+    /// </code>
+    /// 원본 한국어판은 이 다섯 줄이 일본어(Shift-JIS) 그대로라 깨져 나온다. 뜻을 옮겨 한국어로 넣었다.
+    /// </remarks>
+    private void CheckSponsorFallen(int city)
+    {
+        var player = _game.Player;
+        if (player.Contract is not { } deal) return;
+        if (_game.Sponsors?.FindByName(deal.Sponsor) is not { Nation: >= 0 } sponsor) return;
+        _game.CatchUpMonths();
+        if (!player.IsNationFallen(sponsor.Nation)) return;
+
+        int nation = _game.CityRows?.NationOf(city) ?? -1;
+        if (Standoff.EntryOf(player, _game.Nations, nation) == 2) return;
+
+        // 항구 사람 말(그 나라 말)을 제독·부관 가운데 누군가 막힘없이(3) 해야 소문을 알아듣는다.
+        int language = _game.Nations?.Find(nation)?.Language ?? -1;
+        if (language is >= 0 and < 14)
+        {
+            int best = player.TongueOf(Skill.Languages[language]);
+            foreach (int slot in (int[])[0, 3])
+            {
+                string mate = player.MateAt(slot);
+                if (mate.Length > 0 && _game.World?.People.FirstOrDefault(r => r.Name == mate) is { } row)
+                    best = Math.Max(best, row.Languages[language]);
+            }
+            if (best < 3) return;
+        }
+
+        int culture = _game.CityRows?.CultureOf(city) ?? 0;
+        var port = _game.SpeakerFace(0, culture);
+        var inspector = _game.Faces?.TryGetBgra(Inspector.Face, female: false);
+        string fallen = _game.Nations?.Find(sponsor.Nation)?.Name ?? "";
+
+        _asking = true;
+        _host.Paused = true;
+        TalkDialog.Say(this, port, "", $"어이, 자네 들었나? {fallen}{GameUi.Josa(fallen, "이", "가")} 멸망했다는 소문이야.");
+        TalkDialog.Say(this, inspector, "", "그, 그럴 수가, 말도 안 돼! 네놈 그 이야기를 누구한테서 들었나!?");
+        TalkDialog.Say(this, port, "", "자네들과 같은 뱃사람이지. 거짓말이라고 생각하면 직접 확인해 보게!");
+        TalkDialog.Say(this, MateFace(), "", "이럴 수가. 이래서는 계약은 없던 일이 되겠군요.");
+        player.EndContract();
+        NoticeDialog.Show(this, $"{deal.Sponsor}{GameUi.Josa(deal.Sponsor, "과", "와")}의 계약은 파기되었습니다!");
+        _host.Paused = false;
+        _asking = false;
     }
 
     /// <summary>
