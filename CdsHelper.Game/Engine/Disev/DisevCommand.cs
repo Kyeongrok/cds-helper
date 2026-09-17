@@ -33,7 +33,7 @@ public enum DisevCall
     GiveHint, AddCityRumor, CreateCity, BuildSpecialBuilding, ActivateGoods,
 
     // ── 상태 변경 ─────────────────────────────────────────────
-    AddStat, SubStat, SetStat, SetStat22, HalveTroops, AddGold, SubGold,
+    AddStat, SubStat, SetStat, SetStat22, HalveTroops, AddGold, SubGold, AddAffinity, SubAffinity,
     MeetPerson, HireInterpreter, ChangeCityNation, OccupyCity, ReleaseCity, RemoveCity, RemoveFacility,
     MoveEventTarget, DestroyNation,
 
@@ -128,6 +128,11 @@ public static class DisevCalls
 
         S(DisevCall.AddGold, "19 14 u32", "Amount"),
         S(DisevCall.SubGold, "1A 14 u32", "Amount"),
+        // 후원자 친밀도 증감 — 표에 없던 명령이다. 이야기0/1(STORY0/1.CDS)의 "친밀도가
+        // (대폭) 올라갔다/내려갔다!" 대사 앞에서 늘 이 여섯 고정 바이트(12 16 00 1C 1C 00)
+        // 뒤에 값 식이 온다. AddStat(19 1C)·SubStat(1A 1C)와 앞 바이트가 달라 안 섞인다.
+        S(DisevCall.AddAffinity, "19 12 16 00 1C 1C 00 expr", "Value"),
+        S(DisevCall.SubAffinity, "1A 12 16 00 1C 1C 00 expr", "Value"),
         S(DisevCall.AddStat, "19 1C u16 expr", "Stat", "Value"),
         S(DisevCall.SubStat, "1A 1C u16 expr", "Stat", "Value"),
         S(DisevCall.SetStat, "26 1C u16 expr", "Stat", "Value"),

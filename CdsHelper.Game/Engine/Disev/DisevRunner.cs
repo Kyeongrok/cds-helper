@@ -49,28 +49,39 @@ public sealed class DisevRunner
     /// 다시 읽는 자리를 둔 까닭은 편집기 때문이다. 여기서 한 번 읽고 붙들고 있으면 앱을
     /// 껐다 켜기 전에는 고친 대본이 안 돈다.
     /// </remarks>
-    private static DisevBook? _shared;
-    private static string _sharedFrom = "";
-    private static DateTime _sharedWhen;
+    /// <summary>
+    /// 열어 둔 책들 — 열쇠는 책 이름(<see cref="DisevBook.Cache"/>). 이야기0·이야기1 도
+    /// 발견 이벤트와 같은 그릇이라 이 하나로 셋 다 돌본다(<see cref="DisevBook.Books"/>).
+    /// </summary>
+    private static readonly Dictionary<string, (DisevBook Book, string Dir, DateTime When)> _shared = [];
 
     /// <summary>그 게임 폴더의 대본 책. 없으면 null 이고, 그러면 대본 없이 지나간다.</summary>
-    public static DisevBook? Open(string gameDirectory)
+    public static DisevBook? Open(string gameDirectory, string cache = DisevBook.CacheName)
     {
-        var when = Stamp();
-        if (_shared != null && _sharedFrom == gameDirectory && _sharedWhen == when) return _shared;
+        var when = Stamp(cache);
+        if (_shared.TryGetValue(cache, out var entry) && entry.Dir == gameDirectory && entry.When == when)
+            return entry.Book;
 
-        _shared = DisevBook.Open();
-        _sharedFrom = gameDirectory;
-        _sharedWhen = Stamp();
-        return _shared;
+        if (DisevBook.Open(cache) is not { } book) return null;
+        _shared[cache] = (book, gameDirectory, Stamp(cache));
+        return book;
     }
 
     /// <summary>적어 둔 책에 쓴 시각. 아직 없으면 밑값이다.</summary>
-    private static DateTime Stamp() =>
-        File.Exists(DisevBook.Path_) ? File.GetLastWriteTimeUtc(DisevBook.Path_) : DateTime.MinValue;
+    private static DateTime Stamp(string cache)
+    {
+        string path = DisevBook.PathOf(cache);
+        return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
+    }
 
     private readonly Window _owner;
     private readonly Game _game;
+
+    /// <summary>지금 돌고 있는 책 이름 — Story0·Story1 조건식(<c>6D</c>·<c>6E</c>)이 이것으로 갈린다.</summary>
+    private readonly string _cache;
+
+    /// <summary>지금 들어와 있는 건물 코드. 모르면 -1 — <see cref="DisevCall.InBuilding"/> 이 이것을 본다.</summary>
+    private readonly int _building;
 
     /// <summary>
     /// 아직 안 낸 DSTILL 그림 자리. 다음 대사와 <b>함께</b> 낸다.
@@ -125,13 +136,27 @@ public sealed class DisevRunner
     /// <remarks>게임은 <c>0x0044AF40(0x5A4D18, 0)</c> 으로 놀이 상태를 끝으로 돌린다(<c>0x0040BDBA</c>).</remarks>
     public static bool LastEndedInGameOver { get; private set; }
 
+    /// <summary>
+    /// 마지막으로 돌린 대본이 <b>이벤트 완전 종료</b>(<c>04 4D</c>)로 끝났는지 — 이야기 장(章)을
+    /// 닫아야 하는지는 부른 쪽(<see cref="Discovery.StoryLog"/>)이 이것을 보고 정한다.
+    /// </summary>
+    public static bool LastStoryArcCompleted { get; private set; }
+
+    /// <summary>
+    /// 마지막으로 돌린 대본이 <b>다음 단계로</b>(<c>06 4D</c>)를 겪었는지 — 이야기 장의 진행
+    /// 카운터를 올려야 하는지는 부른 쪽이 이것을 보고 정한다.
+    /// </summary>
+    public static bool LastAdvancedStep { get; private set; }
+
     /// <summary>대본을 여기서 멈추라는 뜻으로 <see cref="Step"/> 이 내는 값.</summary>
     private const int Stop = int.MinValue;
 
-    private DisevRunner(Window owner, Game game)
+    private DisevRunner(Window owner, Game game, string cache, int building)
     {
         _owner = owner;
         _game = game;
+        _cache = cache;
+        _building = building;
     }
 
     /// <summary>
@@ -140,22 +165,63 @@ public sealed class DisevRunner
     /// <param name="owner">창을 얹을 자리.</param>
     /// <param name="game">이 판.</param>
     /// <param name="discoveryId">발견물 번호 = DISEV 파트 번호.</param>
-    public static bool Run(Window owner, Game game, int discoveryId)
+    public static bool Run(Window owner, Game game, int discoveryId) =>
+        Run(owner, game, DisevBook.CacheName, discoveryId, building: -1);
+
+    /// <summary>
+    /// 그 책의 그 파트를 돌린다. 발견 이벤트만이 아니라 이야기0·이야기1(STORY0/1.CDS)의
+    /// 장면도 같은 길로 돈다 — 그릇도 명령도 같다(<see cref="DisevBook.Books"/>).
+    /// </summary>
+    /// <param name="owner">창을 얹을 자리.</param>
+    /// <param name="game">이 판.</param>
+    /// <param name="cache">돌릴 책 이름(<see cref="DisevBook.Cache"/>).</param>
+    /// <param name="partIndex">파트 번호 — 발견 이벤트면 발견물 번호, 이야기책이면 장면 번호다.</param>
+    /// <param name="building">지금 들어와 있는 건물 코드. 모르면 -1.</param>
+    public static bool Run(Window owner, Game game, string cache, int partIndex, int building)
     {
         LastEndedInGameOver = false;
-        if (Open(game.Directory) is not { } book) return false;
-        if (discoveryId < 0 || discoveryId >= book.Count) return false;
+        LastStoryArcCompleted = false;
+        LastAdvancedStep = false;
+        if (Open(game.Directory, cache) is not { } book) return false;
+        if (partIndex < 0 || partIndex >= book.Count) return false;
 
-        var raw = book.Part(discoveryId);
+        var raw = book.Part(partIndex);
         if (raw.Length == 0) return false;
         if (DisevPart.Parse(raw, out _) is not { } part) return false;
 
-        var runner = new DisevRunner(owner, game);
+        var runner = new DisevRunner(owner, game, cache, building);
         int body = runner.PickBody(part);
         if (body < 0) return false;
 
         runner.RunChunk(part, body);
         return true;
+    }
+
+    /// <summary>
+    /// 그 파트의 슬롯 조건 가운데 <b>지금 참인 것이 있는지</b> — 아무것도 실행하지 않고 묻기만
+    /// 한다. <see cref="Discovery.StoryLog"/> 가 이야기 장면을 틀지 말지 미리 가늠할 때 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PickBody"/> 와 다르다 — 그쪽은 맞는 슬롯이 없으면 <b>첫 슬롯으로 물러서</b>
+    /// "일단 돈다"고 치지만(조건 없는 발견 이벤트가 그 꼴이다), 여기서는 물러서지 않는다 —
+    /// 이야기 장면은 조건 자체가 "지금 틀어도 되는지"의 문(건물·도시·연도·계약 상태)이다.
+    /// </remarks>
+    public static bool IsEligible(Game game, string cache, int partIndex, int building)
+    {
+        if (Open(game.Directory, cache) is not { } book) return false;
+        if (partIndex < 0 || partIndex >= book.Count) return false;
+
+        var raw = book.Part(partIndex);
+        if (raw.Length == 0 || DisevPart.Parse(raw, out _) is not { } part) return false;
+
+        // 조건만 묻고 아무 것도 그리지 않으므로 창이 없어도 된다 — Step()·Speak() 은 안 부른다.
+        var runner = new DisevRunner(null!, game, cache, building);
+        foreach (var slot in part.Slots)
+        {
+            var (from, to) = part.ChunkRange(slot.Condition);
+            if (runner.Passes(Lines(part, from, to))) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -202,9 +268,13 @@ public sealed class DisevRunner
     /// 교역품 켬을 세이브에 적기 전의 판을 불러올 때 쓴다 — 이미 발견한 것의 대본을 훑어 켜 준다.
     /// 갈래는 가리지 않는다.
     /// </remarks>
-    public static IEnumerable<int> GoodsActivatedBy(Game game, int discoveryId)
+    public static IEnumerable<int> GoodsActivatedBy(Game game, int discoveryId) =>
+        GoodsActivatedBy(game, DisevBook.CacheName, discoveryId);
+
+    /// <summary>그 책 그 파트의 대본이 켜는 교역품들. 대본이 없으면 빈 목록이다.</summary>
+    public static IEnumerable<int> GoodsActivatedBy(Game game, string cache, int discoveryId)
     {
-        if (Open(game.Directory) is not { } book || discoveryId < 0 || discoveryId >= book.Count) yield break;
+        if (Open(game.Directory, cache) is not { } book || discoveryId < 0 || discoveryId >= book.Count) yield break;
         if (DisevPart.Parse(book.Part(discoveryId), out _) is not { } part) yield break;
 
         foreach (int start in part.ChunkStarts)
@@ -285,6 +355,27 @@ public sealed class DisevRunner
             case DisevCall.YearIs: return year == I("Year");                         // 1C 16 (0x00409704)
             case DisevCall.YearBetween: return year >= I("From") && year <= I("To");
             case DisevCall.InCity: return player.CityId == I("City");                // 17 08 (0x00409074)
+            case DisevCall.InNation: return player.Nation == I("Nation");            // 17 00
+            case DisevCall.InBuilding: return _building == I("Building");            // 17 10
+            case DisevCall.InCulture:                                                // 17 19
+                return player.CityId >= 0 && _game.CityRows?.CultureOf(player.CityId) == I("Culture");
+            case DisevCall.PersonUnmet:                                              // 37 0D
+            {
+                string who = PersonTable.Open()?.Find(I("Person"))?.Name ?? "";
+                return who.Length == 0 || !player.HasMet(who);
+            }
+            case DisevCall.SponsorActive:                                            // 37 12
+            {
+                string who = _game.Sponsors?.Sponsors.FirstOrDefault(s => s.Index == I("Sponsor")).Name ?? "";
+                return who.Length > 0 && player.Contract?.Sponsor == who;
+            }
+            case DisevCall.CityNationCheck:                                          // 28 00
+                return _game.CityRows?.NationOf(I("City")) == I("Nation");
+            case DisevCall.NoContract: return player.Contract == null;               // 5A
+            case DisevCall.YearMonthIs:                                              // 1B 17
+                return year == I("Year") && player.Date.Month == I("Month");
+            case DisevCall.Story0: return _cache == "이야기0";                        // 6D
+            case DisevCall.Story1: return _cache == "이야기1";                        // 6E
             case DisevCall.RandomChance:
             {
                 int denominator = I("Denominator");
@@ -307,7 +398,6 @@ public sealed class DisevRunner
                     _ => a == b,
                 };
             }
-            // 위치(17 00·10·19)·인물(37)·연월(1B 17)·도시 국적(28)·STORY 파일(6D·6E)·계약 없음(5A) 은 아직 안 옮겼다.
             default:
                 return null;
         }
@@ -431,6 +521,7 @@ public sealed class DisevRunner
                         if (value < _game.Player.Gold) _game.Player.Pay(_game.Player.Gold - value);
                         else _game.Player.Earn(value - _game.Player.Gold);
                         break;
+                    case 29: _game.Player.SetStoryQuestDeadline(value); break;   // STORY 의뢰 남은 기한(일)
                 }
                 return null;
             }
@@ -492,6 +583,17 @@ public sealed class DisevRunner
                 return null;
             case DisevCall.SubGold:
                 _game.Player.Pay(I("Amount"));
+                return null;
+
+            // 후원자 친밀도 증감 — 지금 맺은 계약의 후원자가 움직인다. 계약이 없으면
+            // Endear 가 빈 이름을 조용히 지나친다.
+            case DisevCall.AddAffinity:
+                if (ValueOf(args["Value"] as JsonObject) is { } affinityUp)
+                    _game.Player.Endear(_game.Player.Contract?.Sponsor ?? "", (int)affinityUp);
+                return null;
+            case DisevCall.SubAffinity:
+                if (ValueOf(args["Value"] as JsonObject) is { } affinityDown)
+                    _game.Player.Endear(_game.Player.Contract?.Sponsor ?? "", -(int)affinityDown);
                 return null;
 
             // 31 — 델포이 신탁(0x0040A4C0). 제독 성미 여덟 칸 가운데 0·2 인 것만 낱말로 잇는다(1 은 건너뜀).
@@ -563,6 +665,21 @@ public sealed class DisevRunner
             case DisevCall.EndDone:
             case DisevCall.EndFailed:
             case DisevCall.EndUnhandled:
+                return Stop;
+
+            // 04 4D — 이야기 장(章)을 완전히 끝낸다. 부른 쪽(StoryLog)이
+            // LastStoryArcCompleted 를 보고 그 장을 닫아 다시 트리거되지 않게 한다.
+            case DisevCall.EndEventCompletely:
+                LastStoryArcCompleted = true;
+                return Stop;
+
+            // 06 4D — 이야기 장의 다음 단계로. 06 FF 는 같은 뜻이되 그 자리에서 대본도 끝낸다.
+            // 부른 쪽이 LastAdvancedStep 을 보고 진행 카운터를 올린다.
+            case DisevCall.NextStep:
+                LastAdvancedStep = true;
+                return null;
+            case DisevCall.NextStepFF:
+                LastAdvancedStep = true;
                 return Stop;
 
             default:
@@ -773,7 +890,10 @@ public sealed class DisevRunner
             case 3:                                    // 소지금
                 if (by >= 0) _game.Player.Earn(by); else _game.Player.Pay(-by);
                 break;
+            case 4: _game.Player.Infamy = Math.Max(0, _game.Player.Infamy + by); break;   // 악명
+            case 6: _game.Player.AdjustAbility(Support.Local.Models.Ability.Might, by); break;    // 무력
             case 17: _game.Player.Fame = Math.Max(0, _game.Player.Fame + by); break;   // 명성
+            case 22: _game.Player.AdjustAbility(Support.Local.Models.Ability.Charm, by); break;   // 매력
         }
     }
 
@@ -884,8 +1004,12 @@ public sealed class DisevRunner
         return N(stat) switch
         {
             3 => player.Gold,
+            4 => player.Infamy,
             5 => Sea.FleetRaid.AdmiralFortuneOf(player)[5],
             6 => player.AbilityOf(Support.Local.Models.Ability.Might) + 1,
+            22 => player.AbilityOf(Support.Local.Models.Ability.Charm) + 1,
+            27 => player.Contract?.DaysLeft(player.Date) ?? 0,          // 후원자 계약 남은 기한(일)
+            29 => player.StoryQuestDaysLeft,                            // STORY 의뢰 남은 기한(일)
             _ => null,
         };
     }
