@@ -47,8 +47,14 @@ public sealed class EventAnimation
     public const int Tornado = 13;
 
     /// <summary>
-    /// 아직 <b>그림을 안 옮긴</b> 장면들. 걸어도 아무것도 안 뜨고 말만 이어진다.
+    /// 오아시스·사태·늪·유사·유빙 다섯. 함대 자리에서 띠 한 벌이 돈다.
     /// </summary>
+    /// <remarks>
+    /// 그림 파트·크기·팔레트는 EXE 그대로다 —
+    /// 4 파트 6(128x128 x14, 팔레트 0x22) · 5 파트 7(128x128 x15, 0x23) ·
+    /// 6 파트 8(96x96 x18, 0x24) · 7 파트 9(96x96 x17, 0x25) · 14 파트 15(192x96 x4, 0x2A).
+    /// <b>걸음마다 어느 장을 쓰는지는 아직 안 옮겼다</b>(<c>EventAnimationPopup.StripScene</c> 참고).
+    /// </remarks>
     /// <remarks>
     /// 번호는 EVANIME 만들기 오류 문구 차례 그대로다(<c>0x0056C058</c>~) —
     /// 0 비 · 1 눈 · 2 폭풍 · 3 눈보라 · <b>4 오아시스</b> · <b>5 사태</b> · <b>6 늪</b> ·
