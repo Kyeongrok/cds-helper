@@ -47,6 +47,17 @@ public sealed class EventAnimation
     public const int Tornado = 13;
 
     /// <summary>
+    /// 아직 <b>그림을 안 옮긴</b> 장면들. 걸어도 아무것도 안 뜨고 말만 이어진다.
+    /// </summary>
+    /// <remarks>
+    /// 번호는 EVANIME 만들기 오류 문구 차례 그대로다(<c>0x0056C058</c>~) —
+    /// 0 비 · 1 눈 · 2 폭풍 · 3 눈보라 · <b>4 오아시스</b> · <b>5 사태</b> · <b>6 늪</b> ·
+    /// <b>7 유사</b> · 8 짐승의 그림자 · 9 유령선 · 10 일식 · 11 오로라 · 12 유성군 ·
+    /// 13 회오리 바람 · <b>14 유빙(대)</b> · 15 유빙(소).
+    /// </remarks>
+    public const int Oasis = 4, Landslide = 5, Swamp = 6, Quicksand = 7, Iceberg = 14;
+
+    /// <summary>
     /// 유성 장면 — 뭍에서 8월·12월에 유성이 흐르면(<c>0x00427D59</c>). EVANIME 파트 19(368x192 스물여섯 장)다.
     /// </summary>
     public const int Meteor = 12;

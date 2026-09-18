@@ -3942,13 +3942,105 @@ public sealed class ShipMapWindow : Window
         var dice = new GameRandom(Environment.TickCount);
         int ground = _host.TerrainClass;      // 짐승·회오리는 2, 독충은 6 에서만 난다
 
-        // 유성이 먼저다(0x00427D05) — 지형도 안 보고, 잃는 것도 없이 말 셋으로 끝난다.
+        var (lat, lon) = _host.ShipLatLon;
+
+        // 차례가 있다(0x00427311~) — 하루에 하나만 터진다.
+        if (LandEvents.Heat(dice, ground))
+        {
+            Refresh(dice, EventAnimation.Oasis,
+                    ["제독, 더, 덥다... 더 이상 못참겠다.", "아이구.", "제독! 아니!"],
+                    ["물이다-.", "맛있다! 최곱니다!"]);
+            return;
+        }
+        if (LandEvents.Cold(dice, ground, lat, lon))
+        {
+            Refresh(dice, EventAnimation.Oasis,
+                    ["추, 추워..., 몸이 얼 것 같습니다!", "비, 빛입니다! 가 봅시다.", "제독, 저 집에 들어갑시다."],
+                    ["으샤-, 기분좋다!"]);
+            return;
+        }
+        if (LandEvents.HotSpring(dice, ground, lat))
+        {
+            Refresh(dice, EventAnimation.Oasis,
+                    ["제독, 웬지 무더워졌군요.", "앗, 온천이다. 갑시다."],
+                    ["기분좋군요, 제독.", "이 후에 술이라도 마실까요?"]);
+            return;
+        }
+        if (LandEvents.Rockfall(dice, ground)) { Mishap(dice, EventAnimation.Landslide, "앗! 제독, 위에!"); return; }
+        if (LandEvents.Swamp(dice, ground)) { Mishap(dice, EventAnimation.Swamp, "제독, 큰일입니다. 늪입니다!"); return; }
+        if (LandEvents.Quicksand(dice, ground)) { Mishap(dice, EventAnimation.Quicksand, "제독, 큰일입니다. 유사입니다!"); return; }
+
+        if (LandEvents.Meet(dice, ground, []) is { } met) { MeetBeast(dice, met); return; }
+
+        // 마지막이 공통 꼬리다 — 유성, 그리고 삼 년에 두 해는 회오리다(0x00427D05 · 0x00427DA3).
         if (LandEvents.Meteor(dice, _game.Player.Date.Month)) { Meteor(); return; }
+        if (LandEvents.Tornado(dice, ground, _game.Player.Date.Year)) Tornado(dice);
+    }
 
-        // 다음이 회오리다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
-        if (LandEvents.Tornado(dice, ground, _game.Player.Date.Year)) { Tornado(dice); return; }
+    /// <summary>
+    /// 쉬어 가는 뭍 사건(더위 · 추위 · 온천) — 그림 한 번에 말 몇 마디, 그리고 <b>피로가 풀린다</b>.
+    /// </summary>
+    /// <remarks>피로도 <c>-(rand(10)+10)</c> · 규율 <c>+10</c>(<c>0x004273B0</c>).</remarks>
+    private void Refresh(GameRandom dice, int scene, string[] before, string[] after)
+    {
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var face = MateFace();
+            foreach (string word in before) ConfirmDialog.Tell(this, word, face: face);
+            PlayEventScene(scene);
+            foreach (string word in after) ConfirmDialog.Tell(this, word, face: face);
 
-        if (LandEvents.Meet(dice, ground, []) is not { } met) return;
+            _game.Player.Tire(-LandEvents.RestGain(dice));
+            _game.Player.Cheer(LandEvents.RestMorale);
+            NoticeDialog.Show(this, "피로가 회복됐다");
+        }
+        finally { _host.Paused = false; _asking = false; }
+    }
+
+    /// <summary>
+    /// 다치는 뭍 사건(낙석 · 늪 · 유사) — 그림 한 번에 대원을 잃는다(<c>0x00426DA0</c>).
+    /// </summary>
+    private void Mishap(GameRandom dice, int scene, string first)
+    {
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var face = MateFace();
+            ConfirmDialog.Tell(this, first, face: face);
+            PlayEventScene(scene);
+            ConfirmDialog.Tell(this, "제독, 다친데는 없습니까?", face: face);
+            Casualties(dice, LandEvents.HurtCount(dice));
+        }
+        finally { _host.Paused = false; _asking = false; }
+    }
+
+    /// <summary>
+    /// 다친 사람을 셈해 알린다(<c>0x00426DA0</c>) — <b>의학</b>이 높으면 더러 돌아온다.
+    /// </summary>
+    private void Casualties(GameRandom dice, int hurt)
+    {
+        var player = _game.Player;
+        hurt = Math.Min(hurt, player.Crew);
+        if (hurt <= 0) return;
+
+        string mate = player.MateAt(0);
+        int his = mate.Length > 0 && _game.World?.People.FirstOrDefault(r => r.Name == mate) is { } row
+                  && row.Skills.Length > Skill.Medicine ? row.Skills[Skill.Medicine] : 0;
+        int medicine = Math.Max(player.LevelOf(Skill.Names[Skill.Medicine]), his);
+
+        int back = LandEvents.Returned(medicine, hurt, dice);
+        player.SetCrew(player.Crew - (hurt - back));
+
+        NoticeDialog.Show(this, $"대원 {hurt}명이 사망했습니다.");
+        if (back > 0) NoticeDialog.Show(this, $"{back}명의 대원이 돌아왔습니다.");
+    }
+
+    /// <summary>독충·짐승과 마주친다(<c>0x00427828</c> · <c>0x00427A1F</c>).</summary>
+    private void MeetBeast(GameRandom dice, LandEvents.Meeting met)
+    {
 
         _asking = true;
         _host.Paused = true;
