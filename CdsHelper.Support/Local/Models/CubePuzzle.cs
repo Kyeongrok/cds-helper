@@ -16,10 +16,10 @@
 ///   입방체가 서로 면하는 면은 대칭이 되어 있으며 반대편의 면이 그대로 비치는
 ///   것 처럼 되어 있다.
 /// </code>
-/// 지면 밑으로 떨어지면 진다. 그런데 <b>한 번은 봐 준다</b> —
+/// 지면 밑으로 떨어지면 진다. 그런데 <b>몇 번이고 봐 준다</b> —
 /// <c>0x0049B3C0</c> 이 진 판을 받으면 "아니! 밑바닥으로 떨어진 줄 알았는데 실은 그
 /// 아래층이 존재했다! 자, 모험자여! 이것이 마지막 찬스다!"(<c>0x0056DD58</c>) 하고
-/// 한 판을 더 준다.
+/// 한 판을 더 주는데, 그 자리가 <b>돌림</b>이라 나가거나 포기할 때까지 되풀이된다.
 ///
 /// 이기면 <c>0x0049B366</c> 이 <c>0x0047CBC0(0x3E8)</c> 로 <b>금화 1000닢</b>을 준다 —
 /// 글은 "금화로 따지면 %ld 닢에 상당되는 금괴를 손에 넣었다!"(<c>0x0056DDF8</c>)다.
@@ -274,10 +274,13 @@ public sealed class CubePuzzle
         if (X == GoldX && Y == GoldY) GotGold = true;
     }
 
+    /// <summary>스스로 포기했는가 — 떨어진 것과 갈라 본다(떨어지면 한 판을 더 준다).</summary>
+    public bool GaveUp { get; private set; }
+
     /// <summary>포기한다 — 진 것으로 끝낸다.</summary>
     public void GiveUp()
     {
-        if (Over == null) Over = false;
+        if (Over == null) { Over = false; GaveUp = true; }
     }
 
     /// <summary>수평으로 90도 돌린다. 좌대는 안 움직이고, 연달아는 못 한다.</summary>
