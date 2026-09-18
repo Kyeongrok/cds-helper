@@ -982,6 +982,27 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </remarks>
     private void Greet(Facility facility, CityBuildingTable.Building building)
     {
+        // 항구와 성문은 같은 밑자리(vtable 0x00519E68 · 0x00519EB8 의 0x00468790)를 먼저
+        // 거친다 — <b>부관이 있을 때만</b> 두 마디를 한다(0x004696B0).
+        // <code>
+        //   0x004687B0  항구이고 모항이면  rand(2) 로 0x00551960 · 0x00551980
+        //   0x004687E5  그 밖이면          0x005519A0 「제독, 이 마을에서 잠깐 쉽시다.」
+        //   0x00468874  성문이면 0x005519C0 「출발할 때는…」, 항구면 0x005519F0 「출항할 때에는…」
+        // </code>
+        if (facility.Kind is FacilityKind.Harbor or FacilityKind.Gate
+            && _game.AideFace is { } aideFace)
+        {
+            bool harbor = facility.Kind == FacilityKind.Harbor;
+            TalkDialog.Say(this, aideFace, "",
+                harbor && _cityId == _player.HomePort
+                    ? _game.Random.Next(2) == 0
+                        ? "제독, 역시 모항이 좋군요." : "모항에 돌아오면 안심되는군요."
+                    : "제독, 이 마을에서 잠깐 쉽시다.");
+            TalkDialog.Say(this, aideFace, "", harbor
+                ? "출항할 때에는 말해 주십시오. 곧 준비하겠습니다."
+                : "출발할 때는 말해 주십시오. 곧 준비하겠습니다.");
+        }
+
         switch (facility.Kind)
         {
             case FacilityKind.Harbor: Port.Greet(); break;     // 부관은 제 얼굴로 인사한다
