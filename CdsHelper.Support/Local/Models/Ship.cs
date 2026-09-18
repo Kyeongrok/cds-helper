@@ -260,9 +260,9 @@ public sealed class Ship
     /// </summary>
     /// <remarks>
     /// 게임은 <c>min(선체 표 +0x30, 지금 포탑 + 적재용량)</c> 으로 자른다
-    /// (<c>0x004961D6</c>). 우리 선체 표의 "대포수" 가 그 <c>+0x30</c> 자리다.
+    /// (<c>0x004961D6</c>). <c>+0x30</c> 은 포탑 <b>한계</b>지 처음값(<c>+0x2C</c>)이 아니다.
     /// </remarks>
-    public int MaxTurrets => Math.Min(Hull.Guns, Turrets + Capacity);
+    public int MaxTurrets => Math.Min(Hull.GunsCeiling, Turrets + Capacity);
 
     /// <summary>
     /// 포탑 수를 바꾼다. 줄여서 대포가 넘치면 그만큼 내린다.
@@ -371,8 +371,11 @@ public sealed class Ship
     /// <summary>더 보강할 수 있는지(<c>0x00495920</c>).</summary>
     public bool CanReinforce => MaxHp < Hull.HpCeiling;
 
-    /// <summary>개조 한 번에 늘어나는 적재용량·적재중량.</summary>
+    /// <summary>용량증가 한 번에 늘어나는 적재용량(<c>0x0049542B</c>).</summary>
     public const int GrowStep = 50;
+
+    /// <summary>부력증가 한 번에 늘어나는 적재중량(<c>0x004956DB</c> — 용량과 자릿수가 다르다).</summary>
+    public const int TonnageStep = 500;
 
     /// <summary>보강 한 번에 늘어나는 내구.</summary>
     public const int ReinforceStep = 10;
@@ -406,18 +409,26 @@ public sealed class Ship
     }
 
     /// <summary>
-    /// 부력증가 — 적재중량을 올린다. 게임의 <c>0x004956D0</c> 이다. 용량증가와 같은 꼴인데
-    /// 늘어나는 것과 딸려 오는 것이 뒤바뀌고, 필요승원은 안 는다.
+    /// 부력증가 — 적재중량을 올린다. 게임의 <c>0x004956D0</c> 이다.
     /// </summary>
+    /// <remarks>
+    /// <code>
+    /// 4956db  늘어난만큼 = min(적재중량 + 500, 선체표+0x20) - 적재중량
+    /// 495735  적재용량   += (늘어난만큼 / 10) / 3      (상한까지, 500 이면 +16)
+    /// 495769  최대추진력 -= 늘어난만큼 / 100           (적어도 1, 500 이면 -5)
+    /// 4957a8  최대내구   -= 늘어난만큼 / 100           (적어도 1)
+    /// </code>
+    /// <b>한 번에 오르는 폭이 용량증가와 자릿수가 다르다</b> — 중량은 500 씩, 용량은 50 씩이다.
+    /// 필요승원은 안 는다.
+    /// </remarks>
     public Refit GrowTonnage()
     {
         var was = Snapshot();
-        int grown = Math.Min(Tonnage + GrowStep, Hull.TonnageCeiling) - Tonnage;
-        int d = grown * 10;
+        int grown = Math.Min(Tonnage + TonnageStep, Hull.TonnageCeiling) - Tonnage;
 
         Tonnage += grown;
-        Capacity = Math.Min(Capacity + d / 3, Hull.CapacityCeiling);
-        Wear(d / 100);
+        Capacity = Math.Min(Capacity + grown / 10 / 3, Hull.CapacityCeiling);
+        Wear(grown / 100);
         return Refit.Between(was, Snapshot());
     }
 
