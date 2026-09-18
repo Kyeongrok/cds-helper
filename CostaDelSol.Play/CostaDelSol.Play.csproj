@@ -73,4 +73,10 @@
       <ProjectReference Include="..\CdsHelper.Duel\CdsHelper.Duel.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="..\asset\video\">
+        <Link>asset\video</Link>
+      </Folder>
+    </ItemGroup>
+
 </Project>

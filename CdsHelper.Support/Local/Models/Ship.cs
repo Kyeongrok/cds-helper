@@ -85,7 +85,15 @@ public sealed class Ship
     /// 스폰서에게 <b>빌린 배</b>인지 — 게임은 배 레코드 <c>+0x64</c> 에 1 을 박는다(<c>0x0040FA00</c>).
     /// 「내 배가 있나」(<c>0x00410800</c>)는 이런 배를 안 센다.
     /// </summary>
-    public bool Lent { get; }
+    public bool Lent { get; private set; }
+
+    /// <summary>
+    /// 빌린 표시를 지운다 — 그 배가 <b>내 배</b>가 된다(<c>0x00410380</c>).
+    /// </summary>
+    /// <remarks>
+    /// 후원자를 처벌하고 나설 때, 그 배 선원들이 나를 제독으로 받아들이면 이렇게 넘어온다.
+    /// </remarks>
+    public void Keep() => Lent = false;
 
     /// <summary>선수상 가짓수(게임 표 <c>0x0054A0A0</c> 의 줄 수).</summary>
     public const int FigureheadCount = 36;
