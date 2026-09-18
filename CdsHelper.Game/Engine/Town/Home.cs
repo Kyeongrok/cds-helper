@@ -74,6 +74,92 @@ public static class Home
         "어서 오세요. 목욕, 식사? 아니면 저요?",
     ];
 
+    // ── 아내에게 말을 건다 — 0x004149F0 ──────────────────────────────────────
+
+    /// <summary>
+    /// 아내에게 말을 걸었을 때, <b>아이가 하나도 없으면</b> 아내가 혼자 하는 말
+    /// (<c>0x00414A93</c> 의 <c>rand(7)</c>).
+    /// </summary>
+    public static readonly string[] WifeAlone =
+    [
+        "집 많이 비우지 말아요. 혼자 있으면 외로워요.",
+        "아니, 벌써 배가 고파요? 지금 만들테니 기다려요.",
+        "있죠, 가끔은 둘이서 외출해요.",
+        "벌써 자려구요? 아직 해도 지지 않았는데.",
+        "나에게는 선물 안 줘요?",
+        "다른 여자에게 눈 돌리면 안돼요!",
+        "가끔은 저금도 하세요. 장래 무슨 일이 일어날지 모르니까요.",
+    ];
+
+    /// <summary>아내와 아이가 주고받는 두 줄 — 아내가 먼저, 아이가 받는다.</summary>
+    /// <param name="Wife">아내가 하는 말. <c>{0}</c> 이 있으면 아이 이름이 든다.</param>
+    /// <param name="Child">아이가 받는 말.</param>
+    public readonly record struct FamilyTalk(string Wife, string Child);
+
+    /// <summary>
+    /// 아내에게 말을 걸면 <b>아이 하나를 골라</b> 두 줄을 주고받는다(<c>0x004146D0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 아이 나이로 셋(<c>0~4</c> · <c>5~9</c> · <c>10 이상</c>), 갈래는 <c>rand(3)</c> 다.
+    /// <b>0~4세만 성별을 안 가린다</b>(<c>0x00414730</c>). 고르는 아이는 아들·딸 각각의
+    /// <b>맏이</b> 가운데 <c>rand(2)</c> 로 하나다(<c>0x004AB790</c>) — 나이 상한이 없어
+    /// 열다섯이 넘어도 「10세 이상」 대본을 쓴다.
+    ///
+    /// <b>값은 하나도 안 바뀐다</b> — 순전히 연출이다.
+    /// </remarks>
+    public static FamilyTalk TalkWith(bool daughter, int age, Random random)
+    {
+        int pick = random.Next(3);
+        if (age < BabyTo)
+            return pick switch
+            {
+                0 => new("까꿍!", "아~, 아~."),
+                1 => new("{0}, 아버지 오셨어요.", "아빠!"),
+                _ => new("아버지에게 인사해야지.", "아~부."),
+            };
+
+        if (age < GrownFrom)
+            return pick switch
+            {
+                0 => new("{0}는 크면, 뭐가 되고 싶어?",
+                         daughter ? "신부가 되고 싶어!" : "나는..... 어른이 되고 싶어!"),
+                1 => new("아버지가 돌아오시면, 맛있는 걸 먹을 수 있어요!",
+                         daughter ? "나도 요리 할거야~." : "와~, 와~!"),
+                _ => new("아버지에게 부탁할 일 있으면 지금 말해요.",
+                         daughter ? "으~응. 한번만이라도 좋으니, 배에 태워 주세요." : "같이 놀아요!"),
+            };
+
+        return pick switch
+        {
+            0 => new("장래일 신중히 생각하고 있니?",
+                     daughter ? "아버지 같은 사람이랑 결혼할거야!" : "나도 모험할거야."),
+            1 => new("가끔은 가족끼리 놀러 가고 싶어요.",
+                     daughter ? "간다면, 푹 쉴 수 있는 곳이 좋겠군." : "그래요, 그래요, 한번도 없어요!"),
+            _ => new("놀지만 말고 공부도 좀 해요.",
+                     daughter ? "예~." : "나는 바다의 사나이가 될테니까 필요 없어."),
+        };
+    }
+
+    /// <summary>대본이 갈리는 나이(<c>0x004146EB</c> 의 <c>cmp 5</c> · <c>cmp 0xA</c>).</summary>
+    public const int BabyTo = 5, GrownFrom = 10;
+
+    /// <summary>
+    /// 아내와 이야기할 때 끼는 아이 — 아들·딸 각각의 맏이 가운데 하나다(<c>0x00414A05</c>).
+    /// </summary>
+    /// <remarks>
+    /// 귀가 인사(<see cref="WelcomerOf"/>)와 달리 <b>나이 테두리가 없다</b> — 갓난아이도
+    /// 열다섯 넘은 아이도 낀다.
+    /// </remarks>
+    public static Player.Child? TalkerOf(Player player, Random random)
+    {
+        var born = player.Children.Where(c => c.IsBornBy(player.Date)).ToList();
+        var son = born.Where(c => !c.Daughter).MaxBy(c => c.AgeOn(player.Date));
+        var girl = born.Where(c => c.Daughter).MaxBy(c => c.AgeOn(player.Date));
+        if (son is null) return girl;
+        if (girl is null) return son;
+        return random.Next(2) == 0 ? girl : son;
+    }
+
     /// <summary>
     /// 자택에 들어서면 <b>아이</b>가 맞는 말(<c>0x00414550</c>) — 아들·딸과 <b>열 살</b>로 넷이 갈린다.
     /// </summary>

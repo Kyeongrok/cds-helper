@@ -1095,9 +1095,55 @@ public sealed class CityPicView : GameWindow, ITownScreen
         int k = photos.Pick(_culture, buildingCode);
         if (k < 0) return;
 
-        _photoWindow = BuildingPhotoWindow.Show(this, photos.TryGetBgra(k), Guests.GuestArt(kind), _scale,
+        var people = kind == FacilityKind.Home ? WifeArt() : Guests.GuestArt(kind);
+        _photoWindow = BuildingPhotoWindow.Show(this, photos.TryGetBgra(k), people, _scale,
                                                 new Point(Left + PhotoLeft * _scale,
                                                           Top + PhotoTop * _scale));
+    }
+
+    /// <summary>
+    /// 자택 사진 앞에 세우는 <b>아내</b>. 아내가 없거나 얼굴을 못 읽으면 빈 목록이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임도 자택 인물 목록에는 <b>아내 하나</b>만 넣고(<c>0x004A19D0</c> 이 건물 11 일 때만),
+    /// 아이는 아예 못 누른다. 눌렀을 때 도는 것은 <c>0x00414AD0</c> → <c>0x004149F0</c> 이다.
+    /// </remarks>
+    private IReadOnlyList<BuildingPhotoWindow.GuestArt> WifeArt()
+    {
+        if (_player.Spouse.Length == 0) return [];
+        if (_game.Barmaids?.Find(_player.SpouseId) is not { } her) return [];
+        if (_game.Faces?.TryGetBgra(her.Face, female: true) is not { } bgra) return [];
+        return [new(bgra, PortraitW, PortraitH, _player.Spouse, TalkToWife)];
+    }
+
+    /// <summary>초상화 크기(FEMALE.CDS 한 장).</summary>
+    private const int PortraitW = 80, PortraitH = 96;
+
+    /// <summary>
+    /// 아내에게 말을 건다(<c>0x004149F0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 아이가 하나라도 있으면 <b>아내 한 줄 · 아이 한 줄</b>이고, 없으면 아내 혼잣말 한 줄이다.
+    /// 끼는 아이와 대본은 <see cref="Home.TalkerOf"/> · <see cref="Home.TalkWith"/> 에 있다.
+    /// </remarks>
+    private void TalkToWife()
+    {
+        var dice = _game.Random;
+        var face = _game.Barmaids?.Find(_player.SpouseId) is { } her
+            ? _game.Faces?.TryGetBgra(her.Face, female: true) : null;
+
+        if (Home.TalkerOf(_player, dice) is not { } child)
+        {
+            TalkDialog.Say(this, face, _player.Spouse,
+                           Home.WifeAlone[dice.Next(Home.WifeAlone.Length)]);
+            return;
+        }
+
+        int age = child.AgeOn(_player.Date);
+        var talk = Home.TalkWith(child.Daughter, age, dice);
+        TalkDialog.Say(this, face, _player.Spouse, string.Format(talk.Wife, child.Name));
+        TalkDialog.Say(this, _game.Faces?.TryGetBgra(Home.FaceOf(child, age), child.Daughter),
+                       child.Name, talk.Child);
     }
 
     /// <summary>누를 자리의 크기(그림 점). 건물끼리 겹치지 않을 만큼만 잡았다.</summary>
