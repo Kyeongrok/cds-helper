@@ -513,6 +513,17 @@ public sealed class DisevRunner
                 _pendingIsEvent = true;
                 return null;
 
+            // 33 — 걸어 둔 그림을 <b>거둔다</b>(0x0040A79E). 대본이 그림만 세웠다가 말 없이
+            // 접을 때가 있어, 안 거두면 엉뚱한 뒷줄에 그 그림이 따라붙는다.
+            case DisevCall.CloseImage:
+                _pendingStill = -1;
+                return null;
+
+            // 66 03 [소리] — 울리던 소리를 멈춘다.
+            case DisevCall.StopSound:
+                _game.Sfx?.Stop();
+                return null;
+
             // 00 1E [n] — 특수 조우 연출(0x004085D2). 지도 창이 아닌 데서 돌면 그릴 자리가 없어 건너뛴다.
             case DisevCall.SpecialEncounter:
             {
