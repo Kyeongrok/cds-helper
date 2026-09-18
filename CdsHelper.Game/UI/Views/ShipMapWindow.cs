@@ -1925,7 +1925,12 @@ public sealed class ShipMapWindow : Window
                 $"현재 게임중의 캐릭터인 {name}{GameUi.Josa(name, "이", "가")} 있습니다만 " +
                 "어떻게 하겠습니까?", "모험 중단");
 
-            int at = ChoiceDialog.Ask(this, "", ["은퇴시킨다", "삭제한다"], "신규작성을 중지한다");
+            // <b>누적 캐릭터 자리가 다 찼으면 「은퇴시킨다」 줄이 아예 안 뜬다</b>
+            // (0x0045F700 이 [0x005A4D1A] 의 0x40 비트로 그 줄을 켠다).
+            bool room = Engine.AccData.Load().Count < Engine.AccData.Slots;
+            var rows = room ? new[] { "은퇴시킨다", "삭제한다" } : ["삭제한다"];
+            int at = ChoiceDialog.Ask(this, "", rows, "신규작성을 중지한다");
+            if (!room && at == 0) at = 1;
 
             if (at == 0)
             {
