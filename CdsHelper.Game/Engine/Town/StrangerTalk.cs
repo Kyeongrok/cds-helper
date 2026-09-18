@@ -136,6 +136,25 @@ public static class StrangerTalk
         ["%s%s 견실한 남자에게 약하다는군. 돈이 헤픈 사람 싫어한다는군.", "자네 돈은 충분히 있나? %s%s 견실한 남자를 좋아한다는군. 세상은 역시 돈이 최고야."],
     ];
 
+    /// <summary>
+    /// 그 여자가 <b>제 입으로</b> 하는 취향 말(<c>0x005728C0</c> 줄의 셋째) — 술집에서 그녀에게 말을 걸면 나온다.
+    /// </summary>
+    private static readonly string[] OwnTastes =
+    [
+        "나는 당당한 사람이 좋아. 당당한 남자야말로 남자 중의 남자지.",
+        "강한 사람이 좋아.",
+        "난 의지가 강한 사람이 좋아. 하지만 너무 강해서 완고한 사람은 곤란해요.",
+        "남잔 역시 용기가 있어야 돼. 용감한 남자는 역시 멋있어. 당신도 용감한 사람이 되도록 해요.",
+        "친절한 사람이 내 이상이야. 역시, 친절한 남자가 제일이야.",
+        "애들같은 사람에게 끌려. 그만 보호해 주고 싶어진다니깐.",
+        "역시 남자는 재치가 있어야 돼. 미적지근한 남자는 싫어.",
+        "돈은 잘 사용하고 있어요? 돈이 헤픈 사람 질색이야.",
+    ];
+
+    /// <summary>그 여자가 제 취향을 말한다. 성격이 표 밖이면 null.</summary>
+    public static string? OwnTasteOf(int personality) =>
+        personality >= 0 && personality < OwnTastes.Length ? OwnTastes[personality] : null;
+
     /// <summary>그 여자의 취향 이야기 한 마디. 성격이 표 밖이면 null(원본은 말이 없다).</summary>
     public static string? TasteOf(string name, int personality, Random random)
     {

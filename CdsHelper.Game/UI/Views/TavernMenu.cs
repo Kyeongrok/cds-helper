@@ -446,8 +446,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   그 뒤로      이야기한다 · 설득한다 · 떠난다
     /// </code>
     /// 낯 트기 전은 지나가는 여성과 <b>똑같이</b> 나온다 — 얼굴도 이름도 안 보인다.
-    /// 게임의 선물 창(<c>0x00466AC9</c> "무엇을 보내시겠습니까?")은 이 세 줄에 없어
-    /// 아직 안 붙였다. 어디서 뻗는지 못 찾았다.
+    /// 게임의 선물 창(<c>0x00466AC9</c> 「무엇을 보내시겠습니까?」)은 차림표의 「선물을 보낸다」 줄이다
+    /// (<see cref="Gift"/>).
     /// </remarks>
     private void MeetBarmaid(BarmaidTable.Barmaid her)
     {
@@ -532,11 +532,20 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         TalkDialog.Say(_view, face, "", Barmaids.GiftWord(_player.LikingOf(her.Id)));
     }
 
-    /// <summary>잡담. 게임 표(<c>0x0055B0C0</c> 벌)에서 한 줄을 집는다.</summary>
+    /// <summary>
+    /// 「이야기한다」(<c>0x00466950</c>) — 반은 그녀가 <b>제 취향</b>을 말하고(<c>0x004A3130</c>), 반은 잡담이다.
+    /// </summary>
+    /// <remarks>
+    /// <b>친밀도는 안 오른다</b> — 원본은 이 줄에서 값을 건드리지 않는다(예전에는 우리가 +4·+2 를 얹고 있었다).
+    /// 친밀도를 올리는 것은 한잔 사기·선물·설득뿐이다.
+    /// </remarks>
     private void Chat(in BarmaidTable.Barmaid her, bool destined)
     {
-        TalkDialog.Say(_view, FaceOfMaid(her), "", Chats[_game.Random.Next(Chats.Length)]);
-        _player.AddLiking(her.Id, Barmaids.ChatLike(destined));
+        string words = _game.Random.Next(2) == 1
+                       && StrangerTalk.OwnTasteOf(her.Personality) is { } taste
+            ? taste
+            : Chats[_game.Random.Next(Chats.Length)];
+        TalkDialog.Say(_view, FaceOfMaid(her), "", words);
     }
 
     /// <summary>여급이 건네는 잡담. 게임 것을 그대로 옮겼다.</summary>
@@ -559,15 +568,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>
-    /// 설득한다. 친밀도가 차 있으면 맺어지고, 아니면 물린다.
+    /// 「설득한다」(<c>0x00465A90</c>) — 친밀도 자리(30 · 60 · 90)마다 딴 말을 하고 그만큼만 오른다.
     /// </summary>
-    /// <returns>맺어졌으면 true — 그러면 창을 접는다.</returns>
     /// <remarks>
-    /// 설득의 말은 문화권마다 딴 벌이다(<c>0x0055B9B8</c> 벌 — 게임 문자열에 "지중해의
-    /// 유혹어" 라는 이름이 그대로 박혀 있다). 물릴 때 하는 말 셋도 게임 것이다
-    /// (<c>0x0055BFB0</c>).
-    ///
-    /// <b>문턱은 우리가 정했다</b> — 게임에서 그 자리를 아직 못 짚었다.
+    /// 문턱과 상승폭은 <see cref="Barmaids.Persuade"/> 가 든다. 90 을 넘으면 여급이 먼저 물어 오고,
+    /// 거기서 아니오를 고르면 친밀도가 0 이 되고 프로포즈 줄도 영영 닫힌다.
     /// </remarks>
     private void Persuade(in BarmaidTable.Barmaid her, uint[]? face)
     {
