@@ -246,15 +246,33 @@ public static class Palace
     /// </summary>
     /// <remarks>
     /// <code>
-    ///   0040fed9  배가 한 척이라도 남으면  0x0055C1A8 「스폰서에게 배를 돌려 주었습니다.」
-    ///   0040ff07  안 남고 짐이 있으면      0x0055C1F0 「… 남은 짐은 전부 팔았습니다.」
-    ///                                     0x0055C268 「금화 %ld닢을 손에 넣었다!」
-    ///   0040ff3d  안 남고 짐도 없으면      0x0055C288 「스폰서에게 배를 돌려 주었습니다.」
+    ///   0040fe80  계약을 파기했고 짐이 있으면  0x0055C158 「제독, 짐을 전부 가지고 간 것 같습니다!」
+    ///                                         0x0055C180 「짐을 스폰서가 몰수해 버렸습니다!」
+    ///   0040fed9  배가 한 척이라도 남으면      0x0055C1A8 · 0x0055C1D0
+    ///   0040ff07  안 남고 짐이 있으면          0x0055C1F0 · 0x0055C230
+    ///                                         0x0055C268 「금화 %ld닢을 손에 넣었다!」
+    ///   0040ff3d  안 남고 짐도 없으면          0x0055C288 · 0x0055C2B0
     /// </code>
+    /// 넷이 다 <b>부관 있음·없음 두 벌</b>이다(<c>0x00469680</c>) — 부관이 없으면
+    /// 「돌려 주었습니다」가 「반환했습니다」로 바뀐다.
+    ///
     /// 짐 값은 그 도시 <b>매각가의 절반</b>이다(<c>0x0044D95C</c> 의 <c>sar 1</c>) — 급히 넘기는 값이다.
     /// </remarks>
     public const string ShipsReturned = "스폰서에게 배를 돌려 주었습니다.";
+    public const string ShipsReturnedAlone = "스폰서에게 배를 반환했습니다.";
     public const string ShipsReturnedCargoSold = "스폰서에게 배를 돌려 주었습니다. 남은 짐은 전부 팔았습니다.";
+    public const string ShipsReturnedCargoSoldAlone = "스폰서에게 배를 반환했습니다. 짐은 전부 매각하겠습니다.";
+
+    /// <summary>
+    /// 빌린 배가 있는 채로 <b>계약을 파기하면</b> 스폰서가 짐까지 가져간다(<c>0x0040FE5C</c>).
+    /// </summary>
+    /// <remarks>
+    /// 계약이 끝난 갈래 값(<c>+0xBC</c>)이 <b>1(파기)</b> 일 때만이다 — 보고로 끝났으면(0)
+    /// 짐은 그대로다. 감찰관을 처벌해 갈아탄 것(2)도 몰수가 아니다.
+    /// 배가 한 척도 안 빌렸으면 이 갈래 자체가 없다.
+    /// </remarks>
+    public const string CargoSeized = "제독, 짐을 전부 가지고 간 것 같습니다!";
+    public const string CargoSeizedAlone = "짐을 스폰서가 몰수해 버렸습니다!";
 
     /// <summary>
     /// 지갑이 이만큼도 안 남으면 아예 물린다(<c>0x004AF183</c> 의 <c>cmp 0x14</c>).
