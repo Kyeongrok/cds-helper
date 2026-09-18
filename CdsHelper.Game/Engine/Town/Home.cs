@@ -190,10 +190,16 @@ public static class Home
     /// <remarks>
     /// 아들과 딸에서 각각 하나씩 뽑고 둘 다 있으면 <c>rand(2)</c> 로 가른다 — <b>둘이 같이
     /// 말하지 않는다</b>. 이름을 아직 안 지은 아이가 있으면 인사가 통째로 건너뛰어진다.
+    ///
+    /// <b>배 속의 아이도 막는다</b>(원본의 흠) — <c>0x00414675</c> 는 「아직 아버지가 못 본」
+    /// 깃발(<c>아이 +0x338</c>)만 보는데, 그 깃발은 <b>임신이 확정될 때</b> 서고
+    /// (<c>0x00460F7E</c>) 이름짓기(<c>0x0045FFC0</c>)는 태어나기 전이면 아무것도 안 하고
+    /// 깃발을 그대로 둔다. 그래서 <b>임신부터 출산까지 열 달 동안 다른 아이들의 귀가 인사가
+    /// 한 번도 안 나온다</b>. 아내 인사와 아내와의 대화는 그대로 나온다.
     /// </remarks>
     public static Player.Child? WelcomerOf(Player player, Random random)
     {
-        if (player.Children.Any(c => c.IsBornBy(player.Date) && !c.Introduced)) return null;
+        if (player.Children.Any(c => !c.Introduced)) return null;
 
         var able = player.Children
             .Where(c => c.IsBornBy(player.Date)
