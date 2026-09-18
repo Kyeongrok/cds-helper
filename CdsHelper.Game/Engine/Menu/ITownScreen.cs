@@ -90,6 +90,9 @@ internal interface ITownScreen
     /// <summary>감찰관을 매수해 증거품을 숨긴다(<c>0x0041C550</c>).</summary>
     void BribeInspector(Patron patron);
 
+    /// <summary>계약 중에 배를 더 빌린다(<c>0x00410660</c>).</summary>
+    void BorrowShips(Patron patron);
+
     /// <summary>탐험을 떠난다. 나가도 좋은지는 성문이 따진다.</summary>
     void Explore(int buildingCode);
 

@@ -64,6 +64,7 @@ internal static class TownMenu
             TownWork.Report => () => screen.Report(patron!),
             TownWork.BreakContract => () => screen.BreakContract(patron!),
             TownWork.BribeInspector => () => screen.BribeInspector(patron!),
+            TownWork.BorrowShips => () => screen.BorrowShips(patron!),
 
             // 배가 한 척도 없으면 줄 자체가 흐리다(출항·보급·선원편성 셋이 그렇다).
             TownWork.Sail when screen.HasShips => screen.Sail,

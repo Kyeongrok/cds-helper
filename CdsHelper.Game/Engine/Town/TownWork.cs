@@ -31,7 +31,7 @@ public enum TownWork
     Stay, OddJob, MateForm, Treat,
 
     // ── 자택 ──────────────────────────────────────────────────────────────
-    Rest, Store, Savings, Heir, Educate, Succeed, Encyclopedia, Chronicle, Retire, BribeInspector,
+    Rest, Store, Savings, Heir, Educate, Succeed, Encyclopedia, Chronicle, Retire, BribeInspector, BorrowShips,
 
     // ── 자리를 가리지 않는 것들 ───────────────────────────────────────────
 
@@ -131,6 +131,7 @@ public static class TownWorks
         new(TownWork.Report, Facility.Report),
         new(TownWork.BreakContract, Facility.Break),
         new(TownWork.BribeInspector, Facility.Bribe),
+        new(TownWork.BorrowShips, Facility.Borrow),
     ];
 
     /// <summary>가르치는 건물이면 그 자리가 어디든 수련이 뜬다.</summary>
@@ -152,6 +153,9 @@ public static class TownWorks
     /// <param name="PatronBribe">
     /// 「감찰관을 매수」 줄이 설 조건인지(<c>0x0044EA30</c>) — 그 줄은 후원자 줄 <b>바로 밑</b>이다.
     /// </param>
+    /// <param name="PatronBorrow">
+    /// 「배를 빌린다」 줄이 설 조건인지(<c>0x0044EA80</c>) — 매수 줄 밑이다.
+    /// </param>
     /// <param name="Commented">
     /// 이 건물이 발견물이고 <b>이미 발견했는지</b> — 그때만 "해설" 줄이 붙는다.
     /// </param>
@@ -168,7 +172,8 @@ public static class TownWorks
                                             string? PatronRow, bool Commented = false,
                                             IReadOnlyList<string>? Drinks = null,
                                             bool Contracted = false, bool HasHeir = false,
-                                            bool Wed = false, bool PatronBribe = false);
+                                            bool Wed = false, bool PatronBribe = false,
+                                            bool PatronBorrow = false);
 
     /// <summary>
     /// 그 시설의 명령 창에 늘어놓을 줄들. 차례와 문구는 <see cref="Facility.Menu"/> 것이고,
@@ -220,8 +225,9 @@ public static class TownWorks
         if (state.PatronRow is { Length: > 0 } row) items.Insert(0, row);
 
         // 「감찰관을 매수」는 후원자 줄 바로 밑이다(0x0044EAE0 이 둘째 칸에 넣는다).
-        if (state.PatronBribe)
-            items.Insert(state.PatronRow is { Length: > 0 } ? 1 : 0, NameOf(TownWork.BribeInspector));
+        int patronAt = state.PatronRow is { Length: > 0 } ? 1 : 0;
+        if (state.PatronBribe) items.Insert(patronAt++, NameOf(TownWork.BribeInspector));
+        if (state.PatronBorrow) items.Insert(patronAt, NameOf(TownWork.BorrowShips));
 
         return items;
     }
