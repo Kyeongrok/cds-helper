@@ -850,8 +850,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 담고 있어서, <b>통과면 청을 들어주는 셋째 장에서 멈추고 모자라면 엎어지는 끝 장까지</b>
     /// 간다. 자세한 것은 볼트 <c>22.분석-애니메이션(MPEFFECT·EVANIME)</c> 참고.
     ///
-    /// 계약을 이미 맺은 뒤에는 게임도 관문을 건너뛰므로 여기서도 안 돈다 — 그 자리는
-    /// <see cref="Patron"/> 쪽에 아직 없어 후원자가 앉아 있기만 하면 돈다.
+    /// 한 번 만난 뒤에는 게임도 관문을 건너뛴다(후원자 비트 15) — <see cref="PassFameGate"/> 가
+    /// 그것을 보므로 이 애니메이션도 <b>첫 알현 때만</b> 돈다.
     /// </remarks>
     public void PlayFameCheck(bool passed) =>
         PlayEffect(EffectAnim.Persuade, [.. Plead, passed ? Granted : Refused]);
