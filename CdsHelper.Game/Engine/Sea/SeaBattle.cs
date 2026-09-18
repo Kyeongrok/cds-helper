@@ -21,7 +21,8 @@ namespace CdsHelper.Game.Engine.Sea;
 /// 가까운 싸움은 볼트 <c>94.분석-해전 총격전</c> · <c>95.분석-해전 충돌·백병전·나포·일기토</c> 를 옮겼다 —
 /// 충돌(<c>0x004397E0</c>) → 백병전(<c>0x00439D50</c>) → 불 → 나포·일기토(<c>0x0043A200</c>), 총격전(<c>0x004362E0</c>).
 /// 원본 결함(적이 걸 때 곱하는 승원이 뒤바뀜 · 적이 나포할 때 막는 매력만 적 것)도 그대로 옮기고 그 자리에 적었다.
-/// <b>아직 없는 것</b> — 괴물 싸움(<c>+0x8FC</c>)과 부관 위임(<c>+0x944</c>).
+/// 괴물 싸움(<c>+0x8FC</c>)과 부관 위임(<c>+0x944</c>)도 옮겼다 —
+/// <see cref="Monster"/> · <see cref="MonsterUp"/> · <see cref="Delegated"/>.
 /// </remarks>
 public sealed class SeaBattle
 {
