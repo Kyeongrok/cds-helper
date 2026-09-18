@@ -1755,7 +1755,12 @@ public sealed class ShipMapWindow : Window
         int at = ChoiceDialog.Ask(this, body,
             ["누적캐릭터를 등장시킨다", "누적캐릭터를 등장시키지 않는다"]);
         if (at < 0) return false;
-        if (at == 1) Engine.AccData.Clear();
+
+        // 「등장시키지 않는다」면 다섯 자리를 통째로 비운다(0x0041AD55).
+        if (at == 1) { Engine.AccData.Clear(); return true; }
+
+        // 등장시키면 인물 276~280 자리에 앉는다(0x0041AF00).
+        if (_game.World?.People is { } people) Engine.AccData.Place(people);
         return true;
     }
 

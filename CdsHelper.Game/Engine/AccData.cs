@@ -19,8 +19,9 @@ namespace CdsHelper.Game.Engine;
 /// 다섯이 다 차 있으면 <b>아무 말 없이</b> 세이브만 지운다(원본 그대로다 — 5명이 찼다고
 /// 이르는 문구 <c>0x00571D88</c> 는 절대 안 걸리는 가지에 있다).
 ///
-/// 여기서는 행적 대본까지는 안 옮기고 <b>인물 레코드</b>만 올린다 — 다음 판에 남으로 서는 자리
-/// (인물 번호 276~280)와 그 대본 되돌리기는 아직이다.
+/// 여기서는 <b>행적 대본(<c>ACC</c>)까지는 안 옮긴다</b> — 은퇴한 제독이 옛 판에서 어느 날
+/// 어디에 있었는지를 되돌려 트는 자리(<c>0x0040D1D0</c>)다. 대신 <see cref="Place"/> 가 인물
+/// 번호 <b>276~280</b> 에 앉혀, 그 마을에 서서 만나고 해적질할 수 있게 한다.
 /// </remarks>
 public static class AccData
 {
@@ -30,10 +31,12 @@ public static class AccData
     /// <summary>은퇴한 제독 하나.</summary>
     /// <param name="Face">얼굴 번호. MALE 그림의 자리다.</param>
     /// <param name="RetiredOn">은퇴한 놀이 날짜.</param>
+    /// <param name="City">은퇴한 도시. 다음 판에서 그 자리에 선다. 옛 파일은 −1 이다.</param>
     public sealed record Character(string Name, string Family, string Given, int Face,
                                    int Nation, int JobIndex, int Blood, int Fame,
                                    int[] Abilities, Dictionary<string, int> Skills,
-                                   Dictionary<string, int> Tongues, DateTime RetiredOn);
+                                   Dictionary<string, int> Tongues, DateTime RetiredOn,
+                                   int City = -1);
 
     /// <summary>적어 두는 자리 — 세이브와 같은 폴더다.</summary>
     public static string Path => System.IO.Path.Combine(
@@ -74,7 +77,7 @@ public static class AccData
                               [.. player.Abilities],
                               new Dictionary<string, int>(player.Skills),
                               new Dictionary<string, int>(player.Tongues),
-                              player.Date));
+                              player.Date, player.HomePort));
         return Save(all);
     }
 
@@ -92,8 +95,62 @@ public static class AccData
                               saved.Abilities?.ToArray() ?? [],
                               new Dictionary<string, int>(saved.Skills),
                               new Dictionary<string, int>(saved.Tongues ?? []),
-                              saved.Date));
+                              saved.Date, saved.HomePort ?? -1));
         return Save(all);
+    }
+
+    /// <summary>누적 캐릭터가 앉는 첫 인물 번호(<c>0x0041AF00</c> 의 <c>0x114</c>).</summary>
+    public const int FirstPerson = 276;
+
+    /// <summary>
+    /// 올라 있는 사람들을 인물 <b>276~280</b> 자리에 앉힌다(<c>0x0041AF00</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 여기서 <c>ACCDATA%d.IDX</c> 의 인물 레코드를 그대로 그 칸에 부어 넣는다. 우리는
+    /// 적어 둔 값으로 칸을 채운다 — 이름·얼굴·능력·기능·언어·명성이다.
+    ///
+    /// <b>자리는 은퇴한 도시</b>다. 원본은 행적 대본을 되돌려 틀어 날마다 옮기는데
+    /// (<c>0x00432740</c> → <c>0x0040D1D0</c>) 그 대본은 아직 안 옮겼다. 그래서 한자리에 선다 —
+    /// 번호가 <see cref="Local.Helpers.PersonTable.MovingEnd"/> 뒤라 달마다 굴리지도 않는다.
+    /// 그 사람을 만나 이야기할 수 있고, 바다에서 마주치면 해적질 대상이 된다.
+    /// 나이는 적어 두지 않아 그 칸 그대로 둔다.
+    /// </remarks>
+    /// <returns>앉힌 사람 수.</returns>
+    public static int Place(IReadOnlyList<Local.Helpers.PersonTable.Row> people)
+    {
+        var all = Load();
+        int put = 0;
+        for (int i = 0; i < all.Count && i < Slots; i++)
+        {
+            int at = FirstPerson + i;
+            if (at >= people.Count) break;
+
+            var who = all[i];
+            var row = people[at];
+            row.First = who.Given.Length > 0 ? who.Given : who.Name;
+            row.Last = who.Family;
+            row.Face = who.Face;
+            row.Fame = who.Fame;
+            row.City = who.City;
+            row.Building = who.City >= 0 ? Local.Helpers.PersonTable.Tavern : -1;
+            row.Grade = 3;
+            row.Hire = Local.Helpers.PersonTable.TalkOnly;   // 옛 제독을 부하로 삼을 수는 없다
+            row.Kind = 2;                            // 안 움직인다
+            row.Dest = -1;
+            row.From = -1;
+            row.Wait = 0;
+            row.Appear = who.City >= 0 ? 1 : 0;
+
+            for (int k = 0; k < row.Stats.Length && k < who.Abilities.Length; k++)
+                row.Stats[k] = who.Abilities[k];
+            for (int k = 0; k < row.Skills.Length; k++)
+                row.Skills[k] = who.Skills.TryGetValue(Support.Local.Models.Skill.Names[k], out int v) ? v : 0;
+            for (int k = 0; k < row.Languages.Length; k++)
+                row.Languages[k] = who.Tongues.TryGetValue(Support.Local.Models.Skill.Languages[k], out int v) ? v : 0;
+
+            put++;
+        }
+        return put;
     }
 
     /// <summary>다섯 자리를 통째로 비운다 — 「누적 캐릭터를 등장시키지 않는다」를 고른 뒤다(<c>0x0041AD55</c>).</summary>
