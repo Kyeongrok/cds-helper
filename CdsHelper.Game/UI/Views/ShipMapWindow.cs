@@ -4127,11 +4127,10 @@ public sealed class ShipMapWindow : Window
             if (LandDeployDialog.Show(this, _game, "", -1) is not { } line) return;
 
             var roll = new GameRandom(Environment.TickCount);
-            var field = new LandBattle(line, 0, foeMen, player, aide, party.Culture,
+            var (foe, foeSkills, culture) = LeaderOf(at, party.Culture);
+            var field = new LandBattle(line, 0, foeMen, player, aide, culture,
                                        LandBattle.FieldFor(_host.TerrainClass),
-                                       (roll.Next(10) + 74, roll.Next(10) + 69,
-                                        roll.Next(10) + 64, roll.Next(10) + 84), roll,
-                                       sort: LandBattle.Field);
+                                       foe, roll, foeSkills, sort: LandBattle.Field);
             if (LandBattleScene.Run(this, _game, field, roll)) return;
             if (!field.Wiped) return;
 
@@ -4139,6 +4138,48 @@ public sealed class ShipMapWindow : Window
             Dispatcher.BeginInvoke(ReturnToTitle);
         }
         finally { _host.Paused = false; _asking = false; }
+    }
+
+    /// <summary>
+    /// 들에서 마주친 무리의 <b>대장</b>을 인물 표에서 집는다(<c>0x00447070</c>).
+    /// </summary>
+    /// <remarks>
+    /// 대장은 인물 246 부터 차례대로다(<see cref="LandFieldFoes.FirstLeader"/>). 능력 여섯과
+    /// 기능 자리를 그대로 쓰고, 문화권은 <b>그 나라 수도</b>의 것이다 — 표를 못 읽으면
+    /// 예전처럼 굴림 값과 구역에 맞춰 박아 둔 문화권으로 물러선다.
+    /// </remarks>
+    private ((int Might, int Mind, int Luck, int Body) Foe,
+             (int Sword, int Gunnery, int Shooting)? Skills, int Culture)
+        LeaderOf(int at, int fallbackCulture)
+    {
+        var roll = new GameRandom(Environment.TickCount);
+        var foe = (Might: roll.Next(10) + 74, Mind: roll.Next(10) + 69,
+                   Luck: roll.Next(10) + 64, Body: roll.Next(10) + 84);
+        (int Sword, int Gunnery, int Shooting)? skills = null;
+        int culture = fallbackCulture;
+
+        int person = LandFieldFoes.FirstLeader + at;
+        try
+        {
+            if (PersonTable.Open().Find(person) is { } row && row.Stats.Length >= 5)
+            {
+                foe = (row.Stats[2], row.Stats[1], row.Stats[4], row.Stats[0]);
+                if (row.Skills.Length > Skill.Shooting)
+                    skills = (row.Skills[Skill.Sword], row.Skills[Skill.Gunnery],
+                              row.Skills[Skill.Shooting]);
+            }
+        }
+        catch (Exception)
+        {
+            // 인물 표를 못 읽으면 굴림 값 그대로 간다.
+        }
+
+        if (_game.PersonTemplates?.Find(person) is { } who
+            && _game.Nations?.Find(who.Nation) is { } nation
+            && _game.CityRows?.CultureOf(nation.Capital) is { } seat and >= 0)
+            culture = seat;
+
+        return (foe, skills, culture);
     }
 
     private void CheckLandEvent()
