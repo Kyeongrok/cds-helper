@@ -79,6 +79,11 @@ internal sealed class EventAnimationPopup : Window
             EventAnimation.Tornado => new TornadoScene(),
             EventAnimation.Aurora => new AuroraScene(),
             EventAnimation.Meteor => new MeteorScene(),
+            EventAnimation.Oasis => new StripScene(6, 0x80, 0x80, 0x22, up: 0x20),
+            EventAnimation.Landslide => new StripScene(7, 0x80, 0x80, 0x23),
+            EventAnimation.Swamp => new StripScene(8, 0x60, 0x60, 0x24),
+            EventAnimation.Quicksand => new StripScene(9, 0x60, 0x60, 0x25),
+            EventAnimation.Iceberg => new StripScene(15, 0xC0, 0x60, 0x2A),
             _ => null,
         };
         if (play == null || !play.Load(anims)) return;
@@ -477,6 +482,51 @@ internal sealed class EventAnimationPopup : Window
             else if (x <= _w / 2) { t = (x - _w / 2) / d + 20; _y[1] = half - t * t / 8 + 50; }
             else if (x <= _w * 3 / 4) { t = (_w * 3 / 4 - x) / d; _y[1] = t * t / 8 + half - 50; }
             else { t = (x - _w) / d + 20; _y[1] = t * t / 8 + half - 50; }
+        }
+    }
+
+    /// <summary>
+    /// 함대 자리에서 띠 한 벌을 처음부터 끝까지 넘기는 장면.
+    /// </summary>
+    /// <remarks>
+    /// 오아시스·사태·늪·유사·유빙 다섯이 이것을 쓴다. 그림 파트·크기·팔레트는 EXE 에서 그대로
+    /// 옮겼다.
+    /// <code>
+    ///   4  오아시스  0x00497F10  파트 6  128x128 x14  팔레트 0x22   자리는 7 점 위가 아니라 32 점 위
+    ///   5  사태      0x00498160  파트 7  128x128 x15  팔레트 0x23
+    ///   6  늪        0x00498340  파트 8   96x96  x18  팔레트 0x24
+    ///   7  유사      0x00498590  파트 9   96x96  x17  팔레트 0x25
+    ///   14 유빙      0x00499BC0  파트 15 192x96  x4   팔레트 0x2A
+    /// </code>
+    /// <b>걸음마다 어느 장을 쓰는지는 아직 안 옮겼다.</b> 원본은 장면마다 <c>0x00497F80</c> 같은
+    /// 표를 두어 장을 오가며 되풀이하는데(덤불이 그 본보기다), 여기서는 한 걸음에 한 장씩
+    /// 곧이 넘긴다. 유빙의 물보라(파트 16, 32x32 여덟 장)도 아직 안 얹었다.
+    /// </remarks>
+    private sealed class StripScene(int part, int frameW, int frameH, int palette, int up = 7)
+        : Scene
+    {
+        private BitmapSource[] _art = [];
+        private int _x, _y;
+
+        public override bool Load(EventAnimation anims)
+        {
+            _art = Frames(anims, part, frameW, frameH, palette) ?? [];
+            return _art.Length > 0;
+        }
+
+        public override void Start(int w, int h, Point? ship, Random rng)
+        {
+            var at = ship ?? new Point(w / 2.0, h / 2.0);
+            int left = (int)at.X - 24, top = (int)at.Y - 24;     // 48x48 함대 그림 왼쪽 위
+            _x = left + (0x30 - frameW) / 2;
+            _y = top + (0x30 - frameH) / 2 - up;
+        }
+
+        public override bool Step(int count, List<Draw> draws)
+        {
+            if (count >= _art.Length) return true;
+            draws.Add(new Draw(_art[count], _x, _y));
+            return false;
         }
     }
 
