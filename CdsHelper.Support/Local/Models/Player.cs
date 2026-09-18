@@ -468,19 +468,21 @@ public sealed class Player
 
     private readonly Dictionary<string, int> _purses = [];
 
-    /// <summary>지갑 상한 한 칸이 만드는 닢수(<c>0x004AD88C</c> 의 <c>x10000</c>).</summary>
-    public const int GoldPerWealth = 10000;
-
-    /// <summary>그 후원자의 지갑. 아직 건드린 적이 없으면 <paramref name="wealth"/> x 10000 이다.</summary>
+    /// <summary>
+    /// 그 후원자의 지갑. 아직 건드린 적이 없으면 <paramref name="wealth"/> 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="wealth"/> 는 <b>이미 닢으로 적힌 재력</b>이다 — 원본 표의 등급(9~99)에
+    /// 만을 곱한 값이 <c>patrons.json</c> 의 <c>wealth</c> 다(조안 2세 = 90 → 900000).
+    /// </remarks>
     public int PurseOf(string name, int wealth) =>
-        !string.IsNullOrEmpty(name) && _purses.TryGetValue(name, out int now)
-            ? now : wealth * GoldPerWealth;
+        !string.IsNullOrEmpty(name) && _purses.TryGetValue(name, out int now) ? now : wealth;
 
-    /// <summary>지갑을 움직인다 — 0 밑으로도, 재력 x 10000 위로도 안 간다.</summary>
+    /// <summary>지갑을 움직인다 — 0 밑으로도, 재력 위로도 안 간다.</summary>
     public int SpendPurse(string name, int by, int wealth)
     {
         if (string.IsNullOrEmpty(name)) return 0;
-        int now = Math.Clamp(PurseOf(name, wealth) + by, 0, wealth * GoldPerWealth);
+        int now = Math.Clamp(PurseOf(name, wealth) + by, 0, Math.Max(0, wealth));
         _purses[name] = now;
         return now;
     }

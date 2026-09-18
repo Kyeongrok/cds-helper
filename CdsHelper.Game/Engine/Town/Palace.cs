@@ -141,8 +141,9 @@ public static class Palace
     /// 늦었으면 1/5 다(<c>0x0041139B</c>). 상한은 후원자 표 <c>+0x2C</c> 의 만 배다.
     ///
     /// 이 값은 후원자의 <b>지갑</b>이다(<see cref="Support.Local.Models.Player.Purses"/>) —
-    /// 새 판에 재력 x 10000 으로 차고(<c>0x004AD88F</c>), 계약을 맺으면 계약금의 절반이 빠지고
-    /// (<c>0x004ADF4A</c>), 보고하면 여기로 도로 쌓인다. 상한은 재력 x 10000 이다.
+    /// 새 판에 <b>재력</b>만큼 차고(<c>0x004AD88F</c> — 원본은 등급 x 10000 이고 우리
+    /// <c>patrons.json</c> 의 <c>wealth</c> 가 이미 그 값이다), 계약을 맺으면 계약금의
+    /// 절반이 빠지고(<c>0x004ADF4A</c>), 보고하면 여기로 도로 쌓인다. 상한도 재력이다.
     /// 내 소지금과는 다른 자리다 — 내가 받는 돈은 <see cref="RewardFor"/> 뿐이다.
     /// </remarks>
     public static int CreditFor(int reward, bool inTime, bool known) =>
