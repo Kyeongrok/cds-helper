@@ -854,6 +854,9 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                 slot.Crew = 0;
                 if (!won) continue;
             }
+            // 판에서 깎인 <b>추진력</b>도 배에 되쓴다(0x0043570D 가 0x0044C810 을 부른다) —
+            // 뱃전으로 부딪히면 그 배는 그 뒤로도 느리다.
+            record.SetSpeed(slot.Speed);
             record.SetHp(slot.Hp);
             if (record.Gun >= 0 && slot.Guns != record.Guns) record.Load(record.Gun, slot.Guns);
             crew[record] = slot.Crew;
