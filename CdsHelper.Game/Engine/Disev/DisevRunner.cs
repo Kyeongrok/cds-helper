@@ -428,7 +428,14 @@ public sealed class DisevRunner
             //   20  HideDialog(48)       "
             //   20  ShowDialog(49)       "
             //   12  MarkEventItem(26 05) 무엇을 표시하는지 아직 안 밝혔다
-            //   11  ChangeCityNation     어느 나라로 가는지가 명령에 없다(0x00409AB6 이 문맥에서 집는다)
+            //   11  ChangeCityNation     어느 나라로 가는지가 명령에 없다(0x00409AB6 이 문맥에서 집는다).
+            //                              대본을 뜯어 보면 이 명령은 <b>SetStat(26, 도시)</b> 꼴이고
+            //                              (26 1C 1A 00 = 칸 26, 08 u16 = 그 도시), 늘 같은 도시의
+            //                              OccupyCity(23 08) 바로 앞에 짝지어 선다 —
+            //                              예: 「26 1C 1A 00 08 CA 00 · 26 1C 1A 00 08 CC 00 ·
+            //                              26 1C 1A 00 08 CB 00 · 23 08 CA 00 · 23 08 CC 00 ·
+            //                              23 08 CB 00」(발견 이벤트 파트 263). 칸 26 이 무엇을
+            //                              담는지는 아직 못 밝혔다.
             //   10  OccupyCity(23 08)    점령·해제·없앰은 도시 소속을 판마다 덮어써야 한다
             //    3  DestroyNation(22 00)
             //    3  MoveEventTarget(3C 08)
