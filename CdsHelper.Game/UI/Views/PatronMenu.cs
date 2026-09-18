@@ -581,7 +581,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         return true;
     }
 
-    /// <summary>위약금을 못 냈을 때 깎이는 친밀도(<c>0x0044F886</c>).</summary>
+    /// <summary>위약금을 <b>내고</b> 계약을 깼을 때 깎이는 친밀도(<c>0x0044F886</c>).</summary>
     private const int BreakPenaltyCloseness = 20;
 
     /// <summary>죄를 물을 때 먼저 깎는 친밀도(<c>0x0044F10E</c> 의 <c>push -0x14</c>).</summary>
@@ -1456,16 +1456,23 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             Say(Pick3("이 바보같은 녀석!",
                       "이런 바보같은!",
                       "바보같은, 위약금을 지불할 수 없다고! 어디까지 어리석은..."));
-            // 못 내면 친밀도가 20 깎인다(0x0044F886 이 -0x14 를 0x00478530 에 넘긴다).
-            _player.Endear(patron.Name, -BreakPenaltyCloseness);
+
+            // <b>못 내면 죄를 묻는다</b>(0x0044F87F 가 0x0044F100 을 부른다) — 그 안에서
+            // 친밀도를 20 깎고 용서·위약금·감옥으로 갈린다.
+            bool over = Punish(patron, _game.Sponsors?.FindByName(patron.Name), Pick3);
+
             ReturnLentShips(broken: true);
             _player.EndContract();
+            if (over) { EndGame(); return; }
+
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
                                   "가까이 하지 않는 것이 좋을 것 같군요.");
             RecontractMates();
             return;
         }
 
+        // 냈으면 친밀도만 20 깎인다(0x0044F886 이 -0x14 를 0x00478530 에 넘긴다).
+        _player.Endear(patron.Name, -BreakPenaltyCloseness);
         ReturnLentShips(broken: true);
         _player.EndContract();
         GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 물었다.");
