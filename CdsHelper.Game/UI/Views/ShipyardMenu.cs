@@ -754,7 +754,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         string sails = string.Concat(ship.Sails.Select(SailMark));
 
         return $"{(flag ? "*" : " ")}{GameUi.Pad(ship.Name, 10)}"
-             + $" {ship.Speed,3}/{ship.Hull.Speed * Ship.RefitCeiling,3}"
+             + $" {ship.Speed,3}/{ship.Hull.SpeedCeiling,3}"
              + $"  {gun}  {sails}";
     }
 
