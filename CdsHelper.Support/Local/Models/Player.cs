@@ -870,8 +870,12 @@ public sealed class Player
     /// 고르는 규칙(<c>0x004AB980</c>)을 못 짚어서, 여기서는 한 번 알린 아이는 다시 안 낸다.
     /// </param>
     /// <param name="Blood">혈액형(0 A · 1 B · 2 O · 3 AB) — 아버지와 어머니에게서 받는다(<c>0x00460FA0</c>).</param>
+    /// <param name="Face">
+    /// 태어날 때 고른 얼굴 줄의 <b>첫 얼굴</b>(<c>0x00460CE7</c>) — 아들 393·394, 딸 139·140 이다.
+    /// 나이가 들면 같은 줄의 다음 얼굴로 바뀐다. 이 칸이 없던 옛 세이브는 −1 이다.
+    /// </param>
     public sealed record Child(string Name, bool Daughter, DateTime Born, int[] Abilities, int[] Skills,
-                               int[] Tongues, bool Introduced = false, int Blood = 0)
+                               int[] Tongues, bool Introduced = false, int Blood = 0, int Face = -1)
     {
         /// <summary>그 날의 나이. 아직 안 태어났으면 음수다.</summary>
         public int AgeOn(DateTime now) =>
