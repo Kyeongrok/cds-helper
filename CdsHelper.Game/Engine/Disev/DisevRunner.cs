@@ -712,11 +712,12 @@ public sealed class DisevRunner
                 return null;
 
             case DisevCall.SetAide:
-                if (Local.Helpers.PersonTable.Open()?.Find(I("Person")) is { Name.Length: > 0 } aide)
-                {
-                    _game.Player.SetMate(0, aide.Name);
-                    _game.MateInfo(aide.Name);
-                }
+                Seat(AideSlot, "부관", I("Person"));
+                return null;
+
+            // 3D 0D — 그 인물을 <b>통역</b> 자리에 앉힌다(0x0040ADE0). 부관(40 0D)과 같은 꼴이다.
+            case DisevCall.HireInterpreter:
+                Seat(InterpreterSlot, "통역", I("Person"));
                 return null;
 
             case DisevCall.NextStep:
@@ -932,6 +933,31 @@ public sealed class DisevRunner
     }
 
     /// <summary>부관 신상. 없으면 null.</summary>
+    /// <summary>부하 자리 번호 — <see cref="Support.Local.Models.Player.MateRoles"/> 차례다.</summary>
+    private const int AideSlot = 0, InterpreterSlot = 3;
+
+    /// <summary>
+    /// 대본이 그 인물을 부하 자리에 앉힌다(<c>0x0040B0CA</c> 부관 · <c>0x0040AE0B</c> 통역).
+    /// </summary>
+    /// <remarks>
+    /// 앉히고 나서 <b>알림 상자</b>가 뜬다(<c>0x0049E3E0</c>) — 그 자리에 앉아 있던 사람이
+    /// 있으면 「%s%s 해고하고 %s%s 부관으로 삼았습니다」처럼 <b>해고까지 함께</b> 이른다.
+    /// 조사는 을/를이다(<c>0x004281B0(이름, 2)</c>).
+    /// </remarks>
+    private void Seat(int slot, string role, int person)
+    {
+        if (Local.Helpers.PersonTable.Open()?.Find(person) is not { Name.Length: > 0 } who) return;
+
+        string old = _game.Player.MateAt(slot);
+        _game.Player.SetMate(slot, who.Name);
+        _game.MateInfo(who.Name);
+
+        string got = $"{who.Name}{GameUi.Josa(who.Name, "을", "를")}";
+        NoticeDialog.Show(_owner, old.Length > 0
+            ? $"{old}{GameUi.Josa(old, "을", "를")} 해고하고 {got} {role}으로 삼았습니다"
+            : $"{got} {role}으로 삼았습니다");
+    }
+
     private Support.Local.Models.Player.MateInfo? AideInfo()
     {
         var player = _game.Player;
