@@ -47,9 +47,6 @@ public enum TownWork
     // ── 그 밖 ─────────────────────────────────────────────────────────────
     Read, Explore,
 
-    /// <summary>도서관의 <b>검색</b>. 열람보다 앞줄이다.</summary>
-    Search,
-
     /// <summary>발견한 건물의 <b>해설</b>. 발견하고 나서야 줄이 붙는다.</summary>
     Comment,
 
@@ -118,7 +115,6 @@ public static class TownWorks
         new(TownWork.Retire, "은퇴한다", FacilityKind.Home),
 
         // ── 그 밖 ─────────────────────────────────────────────────────────
-        new(TownWork.Search, "검색", FacilityKind.Library),
         new(TownWork.Read, "열람", FacilityKind.Library),
         new(TownWork.Explore, "탐험을 떠난다", FacilityKind.Gate),
         // 자리를 안 적는다 — 발견물이 된 건물이면 어느 시설에나 붙는다(0x004733B1).

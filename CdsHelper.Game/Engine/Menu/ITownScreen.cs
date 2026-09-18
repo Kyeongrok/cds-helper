@@ -148,9 +148,6 @@ internal interface ITownScreen
     void ShowEncyclopedia();
     void ReadBooks();
 
-    /// <summary>도서관 「검색」 — 찾을 수 있는 책이 없어 묻기만 한다.</summary>
-    void SearchBooks();
-
     /// <summary>그 줄이 술 줄인지 — 줄 이름이 곧 술 이름이다.</summary>
     /// <remarks>
     /// 술 줄은 일 표에 없다. 고장마다 파는 것이 달라 <see cref="TownWorks.LinesOf"/> 가
