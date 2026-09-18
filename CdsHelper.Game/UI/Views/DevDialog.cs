@@ -67,7 +67,6 @@ public sealed class DevDialog : GameWindow
         rows.Children.Add(Row("소지금", _gold, GoldStep, v => _player.SetGold(v)));
         rows.Children.Add(Row("명성", _fame, FameStep, v => _player.Fame = v));
         rows.Children.Add(EffectRow());
-        rows.Children.Add(HurtRow());
         rows.Children.Add(SpouseRow());
 
         // 좌표 겹쳐 보기 — 배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄운다.
@@ -78,28 +77,6 @@ public sealed class DevDialog : GameWindow
         // 만난 사람 — 좌표 상자와 같은 꼴로 지도 오른쪽 위에 겹쳐 낸다. 기본은 꺼짐이다.
         rows.Children.Add(Toggle("정보", options.PeopleOn(), options.SetPeople,
             "말을 걸어 본 여급의 친밀도·궁합과, 만난 인물 목록을 지도 위에 띄웁니다"));
-
-        // 점그림을 이웃과 섞어 늘일지. 화면을 키워 놓았을 때 계단을 갈아 준다.
-        rows.Children.Add(Toggle("이웃 섞기", GameSettings.SmoothSprites,
-            GameUi.SetSpriteSmoothing,
-            "점그림을 이웃과 섞어 늘입니다(Linear). 끄면 점 그대로입니다(NearestNeighbor)."
-            + " 메인메뉴와 지도는 바로 듭니다 — 나머지 창은 다시 열 때 듭니다."));
-
-        // 인물 이동 — 떠날지 굴리는 때와 확률. 원본은 매월 1일 5분의 1이다.
-        // 첫 줄(0)이 원본 「매월 1일」이고, 그 뒤 줄 번호가 곧 날수다.
-        rows.Children.Add(Select("이동 주기",
-            ["매월 1일 (원본)", .. Enumerable.Range(1, GameSettings.MaxPersonRollDays).Select(n => $"{n}일마다")],
-            GameSettings.PersonRollDays,
-            i => GameSettings.PersonRollDays = i,
-            "인물(14~200번)이 떠날지 굴리는 때. 원본은 매월 1일입니다. N일마다는 1480년 1월 1일부터 셉니다."
-            + " 역사 항해자 대본은 늘 매월 1일입니다."));
-        rows.Children.Add(Select("떠날 확률",
-            [.. Enumerable.Range(GameSettings.MinPersonMoveOdds,
-                                 GameSettings.MaxPersonMoveOdds - GameSettings.MinPersonMoveOdds + 1)
-                          .Select(n => n == 1 ? "1분의 1 (반드시)" : $"{n}분의 1")],
-            GameSettings.PersonMoveOdds - GameSettings.MinPersonMoveOdds,
-            i => GameSettings.PersonMoveOdds = i + GameSettings.MinPersonMoveOdds,
-            $"굴릴 때마다 떠날 확률. 원본은 {GameSettings.DefaultPersonMoveOdds}분의 1입니다."));
 
         // 자동항해 — 해상 커맨드에 있던 것을 옮겼다. 창을 닫고 나서 목적지를 고른다.
         if (options.AutoSail is { } autoSail)
@@ -188,49 +165,6 @@ public sealed class DevDialog : GameWindow
         }, 96));
         line.Children.Add(GameUi.PushButton("없앤다", () => { _player.Marry(""); Paint(); }, 96));
         line.Children.Add(shown);
-        return line;
-    }
-
-    /// <summary>
-    /// 배를 조금 상하게 하는 줄. 조선소 수리를 시험하려고 둔다 — 놀이 안에서 배를 상하게 하는
-    /// 것은 폭풍뿐이라, 위도 띠까지 배를 몰지 않고도 손상을 만들 수 있게 남겨 둔다.
-    /// </summary>
-    private UIElement HurtRow()
-    {
-        var line = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 4, 0, 4),
-        };
-
-        line.Children.Add(new TextBlock
-        {
-            Text = "배 손상",
-            Width = 64,
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-
-        line.Children.Add(GameUi.PushButton("모두 -5", () =>
-        {
-            foreach (var ship in _player.Ships) ship.Hurt(5);
-        }, 96));
-        line.Children.Add(GameUi.PushButton("모두 고침", () =>
-        {
-            foreach (var ship in _player.Ships) ship.Repair();
-            _player.SetFatigue(0);
-            _player.SetMorale(Player.MaxMorale);
-        }, 96));
-        line.Children.Add(GameUi.PushButton("항해 20일", () =>
-        {
-            _player.SetDaysAtSea(20);
-        }, 96));
-        line.Children.Add(GameUi.PushButton("피로 90", () =>
-        {
-            _player.SetFatigue(90);
-        }, 96));
         return line;
     }
 

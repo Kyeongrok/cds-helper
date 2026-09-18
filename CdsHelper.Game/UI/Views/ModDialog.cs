@@ -12,7 +12,8 @@ namespace CdsHelper.Game.UI.Views;
 /// 개발 창에 섞여 있던 것 가운데 <b>놀 때 쓰는 것</b>만 따로 뽑아 왔다. 개발 창은 값을
 /// 손으로 밀어 넣어 시험하는 데고, 여기는 판을 그대로 두고 보기를 거드는 데다.
 ///
-/// 지금 든 것은 컨디션 막대 · 미니맵 · 발견물 지도 · 기능·언어 쪽지 · 출입 일수 다섯이다.
+/// 지금 든 것은 컨디션 막대 · 미니맵 · 발견물 지도 · 여급 수첩 · 기능·언어 쪽지 ·
+/// 출입 일수 · 인물 이동 두 줄이다.
 /// </remarks>
 public sealed class ModDialog : GameWindow
 {
@@ -54,6 +55,11 @@ public sealed class ModDialog : GameWindow
             "햄버거에 「발견물 지도」 줄을 냅니다. 어디에 무엇이 있는지 표식으로 찍어 보여 줍니다"
             + " — 끄면 줄도 단축키도 안 먹습니다"));
 
+        // 여급 수첩 — 낯을 튼 여급과 궁합을 모아 본다. 원본에는 없는 창이다.
+        rows.Children.Add(Toggle("여급 수첩", GameSettings.ShowBarmaidBookMenu,
+            on => GameSettings.ShowBarmaidBookMenu = on,
+            "햄버거에 「여급 수첩」 줄을 냅니다. 낯을 튼 여급의 친밀도와 궁합을 모아 봅니다"));
+
         // 기능·언어 — 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 쪽지로 뜬다.
         rows.Children.Add(Toggle("기능·언어", GameSettings.ShowSkillOverlay,
             on => GameSettings.ShowSkillOverlay = on,
@@ -68,6 +74,22 @@ public sealed class ModDialog : GameWindow
             i => GameSettings.PortDays = i + GameSettings.MinPortDays,
             $"항구·마을에 들어가고 나올 때 각각 지나는 날수. 원본 기본값 {GameSettings.DefaultPortDays}일입니다."
             + " 바꾼 값은 다음 출입부터 곧바로 듭니다."));
+
+        // 인물 이동 — 떠날지 굴리는 때와 확률. 원본은 매월 1일 5분의 1이다.
+        // 첫 줄(0)이 원본 「매월 1일」이고, 그 뒤 줄 번호가 곧 날수다.
+        rows.Children.Add(Select("이동 주기",
+            ["매월 1일 (원본)", .. Enumerable.Range(1, GameSettings.MaxPersonRollDays).Select(n => $"{n}일마다")],
+            GameSettings.PersonRollDays,
+            i => GameSettings.PersonRollDays = i,
+            "인물(14~200번)이 떠날지 굴리는 때. 원본은 매월 1일입니다. N일마다는 1480년 1월 1일부터 셉니다."
+            + " 역사 항해자 대본은 늘 매월 1일입니다."));
+        rows.Children.Add(Select("떠날 확률",
+            [.. Enumerable.Range(GameSettings.MinPersonMoveOdds,
+                                 GameSettings.MaxPersonMoveOdds - GameSettings.MinPersonMoveOdds + 1)
+                          .Select(n => n == 1 ? "1분의 1 (반드시)" : $"{n}분의 1")],
+            GameSettings.PersonMoveOdds - GameSettings.MinPersonMoveOdds,
+            i => GameSettings.PersonMoveOdds = i + GameSettings.MinPersonMoveOdds,
+            $"굴릴 때마다 떠날 확률. 원본은 {GameSettings.DefaultPersonMoveOdds}분의 1입니다."));
 
         var buttons = new StackPanel
         {

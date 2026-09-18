@@ -37,9 +37,6 @@ public sealed class GameSettingsData
     /// <summary>일기토에서 최근에 싸운 상대 이름 — 앞이 가장 최근이다.</summary>
     public List<string> RecentDuelFoes { get; set; } = [];
 
-    /// <summary>점그림을 이웃과 섞어 늘일지. 기본은 끔(점 그대로).</summary>
-    public bool SmoothSprites { get; set; }
-
     /// <summary>도시 창이 열릴 때 줄 효과. <see cref="Settings.CityOpenEffect"/> 의 이름이다.</summary>
     public string CityOpenEffect { get; set; } = "Expand";
 
@@ -70,6 +67,9 @@ public sealed class GameSettingsData
 
     /// <summary>햄버거에 「발견물 지도」 줄을 낼지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowDiscoveryMapMenu { get; set; }
+
+    /// <summary>햄버거에 「여급 수첩」 줄을 낼지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
+    public bool ShowBarmaidBookMenu { get; set; }
 
     /// <summary>
     /// 게임 상단 띠에 켜 둔 칸 이름들("날짜"·"소지금" …). 한 번도 안 건드렸으면 null 이라
@@ -379,20 +379,6 @@ public static class GameSettings
     /// 마구리 위로 조금씩 올라앉는다. 바꾼 값은 <b>다음에 여는 창</b>부터 든다.
     /// </remarks>
     /// <summary>
-    /// 점그림을 <b>이웃과 섞어</b> 늘일지 — 켜면 계단이 갈리고 끄면 원본 그대로다.
-    /// </summary>
-    /// <remarks>
-    /// 화면을 키워 놓으면 점 하나가 큰 네모가 되어 계단이 굵게 진다. 켜면 옆 점을 섞어
-    /// (<c>BitmapScalingMode.Linear</c>) 부드러워지는 대신 획이 조금 흐려진다.
-    /// <b>다음에 여는 창부터</b> 든다 — 이미 떠 있는 창은 그대로다.
-    /// </remarks>
-    public static bool SmoothSprites
-    {
-        get => Get(d => d.SmoothSprites);
-        set => Set(d => d.SmoothSprites = value);
-    }
-
-    /// <summary>
     /// <b>저장</b> 단축키. 글쇠 이름(<see cref="System.Windows.Input.Key"/>)이고 기본은 <c>V</c> 다.
     /// </summary>
     public static string SaveKey
@@ -483,6 +469,15 @@ public static class GameSettings
     {
         get => Get(d => d.ShowDiscoveryMapMenu);
         set => Set(d => d.ShowDiscoveryMapMenu = value);
+    }
+
+    /// <summary>
+    /// 햄버거에 <b>여급 수첩</b> 줄을 낼지. 모드 창의 「여급 수첩」이 켜고 끈다.
+    /// </summary>
+    public static bool ShowBarmaidBookMenu
+    {
+        get => Get(d => d.ShowBarmaidBookMenu);
+        set => Set(d => d.ShowBarmaidBookMenu = value);
     }
 
     /// <summary>항해·뭍 이동 중 <b>미니맵</b>을 지도 오른쪽 아래에 띄울지. 개발 창의 「미니맵」이 켜고 끈다.</summary>
