@@ -286,6 +286,10 @@
                                     </MenuItem>
                                     <MenuItem Header="개발">
                                         <MenuItem
+                                            x:Name="PART_GameDataMenu"
+                                            Header="게임데이터"
+                                            ToolTip="앱이 EXE 에서 읽어 적어 둔 표들을 들여다보고 다시 굽는다" />
+                                        <MenuItem
                                             x:Name="PART_CityCultureMenu"
                                             Header="도시 · 문화권 · 왕국"
                                             ToolTip="도시마다의 문화권·왕국을 갈아 씌운다 — 시설 화자 얼굴도 따라 바뀐다" />

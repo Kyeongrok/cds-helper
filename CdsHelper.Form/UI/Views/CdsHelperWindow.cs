@@ -24,6 +24,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_UiSpriteDumpMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_GameDataMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_MovieBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PortraitBookMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_CityCultureMenu, Type = typeof(MenuItem))]
@@ -59,6 +60,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
     private const string PART_UiSpriteDumpMenu = "PART_UiSpriteDumpMenu";
+    private const string PART_GameDataMenu = "PART_GameDataMenu";
     private const string PART_MovieBankMenu = "PART_MovieBankMenu";
     private const string PART_PortraitBookMenu = "PART_PortraitBookMenu";
     private const string PART_CityCultureMenu = "PART_CityCultureMenu";
@@ -157,6 +159,9 @@ public class CdsHelperWindow : CdsWindow
 
         if (GetTemplateChild(PART_UiSpriteDumpMenu) is MenuItem uiSpriteDumpMenu)
             uiSpriteDumpMenu.Click += OnUiSpriteDumpMenuClick;
+
+        if (GetTemplateChild(PART_GameDataMenu) is MenuItem gameDataMenu)
+            gameDataMenu.Click += OnGameDataMenuClick;
 
         if (GetTemplateChild(PART_WaveBankMenu) is MenuItem waveBankMenu)
         {
@@ -380,6 +385,11 @@ public class CdsHelperWindow : CdsWindow
         };
         dialog.ShowDialog();
     }
+
+    // 앱이 EXE 에서 읽어 적어 둔 표들을 들여다보고 다시 굽는 창. 게임 햄버거에 있던 줄을
+    // 여기로 옮겼다 — 놀면서 쓸 일이 없고 표를 손보는 일은 도구 앱 몫이다.
+    private void OnGameDataMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.GameDataDialog.Show(this);
 
     // MISC.CDS 의 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다. 게임 창 「개발」에 있던 줄을
     // 여기로 옮겼다 — 놀면서 쓸 일이 없고 그림을 손보는 일은 도구 앱 몫이다.
