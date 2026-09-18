@@ -76,6 +76,15 @@ public static class MovieFiles
     public static string HullStem(int hull) => $"S{hull:00}_0001";
 
     /// <summary>
+    /// <b>엔딩</b> 동영상 줄기 — <c>AVI\END.AVI</c>(<c>0x0054A1C8</c>).
+    /// </summary>
+    /// <remarks>
+    /// 세계일주를 보고하고 나면 게임이 이것을 튼다(<c>0x0045B8F0</c>). 앞뒤로 색표를 서른·예순
+    /// 걸음에 걸쳐 어둡혔다 밝히는데, 우리 재생기는 그 자리를 검은 바탕으로 덮어 대신한다.
+    /// </remarks>
+    public const string EndingStem = "END";
+
+    /// <summary>
     /// 틀 파일을 찾는다. 올려 둔 것 → 게임 폴더 차례고, 둘 다 없으면 null.
     /// </summary>
     public static string? Resolve(string? gameDirectory, string stem) =>
