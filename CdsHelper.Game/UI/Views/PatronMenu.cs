@@ -685,9 +685,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 그림이 있으면 그것을 튼 뒤 친밀도 · 아이템 · 명성 차례로 낸다(<c>0x004111D0</c>).
     /// 사례는 다 끝나고 한 번이다.
     /// </remarks>
-    /// <returns>받은 사례(닢).</returns>
-    private int ReportEach(Patron patron, Contract contract,
-                           IReadOnlyList<DiscoveryTable.Record> rows, bool inTime)
+    /// <returns>받은 사례(닢)와 후원자가 본 갈래.</returns>
+    private (int Paid, Palace.ReportGrade Grade) ReportEach(
+        Patron patron, Contract contract,
+        IReadOnlyList<DiscoveryTable.Record> rows, bool inTime)
     {
         string me = _player.Name;
         int fame = 0, closer = 0;
@@ -744,13 +745,84 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             Credit(row);
         }
 
-        if (fame == 0 && closer == 0)
-            TalkDialog.Say(_view, FaceOf(patron), "", "굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.");
+        // 다 보고하고 나면 후원자가 <b>성과를 가늠해</b> 한 마디 하고 사례를 친다(0x00411AA0).
+        var grade = GradeOf(patron, contract, rows);
+        int paid = RewardFor(contract, grade, inTime);
+        Remark(patron, grade, inTime, paid);
 
-        int paid = RewardFor(contract, inTime);
         _player.Earn(paid);
         _player.EndContract();
-        return paid;
+        return (paid, grade);
+    }
+
+    /// <summary>
+    /// 후원자가 성과를 어떻게 보았는지 굴린다(<c>0x00411AA0</c> · <see cref="Palace.GradeOf"/>).
+    /// </summary>
+    /// <remarks>
+    /// 견주는 잣대는 <b>힌트 표의 자금</b>이다(<c>0x00412289</c>) — 흥정으로 고친 계약금이 아니다.
+    /// 보고한 발견물의 보수를 다 더해 그보다 많으면 눈이 후해진다.
+    /// </remarks>
+    private Palace.ReportGrade GradeOf(Patron patron, Contract contract,
+                                       IReadOnlyList<DiscoveryTable.Record> rows)
+    {
+        int total = rows.Sum(r => r.Reward);
+        int funds = _game.Hints?.Find(contract.Hint)?.Funds ?? contract.Amount;
+        var sponsor = _game.Sponsors?.FindByName(patron.Name);
+        return Palace.GradeOf(sponsor?.Closeness ?? DefaultCloseness,
+                              SponsorFortune(sponsor)[7], funds < total, _random);
+    }
+
+    /// <summary>
+    /// 사례를 치기 앞서 후원자가 하는 말(<c>0x00411AA0</c>) — 갈래 셋 x 기한 둘 x 말투 셋이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   굉장 · 기한 안  0x00530318 · 0x00530348 · 0x00530398
+    ///   굉장 · 늦음     0x005303E8 · 0x00530418 · 0x00530458
+    ///   보통 · 기한 안  <b>말이 없다</b>(0x00411B98 이 건너뛴다)
+    ///   보통 · 늦음     0x005304C8 · 0x005304F0 · 0x00530520
+    ///   시시 · 기한 안  0x00530588 · 0x005305C0 · 0x00530610   ; 사례 닢수가 들어간다
+    ///   시시 · 늦음     0x00530670 · 0x005306B8 · 0x00530728
+    /// </code>
+    /// 시시 · 기한 안 대사에는 <b>사례 닢수가 들어간다</b> — 게임도 먼저 셈하고 말에 끼워 넣는다.
+    /// </remarks>
+    private void Remark(Patron patron, Palace.ReportGrade grade, bool inTime, int paid)
+    {
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+        void Say(string words) => TalkDialog.Say(_view, FaceOf(patron), "", words);
+
+        switch (grade, inTime)
+        {
+            case (Palace.ReportGrade.Good, true):
+                Say(Pick3("굉장하다! 잘 해냈네!! 사례는 듬뿍하겠네.",
+                          "이것은... 상상 이상입니다!! 제 눈이 틀림 없었던 것 같군요. 사례를 하지요.",
+                          "오오, 굉장하군! 상상 이상의 것이다!! 내 기대에 보답해 주었군. 사례를 하지."));
+                break;
+            case (Palace.ReportGrade.Good, false):
+                Say(Pick3("굉장하군! 잘 했다!! 늦은 것을 없었던 일로 하지.",
+                          "이렇게 굉장할 수가! 잘 해내셨군요. 늦은 것은 잊어 버리지요.",
+                          "오오, 이건 굉장하군! 상상 이상의 것이다!! 어쩔 수 없군. 늦은 것은 없었던 일로 하지."));
+                break;
+            case (Palace.ReportGrade.Mid, true):
+                break;                                        // 보통 · 기한 안은 말이 없다
+            case (Palace.ReportGrade.Mid, false):
+                Say(Pick3("늦은 것은 공제하겠네, 불만없겠지!",
+                          "기한에 늦은 것은 공제하겠습니다. 좋습니까?",
+                          "으~음, 기한이 넘었군. 사례는 해 주겠지만... 늦은 것은 공제하겠네. 상관없겠지."));
+                break;
+            case (Palace.ReportGrade.Poor, true):
+                Say(string.Format(Pick3(
+                    "으~음, 이건가.... 이거라면, {0}닢 밖에 지불할 수 없네.",
+                    "이런 것이었습니까..., 당신에게는 미안하게 됐지만, {0}닢 밖에 지불할 수 없군요.",
+                    "흐~음, 이건가... 안됐지만, 사례는 {0}닢이면 되겠지."), paid));
+                break;
+            default:
+                Say(Pick3("으~음, 이건가.... 늦은데다 이거라면, 돈은 지불할 수 없군, 불만없겠지.",
+                          "어떻게 된 겁니까. 이런 것이라고는... 기한이 넘은데다, 이것이라면 약속한 사례는 드릴 수 없습니다. 괜찮겠지요.",
+                          "흐~음... 기대를 벗어났군. 시간을 들인 것 치고는 변변치 않군. 설마 사례를 하라고는 말 못하겠지."));
+                break;
+        }
     }
 
     /// <summary>
@@ -832,19 +904,25 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         var stage = _view as CityPicView;
         int paid;
+        Palace.ReportGrade grade;
         try
         {
             // 보고하는 동안 도시 그림이 파래진다 — 바다에서 발견할 때와 같다.
             stage?.Shade(true);
-            paid = ReportEach(patron, contract, rows, inTime);
+            (paid, grade) = ReportEach(patron, contract, rows, inTime);
         }
         finally
         {
             stage?.Shade(false);
         }
 
-        // 사례는 파란 막이 걷힌 뒤에 받는다.
-        GameDialog.Show(_view, $"금화 {paid}닢을 받았다!");
+        // 사례는 파란 막이 걷힌 뒤에 받는다. 줄도 갈래마다 다르다
+        // (0x005304B0 · 0x00530570 · 0x00530648 · 0x00530788).
+        string him = patron.Name;
+        GameDialog.Show(_view, grade != Palace.ReportGrade.Poor
+            ? $"금화 {paid}닢을 받았다!"
+            : inTime ? $"{him}{GameUi.Josa(him, "은", "는")} 금화 {paid}닢 밖에 지불하지 않았다!"
+                     : $"{him}{GameUi.Josa(him, "은", "는")} 돈을 지불하지 않았다!");
 
         // 마무리 대사. 신분 셋에 두 갈래라 여섯 벌인데(0x0041115B 이 고른다) 배웅 대사와
         // 같이 화면에서 본 <b>셋째 벌</b>을 쓴다.
@@ -1188,9 +1266,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// <summary>
     /// 보고 사례. 남이 먼저 발표해 버렸으면 <b>깎인 사례</b>다(<c>0x00411FC0</c> 이 가른다).
     /// </summary>
-    private int RewardFor(Contract contract, bool inTime) =>
+    private int RewardFor(Contract contract, Palace.ReportGrade grade, bool inTime) =>
         KnownByOthers ? Palace.ScoopedRewardFor(contract.Amount, inTime)
-                      : Palace.RewardFor(contract.Unpaid, inTime, _random);
+                      : Palace.RewardFor(contract.Unpaid, grade, inTime, _random);
 
 
     /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
