@@ -44,8 +44,12 @@ internal static class HostileCityMenu
     /// </summary>
     /// <param name="byLand">말로 왔는지 — 마을 쪽이면 참, 배로 온 항구 쪽이면 거짓.</param>
     /// <param name="mapArea">도시 그림을 펼 자리. 비어 있으면 임자 창 한가운데다.</param>
+    /// <param name="byTreaty">
+    /// 조약으로 막힌 문인지 — 게임은 그때 <b>딴 화면</b>(<c>0x0046ABB0</c>)을 쓴다.
+    /// 차림표도 말도 벌이 다르고 교섭 주사위가 <c>rand(150)</c> 으로 헐렁하다.
+    /// </param>
     public static Outcome Run(Window owner, Engine.Game game, int city, string cityName,
-                              bool byLand, Rect mapArea = default)
+                              bool byLand, Rect mapArea = default, bool byTreaty = false)
     {
         // 게임도 그림부터 편다 — 도시는 그려지고 성문에서 막히는 것이다.
         var scene = GateScene.Open(owner, game, city, mapArea);
@@ -56,7 +60,7 @@ internal static class HostileCityMenu
             game.Bgm.Play(BgmPlayer.CityTrackForCulture(game.CityRows?.CultureOf(city) ?? 0));
         try
         {
-            return AtTheGate(scene as Window ?? owner, scene, game, city, cityName, byLand);
+            return AtTheGate(scene as Window ?? owner, scene, game, city, cityName, byLand, byTreaty);
         }
         finally
         {
@@ -72,8 +76,9 @@ internal static class HostileCityMenu
 
     /// <summary>성문 앞에서 문지기를 만나고 차림표를 돌린다.</summary>
     private static Outcome AtTheGate(Window owner, GateScene? scene, Engine.Game game, int city,
-                                     string cityName, bool byLand)
+                                     string cityName, bool byLand, bool byTreaty)
     {
+        var say = byTreaty ? Standoff.Treaty : Standoff.Hostile;
         var player = game.Player;
         var dice = new GameRandom(Environment.TickCount);
         int nation = game.CityRows?.NationOf(city) ?? -1;
@@ -86,23 +91,28 @@ internal static class HostileCityMenu
         bool heard = TongueAt(game, city) > 0;
         int culture = game.CityRows?.CultureOf(city) ?? 0;
         var gate = game.SpeakerFace(Standoff.GateSpeaker(byLand), culture);
-        TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.GateWord, heard));
-        // 덧붙이는 것은 <b>부관</b>이다 — 부관이 없으면 아예 아무 말도 없다(0x004A523D).
-        // 무슨 말을 하는지는 제독과 부관 가운데 누가 더 그 말을 잘하느냐로 셋이 갈린다.
-        if (Standoff.HasAide(player))
-            TalkDialog.Say(owner, game.AideFace, "",
-                           Standoff.GateAideWord(TongueAt(game, city),
-                                                 AideTongueAt(game, city), byLand));
+        // 조약으로 막힌 문에서는 이 인사가 아예 없다 — 부르는 쪽이 이미 조약 문구를 냈다
+        // (0x0046ABC9 가 0x0046A6C0 하나만 부른다).
+        if (!byTreaty)
+        {
+            TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.GateWord, heard));
+            // 덧붙이는 것은 <b>부관</b>이다 — 부관이 없으면 아예 아무 말도 없다(0x004A523D).
+            // 무슨 말을 하는지는 제독과 부관 가운데 누가 더 그 말을 잘하느냐로 셋이 갈린다.
+            if (Standoff.HasAide(player))
+                TalkDialog.Say(owner, game.AideFace, "",
+                               Standoff.GateAideWord(TongueAt(game, city),
+                                                     AideTongueAt(game, city), byLand));
+        }
 
         while (true)
         {
             // 넉 줄을 먼저 깔고 켜고 끈다 — 꺼진 칸도 자리를 지킨다.
             var rows = new (string, bool)[]
             {
-                (Standoff.Choices[Standoff.Attack], true),
-                (Standoff.Choices[Standoff.Sneak], Standoff.CanSneak(sect)),
-                (Standoff.Choices[Standoff.Talk], canTalk),
-                (Standoff.Choices[Standoff.Leave], true),
+                (say.Rows[Standoff.Attack], true),
+                (say.Rows[Standoff.Sneak], Standoff.CanSneak(sect)),
+                (say.Rows[Standoff.Talk], canTalk),
+                (say.Rows[Standoff.Leave], true),
             };
 
             int pick = ChoiceDialog.Pick(owner, Standoff.GateTitle(cityName), rows);
@@ -152,7 +162,7 @@ internal static class HostileCityMenu
                 case Standoff.Sneak:
                     // 잠입은 되든 안 되든 차림표가 다시 안 뜬다(0x004A57E7 이 반환값을
                     // 안 보고 고리를 빠져나간다). 달아났어도 그대로 물러선다.
-                    return Sneak(owner, scene, game, dice, city, gate, heard);
+                    return Sneak(owner, scene, game, dice, city, gate, heard, say);
 
                 case Standoff.Talk:
                     // 게임도 돈부터 본다(0x00468BF0 → 「소지금이 모자랍니다!」). 한 번
@@ -163,14 +173,14 @@ internal static class HostileCityMenu
                         canTalk = false;
                         break;
                     }
-                    if (Talk(owner, scene, game, dice, city, where))
+                    if (Talk(owner, scene, game, dice, city, where, say))
                         return new Outcome(Entered: true, GameOver: false);
                     canTalk = false;          // 이번 방문에서는 다시 못 조른다
                     break;
 
                 default:
                     // 떠난다, 또는 창을 닫았다.
-                    NoticeDialog.Show(owner, Standoff.GiveUpWord, "");
+                    NoticeDialog.Show(owner, say.GiveUp, "");
                     return new Outcome(false, false);
             }
         }
@@ -196,12 +206,12 @@ internal static class HostileCityMenu
     /// 우리도 세이브에 적지 않고 이 고리 안의 <c>canTalk</c> 하나로 든다.
     /// </remarks>
     private static bool Talk(Window owner, GateScene? scene, Engine.Game game, GameRandom dice,
-                             int city, string where)
+                             int city, string where, Standoff.Script say)
     {
         var player = game.Player;
 
         // 게임도 굴리고 나서 하트를 돌린다(0x004A55EE) — 깨지면 이미 진 것이다.
-        bool won = Standoff.Talks(player, dice);
+        bool won = Standoff.Talks(player, dice, say.TalkRoll);
         scene?.PlayHeart(won);
 
         // 결과 문구는 0x00469680 이 부관 여부로 골라 <b>하나만</b> 낸다.
@@ -212,14 +222,14 @@ internal static class HostileCityMenu
         if (!won)
         {
             NoticeDialog.Show(owner,
-                aide ? Standoff.TalkLostWord : string.Format(Standoff.TalkLostNews, where), "");
+                aide ? say.TalkLostWord : string.Format(say.TalkLostNews, where), "");
             return false;
         }
 
         int paid = player.Spend(Standoff.Price(player, dice));
-        NoticeDialog.Show(owner, string.Format(Standoff.PaidWord, paid), "");
+        NoticeDialog.Show(owner, string.Format(say.Paid, paid), "");
         NoticeDialog.Show(owner,
-            string.Format(aide ? Standoff.TalkWonWord : Standoff.TalkWonNews, where), "");
+            string.Format(aide ? say.TalkWonWord : say.TalkWonNews, where), "");
         player.OpenGate(city);
         return true;
     }
@@ -233,7 +243,8 @@ internal static class HostileCityMenu
     /// 달아났어도 다시 조를 기회를 안 준다는 뜻이다.
     /// </remarks>
     private static Outcome Sneak(Window owner, GateScene? scene, Engine.Game game,
-                                 GameRandom dice, int city, uint[]? gate, bool heard)
+                                 GameRandom dice, int city, uint[]? gate, bool heard,
+                                 Standoff.Script say)
     {
         var player = game.Player;
 
@@ -243,7 +254,7 @@ internal static class HostileCityMenu
         bool aide = Standoff.HasAide(player);
         if (aide)
             NoticeDialog.Show(owner,
-                tongue >= Standoff.SafeTongue ? Standoff.TakeCare : Standoff.TongueTooThin, "");
+                tongue >= Standoff.SafeTongue ? say.Care : say.TongueThin, "");
 
         bool turban = HasTurban(game, player);
         if (turban)
@@ -260,7 +271,7 @@ internal static class HostileCityMenu
             return new Outcome(Entered: true, GameOver: false);
         }
 
-        TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.Spotted, heard));
+        TalkDialog.Say(owner, gate, "", Standoff.Heard(say.Spotted, heard));
 
         // 달아나기도 굴리고 나서 벌을 돌린다(0x004A5419 → 파트 0).
         bool away = Standoff.Escapes(player, dice);
@@ -268,11 +279,11 @@ internal static class HostileCityMenu
 
         if (away)
         {
-            if (aide) NoticeDialog.Show(owner, Standoff.GotAwaySafe, "");
+            if (aide) NoticeDialog.Show(owner, say.GotAway, "");
             return new Outcome(false, false);  // 차림표로 안 돌아간다 — 그대로 물러선다
         }
 
-        return Trial(owner, scene, game, dice, gate, heard, aide);
+        return Trial(owner, scene, game, dice, gate, heard, aide, say);
     }
 
     /// <summary>
@@ -292,10 +303,11 @@ internal static class HostileCityMenu
     /// 부르는 <b>40밀리초 기다리기</b>지 날짜가 아니다.
     /// </remarks>
     private static Outcome Trial(Window owner, GateScene? scene, Engine.Game game,
-                                 GameRandom dice, uint[]? gate, bool heard, bool aide)
+                                 GameRandom dice, uint[]? gate, bool heard, bool aide,
+                                 Standoff.Script say)
     {
         var player = game.Player;
-        TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.Caught, heard));
+        TalkDialog.Say(owner, gate, "", Standoff.Heard(say.Caught, heard));
 
         // ① 죄가 가벼운가 — 굴리고 나서 하트를 돌린다(0x004A549F).
         int weight = Math.Max(0, player.Infamy - player.AbilityOf(Ability.Luck) - 1);
@@ -305,7 +317,7 @@ internal static class HostileCityMenu
         if (!light)
         {
             TalkDialog.Say(owner, gate, "",
-                Standoff.Heard($"거기는 악명 높은 {player.Name}군. 죽음으로서 속죄하라!", heard));
+                Standoff.Heard(string.Format(say.Villain, player.Name), heard));
             return new Outcome(Entered: false, GameOver: true);
         }
 
@@ -315,16 +327,16 @@ internal static class HostileCityMenu
 
         if (lucky)
         {
-            TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.Banished, heard));
+            TalkDialog.Say(owner, gate, "", Standoff.Heard(say.Banished, heard));
         }
         else
         {
-            TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.Fined, heard));
+            TalkDialog.Say(owner, gate, "", Standoff.Heard(say.Fined, heard));
             player.Spend(player.Gold);
-            NoticeDialog.Show(owner, Standoff.Robbed, "");
+            NoticeDialog.Show(owner, say.Robbed, "");
         }
 
-        if (aide) NoticeDialog.Show(owner, Standoff.GiveUpHere, "");
+        if (aide) NoticeDialog.Show(owner, say.GiveUpHere, "");
         return new Outcome(false, false);
     }
 

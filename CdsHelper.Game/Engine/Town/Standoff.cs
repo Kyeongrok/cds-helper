@@ -148,6 +148,53 @@ public static class Standoff
     /// <summary>「떠난다」를 골랐을 때의 말(<c>0x005521D0</c>).</summary>
     public const string GiveUpWord = "할 수 없군요. 포기합시다.";
 
+    // ── 성문 화면 두 벌 ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 성문 화면의 말 한 벌 — <b>적대도로 막힌 문</b>과 <b>조약으로 막힌 문</b>이 딴 벌이다.
+    /// </summary>
+    /// <param name="TalkRoll">교섭 주사위 폭. 조약 쪽이 훨씬 잘 된다.</param>
+    /// <remarks>
+    /// 게임은 화면을 통째로 둘 들고 있다 — 적대도 쪽이 <c>0x004A5xxx</c>, 조약 쪽이
+    /// <c>0x0046Axxx</c> 다. 차림표 둘째 줄부터 다르다(잠입한다 ↔ <b>침입한다</b>).
+    /// 조약 쪽은 성문에서 「외국인은 들어올 수 없다」 대신 <b>조약 문구</b>를 내고,
+    /// 부관이 덧붙이는 세 갈래도 없다(<c>0x0046ABC9</c> 가 <c>0x0046A6C0</c> 하나만 부른다).
+    /// </remarks>
+    public sealed record Script(
+        string[] Rows, int TalkRoll, string GiveUp, string Paid,
+        string TalkWonWord, string TalkWonNews, string TalkLostWord, string TalkLostNews,
+        string TongueThin, string Care, string Spotted, string GotAway,
+        string Caught, string Banished, string Fined, string Robbed, string GiveUpHere,
+        string Villain);
+
+    /// <summary>적대도로 막힌 문(<c>0x004A5xxx</c>).</summary>
+    public static readonly Script Hostile = new(
+        Choices, 200, GiveUpWord, PaidWord,
+        TalkWonWord, TalkWonNews, TalkLostWord, TalkLostNews,
+        TongueTooThin, TakeCare, Spotted, GotAwaySafe,
+        Caught, Banished, Fined, Robbed, GiveUpHere,
+        "거기는 악명 높은 {0}군. 죽음으로서 속죄하라!");
+
+    /// <summary>조약으로 막힌 문(<c>0x0046Axxx</c>) — 「침입한다」 쪽이다.</summary>
+    public static readonly Script Treaty = new(
+        ["공격한다", "침입한다", "교섭한다", "떠난다"], 150,
+        "어쩔 수 없군요. 포기합시다.",                       // 0x005525C0
+        "금화 {0}닢을 건넸습니다",                            // 0x00552490
+        "잘 되었군요. 이것으로 {0}에 들어갈 수 있습니다.",      // 0x005524A8
+        "교섭에 성공했습니다. {0}에 들어갈 수 있습니다",        // 0x005524D8
+        "교섭이 되지 않습니다... 제독, 어떻게 할까요?",         // 0x00552518
+        "교섭에 실패했습니다. {0}에 들어갈 수 없습니다",        // 0x00552548
+        "제독, 소용없습니다! 말이 통하지 않는 것이 알려지면 잡히고 맙니다.",   // 0x005522A8
+        "제독, 조심하십시오.",                                // 0x005522F0
+        "침입자다! 잡아라!!",                                 // 0x00552308
+        "제독, 무사하셨습니까! ? 여기서부터는 안전합니다.",      // 0x00552320
+        "침입자를 잡았다! 재판소에 세워라!!",                   // 0x00552358
+        "마을에서 추방을 명한다. 목숨만이라도 구한걸 신에게 감사해라.",        // 0x00552380
+        "벌금형 또는 추방을 명한다. 목숨을 구한걸 신에게 감사해라.",          // 0x005523C0
+        "소지금을 전부 빼앗겼습니다!",                          // 0x00552400
+        "제독, 무사하셨습니까! 여기는 위험하니 포기합시다.",      // 0x00552420
+        "거기는 악명 높은 {0}(이) 아닌가. 죽음으로서 속죄해라.");  // 0x00552458
+
     /// <summary>공격 전에 두 번 묻는 말(<c>0x00551BF0</c> · <c>0x00551C00</c>).</summary>
     /// <summary>
     /// 쳐들어가기 전에 <b>한 번</b> 묻는 말 — <b>부관이 있으면</b> 이것이다.
@@ -259,14 +306,13 @@ public static class Standoff
     /// </code>
     /// </remarks>
     /// <remarks>
-    /// 같은 식을 쓰는 <b>쌍둥이 루틴</b>이 <c>0x0046AA70</c> 에 하나 더 있다 — 거기서는
-    /// 주사위가 <c>rand(150)</c> 이라 훨씬 잘 되고, 결과 글도 따로 든다
-    /// (<c>0x005524A8</c> 「잘 되었군요. …」 · <c>0x00552518</c> 「교섭이 되지 않습니다…」).
-    /// 어느 들머리가 그쪽으로 가는지는 아직 안 밝혔다. 우리는 <c>0x004A55C0</c> 쪽만 쓴다.
+    /// 같은 식을 쓰는 <b>쌍둥이 루틴</b>이 <c>0x0046AA70</c> 에 하나 더 있다 — <b>조약으로
+    /// 막힌 문</b>(<c>0x0046ABB0</c>)이 그것을 쓰고, 주사위가 <c>rand(150)</c> 이라 훨씬 잘 된다.
+    /// 그 벌은 <see cref="Treaty"/> 가 든다.
     /// </remarks>
-    public static bool Talks(Player player, GameRandom dice) =>
+    public static bool Talks(Player player, GameRandom dice, int roll = 200) =>
         player.LevelOf(Skill.Names[Skill.Rhetoric]) * 33
-        + player.AbilityOf(Ability.Charm) + 1 >= dice.Next(200);
+        + player.AbilityOf(Ability.Charm) + 1 >= dice.Next(roll);
 
     /// <summary>
     /// 교섭이 되면 얼마를 건네는지(<c>0x004A55FB</c> ~ <c>0x004A5624</c>).
