@@ -13,8 +13,9 @@ namespace CdsHelper.Game.Engine;
 ///   0x5B60D8 컨디션 = (체력 x 4 + 4) x 5   0x5B614C 명성 1500   0x5B6194 돈
 ///   0x5B6154 = 나라 수도, 그 도시 +0x1D |= 8(모항)   0x004AB420("C:STORY0/1.CDS")
 /// </code>
-/// 만들기 본체(<c>0x0045EBE0</c>)는 이 길로 오면 <c>[0x005A4D1A] |= 8</c> 을 세워 은퇴를 막는다 —
-/// 우리 쪽은 은퇴가 아직 없어 그 비트는 안 옮겼다.
+/// 만들기 본체(<c>0x0045EBE0</c>)는 이 길로 오면 <c>[0x005A4D1A] |= 8</c> 을 세워 <b>누적 캐릭터 등록</b>을 막는다.
+/// 우리 쪽은 그 비트 대신 <see cref="Support.Local.Models.Player.ActiveStoryBook"/>(이야기 책을 든 주인공)으로
+/// 가린다 — 자택 「은퇴한다」가 그것으로 첫 물음을 가른다.
 /// </remarks>
 public static class Beginner
 {
