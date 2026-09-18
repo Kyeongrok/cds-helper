@@ -1215,8 +1215,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             switch (duel.FateOf(_player.Fame))
             {
                 case Engine.Town.Duel.Fate.Fled:
-                    TalkDialog.Say(_view, face, "",
-                                   "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!");
+                    NoticeDialog.Show(_view, "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!", "일기토");
+                    // 등 뒤로 한마디 듣는다(0x004A9F78 의 rand(5)).
+                    TalkDialog.Say(_view, face, "", Jeered[dice.Next(Jeered.Length)]);
                     break;
                 case Engine.Town.Duel.Fate.Spared:
                     TalkDialog.Say(_view, face, "", Spared[dice.Next(Spared.Length)]);
@@ -1307,6 +1308,18 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>졌는데 봐 줄 때 하는 말(<c>0x005346E8</c> 다섯).</summary>
+    /// <summary>
+    /// 도망친 뒤 <b>등 뒤로 듣는 말</b> 다섯(<c>0x004A9F4D</c>, <c>rand(5)</c>).
+    /// </summary>
+    internal static readonly string[] Jeered =
+    [
+        "쳇, 도망치는 건 빠른 것 같군.",
+        "도망치긴가, 한심한 녀석이군.",
+        "이봐, 기다려라!",
+        "너, 그래도 남자라고 할 수 있느냐.",
+        "꽁무니를 빼다니.",
+    ];
+
     internal static readonly string[] Spared =
     [
         "칫, 병아린가. 용서해 주지.",
