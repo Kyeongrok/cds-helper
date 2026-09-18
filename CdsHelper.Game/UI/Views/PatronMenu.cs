@@ -1075,6 +1075,26 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         int style = StyleOf(patron);
         string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
 
+        // <b>감찰관을 매수해 증거품을 빼돌려 둔 판</b>이면 봐 줄지를 아예 안 굴린다
+        // (0x004122FE 가 숨긴 것 개수 &gt; 0 이면 판정을 건너뛴다). 후원자 눈에는 둘이 짜고
+        // 속인 것이라, 감찰관과 <b>함께</b> 감옥에 간다(0x00412353) — 「이 <b>자들을</b>」이
+        // 복수인 까닭이 이것이다.
+        if (_player.HiddenDiscoveries.Count > 0)
+        {
+            string sir = _game.Sponsors?.FindByName(patron.Name)?.Honorific ?? "각하";
+            var spy = _game.Faces?.TryGetBgra(Inspector.Face, female: false);
+
+            TalkDialog.Say(_view, spy, "", $"노, 농담을 {sir}. 모조품일리 없습니다.");
+            TalkDialog.Say(_view, FaceOf(patron), "", Pick3(
+                "이 배신자! 난 눈을 그냥 뜨고 있는 줄 아나! 이 자들을 전부 감옥에 넣어라!",
+                "그렇게 신용하고 있었건만, 저를 속였군요! 이 자들을 전부 감옥에 넣어라!",
+                "믿고 있었건만... 배신하리라고는. 이 정도는 누구라도 알 수 있다!! 이 자들을 감옥에 집어 넣어라!"));
+            TalkDialog.Say(_view, spy, "", $"오~ , 오, 용서를. {sir}, 우, 저는 아무것도...");
+
+            if (Jail(patron, new GameRandom(Environment.TickCount))) EndGame();
+            return true;
+        }
+
         if (Palace.CounterfeitForgiven(_player.ClosenessOf(patron.Name), luck, _random))
         {
             // 0x004123FA — 봐줄 때의 말투 셋(0x00530BC8 벌).
