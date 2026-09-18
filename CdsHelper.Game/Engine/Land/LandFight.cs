@@ -77,6 +77,59 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         return Cries[dice.Next(Cries.Length)];
     }
 
+    /// <summary>
+    /// 몸짓마다의 말 — 게임은 무리마다 <b>셋(총·포는 다섯) 가운데 하나</b>를 집는다
+    /// (<c>0x00446D00(무리)</c> 이 <c>rand(3)</c>, <c>0x00446D90</c> 이 <c>rand(5)</c>).
+    /// </summary>
+    /// <remarks>
+    /// 표는 <c>0x00549C48</c> 부터 널로 끊어 늘어서 있다 — 되받아치기 · 닌자 · 주술사 ·
+    /// 고승 · 표범 · 젖은 화약 차례다. 예전에는 무리마다 한 줄씩만 냈다.
+    /// </remarks>
+    private static readonly string[] Countered =
+    [
+        "남만 검술 따위 무섭지도 않다.",
+        "네 약점을 알았다! 받아라!",
+        "바보같으니. 빈틈투성이로군.",
+    ];
+
+    private static readonly string[] Vanished =
+    [
+        "둔갑술의 하나, 변신술!",
+        "둔갑술이 어떤 건지 잘 봐라!",
+        "싸워봤자다.",
+    ];
+
+    private static readonly string[] RainCalls =
+    [
+        "정령님, 비를 내려 주소서.",
+        "비여, 우리를 지켜다오.",
+        "비여, 우리가 이기게 해다오.",
+    ];
+
+    private static readonly string[] Prayers =
+    [
+        "신이여, 상처입은 자에게 힘을!",
+        "지금 구해 주겠다..",
+        "포기하지 마라. 상처는 가볍다.",
+    ];
+
+    private static readonly string[] Dancing =
+    [
+        "다들 힘을 내라!",
+        "격려의 춤을 봐라.",
+        "태양신이여, 우리들에게 힘을!",
+    ];
+
+    /// <summary>비에 젖어 못 쏠 때의 다섯(<c>0x00549C98</c>).</summary>
+    private static readonly string[] Damped =
+    [
+        "제기랄! 화약이 눅눅해졌어!",
+        "비 때문에 화약이···",
+        "비 속에서는 총도 대포도 소용없군.",
+        "체! 불발인가!",
+        "어, 총알이 안 나온다.",
+    ];
+
     /// <summary>짧은 비명 열하나(<c>0x00549C18</c>).</summary>
     private static readonly string[] Cries =
     [
@@ -322,7 +375,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 break;
 
             case LandUnits.Kind.Shot:
-                if (Damp(unit.Kind)) { Say(slot, "비에 젖어 불이 붙지 않는다!"); break; }
+                if (Damp(unit.Kind)) { Say(slot, Damped[dice.Next(Damped.Length)]); break; }
                 // 궁병만 아무나 하나를 노린다(0x00448880). 나머지는 앞열 전부대다.
                 if (unit.Kind == LandUnits.Bow)
                 {
@@ -333,7 +386,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 break;
 
             case LandUnits.Kind.Cannon:
-                if (Damp(unit.Kind)) { Say(slot, "비에 젖어 불이 붙지 않는다!"); break; }
+                if (Damp(unit.Kind)) { Say(slot, Damped[dice.Next(Damped.Length)]); break; }
                 // 작렬탄을 받으면 <b>아군 포만</b> 한 차례에 두 번 쏜다(0x00448BD3).
                 int volleys = Shells && slot < LandBattle.FirstFoe ? 2 : 1;
                 for (int v = 0; v < volleys; v++)
@@ -365,7 +418,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
             case LandUnits.Shaman:
                 if (Raining) return;                 // 이미 오면 아무것도 안 한다
                 Raining = true;
-                Say(slot, "주술사가 비를 부른다!", LandUnits.Sound.Rain);
+                Say(slot, RainCalls[dice.Next(RainCalls.Length)], LandUnits.Sound.Rain);
                 break;
 
             case LandUnits.Monk:
@@ -382,12 +435,12 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                     healed += now - was;
                 }
                 if (healed > 0)
-                    Say(slot, $"고승의 기도로 {healed}명이 되살아났다!", LandUnits.Sound.Heal);
+                    Say(slot, Prayers[dice.Next(Prayers.Length)], LandUnits.Sound.Heal);
                 break;
 
             case LandUnits.Leopard:
                 Dances++;
-                Say(slot, "표범이 춤을 춘다!", LandUnits.Sound.Dance);
+                Say(slot, Dancing[dice.Next(Dancing.Length)], LandUnits.Sound.Dance);
                 break;
         }
     }
@@ -413,7 +466,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         if (kick > 0 && LandUnits.KindOf(battle.Units[from].Kind) == LandUnits.Kind.Melee
             && dice.Next(100) <= kick)
         {
-            Say(to, "받아쳤다!");
+            Say(to, Countered[dice.Next(Countered.Length)]);
             (from, to) = (to, from);
             hurt = Worth(from, to);
         }
@@ -421,7 +474,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         // 닌자의 변신술 — <b>작렬탄이 없을 때</b> 40%로 피해가 없다(0x004492AA 는 비가 아니라 작렬탄을 본다).
         if (battle.Units[to].Kind == LandUnits.Ninja && !Shells && dice.Next(100) < 40)
         {
-            Log(new Line("둔갑술의 하나, 변신술!", from, to, 0, LandUnits.Sound.Ninja));
+            Log(new Line(Vanished[dice.Next(Vanished.Length)], from, to, 0, LandUnits.Sound.Ninja));
             return;
         }
 
