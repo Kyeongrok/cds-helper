@@ -216,6 +216,19 @@ public static class Palace
     /// </code>
     /// 100 을 넘으면 100닢 단위로 내린다(<see cref="To100"/>).
     /// </remarks>
+    /// <summary>
+    /// <b>세계일주</b>를 보고했을 때의 사례(<c>0x00411D90</c>) — 안목 굴림도 시시한 갈래도 없다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   기한 안   미불 x (120 + rand(30)) / 100    「굉장하다! 잘 해주었다!!」
+    ///   늦음      미불 x (100 + rand(20)) / 100    「훌륭하다! 잘 해내었다!! 늦은 것은 공제하겠다.」
+    /// </code>
+    /// 늦어도 깎이지 않는다 — 명성 셈(<see cref="FameFor"/>)이 세계일주만 반토막을 면하는 것과 같다.
+    /// </remarks>
+    public static int WorldRouteRewardFor(int unpaid, bool inTime, Random random) =>
+        To100((int)((long)unpaid * (inTime ? 120 + random.Next(30) : 100 + random.Next(20)) / 100));
+
     public static int RewardFor(int unpaid, ReportGrade grade, bool inTime, Random random) => grade switch
     {
         ReportGrade.Good => To100(inTime ? (int)((long)unpaid * (120 + random.Next(30)) / 100) : unpaid),

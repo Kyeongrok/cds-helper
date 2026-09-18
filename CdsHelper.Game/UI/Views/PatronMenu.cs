@@ -793,9 +793,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         }
 
         // 다 보고하고 나면 후원자가 <b>성과를 가늠해</b> 한 마디 하고 사례를 친다(0x00411AA0).
-        var grade = GradeOf(patron, contract, rows);
-        int paid = RewardFor(contract, grade, inTime);
-        Remark(patron, grade, inTime, paid);
+        // 세계일주는 가늠 없이 딴 갈래로 빠진다(0x00411FC0 이 먼저 그것을 본다).
+        bool world = rows.Any(r => r.Id == Palace.WorldRoute);
+        var grade = world ? Palace.ReportGrade.Good : GradeOf(patron, contract, rows);
+        int paid = world ? Palace.WorldRouteRewardFor(contract.Unpaid, inTime, _random)
+                         : RewardFor(contract, grade, inTime);
+        if (world) WorldRemark(patron, inTime); else Remark(patron, grade, inTime, paid);
 
         _player.Earn(paid);
         _player.EndContract();
@@ -817,6 +820,55 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var sponsor = _game.Sponsors?.FindByName(patron.Name);
         return Palace.GradeOf(sponsor?.Closeness ?? DefaultCloseness,
                               SponsorFortune(sponsor)[7], funds < total, _random);
+    }
+
+    /// <summary>
+    /// <b>세계일주</b>를 보고하고 나서의 마무리(<c>0x00411010</c> 의 <c>0x0046 94C0</c> 가지).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x0052F860 · 0x0052F8C0 · 0x0052F920   후원자의 치사(말투 셋)
+    ///   0x0052F970  「%d년 %d월, %s%s 역사 최초로 세계일주를 달성했다!」
+    ///   0x0052F9A8  「… 기한은 넘었지만 역사 최초로 …」
+    /// </code>
+    /// 게임은 이 다음에 <b>엔딩</b>으로 넘어간다(<c>0x004A2180(1,-1,-1)</c>) — 그 자리는 아직 안 옮겼다.
+    /// 남이 먼저 발표했을 때의 짧은 벌(<c>0x0052F9F0</c> · <c>0x0052FA18</c>)도 우리 쪽에는 안 걸린다.
+    /// </remarks>
+    private void WorldFinale(Patron patron, bool inTime, Func<string, string, string, string> Pick3)
+    {
+        TalkDialog.Say(_view, FaceOf(patron), "", Pick3(
+            $"{_player.Name}, 정말 잘 했네. 자네의 위업을 역사에 기리고 자자손손 전하겠네. 자네야 말로 최고의 모험가네.",
+            "정말 잘 하셨습니다. 상상도 못할 고난을 넘어 오셨군요... 당신의 영광스러움을 나라안에 전합시다.",
+            "정말로 대단하다. 아무도 성공 못한 모험을 잘 달성해 주었네. 자네야말로 영웅이네."));
+
+        string me = _player.Name;
+        var on = _player.Date;
+        GameDialog.Show(_view, inTime
+            ? $"{on.Year}년 {on.Month}월, {me}{GameUi.Josa(me, "은", "는")} 역사 최초로 세계일주를 달성했다!"
+            : $"{on.Year}년 {on.Month}월, {me}{GameUi.Josa(me, "은", "는")} 기한은 넘었지만 역사 최초로 세계일주를 달성했다!");
+    }
+
+    /// <summary>
+    /// <b>세계일주</b>를 보고했을 때의 말(<c>0x00411D90</c>) — 기한 둘 x 말투 셋뿐이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   기한 안  0x00530A00 · 0x00530A18 · 0x00530A50
+    ///   늦음     0x00530A98 · 0x00530AC8 · 0x00530B08
+    /// </code>
+    /// </remarks>
+    private void WorldRemark(Patron patron, bool inTime)
+    {
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
+        TalkDialog.Say(_view, FaceOf(patron), "", inTime
+            ? Pick3("굉장하다! 잘 해주었다!!",
+                    "이것은 상상 이상입니다!! 제 눈이 틀림없었던 것 같군요.",
+                    "오오, 이거 굉장하군! 상상 이상의 것이다!! 기대를 져버리지 않았군.")
+            : Pick3("훌륭하다! 잘 해내었다!! 늦은 것은 공제하겠다.",
+                    "이것은... 상상 이상입니다!! 제 눈이 틀림없었던 것 같군요.",
+                    "오오, 이건 굉장하다! 기대를 져버리지 않았군. 늦은 것은 없었던일로 하지."));
     }
 
     /// <summary>
@@ -935,6 +987,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             style switch { 1 => polite, 2 => merchant, _ => plain };
 
         bool inTime = contract.DaysLeft(_player.Date) > 0;
+        bool world = rows.Any(r => r.Id == Palace.WorldRoute);
 
         // 계약을 맺은 사람이 은퇴하고 뒷사람이 그 자리에 앉았으면 인사가 통째로 다르다
         // (0x00411620) — 집사가 자리가 바뀐 것을 먼저 이르고 대신 보고해 준다.
@@ -977,16 +1030,16 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             : inTime ? $"{him}{GameUi.Josa(him, "은", "는")} 금화 {paid}닢 밖에 지불하지 않았다!"
                      : $"{him}{GameUi.Josa(him, "은", "는")} 돈을 지불하지 않았다!");
 
-        // 마무리 대사. 신분 셋에 두 갈래라 여섯 벌인데(0x0041115B 이 고른다) 배웅 대사와
-        // 같이 화면에서 본 <b>셋째 벌</b>을 쓴다.
+        // 마무리 대사(0x00411010 — 기한 · 세계일주인가 · 남이 먼저 발표했는가 셋을 받는다).
         // <code>
-        //   0041115b  cmp [esp+0x10c], 0 ; je  → 짧은 벌
-        //   00411165  cmp [esp+0x114], 0 ; jne → 짧은 벌   (기한을 넘겼는가)
+        //   0041115b  cmp 기한, 0     ; je  → 짧은 벌
+        //   00411165  cmp 알려짐, 0   ; jne → 짧은 벌
         //   0041116f  → 긴 벌 — 0x0052FA50 · 0x0052FA78 · 0x0052FAB8
         //   0041119a  → 짧은 벌 — 0x0052FB08 · 0x0052FB28 · 0x0052FB58
         // </code>
-        // 앞 인자([esp+0x10c])가 무엇인지는 아직 못 짚어서 <b>기한만으로</b> 가른다.
-        Say(inTime
+        // 남이 먼저 발표하는 일은 우리 쪽에 없으므로(KnownByOthers) 기한만으로 갈린다.
+        if (world) WorldFinale(patron, inTime, Pick3);
+        else Say(inTime
             ? Pick3("잘 했네. 무슨 일이 있으면 또 오게나.",
                     "수고하셨습니다. 다시 모험을 하게 되신다면 여기에 와 주십시오.",
                     "음음, 잘 했네. 또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나.")
