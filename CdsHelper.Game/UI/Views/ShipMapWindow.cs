@@ -4111,6 +4111,9 @@ public sealed class ShipMapWindow : Window
             return (outcome == SeaCombatDialog.Outcome.Won, false);
         }
 
+        // 괴물에게 지면 여느 패배와 딴 말이다(0x004351F9).
+        NoticeDialog.Show(this, "괴물이 먹어 버렸습니다", "해전");
+
         GameOver();
         return (false, true);
     }
