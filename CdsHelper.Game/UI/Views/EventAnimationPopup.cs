@@ -79,11 +79,35 @@ internal sealed class EventAnimationPopup : Window
             EventAnimation.Tornado => new TornadoScene(),
             EventAnimation.Aurora => new AuroraScene(),
             EventAnimation.Meteor => new MeteorScene(),
-            // 오아시스는 걸음 11 과 23 에 소리가 하나씩 걸린다(0x00497D74 · 0x00497D8B).
-            EventAnimation.Oasis => new StripScene(6, 0x80, 0x80, 0x22, up: 0x20, soundAt: 0x0B, sound: 0x3A),
+            // 오아시스(0x00497D60) — 물이 비쳤다 사라졌다 한다. 소리가 둘 걸린다.
+            EventAnimation.Oasis => new StripScene(6, 0x80, 0x80, 0x22, up: 0x20,
+                soundAt: 0x0B, sound: 0x3A, endAt: 0x3A, pick: c => c switch
+                {
+                    < 0x0B => 0,
+                    < 0x11 => 1 + (c - 0x0B) / 2,
+                    < 0x17 => 0,                       // 신기루가 한 번 사라진다
+                    < 0x1D => c - 0x13,
+                    < 0x29 => 10,
+                    < 0x32 => 11 + (c - 0x29) / 3,
+                    _ => 0,
+                }),
             EventAnimation.Landslide => new LandslideScene(),
-            EventAnimation.Swamp => new StripScene(8, 0x60, 0x60, 0x24),
-            EventAnimation.Quicksand => new StripScene(9, 0x60, 0x60, 0x25),
+            // 늪(0x004981D0) — 걸음 열하나부터 천천히 가라앉는다.
+            EventAnimation.Swamp => new StripScene(8, 0x60, 0x60, 0x24,
+                soundAt: 5, sound: 0x43, soundOff: 0x31, endAt: 0x36,
+                pick: c => c < 0x0B ? 0 : c < 0x29 ? 1 + (c - 0x0B) / 2 : 17),
+            // 유사(0x004983B0) — 발버둥이 두 번 돌고 나서 빨려 들어간다.
+            EventAnimation.Quicksand => new StripScene(9, 0x60, 0x60, 0x25,
+                soundAt: 5, sound: 0x44, soundOff: 0x35, endAt: 0x3A, pick: c => c switch
+                {
+                    < 5 => 0,
+                    < 0x11 => (c - 5) / 2,
+                    < 0x1D => (c - 0x11) / 2,
+                    < 0x27 => 6 + (c - 0x1D) / 2,
+                    < 0x29 => 10,
+                    < 0x35 => 11 + (c - 0x29) / 2,
+                    _ => 16,
+                }),
             EventAnimation.Iceberg => new StripScene(15, 0xC0, 0x60, 0x2A),
             _ => null,
         };
@@ -556,12 +580,13 @@ internal sealed class EventAnimationPopup : Window
     ///   7  유사      0x00498590  파트 9   96x96  x17  팔레트 0x25
     ///   14 유빙      0x00499BC0  파트 15 192x96  x4   팔레트 0x2A
     /// </code>
-    /// <b>걸음마다 어느 장을 쓰는지는 아직 안 옮겼다.</b> 원본은 장면마다 <c>0x00497F80</c> 같은
-    /// 표를 두어 장을 오가며 되풀이하는데(덤불이 그 본보기다), 여기서는 한 걸음에 한 장씩
-    /// 곧이 넘긴다. 유빙의 물보라(파트 16, 32x32 여덟 장)도 아직 안 얹었다.
+    /// 걸음별 장 표는 <paramref name="pick"/> 으로 준다 — 오아시스·늪·유사는 원본 표를 그대로
+    /// 옮겼고, <b>유빙만 아직이라</b> 한 걸음에 한 장씩 곧이 넘긴다. 유빙의 물보라(파트 16,
+    /// 32x32 여덟 장)도 아직 안 얹었다.
     /// </remarks>
     private sealed class StripScene(int part, int frameW, int frameH, int palette, int up = 7,
-                                    int soundAt = -1, int sound = -1, int soundOff = -1)
+                                    int soundAt = -1, int sound = -1, int soundOff = -1,
+                                    int endAt = -1, Func<int, int>? pick = null)
         : Scene
     {
         private BitmapSource[] _art = [];
@@ -585,8 +610,11 @@ internal sealed class EventAnimationPopup : Window
         {
             if (count == soundAt && sound >= 0) Sfx?.Play(sound);
             if (count == soundOff) Sfx?.Stop();
-            if (count >= _art.Length) return true;
-            draws.Add(new Draw(_art[count], _x, _y));
+
+            // 걸음별 장 표가 있으면 그대로 따르고, 없으면 한 걸음에 한 장씩 곧이 넘긴다.
+            if (count >= (endAt >= 0 ? endAt : _art.Length)) return true;
+            int f = pick is null ? count : pick(count);
+            draws.Add(new Draw(_art[Math.Clamp(f, 0, _art.Length - 1)], _x, _y));
             return false;
         }
     }
