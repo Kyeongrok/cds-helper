@@ -555,30 +555,49 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
     /// <param name="Name">값 이름("적재용량" 같은).</param>
     /// <param name="Before">개조 앞.</param>
     /// <param name="After">개조 뒤.</param>
-    public sealed record Line(string Name, int Before, int After);
+    /// <param name="Unit">뒤에 붙는 낱자("통"·"명"·"문"). 안 붙는 줄은 빈 글이다.</param>
+    public sealed record Line(string Name, int Before, int After, string Unit = "");
 
     /// <summary>바뀐 것이 하나라도 있는지.</summary>
     public bool Any => Lines.Count > 0;
 
     /// <summary>
-    /// 두 값 묶음을 견줘 바뀐 줄만 낸다. 이름과 차례는 게임 상자 그대로다
-    /// (<c>0x005318D0</c> 벌 — 적재용량 · 적재중량 · 최대추진력 · 최대내구력 · 최저승원수).
+    /// 마스트·돛·용량·부력·보강을 마쳤을 때 뜨는 상자(<c>0x00495550</c>).
     /// </summary>
-    public static Refit Between(Ship.Stats was, Ship.Stats now)
-    {
-        static int Standing(IReadOnlyList<int>? sails) => sails?.Count(v => v != 0) ?? 0;
+    /// <remarks>
+    /// <b>바뀐 줄만 고르지 않는다.</b> 게임은 서식 하나에 열다섯 값을 한꺼번에 넣어
+    /// <b>늘 다섯 줄</b>을 찍는다(<c>0x00531878</c>) — 안 바뀐 줄도 그대로 나온다.
+    /// <code>
+    ///   %-12s%4d → %4d통      적재용량   ← 포탑을 뺀 값(0x0044C910)
+    ///   %-12s%4d → %4d        적재중량
+    ///   %-12s%4d → %4d        최대추진력
+    ///   %-12s%4d → %4d        최대내구력
+    ///   %-12s%4d → %4d명      최저승원수
+    /// </code>
+    /// </remarks>
+    public static Refit Between(Ship.Stats was, Ship.Stats now) =>
+        new([
+            new Line("적재용량", Room(was), Room(now), "통"),
+            new Line("적재중량", was.Tonnage, now.Tonnage),
+            new Line("최대추진력", was.Speed, now.Speed),
+            new Line("최대내구력", was.MaxHp, now.MaxHp),
+            new Line("최저승원수", was.Crew, now.Crew, "명"),
+        ]);
 
-        var lines = new List<Line>();
-        void Add(string name, int a, int b) { if (a != b) lines.Add(new Line(name, a, b)); }
+    /// <summary>포탑수변경을 마쳤을 때 뜨는 상자(<c>0x00496157</c>, 서식 <c>0x00531E78</c>).</summary>
+    public static Refit Turrets(Ship.Stats was, Ship.Stats now) =>
+        new([
+            new Line("포탑수", was.Turrets, now.Turrets, "문"),
+            new Line("적재용량", Room(was), Room(now), "통"),
+        ]);
 
-        Add("적재용량", was.Capacity, now.Capacity);
-        Add("적재중량", was.Tonnage, now.Tonnage);
-        Add("최대추진력", was.Speed, now.Speed);
-        Add("최대내구력", was.MaxHp, now.MaxHp);
-        Add("최저승원수", was.Crew, now.Crew);
-        Add("포탑수", was.Turrets, now.Turrets);
-        Add("대포수", was.Guns, now.Guns);
-        Add("마스트수", Standing(was.Sails), Standing(now.Sails));
-        return new Refit(lines);
-    }
+    /// <summary>대포구입을 마쳤을 때 뜨는 상자(<c>0x00496397</c>, 서식 <c>0x00531FD0</c>).</summary>
+    public static Refit Guns(Ship.Stats was, Ship.Stats now) =>
+        new([
+            new Line("대포수", was.Guns, now.Guns),
+            new Line("적재중량", was.Tonnage, now.Tonnage),
+        ]);
+
+    /// <summary>상자에 뜨는 적재용량 — 포탑이 차지한 자리를 뺀 것이다(<c>0x0044C910</c>).</summary>
+    private static int Room(Ship.Stats stats) => Math.Max(0, stats.Capacity - stats.Turrets);
 }

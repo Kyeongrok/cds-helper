@@ -629,7 +629,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             _player.Earn(gun.Price * spilled * Cannon.BuyBackPercent / 100);
         }
 
-        ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
+        ShowRefit(owner, Refit.Turrets(was, ship.Snapshot()), ship);
     }
 
     /// <summary>
@@ -708,7 +708,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             ship.Load(at, ship.Guns + want);
         }
 
-        ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
+        ShowRefit(owner, Refit.Guns(was, ship.Snapshot()), ship);
     }
 
     /// <summary>개조 결과 상자를 띄우고 개조 창을 다시 짓는다.</summary>
@@ -716,7 +716,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     {
         if (change.Any)
             NoticeDialog.Show(owner, string.Join(Environment.NewLine,
-                change.Lines.Select(l => $"{GameUi.Pad(l.Name, 12)}{l.Before,4} → {l.After,4}")));
+                change.Lines.Select(l => $"{GameUi.Pad(l.Name, 12)}{l.Before,4} → {l.After,4}{l.Unit}")));
 
         _menu.Pop();
         _menu.Push(() => RefitMenu(ship));
