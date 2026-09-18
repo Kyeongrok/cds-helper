@@ -1,4 +1,4 @@
-using CdsHelper.Game.Local.Helpers;
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Town;
@@ -38,6 +38,8 @@ public static class Palace
         foreach (int id in player.Discoveries.Order())
         {
             if (player.HasAnnounced(id)) continue;
+            // 감찰관을 매수해 숨긴 것은 목록에서 빠진다(0x0046B0A0 의 비트 0x20).
+            if (player.IsHidden(id)) continue;
             if (table.Find(id) is not { } row || row.Hint != hint.Discovery) continue;
             rows.Add(row);
         }
@@ -260,6 +262,25 @@ public static class Palace
     /// 그 위라면 후원자는 <b>있는 만큼으로 깎아</b> 내준다(<c>0x004AF18C</c>) — 물리지 않는다.
     /// </remarks>
     public const int PurseFloor = 20;
+
+    /// <summary>
+    /// 감찰관에게 줄 뇌물(<c>0x0041CBA0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   합계 = 숨길 발견물들의 <b>증거품 되팔값</b>(아이템 표 +0x0C) 을 다 더한 값
+    ///   값   = (200 − 후원자표 +0x30) x 합계 / 50        ; 0x0041CC12
+    ///   1 닢 밑으로는 안 내려간다                          ; 0x0041CC1F
+    /// </code>
+    /// 견주는 <c>+0x30</c> 은 <b>그 자리에 앉은 후원자</b>의 값이다
+    /// (<see cref="SponsorTable.Sponsor.Closeness"/>) — 클수록 싸게 먹힌다(2.2~3.0배).
+    /// 명성·악명·성미·소지금은 값에 안 든다.
+    /// </remarks>
+    public static int BribePrice(int closeness, int evidenceValue) =>
+        Math.Max(1, (200 - closeness) * evidenceValue / 50);
+
+    /// <summary>돈이 모자란다고 이만큼 물리면 쫓겨난다(<c>0x0041C696</c>).</summary>
+    public const int BribeTries = 3;
 
     /// <summary>급히 넘기는 짐 값 — 매각가의 절반(<c>0x0044D95C</c>).</summary>
     public static int DistressPrice(int sellPrice) => sellPrice / 2;

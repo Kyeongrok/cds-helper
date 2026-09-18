@@ -2184,6 +2184,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreBarmaidFlags(saved.GiftedBarmaids, saved.RefusedBarmaids);
             _game.Player.Laps = saved.Laps ?? 0;
             _game.Player.RestorePurses(saved.Purses);
+            _game.Player.RestoreHidden(saved.Hidden);
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
             _game.Player.RestoreAnnouncedDates(saved.AnnouncedOn, saved.AnnouncedYears);

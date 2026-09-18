@@ -86,6 +86,15 @@ public sealed class Contract
     /// </remarks>
     public bool ShipsLent { get; set; }
 
+    /// <summary>
+    /// 감찰관을 아직 매수할 수 있는지(계약 <c>+0x14</c>) — <b>계약마다 한 번뿐</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 계약을 맺을 때 켜지고(<c>0x00493EF5</c>), 매수 창을 열어 어떤 결말이든 보면 꺼진다
+    /// (<c>0x0041C723</c> — 물려도, 돈이 모자라도 꺼진다).
+    /// </remarks>
+    public bool BribeOpen { get; set; } = true;
+
     /// <summary>항구에서 대출 배 이야기를 이미 들었는지(게임 <c>0x0061D1E8 == 2</c>).</summary>
     public bool LoanAnnounced { get; set; }
 

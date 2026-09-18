@@ -1127,6 +1127,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                     "다시 모험을 하게 되신다면 여기에 와 주십시오.",
                     "또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나."));
 
+        // 숨겨 둔 증거품은 보고를 마치고 나설 때 손에 들어온다(0x0044E6C0 → 0x0041C480).
+        HandHidden();
+
         // 계약이 끝났으니 부하마다 다시 태울지 묻는다(0x00454160).
         RecontractMates();
 
@@ -1540,6 +1543,152 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     }
 
     private Engine.Market.TradePost? _tradePost;
+
+    // ── 감찰관을 매수 ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 「감찰관을 매수」 줄이 설 조건인지(<c>0x0044EA30</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   계약 중이고 이 자리이며 보고할 것이 하나 이상    0x0044EA00
+    ///   계약의 매수 칸이 아직 열려 있다                  0x0044EA45 ([계약+0x14])
+    ///   <b>증거품이 있는 대상이 둘 이상</b>               0x0044EA52
+    ///   이미 숨겨 둔 것이 하나도 없다                    0x0044EA60
+    /// </code>
+    /// </remarks>
+    public bool CanBribe(Patron patron) =>
+        _player.Contract is { BribeOpen: true }
+        && _player.HiddenDiscoveries.Count == 0
+        && Bribable(patron).Count > 1;
+
+    /// <summary>숨길 수 있는 것 — 보고할 것 가운데 <b>증거품이 있는</b> 것만이다(<c>0x0046B110</c>).</summary>
+    private List<DiscoveryTable.Record> Bribable(Patron patron) =>
+        [.. ReportTargets(patron).Where(r => r.GivesItem)];
+
+    /// <summary>
+    /// 감찰관을 매수한다(<c>0x0041C550</c>) — 고른 발견물을 이번 보고에서 빼 준다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0041c5a0  「무례한! 나는 돈때문에 주인을 배반하지는 않는다!」   ← 조건 없이 늘 첫 마디
+    ///   0041c63d  「아이템 선택」 목록 — 줄은 <b>증거품 이름</b>이다
+    ///   0041c66e  다 골랐으면 「증거물 하나도 없이 어떻게 보고할 작정인가!」
+    ///   0041c6a0  돈이 모자라면 「그것 뿐이라면, …」 + 「돈이 모자랍니다!」 — <b>네 번째면 쫓겨난다</b>
+    ///   0041c74e  「하는 수 없군···금화 %ld닢이라면 못본 척 해 드리지요.」 → 「뇌물을 주겠습니까?」
+    ///   0041c6f1  물리면 「매수를 취소하겠습니까?」 — 아니오면 목록으로 돌아간다
+    /// </code>
+    /// 어떤 결말이든 그 계약 동안은 <b>다시 못 연다</b>(<c>0x0041C723</c>). 숨긴 증거품은
+    /// 보고를 마치고 건물을 나설 때 소지품으로 들어온다(<see cref="HandHidden"/>).
+    ///
+    /// 원본 목록은 <b>여러 개를 한꺼번에 체크</b>하는 창인데 우리 고르기 창에는 그 꼴이 없어
+    /// 한 줄씩 켜고 끄다가 「결정」으로 마친다 — 고르는 결과는 같다.
+    /// </remarks>
+    public void BribeInspector(Patron patron) => Alone(() => BribeNow(patron));
+
+    private void BribeNow(Patron patron)
+    {
+        if (_player.Contract is not { } contract) return;
+
+        var rows = Bribable(patron);
+        var inspectorFace = _game.Faces?.TryGetBgra(Inspector.Face, female: false);
+        void Inspector_(string words) => TalkDialog.Say(_view, inspectorFace, "", words);
+
+        Inspector_("무례한! 나는 돈때문에 주인을 배반하지는 않는다!");
+        if (rows.Count == 0) return;
+
+        _cityMenu.Close();
+        int closeness = _game.Sponsors?.FindByName(patron.Name)?.Closeness ?? DefaultCloseness;
+        int all = ReportTargets(patron).Count;
+        var picked = new HashSet<int>();
+        int tries = 0;
+
+        try
+        {
+            while (true)
+            {
+                var lines = rows
+                    .Select(r => ((picked.Contains(r.Id) ? "· " : "  ") + EvidenceName(r), true))
+                    .Append(("결정", true)).ToList();
+                int at = ChoiceDialog.Pick(_view, "아이템 선택", lines, exitRow: false);
+
+                if (at < 0)                                   // 물렸다
+                {
+                    if (ConfirmDialog.Ask(_view, "매수를 취소하겠습니까?"))
+                    {
+                        Inspector_("나, 나를 거스릴 작정이냐! 무례한 놈!");
+                        return;
+                    }
+                    continue;
+                }
+                if (at < rows.Count)                          // 켜고 끈다
+                {
+                    if (!picked.Remove(rows[at].Id)) picked.Add(rows[at].Id);
+                    continue;
+                }
+                if (picked.Count == 0) continue;              // 하나도 안 골랐으면 다시 묻는다
+
+                // 다 숨기면 보고할 것이 없어진다(0x0041C66E).
+                if (picked.Count == all)
+                {
+                    Inspector_("증거물 하나도 없이 어떻게 보고할 작정인가!");
+                    continue;
+                }
+
+                int worth = rows.Where(r => picked.Contains(r.Id))
+                                .Sum(r => _game.Items?.Find(r.ItemId)?.SellList ?? 0);
+                int price = Palace.BribePrice(closeness, worth);
+
+                if (_player.Gold < price)
+                {
+                    if (++tries > Palace.BribeTries)
+                    {
+                        Inspector_("가난뱅이와 이야기할 가치도 없군요. 그만둡시다.");
+                        return;
+                    }
+                    Inspector_($"그것 뿐이라면, 금화 {price}닢이라 했건만···도저히 당신이 준비할 수 있을 것 같지 않군요.");
+                    GameDialog.Show(_view, "돈이 모자랍니다!");
+                    continue;
+                }
+
+                Inspector_($"하는 수 없군···금화 {price}닢이라면 못본 척 해 드리지요. 싫다면 상관없지만.");
+                if (!ConfirmDialog.Ask(_view, "뇌물을 주겠습니까?")) return;
+
+                _player.Pay(price);
+                foreach (int id in picked) _player.Hide(id);
+                return;
+            }
+        }
+        finally
+        {
+            // 창을 연 것만으로 그 계약 동안은 다시 못 연다(0x0041C723).
+            contract.BribeOpen = false;
+            _menu.Refresh();
+        }
+    }
+
+    /// <summary>그 발견물의 증거품 이름 — 목록 줄은 발견물 이름이 아니라 이것이다(<c>0x0041C440</c>).</summary>
+    private string EvidenceName(DiscoveryTable.Record row) =>
+        _game.Items?.Find(row.ItemId)?.Name ?? row.Name;
+
+    /// <summary>
+    /// 숨겨 둔 증거품을 소지품에 넣어 준다(<c>0x0044E6C0</c> → <c>0x0041C480</c>).
+    /// </summary>
+    /// <remarks>보고를 마치고 건물을 나설 때다 — 이것이 없으면 매수가 아무 이득이 없다.</remarks>
+    private void HandHidden()
+    {
+        if (_player.HiddenDiscoveries.Count == 0) return;
+
+        foreach (int id in _player.HiddenDiscoveries.ToList())
+        {
+            if (_game.Discoveries?.Table?.Find(id) is not { GivesItem: true } row) continue;
+            if (_player.Items.Contains(row.ItemId) || !_player.Take(row.ItemId)) continue;
+
+            string got = _game.Items?.Find(row.ItemId)?.Name ?? $"아이템 {row.ItemId}";
+            GameDialog.Show(_view, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다!");
+        }
+        _player.ClearHidden();
+    }
 
     /// <summary>계약을 깨는 것을 후원자가 눈감아 주는지(<see cref="Palace.Forgiven"/>).</summary>
     private bool Forgiven(Patron patron, bool overdue) =>

@@ -172,6 +172,9 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     /// </remarks>
     public const string Persuade = "설득", Report = "보고", Break = "계약중단";
 
+    /// <summary>후원자가 앉은 자리의 둘째 줄(<c>0x005324C0</c>) — 감찰관에게 뇌물을 준다.</summary>
+    public const string Bribe = "감찰관을 매수";
+
     /// <summary>
     /// 자택 휴양 창의 줄. 게임 것 그대로다(<c>0x00539778</c> 벌 — 휴양 <c>0x00460660</c>).
     /// </summary>
