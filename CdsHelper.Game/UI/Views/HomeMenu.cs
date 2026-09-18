@@ -113,12 +113,19 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     ///   4613fc  됐으면 아이를 만든다
     ///   461401  0x00469850(5) — 닷새가 간다
     /// </code>
-    /// 아내 상태와 체력 두 관문은 우리 쪽에 그 칸이 없어 안 옮겼다. 애니메이션이 대포인
-    /// 것은 게임 그대로다.
+    /// 컨디션 관문은 옮겼다 — 100 밑이면 아내가 「안색이 안 좋은데요…」 하고 끝난다. 아내 상태(사람 칸 <c>+0x04</c> 가 2)
+    /// 관문은 우리 쪽에 그 칸이 없어 늘 지나간 것으로 둔다. 애니메이션이 대포인 것은 게임 그대로다.
     /// </remarks>
     public void LeaveHeir()
     {
         if (!CanLeaveHeir) return;
+
+        // 몸이 성해야 한다 — 컨디션이 100 밑이면 아내가 말리고 끝난다(0x0046139E).
+        if (_player.Condition < Home.HeirCondition)
+        {
+            TalkDialog.Say(Owner, null, _player.Spouse, Home.HeirTired);
+            return;
+        }
 
         bool born = Home.HeirBorn(_player, _random);
 

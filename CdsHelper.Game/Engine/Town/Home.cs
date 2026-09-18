@@ -44,6 +44,12 @@ public static class Home
     /// <summary>주사위 폭과 되는 눈(<c>0x004613CC</c> 의 <c>rand(8) &lt; 2</c>).</summary>
     public const int HeirRoll = 8, HeirWin = 2;
 
+    /// <summary>후손을 보려면 컨디션이 이만큼은 있어야 한다(<c>0x0046139E</c> 의 <c>cmp 0x64</c>).</summary>
+    public const int HeirCondition = 100;
+
+    /// <summary>컨디션이 모자랄 때 아내가 하는 말(<c>0x00539A70</c>).</summary>
+    public const string HeirTired = "안색이 안 좋은데요. 너무 무리하지 마세요.";
+
     /// <summary>
     /// 후손을 남길 수 있는지 — <b>아내가 있어야 한다</b>.
     /// </summary>
