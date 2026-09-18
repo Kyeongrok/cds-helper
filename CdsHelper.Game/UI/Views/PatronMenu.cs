@@ -152,7 +152,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var old = _game.Sponsors?.FindByName(deal.Sponsor);
         string oldName = $"{old?.Name ?? deal.Sponsor} {old?.Honorific ?? "각하"}";
 
-        if (Palace.ReportTargets(_player, deal.Sponsor, deal.City, _game.Discoveries?.Table, _game.Hints).Count > 0)
+        if (Palace.ReportTargets(_player, true, _game.Discoveries?.Table, _game.Hints).Count > 0)
         {
             Inspector_(deal.City == _cityName
                 ? $"농담이지요! 빨리 {oldName}에게 보고하지 않으면 안됩니다!"
@@ -585,8 +585,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///   0x0044E9E0  계약이 있고 그 계약을 맺은 자리인가(0x0044E550 → 0x00493DB0)
     ///   0x0044E880  보고할 것이 하나 이상인가 — 계약의 유적 번호(0x00493E60)로 모은다
     /// </code>
-    /// 게임은 도시와 <b>시설 종류</b>까지 견주는데 우리 계약은 후원자 이름과 마을을 들고
-    /// 있으므로 그 둘로 가른다 — 결과는 같다(한 사람은 한 자리에만 앉는다).
+    /// 사람이 아니라 <b>자리</b>다(<see cref="AtContractSeat"/>) — 은퇴한 후원자의 계약도
+    /// 뒷사람에게 보고할 수 있다.
     /// </remarks>
     private bool CanReport(Patron patron) => ReportTargets(patron).Count > 0;
 
@@ -644,8 +644,21 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// <summary>
     /// 그 후원자에게 보고할 발견물. 계약의 유적 번호를 가진 것 중 발견했고 아직 안 알린 것이다.
     /// </summary>
+    /// <summary>
+    /// 계약을 맺은 <b>그 자리</b>에 서 있는가(<c>0x0044E550</c> — 도시와 시설 종류를 본다).
+    /// </summary>
+    /// <remarks>
+    /// 우리 계약은 후원자 이름과 마을만 들고 있으므로, 앉을 자리가 <b>직업으로만</b> 정해지는
+    /// 것(<see cref="Patron.Seats"/>)을 써서 같은 마을·같은 직업이면 같은 자리로 본다 —
+    /// 국왕 자리는 다음 국왕이 잇는다. 이름까지 같으면 물론 같은 자리다.
+    /// </remarks>
+    private bool AtContractSeat(Patron patron) =>
+        _player.Contract is { } c && c.City == _cityName
+        && (c.Sponsor == patron.Name
+            || LoadPatrons().FirstOrDefault(p => p.Name == c.Sponsor)?.Occupation == patron.Occupation);
+
     private List<DiscoveryTable.Record> ReportTargets(Patron patron) =>
-        Palace.ReportTargets(_player, patron.Name, _cityName,
+        Palace.ReportTargets(_player, AtContractSeat(patron),
                              _game.Discoveries?.Table, _game.Hints);
 
     /// <summary>
@@ -673,9 +686,44 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 후원자에게 쌓이는 값 <see cref="Palace.CreditFor"/> 다.
     ///
     /// 모조품 갈래("이것은 모조품이네", <c>0x00530BC8</c>)는 <see cref="ReportCounterfeit"/> 로
-    /// 옮겼다. 아직 안 옮긴 것 — 선대의 계약.
+    /// 옮겼고, 선대의 계약은 <see cref="HandOver"/> 다.
     /// </remarks>
     public void Report(Patron patron) => Alone(() => ReportNow(patron));
+
+    /// <summary>
+    /// <b>선대의 계약</b>으로 보고할 때의 인사(<c>0x00411620</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x0052FF10  「그런데, %s님이 모험을 하고 있는 사이에, %s%s%s 은퇴해,
+    ///                지금은 %s%s%s 새로운 주인이 되었습니다. 일단 안내하지요.」   ← 집사
+    ///   0x0052FF80  「%s. 선대가 계약한 %s의 %s%s 계약을 달성하고 돌아왔습니다.」   ← 집사
+    ///   0x0052FFC0 · 0x00530008 · 0x00530060                                      ← 새 주인
+    /// </code>
+    /// 기한 인사(<c>0x004115C0</c>)를 <b>대신</b>한다 — 늦었어도 이 말만 한다.
+    /// </remarks>
+    private void HandOver(Patron patron, Contract contract, Func<string, string, string, string> Pick3)
+    {
+        var old = _game.Sponsors?.FindByName(contract.Sponsor);
+        string oldName = $"{old?.Name ?? contract.Sponsor} {old?.Honorific ?? "각하"}";
+
+        var now = _game.Sponsors?.FindByName(patron.Name);
+        string sir = now?.Honorific ?? "각하";
+        string newName = $"{now?.Name ?? patron.Name} {sir}";
+
+        string me = _player.Name;
+        void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
+
+        Steward($"그런데, {me}님이 모험을 하고 있는 사이에, {oldName}께서 은퇴해, "
+              + $"지금은 {newName}께서 새로운 주인이 되었습니다. 일단 안내하지요.");
+        Steward($"{sir}. 선대가 계약한 {_player.NationName}의 {me}{GameUi.Josa(me, "이", "가")} "
+              + "계약을 달성하고 돌아왔습니다.");
+
+        TalkDialog.Say(_view, FaceOf(patron), "", Pick3(
+            "그런가... 선대와 계약이라면 어쩔 수 없다. 일단, 발견한 것을 보여 주게.",
+            "그렇습니까... 선대의 계약이라면 어쩔 수 없군요. 그런데 발견한 물건은 어느 것입니까?",
+            "호우, 선대와 계약이라, 그래, 무얼 발견했는가? 자 빨리 보여 주게."));
+    }
 
     /// <summary>
     /// 발견물을 하나씩 보고한다 — 게임의 <c>0x00412020</c> 안쪽 차례 그대로다.
@@ -887,13 +935,19 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             style switch { 1 => polite, 2 => merchant, _ => plain };
 
         bool inTime = contract.DaysLeft(_player.Date) > 0;
-        Say(inTime
-            ? Pick3("으음, 기다리고 있었네! 결과는 어떻게 되었나?",
-                    "무사해서 다행입니다. 모험은 어떠했습니까?",
-                    "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게.")
-            : Pick3("꽤 늦었군. 그래, 결과는 어떤가?",
-                    "꽤 늦으셨군요. 그래도 성과는 있으셨겠지요?",
-                    $"{_player.Name}, 기다리기 지쳤네. 그래, 성과는 있었나?"));
+
+        // 계약을 맺은 사람이 은퇴하고 뒷사람이 그 자리에 앉았으면 인사가 통째로 다르다
+        // (0x00411620) — 집사가 자리가 바뀐 것을 먼저 이르고 대신 보고해 준다.
+        if (contract.Sponsor != patron.Name)
+            HandOver(patron, contract, Pick3);
+        else
+            Say(inTime
+                ? Pick3("으음, 기다리고 있었네! 결과는 어떻게 되었나?",
+                        "무사해서 다행입니다. 모험은 어떠했습니까?",
+                        "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게.")
+                : Pick3("꽤 늦었군. 그래, 결과는 어떤가?",
+                        "꽤 늦으셨군요. 그래도 성과는 있으셨겠지요?",
+                        $"{_player.Name}, 기다리기 지쳤네. 그래, 성과는 있었나?"));
 
         // 인사 다음에 <b>계약 정보 창</b>이 뜬다 — 발견물과 증거품이 거기 적힌다.
         var sheet = GameInfo.ContractSheetOf(_game);
