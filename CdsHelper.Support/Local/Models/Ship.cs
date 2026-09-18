@@ -156,6 +156,16 @@ public sealed class Ship
     /// <summary>실은 대포의 무게. 적재중량을 먹는다.</summary>
     public int GunWeight => (Cannon.Of(Gun)?.Weight ?? 0) * Guns;
 
+    /// <summary>
+    /// 짐을 실을 수 있는 통 수 — <b>포탑이 먹고 남은 것</b>이다(<c>0x0044C910</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>+0x44</c> 에 <b>포탑까지 담아</b> 두고 게터가 포탑 수를 빼서 준다.
+    /// 적재중량(<c>+0x40</c>)도 같은 꼴이라 대포 무게를 빼서 준다(<c>0x0044C8B0</c>) —
+    /// 그쪽은 <c>LoadedWeight</c> 가 대포 무게를 같이 세고 있어 셈이 맞는다.
+    /// </remarks>
+    public int UsableCapacity => Math.Max(0, Capacity - Turrets);
+
     // ── 마스트와 돛 ───────────────────────────────────────────────────────────
 
     /// <summary>마스트 자리 셋. 게임도 셋이다.</summary>
@@ -282,9 +292,10 @@ public sealed class Ship
     /// </summary>
     /// <remarks>
     /// 게임은 <c>min(선체 표 +0x30, 지금 포탑 + 적재용량)</c> 으로 자른다
-    /// (<c>0x004961D6</c>). <c>+0x30</c> 은 포탑 <b>한계</b>지 처음값(<c>+0x2C</c>)이 아니다.
+    /// (<c>0x004961D6</c>). <c>+0x30</c> 은 포탑 <b>한계</b>지 처음값(<c>+0x2C</c>)이 아니고,
+    /// 「적재용량」은 <b>게터 값</b>(포탑을 뺀 것)이라 둘을 더하면 <see cref="Capacity"/> 가 된다.
     /// </remarks>
-    public int MaxTurrets => Math.Min(Hull.GunsCeiling, Turrets + Capacity);
+    public int MaxTurrets => Math.Min(Hull.GunsCeiling, Capacity);
 
     /// <summary>
     /// 포탑 수를 바꾼다. 줄여서 대포가 넘치면 그만큼 내린다.
