@@ -3931,10 +3931,25 @@ public sealed class ShipMapWindow : Window
         }
 
         TalkDialog.Say(this, mate, "", "아뿔싸! 짐승의 소굴이다!");
-        int lost = Math.Min(LandEvents.DenLoss(dice), player.Crew);
-        if (lost <= 0) return;
-        player.SetCrew(player.Crew - lost);
-        NoticeDialog.Show(this, $"{lost}명이 당했습니다!");
+
+        // 뭍 사건과 같은 완화 식을 탄다(0x0048DDA8 · 0x00426DA0) — 당한 수를 이르고 돌아온 수를 뺀다.
+        int hurt = Math.Min(LandEvents.DenLoss(dice), player.Crew);
+        if (hurt <= 0) return;
+        int back = LandEvents.Returned(MateMedicine(), hurt, dice);
+        player.SetCrew(player.Crew - (hurt - back));
+
+        NoticeDialog.Show(this, $"{hurt}명이 당했습니다!");
+        if (back > 0) NoticeDialog.Show(this, $"{back}명의 선원이 되돌아왔습니다");
+    }
+
+    /// <summary>제독과 부관 가운데 높은 의학(<c>0x0047CCA0(5,0,-1,-1,-1)</c>).</summary>
+    private int MateMedicine()
+    {
+        var player = _game.Player;
+        string mate = player.MateAt(0);
+        int his = mate.Length > 0 && _game.World?.People.FirstOrDefault(r => r.Name == mate) is { } row
+                  && row.Skills.Length > Skill.Medicine ? row.Skills[Skill.Medicine] : 0;
+        return Math.Max(player.LevelOf(Skill.Names[Skill.Medicine]), his);
     }
 
     /// <summary>
@@ -4070,12 +4085,7 @@ public sealed class ShipMapWindow : Window
         hurt = Math.Min(hurt, player.Crew);
         if (hurt <= 0) return;
 
-        string mate = player.MateAt(0);
-        int his = mate.Length > 0 && _game.World?.People.FirstOrDefault(r => r.Name == mate) is { } row
-                  && row.Skills.Length > Skill.Medicine ? row.Skills[Skill.Medicine] : 0;
-        int medicine = Math.Max(player.LevelOf(Skill.Names[Skill.Medicine]), his);
-
-        int back = LandEvents.Returned(medicine, hurt, dice);
+        int back = LandEvents.Returned(MateMedicine(), hurt, dice);
         player.SetCrew(player.Crew - (hurt - back));
 
         NoticeDialog.Show(this, $"대원 {hurt}명이 사망했습니다.");
