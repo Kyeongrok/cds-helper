@@ -622,10 +622,23 @@ public sealed class TradePostDialog : GameWindow
 
     // ── 열기 ────────────────────────────────────────────────────────────────
 
-    /// <summary>들어설 때 교역소 사람이 건네는 한마디(<c>0x00532610</c>).</summary>
-    public static void Greet(Window owner, Engine.Game game, int culture) =>
-        ConfirmDialog.Tell(owner, "제독, 여기는 교역소입니다. 무언가 거래를 하실 건가요?",
-                           face: game.SpeakerFace(TradingPostCode, culture));
+    /// <summary>
+    /// 들어설 때의 한마디(<c>0x00480B50</c>) — <b>부관이 있으면 부관이 이른다</b>.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00532610  부관 「제독, 여기는 교역소입니다. 무언가 거래를 하실 건가요?」
+    ///   0x00532648  아니면 「이봐요, 좋은 물건있으니 사 가지고 안 가겠나?」
+    /// </code>
+    /// </remarks>
+    public static void Greet(Window owner, Engine.Game game, int culture)
+    {
+        if (game.AideFace is { } aide)
+            TalkDialog.Say(owner, aide, "", "제독, 여기는 교역소입니다. 무언가 거래를 하실 건가요?");
+        else
+            ConfirmDialog.Tell(owner, "이봐요, 좋은 물건있으니 사 가지고 안 가겠나?",
+                               face: game.SpeakerFace(TradingPostCode, culture));
+    }
 
     /// <summary>교역소의 건물 코드(화자표).</summary>
     public const int TradingPostCode = 1;
