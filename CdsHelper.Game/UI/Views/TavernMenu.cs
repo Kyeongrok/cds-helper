@@ -462,6 +462,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         _player.Pay(lost);
         _player.Infamy += _game.Random.Next(30) + 10;
 
+        // 부관이 있으면 깨우는 목소리가 한 줄 먼저 든다(0x0042EE26, 부관 말 0x004695C0).
+        if (hasMate) ConfirmDialog.Tell(_view, "제독! 이봐요 제독! 괜찮습니까?", face: mate);
+
         ConfirmDialog.Tell(_view, hasMate
             ? "부관 목소리에 정신이 들었다......어쩐지 여관같군."
             : "정신이 드는군.....아무래도 여관같군. 어떻게 여기까지 왔는지 전혀 생각이 나지 않는다.");
