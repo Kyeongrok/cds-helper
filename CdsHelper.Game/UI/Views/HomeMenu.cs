@@ -163,8 +163,9 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     ///     한도(Home.CanLearnMore)를 넘으면 「더 이상 기능을 습득할 수 없습니다!」 / 「… 언어를 …」
     ///     날이 간다(Home.EducateDays) → 한 단계 오른다 → 「%s%s %s%s 터득했습니다!」 → 아이 소감
     /// </code>
-    /// 게임은 날을 보내며 교육 애니메이션(<c>0x004A5AE0(0x14, 1)</c>)을 돌리고 능력치 쪽 무엇(<c>0x00469820(날/10)</c>)을
-    /// 건드리는데, 그 둘은 아직 안 옮겼다. 아내가 없으면 막는 말도 없이 끝난다 — 게임 그대로다.
+    /// 날을 보내는 동안 <b>제독 컨디션이 지난 날의 10분의 1</b> 만큼 찬다(<c>0x0046155B</c> → <c>0x00469820</c>) —
+    /// 수련과 같은 셈이다. 날 가는 애니메이션(<c>0x004A5AE0(0x14, 1)</c>)은 안 옮겼다.
+    /// 아내가 없으면 막는 말도 없이 끝난다 — 게임 그대로다.
     /// </remarks>
     /// <summary>
     /// 자택 「은퇴한다」(<c>0x00462050</c>) — 두 번 묻고, 그림 15 를 세우고, 세이브를 지운 뒤 끝낸다.
@@ -255,7 +256,10 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         }
 
         int next = (isSkill ? son.Skills[index] : son.Tongues[index]) + 1;
-        _player.AdvanceDays(Home.EducateDays(son, next));
+        int days = Home.EducateDays(son, next);
+        _player.AdvanceDays(days);
+        // 가르치는 동안 쉰 셈으로 컨디션이 찬다(0x0046155B 의 날/10).
+        _player.SetCondition(_player.Condition + days / 10);
 
         var skills = (int[])son.Skills.Clone();
         var tongues = (int[])son.Tongues.Clone();
