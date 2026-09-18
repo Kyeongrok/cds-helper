@@ -398,6 +398,80 @@ public static class SeaEvents
     /// <summary>추위가 한 단씩 오르는 위도(도). 게임 값 <c>0x1C36·0x1E61·0x208D</c> 다.</summary>
     public static readonly double[] ColdLats = [65, 70, 75];
 
+    // ── 극지방 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 너무 깊이 들어가면 얼어 죽는다(<c>0x0048D690</c>).
+    /// </summary>
+    /// <remarks>
+    /// 적도에서 떨어진 만큼(<c>|10000 − 위도|</c>)을 문턱과 견주고, <b>바로 앞서 잰 값</b>
+    /// (<c>[함대+0x128]</c>)보다 커졌을 때만 — 곧 <b>넘어서는 그 걸음에만</b> 한 번 낸다.
+    /// <code>
+    ///   48d6d6  0x1C36 = 7222 = 65도   부관 「제독, 너무 춥습니다! …」
+    ///   48d72e  0x208D = 8333 = 75도   부관 「제독, 추위의 한계입니다! …」
+    ///   48d77d  남 0x22B8 = 8888 = 80도 · 북 0x216B = 8555 = 77도   전멸
+    /// </code>
+    /// <b>남쪽이 3도 더 깊이 갈 수 있다.</b> 셋은 차례로 보아 <b>하나만</b> 난다.
+    /// 우리는 하루가 갈 때마다 재므로 걸음마다 재는 원본보다 성기다.
+    /// </remarks>
+    public const double PolarWarnLat = 65, PolarAlarmLat = 75;
+
+    /// <summary>얼어 죽는 위도 — 북이 77도, 남이 80도다.</summary>
+    public const double PolarDoomNorth = 77, PolarDoomSouth = 80;
+
+    /// <summary>극지방에서 이번 걸음에 난 일.</summary>
+    public enum PolarStep
+    {
+        /// <summary>아무 일도 없다.</summary>
+        None,
+
+        /// <summary>65도를 넘어섰다.</summary>
+        Warn,
+
+        /// <summary>75도를 넘어섰다.</summary>
+        Alarm,
+
+        /// <summary>죽는 위도를 넘어섰다.</summary>
+        Doom,
+    }
+
+    /// <summary>지금 위도와 <paramref name="was"/>(바로 앞서 잰 |위도|)로 가른다.</summary>
+    public static PolarStep PolarAt(double lat, double was)
+    {
+        double now = Math.Abs(lat);
+        double doom = lat < 0 ? PolarDoomSouth : PolarDoomNorth;
+
+        if (now >= PolarWarnLat && now > was && was < PolarWarnLat) return PolarStep.Warn;
+        if (now >= PolarAlarmLat && now > was && was < PolarAlarmLat) return PolarStep.Alarm;
+        if (now >= doom && now > was && doom > was) return PolarStep.Doom;
+        return PolarStep.None;
+    }
+
+    /// <summary>「북」이냐 「남」이냐(<c>0x00570598</c> · <c>0x0057059C</c>).</summary>
+    public static string PolarWay(double lat) => lat < 0 ? "남" : "북";
+
+    /// <summary>75도 알림(<c>0x00570620</c>) — 바다면 「유빙에 갇혀서」, 뭍이면 「추위 때문에」다.</summary>
+    public static string PolarAlarmWord(bool onLand) =>
+        $"제독, 추위의 한계입니다! 이러다가는 {(onLand ? "추위 때문에" : "유빙에 갇혀서")} 전멸합니다!";
+
+    /// <summary>얼어 죽는 말 — 바다 셋·뭍 셋 가운데 하나다(<c>0x0048D78F</c> 벌).</summary>
+    public static string PolarDoomWord(bool onLand, Random rng) =>
+        (onLand ? PolarDoomOnLand : PolarDoomAtSea)[rng.Next(3)];
+
+    private static readonly string[] PolarDoomAtSea =
+    [
+        "우악! 눈앞에 유빙이! 피할 수 없습니다! 우아아아아···",
+        "제독, 추위로 돛이 얼어 버렸습니다! 끝장입니다. 움직일 수가 없습니다.",
+        "제독! 유빙으로 둘러싸였습니다! 전혀 움직일 수가 없습니다. 이대로 전멸입니다···",
+    ];
+
+    private static readonly string[] PolarDoomOnLand =
+    [
+        "우악! 눈사태다! ! 우아아아···",
+        "제독, 추위 때문에···아무도 걸을 수 없습니다. 이제 끝장입니다···",
+        "제독, 눈보라 때문에 아무것도 보이지 않습니다! 움직일 수도 없습니다. 이대로 전멸입니다.",
+    ];
+
     /// <summary>피로 알림이 뜨는 문턱(<c>0x004757C5</c> 벌).</summary>
     public static readonly int[] WearySteps = [50, 70, 90];
 
