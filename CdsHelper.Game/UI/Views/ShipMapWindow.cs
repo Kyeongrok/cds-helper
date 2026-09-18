@@ -2811,8 +2811,18 @@ public sealed class ShipMapWindow : Window
             //
             // 묻는 것이 먼저다. 게임도 이 자리(0x004687EC)에서 대원 대사까지 낸 다음에야
             // 출입여부를 본다(0x004687FD) — 들어가겠다고 해야 적대 차림표가 뜬다.
-            if (!ConfirmDialog.Ask(this,
-                    $"[{name}]의 {(byLand ? "도시" : "항구")}로 들어가겠습니까?")) return;
+            // 도시가 눈에 들면 먼저 알린다(0x0048D9E6) — 부관이 있으면 부관이 말하고,
+            // 없으면 알림 상자다.
+            string where = byLand ? "도시" : "항구";
+            if (_game.Player.MateAt(0).Length > 0)
+                ConfirmDialog.Tell(this, "제독, 도시가 보입니다!", face: MateFace());
+            else
+                NoticeDialog.Show(this, "도시를 발견했습니다!");
+
+            // <b>피로도가 60 이상이면 말이 다르다</b>(0x0048DBCA) — 물음인 것은 같다.
+            if (!ConfirmDialog.Ask(this, _game.Player.Fatigue >= TiredToRest
+                    ? $"[{name}]의 {where}입니다. 모두 지쳐 있으니 {where}로 들어갑시다."
+                    : $"[{name}]의 {where}로 들어가겠습니까?")) return;
 
             // 막힌 도시면 여기서 공격·잠입·교섭·떠난다가 뜬다(0x00468804).
             if (!PassGate(city, name, byLand)) return;
@@ -4656,6 +4666,9 @@ public sealed class ShipMapWindow : Window
         }
         finally { _host.Paused = false; _asking = false; }
     }
+
+    /// <summary>이 피로도부터는 입항 물음이 「모두 지쳐 있으니…」로 바뀐다(<c>0x0048DBCA</c>).</summary>
+    private const int TiredToRest = 60;
 
     /// <summary>바로 앞서 잰 |위도| — 게임의 <c>[함대+0x128]</c> 자리다.</summary>
     private double _polarWas;
