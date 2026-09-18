@@ -59,9 +59,25 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// <c>0x00530F38</c> 이고, 얼굴은 이 마을 문화권이 정한다(리스본은 402, 이슬람권은
     /// 315 다).
     /// </summary>
-    public void Greet() =>
-        ConfirmDialog.Tell(_view, "형씨, 바다에 나갈 거면 좋은 배를 사요.",
-                           face: _game.SpeakerFace(BuildingCode, _culture));
+    /// <summary>
+    /// 들어설 때의 인사(<c>0x0044B4A0</c>) — <b>부관이 있으면 부관이 먼저 묻는다</b>.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0044b4c1  부관 「새로운 배라도 사십니까?」        0x00530F20
+    ///   0044b4d7  아니면 「형씨, 바다에 나갈 거면 좋은 배를 사요.」 0x00530F38
+    /// </code>
+    /// 부관 쪽에는 관문이 하나 더 있는데(<c>0x0040E1C0(도시, 0)</c> — 팔 배가 있는가로 보인다)
+    /// 우리 조선소는 늘 배를 파므로 부관 유무만 본다.
+    /// </remarks>
+    public void Greet()
+    {
+        if (_game.AideFace is { } aide)
+            TalkDialog.Say(_view, aide, "", "새로운 배라도 사십니까?");
+        else
+            ConfirmDialog.Tell(_view, "형씨, 바다에 나갈 거면 좋은 배를 사요.",
+                               face: _game.SpeakerFace(BuildingCode, _culture));
+    }
 
     /// <summary>
     /// 배를 산다. 게임의 <c>0x0044B5A0</c> 자리다.
