@@ -493,7 +493,12 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     private void Rest(int months)
     {
         _player.AdvanceDays(Home.RestDays(months));
-        GameDialog.Show(Owner, Home.RestWord(_random));
+
+        // 아내가 있으면 아내가 말하고, 없으면 지문이 뜬다(0x004607FE).
+        if (_player.Spouse.Length > 0)
+            TalkDialog.Say(Owner, null, _player.Spouse, Home.RestWifeWord(_random));
+        else
+            GameDialog.Show(Owner, Home.RestWord(_random));
         // HP 는 달마다 50~99, 아내가 있으면 0~19 더 찬다(0x00460859).
         _player.SetCondition(_player.Condition + Vitality.HomeRest(_random, months, _player.Spouse.Length > 0));
     }

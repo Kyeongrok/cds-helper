@@ -24,14 +24,25 @@ public static class Home
 
     /// <summary>쉬고 나서 나오는 지문 셋. 게임 것 그대로다(<c>0x00539840</c> 벌).</summary>
     /// <remarks>
-    /// 게임은 아내가 있으면 아내가, 없으면 이 셋 가운데 하나를 낸다
-    /// (<c>0x004607FE</c> 의 <c>rand(3)</c>). 우리 쪽에는 아내가 없어 지문만 쓴다.
+    /// 게임은 아내가 있으면 <b>아내가</b>, 없으면 이 셋 가운데 하나를 낸다
+    /// (<c>0x004607FE</c> 의 <c>rand(3)</c>).
     /// </remarks>
     public static readonly string[] RestWords =
         ["피로가 풀렸다!", "체력이 회복되었다!", "기분이 상쾌하다!"];
 
     /// <summary>쉬고 나서 건네는 한마디.</summary>
     public static string RestWord(Random random) => RestWords[random.Next(RestWords.Length)];
+
+    /// <summary>아내가 있으면 아내가 하는 말 셋(<c>0x005397E0</c>~).</summary>
+    public static readonly string[] RestWifeWords =
+    [
+        "피로 풀렸어요? 너무 무리하지 마세요.",
+        "집에서는 편히 쉬세요.",
+        "이렇게 쉬기는 오랫만이죠.",
+    ];
+
+    /// <summary>쉬고 나서 아내가 건네는 한마디.</summary>
+    public static string RestWifeWord(Random random) => RestWifeWords[random.Next(RestWifeWords.Length)];
 
     // ── 후손을 남긴다 ────────────────────────────────────────────────────────
 
