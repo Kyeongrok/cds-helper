@@ -1225,7 +1225,14 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 default:
                     // 게임은 여기서 놀이가 끝난다(0x004AA17B 의 [+0x1C0]=3). 우리는
                     // 아직 그 끝을 안 지어서, 몸만 겨우 건진 것으로 둔다.
-                    TalkDialog.Say(_view, face, "", "자네, 제독감이 아니로군. 물고기의 먹이가 더 어울리는군.");
+                    //
+                    // <b>부관을 내보냈으면 말이 다르다</b>(0x004AA0A9 의 [+0x138]==1) —
+                    // 상대가 그 다음으로 제독에게 눈을 돌린다. 도망까지 실패한 판
+                    // ([+0x1D0] > 3)에서는 「너의 고용주도 함께 처리해 주겠다.」(0x00534538)
+                    // 하는데, 우리 판정은 도망 실패를 따로 내지 않아 그 갈래는 안 쓴다.
+                    TalkDialog.Say(_view, face, "", mate is { }
+                        ? AfterMate[dice.Next(AfterMate.Length)]
+                        : "자네, 제독감이 아니로군. 물고기의 먹이가 더 어울리는군.");
                     lost = Math.Max(lost, _player.AbilityOf(Ability.Body) - 1);
                     break;
             }
@@ -1308,6 +1315,16 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>졌는데 봐 줄 때 하는 말(<c>0x005346E8</c> 다섯).</summary>
+    /// <summary>
+    /// 대신 싸운 <b>부관이 졌을 때</b> 상대가 내뱉는 말 셋(<c>0x004AA12C</c>, <c>rand(3)</c>).
+    /// </summary>
+    internal static readonly string[] AfterMate =
+    [
+        "적의 제독도 한꺼번에 없애버려라!",
+        "녀석들! 적의 제독도 쓰러뜨려라!",
+        "하는 김에 적의 제독도 쓰러뜨려라!",
+    ];
+
     /// <summary>
     /// 도망친 뒤 <b>등 뒤로 듣는 말</b> 다섯(<c>0x004A9F4D</c>, <c>rand(5)</c>).
     /// </summary>
