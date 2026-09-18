@@ -609,6 +609,16 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         }
 
         var face = FaceOfMaid(her);
+
+        // 그 고장 말을 하나도 모르면 이야기가 안 된다(0x004664D1) — 한 마디만 듣고 끝난다.
+        string cityTongue = TongueOfCity();
+        if (cityTongue.Length > 0 && _player.TongueOf(cityTongue) <= 0)
+        {
+            TalkDialog.Say(_view, face, "", Barmaids.StrangerWord(first, destined));
+            if (first && destined) _player.AddLiking(her.Id, Barmaids.StrangerLike);
+            return;
+        }
+
         // 첫 인사는 궁합과 술로 넷, 다시 왔을 때는 친밀도로 다섯이 갈린다
         // (0x00466730 · 0x004667B0). 우리는 늘 한잔을 사고 들어간다.
         string words = first
