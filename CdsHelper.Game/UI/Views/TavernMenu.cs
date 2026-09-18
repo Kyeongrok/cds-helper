@@ -496,7 +496,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 _leave?.Invoke();
                 return;
             }
-            else return;
+            else
+            {
+                // 자리를 뜨면 친밀도에 맞는 인사를 한다(0x004668E0).
+                TalkDialog.Say(_view, face, "", Barmaids.ByeWord(_player.LikingOf(her.Id)));
+                return;
+            }
             // 한 번 인사를 나눈 뒤로는 <b>줄만 다시 뜬다</b> — 게임은 "무슨 일이시죠?" 를
             // 되풀이하지 않는다. 빈 글이면 대사 창을 건너뛴다(TalkDialog.Ask).
             words = "";
