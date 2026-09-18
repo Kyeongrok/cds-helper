@@ -108,7 +108,7 @@ internal sealed class EventAnimationPopup : Window
                     < 0x35 => 11 + (c - 0x29) / 2,
                     _ => 16,
                 }),
-            EventAnimation.Iceberg => new StripScene(15, 0xC0, 0x60, 0x2A),
+            EventAnimation.Iceberg => new IcebergScene(),
             _ => null,
         };
         if (play == null || !play.Load(anims)) return;
@@ -507,6 +507,64 @@ internal sealed class EventAnimationPopup : Window
             else if (x <= _w / 2) { t = (x - _w / 2) / d + 20; _y[1] = half - t * t / 8 + 50; }
             else if (x <= _w * 3 / 4) { t = (_w * 3 / 4 - x) / d; _y[1] = t * t / 8 + half - 50; }
             else { t = (x - _w) / d + 20; _y[1] = t * t / 8 + half - 50; }
+        }
+    }
+
+    /// <summary>
+    /// 14 유빙 — 얼음덩이가 흔들리며 떠 있고 밑동에 물보라가 인다(<c>0x0061D7A8</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00499BC0  파트 15, 192 x 384(192x96 넉 장), 팔레트 0x2A   ; 얼음덩이
+    ///   0x00499BDE  파트 16,  32 x 256( 32x32 여덟 장), 팔레트 0x2A ; 물보라
+    ///   0x00499C40  여는 참에 소리 0x36
+    ///   0x004998B0  얼음덩이 장 = (걸음 % 8) 이 0·1 → 0 · 4·5 → 2 · 그 밖 → 1
+    ///   0x004999B0  물보라   장 = (걸음 % 4) 이 0 → 0 · 2 → 2 · 그 밖 → 1
+    /// </code>
+    /// <b>부딪히고 나서의 갈래는 안 옮겼다</b> — 원본은 배가 닿은 걸음(<c>+0x18</c>)을 적어 두고
+    /// 장 3 으로 바꾼 뒤 여섯 걸음 동안 좌우로 4 점씩 흔든다. 우리는 부딪히는 자리가 따로 없어
+    /// 떠 있는 결만 돌린다. <b>도는 길이도 원본에 없다</b> — 원본은 지도가 그만두라 할 때까지
+    /// 도는데, 여기서는 여덟 걸음짜리 한 바퀴를 세 번 돌고 끝낸다.
+    /// </remarks>
+    private sealed class IcebergScene : Scene
+    {
+        private const int BergW = 0xC0, BergH = 0x60, SprayW = 0x20, SprayH = 0x20;
+
+        /// <summary>여덟 걸음짜리 한 바퀴를 세 번.</summary>
+        private const int Steps = 8 * 3;
+
+        public override int SoundPart => 0x36;
+
+        private BitmapSource[] _berg = [], _spray = [];
+        private int _x, _y;
+
+        public override bool Load(EventAnimation anims)
+        {
+            _berg = Frames(anims, 15, BergW, BergH, 0x2A) ?? [];
+            _spray = Frames(anims, 16, SprayW, SprayH, 0x2A) ?? [];
+            return _berg.Length >= 3;
+        }
+
+        public override void Start(int w, int h, Point? ship, Random rng)
+        {
+            var at = ship ?? new Point(w / 2.0, h / 2.0);
+            _x = (int)at.X - BergW / 2;
+            _y = (int)at.Y - BergH / 2;
+        }
+
+        public override bool Step(int c, List<Draw> draws)
+        {
+            if (c >= Steps) return true;
+
+            int m = c % 8;
+            int f = m < 2 ? 0 : m is 4 or 5 ? 2 : 1;
+            draws.Add(new Draw(_berg[Math.Clamp(f, 0, _berg.Length - 1)], _x, _y));
+
+            if (_spray.Length == 0) return false;
+            int k = c % 4 switch { 0 => 0, 2 => 2, _ => 1 };
+            draws.Add(new Draw(_spray[Math.Clamp(k, 0, _spray.Length - 1)],
+                               _x + (BergW - SprayW) / 2, _y + BergH - SprayH / 2));
+            return false;
         }
     }
 
