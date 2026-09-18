@@ -17,18 +17,20 @@ public static class Palace
     /// 그 후원자에게 보고할 발견물. 계약의 유적 번호를 가진 것 중 발견했고 아직 안 알린 것이다.
     /// </summary>
     /// <remarks>
-    /// 게임의 <c>0x0044EA00</c> 이다 — 계약을 맺은 그 자리인지(<c>0x0044E550</c>) 보고,
-    /// 계약의 유적 번호로 모은다(<c>0x00493E60</c>). 게임은 도시와 <b>시설 종류</b>까지
-    /// 견주는데 우리 계약은 후원자 이름과 마을을 들고 있으므로 그 둘로 가른다 —
-    /// 결과는 같다(한 사람은 한 자리에만 앉는다).
+    /// 게임의 <c>0x0044EA00</c> 이다 — 계약을 맺은 그 <b>자리</b>인지(<c>0x0044E550</c> 가 도시와
+    /// 시설 종류를 본다) 보고, 계약의 유적 번호로 모은다(<c>0x00493E60</c>).
+    ///
+    /// <b>사람이 아니라 자리를 본다.</b> 항해하는 사이 후원자가 은퇴하고 뒷사람이 그 자리에
+    /// 앉았어도 보고할 수 있고, 그때는 「선대의 계약」 인사가 붙는다(<c>0x00411620</c>).
+    /// 사람까지 견주는 곳은 따로 있다(<c>0x0044E590</c> — 계약중단 줄이 그것을 쓴다).
     /// </remarks>
-    public static List<DiscoveryTable.Record> ReportTargets(Player player, string patronName,
-                                                            string cityName,
+    /// <param name="atContractSeat">계약을 맺은 그 자리에 서 있는가.</param>
+    public static List<DiscoveryTable.Record> ReportTargets(Player player, bool atContractSeat,
                                                             DiscoveryTable? table,
                                                             HintTable? hints)
     {
         if (player.Contract is not { } contract) return [];
-        if (contract.Sponsor != patronName || contract.City != cityName) return [];
+        if (!atContractSeat) return [];
         if (table == null) return [];
         if (hints?.Find(contract.Hint) is not { } hint) return [];
 
