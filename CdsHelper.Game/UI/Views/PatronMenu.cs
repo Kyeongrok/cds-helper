@@ -1375,7 +1375,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             {
                 TalkDialog.Say(_view, _game.Faces?.TryGetBgra(Inspector.Face, female: false), "",
                                $"나라면 여기 있지만, 여행지에서 {word}니 누구를 말하는 건가?");
-                Say("이 거짓말장이를 감옥에 집어 넣어라!");
+                // 0x0054C338 · 0x0054C360 · 0x0054C398
+                Say(Pick3("이 거짓말장이를 감옥에 집어 넣어라!",
+                          "자네들을 믿고 있었건만... 이 자들을 감옥에 집어 넣어라!",
+                          "나를 속이려 하다니. 이 거짓말쟁이! 감옥에서 머리나 식히게!"));
                 _player.Endear(patron.Name, -20);
                 over = Jail(patron, dice);
                 return;
@@ -1383,7 +1386,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
             if ((sponsor?.Closeness ?? 60) >= dice.Next(luck + 1))
             {
-                Say("감찰관이 돌아오지 않을 이유가 없다! 자네, 뭔가 불리한 일이 있어 없앤게 아닌가! 그 녀석을 감옥에 쳐 넣어라.");
+                // 0x0054C188 · 0x0054C1F8 · 0x0054C270
+                Say(Pick3("감찰관이 돌아오지 않을 이유가 없다! 자네, 뭔가 불리한 일이 있어 없앤게 아닌가! 그 녀석을 감옥에 쳐 넣어라.",
+                          "그 감찰관은 내 충복이다. 꼭 돌아 올 것이다...자네 설마...그자를...아아, 이런 일이! 누가, 이 자를 감옥에 끌고 가게.",
+                          "그런 바보 같은! 감찰관이 돌아오지 못할 이유가 없지 않은가! 설마... 죽였군!! 요, 용서할 수 없다! 감옥에 쳐 넣어라."));
                 _player.Endear(patron.Name, -20);
                 over = Jail(patron, dice);
                 return;
