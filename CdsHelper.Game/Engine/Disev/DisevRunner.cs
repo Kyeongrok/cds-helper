@@ -422,6 +422,20 @@ public sealed class DisevRunner
                     _ => a == b,
                 };
             }
+            // ── 아직 안 옮긴 명령 ────────────────────────────────────────────────
+            // 실제로 쓰이는 것만 적는다(DISEV·이야기0·이야기1 을 앱 파서로 센 값).
+            //   34  Wait(29 1A)          창이 모달이라 멈출 자리가 없다 — 연출이라 건너뛴다
+            //   20  HideDialog(48)       "
+            //   20  ShowDialog(49)       "
+            //   12  MarkEventItem(26 05) 무엇을 표시하는지 아직 안 밝혔다
+            //   11  ChangeCityNation     어느 나라로 가는지가 명령에 없다(0x00409AB6 이 문맥에서 집는다)
+            //   10  OccupyCity(23 08)    점령·해제·없앰은 도시 소속을 판마다 덮어써야 한다
+            //    3  DestroyNation(22 00)
+            //    3  MoveEventTarget(3C 08)
+            //    2  CreateCity(26 08)
+            //    1  AddCityRumor · RemoveCity · HalveTroops · RemoveFacility
+            // 도시 소속을 바꾸는 것들은 <see cref="Market.CityHistory"/> 의 ChangeNation 과
+            // <c>Player.SetHistoryNation</c> 이 이미 있으니, 어느 나라로 가는지만 밝히면 붙는다.
             default:
                 return null;
         }
