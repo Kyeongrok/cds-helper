@@ -239,6 +239,16 @@ public sealed class Player
     /// </remarks>
     public int Infamy { get; set; }
 
+    /// <summary>
+    /// 지구를 몇 바퀴 돌았는가(<c>0x005B63D0</c> = 제독 <c>+0x330</c>) — 동으로 돌면 +1, 서로 돌면 −1 이다.
+    /// </summary>
+    /// <remarks>
+    /// 경도가 <b>날짜변경선을 넘을 때</b>만 움직인다(<c>0x0047D11B</c>) — 경도 칸이 0 밑으로
+    /// 내려가면 40000 을 더하며 하나 줄고, 40000 을 넘으면 빼며 하나 는다. 세계일주 장면이
+    /// 이 값으로 「하루 어긋났다」를 센다.
+    /// </remarks>
+    public int Laps { get; set; }
+
     /// <summary>빚(닢). 아직 빌려 주는 데가 없어 늘 0 이다.</summary>
     public int Debt { get; set; }
 
