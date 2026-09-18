@@ -874,8 +874,13 @@ public sealed class Player
     /// 태어날 때 고른 얼굴 줄의 <b>첫 얼굴</b>(<c>0x00460CE7</c>) — 아들 393·394, 딸 139·140 이다.
     /// 나이가 들면 같은 줄의 다음 얼굴로 바뀐다. 이 칸이 없던 옛 세이브는 −1 이다.
     /// </param>
+    /// <param name="GrownFace">
+    /// 자란 아들이 쓰는 얼굴(<c>아이 +0x334</c>) — 태어날 때 <b>아버지 얼굴</b>을 그대로 받는다
+    /// (<c>0x00460F88</c> 이 <c>0x0047CB10</c> 의 제독 얼굴을 넣는다). 딸은 안 쓴다.
+    /// </param>
     public sealed record Child(string Name, bool Daughter, DateTime Born, int[] Abilities, int[] Skills,
-                               int[] Tongues, bool Introduced = false, int Blood = 0, int Face = -1)
+                               int[] Tongues, bool Introduced = false, int Blood = 0, int Face = -1,
+                               int GrownFace = -1)
     {
         /// <summary>그 날의 나이. 아직 안 태어났으면 음수다.</summary>
         public int AgeOn(DateTime now) =>
