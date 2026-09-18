@@ -87,12 +87,12 @@ internal static class HostileCityMenu
         int culture = game.CityRows?.CultureOf(city) ?? 0;
         var gate = game.SpeakerFace(Standoff.GateSpeaker(byLand), culture);
         TalkDialog.Say(owner, gate, "", Standoff.Heard(Standoff.GateWord, heard));
-        // 덧붙이는 것은 <b>부관</b>이다 — 문지기 얼굴을 그대로 두면 그가 말한 꼴이 된다.
-        // 부관이 없으면 얼굴 없이 글만 낸다.
-        if (!heard)
+        // 덧붙이는 것은 <b>부관</b>이다 — 부관이 없으면 아예 아무 말도 없다(0x004A523D).
+        // 무슨 말을 하는지는 제독과 부관 가운데 누가 더 그 말을 잘하느냐로 셋이 갈린다.
+        if (Standoff.HasAide(player))
             TalkDialog.Say(owner, game.AideFace, "",
-                           byLand ? Standoff.GateLostVillage
-                                  : Standoff.GateLostPort);
+                           Standoff.GateAideWord(TongueAt(game, city),
+                                                 AideTongueAt(game, city), byLand));
 
         while (true)
         {
@@ -329,6 +329,20 @@ internal static class HostileCityMenu
     }
 
     /// <summary>그 도시가 쓰는 말을 얼마나 아는지. 표를 못 읽으면 0.</summary>
+    /// <summary>부관(부하 자리 0)이 그 도시 나라 말을 얼마나 아는지. 없으면 0.</summary>
+    /// <remarks>게임은 <c>0x00478050(부관, 문지기)</c> 로 공유 언어를 잰다(<c>0x004A5261</c>).</remarks>
+    private static int AideTongueAt(Engine.Game game, int city)
+    {
+        string mate = game.Player.MateAt(0);
+        if (mate.Length == 0) return 0;
+        int nation = game.CityRows?.NationOf(city) ?? -1;
+        if (nation < 0 || game.Nations?.Find(nation) is not { } row) return 0;
+        if (row.Language < 0 || row.Language >= Skill.Languages.Length) return 0;
+        var who = Local.Helpers.PersonTable.Open()?.People.FirstOrDefault(r => r.Name == mate);
+        return who != null && row.Language < who.Languages.Length
+            ? who.Languages[row.Language] : 0;
+    }
+
     private static int TongueAt(Engine.Game game, int city)
     {
         int nation = game.CityRows?.NationOf(city) ?? -1;
