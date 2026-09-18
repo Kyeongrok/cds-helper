@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -49,8 +49,20 @@ public sealed class DiscoveryMapDialog : GameWindow
     /// <summary>이름표를 다는 배율 구간 — 너무 키우면 이름이 그림을 덮는다.</summary>
     private const double LabelFrom = 4, LabelTo = 12;
 
-    /// <summary>표식 크기(지도 점).</summary>
+    /// <summary>
+    /// 표식 크기(지도 점) — <see cref="ZoomBase"/> 배율에서 잰 값이다.
+    /// </summary>
+    /// <remarks>
+    /// 표식은 <b>화면에서 늘 같은 크기</b>로 보인다. 지도를 키우면 점도 같이 커져서 커질수록
+    /// 그림을 덮었다 — 이제 배율만큼 <b>지도 점 크기를 줄여</b> 화면 크기를 붙박아 둔다.
+    /// </remarks>
     private const double MarkSize = 3, ShipSize = 5;
+
+    /// <summary>표식 크기를 잰 배율. 이 배율에서 <see cref="MarkSize"/> 그대로가 된다.</summary>
+    private static double ZoomBase => Zooms[ZoomStart];
+
+    /// <summary>이름표 글자 크기(<see cref="ZoomBase"/> 배율의 지도 점).</summary>
+    private const double LabelSize = 4;
 
     private static readonly Brush Found = Frozen(Color.FromRgb(0xC0, 0x30, 0x20));
     private static readonly Brush Yet = Frozen(Color.FromRgb(0x50, 0x50, 0x50));
@@ -70,7 +82,21 @@ public sealed class DiscoveryMapDialog : GameWindow
         return b;
     }
 
+    /// <summary>
+    /// 지도에 찍은 표식 하나 — 점과 이름표, 그리고 찍힌 지도 점.
+    /// </summary>
+    /// <remarks>배율이 바뀔 때마다 <see cref="Place"/> 가 크기와 자리를 다시 잡는다.</remarks>
+    private sealed class Pin(FrameworkElement dot, TextBlock? tag, double x, double y, double size)
+    {
+        public FrameworkElement Dot { get; } = dot;
+        public TextBlock? Tag { get; } = tag;
+        public double X { get; set; } = x;
+        public double Y { get; set; } = y;
+        public double Size { get; } = size;
+    }
+
     private readonly Canvas _world;
+    private readonly List<Pin> _pins = [];
     private readonly List<FrameworkElement> _labels = [];
     private readonly ScaleTransform _scale = new(1, 1);
     private readonly TranslateTransform _shift = new(0, 0);
@@ -326,6 +352,9 @@ public sealed class DiscoveryMapDialog : GameWindow
         _shift.X = -_vx;
         _shift.Y = -_vy;
 
+        // 표식은 화면에서 같은 크기로 보이게 지도 점 크기를 배율만큼 줄인다.
+        foreach (var pin in _pins) Place(pin);
+
         // 이름표는 어느 구간에서만 단다 — 아주 키우면 이름이 그림을 덮는다.
         var show = Z >= LabelFrom && Z <= LabelTo ? Visibility.Visible : Visibility.Collapsed;
         foreach (var tag in _labels) tag.Visibility = show;
@@ -433,26 +462,47 @@ public sealed class DiscoveryMapDialog : GameWindow
             Fill = fill,
             ToolTip = name,
         };
-        Canvas.SetLeft(dot, x - size / 2);
-        Canvas.SetTop(dot, y - size / 2);
         _world.Children.Add(dot);
 
-        if (!label) return dot;
-
-        var tag = new TextBlock
+        TextBlock? tag = null;
+        if (label)
         {
-            Text = name,
-            Foreground = fill,
-            FontSize = 4,
-            FontWeight = FontWeights.Bold,
-            Visibility = Visibility.Collapsed,
-            IsHitTestVisible = false,
-        };
-        Canvas.SetLeft(tag, x + size / 2 + 1);
-        Canvas.SetTop(tag, y - 2.5);
-        _world.Children.Add(tag);
-        _labels.Add(tag);
+            tag = new TextBlock
+            {
+                Text = name,
+                Foreground = fill,
+                FontWeight = FontWeights.Bold,
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false,
+            };
+            _world.Children.Add(tag);
+            _labels.Add(tag);
+        }
+
+        var pin = new Pin(dot, tag, x, y, size);
+        _pins.Add(pin);
+        if (!label) _shipPin = pin;
+        Place(pin);
         return dot;
+    }
+
+    /// <summary>내 자리 점. 함대를 옮기면 이 표식만 자리를 고쳐 잡는다.</summary>
+    private Pin? _shipPin;
+
+    /// <summary>
+    /// 표식 하나를 지금 배율에 맞춰 놓는다 — 화면에서 늘 같은 크기로 보이게 줄인다.
+    /// </summary>
+    private void Place(Pin pin)
+    {
+        double size = pin.Size * ZoomBase / Z;
+        pin.Dot.Width = pin.Dot.Height = size;
+        Canvas.SetLeft(pin.Dot, pin.X - size / 2);
+        Canvas.SetTop(pin.Dot, pin.Y - size / 2);
+
+        if (pin.Tag is not { } tag) return;
+        tag.FontSize = LabelSize * ZoomBase / Z;
+        Canvas.SetLeft(tag, pin.X + size / 2 + 1 / Z);
+        Canvas.SetTop(tag, pin.Y - tag.FontSize * 0.7);
     }
 
     /// <summary>
@@ -476,8 +526,7 @@ public sealed class DiscoveryMapDialog : GameWindow
 
         double x = spot.X / ExploredMap.CellsPerBlock, y = spot.Y / ExploredMap.CellsPerBlock;
         _shipDot ??= Mark(x, y, ShipSize, Mine, "지금 자리", label: false);
-        Canvas.SetLeft(_shipDot, x - ShipSize / 2);
-        Canvas.SetTop(_shipDot, y - ShipSize / 2);
+        if (_shipPin is { } pin) { pin.X = x; pin.Y = y; Place(pin); }
 
         _said = "   ·   그 자리로 옮겼습니다(닻을 내린 채)";
         Apply();
