@@ -204,8 +204,9 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     ///   EVSTILL 15 · 곡 0x0C · 「%s%s 모험가로서의 일생을 마쳤다...」                          0x0053A670
     ///   그 뒤 0x0041AB90 이 세이브(SAVEDATA.CDS·TMP·ACCDATA.CDS)를 지우고 끝낸다
     /// </code>
-    /// <b>누적 캐릭터 등록은 안 옮겼다</b> — 은퇴한 제독이 다음 판에 남으로 나오는 그 자리(<c>ACCDATA%d.ACC</c>)는
-    /// 우리 쪽에 없다. 부하·아내·아이는 게임도 <b>안 건드린다</b>(세이브째 사라진다).
+    /// 초심자용이 아니면 누적 캐릭터 다섯 자리에 올린다(<see cref="Engine.AccData"/>). <b>은퇴한 제독이
+    /// 다음 판에 남(인물 276~280)으로 나오는 자리(<c>ACCDATA%d.ACC</c> 의 행적 대본)는 아직 안 옮겼다.</b>
+    /// 부하·아내·아이는 게임도 <b>안 건드린다</b>(세이브째 사라진다).
     /// </remarks>
     /// <returns>은퇴했으면 참 — 부르는 쪽이 첫 화면으로 돌아간다.</returns>
     public bool Retire()
