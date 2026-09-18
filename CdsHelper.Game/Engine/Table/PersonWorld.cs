@@ -162,6 +162,15 @@ public sealed class PersonWorld
     public (int X, int Y)? SpotOf(int person) =>
         _bound.TryGetValue(person, out var at) ? at : null;
 
+    /// <summary>
+    /// 누적 캐릭터의 행적을 되돌려 트는 손. 걸어 두면 날마다 함께 돈다.
+    /// </summary>
+    /// <remarks>
+    /// 누적 캐릭터(인물 276~280)는 번호가 <see cref="PersonTable.MovingEnd"/> 뒤라 달마다
+    /// 굴리지 않는다 — 대신 옛 판의 발자취를 그대로 따라 걷는다(<c>0x00432740</c>).
+    /// </remarks>
+    public Engine.AccReplay? Replay { get; set; }
+
     /// <summary>그 날짜까지 따라잡는다. 이미 지난 날이면 아무것도 안 한다.</summary>
     public void Advance(DateTime today)
     {
@@ -179,6 +188,8 @@ public sealed class PersonWorld
             if (at == nextRoll) Roll(at);
         }
         _asOf = today;
+
+        Replay?.PassDay(today, People);
     }
 
     /// <summary>

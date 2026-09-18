@@ -32,11 +32,12 @@ public static class AccData
     /// <param name="Face">얼굴 번호. MALE 그림의 자리다.</param>
     /// <param name="RetiredOn">은퇴한 놀이 날짜.</param>
     /// <param name="City">은퇴한 도시. 다음 판에서 그 자리에 선다. 옛 파일은 −1 이다.</param>
+    /// <param name="Track">행적 — 어느 날 어느 도시에 들었는지. 다음 판에서 되돌려 튼다.</param>
     public sealed record Character(string Name, string Family, string Given, int Face,
                                    int Nation, int JobIndex, int Blood, int Fame,
                                    int[] Abilities, Dictionary<string, int> Skills,
                                    Dictionary<string, int> Tongues, DateTime RetiredOn,
-                                   int City = -1);
+                                   int City = -1, Player.Trace[]? Track = null);
 
     /// <summary>적어 두는 자리 — 세이브와 같은 폴더다.</summary>
     public static string Path => System.IO.Path.Combine(
@@ -77,7 +78,7 @@ public static class AccData
                               [.. player.Abilities],
                               new Dictionary<string, int>(player.Skills),
                               new Dictionary<string, int>(player.Tongues),
-                              player.Date, player.HomePort));
+                              player.Date, player.HomePort, [.. player.Traces]));
         return Save(all);
     }
 
@@ -95,7 +96,7 @@ public static class AccData
                               saved.Abilities?.ToArray() ?? [],
                               new Dictionary<string, int>(saved.Skills),
                               new Dictionary<string, int>(saved.Tongues ?? []),
-                              saved.Date, saved.HomePort ?? -1));
+                              saved.Date, saved.HomePort ?? -1, saved.Traces?.ToArray() ?? []));
         return Save(all);
     }
 

@@ -1759,8 +1759,14 @@ public sealed class ShipMapWindow : Window
         // 「등장시키지 않는다」면 다섯 자리를 통째로 비운다(0x0041AD55).
         if (at == 1) { Engine.AccData.Clear(); return true; }
 
-        // 등장시키면 인물 276~280 자리에 앉는다(0x0041AF00).
-        if (_game.World?.People is { } people) Engine.AccData.Place(people);
+        // 등장시키면 인물 276~280 자리에 앉고(0x0041AF00), 옛 발자취를 날마다 되짚는다.
+        if (_game.World is { } world)
+        {
+            Engine.AccData.Place(world.People);
+            var replay = new Engine.AccReplay(_game.Player.Date);
+            replay.Load();
+            world.Replay = replay.Any ? replay : null;
+        }
         return true;
     }
 
