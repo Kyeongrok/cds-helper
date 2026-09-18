@@ -186,10 +186,25 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             return false;
         }
 
-        return ConfirmDialog.Ask(owner, days < ReadyDays
-            ? $"{days}일 정도 항해할 수 있다고 생각합니다. 출항하겠습니까?"
-            : "준비 만반입니다. 언제라도 출항할 수 있습니다! 출항하겠습니까?", face: face);
+        if (!ConfirmDialog.Ask(owner, days < ReadyDays
+                ? $"{days}일 정도 항해할 수 있다고 생각합니다. 출항하겠습니까?"
+                : "준비 만반입니다. 언제라도 출항할 수 있습니다! 출항하겠습니까?", face: face))
+            return false;
+
+        // 모항에서 나설 때는 아내가 배웅한다(0x00477181 — 도시 +0x1D 비트 8 과 아내가 있을 때).
+        if (_cityId == _player.HomePort && _player.Spouse.Length > 0)
+            TalkDialog.Say(owner, null, _player.Spouse, Farewells[_game.Random.Next(Farewells.Length)]);
+
+        return true;
     }
+
+    /// <summary>모항에서 나설 때 아내가 하는 말 셋(<c>0x00544E48</c>~).</summary>
+    private static readonly string[] Farewells =
+    [
+        "부디, 무사히 돌아 오세요.",
+        "꼭 돌아오세요.",
+        "엉뚱한 짓은 하지 말아요. 기다리고 있을 테니.",
+    ];
 
     /// <summary>
     /// 함대편성 창. 게임처럼 제목 없이 줄만 쌓고, 마지막 줄만 회녹색 띠가 된다.
