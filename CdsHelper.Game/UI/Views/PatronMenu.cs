@@ -449,9 +449,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // (0x004AF249 가 0 이 아니면 0x004AF28A 로 간다).
         if (at < 0 || at == 2) return true;
 
-        // 말투는 후원자마다 셋이다(0x00469450): 여자면 존댓말(1), 직업 코드 18~21 이면 둘째 반말(2), 그 밖은 0.
-        var sponsor = _game.Sponsors?.FindByName(patron.Name);
-        int style = sponsor is { IsFemale: true } ? 1 : sponsor is { JobCode: >= 18 and <= 21 } ? 2 : 0;
+        int style = StyleOf(patron);
         string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
 
         if (at == 0)
@@ -795,9 +793,19 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var face = FaceOf(patron);
         void Say(string text) => TalkDialog.Say(_view, face, "", text);
 
+        // 말투는 교섭과 같은 셋이다(0x00469450) — 여자면 존댓말, 상인 갈래면 둘째 반말, 그 밖은 반말.
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) =>
+            style switch { 1 => polite, 2 => merchant, _ => plain };
+
         bool inTime = contract.DaysLeft(_player.Date) > 0;
-        Say(inTime ? "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게."
-                   : "꽤 늦었군. 그래, 결과는 어떤가?");
+        Say(inTime
+            ? Pick3("으음, 기다리고 있었네! 결과는 어떻게 되었나?",
+                    "무사해서 다행입니다. 모험은 어떠했습니까?",
+                    "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게.")
+            : Pick3("꽤 늦었군. 그래, 결과는 어떤가?",
+                    "꽤 늦으셨군요. 그래도 성과는 있으셨겠지요?",
+                    $"{_player.Name}, 기다리기 지쳤네. 그래, 성과는 있었나?"));
 
         // 인사 다음에 <b>계약 정보 창</b>이 뜬다 — 발견물과 증거품이 거기 적힌다.
         var sheet = GameInfo.ContractSheetOf(_game);
@@ -831,8 +839,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // </code>
         // 앞 인자([esp+0x10c])가 무엇인지는 아직 못 짚어서 <b>기한만으로</b> 가른다.
         Say(inTime
-            ? "음음, 잘 했네. 또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나."
-            : "또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나.");
+            ? Pick3("잘 했네. 무슨 일이 있으면 또 오게나.",
+                    "수고하셨습니다. 다시 모험을 하게 되신다면 여기에 와 주십시오.",
+                    "음음, 잘 했네. 또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나.")
+            : Pick3("무슨 일이 있으면 또 오게나.",
+                    "다시 모험을 하게 되신다면 여기에 와 주십시오.",
+                    "또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나."));
 
         // 계약이 끝났으니 부하마다 다시 태울지 묻는다(0x00454160).
         RecontractMates();
@@ -1090,6 +1102,15 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     {
         GameOverDialog.Show(_view, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
         if (_view.Owner is ShipMapWindow map) _view.Dispatcher.BeginInvoke(map.ReturnToTitle);
+    }
+
+    /// <summary>
+    /// 그 후원자의 말투(<c>0x00469450</c>) — 여자면 존댓말(1), 직업 코드 18~21 이면 둘째 반말(2), 그 밖은 0.
+    /// </summary>
+    private int StyleOf(Patron patron)
+    {
+        var sponsor = _game.Sponsors?.FindByName(patron.Name);
+        return sponsor is { IsFemale: true } ? 1 : sponsor is { JobCode: >= 18 and <= 21 } ? 2 : 0;
     }
 
     /// <summary>후원자 성미 여덟 칸. 표를 못 읽었으면 다 보통(1)이다.</summary>
