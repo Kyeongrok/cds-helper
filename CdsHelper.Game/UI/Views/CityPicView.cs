@@ -658,8 +658,17 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         var boss = hunters[dice.Next(hunters.Count)].Sponsor!.Value;
         GameDialog.Show(this, "좋아, 상금 걸린 자를 붙잡았다!");
-        TalkDialog.Say(this, _game.Faces?.TryGetBgra(boss.Face, boss.IsFemale), "",
-            "정신이 드나? 바보같은 녀석, 얌전히 용서를 빌었더라면 도와 주었을 것을..., 쓸데없는 수고를 하게 하다니!");
+
+        // 붙잡혀 깨어났을 때의 말도 말투 세 벌이다(0x0045000A · 0x00450005 · 0x00450000).
+        var sponsorRow = _game.Sponsors?.FindByName(boss.Name);
+        int style = sponsorRow is { IsFemale: true } ? 1
+                  : sponsorRow is { JobCode: >= 18 and <= 21 } ? 2 : 0;
+        TalkDialog.Say(this, _game.Faces?.TryGetBgra(boss.Face, boss.IsFemale), "", style switch
+        {
+            1 => "정신이 드십니까? 용서를 빌면 눈감아 드리려 했건만 안된 일이라고 생각합니다.",
+            2 => "겨우 정신이 들었나? 어이없군, 한마디 용서를 빌었다면 끝났을 일을..., 정말 성가시게도 했군.",
+            _ => "정신이 드나? 바보같은 녀석, 얌전히 용서를 빌었더라면 도와 주었을 것을..., 쓸데없는 수고를 하게 하다니!",
+        });
         GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
         if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
         return true;
