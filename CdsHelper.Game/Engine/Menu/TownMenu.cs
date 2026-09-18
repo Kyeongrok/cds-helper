@@ -102,6 +102,7 @@ internal static class TownMenu
             TownWork.Talk when screen.CanTrade => screen.TradeTalk,
 
             TownWork.Stay => screen.Stay,
+            TownWork.OddJob => screen.OddJob,
             TownWork.MateForm => screen.ShowMates,
 
             TownWork.Heir when screen.CanLeaveHeir => screen.LeaveHeir,

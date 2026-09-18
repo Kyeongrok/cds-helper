@@ -129,6 +129,9 @@ internal interface ITownScreen
     /// <summary>여관 숙박.</summary>
     void Stay();
 
+    /// <summary>여관 「허드렛일」 — 한 해 일하고 삯을 받는다.</summary>
+    void OddJob();
+
     void ShowMates();
     void LeaveHeir();
     void Succeed();
