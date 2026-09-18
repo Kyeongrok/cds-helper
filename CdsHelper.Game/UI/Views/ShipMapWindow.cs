@@ -3039,6 +3039,7 @@ public sealed class ShipMapWindow : Window
             var (lat, _) = _host.ShipLatLon;
             Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
             PassSeaMorale();
+            CheckSeaDailyEvent();
             CheckSeaEvent();
 
             // 서 있는 재해가 날마다 해를 끼친다 — 쥐는 식량을, 병은 선원을(0x00474DA0).
@@ -4461,6 +4462,98 @@ public sealed class ShipMapWindow : Window
         _game.Player.Pay(want);
         ConfirmDialog.Tell(this, Encounter.PaidWord(rng), "교섭", face: face);
         return true;
+    }
+
+    /// <summary>
+    /// 바다에서 하루가 갈 때 도는 일상 사건(<c>0x00426E80</c> 의 바다 갈래).
+    /// </summary>
+    /// <remarks>
+    /// 세이렌 → 크리스마스 → 생일 → 빙산 차례로 굴려 <b>하루에 하나만</b> 터진다.
+    /// 마지막으로 유성이 흐르는데 그 가지는 뭍과 함께 쓴다(<c>0x00427D05</c>).
+    /// </remarks>
+    private void CheckSeaDailyEvent()
+    {
+        var player = _game.Player;
+        var rng = _game.Random;
+        var (lat, _) = _host.ShipLatLon;
+
+        if (SeaEvents.Siren(rng, lat)) { Siren(rng); return; }
+        if (SeaEvents.Christmas(player.Date)) { Feast(rng, "메리크리스마스, 제독.", "오늘밤은 마음껏 마시자, 건배!", gift: false); return; }
+        if (SeaEvents.Birthday(player)) { Feast(rng, "제독의 생일에 건배다.", "제독, 오늘밤은 마셔도 괜찮겠지요?", gift: true); return; }
+
+        if (SeaEvents.Iceberg(rng, player.Date, lat))
+        {
+            _asking = true;
+            _host.Paused = true;
+            try
+            {
+                ConfirmDialog.Tell(this, "큰일입니다! 빙산이 흘러오고 있습니다!", face: MateFace());
+                PlayEventScene(EventAnimation.Iceberg);      // 잃는 것은 없다
+            }
+            finally { _host.Paused = false; _asking = false; }
+            return;
+        }
+
+        if (LandEvents.Meteor(new GameRandom(Environment.TickCount), player.Date.Month)) Meteor();
+    }
+
+    /// <summary>
+    /// 인어의 노래에 홀린다(<c>0x00426ECA</c>) — 자는 사이에 며칠이 흐르고 몸이 상한다.
+    /// </summary>
+    private void Siren(Random rng)
+    {
+        var player = _game.Player;
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var face = MateFace();
+            ConfirmDialog.Tell(this, "제독, 뭔가 기분 좋은 노래 소리가 들리는군요.", face: face);
+            ConfirmDialog.Tell(this, "갑자기 졸음이...", face: face);
+
+            player.AdvanceDays(SeaEvents.SirenDays(rng));
+
+            ConfirmDialog.Tell(this, "으, 으...머리가 아프다... 자고 있었나...", face: face);
+            ConfirmDialog.Tell(this, "하아하아, 기분이 안좋다...");
+            ConfirmDialog.Tell(this, "선원들이 불안해 하고 있습니다.", face: face);
+
+            // 0 이 되면 1 로, 100 이 되면 99 로 되돌린다 — 반란과 전멸을 여기서는 안 낸다.
+            player.Cheer(-SeaEvents.SirenMoraleDrop(rng));
+            if (player.Morale <= 0) player.Cheer(1 - player.Morale);
+            player.Tire(SeaEvents.SirenFatigue(rng));
+            if (player.Fatigue >= Player.MaxFatigue) player.SetFatigue(Player.MaxFatigue - 1);
+
+            NoticeDialog.Show(this, "피로도가 상승했다");
+        }
+        finally { _host.Paused = false; _asking = false; }
+    }
+
+    /// <summary>크리스마스와 생일(<c>0x0042709D</c> · <c>0x00427115</c>) — 마시고 쉰다.</summary>
+    private void Feast(Random rng, string first, string second, bool gift)
+    {
+        var player = _game.Player;
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var face = MateFace();
+            ConfirmDialog.Tell(this, first, face: face);
+            ConfirmDialog.Tell(this, second, face: face);
+
+            player.Tire(-SeaEvents.FeastRest);
+            player.Cheer(SeaEvents.FeastMorale);
+            if (!gift || player.IsBagFull) return;
+
+            if (!SeaEvents.BirthdayGift(player.AbilityOf(Ability.Charm), player.Morale, player.Fatigue)) return;
+
+            ConfirmDialog.Tell(this, "저희들이 드리는 선물입니다. 받아 주십시오.", face: face);
+            int item = SeaEvents.BirthdayItem(rng);
+            if (!player.Take(item)) return;
+
+            string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
+            NoticeDialog.Show(this, $"[{got}]{GameUi.Josa(got, "을", "를")} 받았다");
+        }
+        finally { _host.Paused = false; _asking = false; }
     }
 
     private void CheckSeaEvent()

@@ -570,4 +570,53 @@ public static class SeaEvents
 
         return new SeaEventResult(kind, hurt, lost);
     }
+    // ── 하루가 갈 때 도는 바다 사건들(0x00426E80 의 바다 갈래) ────────────────
+    //
+    // 세이렌 → 크리스마스 → 생일 → 빙산 차례로 굴려 <b>하루에 하나만</b> 터진다.
+    // 폭풍·역병과는 다른 갈래다(그쪽은 0x00474680).
+
+    /// <summary>
+    /// 인어의 노래(<c>0x00426ECA</c>) — 이백에 하나, <b>북위 30도대 한 줄</b>에서만 난다.
+    /// </summary>
+    public static bool Siren(Random rng, double lat) =>
+        lat >= 30 && lat < 31 && rng.Next(200) == 0;
+
+    /// <summary>노래에 홀려 흘려보내는 날수 — <c>rand(5)+3</c>(<c>0x00426F5B</c>).</summary>
+    public static int SirenDays(Random rng) => rng.Next(5) + 3;
+
+    /// <summary>깨고 나서 깎이는 규율 — <c>rand(5)+1</c>. 0 이 되면 <b>1 로 되돌린다</b>.</summary>
+    public static int SirenMoraleDrop(Random rng) => rng.Next(5) + 1;
+
+    /// <summary>오르는 피로도 — <c>rand(5)+5</c>. 100 이 되면 <b>99 로 되돌린다</b>.</summary>
+    public static int SirenFatigue(Random rng) => rng.Next(5) + 5;
+
+    /// <summary>크리스마스(<c>0x0042709D</c>) — 12월 24일이면 굴림 없이 난다.</summary>
+    public static bool Christmas(DateTime date) => date.Month == 12 && date.Day == 24;
+
+    /// <summary>제독 생일(<c>0x00427115</c>).</summary>
+    public static bool Birthday(Player player) =>
+        player.Date.Month == player.BirthMonth && player.Date.Day == player.BirthDay;
+
+    /// <summary>잔치가 풀어 주는 피로도와 올려 주는 규율(<c>0x004270DD</c>).</summary>
+    public const int FeastRest = 10, FeastMorale = 20;
+
+    /// <summary>
+    /// 생일 선물을 받는지(<c>0x004271C9</c>) — <c>매력 + 규율 − 피로도 &gt; 99</c> 라야 한다.
+    /// </summary>
+    /// <remarks>잔치로 피로가 풀리고 규율이 오른 <b>뒤</b>의 값으로 잰다.</remarks>
+    public static bool BirthdayGift(int charm, int morale, int fatigue) =>
+        charm + morale - fatigue > 99;
+
+    /// <summary>받는 물건 — 각각 넷에 하나다(<c>0x004271FE</c>).</summary>
+    public static int BirthdayItem(Random rng) =>
+        rng.Next(4) == 0 ? 0x34
+      : rng.Next(3) == 0 ? 0x25
+      : rng.Next(2) == 0 ? 0x26 : 0x42;
+
+    /// <summary>
+    /// 빙산(<c>0x0042727F</c>) — 스물에 하나, <b>1~6월</b>에 <b>북위 70도 위</b>에서만 흘러온다.
+    /// </summary>
+    /// <remarks>그림만 돌고 <b>잃는 것이 없다</b> — 배도 사람도 안 다친다.</remarks>
+    public static bool Iceberg(Random rng, DateTime date, double lat) =>
+        date.Month >= 1 && date.Month <= 6 && lat >= 70 && rng.Next(20) == 0;
 }
