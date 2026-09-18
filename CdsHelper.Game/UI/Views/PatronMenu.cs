@@ -1144,10 +1144,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 44f8ca  문턱  = min(97, [후원자+0x20] + [0x5B60D0] + 1)
     /// 44f8de  용서받는다 = 주사위 &lt; 문턱
     /// </code>
-    /// <c>[후원자+0x20]</c> 은 후원자 표(<c>0x005228B8</c>)의 <b>명성 / 100</b> 이다 —
-    /// 국왕이 90 넘고 장사치가 한 자리라 <b>높은 사람일수록 너그럽다</b>.
-    /// <c>[0x5B60D0]</c> 은 설득(<c>0x0044EF62</c>)도 쓰는 주인공 값인데 무엇인지 못 짚었다 —
-    /// 여기서는 <b>내 명성 / 100</b> 을 넣었다.
+    /// <c>[후원자+0x20]</c> 은 <b>친밀도</b>이고 <c>[0x5B60D0]</c> 은 <b>운</b>이다 —
+    /// 모조품을 봐주는 판정과 똑같은 꼴이라, 정든 사이일수록·운이 좋을수록 잘 봐 준다.
     /// </remarks>
     public void BreakContract(Patron patron) => Alone(() => BreakContractNow(patron));
 
@@ -1483,7 +1481,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
     /// <summary>계약을 깨는 것을 후원자가 눈감아 주는지(<see cref="Palace.Forgiven"/>).</summary>
     private bool Forgiven(Patron patron, bool overdue) =>
-        Palace.Forgiven(patron.Fame, _player.Fame, overdue, _random);
+        Palace.Forgiven(_player.ClosenessOf(patron.Name), _player.AbilityOf(Ability.Luck),
+                        overdue, _random);
 
     /// <summary>
     /// 보고 사례. 남이 먼저 발표해 버렸으면 <b>깎인 사례</b>다(<c>0x00411FC0</c> 이 가른다).
