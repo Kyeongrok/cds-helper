@@ -163,8 +163,26 @@ public static class Barmaids
     /// <summary>둘째 자리를 넘으려면 있어야 하는 명성과 소지금(<c>0x00465C2A</c> · <c>0x00465C3E</c>).</summary>
     public const int TrustFame = 3000, TrustGold = 50_000;
 
-    /// <summary>그 나라 말을 이만큼 하면 여급이 더 좋아한다(<c>0x00465CA5</c>).</summary>
-    public const int FluentTongue = 2;
+    /// <summary>
+    /// 여급이 바라는 <b>성미</b>가 내 것과 맞는지(<c>0x00465EB0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 여급 표 <c>+0x18</c> 이 바라는 성미 칸 번호(0~7)이고, 제독의 성미 여덟 칸
+    /// (<see cref="Sea.FleetRaid.AdmiralFortuneOf(Player)"/>, <c>vtbl+0x24</c>)에서 그 칸이
+    /// <b>딱 2</b> 여야 맞는다. 1 이나 0 이면 안 맞는다.
+    ///
+    /// 예전에는 이것을 「그 고장 말을 2 로 한다」로 잘못 읽어 「스페인어 사람이군요」 같은
+    /// 말이 나왔다. 원본이 끼우는 것은 <see cref="BarmaidTable.Personalities"/> 의 성미 이름이다.
+    /// </remarks>
+    public static bool Suits(Player player, in BarmaidTable.Barmaid her)
+    {
+        var slots = Sea.FleetRaid.AdmiralFortuneOf(player);
+        return her.Personality >= 0 && her.Personality < slots.Length
+               && slots[her.Personality] == SuitedValue;
+    }
+
+    /// <summary>성미 칸이 이 값이어야 맞는다(<c>0x00465EDE</c> 의 <c>sub eax, 2</c>).</summary>
+    public const int SuitedValue = 2;
 
     /// <summary>설득 한 번의 끝 — 무슨 말이 나오고 친밀도가 얼마나 오르는지.</summary>
     /// <param name="Words">여급이 하는 말.</param>
@@ -179,17 +197,17 @@ public static class Barmaids
     /// <code>
     ///   30 밑   친밀도 += rand(10)                     30 까지        「오늘은 정말 즐거웠어요. 또 봐요.」
     ///   60 밑   명성 3000 · 소지금 50000 이 있어야 오른다            없으면 「좀 더 재미있는 이야기가…」
-    ///           그 나라 말 2 면 += rand(15)+5, 아니면 += rand(10)+2  60 까지
+    ///           성미가 맞으면 += rand(15)+5, 아니면 += rand(10)+2    60 까지
     ///   90 밑   선물을 준 적이 있어야 오른다                          없으면 「당신이 주는 선물이 받고 싶어요.」
-    ///           말 2 면 += rand(20)+5, 아니면 += rand(10)+5           90 까지
+    ///           성미가 맞으면 += rand(20)+5, 아니면 += rand(10)+5     90 까지
     ///   90 위   여급이 먼저 물어 온다(아내가 있으면 그냥 떨어진다)
     /// </code>
     /// </remarks>
-    public static Talk Persuade(Player player, in BarmaidTable.Barmaid her, int culture,
-                                string tongue, Random dice)
+    public static Talk Persuade(Player player, in BarmaidTable.Barmaid her, Random dice)
     {
         int liking = player.LikingOf(her.Id);
-        bool fluent = tongue.Length > 0 && player.TongueOf(tongue) == FluentTongue;
+        bool fluent = Suits(player, her);
+        string mood = her.PersonalityName;
 
         if (liking < TalkStep)
             return new Talk("오늘은 정말 즐거웠어요. 또 봐요.",
@@ -200,7 +218,7 @@ public static class Barmaids
             if (player.Fame < TrustFame || player.Gold < TrustGold)
                 return new Talk("좀 더 재미있는 이야기가 듣고 싶어요. 자, 또 봐요.", liking);
             return fluent
-                ? new Talk($"{tongue} 사람이군요. 그런 사람 싫어하지 않아요.",
+                ? new Talk($"{mood} 사람이군요. 그런 사람 싫어하지 않아요.",
                            Math.Min(liking + dice.Next(15) + 5, TrustStep))
                 : new Talk("좀 더 당신에 대해 알고 싶어요.",
                            Math.Min(liking + dice.Next(10) + 2, TrustStep));
@@ -211,7 +229,7 @@ public static class Barmaids
             if (!player.HasGifted(her.Id))
                 return new Talk("당신이 주는 선물이 받고 싶어요.", liking);
             return fluent
-                ? new Talk($"당신의 {tongue} 면이 좋아요.", Math.Min(liking + dice.Next(20) + 5, WooNeeded))
+                ? new Talk($"당신의 {mood} 면이 좋아요.", Math.Min(liking + dice.Next(20) + 5, WooNeeded))
                 : new Talk("저도 당신을 좋아해요.", Math.Min(liking + dice.Next(10) + 5, WooNeeded));
         }
 
@@ -254,7 +272,7 @@ public static class Barmaids
     /// <remarks>
     /// <code>
     ///   궁합(얼굴 코드 차 1 이내)  +50      0x00465E70
-    ///   그 여급의 말을 2 로 함      +50      0x00465EB0
+    ///   바라는 성미가 내 것과 맞음   +50      0x00465EB0
     ///   선물을 준 적 있음           +10      0x00465E52
     /// </code>
     /// </remarks>

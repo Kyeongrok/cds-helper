@@ -757,8 +757,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     private void Persuade(in BarmaidTable.Barmaid her, uint[]? face)
     {
         var dice = _game.Random;
-        string tongue = TongueOfCity();
-        var talk = Barmaids.Persuade(_player, her, _cultureNo, tongue, dice);
+        var talk = Barmaids.Persuade(_player, her, dice);
 
         if (!talk.Proposes)
         {
@@ -770,7 +769,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         // 친밀도가 다 차면 여급이 먼저 물어 온다. 아내가 있으면 굴리지도 않고 떨어진다(0x00465AD8).
         bool ok = _player.Spouse.Length == 0
                   && Barmaids.Score(_player, her, Barmaids.Destined(_player, her),
-                                    tongue.Length > 0 && _player.TongueOf(tongue) == Barmaids.FluentTongue)
+                                    Barmaids.Suits(_player, her))
                      >= dice.Next(Barmaids.WooRoll);
         if (!ok)
         {
@@ -801,7 +800,6 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     private void Propose(in BarmaidTable.Barmaid her, uint[]? face)
     {
         var dice = _game.Random;
-        string tongue = TongueOfCity();
         int bonus = 0;
 
         // 유혹어를 지녔으면 어느 것을 쓸지 고른다(0x00466250) — 안 쓰면 보너스도 말도 없다.
@@ -821,7 +819,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         }
 
         int score = bonus + Barmaids.Score(_player, her, Barmaids.Destined(_player, her),
-                                           tongue.Length > 0 && _player.TongueOf(tongue) == Barmaids.FluentTongue);
+                                           Barmaids.Suits(_player, her));
         if (score >= dice.Next(Barmaids.WooRoll))
         {
             Wed(her, face);
