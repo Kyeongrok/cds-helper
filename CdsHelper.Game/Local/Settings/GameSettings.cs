@@ -74,6 +74,9 @@ public sealed class GameSettingsData
     /// <summary>지도를 Ctrl+클릭해 배를 그 자리에 놓을지. 켠 채로 시작한다.</summary>
     public bool PlaceShipByCtrlClick { get; set; } = true;
 
+    /// <summary>햄버거에 「인물 이동」 줄을 낼지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
+    public bool ShowPersonMoveMenu { get; set; }
+
     /// <summary>
     /// 게임 상단 띠에 켜 둔 칸 이름들("날짜"·"소지금" …). 한 번도 안 건드렸으면 null 이라
     /// 부르는 쪽 기본값이 선다.
@@ -485,6 +488,15 @@ public static class GameSettings
     {
         get => Get(d => d.PlaceShipByCtrlClick);
         set => Set(d => d.PlaceShipByCtrlClick = value);
+    }
+
+    /// <summary>
+    /// 햄버거에 <b>인물 이동</b> 줄을 낼지. 모드 창의 「인물 이동」이 켜고 끈다.
+    /// </summary>
+    public static bool ShowPersonMoveMenu
+    {
+        get => Get(d => d.ShowPersonMoveMenu);
+        set => Set(d => d.ShowPersonMoveMenu = value);
     }
 
     /// <summary>

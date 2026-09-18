@@ -523,6 +523,7 @@ public sealed class ShipMapWindow : Window
             {
                 DiscoveryMapRow => GameSettings.ShowDiscoveryMapMenu,
                 BarmaidBookRow => GameSettings.ShowBarmaidBookMenu,
+                PersonMoveRow => GameSettings.ShowPersonMoveMenu,
                 _ => true,
             },
             // 설정은 게임 띠에 두었다가 햄버거로 옮겼다 — 게임 띠에 없는 칸이라
@@ -536,7 +537,7 @@ public sealed class ShipMapWindow : Window
             // 제독의 값이 화면 곳곳에 흩어져 있어 한자리에 모아 볼 데가 없었다.
             ("제독 정보", () => PlayerInfoDialog.Show(this, _game)),
             // 누가 어느 도시로 가고 있는지는 지도에 배만 떠 있어 알 길이 없다.
-            ("인물 이동", () => PersonMoveDialog.Show(this, _game)),
+            (PersonMoveRow, () => PersonMoveDialog.Show(this, _game)),
             // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
             (DiscoveryMapRow, ShowDiscoveryMap),
             // 도구 앱은 따로 도는 exe 다. 게임을 하다 표를 손볼 일이 생기면 여기서 띄운다.
@@ -697,6 +698,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>햄버거의 여급 수첩 줄 이름. 모드 창이 이 줄을 켜고 끈다.</summary>
     internal const string BarmaidBookRow = "여급 수첩";
+
+    /// <summary>햄버거의 인물 이동 줄 이름. 모드 창이 이 줄을 켜고 끈다.</summary>
+    internal const string PersonMoveRow = "인물 이동";
 
     private void ShowDiscoveryMap()
     {
