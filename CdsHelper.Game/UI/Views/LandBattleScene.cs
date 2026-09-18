@@ -891,7 +891,19 @@ internal sealed class LandBattleScene : GameWindow
         NoticeDialog.Show(this, $"전리품으로서 금화 {spoils.Loot}닢을 손에 넣었다", "");
         player.Fame += spoils.Fame;
         player.Infamy += spoils.Infamy;
-        if (spoils.Might > 0) NoticeDialog.Show(this, "싸움에서 무력이 올랐다", "");
+        // 무력은 <b>실제로 오른 만큼</b>을 이름과 함께 알린다(0x00449825 · 0x0056D6A8).
+        // 이미 100 이면 아무 말도 없다. 부관 몫(0x0056D688 「부관의 무력이 %d 올라갔다!」)은
+        // 우리 부하 신상이 값을 못 받아 안 옮겼다.
+        if (spoils.Might > 0)
+        {
+            var stats = player.Abilities.ToArray();
+            int was = stats[Ability.Might];
+            stats[Ability.Might] = Math.Min(Ability.Max, was + spoils.Might);
+            player.SetAbilities(stats);
+
+            int up = stats[Ability.Might] - was;
+            if (up > 0) NoticeDialog.Show(this, $"{player.Name}의 무력이 {up} 올라갔다!", "");
+        }
     }
 
     // ── 그리기 ─────────────────────────────────────────────────────────────────
