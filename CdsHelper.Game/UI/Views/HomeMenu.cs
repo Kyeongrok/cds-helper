@@ -39,7 +39,8 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// </summary>
     /// <remarks>
     /// <see cref="CityPicView"/> 가 건물에 들 때마다(<c>Greet</c>) 자택이면 이것을 부른다.
-    /// 다섯 살 밑이면 연출(사건 그림)을 함께 낸다는 원본 갈래는 아직 안 옮겼다 — 대사만 낸다.
+    /// <b>다섯 살 이하</b>인 아이를 처음 소개할 때는 사건 그림 8 을 세우고 말한다(<c>0x0045FFEB</c> —
+    /// <c>0x00472FA0(8)</c> 로 그림을 올리고 소개가 끝나면 <c>0x00473160</c> 으로 내린다). 여섯 살부터는 말만 한다.
     /// </remarks>
     public void Greet()
     {
@@ -52,10 +53,13 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     }
 
     /// <summary>아이 하나를 소개하고, 바라면 이름을 새로 짓는다(<c>0x00460070</c>).</summary>
+    /// <remarks>다섯 살 이하면 사건 그림 8 을 함께 낸다(<c>0x0045FFE6</c> 의 <c>cmp 나이, 5</c>).</remarks>
     private void Introduce(Window owner, Player.Child child)
     {
         string words = Home.IntroductionOf(child, _player.Date);
-        if (_player.Spouse.Length > 0) TalkDialog.Say(owner, null, _player.Spouse, words);
+        if (child.AgeOn(_player.Date) <= Home.BabyAge)
+            DiscoveryDialog.Show(owner, _game.EventStills, Home.BabyStill, words);
+        else if (_player.Spouse.Length > 0) TalkDialog.Say(owner, null, _player.Spouse, words);
         else GameDialog.Show(owner, words);
 
         var named = child;
