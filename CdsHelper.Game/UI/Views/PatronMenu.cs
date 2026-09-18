@@ -806,7 +806,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///   0x0052FF80  「%s. 선대가 계약한 %s의 %s%s 계약을 달성하고 돌아왔습니다.」   ← 집사
     ///   0x0052FFC0 · 0x00530008 · 0x00530060                                      ← 새 주인
     /// </code>
-    /// 기한 인사(<c>0x004115C0</c>)를 <b>대신</b>한다 — 늦었어도 이 말만 한다.
+    /// 집사의 문간 인사(<c>0x004115CA</c>)는 이 앞에 이미 나왔고, 여기서는 후원자의 세 말투
+    /// 인사를 <b>대신</b>한다 — 늦었어도 이 말만 한다(<c>0x0041171C</c> 에서 곧장 돌아선다).
     /// </remarks>
     private void HandOver(Patron patron, Contract contract, Func<string, string, string, string> Pick3)
     {
@@ -1106,18 +1107,39 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         bool inTime = contract.DaysLeft(_player.Date) > 0;
         bool world = rows.Any(r => r.Id == Palace.WorldRoute);
 
+        // 후원자보다 <b>집사가 먼저</b> 문간에서 맞는다(0x004115CA). 네 갈래다 —
+        // 계약한 사람이 아직 그 자리에 앉아 있는지(0x0044E590)와 기한을 지켰는지로 갈린다.
+        // 앉은 사람이 그대로면 그 사람의 <b>경칭</b>을 부른다(0x004A2EA0 — 폐하·예하·각하·
+        // 신부님·회장님·박사님·변호사 가운데 하나). 은퇴했으면 이름도 경칭도 안 부른다.
+        string me = _player.Name;
+        string rank = _game.Sponsors?.FindByName(contract.Sponsor)?.Honorific ?? "각하";
+        bool seated = contract.Sponsor == patron.Name;
+        void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
+
+        Steward(seated
+            ? inTime
+                ? $"아니, {me}님. 귀환을 축하드립니다. {rank}{GameUi.Josa(rank, "이", "가")} 기다리고 계십니다. 안내하지요."
+                : $"아니, {me}, 꽤 귀환이 늦었군요... 일단 {rank}에게 보고하지요."
+            : inTime
+                ? $"아니, {me}님. 무사 귀환을 축하드립니다."
+                : $"아니, {me}. 꽤 귀환이 늦었군요...");
+
         // 계약을 맺은 사람이 은퇴하고 뒷사람이 그 자리에 앉았으면 인사가 통째로 다르다
         // (0x00411620) — 집사가 자리가 바뀐 것을 먼저 이르고 대신 보고해 준다.
-        if (contract.Sponsor != patron.Name)
+        if (!seated)
             HandOver(patron, contract, Pick3);
         else
+        {
+            // 집사가 후원자에게 아뢴다(0x00411751). 여기서도 후원자는 경칭으로만 부른다.
+            Steward($"{rank}. {me}{GameUi.Josa(me, "이", "가")} 돌아왔습니다.");
             Say(inTime
                 ? Pick3("으음, 기다리고 있었네! 결과는 어떻게 되었나?",
                         "무사해서 다행입니다. 모험은 어떠했습니까?",
                         "오오, 무사히 돌아왔는가! 자 빨리 성과를 들려 주게.")
                 : Pick3("꽤 늦었군. 그래, 결과는 어떤가?",
                         "꽤 늦으셨군요. 그래도 성과는 있으셨겠지요?",
-                        $"{_player.Name}, 기다리기 지쳤네. 그래, 성과는 있었나?"));
+                        $"{me}, 기다리기 지쳤네. 그래, 성과는 있었나?"));
+        }
 
         // 인사 다음에 <b>계약 정보 창</b>이 뜬다 — 발견물과 증거품이 거기 적힌다.
         var sheet = GameInfo.ContractSheetOf(_game);
