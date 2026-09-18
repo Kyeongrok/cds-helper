@@ -674,6 +674,46 @@ public sealed class CityPicView : GameWindow, ITownScreen
         return true;
     }
 
+    /// <summary>
+    /// 모항이 등을 돌린다(<c>0x0046B980</c>) — 악명 3000 을 넘으면 병사가 일기토를 건다.
+    /// </summary>
+    /// <remarks>
+    /// 막는 말은 둘 가운데 굴려 고르고 <b>문지기 얼굴</b>로 나온다. 지면 놀이가 끝나고
+    /// (<c>0x0046B894</c> 가 상태 4 로 끝낸다), 이기면 악명이 500 오른다.
+    /// </remarks>
+    private void Villain(bool harbor, CityBuildingTable.Building building)
+    {
+        var dice = _game.Random;
+        var face = _game.SpeakerFace(building.Code, _cultureNo);
+        TalkDialog.Say(this, face, "", Standoff.VillainWords[dice.Next(Standoff.VillainWords.Length)]);
+
+        var (body, might, sword, luck) = Standoff.SoldierOf(dice);
+        var foe = new Engine.Town.Duel.Fighter(Standoff.SoldierName(harbor), body, might, sword, luck, 0, 0);
+        var mine = new Engine.Town.Duel.Fighter(_player.Name.Length > 0 ? _player.Name : "제독",
+            _player.AbilityOf(Ability.Body), _player.AbilityOf(Ability.Might),
+            _player.LevelOf(Skill.Names[Skill.Sword]), _player.AbilityOf(Ability.Luck), 0, 0);
+
+        var duel = new Engine.Town.Duel(mine, foe, _player.Items.Contains(Engine.Town.Duel.EdithShieldId),
+                                        Environment.TickCount);
+        bool won = DuelDialog.Show(this, duel, new GameRandom(Environment.TickCount), face,
+                                   _game.Fighters, FighterSprites.SetForCulture(_cultureNo),
+                                   myFace: _game.Faces?.TryGetBgra(
+                                       PortraitAges.At(_player.Face, _player.Age, false, _game.Faces),
+                                       female: false),
+                                   arena: DuelArt.Field, bgm: _game.Bgm);
+        _player.Hurt(duel.BodyLost);
+
+        if (won)
+        {
+            _player.Infamy += Standoff.VillainInfamyUp;
+            NoticeDialog.Show(this, $"악명이 {Standoff.VillainInfamyUp} 올라갔다");
+            return;
+        }
+
+        GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+        if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
+    }
+
     /// <summary>현상금 사냥꾼(인물 268)과 일기토. 이기면 true, 지면 false, 판을 못 열면 null.</summary>
     private bool? HunterDuel()
     {
@@ -982,6 +1022,15 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </remarks>
     private void Greet(Facility facility, CityBuildingTable.Building building)
     {
+        // 악명이 3000 을 넘으면 <b>모항</b>의 항구·성문에서 병사가 막아선다(0x0046885D) —
+        // 걸리면 여느 인사는 아예 없다.
+        if (facility.Kind is FacilityKind.Harbor or FacilityKind.Gate
+            && _player.Infamy > Standoff.VillainInfamy && _cityId == _player.HomePort)
+        {
+            Villain(facility.Kind == FacilityKind.Harbor, building);
+            return;
+        }
+
         // 항구와 성문은 같은 밑자리(vtable 0x00519E68 · 0x00519EB8 의 0x00468790)를 먼저
         // 거친다 — <b>부관이 있을 때만</b> 두 마디를 한다(0x004696B0).
         // <code>
