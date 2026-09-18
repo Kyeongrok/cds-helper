@@ -59,6 +59,9 @@ internal sealed class CharacterMakeDialog : GameWindow
     /// <summary>물리는 창의 제목 줄(<c>0x00571538</c>).</summary>
     private const string InputError = "입력 에러";
 
+    /// <summary>아직 안 고른 칸(<c>0x0045CD8E</c> 의 <c>cmp …, -1</c>).</summary>
+    private const int Unpicked = -1;
+
     /// <summary>
     /// 가로 자리(속 왼쪽에서). <b>줄마다 칸이 시작하는 자리가 다르다</b> — 이름표는 늘
     /// 같은 자리(116)인데, 이름표가 길수록 칸이 그만큼 오른쪽으로 밀린다.
@@ -164,8 +167,13 @@ internal sealed class CharacterMakeDialog : GameWindow
         _familyNames = family;
 
         _face = player.Face;
-        _blood = player.Blood;
-        _nation = player.Nation;
+
+        // <b>혈액형과 국적은 처음에 안 골라져 있다</b> — 게임은 신상 칸을 -1 로 깔아 두고
+        // (<c>0x0045CD8E</c> 가 -1 인지 본다) 안 고르면 「입력 에러」로 물린다. 우리 쪽 신상
+        // 값은 0 이 A형·포르투갈이라 새 사람일 때만 -1 로 두고 시작한다.
+        bool fresh = player.Family.Length == 0 && player.Given.Length == 0;
+        _blood = fresh ? Unpicked : player.Blood;
+        _nation = fresh ? Unpicked : player.Nation;
         _family.Text = player.Family;
         _given.Text = player.Given;
         _age.Text = $"{player.Age}";
@@ -181,7 +189,7 @@ internal sealed class CharacterMakeDialog : GameWindow
 
         Portrait();
         NameRow(RowFamily, "성", _family, () => _familyNames);
-        NameRow(RowGiven, "명", _given, () => _names?.GivenFor(_nation) ?? _givenNames);
+        NameRow(RowGiven, "명", _given, () => _names?.GivenFor(Math.Max(0, _nation)) ?? _givenNames);
         AgeRow();
         BirthRow();
         BloodRow();
@@ -468,6 +476,17 @@ internal sealed class CharacterMakeDialog : GameWindow
         if (_family.Text.Trim().Length == 0 || _given.Text.Trim().Length == 0)
         {
             NoticeDialog.Show(this, "이름을 정확히 입력해 주십시오", InputError);
+            return;
+        }
+
+        if (_blood == Unpicked)
+        {
+            NoticeDialog.Show(this, "혈핵형이 선택되지 않았습니다", InputError);
+            return;
+        }
+        if (_nation == Unpicked)
+        {
+            NoticeDialog.Show(this, "국적이 선택되지 않았습니다", InputError);
             return;
         }
 
