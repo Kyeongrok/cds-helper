@@ -471,8 +471,17 @@ internal sealed class CharacterMakeDialog : GameWindow
             return;
         }
 
+        string full = $"{_given.Text.Trim()}·{_family.Text.Trim()}";
+
+        // 판에 있는 인물과 이름이 겹쳐도 물린다(0x0045CE77 — 인물 281명을 훑는다).
+        if (PersonTable.Open().People.Any(r => r.Name == full))
+        {
+            NoticeDialog.Show(this, "같은 성명을 쓰는 사람이 게임중에 있습니다", InputError);
+            return;
+        }
+
         // 누적 캐릭터와 이름이 겹치면 물린다(0x0045CF4A — 자리 다섯의 IDX 를 열어 견준다).
-        if (Engine.AccData.NameTaken($"{_given.Text.Trim()}·{_family.Text.Trim()}"))
+        if (Engine.AccData.NameTaken(full))
         {
             NoticeDialog.Show(this, "같은 성명을 쓰는 누적 캐릭터가 있습니다", InputError);
             return;
