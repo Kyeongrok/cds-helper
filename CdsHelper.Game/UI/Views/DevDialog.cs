@@ -120,8 +120,8 @@ public sealed class DevDialog : GameWindow
     /// 아내를 붙였다 뗀다 — 자택 "후손을 남긴다" 줄이 아내가 있어야 눌린다.
     /// </summary>
     /// <remarks>
-    /// 놀이에는 없는 줄이다. 게임에서 아내를 맞는 길(여관·술집 사건)을 아직 안 옮겨서,
-    /// 그 줄을 눌러 보려면 여기서 붙여 주는 수밖에 없다.
+    /// 놀이에는 없는 줄이다. 게임에서 아내를 맞으려면 술집 여급과 친밀도를 90 까지
+    /// 올려야 해서(<see cref="Engine.Town.Barmaids"/>) 시험할 때는 여기서 붙여 준다.
     /// </remarks>
     private UIElement SpouseRow()
     {

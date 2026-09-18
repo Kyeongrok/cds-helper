@@ -168,8 +168,8 @@ public static class Home
     /// 곧 아내가 있느냐다. 안 되면 줄이 흐릴 뿐 사라지지는 않는다.
     ///
     /// 게임은 그 뒤로 관문을 둘 더 둔다. 체력(<c>[0x005B60D8] &gt;= 100</c>)은
-    /// <see cref="HeirCondition"/> 으로 옮겼고, 아내 상태(<c>[아내+4] == 2</c>)는
-    /// 아내를 이름으로만 들고 있어 안 옮겼다.
+    /// <see cref="HeirCondition"/> 으로 옮겼고, <c>[아내+4] == 2</c> 는 <b>사람 갈래</b>가
+    /// 여급(2)인지를 보는 것이라 아내가 있으면 언제나 참이다 — 옮길 것이 없다.
     /// </remarks>
     public static bool CanLeaveHeir(Player player) => player.Spouse.Length > 0;
 
