@@ -730,6 +730,13 @@ public sealed class DisevRunner
                                            args["Suffix"]?.GetValue<string>() ?? "") ? 1 : 0;
                 return null;
 
+            // 38 0D — 그 <b>인물</b>을 이미 만난 것으로 친다(후원자 쪽은 38 12 다).
+            // 술집에서 낯을 튼 것과 같은 자리라, 다시 만나도 통성명을 안 한다.
+            case DisevCall.MeetPerson:
+                if (Local.Helpers.PersonTable.Open()?.Find(I("Person")) is { Name.Length: > 0 } known)
+                    _game.Player.Meet(known.Name);
+                return null;
+
             case DisevCall.SetAide:
                 Seat(AideSlot, "부관", I("Person"));
                 return null;
