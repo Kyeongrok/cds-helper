@@ -711,6 +711,16 @@ public sealed class DisevRunner
                     _game.Player.Meet(sponsor.Name);
                 return null;
 
+            // 1F 0A [이름] 0B [발견물] — 대본이 <b>기본 이름</b>을 박는다. 무르고 나서
+            // 43 47 이 이리로 흘러온다 — 묻지 않고 그대로 정한다.
+            case DisevCall.SetDiscoveryName:
+                if (args["Name"]?.GetValue<string>() is { Length: > 0 } fixedName)
+                {
+                    _game.Player.NameDiscovery(I("Discovery"), fixedName);
+                    Local.Helpers.DiscoveryTable.SetName(I("Discovery"), fixedName);
+                }
+                return null;
+
             // 1F 0B [발견물] 0A [꼬리말] — <b>이름을 지어 준다</b>(0x004098C0).
             // 「명명」 창에 스무 글자에서 꼬리말 길이를 뺀 만큼 받고, 꼬리말을 뒤에 붙인 뒤
             // 「[…]로 명명하겠습니다. 좋습니까?」로 한 번 더 묻는다. 아니오면 다시 받는다.
