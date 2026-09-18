@@ -621,7 +621,7 @@ public sealed class DisevRunner
                 return null;
 
             // 31 — 델포이 신탁(0x0040A4C0). 제독 성미 여덟 칸 가운데 0·2 인 것만 낱말로 잇는다(1 은 건너뜀).
-            // 원본은 자녀 적성·배우자·남은 수명 경고도 잇는다고 cds_disev_editor v1.0 이 적었는데 그쪽은 아직 안 옮겼다.
+            // 그 뒤에 붙는 자녀 적성·배우자·남은 수명 경고는 Town.Oracle.Words 로 옮겼다.
             case DisevCall.DelphiOracle:
             {
                 var slots = Sea.FleetRaid.AdmiralFortuneOf(_game.Player);
