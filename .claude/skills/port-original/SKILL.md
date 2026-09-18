@@ -1,4 +1,4 @@
----
+﻿---
 name: port-original
 description: 원본(CDS_95.EXE)에 있는데 앱에 없는 것을 하나 옮긴다. 사용자가 "다음꺼", "순서대로 진행", "안 옮긴 거 해" 라고 하거나 원본과 다른 점을 고쳐 달라고 할 때 쓴다. 분석 → 구현 → 빌드 → 메모리 → 커밋·푸시를 묻지 않고 끝까지 돈다.
 ---
@@ -53,6 +53,12 @@ description: 원본(CDS_95.EXE)에 있는데 앱에 없는 것을 하나 옮긴�
 - 화면 한 벌·규칙 한 덩이처럼 **여러 함수를 훑어야 하면 서브에이전트**에 맡기고(`run_in_background`),
   기다리는 동안 다른 손질을 한다. 물어볼 것: 정확한 주소·식·문구(원문 그대로)·표 값·부르는 곳.
 - 원본 데이터의 흠(절대 안 걸리는 조건, 죽은 코드)은 **그대로 두고 주석에 적는다**.
+- EXE 문자열을 훑어 빠진 것을 찾을 때는 `missing.py` → `missing2.py` 를 쓰되,
+  **표에서 런타임에 읽는 글**(교역품·발견물 설명, 인물·마을 사람 말)과
+  **힌트 패널 글**(`0x0040E0A0(0x580C48, …)`, [[reference_cds95_hint_panel]])은 걸러 낸다 —
+  둘 다 옮길 것이 아니다.
+- 대사가 하나만 있는 것 같아도 `0x004694C0`(말투 셋) · `0x00469680`(부관 있음/없음 둘)로
+  여러 벌인 때가 많다. 문자열 자리 앞뒤를 `strs.py` 로 훑어 짝을 찾는다.
 
 ### 2. 구현
 
@@ -68,6 +74,13 @@ description: 원본(CDS_95.EXE)에 있는데 앱에 없는 것을 하나 옮긴�
 ```bash
 taskkill //F //IM CostaDelSol.exe 2>/dev/null; taskkill //F //IM Editor.exe 2>/dev/null
 dotnet build cds-helper.sln -v q --nologo --no-restore
+```
+
+**커밋은 빌드가 지나야 한다.** `tail` 로 본 것만으로 믿지 말고 빌드를 커밋의 조건으로 건다 —
+한 번 깨진 채로 올라간 적이 있다.
+
+```bash
+dotnet build cds-helper.sln -v q --nologo --no-restore >/dev/null 2>&1 && git add -A && git commit ...
 ```
 
 값이 날짜·발견물처럼 굴러가는 것이면 스크래치패드의 `landcheck` 콘솔로 눈으로 대 본다
