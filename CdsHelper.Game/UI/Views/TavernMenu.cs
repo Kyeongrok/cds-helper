@@ -293,6 +293,19 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return;
         }
 
+        // <b>모항에서는 아내가 데리러 온다</b>(0x0042F05B) — 굴림도 없고 다른 갈래도 안 난다.
+        // 아내가 없으면 이 갈래 자체가 아무 일도 안 하고 끝난다(0x0042EAC4).
+        if (_cityId == _player.HomePort && _player.Spouse.Length > 0)
+        {
+            var her = _game.Barmaids?.Find(_player.SpouseId) is { } wife
+                ? _game.Faces?.TryGetBgra(wife.Face, female: true) : null;
+            ConfirmDialog.Tell(_view, "여보, 여보, 괜찮아요?", face: her);
+            ConfirmDialog.Tell(_view, "부인 목소리에 정신이 들었다");
+            _player.Hurt(_game.Random.Next(5));              // 0x00469850(rand(5)) — 컨디션
+            _player.Infamy += _game.Random.Next(5) + 10;     // 0x0042EB40
+            return;
+        }
+
         int pick = _game.Random.Next(_player.Gold > TreatFloor ? DrunkKinds : DrunkKinds - 1);
         switch (pick)
         {
