@@ -68,6 +68,9 @@ public sealed class GameSettingsData
     /// <summary>도시에 들어가면 도시 그림 왼쪽에 기능·언어 쪽지를 띄울지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowSkillOverlay { get; set; }
 
+    /// <summary>햄버거에 「발견물 지도」 줄을 낼지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
+    public bool ShowDiscoveryMapMenu { get; set; }
+
     /// <summary>
     /// 게임 상단 띠에 켜 둔 칸 이름들("날짜"·"소지금" …). 한 번도 안 건드렸으면 null 이라
     /// 부르는 쪽 기본값이 선다.
@@ -467,6 +470,19 @@ public static class GameSettings
     {
         get => Get(d => d.ShowConditionOverlay);
         set => Set(d => d.ShowConditionOverlay = value);
+    }
+
+    /// <summary>
+    /// 햄버거에 <b>발견물 지도</b> 줄을 낼지. 모드 창의 「발견물 지도」가 켜고 끈다.
+    /// </summary>
+    /// <remarks>
+    /// 꺼 두면 줄도 안 뜨고 단축키(<see cref="MapKey"/>)도 안 먹는다 — 원본 항해지도는
+    /// 표식을 안 찍으므로 이 지도는 앱이 얹은 것이다.
+    /// </remarks>
+    public static bool ShowDiscoveryMapMenu
+    {
+        get => Get(d => d.ShowDiscoveryMapMenu);
+        set => Set(d => d.ShowDiscoveryMapMenu = value);
     }
 
     /// <summary>항해·뭍 이동 중 <b>미니맵</b>을 지도 오른쪽 아래에 띄울지. 개발 창의 「미니맵」이 켜고 끈다.</summary>

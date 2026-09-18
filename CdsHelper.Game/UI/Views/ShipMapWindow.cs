@@ -520,6 +520,8 @@ public sealed class ShipMapWindow : Window
         // 왼쪽 위 햄버거에는 앱이 적어 둔 것을 들여다보는 줄을 단다.
         var shell = new DockPanel { LastChildFill = true };
         var titleBar = ChromeTitleBar.Attach(this, out var hamburger,
+            // 「발견물 지도」는 원본에 없는 것이라 모드 창에서 켜야 줄이 뜬다.
+            label => label != DiscoveryMapRow || GameSettings.ShowDiscoveryMapMenu,
             // 설정은 게임 띠에 두었다가 햄버거로 옮겼다 — 게임 띠에 없는 칸이라
             // 섞여 있으면 원본과 달라 보인다(개발 창을 옮긴 것과 같은 까닭이다).
             // 지도 배율은 고르는 그 자리에서 지도에 먹인다.
@@ -533,7 +535,7 @@ public sealed class ShipMapWindow : Window
             // 누가 어느 도시로 가고 있는지는 지도에 배만 떠 있어 알 길이 없다.
             ("인물 이동", () => PersonMoveDialog.Show(this, _game)),
             // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
-            ("발견물 지도", ShowDiscoveryMap),
+            (DiscoveryMapRow, ShowDiscoveryMap),
             // 도구 앱은 따로 도는 exe 다. 게임을 하다 표를 손볼 일이 생기면 여기서 띄운다.
             ("도구 앱", RunHelperApp),
             // 원본에 없는 편의 기능(컨디션·미니맵·기능·언어·출입 일수)은 모드 창에 모아 두었다.
@@ -686,6 +688,9 @@ public sealed class ShipMapWindow : Window
     /// 바탕은 항해지도를 짓는 손을 그대로 쓰되 <b>다 밝힌 지도</b>로 부른다. 놀이에는 없는
     /// 창이라 햄버거 차림표에 둔다 — 원본 항해지도는 표식을 하나도 안 찍는다.
     /// </remarks>
+    /// <summary>햄버거의 발견물 지도 줄 이름. 모드 창이 이 줄을 켜고 끈다.</summary>
+    internal const string DiscoveryMapRow = "발견물 지도";
+
     private void ShowDiscoveryMap()
     {
         var all = new ExploredMap();
@@ -2051,6 +2056,7 @@ public sealed class ShipMapWindow : Window
     internal void MapByKey()
     {
         if (!ReferenceEquals(_screen.Content, _mapRoot)) return;
+        if (!GameSettings.ShowDiscoveryMapMenu) return;   // 모드에서 꺼 두면 글쇠도 안 먹는다
         ShowDiscoveryMap();
     }
 
@@ -2075,7 +2081,7 @@ public sealed class ShipMapWindow : Window
         if (e.Key == KeyOf(GameSettings.MapKey, Key.D))
         {
             e.Handled = true;
-            Hold(ShowDiscoveryMap);
+            if (GameSettings.ShowDiscoveryMapMenu) Hold(ShowDiscoveryMap);
             return;
         }
 

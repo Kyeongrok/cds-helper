@@ -77,11 +77,16 @@ internal static class ChromeTitleBar
     /// 왼쪽 위 햄버거 단추를 눌렀을 때 내려올 줄들. 하나도 안 주면 단추를 달지 않는다.
     /// <c>Run</c> 이 null 인 줄은 흐려 두고 안 먹는다.
     /// </param>
+    /// <param name="shown">
+    /// 줄 하나가 지금 보일지 묻는 손. null 이면 다 보인다. 차림표는 열 때마다 다시 짓기에
+    /// 모드 창에서 켜고 끈 것이 바로 든다.
+    /// </param>
     /// <param name="menuButton">
     /// 왼쪽 햄버거. 대화 상자가 떠 있는 동안 이것만 따로 덮으려고 내준다 — 상자 위에서
     /// 또 상자를 열 수 있으면 안 된다. 차림표가 없으면 null.
     /// </param>
     public static FrameworkElement Attach(Window win, out FrameworkElement? menuButton,
+                                          Func<string, bool>? shown,
                                           params (string Text, Action? Run)[] menu)
     {
         menuButton = null;
@@ -119,7 +124,7 @@ internal static class ChromeTitleBar
         DockRight(bar, Button(GlyphKind.Minimize, () => SystemCommands.MinimizeWindow(win)));
         if (menu.Length > 0)
         {
-            var hamburger = MenuButton(menu);
+            var hamburger = MenuButton(menu, shown);
             DockPanel.SetDock(hamburger, System.Windows.Controls.Dock.Left);
             bar.Children.Add(hamburger);
             menuButton = hamburger;
@@ -161,7 +166,8 @@ internal static class ChromeTitleBar
     /// 이미 닫히고, 손을 뗄 때 우리가 다시 여는 꼴이 된다. 그래서 닫힌 때를 적어 두고
     /// 방금 닫혔으면 열지 않는다.
     /// </remarks>
-    private static FrameworkElement MenuButton((string Text, Action? Run)[] items)
+    private static FrameworkElement MenuButton((string Text, Action? Run)[] items,
+                                               Func<string, bool>? shown)
     {
         DateTime closedAt = DateTime.MinValue;
         var button = (Border)Button(GlyphKind.Menu, MenuButtonWidth, "차림표", () => { });
@@ -180,7 +186,11 @@ internal static class ChromeTitleBar
             };
             var rows = new StackPanel();
             foreach (var (label, run) in items)
+            {
+                // 차림표를 열 때마다 다시 짓는다 — 모드로 켜고 끈 줄이 곧바로 든다.
+                if (shown != null && !shown(label)) continue;
                 rows.Children.Add(MenuRow(label, run, () => popup.IsOpen = false));
+            }
 
             popup.Child = new Border
             {

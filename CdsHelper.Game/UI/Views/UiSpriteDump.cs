@@ -7,7 +7,7 @@ using CdsHelper.Support.Local.Helpers;
 namespace CdsHelper.Game.UI.Views;
 
 /// <summary>
-/// MISC.CDS 의 화면 조각을 PNG 로 뽑아 <c>asset/ui</c> 에 넣는다. 개발 창에서만 부른다.
+/// MISC.CDS 의 화면 조각을 PNG 로 뽑아 <c>asset/ui</c> 에 넣는다. 도구 앱 「에셋」 줄이 부른다.
 /// </summary>
 /// <remarks>
 /// 앱이 CDS 를 그때그때 읽어도 되지만, 손으로 다듬으려면 그림 파일이 있어야 한다 —
@@ -20,7 +20,7 @@ namespace CdsHelper.Game.UI.Views;
 /// (경계 y0·36·60·96·120·156). 낱장으로도 따로 떠 준다 — 제목 상자를 9-슬라이스로 늘릴 때
 /// 그중 하나를 바탕으로 쓴다.
 /// </remarks>
-internal static class UiSpriteDump
+public static class UiSpriteDump
 {
     /// <summary>
     /// 폭을 굳이 안 재고 아는 대로 박아 두는 파트. <see cref="BestWidth"/> 의 행 간 상관은

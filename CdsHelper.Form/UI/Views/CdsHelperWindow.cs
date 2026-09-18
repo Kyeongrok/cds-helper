@@ -23,6 +23,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_EventQueueMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_UiSpriteDumpMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_MovieBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PortraitBookMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_CityCultureMenu, Type = typeof(MenuItem))]
@@ -57,6 +58,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_EventQueueMenu = "PART_EventQueueMenu";
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
+    private const string PART_UiSpriteDumpMenu = "PART_UiSpriteDumpMenu";
     private const string PART_MovieBankMenu = "PART_MovieBankMenu";
     private const string PART_PortraitBookMenu = "PART_PortraitBookMenu";
     private const string PART_CityCultureMenu = "PART_CityCultureMenu";
@@ -152,6 +154,9 @@ public class CdsHelperWindow : CdsWindow
         {
             dbTableViewerMenu.Click += OnDbTableViewerMenuClick;
         }
+
+        if (GetTemplateChild(PART_UiSpriteDumpMenu) is MenuItem uiSpriteDumpMenu)
+            uiSpriteDumpMenu.Click += OnUiSpriteDumpMenuClick;
 
         if (GetTemplateChild(PART_WaveBankMenu) is MenuItem waveBankMenu)
         {
@@ -374,6 +379,18 @@ public class CdsHelperWindow : CdsWindow
             Owner = this
         };
         dialog.ShowDialog();
+    }
+
+    // MISC.CDS 의 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다. 게임 창 「개발」에 있던 줄을
+    // 여기로 옮겼다 — 놀면서 쓸 일이 없고 그림을 손보는 일은 도구 앱 몫이다.
+    private void OnUiSpriteDumpMenuClick(object sender, RoutedEventArgs e)
+    {
+        string dir = System.IO.Path.GetDirectoryName(AppSettings.LastSaveFilePath) ?? "";
+        MessageBox.Show(this,
+            dir.Length == 0 || !System.IO.Directory.Exists(dir)
+                ? "게임 폴더를 아직 모릅니다 — 세이브 파일을 먼저 열어 주십시오"
+                : CdsHelper.Game.UI.Views.UiSpriteDump.Run(dir),
+            "화면 조각");
     }
 
     // 게임 AVI 동영상을 늘어놓고, 갈아 끼울 동영상을 asset/movie 에 올리는 창.
