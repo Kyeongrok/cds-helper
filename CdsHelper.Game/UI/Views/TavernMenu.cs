@@ -930,6 +930,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   <item>이기든 지든 <b>남은 부위의 평균만큼 체력이 준다</b>.</item>
     /// </list>
     /// </remarks>
+    /// <summary>그 사람의 성미 여덟 칸(<c>vtbl+0x24</c> = <c>0x00477FE0</c>). 밑표를 못 읽으면 다 보통이다.</summary>
+    private int[] FortuneOf(TavernRoster.Person who) =>
+        _game.PersonTemplates?.Find(who.Index) is { } t
+            ? Engine.Sea.FleetRaid.FortuneOf(t.Face, t.Blood, t.Nation)
+            : [1, 1, 1, 1, 1, 1, 1, 1];
+
     private void Duel(TavernRoster.Person who, uint[]? face)
     {
         string ask = _player.MateCount > 0
@@ -937,11 +943,18 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             : "일기토를 신청합니다. 좋습니까?";
         if (!ConfirmDialog.Ask(_view, ask, "일기토", face)) return;
 
+        // 상대가 먼저 한 마디 한다(0x004A48A0) — <b>성미 일곱째 칸</b>(무신경 0 ~ 신경질 2)으로
+        // 세 묶음이 갈리고 그 안에서 굴린다.
         var dice = new GameRandom(Environment.TickCount);
+        TalkDialog.Say(_view, face, "", Engine.Town.Duel.Taunt(FortuneOf(who), dice));
+
         if (!Engine.Town.Duel.Caught(_player.AbilityOf(Ability.Body), who.Body, dice))
         {
-            TalkDialog.Say(_view, face, "",
-                           $"{who.Name}{Subject(who.Name)} 도망쳤다!");
+            // 0x004A49A6 — 부관이 있으면 부관이 이르고, 없으면 이름 없이 상자만 뜬다.
+            if (_game.AideFace is { } aide)
+                TalkDialog.Say(_view, aide, "", "도망쳐 버렸군요....");
+            else
+                NoticeDialog.Show(_view, "도망쳤다!");
             return;
         }
 
