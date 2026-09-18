@@ -187,6 +187,19 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         void Say(string words) => TalkDialog.Say(_view, face, "", words);
         void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
 
+        // 1494년부터 포르투갈·에스파니아 사이에는 불가침 조약이 있다(0x004AE0F0 → 0x004698C0) —
+        // 남의 나라 후원자와 계약하면 배반자가 된다고 <b>알려만 주고</b> 막지는 않는다.
+        int theirNation = Array.FindIndex(Player.Nations, n => n == patron.Nationality);
+        if (Palace.TreatyWarning(_player.Nation, theirNation, _player.Date.Year))
+        {
+            string mine = Player.Nations[_player.Nation], theirs = patron.Nationality;
+            string word = $"우리 {mine}{GameUi.Josa(mine, "과", "와")} {theirs}의 사이에는 "
+                        + $"불가침 조약이 맺어져 있습니다. {theirs}의 스폰서와 계약하게 되면, "
+                        + "배반자가 되어 모국에 돌아갈 수 없게 됩니다.";
+            if (_game.AideFace is { } aide) TalkDialog.Say(_view, aide, "", $"제독, 알고 계시리라 생각합니다만, {word}");
+            else GameDialog.Show(_view, $"현재 {word}");
+        }
+
         // 기분이 상한 후원자는 문간에서 돌려보낸다(0x004AEFC1, 후원자 비트 14) — 설득을 물렸거나
         // 계약 결판을 치른 뒤 30일 동안이다(0x004A2AD0 이 푼다).
         if (_player.IsSulking(patron.Name))

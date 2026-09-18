@@ -283,6 +283,24 @@ public static class Palace
     /// <summary>돈이 모자란다고 이만큼 물리면 쫓겨난다(<c>0x0041C696</c>).</summary>
     public const int BribeTries = 3;
 
+    /// <summary>
+    /// <b>불가침 조약</b>(토르데시야스) 경고가 뜨는지(<c>0x004698C0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   004698c0  해 &lt; 1494 면 안 뜬다(cmp 0x5D6)
+    ///   004698de  나라 0(포르투갈)의 후원자에게 에스파니아 제독이 갔을 때
+    ///   004698ea  나라 1(에스파니아)의 후원자에게 포르투갈 제독이 갔을 때
+    /// </code>
+    /// 막지는 않는다 — <b>알려만 주고</b> 그대로 설득으로 넘어간다.
+    /// </remarks>
+    public static bool TreatyWarning(int playerNation, int patronNation, int year) =>
+        year >= TreatyYear && playerNation is 0 or 1 && patronNation is 0 or 1
+        && playerNation != patronNation;
+
+    /// <summary>불가침 조약이 맺어진 해(<c>0x004698C0</c> 의 <c>cmp 0x5D6</c>).</summary>
+    public const int TreatyYear = 1494;
+
     /// <summary>급히 넘기는 짐 값 — 매각가의 절반(<c>0x0044D95C</c>).</summary>
     public static int DistressPrice(int sellPrice) => sellPrice / 2;
 
