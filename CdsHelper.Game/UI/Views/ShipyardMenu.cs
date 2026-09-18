@@ -299,18 +299,44 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         _menu.Push(() => RefitMenu(_player.Ships[at]));
     }
 
-    /// <summary>배 한 척의 개조 창. 줄은 게임 열한 줄 그대로고, 할 수 없는 줄은 흐리다.</summary>
+    /// <summary>
+    /// 배 한 척의 개조 창. 줄은 게임 열한 줄 그대로다.
+    /// </summary>
+    /// <remarks>
+    /// <b>더 못 하는 줄도 처음에는 고를 수 있다</b> — 골라야 왜 안 되는지 말해 주고, 그
+    /// 자리에서 줄이 꺼진다(<c>0x0049690A</c> 가 <c>*pInt == 0</c> 인 줄을 끈다).
+    /// 예전에는 처음부터 흐리게 두어 그 말들을 볼 일이 없었다.
+    /// </remarks>
     private GameMenu RefitMenu(Ship ship) => new(
         [.. Facility.RefitMenu.Select(item => (item, RefitAction(ship, item)))]);
 
+    /// <summary>더 못 하는 줄을 골랐을 때의 말(<c>0x00531540</c> 벌). 할 수 있으면 빈 글이다.</summary>
+    private static string RefitBlocked(Ship ship, string item) => item switch
+    {
+        Facility.RefitCapacity when !ship.CanGrowCapacity => "이 이상은 무리로군.",
+        Facility.RefitTonnage when !ship.CanGrowTonnage => "이 이상 무리로군.",
+        Facility.RefitReinforce when !ship.CanReinforce => "이미 한계다.",
+        Facility.RefitMast when !ship.CanAddMast => "이 배는 이 이상 돛을 늘릴 수 없네.",
+        Facility.RefitSailKind when !ship.CanChangeSail => "안됐지만, 이 타입은 돛의 종류를 바꿀 수 없네.",
+        Facility.RefitSail when !ship.CanAddSail => "이 이상 돛을 단다면 마스트가 부러지네.",
+        _ => "",
+    };
+
+    /// <summary>못 하는 줄이면 까닭을 말하고 참을 낸다.</summary>
+    private bool Blocked(Ship ship, string item)
+    {
+        if (RefitBlocked(ship, item) is not { Length: > 0 } why) return false;
+        Say(why);
+        return true;
+    }
+
     private Action? RefitAction(Ship ship, string item) => item switch
     {
-        Facility.RefitCapacity when ship.CanGrowCapacity => () => DoRefit(ship, item),
-        Facility.RefitTonnage when ship.CanGrowTonnage => () => DoRefit(ship, item),
-        Facility.RefitReinforce when ship.CanReinforce => () => DoRefit(ship, item),
-        Facility.RefitMast when ship.CanAddMast => () => AddMast(ship),
-        Facility.RefitSailKind when ship.CanChangeSail && ship.Masts > 0 => () => SwapSail(ship),
-        Facility.RefitSail when ship.CanAddSail => () => AddSail(ship),
+        Facility.RefitCapacity or Facility.RefitTonnage or Facility.RefitReinforce =>
+            () => { if (!Blocked(ship, item)) DoRefit(ship, item); },
+        Facility.RefitMast => () => { if (!Blocked(ship, item)) AddMast(ship); },
+        Facility.RefitSailKind => () => { if (!Blocked(ship, item)) SwapSail(ship); },
+        Facility.RefitSail => () => { if (!Blocked(ship, item)) AddSail(ship); },
         Facility.RefitTurrets => () => ChangeTurrets(ship),
         Facility.RefitCannon => () => BuyCannon(ship),
         Facility.RefitFigurehead => () => Carve(ship),
