@@ -3783,6 +3783,9 @@ public sealed class ShipMapWindow : Window
         // 뭍에서는 짐승과 독충을 마주친다.
         CheckLandEvent();
 
+        // 그리고 오백에 한 번 <b>그 구역의 무리</b>와 마주쳐 들싸움이 붙는다(0x0048BE9B).
+        CheckLandParty();
+
         // 규율이 바닥나면 반란이다 — 게임도 뭍(0x0047557D)과 바다(0x004758B4) 양쪽에서
         // <b>이전 규율 &gt; 0 이고 새 값이 0</b> 일 때만 0x004751E0 을 부른다.
         // 대표와의 일기토까지는 이미 옮겨 두었다(바다 사건 쪽 Mutiny).
@@ -4055,6 +4058,56 @@ public sealed class ShipMapWindow : Window
         TalkDialog.Say(this, mate, "",
                        empty ? "선원들이 불평을 하고 있습니다!" : "다들 조금씩 지친 것 같습니다!");
     }
+
+    /// <summary>
+    /// 뭍을 걷다가 무리와 마주친다(<c>0x0048BE80</c>) — <c>rand(500) == 0</c> 이고 그 자리가
+    /// 구역 여덟 가운데 하나에 들 때다.
+    /// </summary>
+    /// <remarks>
+    /// 무리는 그 구역의 둘 가운데 <c>rand(2)</c>, 병력은 그 무리의 <c>밑 + rand(폭)</c> 이다.
+    /// 판은 <b>들싸움</b>이라 버티기만 해도 이긴 것으로 친다(<see cref="LandBattle.Field"/>).
+    /// 지면 놀이가 끝난다 — 마을 공략과 같다.
+    /// </remarks>
+    private void CheckLandParty()
+    {
+        var dice = _game.Random;
+        if (dice.Next(LandFieldFoes.Roll) != 0) return;
+
+        var (lat, lon) = _host.ShipLatLon;
+        int zone = LandFieldFoes.ZoneAt(lat, lon);
+        if (zone < 0) return;
+
+        int at = LandFieldFoes.PartyAt(zone, new GameRandom(Environment.TickCount));
+        var party = LandFieldFoes.All[at];
+        int foeMen = LandFieldFoes.MenOf(at, new GameRandom(Environment.TickCount));
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            ConfirmDialog.Tell(this, $"제독, {party.Name}{GameUi.Josa(party.Name, "이", "가")} 나타났습니다!",
+                               face: MateFace());
+
+            var player = _game.Player;
+            var aide = player.MateAt(0) is { Length: > 0 } name ? player.MateInfoOf(name) : null;
+            if (LandDeployDialog.Show(this, _game, "", -1) is not { } line) return;
+
+            var roll = new GameRandom(Environment.TickCount);
+            var field = new LandBattle(line, 0, foeMen, player, aide, party.Culture, LandTerrain,
+                                       (roll.Next(10) + 74, roll.Next(10) + 69,
+                                        roll.Next(10) + 64, roll.Next(10) + 84), roll,
+                                       sort: LandBattle.Field);
+            if (LandBattleScene.Run(this, _game, field, roll)) return;
+            if (!field.Wiped) return;
+
+            GameOver();
+            Dispatcher.BeginInvoke(ReturnToTitle);
+        }
+        finally { _host.Paused = false; _asking = false; }
+    }
+
+    /// <summary>들싸움의 싸움터 — 도시 밖이라 들판이다(<c>0x0044A624</c> 의 갈래 2).</summary>
+    private const int LandTerrain = 2;
 
     private void CheckLandEvent()
     {
