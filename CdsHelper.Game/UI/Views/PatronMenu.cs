@@ -548,18 +548,35 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         int weight = Persuasion.Weight(hint.Grade, _player.Fame);
         stage?.PlayFameCheck(weight == 0);
 
-        if (weight == 2)
+        if (weight != 0)
         {
-            Say("그런 이야기는 들어본 적도 없다. 자네에게는 짐이 너무 무거울 걸세.");
-            return Persuasion.Verdict.TooBig;
-        }
-        if (weight == 1)
-        {
-            // 무겁지만 우겨 볼 만하다 — 한 번 더 묻고 그래도 하겠다면 받아 준다.
-            if (!ConfirmDialog.Ask(_view, "자네에게는 짐이 너무 무거우리라 생각되는데... "
-                                        + "꼭 하고 싶은가?", face: face))
-                return Persuasion.Verdict.TooBig;
-            return Persuasion.Verdict.Reluctant;
+            if (weight == 2)
+            {
+                // 아예 못 믿을 이야기다(0x004AE6A1).
+                Say(Pick3("그런 이야기는 들어본 적도 없다. 자네에게는 짐이 너무 무거울 걸세.",
+                          "진심으로 하는 말입니까? 당신에게 너무 어려울 거라 생각됩니다.",
+                          "확실한 이야기인가? 미심쩍은 이야기에는 원조할 수 없네."));
+            }
+            // 무겁지만 우겨 볼 만하다 — 한 번 더 묻고 그래도 하겠다면 받아 준다(0x004AE6C3).
+            else if (ConfirmDialog.Ask(_view, Pick3(
+                         "자네에게는 짐이 너무 무거우리라 생각되는데... 꼭 하고 싶은가?",
+                         "당신에게는 어려울 거라 생각됩니다. 그래도 가고 싶습니까?",
+                         "터무니 없는 이야기라고 생각되는데... 책임질 수 있겠나?"), face: face))
+                return Persuasion.Verdict.Reluctant;
+
+            // <b>물러나도 한 마디가 더 붙는다</b>(0x004AE6ED 의 합류점) — 내밀 이야기가
+            // 남았으면 그것을 묻고, 없으면 그 자리에서 기분이 상한다(0x004AE72A 의 비트 14).
+            if (more)
+            {
+                Say(Pick3("좀더 발견할 수 있을만한 이야기는 없는가?",
+                          "그밖에 흥미있는 이야기는 없는가?",
+                          "어쩐지 썩 내키지 않는군. 좀더 흥미있는 얘기가 좋겠군."));
+                return Persuasion.Verdict.AskAnother;
+            }
+            Say(Pick3("좀더 분수에 맞는 이야기를 찾아 오게.",
+                      "흥미있는 이야기를 찾아 오십시오. 기다리고 있겠습니다.",
+                      "그런 가치 없는 이야기에는 원조할 수 없다. 다음 기회로 하세."));
+            return Persuasion.Verdict.Refused;
         }
 
         // 2. 좋아하는 갈래면 두말이 없다.
