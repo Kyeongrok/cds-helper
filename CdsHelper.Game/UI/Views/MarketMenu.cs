@@ -48,7 +48,7 @@ internal sealed class MarketMenu(Window view, Engine.Game game, int cityId, int 
     {
         if (_rules == null) return;
         MarketBuyDialog.Show(_view, _game.Player, _rules, _cityId,
-                             _game.ItemText, _game.ItemPictures);
+                             _game.ItemText, _game.ItemPictures, _game.Discoveries);
     }
 
     /// <summary>"매각" — 지닌 물건을 판다.</summary>

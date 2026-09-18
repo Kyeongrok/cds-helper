@@ -15,6 +15,7 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   +0x28  0 = 바다에서, 1 = 뭍에서 발견
 ///   +0x2C  0이면 여러 사람이 거듭 발견할 수 있는 것(생물·교역품·도시 건물·지역)
 ///   +0x30  주는 아이템 번호(아이템 표 0x4FD558) — 274 중 210개가 준다
+///   +0x34  <b>파는 도시 번호</b> — -1 이 아니면 그 도시 시장에 물건으로 나온다(모조품 28개)
 ///   +0x38  제 번호(= 줄 번호)
 ///   +0x44~0x50  세계지도 사각형 x1,y1,x2,y2 (칸) — 147개에만 있다
 ///   +0x54~0x5A  상륙지도 좌표 2x2 (u16 넷, 44개) — 아직 안 쓴다
@@ -31,8 +32,8 @@ public sealed class DiscoveryTable
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\발견물표.json</c>).</summary>
     private const string CacheName = "발견물표";
 
-    /// <summary>알맹이 모양 판. 그림·동영상 칸을 더하면서 올렸다.</summary>
-    private const int SnapshotVersion = 3;
+    /// <summary>알맹이 모양 판. 그림·동영상·파는 도시 칸을 더하면서 올렸다.</summary>
+    private const int SnapshotVersion = 4;
 
     private const int TableVa = 0x0051C540;
 
@@ -90,6 +91,9 @@ public sealed class DiscoveryTable
     /// </param>
     /// <param name="Reward">보수(닢).</param>
     /// <param name="ItemId">발견하면 주는 아이템 번호. 없으면 -1.</param>
+    /// <param name="SoldIn">
+    /// 이것을 <b>파는 도시</b> 번호(<c>+0x34</c>). -1 이면 어디서도 안 판다.
+    /// </param>
     /// <param name="Indirect">
     /// 참이면 자리에 가도 잡히지 않는다 — 유적 속 물건·인물·비보처럼 다른 길로 얻는 것이다.
     /// 게임은 새 판을 열며 이런 줄의 깃발 <c>0x04</c> 를 지운다(<c>0x004AA97B</c>).
@@ -112,7 +116,7 @@ public sealed class DiscoveryTable
         int Id, string Name, int Category, int Hint, int Reward, int ItemId,
         bool Indirect, bool OpenAtStart, bool OnLand, bool Once,
         int X1, int Y1, int X2, int Y2, int Picture = -1, int Movie = -1,
-        ushort[]? Erase = null)
+        ushort[]? Erase = null, int SoldIn = -1)
     {
         /// <summary>세계지도에 자리가 있는지. 없으면 다른 길로만 얻는다.</summary>
         [JsonIgnore] public bool HasPlace => X1 != NoPlace;
@@ -124,6 +128,9 @@ public sealed class DiscoveryTable
 
         /// <summary>주는 아이템이 있는지.</summary>
         [JsonIgnore] public bool GivesItem => ItemId >= 0;
+
+        /// <summary>시장에서 살 수 있는 것인지(<c>+0x34</c>).</summary>
+        [JsonIgnore] public bool OnSale => SoldIn >= 0 && ItemId >= 0;
 
         /// <summary>
         /// <b>모조품</b>인지 — 유적 번호(<see cref="Hint"/>)가 같은 진짜 유물의 싸구려 대역이다
@@ -213,6 +220,22 @@ public sealed class DiscoveryTable
         return id >= 0 && id < _rows.Length ? Rename(_rows[id]) : null;
     }
 
+    /// <summary>
+    /// 그 도시 시장에 <b>물건으로 나오는</b> 발견물(<c>0x004B0BA0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 구입 목록을 만들 때 이것들을 <b>여느 재고보다 앞에</b> 놓는다
+    /// (<c>0x004B0AD0</c> 이 먼저, <c>0x004B0A80</c> 이 그 뒤다). 조건은 셋이다 —
+    /// 아직 안 찾았고(깃발 <c>0x44</c> 가 꺼져 있고), 주는 아이템이 있고(<c>+0x30</c>),
+    /// <c>+0x34</c> 가 이 도시다. 스물여덟 줄(<see cref="Record.IsCounterfeit"/>)이 걸린다.
+    /// </remarks>
+    public IEnumerable<Record> SoldAt(int cityId)
+    {
+        if (cityId < 0) yield break;
+        foreach (var row in Discoveries)
+            if (row.OnSale && row.SoldIn == cityId) yield return row;
+    }
+
     /// <summary><see cref="DiscoveryEdits"/> 로 덧씌우기 전의 원본 게임 값. 표 밖이면 null.</summary>
     public Record? Original(int id) => id >= 0 && id < _rows.Length ? _rows[id] : null;
 
@@ -275,6 +298,7 @@ public sealed class DiscoveryTable
                 Y2: exe.Int(row + 0x50),
                 Picture: exe.Int(row + 0x0C),
                 Movie: exe.Int(row + 0x10),
+                SoldIn: exe.Int(row + 0x34),
                 // 아직 못 찾은 발견물을 지도에서 지울 때 깔 바탕 타일 2x2.
                 Erase:
                 [
