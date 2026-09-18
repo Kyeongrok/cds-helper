@@ -123,6 +123,9 @@ internal interface ITownScreen
     /// <summary>자택 「연표를 본다」 — 발견·보고를 날짜 차례로 늘어놓는다.</summary>
     void ShowChronicle();
 
+    /// <summary>자택 「은퇴한다」 — 모험가로서의 일생을 끝낸다.</summary>
+    void Retire();
+
     /// <summary>여관 숙박.</summary>
     void Stay();
 

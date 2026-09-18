@@ -1687,6 +1687,14 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.ShowChronicle() =>
         ChronicleDialog.ShowChronicle(Menu.Window ?? this, _player, _game.Discoveries?.Table);
 
+    void ITownScreen.Retire()
+    {
+        if (!HomeRooms.Retire()) return;
+        CloseMenu();
+        Close();
+        if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
+    }
+
     void ITownScreen.ReadBooks() =>
         Books.Read(Menu.Window ?? this, text => (Owner as ShipMapWindow)?.Say(text));
 
