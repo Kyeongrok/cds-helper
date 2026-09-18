@@ -358,6 +358,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         offer.AddRange(carried);
         if (offer.Count == 0) return;
 
+        Say("어느 상을 달겠나?");                                   // 0x00531C10
         int at = HintListDialog.Pick(owner,
             [.. offer.Select((i, k) => $"{NameOf(i),-12}{CostOf(i, k < stock.Count),7}닢")],
             "선수상 선택", "달 수 있는 선수상이 없습니다");
@@ -366,6 +367,13 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         int pick = offer[at];
         bool buying = at < stock.Count;
         int cost = CostOf(pick, buying);
+
+        // <b>등급이 내려갈 때만</b> 한 번 말린다(0x00495EA6 — 옛 등급 &gt; 새 등급).
+        // 사신·마왕은 등급 0 이라 그것으로 바꿀 때는 늘 뜨고, 그것에서 바꿀 때는 안 뜬다.
+        if (ship.Figurehead >= 0
+            && Figureheads.GradeOf(ship.Figurehead) > Figureheads.GradeOf(pick)
+            && !Ask("지금 달려있는 쪽이 더 좋다고 생각하는데... 그래도 바꾸겠나?"))
+            return;
 
         // 저주받은 것을 달고 있으면 <b>그 짝만</b> 갈아 낼 수 있다(0x00495ED4).
         if (Figureheads.Cursed(ship.Figurehead))
@@ -379,17 +387,28 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             Say($"이 선수상이라면 자네가 지금 달고 있는 [{NameOf(ship.Figurehead)}]의 저주도 푸는 것이 가능하다네.");
         }
 
-        if (ship.Figurehead >= 0
-            && !Ask("지금 붙어있는 선수상은 놓아 가고 가는가?")) return;
-
-        if (Figureheads.Cursed(pick)
-            && !Ask("이! 이 선수상은... 이보게, 정말 이것을 달아도 좋단 말이지?"))
-            return;
+        // 저주받은 것을 달겠다고 하면 한 번 더 묻고(0x00495F54), 무르면 물러선다.
+        if (Figureheads.Cursed(pick))
+        {
+            if (!Ask("이! 이 선수상은... 이보게, 정말 이것을 달아도 좋단 말이지?"))
+            {
+                Say("놀랄 걸세...");                                 // 0x00531DB0
+                return;
+            }
+            Say(".....자네가 무슨 일을 하든 나와는 상관없네.");        // 0x00531D80
+        }
 
         Say(buying
             ? $"금화 {cost}닢이네."
             : $"선수상을 단 값으로 금화 {cost}닢 받겠네.");
         if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }
+
+        // 마지막으로 한 번 더 묻는다(0x00496017).
+        if (!Ask("이것을 달겠네.")) return;
+
+        // 달고 있던 것을 놓고 갈지는 <b>맨 마지막</b>에 묻는다(0x00495C40).
+        if (ship.Figurehead >= 0
+            && !Ask("지금 붙어있는 선수상은 놓아 가고 가는가?")) return;
 
         // 놓고 가는 것은 팔아 준다. 지닌 것을 달았으면 소지품에서 던다.
         int back = ship.Figurehead >= 0 ? SellBack(ship.Figurehead) : 0;
