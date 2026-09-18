@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Engine.Town;
+﻿namespace CdsHelper.Game.Engine.Town;
 
 /// <summary>
 /// 후원자를 설득할 때의 셈 — 이야기를 받아 줄지, 얼마를 낼지.
@@ -66,6 +66,25 @@ public static class Persuasion
         if (grade <= mark + 1) return 0;
         return grade <= mark + 2 ? 1 : 2;
     }
+
+    /// <summary>
+    /// 후원자 <b>안목</b>이 이야기를 가늠할 만한가(<c>0x004AF0DE</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   4af0de  안목(후원자 표 +0x20) / 20                     → ebx
+    ///   4af0f2  등급 - 5 가 1 보다 작으면 1, 아니면 2 를 더한다  ← 등급 5 만 1 이다
+    ///   4af10b  그 값이 <b>등급에 못 미치면</b> 물린다
+    /// </code>
+    /// 등급이 1·2 면 어떤 안목으로도 걸리지 않고, 3 은 안목 20, 4 는 40, 5 는 80 이
+    /// 있어야 넘어간다. <b>설득을 다 이기고 자금까지 셈한 뒤에</b> 따지는 관문이라
+    /// 여기서 물려도 기분은 상하지 않는다(<c>0x004AF3FC</c> 가 그냥 0 을 낸다).
+    /// </remarks>
+    public static bool Grasps(int eye, int grade) =>
+        eye / EyeStep + (grade == KeenGrade ? 1 : 2) >= grade;
+
+    /// <summary>안목을 재는 눈금과, 하나만 얹어 주는 등급(<c>0x004AF0E3</c>·<c>0x004AF0F7</c>).</summary>
+    private const int EyeStep = 20, KeenGrade = 5;
 
     /// <summary>그 갈래를 좋아하는가(<c>0x004ADAE0</c>, 표 <c>+0x38</c> 의 비트).</summary>
     public static bool Likes(int tastes, int category) =>

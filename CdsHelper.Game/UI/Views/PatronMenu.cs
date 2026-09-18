@@ -342,6 +342,17 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (verdict is Persuasion.Verdict.Refused or Persuasion.Verdict.TooBig
                     or Persuasion.Verdict.AskAnother) return;
 
+        // 안목 관문(0x004AF0DE) — 자금까지 다 셈해 놓고 마지막에 <b>후원자의 눈</b>을 따진다.
+        // 못 미치면 "이야기가 막연하다" 며 물리는데, 기분은 상하지 않아 다시 와도 된다.
+        if (!Persuasion.Grasps(_game.Sponsors?.FindByName(patron.Name)?.Eye ?? patron.Discernment,
+                               it.Grade))
+        {
+            Say(Pick3("흐음, 원조하고 싶은 마음은 많지만.",
+                      "원조해 드리고 싶지만, 그렇게 큰 모험은 저로서는 도저히...",
+                      "가능한 한 원조해 주고 싶지만, 너무나 이야기가 막연하네."));
+            return;
+        }
+
         int funds = Persuasion.Funds(
             it.Funds,
             _game.Sponsors?.FindByName(patron.Name)?.Closeness ?? DefaultCloseness,
