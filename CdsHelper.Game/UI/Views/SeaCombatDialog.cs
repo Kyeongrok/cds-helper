@@ -298,10 +298,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         {
             if (said) return;
             said = true;
-            Say(_battle.WindNotice());
-            Say(_battle.OrderPrompt());
-            // 괴물 판이면 숨었다는 말이 한 마디 더 붙는다(0x0043C670).
-            if (_battle.MonsterHidWord() is { Length: > 0 } hid) Say(hid);
+            OpenTurn();
         };
     }
 
@@ -532,6 +529,10 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     private void Touch(object sender, MouseButtonEventArgs e)
     {
         if (_running) return;
+
+        // 위임 중이면 판에 손대는 순간 지휘를 되찾겠냐고 먼저 묻는다(0x0043EE32).
+        if (!TookBack()) return;
+
         var at = e.GetPosition(_board);
 
         // 아래 띠의 Set · Cancel.
@@ -605,6 +606,51 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     private const string BattleTitle = "해전";
 
     /// <summary>
+    /// 한 턴을 연다(<c>0x0043C4E0</c>) — 부관이 맡겠다고 나서고, 아니면 바람과 이동 지시를 이른다.
+    /// </summary>
+    /// <remarks>
+    /// 부관이 있고 아직 제독이 직접 몰고 있을 때만 묻는다(<c>0x0043C586</c> 의 <c>cmp 1</c>).
+    /// 맡기면 바람 안내도 이동 지시 재촉도 <b>안 나온다</b>(<c>0x0043C5DE</c>).
+    /// </remarks>
+    private void OpenTurn()
+    {
+        if (!_battle.Delegated && HasMate
+            && ConfirmDialog.Ask(this, SeaBattle.OfferToLead, BattleTitle, _face))
+        {
+            _battle.Delegated = true;
+            return;
+        }
+        if (_battle.Delegated) return;
+
+        Say(_battle.WindNotice());
+        Say(_battle.OrderPrompt());
+        // 괴물 판이면 숨었다는 말이 한 마디 더 붙는다(0x0043C670).
+        if (_battle.MonsterHidWord() is { Length: > 0 } hid) Say(hid);
+    }
+
+    /// <summary>부관이 있는가 — 없으면 위임을 아예 못 묻는다(<c>+0x944</c> 가 0).</summary>
+    private bool HasMate => _player is { } who && who.MateAt(0).Length > 0;
+
+    /// <summary>
+    /// 위임 중에 판이나 단추에 손을 대면 지휘를 되찾겠냐고 묻는다(<c>0x0043EE32</c>).
+    /// </summary>
+    /// <returns>되찾았으면 참 — 부르는 쪽이 하던 일을 이어 간다.</returns>
+    private bool TookBack()
+    {
+        if (!_battle.Delegated) return true;
+        if (!ConfirmDialog.Ask(this, SeaBattle.TakeBack, BattleTitle, _face)) return false;
+
+        _battle.Delegated = false;
+        foreach (var ship in _battle.Ships.Where(s => s.Mine && s.CanAct))
+        {
+            ship.Plan.Clear();
+            ship.Ordered = false;
+        }
+        Say(_battle.OrderPrompt());
+        return true;
+    }
+
+    /// <summary>
     /// 지시할 수 있는 내 배가 모두 지시를 마쳤으면 「이동 계획을 종료하겠습니까?」를 묻는다.
     /// </summary>
     private void AfterOrder()
@@ -635,7 +681,23 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     {
         if (_running) return;
         // 「해전」 창에 YES/NO — 얼굴 없이 묻는다(0x0056B5A0).
-        if (!ConfirmDialog.Ask(this, "이동 계획을 종료하겠습니까?", BattleTitle)) return;
+        if (!ConfirmDialog.Ask(this, "이동 계획을 종료하겠습니까?", BattleTitle))
+        {
+            // 물리면 부관이 한 번 더 권한다(0x0043DEEB) — 맡기면 짜던 계획은 버려진다.
+            if (!_battle.Delegated && HasMate
+                && ConfirmDialog.Ask(this, SeaBattle.OfferAgain, BattleTitle, _face))
+            {
+                _battle.Delegated = true;
+                foreach (var ship in _battle.Ships.Where(s => s.Mine && s.CanAct))
+                {
+                    ship.Plan.Clear();
+                    ship.Ordered = false;
+                }
+                Unpick();
+                Redraw();
+            }
+            return;
+        }
 
         _running = true;
         _picked = null;
@@ -663,6 +725,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
             _battle.TurnMonster(admiral.AbilityOf(Ability.Luck), admiral.AbilityOf(Ability.Mind));
 
         if (_battle.Wind != windBefore) Say(_battle.WindNotice());
+        if (_battle.Delegated) return;      // 맡긴 동안은 재촉도 안내도 없다
+
         Say(_battle.OrderPrompt());
         if (_battle.MonsterHidWord() is { Length: > 0 } hid) Say(hid);
 
