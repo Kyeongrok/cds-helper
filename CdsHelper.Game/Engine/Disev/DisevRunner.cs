@@ -582,7 +582,7 @@ public sealed class DisevRunner
 
             // 05 05 — 16칸 소지품에 넣는다. 아이템 획득(00 05)과 달리 알림 창은 없다.
             case DisevCall.AddEventItem:
-                _game.Player.Take(I("Item"));
+                if (MakeRoom(I("Item"))) _game.Player.Take(I("Item"));
                 return null;
             case DisevCall.GiveItem:
                 Obtain(I("Item"));
@@ -922,14 +922,50 @@ public sealed class DisevRunner
     /// <remarks>
     /// 게임은 손에 넣은 자리에서 그림·갈래·설명이 든 창을 띄운다 — 소지품 창에서 물건을
     /// 눌렀을 때 뜨는 것과 같은 창이다(<see cref="ItemInfoDialog"/>).
-    /// 소지품이 꽉 차서 못 들면 창도 안 낸다.
+    /// 소지품 열여섯 칸이 다 찼으면 <b>버릴 것을 고르게 한다</b>(<c>0x00409F93</c>) — 안 버리면 못 든다.
     /// </remarks>
     private void Obtain(int itemId)
     {
-        if (!_game.Player.Take(itemId)) return;
+        if (!MakeRoom(itemId) || !_game.Player.Take(itemId)) return;
         if (_game.Items?.Find(itemId) is not { } item) return;
 
         ItemInfoDialog.Show(_owner, item, _game.ItemText?.Of(itemId) ?? "", _game.ItemPictures);
+    }
+
+    /// <summary>
+    /// 소지품 자리를 낸다(<c>0x00409F93</c>) — 다 찼으면 버릴 것을 고르게 하고, 안 고르면 그 물건을 놓친다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00538888  「[%s]을 손에 넣었습니다만 소유 아이템이 많아서 더 이상 가질 수 없습니다.
+    ///                필요없는 아이템을 선택해 버려 주십시오.」
+    ///   0x005388F8  「버릴 아이템을 선택해 주십시오」   ← 목록 제목
+    ///   0x00538598  「소유 아이템이 너무 많기 때문에 [%s]%s 포기했습니다」
+    /// </code>
+    /// 게임은 자리가 날 때까지 목록을 되풀이해 낸다. 물리면 그 물건을 포기한다.
+    /// </remarks>
+    private bool MakeRoom(int itemId)
+    {
+        var player = _game.Player;
+        if (!player.IsBagFull) return true;
+
+        string name = _game.Items?.Find(itemId)?.Name ?? $"아이템 {itemId}";
+        NoticeDialog.Show(_owner, $"[{name}]을 손에 넣었습니다만 소유 아이템이 많아서 더 이상 가질 수 없습니다. "
+                                + "필요없는 아이템을 선택해 버려 주십시오.");
+
+        while (player.IsBagFull)
+        {
+            var held = player.Items.ToList();
+            var names = held.Select(id => _game.Items?.Find(id)?.Name ?? $"아이템 {id}").ToList();
+            int at = ChoiceDialog.Ask(_owner, "버릴 아이템을 선택해 주십시오", names);
+            if (at < 0 || at >= held.Count)
+            {
+                NoticeDialog.Show(_owner, $"소유 아이템이 너무 많기 때문에 [{name}]{GameUi.Josa(name, "을", "를")} 포기했습니다");
+                return false;
+            }
+            player.Drop(held[at]);
+        }
+        return true;
     }
 
     /// <summary>
