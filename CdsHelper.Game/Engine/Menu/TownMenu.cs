@@ -119,6 +119,7 @@ internal static class TownMenu
             TownWork.Encyclopedia => screen.ShowEncyclopedia,
             TownWork.Chronicle => screen.ShowChronicle,
             TownWork.Retire => screen.Retire,
+            TownWork.Search => screen.SearchBooks,
             TownWork.Read when screen.CanRead => screen.ReadBooks,
 
             _ => null,

@@ -38,6 +38,22 @@ internal sealed class LibraryMenu(Window view, Engine.Game game, int cityId, str
     public bool CanRead => _game.Books != null;
 
     /// <summary>
+    /// 「검색」(<c>0x004B3540</c>) — 사서가 묻기만 하고 목록은 뜨지 않는다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 책 257권을 훑어 <b>기억 칸(<c>+0x40</c>)이 0 이 아닌 것</b>만 고르게 한다
+    /// (<c>0x004B3440</c> 이 램 표 <c>0x00581120</c> 을 0x48 간격으로 훑는다). 그런데 그 칸을
+    /// 0 말고 다른 값으로 두는 코드가 <b>어디에도 없다</b> — 판을 열 때 <c>0x00414151</c> 이
+    /// 0 으로 채우고, 세이브(<c>0x00414160</c> 읽기 · <c>0x00414200</c> 쓰기)는 그 값을 넣었다
+    /// 뺄 뿐이다. 그래서 목록은 늘 비어 있고 「오래 기다리셨습니다. 이 책입니다.」
+    /// (<c>0x00544AF0</c>)와 「안됐습니다만, 그 책은 여기에는 없습니다.」(<c>0x00544B18</c>)는
+    /// <b>원본에서도 절대 안 나온다</b>. 물음만 옮기고 그 뒤는 원본대로 비워 둔다.
+    /// </remarks>
+    public void Search(Window owner) =>
+        ConfirmDialog.Tell(owner, "무슨 책을 찾고 계십니까?",
+                           face: _game.SpeakerFace(BuildingCode, _culture));
+
+    /// <summary>
     /// 서가를 펼친다.
     /// </summary>
     /// <param name="owner">
