@@ -21,7 +21,8 @@ namespace CdsHelper.Game.Engine.Discovery;
 /// <see cref="IsOpen"/> 이 그때그때 따진다 — 결과가 같고, 힌트를 잃는 길이 없어 어긋날 수도
 /// 없다.
 ///
-/// 사건 연출(DISEV.CDS)은 아직 흉내내지 않는다. 발견을 적고 알리는 것까지만 한다.
+/// 사건 연출(DISEV.CDS)은 <see cref="Disev.DisevRunner"/> 가 돈다 — 여기는 발견을 적고
+/// 알리는 것까지만 한다.
 /// </remarks>
 public sealed class DiscoveryLog
 {
