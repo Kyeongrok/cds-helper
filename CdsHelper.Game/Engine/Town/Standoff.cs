@@ -357,9 +357,16 @@ public static class Standoff
     /// <summary>조약이 서는 해(<c>0x00469880</c> 의 <c>cmp [0x005A4D20], 0x5D6</c>).</summary>
     public const int TreatyYear = 1494;
 
-    /// <summary>조약 이름과 문구(<c>0x005521F0</c> · <c>0x00552208</c>).</summary>
+    /// <summary>조약 이름과 문구(<c>0x005521F0</c> · <c>0x00552208</c> · <c>0x00552240</c>).</summary>
+    /// <remarks>
+    /// <b>마을과 항구의 글이 다르다</b>(<c>0x0046A6D9</c> 가 가른다). 항구 쪽은 그 나라
+    /// 이름을 먼저 대고 「함대」를 막는다. 둘 다 <b>문지기가 얼굴을 걸고</b> 말한다
+    /// (<c>0x004692E0</c>, 화자는 <c>[this+0x84]</c>) — 알림 상자가 아니다.
+    /// </remarks>
     public const string TreatyName = "트루데시야스 조약";
     public const string TreatyWord = "{0}에 의해 {1}의 선원을 마을에 들여보낼 수는 없다.";
+    public const string TreatyPortWord =
+        "여기는 {0}령이다. {1}에 의해 {2}의 함대를 항구에 들여보낼 수 없다!";
 
     /// <summary>
     /// 조약에 막히는지 — <b>1494년부터 포르투갈과 에스파니아가 서로를 막는다</b>.
