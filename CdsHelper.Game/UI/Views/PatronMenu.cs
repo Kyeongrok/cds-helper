@@ -1181,10 +1181,18 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             : $"{patron.Name}님. {me}{GameUi.Josa(me, "이", "가")} 왔습니다. " +
               "뭔가, 계약을 파기하고 싶다고 합니다만.");
 
+        // 집사 말을 듣고 주인이 먼저 한숨을 짓는다(0x0044F2E0) — 말투 셋 x 기한 둘이다.
+        // <code>
+        //   기한 안  0x0054B6D0 · 0x0054B6E0 · 0x0054B6F0
+        //   늦음     0x0054B760 · 0x0054B770 · 0x0054B788
+        // </code>
+        Say(overdue
+            ? Pick3(".........", "무슨 일일까요...", "후~, 기대하고 있었건만.")
+            : Pick3("뭐라고...", "뭐라고...", "후~... 계약을 파기하리라고는."));
+
         bool forgiven = Forgiven(patron, overdue);
         if (!forgiven)
         {
-            Say("후~... 계약을 파기하리라고는.");
             ReturnLentShips();
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
@@ -1193,9 +1201,18 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             return;
         }
 
+        // 눈감아 주는 말도 세 벌씩이다.
+        // <code>
+        //   기한 안  0x0054BA60 · 0x0054BAB8 · 0x0054BB00
+        //   늦음     0x0054BB48 · 0x0054BBA8 · 0x0054BC08
+        // </code>
         Say(overdue
-            ? "기대가 빗나갔군! 이번 실패는 잊어주지. 생각이 바뀌기 전에 나가주게."
-            : "안됐군요, 무리하게 보내서는 성과도 없을테니, 이 계약은 잊어버립시다.");
+            ? Pick3("자네에게 기대한 내가 어리석었다. 어쩔 수 없군. 실패한 죄는 묻지 않겠다. 빨리 사라져 버려라.",
+                    "당신에게 기대했는데 실망했습니다. 실패한 죄는 묻지 않겠습니다. 제 앞에서 사라져 주십시오.",
+                    "기대가 빗나갔군! 이번 실패는 잊어주지. 생각이 바뀌기 전에 나가주게.")
+            : Pick3("안됐지만, 싫다는 사람을 강제로 보내서 좋을 일은 없다. 좋다, 계약은 없었던 일로 하지.",
+                    "안됐군요, 무리하게 보내서는 성과도 없을테니, 이 계약은 잊어버립시다.",
+                    "그래... 싫은가. 정말 안됐네. 어쩔 수 없군. 계약은 없었던 일로 하지."));
 
         int penalty = contract.Penalty;
         if (!_player.Pay(penalty))
