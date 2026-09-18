@@ -4105,10 +4105,27 @@ public sealed class ShipMapWindow : Window
                                             monster: true);
 
         if (outcome != SeaCombatDialog.Outcome.Defeated)
+        {
+            // 괴물을 잡으면 그 자리에서 능력치가 오른다(0x0043553C).
+            if (outcome == SeaCombatDialog.Outcome.Won) RewardMonster(person);
             return (outcome == SeaCombatDialog.Outcome.Won, false);
+        }
 
         GameOver();
         return (false, true);
+    }
+
+    /// <summary>괴물을 퇴치한 삯 — 능력치를 올리고 그 말을 낸다(<c>0x0043553C</c>).</summary>
+    private void RewardMonster(int person)
+    {
+        var (words, gains) = EnemyFleet.MonsterPrize(person);
+        if (words.Length == 0) return;
+
+        var stats = _game.Player.Abilities.ToArray();
+        foreach (var (ability, by) in gains)
+            stats[ability] = Math.Clamp(stats[ability] + by, Ability.Min, Ability.Max);
+        _game.Player.SetAbilities(stats);
+        NoticeDialog.Show(this, words);
     }
 
     private Captain? CaptainOf(int id)

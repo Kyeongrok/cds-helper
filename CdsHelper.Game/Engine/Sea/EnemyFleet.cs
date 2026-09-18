@@ -26,6 +26,30 @@ public static class EnemyFleet
     /// <summary>괴물 인물 번호(<c>0x10F</c>~<c>0x112</c>) — 배가 없다.</summary>
     public const int FirstMonster = 271, LastMonster = 274;
 
+    /// <summary>괴물 인물 번호 — 크라켄 · 시서펜트 · 식인상어 · 맨터.</summary>
+    public const int Kraken = 271, SeaSerpent = 272, ManEater = 273, Manta = 274;
+
+    /// <summary>
+    /// 괴물을 퇴치하고 오르는 능력치(<c>0x0043553C</c>) — 판이 끝나면 제 자리에서 오른다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   식인상어  무력 +5                      0x0056A700
+    ///   크라켄    무력·지력·매력 각각 +2        0x0056A738
+    ///   시서펜트  매력 +5                      0x0056A780
+    ///   맨터      지력 +5                      0x0056A7B8
+    /// </code>
+    /// </remarks>
+    public static (string Words, (int Ability, int By)[] Gains) MonsterPrize(int person) => person switch
+    {
+        ManEater => ("식인 상어를 퇴치했다! 무력이 5 올라갔다!", [(Ability.Might, 5)]),
+        Kraken => ("크라켄을 퇴치했다! 무력, 매력, 지력이 각각 2 올라갔다!",
+                   [(Ability.Might, 2), (Ability.Mind, 2), (Ability.Charm, 2)]),
+        SeaSerpent => ("시서펜트를 퇴치했다! 매력이 5 올라갔다!", [(Ability.Charm, 5)]),
+        Manta => ("맨터를 퇴치했다! 지력이 5 올라갔다!", [(Ability.Mind, 5)]),
+        _ => ("", []),
+    };
+
     /// <summary>적 배 한 척.</summary>
     /// <param name="Hull">게임 선체 번호(<see cref="Hull.Table"/>).</param>
     /// <param name="Crew">승원.</param>
