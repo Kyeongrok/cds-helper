@@ -394,6 +394,15 @@ public static class Palace
     public static bool CounterfeitCaught(int sponsorTableCloseness, int luck, Random random) =>
         random.Next(100) < Math.Max(CounterfeitCatchFloor, sponsorTableCloseness * 2 - luck - 1);
 
+    /// <summary>
+    /// 후원자 성미 여덟 칸 가운데 <b>관용</b>에 쓰는 칸(<c>0x00412490</c> · <c>0x0044F145</c>).
+    /// </summary>
+    /// <remarks>
+    /// 모조품을 봐 줄지(<c>0x00412490</c>)는 이 칸이 <b>0 보다 커야</b> 굴리고, 계약 실패를
+    /// 봐 줄지(<c>0x0044F155</c>)는 <b>2 라야</b> 굴린다.
+    /// </remarks>
+    public const int MercyFortune = 4;
+
     /// <summary>모조품 판정 문턱의 바닥값(<c>cmp eax,0xa; mov eax,0xa</c>).</summary>
     public const int CounterfeitCatchFloor = 10;
 

@@ -910,7 +910,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         {
             // 모조품(0x00412460)은 들키지 않으면 진짜와 똑같이 통과된다 — 들켰을 때만
             // 따로 간다(Report(Patron) 의 볼트 주석 참고).
-            if (row.IsCounterfeit && ReportCounterfeit(patron, row)) continue;
+            if (row.IsCounterfeit && ReportCounterfeit(patron, row, inTime)) continue;
             Credit(row);
         }
 
@@ -1065,7 +1065,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 못 봐주면 사이가 상한다.
     /// </remarks>
     /// <returns>이 발견물의 사례를 건너뛰어야 하면 true.</returns>
-    private bool ReportCounterfeit(Patron patron, DiscoveryTable.Record row)
+    private bool ReportCounterfeit(Patron patron, DiscoveryTable.Record row, bool inTime)
     {
         var sponsorRow = _game.Sponsors?.FindByName(patron.Name);
         int luck = _player.AbilityOf(Ability.Luck);
@@ -1095,7 +1095,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             return true;
         }
 
-        if (Palace.CounterfeitForgiven(_player.ClosenessOf(patron.Name), luck, _random))
+        // 봐 줄 여지가 생기는 조건이 둘 더 있다(0x00412490) — <b>후원자 성미 칸 4 가 0 보다 크고</b>,
+        // <b>계약 기한이 아직 남아 있어야</b> 한다. 기한을 넘겼으면 모조품은 절대 안 봐 준다.
+        bool mayForgive = inTime && SponsorFortune(sponsorRow)[Palace.MercyFortune] > 0;
+
+        if (mayForgive && Palace.CounterfeitForgiven(_player.ClosenessOf(patron.Name), luck, _random))
         {
             // 0x004123FA — 봐줄 때의 말투 셋(0x00530BC8 벌).
             TalkDialog.Say(_view, FaceOf(patron), "", Pick3(
