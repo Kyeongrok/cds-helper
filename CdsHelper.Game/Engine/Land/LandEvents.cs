@@ -133,7 +133,9 @@ public static class LandEvents
     /// <summary>마주친 것.</summary>
     /// <param name="Name">이름 — 「늑대」 · 「독사」.</param>
     /// <param name="Venomous">독충인지. 지면 죽는 사람 수가 다르다.</param>
-    public readonly record struct Meeting(string Name, bool Venomous);
+    /// <param name="Span">앗아 가는 사람 수의 굴림 폭.</param>
+    /// <param name="Base">그 밑값 — 사람 수는 <c>Base + rand(Span)</c> 이다.</param>
+    public readonly record struct Meeting(string Name, bool Venomous, int Span, int Base);
 
     /// <summary>한 판의 끝.</summary>
     /// <param name="Won">이겼거나 잘 도망쳤으면 참.</param>
@@ -156,15 +158,21 @@ public static class LandEvents
     /// (<see cref="Table.TerrainTable.ClassOfCell"/>).
     /// </remarks>
     /// <param name="ground">지금 선 자리의 지형 부류. 모르면 -1 을 준다.</param>
-    public static Meeting? Meet(GameRandom dice, int ground, IReadOnlyList<int> here)
+    public static Meeting? Meet(GameRandom dice, int ground, double lat, double lon)
     {
-        if (ground == BeastGround && dice.Next(BeastOdds) == 0)
-            return new Meeting(BeastAt(here, dice), Venomous: false);
-
+        // 독충이 짐승보다 먼저다(0x00427828 → 0x00427A1F).
         if (ground == VerminGround && dice.Next(VerminOdds) == 0)
-            return new Meeting(Vermin[dice.Next(Vermin.Length)], true);
+        {
+            int kind = dice.Next(Vermin.Length);
+            return new Meeting(Vermin[kind], true, kind == 0 ? 5 : 3, 3);
+        }
 
-        return null;
+        if (ground != BeastGround || dice.Next(BeastOdds) != 0) return null;
+
+        int beast = BeastAt(lat, lon, dice);
+        // 어느 네모에도 안 걸리면 <b>아무 일도 안 일어난다</b>(0x00427AE8 의 edi == 6).
+        return beast < 0 ? null
+             : new Meeting(Beasts[beast], false, BeastSpan[beast], BeastBase[beast]);
     }
 
     /// <summary>
@@ -181,21 +189,22 @@ public static class LandEvents
     /// <b>우리는 아직 그 자리 값을 안 들고 다닌다</b> — 걸을 때 위·경도를 재는 자리가
     /// 따로 없어서, 지금은 늑대로만 낸다. 자리를 넘겨 주면 표대로 갈린다.
     /// </remarks>
-    private static string BeastAt(IReadOnlyList<int> here, GameRandom dice)
+    private static int BeastAt(double lat, double lon, GameRandom dice)
     {
-        if (here.Count < 2) return Beasts[^1];        // 늑대
-
-        int lon = here[0], lat = here[1];
-
-        if (lon is >= 0x0458 and <= 0x3416 && lat is >= 0x08AF and <= 0x208E)
-            return Beasts[dice.Next(2)];
-        if (lon is >= 0x2710 and <= 0x411B && lat is >= 0x208E and <= 0x411A)
-            return Beasts[2 + dice.Next(2)];
-        // 셋째 네모(코끼리 쪽)는 아직 못 짚었다 — 읽어 낸 두 끝이 서로 어긋난다
-        // (0x00427AC2 의 0x4E20 과 0x4572). 다시 뜯을 때까지 늑대로 둔다.
-
-        return Beasts[^1];
+        if (lon >= -170 && lon <= -60 && lat >= 15 && lat <= 70) return dice.Next(2);        // 코요테 · 퓨마
+        if (lon >= -90 && lon <= -30 && lat >= -60 && lat <= 15) return 1 + dice.Next(2);    // 퓨마 · 쟈가
+        // 셋째 네모(사자)는 <b>경도 조건이 서로 어긋나</b> 절대 안 걸린다(0x00427AC2) —
+        // 원본 데이터의 흠이라 사자는 게임 안에서 한 번도 안 나온다.
+        if (lon >= 65 && lon <= 120 && lat >= 15 && lat <= 35) return 4;                     // 코끼리
+        if (lon >= -20 && lat >= 35 && lat <= 75) return 5;                                  // 늑대
+        return -1;
     }
+
+    /// <summary>짐승·독충마다 앗아 가는 사람 수의 밑값(<c>0x0053C3D0</c>).</summary>
+    private static readonly int[] BeastBase = [5, 12, 10, 13, 15, 20];
+
+    /// <summary>그 위에 굴리는 폭(<c>0x0053C3F0</c>).</summary>
+    private static readonly int[] BeastSpan = [3, 3, 6, 3, 3, 5];
 
     /// <summary>
     /// 싸운다 — 무력과 검·포·사격 세 기능으로 가린다.
@@ -310,11 +319,10 @@ public static class LandEvents
     ];
 
     /// <summary>죽는 대원 수 — 독사가 더 사납다(<c>0x0042796D</c>).</summary>
-    private static int Kill(Player player, in Meeting met, GameRandom dice)
-    {
-        int dead = dice.Next(met.Venomous ? 5 : 3) + 3;
-        dead = Math.Min(dead, player.Crew);
-        player.AddCrew(-dead);
-        return dead;
-    }
+    /// <summary>
+    /// 앗아 가는 사람 수 — <c>밑값 + rand(폭)</c>. <b>선원을 여기서 줄이지 않는다</b> —
+    /// 의학으로 더러 돌아오므로 부르는 쪽(<c>0x00426DA0</c> 자리)이 셈한다.
+    /// </summary>
+    private static int Kill(Player player, in Meeting met, GameRandom dice) =>
+        Math.Min(met.Base + dice.Next(Math.Max(1, met.Span)), player.Crew);
 }
