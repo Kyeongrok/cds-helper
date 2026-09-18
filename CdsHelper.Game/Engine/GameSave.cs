@@ -183,7 +183,8 @@ public static class GameSave
         Dictionary<int, int>? CityBuildings = null, Dictionary<int, int>? NationStatus = null,
         List<int>? GiftedBarmaids = null, List<int>? RefusedBarmaids = null,
         int? Laps = null, Dictionary<string, int>? Purses = null,
-        List<int>? Hidden = null);
+        List<int>? Hidden = null,
+        List<Player.Trace>? Traces = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -280,7 +281,8 @@ public static class GameSave
                             // 후원자 지갑. 이 칸 앞의 세이브는 재력 가득으로 연다.
                             Purses: player.Purses.ToDictionary(e => e.Key, e => e.Value),
                             // 감찰관을 매수해 숨겨 둔 발견물.
-                            Hidden: [.. player.HiddenDiscoveries]);
+                            Hidden: [.. player.HiddenDiscoveries],
+                            Traces: [.. player.Traces]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

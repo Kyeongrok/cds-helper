@@ -2203,6 +2203,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.Laps = saved.Laps ?? 0;
             _game.Player.RestorePurses(saved.Purses);
             _game.Player.RestoreHidden(saved.Hidden);
+            _game.Player.RestoreTraces(saved.Traces);
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
             _game.Player.RestoreAnnouncedDates(saved.AnnouncedOn, saved.AnnouncedYears);
@@ -2854,6 +2855,10 @@ public sealed class ShipMapWindow : Window
             if (!PassGate(city, name, byLand: _host.IsOnLand)) return;
 
             _host.EnterPort(name);
+
+            // 행적에 적는다(0x00468A01, 갈래 1) — 은퇴하면 이 줄들이 누적 캐릭터의 발자취가 된다.
+            _game.Player.Note(Player.TraceArrival, city, _game.Player.Nation);
+
             inCity = ShowCityPicture(city, name);
         }
         finally
