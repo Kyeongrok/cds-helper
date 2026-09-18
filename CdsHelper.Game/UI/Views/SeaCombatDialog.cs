@@ -706,7 +706,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
             case Outcome.Won:
                 _sfx?.Play(WinPart);
                 Wait(Tick * WinTicks);
-                Say(_battle.WonWord(_foe.Name));
+                // 괴물은 문구가 따로다(0x004352DC).
+                Say(_battle.Monster ? _battle.MonsterWonWord() : _battle.WonWord(_foe.Name));
                 ConfirmDialog.Tell(this, _battle.BeatenWord(), BattleTitle, _foeFace);
                 WriteBack(Result);
                 _settle?.Invoke(this, report);

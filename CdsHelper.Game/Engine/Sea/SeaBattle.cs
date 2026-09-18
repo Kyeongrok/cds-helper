@@ -1642,6 +1642,19 @@ public sealed class SeaBattle
         _ => "상대를 잘못 만났군. 죽어라!",
     };
 
+    /// <summary>
+    /// <b>괴물</b>을 퇴치했을 때의 다섯 벌(<c>0x004352DC</c>, <c>0x0056A4B8</c>~).
+    /// </summary>
+    /// <remarks>여느 함대를 꺾었을 때(<see cref="WonWord"/>)와 문구가 아주 다르다.</remarks>
+    public string MonsterWonWord() => _rng.Next(5) switch
+    {
+        0 => "해냈습니다! 괴물을 퇴치했습니다!",
+        1 => "해냈다! 괴물을 퇴치했습니다.",
+        2 => "꼴 좋군, 괴물!",
+        3 => "알겠느냐, 우리들의 실력을!",
+        _ => "우리들의 적이 아니였던 것 같군.",
+    };
+
     /// <summary>적 기함을 꺾었을 때 부관의 다섯 벌(<c>0x0056A558</c>~).</summary>
     public string WonWord(string foe) => _rng.Next(5) switch
     {
