@@ -277,6 +277,21 @@ public static class Standoff
     public const string TalkWonNews = "교섭에 성공했습니다. {0}에 들어갈 수 있습니다";
 
     /// <summary>
+    /// <b>공략</b> 결과(<c>0x004689BA</c> · <c>0x00468A17</c>) — 교섭과 문구가 다르다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   이김   0x00551C28 (부관) · 0x00551C58 (부관 없음)
+    ///   물러남 0x00551C90 (부관) · 0x00551CB8 (부관 없음)
+    /// </code>
+    /// 마을 이름이 안 들어간다 — 교섭 문구와 달리 서식 자리가 없다.
+    /// </remarks>
+    public const string RaidWonWord = "제독, 이것으로 마을에 들어갈 수 있습니다.";
+    public const string RaidWonNews = "마을을 공략했습니다. 이것으로 마을에 들어갈 수 있습니다";
+    public const string RaidLostWord = "만만치 않군요. 제독, 일단 퇴각합시다.";
+    public const string RaidLostNews = "공략에 실패했습니다";
+
+    /// <summary>
     /// 어그러졌을 때(<c>0x00552130</c> · <c>0x00552158</c>). 이것도 <b>하나만</b> 나온다.
     /// </summary>
     public const string TalkLostWord = "교섭할 수 없군요. 제독, 어떻게 할까요?";
