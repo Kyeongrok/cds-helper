@@ -943,8 +943,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///   0x0052F970  「%d년 %d월, %s%s 역사 최초로 세계일주를 달성했다!」
     ///   0x0052F9A8  「… 기한은 넘었지만 역사 최초로 …」
     /// </code>
-    /// 게임은 이 다음에 <b>엔딩</b>으로 넘어간다(<c>0x004A2180(1,-1,-1)</c>) — 그 자리는 아직 안 옮겼다.
-    /// 남이 먼저 발표했을 때의 짧은 벌(<c>0x0052F9F0</c> · <c>0x0052FA18</c>)도 우리 쪽에는 안 걸린다.
+    /// 그러고 나서 <b>엔딩 동영상</b>을 튼다(<c>0x00411133</c> → <c>0x0045B8F0</c> 이
+    /// <c>AVI\END.AVI</c> 를 <c>0x0045B820(path, 5, 0)</c> 으로 튼다). 판은 <b>안 끝난다</b> —
+    /// 동영상이 지나면 그대로 도시로 돌아간다(<c>0x004A2180</c> 은 끝내기가 아니라 화면 전환이다).
+    /// 남이 먼저 발표했을 때의 짧은 벌(<c>0x0052F9F0</c> · <c>0x0052FA18</c>)은 우리 쪽에는 안 걸린다.
     /// </remarks>
     private void WorldFinale(Patron patron, bool inTime, Func<string, string, string, string> Pick3)
     {
@@ -958,6 +960,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         GameDialog.Show(_view, inTime
             ? $"{on.Year}년 {on.Month}월, {me}{GameUi.Josa(me, "은", "는")} 역사 최초로 세계일주를 달성했다!"
             : $"{on.Year}년 {on.Month}월, {me}{GameUi.Josa(me, "은", "는")} 기한은 넘었지만 역사 최초로 세계일주를 달성했다!");
+
+        // 엔딩 동영상(0x0045B8F0). 파일이 없으면 조용히 넘어간다.
+        MoviePlayer.Play(_view, MovieFiles.Resolve(_game.Directory, MovieFiles.EndingStem));
     }
 
     /// <summary>
