@@ -1269,6 +1269,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         void Say(string words) => TalkDialog.Say(_view, face, "", words);
         void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
 
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
         _cityMenu.Close();
         bool over = false;
         _game.Bgm.Play(BgmPlayer.SponsorTrack);
@@ -1278,7 +1281,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                 ? $"아니, {me}님. {shown} {sir}에게 볼 일이시라면 안내하겠습니다만."
                 : $"너는, {me}... 용케도 얼굴을 내밀었군. 그 배짱을 보아 {shown} {sir}{GameUi.Josa(sir, "을", "를")} 만나게 해 주지.");
             Steward($"{sir}. {me}{GameUi.Josa(me, "이", "가")} 왔습니다. 조금 전의 계약을 없었던 일로 하자고 합니다만...");
-            Say(inTime ? "후~, 계약을 파기하리라고는." : "사람을 기다리게 해 놓구선... 장난을 치다니!");
+            // 0x0054B990 · 0x0054B998 · 0x0054B9A8 (기한 안) / 0x0054B9C8 · 0x0054B9E8 · 0x0054BA30 (늦음)
+            Say(inTime
+                ? Pick3("그래...", "그렇습니까...", "후~, 계약을 파기하리라고는.")
+                : Pick3("기한을 넘은데다 그 꼴이라니...",
+                        "그런 건방진. 기한을 지키지도 못한데다 약속을 없었던 일로 하자니...",
+                        "사람을 기다리게 해 놓구선... 장난을 치다니!"));
 
             int[] fortune = SponsorFortune(sponsor);
             int kindness = fortune[4];
@@ -1294,9 +1302,14 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                 return;
             }
 
+            // 0x0054BCD8 · 0x0054BD50 · 0x0054BDC8 (기한 안) / 0x0054BE30 · 0x0054BEB8 · 0x0054BF38 (늦음)
             Say(inTime
-                ? "안됐지만, 싫다는 자를 억지로 보내서 좋을 일은 없지. 좋다. 계약은 없었던 일로 하지.\n그건 그렇고, 감찰관은 어디에 있나?"
-                : "어쩔 수 없다. 너같이 무능한 자에게 맡긴 내가 어리석었다. 좋다. 계약은 없었던 일로 하지.\n그런데 자네에게 붙인 감찰관은 어디에 있는가?");
+                ? Pick3("안됐지만, 싫다는 자를 억지로 보내서 좋을 일은 없지. 좋다. 계약은 없었던 일로 하지.\n그건 그렇고, 감찰관은 어디에 있나?",
+                        "안됐군요. 무리하게 보내서는 성과도 없을테니 이 계약은 없었던 일로 하지요.\n그런데 동행한 감찰관이 없는 듯 합니다만.",
+                        "그래.... 싫은가. 안됐군. 어쩔 수 없다. 계약은 없었던 일로 하지.\n응? 감찰관의 모습이 보이지 않는데...")
+                : Pick3("어쩔 수 없다. 너같이 무능한 자에게 맡긴 내가 어리석었다. 좋다. 계약은 없었던 일로 하지.\n그런데 자네에게 붙인 감찰관은 어디에 있는가?",
+                        "어쩔 수 없군요. 당신에게 부탁한 제가 어리석었습니다. 이 계약은 없었던 일로 하지요.\n그런데 당신에게 붙인 감찰관이 없군요.",
+                        "그렇게 무능하리라고는... 나도 보는 눈이 없어졌나 보군 후~, 어쩔 수 없군. 계약일은 잊어버려 주지\n응? 감찰관은 어떻게 됐나?"));
             string word = ChoiceDialog.Pick(_view, "", ["병에 걸려 죽었다", "도망쳤다"]) == 1 ? "도망쳤다" : "죽었다";
 
             if (dice.Next(inTime ? 120 : 150) > mind + 1)
@@ -1318,11 +1331,19 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             }
 
             int penalty = (sponsor?.Eye ?? 50) * (kindness + 1) * 1000;
-            Say($"그래... 그건 어쩔 수 없군. 그럼 위약금으로 금화 {penalty}닢을 받겠다.");
+            // 0x0054BFE0 · 0x0054C020 · 0x0054C068
+            Say(string.Format(Pick3(
+                "그래... 그건 어쩔 수 없군. 그럼 위약금으로 금화 {0}닢을 받겠다.",
+                "그렇습니까... 어쩔 수 없군요. 그럼 금화 {0}닢을 위약금으로 받겠습니다.",
+                "뭐...그게 정말인가. 흐~음, 그렇다면 하는 수 없군. 그럼 위약금은 금화 {0}닢이다. 이것으로 계약일은 잊어버리지."), penalty));
             if (!_player.Pay(penalty))
             {
                 GameDialog.Show(_view, "위약금을 지불할 수 없습니다!");
-                Say("이 바보 같은 녀석!");
+                // 0x0054B4A8 · 0x0054B4C8 · 0x0054B430 — 감옥에 넣으라는 말도 세 벌이다.
+                Say(Pick3("이 놈을 감옥에 쳐 넣어라!",
+                          "이 놈을 감옥에 넣어라.",
+                          "뭐라고, 위약금도 지불할 수 없다고! 음~, 어처구니없어 말도 안나오는군. "
+                        + "누구라도 좋으니, 이 놈을 감옥에 가둬 두어라."));
                 over = Jail(patron, dice);
                 return;
             }
