@@ -326,13 +326,6 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     {
         var owner = Owner;
 
-        // 저주받은 것을 달고 있으면 갈아 낼 수가 없다.
-        if (Figureheads.Cursed(ship.Figurehead))
-        {
-            Say($"안됐지만, 자네가 지금 달고 있는 선수상은 저주받아 풀 수가 없네. {NameOf(ship.Figurehead)}");
-            return;
-        }
-
         // 재고가 앞, 지닌 것이 뒤다 — 게임도 그 차례로 잇는다.
         var stock = Stock();
         var carried = Carried().Where(i => !stock.Contains(i)).ToList();
@@ -348,6 +341,18 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         int pick = offer[at];
         bool buying = at < stock.Count;
         int cost = CostOf(pick, buying);
+
+        // 저주받은 것을 달고 있으면 <b>그 짝만</b> 갈아 낼 수 있다(0x00495ED4).
+        if (Figureheads.Cursed(ship.Figurehead))
+        {
+            if (pick != Figureheads.CureFor(ship.Figurehead))
+            {
+                Say("안됐지만, 자네가 지금 달고 있는 선수상은 저주받아 풀 수가 없네. "
+                  + Figureheads.CureHint(ship.Figurehead));
+                return;
+            }
+            Say($"이 선수상이라면 자네가 지금 달고 있는 [{NameOf(ship.Figurehead)}]의 저주도 푸는 것이 가능하다네.");
+        }
 
         if (ship.Figurehead >= 0
             && !Ask("지금 붙어있는 선수상은 놓아 가고 가는가?")) return;

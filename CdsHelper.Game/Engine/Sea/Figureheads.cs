@@ -17,7 +17,7 @@
 /// <c>[배+0x5C] % 4</c> 를 제 번호와 견주고, 맞으면 <c>등급*30-20 >= rand(100)</c> 으로 막는다.
 ///
 /// <b>등급 0 은 저주받은 것</b>이다(사신상 · 마왕상). 확률이 <c>-20</c> 이라 아무것도 못
-/// 막으면서 삯만 서른 배다 — 게임도 <c>0x00531CC0</c> 에서 "저주받아 풀 수가 없네" 한다.
+/// 막으면서 삯만 서른 배다 — <b>다만 짝이 맞는 것 하나로는 풀린다</b>(<see cref="CureFor"/>).
 ///
 /// 조선소가 <b>파는 것이 아니다</b>. 어디선가 얻어 지닌 것을 달아 줄 뿐이다
 /// (<c>0x00495CF0</c> 이 소지품에서 갈래 6 을 찾는다).
@@ -68,6 +68,26 @@ public static class Figureheads
 
     /// <summary>저주받았는지 — 등급 0 이다.</summary>
     public static bool Cursed(int index) => GradeOf(index) == 0;
+
+    /// <summary>저주받은 둘과 그 저주를 푸는 짝(<c>0x00495ED4</c>).</summary>
+    /// <remarks>
+    /// <code>
+    ///   34 사신(0x22)  ←  20 천사(0x14)
+    ///   35 마왕(0x23)  ←  26 여신(0x1A)
+    /// </code>
+    /// 그 짝을 골라야만 갈아 낼 수 있다 — 다른 것을 고르면 「저주받아 풀 수가 없네」다.
+    /// </remarks>
+    public const int DeathGod = 34, Demon = 35, Angel = 20, Goddess = 26;
+
+    /// <summary>그 저주를 푸는 선수상. 저주받은 것이 아니면 −1.</summary>
+    public static int CureFor(int worn) =>
+        worn == DeathGod ? Angel : worn == Demon ? Goddess : -1;
+
+    /// <summary>
+    /// 못 푼다고 이를 때 뒤에 붙는 귀띔(<c>0x00531D08</c> · <c>0x00531D20</c>).
+    /// </summary>
+    public static string CureHint(int worn) =>
+        worn == DeathGod ? "[천사]의 힘이 필요하다." : "[여신]의 가호가 필요하다.";
 
     /// <summary>
     /// 그 문화권의 조선소가 <b>늘 갖춰 두는</b> 선수상들.
