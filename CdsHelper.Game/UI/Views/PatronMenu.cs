@@ -727,14 +727,13 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             // 알린 것마다 명성이 오른다. 항구 발표(보수/70)와 셈이 다르다 — 보고는
             // 보수/50 이고 늦으면 그 반이다(0x004111D0).
             int up = Palace.FameFor(row, inTime, KnownByOthers);
-            if (up > 0)
-            {
-                _player.Fame += up;
-                GameDialog.Show(_view, $"명성이 {up} 올라갔다!");
-                // 명성이 오른 때만 함께 딸려 온다 — 항구 발표와 같은 두 줄이다(0x0041156A).
-                Harbor.Celebrate(_player);
-            }
+            _player.Fame += up;
+            if (up > 0) GameDialog.Show(_view, $"명성이 {up} 올라갔다!");
             fame += up;
+
+            // 보고한 발견물마다 <b>늘</b> 딸려 온다 — 항구 발표와 같은 두 줄이고(0x0041156A ·
+            // 0x00411576), 명성을 건너뛰는 가지도 이 앞으로 합쳐지므로 안 걸러진다.
+            Harbor.Celebrate(_player);
         }
 
         foreach (var row in rows)
