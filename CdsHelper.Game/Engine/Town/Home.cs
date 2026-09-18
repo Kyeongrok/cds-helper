@@ -106,7 +106,8 @@ public static class Home
         var child = new Player.Child(name, daughter.Value, due, abilities,
                                      new int[Skill.Names.Length], new int[Skill.Languages.Length],
                                      Blood: BloodOf(father.Blood, wifeBlood, random),
-                                     Face: ChildFaces[random.Next(2) + (daughter.Value ? 2 : 0)][0]);
+                                     Face: ChildFaces[random.Next(2) + (daughter.Value ? 2 : 0)][0],
+                                     GrownFace: father.Face);
         return Bless(father, random, child);
     }
 
@@ -133,6 +134,7 @@ public static class Home
     public const int FaceYearsPerStep = 5, FaceSteps = 3;
 
     /// <summary>아들이 표를 떠나 제 얼굴을 쓰는 나이(<c>0x0047D726</c> 의 <c>cmp 0xF</c>).</summary>
+    /// <remarks>그 얼굴은 태어날 때 받아 둔 <b>아버지 얼굴</b>이다(<c>0x00460F88</c>).</remarks>
     public const int GrownSonAge = 15;
 
     /// <summary>
@@ -140,11 +142,13 @@ public static class Home
     /// </summary>
     public static int FaceOf(Player.Child child, int age)
     {
+        // 열다섯 넘은 아들은 표를 떠나 아버지 얼굴을 쓴다(0x0047D726).
+        if (!child.Daughter && age >= GrownSonAge && child.GrownFace >= 0) return child.GrownFace;
+
         if (child.Face < 0) return -1;
         int row = Array.FindIndex(ChildFaces, r => r[0] == child.Face);
         if (row < 0) return child.Face;
 
-        // 열다섯 넘은 아들은 표를 떠난다 — 우리는 아직 그 얼굴이 없어 마지막 칸을 그대로 쓴다.
         int step = Math.Clamp(age / FaceYearsPerStep, 0, FaceSteps - 1);
         return ChildFaces[row][step];
     }
