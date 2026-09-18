@@ -4543,7 +4543,9 @@ public sealed class ShipMapWindow : Window
         }
 
         int want = Encounter.Demand(foe);
-        if (!ConfirmDialog.Ask(this, Encounter.DemandWord(want, rng), "교섭", face: face))
+        // 액수는 부관이 이르고(0x00455A7B), 낼지는 얼굴 없는 상자가 따로 묻는다(0x00455A8F).
+        ConfirmDialog.Tell(this, Encounter.DemandWord(want, rng), "교섭", face: face);
+        if (!ConfirmDialog.Ask(this, Encounter.PayDemandAsk, "교섭"))
         {
             ConfirmDialog.Tell(this, Encounter.TalkFailedWord(rng), "교섭", face: face);
             return false;

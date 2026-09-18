@@ -224,6 +224,16 @@ public static class Encounter
 
     public static string NoWordsWord(Random rng) => One(NoWords, rng);
     public static string DemandWord(int gold, Random rng) => string.Format(One(Demands, rng), gold);
+
+    /// <summary>
+    /// 요구액을 알린 <b>다음에</b> 따로 뜨는 예·아니오 물음(<c>0x0055FC70</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 창을 둘 낸다 — 부관이 <see cref="DemandWord"/> 로 액수를 이르고
+    /// (<c>0x00455A7B</c>), 그다음 <b>얼굴 없는 상자</b>가 이 말로 묻는다
+    /// (<c>0x00455A8F</c> 의 <c>0x0049E3E0(2, …)</c>).
+    /// </remarks>
+    public const string PayDemandAsk = "계속해 오는 그들의 요구액을 지불하겠습니까?";
     public static string TooPoorWord(Random rng) => One(TooPoor, rng);
     public static string PaidWord(Random rng) => One(Paid, rng);
     public static string TalkFailedWord(Random rng) => One(TalkFailed, rng);
