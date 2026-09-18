@@ -1792,6 +1792,31 @@ public sealed class Player
         return true;
     }
 
+    /// <summary>
+    /// 빌린 배를 모두 거둬 간다(<c>0x0040FE40</c>) — 계약이 끝나는 자리마다 돈다.
+    /// </summary>
+    /// <remarks>
+    /// 함대에 편입해 둔 것도, 항구에 대 놓은 것도 다 가져간다. <b>남는 배가 없어도 거둬 간다</b> —
+    /// 게임은 그때 짐을 대신 팔아 준다(부르는 쪽이 한다).
+    /// </remarks>
+    /// <returns>거둬 간 척수.</returns>
+    public int TakeBackLentShips()
+    {
+        int taken = 0;
+        for (int i = _ships.Count - 1; i >= 0; i--)
+            if (_ships[i].Lent) { RemoveShip(i); taken++; }
+
+        foreach (var (city, list) in _docked)
+            taken += list.RemoveAll(s => s.Lent);
+        foreach (int city in _docked.Where(e => e.Value.Count == 0).Select(e => e.Key).ToList())
+            _docked.Remove(city);
+
+        return taken;
+    }
+
+    /// <summary>실어 둔 짐을 몽땅 내린다 — 빌린 배를 다 돌려주고 배가 없을 때다.</summary>
+    public void DropAllCargo() => _cargo.Clear();
+
     /// <summary>함대에서 한 척을 뺀다. 기함 자리가 밀리지 않게 같이 손본다.</summary>
     private void RemoveShip(int index)
     {
@@ -2369,7 +2394,7 @@ public sealed class Player
     ///
     /// <b>함대에 곧장 들어가지 않는다.</b> 항구에 「대출 · 계류」로 대 놓일 뿐이라, 쓰려면
     /// 함대편성 → 선박 편입을 해야 한다. 그래서 맡긴 배와 같은 자리에 넣는다.
-    /// <b>돌려주는 자리는 아직 없다.</b>
+    /// 계약이 끝나면 <see cref="TakeBackLentShips"/> 가 거둬 간다.
     /// </remarks>
     /// <returns>그 마을이 더 못 맡으면 false.</returns>
     public bool Give(Hull hull, int cityId, string? name = null)

@@ -170,6 +170,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         _player.Endear(deal.Sponsor, -50);
         _player.Betray(deal.Sponsor, deal.City, deal.DueOn);
+        ReturnLentShips();
         _player.EndContract();
         return true;
     }
@@ -412,10 +413,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 화면에서 본 것은 셋째 벌이라 그것을 쓴다 — 계약금 13,500닢에 1척이 나왔고
     /// <c>13500 / 60000 + 1 = 1</c> 로 셈이 맞는다.
     ///
-    /// <b>못 옮긴 것 셋.</b> 스폰서마다 항구에 세워 둔 배 무리가 우리 쪽에 없어 가운데
-    /// 상한을 뺐고, 선체도 고를 데가 없어 제일 싼 것으로 세운다. 그리고 <b>돌려주는 자리가
-    /// 아직 없다</b> — 게임은 계약이 끝나면 거둬 가며 「스폰서에게 배를 반환했습니다」
-    /// (<c>0x0055C2B0</c>) 를 내는데, 우리 쪽에서는 그냥 내 배로 남는다.
+    /// <b>못 옮긴 것 둘.</b> 스폰서마다 항구에 세워 둔 배 무리가 우리 쪽에 없어 가운데
+    /// 상한을 뺐고, 선체도 고를 데가 없어 제일 싼 것으로 세운다.
+    /// 계약이 끝나면 <see cref="ReturnLentShips"/> 가 거둬 간다(<c>0x0040FE40</c>) — 다만
+    /// 후원자 나라가 멸망해 바다에서 계약이 깨질 때는 아직 안 거둔다(그 자리는 도시 밖이다).
     /// </remarks>
     private void LendShips(int funds, Action<string> Say)
     {
@@ -848,6 +849,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (world) WorldRemark(patron, inTime); else Remark(patron, grade, inTime, paid);
 
         _player.Earn(paid);
+        // 계약이 끝나면 빌린 배를 거둬 간다(0x0040FE40).
+        ReturnLentShips();
         _player.EndContract();
         return (paid, grade);
     }
@@ -1163,6 +1166,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (!forgiven)
         {
             Say("후~... 계약을 파기하리라고는.");
+            ReturnLentShips();
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
                                   "가까이 하지 않는 것이 좋을 것 같군요.");
@@ -1179,6 +1183,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         {
             GameDialog.Show(_view, "위약금을 지불할 수 없습니다!");
             Say("바보같은, 위약금을 지불할 수 없다고! 어디까지 어리석은...");
+            ReturnLentShips();
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
                                   "가까이 하지 않는 것이 좋을 것 같군요.");
@@ -1186,6 +1191,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             return;
         }
 
+        ReturnLentShips();
         _player.EndContract();
         GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 물었다.");
         RecontractMates();
@@ -1411,6 +1417,44 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             TalkDialog.Say(_view, face, "", "또 일이 있으면 불러 주십시오!");
         }
     }
+
+    /// <summary>
+    /// 계약이 끝나 <b>빌린 배를 거둬 간다</b>(<c>0x0040FE40</c>) — 보고로 끝나든 파기로 끝나든 돈다.
+    /// </summary>
+    /// <remarks>
+    /// 배가 한 척도 안 남으면 짐을 대신 팔아 준다 — <b>그 도시 매각가의 절반</b>이다
+    /// (<see cref="Palace.DistressPrice"/>).
+    /// </remarks>
+    private void ReturnLentShips()
+    {
+        if (_player.TakeBackLentShips() == 0) return;
+
+        if (_player.Ships.Count > 0)
+        {
+            GameDialog.Show(_view, Palace.ShipsReturned);
+            return;
+        }
+
+        if (_player.CargoHold.Count == 0)
+        {
+            GameDialog.Show(_view, Palace.ShipsReturned);
+            return;
+        }
+
+        _tradePost ??= _game.Trade is { } trade && _game.Goods is { } goods
+            ? new Engine.Market.TradePost(trade, goods, _game.Rates, _game.CityRows, _game.Nations,
+                            _game.Discoveries?.Table)
+            : null;
+        int gold = _tradePost is not { } post ? 0 : _player.CargoHold.Sum(
+            c => c.Count * Palace.DistressPrice(post.SellPrice(_player, _cityId, c.Kind)));
+
+        _player.DropAllCargo();
+        _player.Earn(gold);
+        GameDialog.Show(_view, Palace.ShipsReturnedCargoSold);
+        GameDialog.Show(_view, $"금화 {gold}닢을 손에 넣었다!");
+    }
+
+    private Engine.Market.TradePost? _tradePost;
 
     /// <summary>계약을 깨는 것을 후원자가 눈감아 주는지(<see cref="Palace.Forgiven"/>).</summary>
     private bool Forgiven(Patron patron, bool overdue) =>
