@@ -859,8 +859,9 @@ public sealed class Player
     /// 자택에서 이미 소개했는지. 원본에는 없는 칸이다 — 자택에 갈 때마다 <b>누구를 내보일지</b>
     /// 고르는 규칙(<c>0x004AB980</c>)을 못 짚어서, 여기서는 한 번 알린 아이는 다시 안 낸다.
     /// </param>
+    /// <param name="Blood">혈액형(0 A · 1 B · 2 O · 3 AB) — 아버지와 어머니에게서 받는다(<c>0x00460FA0</c>).</param>
     public sealed record Child(string Name, bool Daughter, DateTime Born, int[] Abilities, int[] Skills,
-                               int[] Tongues, bool Introduced = false)
+                               int[] Tongues, bool Introduced = false, int Blood = 0)
     {
         /// <summary>그 날의 나이. 아직 안 태어났으면 음수다.</summary>
         public int AgeOn(DateTime now) =>

@@ -86,23 +86,123 @@ public static class Home
     ///   기능      아버지가 3 인 것은 3, 아닌 것 가운데 하나를 골라 2 (0x00460F1C)
     ///   언어      아버지가 3 인 것은 3 (0x00460EB8)
     /// </code>
-    /// 게임은 능력치마다 폭을 조금씩 달리하고(칸에 따라 30 · −15), 딸에게 +5, 아내 직업 보정표(<c>0x0051ACA0</c> ·
-    /// <c>0x0051B0A0</c>)를 얹으며, 아내 고향 말도 준다. 뜀표 칸마다의 짝을 다 짚지 못해 밑값 셈만 옮겼다.
+    /// 능력치 폭은 칸마다 다르고(운·신앙심만 <c>rand(30) − 15</c>), 딸이면 체력·무력이 −10, 나머지 넷이 +5 다.
+    /// 거기에 <b>아내 운명 코드 줄</b>(<c>0x0051B0A0</c>, <see cref="Oracle.WifeSlope"/>)이 얹힌다.
     /// </remarks>
-    public static Player.Child Conceive(Player father, Random random, string name)
+    /// <param name="wifeFortune">아내 운명 코드. 모르면 −1 이라 보정이 없다.</param>
+    /// <param name="wifeBlood">아내 혈액형. 모르면 −1 이라 아버지 것만 본다.</param>
+    public static Player.Child Conceive(Player father, Random random, string name,
+                                        int wifeFortune = -1, int wifeBlood = -1)
     {
         bool daughter = father.Children.Count > 0 ? !father.Children[^1].Daughter : random.Next(2) == 0;
 
-        var due = father.Date.AddMonths(10);
-        due = new DateTime(due.Year, due.Month, DateTime.DaysInMonth(due.Year, due.Month));
+        var due = DueDate(father.Date, random);
 
         var abilities = new int[6];
         for (int i = 0; i < abilities.Length; i++)
-            abilities[i] = Math.Clamp(father.AbilityOf(i) + random.Next(20) - 10 + 1, 1, 100);
+            abilities[i] = AbilityOfChild(father.AbilityOf(i), i, daughter, wifeFortune, random);
 
-        return Bless(father, random, new Player.Child(name, daughter, due, abilities,
-                                                      new int[Skill.Names.Length], new int[Skill.Languages.Length]));
+        var child = new Player.Child(name, daughter, due, abilities,
+                                     new int[Skill.Names.Length], new int[Skill.Languages.Length],
+                                     Blood: BloodOf(father.Blood, wifeBlood, random));
+        return Bless(father, random, child);
     }
+
+    /// <summary>능력치 폭과 밑값(<c>0x004610C0</c> 의 칸별 값) — 운·신앙심만 넓다.</summary>
+    private static readonly int[] Spread = [20, 20, 20, 20, 30, 30];
+    private static readonly int[] Floor = [-10, -10, -10, -10, -15, -15];
+
+    /// <summary>딸이면 얹히는 값(<c>0x00461123</c>) — 체력·무력은 오히려 깎인다.</summary>
+    private static readonly int[] DaughterBonus = [-10, 5, -10, 5, 5, 5];
+
+    /// <summary>아이 능력치 한 칸(<c>0x004610C0</c>). 1~100 으로 자른다.</summary>
+    public static int AbilityOfChild(int fathers, int ability, bool daughter, int wifeFortune, Random random)
+    {
+        int value = fathers + random.Next(Spread[ability]) + Floor[ability]
+                    + (daughter ? DaughterBonus[ability] : 0)
+                    + Oracle.WifeSlope(wifeFortune, ability) + 1;
+        return Math.Clamp(value, 1, 100);
+    }
+
+    /// <summary>한 해의 달마다의 날 수(<c>0x004FF940</c>) — 윤년을 안 본다.</summary>
+    private static readonly int[] MonthDays = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    /// <summary>
+    /// 태어나는 날(<c>0x00460CDE</c>) — 열 달 뒤, 날은 <c>rand(31)+1</c> 이 <b>달 길이 이상</b> 나올 때까지 굴린다.
+    /// </summary>
+    /// <remarks>
+    /// 견줌이 뒤집혀 있어(원본의 흠) 실제로는 <b>달 끝 무렵</b>만 나온다 — 2월이면 28~31 이고, 서른 날짜리 달에도
+    /// 31 이 나온다. 그래서 그 달에 없는 날이면 달 끝날로 앉힌다.
+    /// </remarks>
+    public static DateTime DueDate(DateTime today, Random random)
+    {
+        int year = today.Year, month = today.Month + 10;
+        if (month > 12) { month -= 12; year++; }
+
+        int day;
+        do { day = random.Next(31) + 1; } while (day < MonthDays[month]);
+        return new DateTime(year, month, Math.Min(day, DateTime.DaysInMonth(year, month)));
+    }
+
+    /// <summary>
+    /// 아이 혈액형(<c>0x00460FA0</c>) — 0 A · 1 B · 2 O · 3 AB.
+    /// </summary>
+    /// <remarks>
+    /// 부모가 AB 면 한쪽 인자는 A, 다른 쪽은 B 로 보고, 아니면 반반으로 O 를 섞는다. 어머니 쪽 인자를
+    /// <b>반만 굴리는</b> 원본의 흠(굴림이 빗나가면 아버지 값이 그대로 남는다)까지 그대로 옮겼다.
+    /// </remarks>
+    public static int BloodOf(int fathers, int mothers, Random random)
+    {
+        if (fathers is < 0 or > 3) return 0;
+        if (mothers is < 0 or > 3) mothers = fathers;
+
+        int f = fathers == 3 ? 0 : fathers;
+        int altF = fathers == 3 ? 1 : random.Next(2) == 0 ? 2 : fathers;
+        int m = mothers == 3 ? 0 : mothers;
+        int altM = mothers == 3 ? 1 : random.Next(2) == 0 ? 2 : altF;   // 어머니 쪽 굴림이 빗나가면 아버지 값이 남는다
+
+        if (random.Next(2) == 0) f = altF;
+        if (random.Next(2) == 0) m = altM;
+
+        if ((f == 0 && m == 1) || (f == 1 && m == 0)) return 3;
+        if (f == 0 || m == 0) return 0;
+        return f == 1 || m == 1 ? 1 : 2;
+    }
+
+    /// <summary>
+    /// 아이를 가지려 한 뒤 아내가 하는 말 스물하나(<c>0x00414B30</c>). 쉰 살 밑이면 앞 셋은 안 나온다.
+    /// </summary>
+    public static string WifeWord(int age, Random random)
+    {
+        int at = age >= 50 ? random.Next(WifeWords.Length) : random.Next(WifeWords.Length - 3) + 3;
+        return WifeWords[at];
+    }
+
+    /// <summary>그 말들(<c>0x00414B30</c> 표 차례 그대로).</summary>
+    public static readonly string[] WifeWords =
+    [
+        "당신 아직 젊군요.",
+        "괜찮아요. 무리하지 않아도.",
+        "오래간만이에요.",
+        "사랑해요, 당신.",
+        "당신이 없으면 외로우니까, 아이들이 많이 있었으면 해요.",
+        "너무 안 돌아오면 생각 달리 할테니까···농담이에요.",
+        "남자애나 여자애나 어느 쪽이라도 좋으니, 건강한 아이면 좋겠어요.",
+        "언제까지나 함께 있고 싶어요.",
+        "···(화끈)",
+        "후후후.",
+        "싫어요.",
+        "응, 당신은.",
+        "그렇게 쳐다보지 말아요.",
+        "좀더 이쪽으로 와요.",
+        "서두르지 말아요. 밤은 기니까.",
+        "둘이 있을 때가 가장 행복해요.",
+        "나는 여자 아이가 좋아.",
+        "당신은 남자 아이가 좋죠?",
+        "이대로 밤이 새지 않았으면···",
+        "사랑해요.",
+        "당신도 좋아하죠.",
+    ];
 
     /// <summary>기능·언어를 아버지에게서 받는다 — 잉태할 때와, 이름만 있는 옛 세이브 아이를 채울 때 쓴다.</summary>
     public static Player.Child Bless(Player father, Random random, Player.Child child)

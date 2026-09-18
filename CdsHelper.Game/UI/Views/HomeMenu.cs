@@ -135,13 +135,19 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         // 닷새가 간다. 됐든 안 됐든 간다.
         _player.AdvanceDays(Home.HeirDays);
 
+        // 됐든 안 됐든 아내가 한 마디 한다(0x00414B30) — 쉰 살이 넘어야 앞 셋이 나온다.
+        TalkDialog.Say(Owner, null, _player.Spouse, Home.WifeWord(_player.Age, _random));
+
         if (!born)
         {
             GameDialog.Show(Owner, "이번에는 아이가 생기지 않았습니다.");
             return;
         }
 
-        var child = Home.Conceive(_player, _random, HeirName());
+        // 아내의 운명 코드와 혈액형이 아이 능력치·혈액형에 든다(0x00461139 · 0x00460FA0).
+        var wife = _player.SpouseId >= 0 ? _game.Barmaids?.Find(_player.SpouseId) : null;
+        var child = Home.Conceive(_player, _random, HeirName(),
+                                  wife?.Fortune ?? -1, wife?.Blood ?? -1);
         _player.AddChild(child);
         GameDialog.Show(Owner, $"{_player.Spouse}님이 아이를 가졌습니다. {child.Born:yyyy년 M월}에 태어날 {(child.Daughter ? "딸" : "아들")}의 이름은 {child.Name}입니다!");
     }
