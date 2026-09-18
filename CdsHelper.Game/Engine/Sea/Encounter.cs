@@ -258,17 +258,22 @@ public static class Encounter
     /// </summary>
     /// <remarks>
     /// <code>
-    ///   0x00455B83  eax = (내 값 - 적 값) + 인자 + 100
+    ///   0x00455B77  ecx = [0x005B3954] - 적 값       ; 내 <b>규율</b>
+    ///   0x00455B83  eax = ecx + 인자 + 100
     ///   0x00455B88  eax /= 나눔수
     ///   0x00455B8D  rand(eax) 가 0 이 아니면 성공
     /// </code>
-    /// 두 전역(<c>0x005B3950</c>·<c>0x005B3954</c>)이 무엇인지 아직 못 짚었다 — 꼴로 보아
-    /// 함대 속력이다. 그래서 <b>배의 추진력</b>으로 갈음한다. 셈의 얼개(차 + 100 을 나누어
-    /// 굴린다)는 게임 것 그대로다.
+    /// 두 전역은 <b>내 함대 객체</b>(<c>0x005B3928</c>)의 칸이다 — <c>+0x28</c> 피로도가
+    /// <c>0x005B3950</c>, <c>+0x2C</c> 규율이 <c>0x005B3954</c> 다. 보고가 끝나면 게임이
+    /// 이 둘을 0 · 100 으로 되돌린다(<c>0x0041156A</c> · <c>0x00411576</c>)는 것으로 짚었다.
+    ///
+    /// 그래서 <b>내 값은 규율</b>이다. 적 값은 깃발(<c>edi</c>)에 따라 내 피로도이거나
+    /// 상대 객체가 내는 값인데(<c>0x00455B63</c>), 그 깃발이 무엇인지는 아직 못 짚어
+    /// 적 배 수로 갈음한다. 셈의 얼개(차 + 100 을 나누어 굴린다)는 게임 것 그대로다.
     /// </remarks>
     public static bool Escapes(Player player, in Enemy foe, Random rng)
     {
-        int mine = player.Ships.Count == 0 ? 0 : player.Ships.Max(s => s.Speed);
+        int mine = player.Morale;
         int theirs = foe.Ships * 10;
         int odds = (mine - theirs + 100) / 2;
         return rng.Next(Math.Max(1, odds)) != 0;
