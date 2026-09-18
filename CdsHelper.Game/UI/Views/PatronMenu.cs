@@ -699,9 +699,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     private List<int> LiveHints =>
         _game.Discoveries?.LiveHints(_player) ?? [.. _player.Hints.Order()];
 
-    /// <summary>이 후원자와 이 자리에서 계약 중인지(<c>0x0044E550</c>).</summary>
-    private bool Contracted(Patron patron) =>
-        _player.Contract is { } c && c.Sponsor == patron.Name && c.City == _cityName;
+    /// <summary>
+    /// 이 <b>자리</b>에서 계약 중인지(<c>0x0044E550</c>) — 사람이 바뀌었어도 자리가 같으면 참이다.
+    /// </summary>
+    private bool Contracted(Patron patron) => AtContractSeat(patron);
 
     /// <summary>
     /// 그 후원자에게 보고할 발견물. 계약의 유적 번호를 가진 것 중 발견했고 아직 안 알린 것이다.
@@ -1175,20 +1176,32 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         // 집사가 먼저 알린다. 기한을 넘겼으면 말이 달라진다.
         string me = _player.Name;
-        Say(overdue
-            ? $"{patron.Name}님. {me}{GameUi.Josa(me, "이", "가")} 돌아왔습니다. " +
-              "기한을 넘은 데다, 아무런 성과도 없는 듯 합니다만."
-            : $"{patron.Name}님. {me}{GameUi.Josa(me, "이", "가")} 왔습니다. " +
-              "뭔가, 계약을 파기하고 싶다고 합니다만.");
+        // 계약을 맺은 사람이 은퇴하고 뒷사람이 앉았으면 집사가 <b>선대의 계약</b>이라 이른다
+        // (0x0054B7A0 · 0x0054B7F0) — 주인의 대꾸도 따로 있다(0x0054B860 · 0x0054B878 · 0x0054B8A0).
+        bool handed = contract.Sponsor != patron.Name;
+        Say(handed
+            ? (overdue
+                ? $"{patron.Name}님. {_player.NationName}의 {me}{GameUi.Josa(me, "이", "가")} 왔습니다. "
+                  + "전 주인과 계약을 맺은 모양입니다만, 기한을 넘은 데다 아무런 성과도 없는 듯 합니다만."
+                : $"{patron.Name}님. {_player.NationName}의 {me}{GameUi.Josa(me, "이", "가")} 왔습니다. "
+                  + "뭔가, 전 주인과의 계약을 파기 하고 싶다고 합니다만.")
+            : (overdue
+                ? $"{patron.Name}님. {me}{GameUi.Josa(me, "이", "가")} 돌아왔습니다. "
+                  + "기한을 넘은 데다, 아무런 성과도 없는 듯 합니다만."
+                : $"{patron.Name}님. {me}{GameUi.Josa(me, "이", "가")} 왔습니다. "
+                  + "뭔가, 계약을 파기하고 싶다고 합니다만."));
 
         // 집사 말을 듣고 주인이 먼저 한숨을 짓는다(0x0044F2E0) — 말투 셋 x 기한 둘이다.
+        // 선대의 계약이면 그 자리에 딴 말이 든다(0x0054B860 · 0x0054B878 · 0x0054B8A0).
         // <code>
         //   기한 안  0x0054B6D0 · 0x0054B6E0 · 0x0054B6F0
         //   늦음     0x0054B760 · 0x0054B770 · 0x0054B788
         // </code>
-        Say(overdue
-            ? Pick3(".........", "무슨 일일까요...", "후~, 기대하고 있었건만.")
-            : Pick3("뭐라고...", "뭐라고...", "후~... 계약을 파기하리라고는."));
+        Say(handed
+            ? Pick3("전 주인과 계약....", "아니... 전 주인과의 계약입니까...", "흐~음, 전 주인과의 계약이라니...")
+            : overdue
+                ? Pick3(".........", "무슨 일일까요...", "후~, 기대하고 있었건만.")
+                : Pick3("뭐라고...", "뭐라고...", "후~... 계약을 파기하리라고는."));
 
         bool forgiven = Forgiven(patron, overdue);
         if (!forgiven)
