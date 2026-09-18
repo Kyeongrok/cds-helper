@@ -84,6 +84,33 @@ public static class Home
     /// <summary>아이 말이 갈리는 나이(<c>0x00414571</c> 의 <c>cmp 0xA</c>).</summary>
     public const int GrownChildAge = 10;
 
+    /// <summary>귀가 인사를 하는 나이(<c>0x00414670</c> 의 <c>0x004AB800(성별, 5, 14)</c>).</summary>
+    public const int WelcomeFrom = 5, WelcomeTo = 14;
+
+    /// <summary>
+    /// 그 방문에 인사할 아이 <b>하나</b>를 고른다(<c>0x00414670</c>).
+    /// </summary>
+    /// <remarks>
+    /// 아들과 딸에서 각각 하나씩 뽑고 둘 다 있으면 <c>rand(2)</c> 로 가른다 — <b>둘이 같이
+    /// 말하지 않는다</b>. 이름을 아직 안 지은 아이가 있으면 인사가 통째로 건너뛰어진다.
+    /// </remarks>
+    public static Player.Child? WelcomerOf(Player player, Random random)
+    {
+        if (player.Children.Any(c => c.IsBornBy(player.Date) && !c.Introduced)) return null;
+
+        var able = player.Children
+            .Where(c => c.IsBornBy(player.Date)
+                        && c.AgeOn(player.Date) >= WelcomeFrom && c.AgeOn(player.Date) <= WelcomeTo)
+            .ToList();
+        if (able.Count == 0) return null;
+
+        var son = able.FirstOrDefault(c => !c.Daughter);
+        var girl = able.FirstOrDefault(c => c.Daughter);
+        if (son is null) return girl;
+        if (girl is null) return son;
+        return random.Next(2) == 0 ? girl : son;
+    }
+
     private static readonly string[] YoungBoy =
     [
         "앗, 아버지 돌아오셨어요! 나, 많이 컸죠.",

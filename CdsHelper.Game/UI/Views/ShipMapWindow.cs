@@ -3797,17 +3797,6 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 뭍을 걷다 짐승이나 독충을 마주친다 — 「싸운다 · 도망친다」.
-    /// </summary>
-    /// <remarks>
-    /// 셈은 <see cref="LandEvents"/> 가 다 하고 여기서는 말만 낸다. 문구는 게임
-    /// <c>0x005338E0</c> 덩이에서 그대로 옮겼다 — 짐승은 조사가 하나 더 붙는 서식이라
-    /// (「큰일이다! %s%s다!」) 이름 뒤에 은/는을 넣는다.
-    ///
-    /// 말보다 먼저 덤불 장면(<c>0x0048E820(8)</c>)이 함대 자리에서 돈다 — 독충
-    /// (<c>0x00427866</c>)과 짐승(<c>0x00427B4C</c>)이 같은 8 이다.
-    /// </remarks>
-    /// <summary>
     /// 상륙 차림표의 「보급」(<c>0x0048DC60</c>) — 둘레를 뒤져 물과 먹을 것을 찾는다.
     /// </summary>
     /// <remarks>
@@ -4038,7 +4027,17 @@ public sealed class ShipMapWindow : Window
         if (back > 0) NoticeDialog.Show(this, $"{back}명의 대원이 돌아왔습니다.");
     }
 
-    /// <summary>독충·짐승과 마주친다(<c>0x00427828</c> · <c>0x00427A1F</c>).</summary>
+    /// <summary>
+    /// 뭍을 걷다 짐승이나 독충을 마주친다 — 「싸운다 · 도망친다」.
+    /// </summary>
+    /// <remarks>
+    /// 셈은 <see cref="LandEvents"/> 가 다 하고 여기서는 말만 낸다. 문구는 게임
+    /// <c>0x005338E0</c> 덩이에서 그대로 옮겼다 — 짐승은 조사가 하나 더 붙는 서식이라
+    /// (「큰일이다! %s%s다!」) 이름 뒤에 은/는을 넣는다.
+    ///
+    /// 말보다 먼저 덤불 장면(<c>0x0048E820(8)</c>)이 함대 자리에서 돈다 — 독충
+    /// (<c>0x00427866</c>)과 짐승(<c>0x00427B4C</c>)이 같은 8 이다.
+    /// </remarks>
     private void MeetBeast(GameRandom dice, LandEvents.Meeting met)
     {
 

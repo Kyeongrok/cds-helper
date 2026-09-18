@@ -51,12 +51,10 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
             TalkDialog.Say(owner, null, _player.Spouse,
                            Home.WifeWelcome[_random.Next(Home.WifeWelcome.Length)]);
 
-        foreach (var child in _player.Children)
-        {
-            if (!child.IsBornBy(_player.Date) || !child.Introduced) continue;
-            TalkDialog.Say(owner, ChildFace(child), child.Name,
-                           Home.WelcomeOf(child.Daughter, child.AgeOn(_player.Date), _random));
-        }
+        // 아이는 <b>하나만</b> 인사한다 — 다섯~열넷 살 가운데 굴려 고른다(0x00414670).
+        if (Home.WelcomerOf(_player, _random) is { } welcomer)
+            TalkDialog.Say(owner, ChildFace(welcomer), welcomer.Name,
+                           Home.WelcomeOf(welcomer.Daughter, welcomer.AgeOn(_player.Date), _random));
 
         foreach (var child in Home.NotIntroduced(_player)) Introduce(owner, child);
 
