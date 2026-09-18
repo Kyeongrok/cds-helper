@@ -186,13 +186,18 @@ public sealed class TradePostDialog : GameWindow
         var outcome = _post.Apply(_player, _city, deal);
         if (outcome != TradePost.Outcome.Ok)
         {
+            // 막는 말은 <b>부관이 있으면 「제독, 」이 붙는 두 벌</b>이다(0x00469680).
+            // 품목 수 말의 부관 없는 쪽만 마침표가 없다 — 원본 글 그대로다(0x00532F60).
+            bool mate = _player.MateAt(0).Length > 0;
             Say(outcome switch
             {
                 TradePost.Outcome.Nothing => "담은 것이 없습니다.",
-                TradePost.Outcome.NotEnoughGold => "가난한 사람에게는 볼일 없네!",
-                TradePost.Outcome.HoldFull => "짐용량이 모자랍니다.",
-                TradePost.Outcome.TooHeavy => "짐중량이 모자랍니다.",
-                TradePost.Outcome.NoSlot => "짐 칸이 모자랍니다 — 교역품은 여덟 가지까지 실을 수 있습니다.",
+                TradePost.Outcome.NotEnoughGold => mate ? "제독, 금화가 모자랍니다." : "금화가 모자랍니다.",
+                TradePost.Outcome.HoldFull => mate ? "제독, 실을 장소가 없습니다." : "실을 장소가 없습니다.",
+                TradePost.Outcome.TooHeavy => mate ? "제독, 너무 무거워 배가 가라앉고 맙니다."
+                                                  : "너무 무거워 배가 가라앉고 맙니다.",
+                TradePost.Outcome.NoSlot => mate ? $"제독, 실을 수 있는 것은 {Player.CargoSlots} 품목까지입니다."
+                                                 : $"실을 수 있는 것은 {Player.CargoSlots} 품목까지입니다",
                 _ => "공급량이 모자랍니다.",
             }, true);
             _pct = 100;

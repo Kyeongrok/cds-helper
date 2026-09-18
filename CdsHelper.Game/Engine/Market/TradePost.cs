@@ -287,7 +287,6 @@ public sealed class TradePost
     {
         if (deal.Buys.All(b => b.Count <= 0) && deal.Sells.All(s => s.Count <= 0)) return Outcome.Nothing;
         if (deal.Buys.Any(b => b.Count > b.Row.Supply)) return Outcome.NoSupply;
-        if ((long)player.Gold + GainOf(player, city, deal) < CostOf(deal)) return Outcome.NotEnoughGold;
 
         int count = player.LoadedBarrels, weight = player.LoadedWeight;
         var kinds = player.CargoHold.Select(c => (c.Kind, c.Origin, c.Count)).ToList();
@@ -307,9 +306,12 @@ public sealed class TradePost
             if (!kinds.Any(k => k.Kind == row.Kind && k.Origin == row.Origin))
                 kinds.Add((row.Kind, row.Origin, n));
         }
+        // 막는 차례는 게임(<c>0x00415B11</c>)의 차례 그대로다 — 품목 수 · 무게 · 자리 · 돈이고,
+        // <b>돈이 맨 끝</b>이다. 짐이 안 들어가면 돈은 보지도 않는다.
         if (kinds.Count > Player.CargoSlots) return Outcome.NoSlot;
-        if (count > player.Capacity) return Outcome.HoldFull;
         if (weight > player.Tonnage) return Outcome.TooHeavy;
+        if (count > player.Capacity) return Outcome.HoldFull;
+        if ((long)player.Gold + GainOf(player, city, deal) < CostOf(deal)) return Outcome.NotEnoughGold;
         return Outcome.Ok;
     }
 
