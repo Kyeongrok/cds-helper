@@ -100,11 +100,11 @@ public static class SeaEvents
     /// </summary>
     /// <remarks>
     /// <code>
-    ///   474812  괴혈병  if (rand(120) &lt; 항해술 + 1)  "제독! 모두 약해져 있습니다…"  로 끝
-    ///   4749fa  전염병  if (rand( 60) &lt; 항해술 + 1)  "제독! 이상한 병이 돌고 있습니다…"
+    ///   474812  괴혈병  if (rand(120) &lt; 신앙심 + 1)  "제독! 모두 약해져 있습니다…"  로 끝
+    ///   4749fa  전염병  if (rand( 60) &lt; 신앙심 + 1)  "제독! 이상한 병이 돌고 있습니다…"
     /// </code>
     /// 폭이 좁을수록 귀띔이 잦다 — 그러니 <b>전염병 쪽이 더 자주 미리 잡힌다</b>.
-    /// 항해술이 높을수록 미리 알아채는 것이라, 여기서도 항해술이 배를 지킨다.
+    /// 걸리는 것은 기능이 아니라 <b>신앙심</b>이다(<c>0x005B60D4</c>) — 기도가 통한 셈이다.
     /// </remarks>
     public const int ScurvyNotice = 120, PlagueNotice = 60;
 
@@ -125,6 +125,14 @@ public static class SeaEvents
     public const int MutinyFatigue = 80;
 
     /// <summary>안 일어나게 하는 밑값(<c>add edi, 0x1A</c>).</summary>
+    /// <remarks>
+    /// 게임의 안전 값은 <c>항해술 x 25 + 신앙심 + 26</c> 이다(<c>0x004746A6</c>~<c>0x004746BF</c>).
+    /// 신앙심(<c>0x005B60D4</c>)이 그대로 얹히므로 <b>100 이면 자리 넷과 맞먹는다</b>.
+    ///
+    /// 그리고 항해술은 제독 것만 보지 않는다 — <c>0x0047CCA0(0, 1, -1, -1, -1)</c> 이
+    /// <b>제독과 부하 자리 1</b> 가운데 높은 쪽을 집는다(자리 0 이 아니다). 우리는 부하마다
+    /// 기능을 안 들고 있어 제독 것만 본다.
+    /// </remarks>
     public const int SafeBase = 26;
 
     /// <summary>항해술 한 자리가 더해 주는 안전(<c>edi * 25</c>).</summary>
@@ -152,10 +160,11 @@ public static class SeaEvents
     {
         if (player.DaysAtSea <= MinDaysAtSea) return null;
 
-        int safe = player.LevelOf(SkillName) * SafePerLevel + SafeBase;
+        int safe = player.LevelOf(SkillName) * SafePerLevel
+                   + player.AbilityOf(Ability.Faith) + SafeBase;
         if (safe >= rng.Next(SafeRoll)) return null;
 
-        int sail = player.LevelOf(SkillName);
+        int faith = player.AbilityOf(Ability.Faith);
         int carved = FigureheadOf(player);
 
         // 굴린 갈래의 재해가 이미 서 있으면 그날은 그냥 넘긴다(0x004746DC) — 겹쳐 뜨지 않는다.
@@ -169,13 +178,13 @@ public static class SeaEvents
                     ? null : SeaEventKind.Rats,
 
             // 병 둘은 먼저 귀띔 주사위를 굴린다. 걸리면 그것으로 끝이다.
-            ScurvyKind when rng.Next(ScurvyNotice) < sail + 1 => SeaEventKind.Weakening,
+            ScurvyKind when rng.Next(ScurvyNotice) < faith + 1 => SeaEventKind.Weakening,
             ScurvyKind when player.LevelOf(MedicineSkill) >= MedicineNeeded => null,
             ScurvyKind =>
                 Figureheads.Blocks(carved, Figureheads.GuardsSickness, rng)
                     ? null : SeaEventKind.Scurvy,
 
-            PlagueKind when rng.Next(PlagueNotice) < sail + 1 => SeaEventKind.StrangeIllness,
+            PlagueKind when rng.Next(PlagueNotice) < faith + 1 => SeaEventKind.StrangeIllness,
             PlagueKind =>
                 Figureheads.Blocks(carved, Figureheads.GuardsSickness, rng)
                     ? null : SeaEventKind.Plague,
