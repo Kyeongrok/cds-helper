@@ -267,6 +267,24 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         _menu.Refresh();   // 기함이 바뀌면 줄 켜짐도 다시 잰다
     }
 
+    /// <summary>
+    /// 배를 덜어 내고 나서 짐이 넘치면 알린다(<c>0x0044D590</c>).
+    /// </summary>
+    /// <remarks>
+    /// 셋 가운데 하나다 — 둘 다 넘치면 <c>0x0055AC60</c>, 중량만 <c>0x0055AC88</c>,
+    /// 용량만 <c>0x0055ACA8</c> 이다. <b>막지는 않는다</b> — 알리기만 하고 그대로 둔다.
+    /// 배가 줄면 실을 수 있는 양이 줄어 이런 일이 난다.
+    /// </remarks>
+    private void WarnOverload(Window owner)
+    {
+        bool heavy = _player.LoadedWeight > _player.Tonnage;
+        bool full = _player.LoadedBarrels > _player.Capacity;
+        if (!heavy && !full) return;
+        GameDialog.Show(owner, heavy && full ? "중량도 용량도 한계를 넘고 있습니다!"
+                             : heavy ? "중량이 한계를 넘고 있습니다!"
+                                     : "용량이 한계를 넘고 있습니다!");
+    }
+
     /// <summary>맡겨 둔 배를 함대에 넣는다. 게임의 <c>0x0046A350</c> 자리다.</summary>
     private void TakeShip()
     {
@@ -296,6 +314,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         if (!_player.Dock(at, _cityId))
             GameDialog.Show(owner, "이 이상 삭제할 수 없습니다.");
+        else
+            WarnOverload(owner);
 
         _menu.Refresh();
     }
@@ -315,6 +335,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         if (!_player.Scrap(at))
             GameDialog.Show(owner, "이 이상 파기할 수 없습니다.");
+        else
+            WarnOverload(owner);
 
         _menu.Refresh();
     }
