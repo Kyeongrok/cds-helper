@@ -5341,19 +5341,6 @@ public sealed class ShipMapWindow : Window
         if (Vitality.EntryWarning(_game.Player) is { } warn)
             TalkDialog.Say(dialog, MateFace(), "", warn);
 
-        // 마을에 들어서면 부관이 한 마디 한다(0x004687AC) — <b>부관이 없으면 아무 말도 없다</b>
-        // (0x004696B0). 모항이면 두 마디 가운데 하나를 굴려 고른다(0x004687D4).
-        // <code>
-        //   0x00551960  제독, 역시 모항이 좋군요.
-        //   0x00551980  모항에 돌아오면 안심되는군요.
-        //   0x005519A0  제독, 이 마을에서 잠깐 쉽시다.
-        // </code>
-        if (_game.Player.MateAt(0).Length > 0)
-            TalkDialog.Say(dialog, MateFace(), "",
-                city == _game.Player.HomePort
-                    ? _game.Random.Next(2) == 0
-                        ? "제독, 역시 모항이 좋군요." : "모항에 돌아오면 안심되는군요."
-                    : "제독, 이 마을에서 잠깐 쉽시다.");
 
         // 지구를 돌고 계약을 맺은 도시로 돌아왔으면 그 자리에서 세계일주 장면이 돈다
         // (0x00492040) — 항구 명령 창보다 먼저다.
