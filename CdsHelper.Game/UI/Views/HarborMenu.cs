@@ -150,8 +150,9 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     ///   4772A5  버틸 날 &lt; 20      "%d일 정도 항해할 수 있다고 생각합니다. 출항하겠습니까?"  YES/NO
     ///   4772B7  그 밖              "준비 만반입니다. 언제라도 출항할 수 있습니다!…"    YES/NO
     /// </code>
-    /// 선원이 모자랄 때 게임은 문구 <b>둘</b>을 함께 넘긴다(<c>0x00544ED8</c> "제독, …" 과
-    /// <c>0x00544F20</c>). 화면에서 본 것은 뒤엣것이라 그것을 쓴다.
+    /// 선원이 모자랄 때의 문구 <b>둘</b>은 <c>0x00469680</c> 이 부관 있고 없고로 고른다 —
+    /// 부관이 있으면 <c>0x00544ED8</c> "제독, … 함대가 늦어지지만", 없으면
+    /// <c>0x00544F20</c> "… 함대의 속도가 늦어지지만" 이다. 한 글자씩 다르다.
     ///
     /// <b>얼굴은 보급 쪽에만 선다.</b> 선원 둘은 <c>0x004695C0</c>·<c>0x00469680</c> 으로
     /// 나가고 보급 셋은 <c>0x00469660</c> 으로 나가는데, 화면을 보면 앞의 둘은 얼굴이
@@ -172,8 +173,9 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         }
 
         if (_player.Crew < _player.MinCrew
-            && !ConfirmDialog.Ask(owner,
-                   "선원이 모자랍니다. 이대로라면 함대의 속도가 늦어지지만, 괜찮으십니까?"))
+            && !ConfirmDialog.Ask(owner, _player.MateAt(0).Length > 0
+                   ? "제독, 선원이 모자랍니다. 이대로라면 함대가 늦어지지만, 괜찮으십니까?"
+                   : "선원이 모자랍니다. 이대로라면 함대의 속도가 늦어지지만, 괜찮으십니까?"))
             return false;
 
         // 보급 쪽은 부관이 말한다. 부관이 없으면 항구 사람이 대신 나선다.
