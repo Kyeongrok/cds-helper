@@ -1,4 +1,4 @@
-using CdsHelper.Game.Engine.Models;
+﻿using CdsHelper.Game.Engine.Models;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Town;
@@ -16,6 +16,22 @@ namespace CdsHelper.Game.Engine.Town;
 /// </remarks>
 public static class Shipyard
 {
+    /// <summary>
+    /// 이 마을 조선소가 그 선체를 손댈 수 있는지(<c>0x004969F9</c>).
+    /// </summary>
+    /// <remarks>
+    /// 도시 문화권(<c>0x004A1820</c> — 도시 레코드 <c>+0x58</c>)이 <b>0·1·2·10</b>(유럽과
+    /// 신대륙)이면 <b>다우선만</b> 못 고치고, 그 밖(아프리카·이슬람·인도·중국·중앙아시아·
+    /// 동남아·일본)이면 <b>다우선만</b> 고친다. 못 고치면
+    /// 「이 배 형은 내가 어떻게 할 수 없다.」(<c>0x00532338</c>)다.
+    ///
+    /// 우리 선체 다섯에 다우선이 없으니 유럽권 밖에서는 개조 자체가 안 된다.
+    /// <c>0x00532310</c> 「이교도의 배는 내가 어떻게 할 수 없다.」는 <b>어디서도 안 쓰이는
+    /// 죽은 글</b>이다 — 두 갈래로 나누려다 한쪽만 남은 것으로 보인다.
+    /// </remarks>
+    public static bool CanRefitHere(int hullId, int culture) =>
+        culture is 0 or 1 or 2 or 10 ? hullId != Hull.Dhow : hullId == Hull.Dhow;
+
     /// <summary>배를 팔 때 받는 값 — 선체 매각값에 도시 시세를 먹인다(<c>0x0044C0A0</c>).</summary>
     public static int SellPrice(Ship ship, int cityRate) =>
         Math.Max(1, ship.Hull.SellPrice * cityRate / 100);

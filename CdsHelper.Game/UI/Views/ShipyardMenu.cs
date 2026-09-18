@@ -269,7 +269,8 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// 본다 — 도시의 문화권(<c>0x004A1820</c>)이 0~2 나 10 이면 다우선(선체 7)을 못 고치고,
     /// 그 밖의 문화권에서는 <b>다우선만</b> 고친다. 못 고치면
     /// "이 배 형은 내가 어떻게 할 수 없다."(<c>0x00532338</c>) 를 내고 도로 고르게 한다.
-    /// 우리 선체 다섯에는 다우선이 없어 그 갈래가 안 생긴다 — 그래서 안 옮겼다.
+    /// 우리 선체 다섯에는 다우선이 없으므로, 유럽권 밖(문화권 3~9)의 조선소에서는
+    /// <b>어느 배도 못 고친다</b> — 원본 규칙 그대로다.
     ///
     /// 배를 고르면 열한 줄짜리 개조 창이 뜨고(<c>0x004966E0</c>), 한 줄을 마치면 게임은
     /// <b>그 줄만 꺼</b>(<c>0x0049690A</c>) 같은 배를 계속 손보게 둔다. 우리도 그렇게 한다 —
@@ -285,6 +286,14 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             [.. _player.Ships.Select((s, i) => RefitLine(s, i == _player.Flagship))],
             "개조선박의 선택", "배가 없습니다", RefitHead);   // 0x00532300
         if (at < 0 || at >= _player.Ships.Count) return;
+
+        // 그 마을에서 손댈 수 있는 배인지 본다(0x004969F9) — 유럽권(0·1·2·10)은 다우선을
+        // 못 고치고, 그 밖의 문화권은 다우선만 고친다.
+        if (!Shipyard.CanRefitHere(_player.Ships[at].Hull.Id, _culture))
+        {
+            Say("이 배 형은 내가 어떻게 할 수 없다.");        // 0x00532338
+            return;
+        }
 
         Say("어디를 개조할 건가?");                          // 0x005322C0
         _menu.Push(() => RefitMenu(_player.Ships[at]));
