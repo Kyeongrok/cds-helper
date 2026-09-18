@@ -2347,8 +2347,14 @@ public sealed class Player
             if (c.Kind >= 0 && c.Count > 0 && _cargo.Count < CargoSlots) _cargo.Add(c);
     }
 
-    /// <summary>함대가 실을 수 있는 통 수(용량). 배마다의 적재량을 더한 것이다.</summary>
-    public int Capacity => _ships.Sum(s => s.Capacity);
+    /// <summary>
+    /// 함대가 실을 수 있는 통 수(용량) — <b>포탑이 먹고 남은 것</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// 배 게터(<c>0x0044C910</c>)가 적재용량에서 포탑 수를 빼서 준다. 예전에는 안 빼서
+    /// <b>포탑 수만큼 더 실을 수 있었다</b>.
+    /// </remarks>
+    public int Capacity => _ships.Sum(s => s.UsableCapacity);
 
     /// <summary>함대가 견디는 무게(중량 한도).</summary>
     public int Tonnage => _ships.Sum(s => s.Tonnage);
