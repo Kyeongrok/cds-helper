@@ -550,6 +550,55 @@ public sealed class SeaBattle
     public bool Monster { get; set; }
 
     /// <summary>
+    /// 괴물이 <b>떠올라 있는가</b>(<c>+0x8FC</c> 가 2 면 참, 1 이면 잠수).
+    /// </summary>
+    /// <remarks>
+    /// 괴물 판은 <c>+0x8FC</c> 를 <b>1(잠수)</b> 로 세우고 시작한다(<c>0x00440EAF</c>).
+    /// 턴이 끝날 때마다 한 번 굴려 떠오르고 잠기며(<see cref="MonsterRises"/>), 3·4 는 그
+    /// 사이 한 틱짜리 연출이라 우리는 안 쓴다.
+    /// </remarks>
+    public bool MonsterUp { get; set; }
+
+    /// <summary>
+    /// 괴물이 떠오르는가 — <c>rand(100) &lt; (담력 + 지력) / 2 − 20</c>(<c>0x0043DA8E</c>).
+    /// </summary>
+    /// <remarks>
+    /// 두 값은 <b>제독과 부관 가운데 높은 쪽</b>에 1 을 더한 것이다(<c>0x00441DB6</c> ·
+    /// <c>0x00441DE7</c>). 굴림에 <b>이기면 잠겨 있던 괴물이 떠오르고</b>, 지면 떠 있던
+    /// 괴물이 잠긴다 — 한 턴에 한쪽만 걸린다.
+    ///
+    /// 원본은 이 값을 <b>부호 없이</b> 재므로(<c>0x004B7C62</c>) 0 밑으로 떨어지면 도리어
+    /// 늘 참이 된다 — 담력·지력이 낮을수록 괴물이 늘 떠 있는 셈이다. 그대로 옮긴다.
+    /// </remarks>
+    public static bool MonsterRises(int daring, int wit, Random dice)
+    {
+        int odds = (daring + wit) / 2 - 20;
+        return (uint)dice.Next(100) < (uint)odds;
+    }
+
+    /// <summary>
+    /// 한 턴이 끝날 때 괴물이 잠기거나 떠오른다(<c>0x0043DA81</c>).
+    /// </summary>
+    /// <returns>막 잠겼으면 참 — 그때만 부관이 한마디 한다(<c>0x0043DBAE</c>).</returns>
+    public bool TurnMonster(int daring, int wit)
+    {
+        if (!Monster) return false;
+
+        bool rise = MonsterRises(daring, wit, _rng);
+        if (rise && !MonsterUp) { MonsterUp = true; return false; }
+        if (!rise && MonsterUp) { MonsterUp = false; return true; }
+        return false;
+    }
+
+    /// <summary>
+    /// 배가 괴물 칸으로 들어서면 <b>억지로 떠오른다</b>(<c>0x00436575</c> · <c>0x0043D389</c>).
+    /// </summary>
+    public void SurfaceMonster()
+    {
+        if (Monster) MonsterUp = true;
+    }
+
+    /// <summary>
     /// 물러설 배인지 — 내구 10 이하, 승원이 필요승원+10 이하, 또는 아군 수/3 이 적 수 이상.
     /// <b>괴물은 안 물러선다.</b>
     /// </summary>
@@ -1520,7 +1569,7 @@ public sealed class SeaBattle
     /// 괴물은 물속에 숨어 있어 어디 있는지 모른다는 말이다(<c>0x0056B3A8</c>~). 괴물 판이
     /// 아니면 빈 글이다.
     /// </remarks>
-    public string MonsterHidWord() => !Monster ? "" : _rng.Next(5) switch
+    public string MonsterHidWord() => !Monster || MonsterUp ? "" : _rng.Next(5) switch
     {
         0 => "제독, 괴물이 잠수해 버려 어디 있는지 알 수가 없습니다.",
         1 => "괴물 놈, 어디 있는 거냐!",

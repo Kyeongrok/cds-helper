@@ -657,6 +657,11 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
 
         if (_battle.Over) { Finish(); return; }
 
+        // 괴물은 턴 끝마다 한 번 굴려 떠오르거나 잠긴다(0x0043DA81). 막 잠겼으면
+        // 아래 MonsterHidWord 가 그때부터 한마디씩 붙는다.
+        if (_player is { } admiral)
+            _battle.TurnMonster(admiral.AbilityOf(Ability.Luck), admiral.AbilityOf(Ability.Mind));
+
         if (_battle.Wind != windBefore) Say(_battle.WindNotice());
         Say(_battle.OrderPrompt());
         if (_battle.MonsterHidWord() is { Length: > 0 } hid) Say(hid);
