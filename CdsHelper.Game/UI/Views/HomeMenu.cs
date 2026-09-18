@@ -60,7 +60,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         if (child.AgeOn(_player.Date) <= Home.BabyAge)
             DiscoveryDialog.Show(owner, _game.EventStills, Home.BabyStill, words);
         else if (_player.Spouse.Length > 0) TalkDialog.Say(owner, null, _player.Spouse, words);
-        else GameDialog.Show(owner, words);
+        else TalkDialog.Say(owner, ChildFace(child), child.Name, words);
 
         var named = child;
         if (ConfirmDialog.Ask(owner, "새로운 이름을 짓겠습니까?"))
@@ -80,13 +80,14 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     private void ProposeMarriage(Window owner, Player.Child daughter)
     {
         if (!ConfirmDialog.Ask(owner,
-                "아버지, 할 이야기가 있어요. 저 좋아하는 사람이 있는데… 아버지, 결혼해도 되겠지요?"))
+                "아버지, 할 이야기가 있어요. 저 좋아하는 사람이 있는데… 아버지, 결혼해도 되겠지요?",
+                face: ChildFace(daughter)))
         {
-            TalkDialog.Say(owner, null, daughter.Name, "너무 해요! 아버지, 그런 슬픈 말씀 하지 마세요!");
+            TalkDialog.Say(owner, ChildFace(daughter), daughter.Name, "너무 해요! 아버지, 그런 슬픈 말씀 하지 마세요!");
             TalkDialog.Say(owner, null, _player.Spouse, "당신, 딸의 부탁하니, 제발 허락해 주세요.");
         }
 
-        TalkDialog.Say(owner, null, daughter.Name, "고마워요, 아버지! 꼭 행복하겠어요.");
+        TalkDialog.Say(owner, ChildFace(daughter), daughter.Name, "고마워요, 아버지! 꼭 행복하겠어요.");
         TalkDialog.Say(owner, null, _player.Spouse,
             $"…그건 그렇고, 당신 결혼 준비금으로 금화를 {Home.MarriageDowry}닢 준비해 주세요!");
 
@@ -95,6 +96,13 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     }
 
     // ── 후손을 남긴다 ────────────────────────────────────────────────────────
+
+    /// <summary>그 아이의 얼굴 — 나이로 바뀐다(<c>0x0047D710</c>). 얼굴을 안 적던 세이브면 null 이다.</summary>
+    private uint[]? ChildFace(Player.Child child)
+    {
+        int face = Home.FaceOf(child, child.AgeOn(_player.Date));
+        return face < 0 ? null : _game.Faces?.TryGetBgra(face, child.Daughter);
+    }
 
     /// <summary>아내가 있어야 눌린다 — 없으면 줄이 흐리다.</summary>
     public bool CanLeaveHeir => Home.CanLeaveHeir(_player);

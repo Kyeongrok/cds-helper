@@ -105,8 +105,48 @@ public static class Home
 
         var child = new Player.Child(name, daughter.Value, due, abilities,
                                      new int[Skill.Names.Length], new int[Skill.Languages.Length],
-                                     Blood: BloodOf(father.Blood, wifeBlood, random));
+                                     Blood: BloodOf(father.Blood, wifeBlood, random),
+                                     Face: ChildFaces[random.Next(2) + (daughter.Value ? 2 : 0)][0]);
         return Bless(father, random, child);
+    }
+
+    /// <summary>
+    /// 아이 얼굴 표(<c>0x00560D10</c>) — 넉 줄에 얼굴 셋씩이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   아들  393 · 396 · 395        아들  394 · 397 · 395
+    ///   딸    139 · 141 · 143        딸    140 · 142 · 143
+    /// </code>
+    /// 태어날 때 줄을 굴려 고르고(<c>0x00460CD8</c> — <c>rand(2) + 딸*2</c>), 그 뒤로는 나이로
+    /// 칸이 바뀐다(<c>0x0047D710</c>). 아들은 <b>열다섯 살부터</b> 표를 떠나 제 얼굴을 쓰는데
+    /// (<c>0x0047D726</c>), 그 얼굴은 후손으로 물려받을 때 정해지므로 여기서는 표만 든다.
+    /// 딸은 끝까지 표를 쓴다 — 그래서 열 살 넘은 두 줄이 같은 얼굴(143)이다.
+    /// </remarks>
+    public static readonly int[][] ChildFaces =
+    [
+        [393, 396, 395], [394, 397, 395],
+        [139, 141, 143], [140, 142, 143],
+    ];
+
+    /// <summary>나이 한 칸이 다섯 해고 칸은 셋뿐이다(<c>0x0047D73F</c> 의 <c>idiv 5</c> → <c>0x0049E540(0,2)</c>).</summary>
+    public const int FaceYearsPerStep = 5, FaceSteps = 3;
+
+    /// <summary>아들이 표를 떠나 제 얼굴을 쓰는 나이(<c>0x0047D726</c> 의 <c>cmp 0xF</c>).</summary>
+    public const int GrownSonAge = 15;
+
+    /// <summary>
+    /// 그 나이의 아이 얼굴(<c>0x0047D710</c>). 얼굴을 안 적던 옛 세이브면 −1 이다.
+    /// </summary>
+    public static int FaceOf(Player.Child child, int age)
+    {
+        if (child.Face < 0) return -1;
+        int row = Array.FindIndex(ChildFaces, r => r[0] == child.Face);
+        if (row < 0) return child.Face;
+
+        // 열다섯 넘은 아들은 표를 떠난다 — 우리는 아직 그 얼굴이 없어 마지막 칸을 그대로 쓴다.
+        int step = Math.Clamp(age / FaceYearsPerStep, 0, FaceSteps - 1);
+        return ChildFaces[row][step];
     }
 
     /// <summary>능력치 폭과 밑값(<c>0x004610C0</c> 의 칸별 값) — 운·신앙심만 넓다.</summary>
