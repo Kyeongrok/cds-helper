@@ -91,7 +91,22 @@ public static class Barmaids
         _ => "꼭 다시 오세요. 무사하길 빌겠어요.",
     };
 
-    /// <summary>말이 안 통하는 마을에서 오르는 친밀도(<c>0x0046651A</c>).</summary>
+    /// <summary>
+    /// 말이 안 통하는 마을에서 여급이 하는 말(<c>0x004664D1</c>) — 이야기는 못 하고 거기서 끝난다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x0055C050  궁합이 맞으면 「무슨 말을 하고 있는 거야, 이 외국인? 꽤 멋있는데.」 · 친밀도 +20
+    ///   0x0055C088  아니면      「무슨 말을 하고 있는 거지?」                        · 안 오른다
+    ///   0x0055C0A8  이미 아는 사이면 「아, 당신 기억하고 있어요. …」
+    /// </code>
+    /// </remarks>
+    public static string StrangerWord(bool first, bool destined) =>
+        !first ? "아, 당신 기억하고 있어요. 또 와주었군요. 하지만, 말이 통하지 않아서···"
+        : destined ? "무슨 말을 하고 있는 거야, 이 외국인? 꽤 멋있는데."
+        : "무슨 말을 하고 있는 거지?";
+
+    /// <summary>말이 안 통해도 궁합이 맞으면 오르는 친밀도(<c>0x0046651A</c>).</summary>
     public const int StrangerLike = 20;
 
     /// <summary>잡담 한 번에 오르는 폭. 궁합이 맞으면 갑절이다.</summary>
