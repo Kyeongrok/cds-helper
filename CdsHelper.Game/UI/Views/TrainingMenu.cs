@@ -181,44 +181,6 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
         return true;
     }
 
-    /// <summary>
-    /// 배우는 동안 화면을 잠깐 어둡게 했다 밝힌다(<c>0x004A59F0</c> → 날 보냄 → <c>0x004A5AA0</c>).
-    /// </summary>
-    private void Blackout(Action during)
-    {
-        var root = GameUi.RootOf(_view);
-        var shade = new Window
-        {
-            Owner = root,
-            WindowStyle = WindowStyle.None,
-            ResizeMode = ResizeMode.NoResize,
-            AllowsTransparency = true,
-            Background = Brushes.Black,
-            ShowInTaskbar = false,
-            ShowActivated = false,
-            WindowStartupLocation = WindowStartupLocation.Manual,
-            Left = root.Left,
-            Top = root.Top,
-            Width = root.ActualWidth > 0 ? root.ActualWidth : root.Width,
-            Height = root.ActualHeight > 0 ? root.ActualHeight : root.Height,
-            Opacity = 0,
-        };
-        shade.Show();
-        for (int i = 1; i <= 5; i++) { shade.Opacity = i / 5.0; Wait(40); }
-        during();
-        Wait(400);
-        for (int i = 4; i >= 0; i--) { shade.Opacity = i / 5.0; Wait(40); }
-        shade.Close();
-    }
-
-    /// <summary>화면은 그리게 두고 그만큼 쉰다.</summary>
-    private static void Wait(int ms)
-    {
-        var frame = new DispatcherFrame();
-        var clock = new DispatcherTimer(TimeSpan.FromMilliseconds(ms), DispatcherPriority.Render,
-                                        (_, _) => frame.Continue = false, Dispatcher.CurrentDispatcher);
-        clock.Start();
-        Dispatcher.PushFrame(frame);
-        clock.Stop();
-    }
+    /// <summary>배우는 동안 화면을 잠깐 어둡게 했다 밝힌다(<see cref="DayPass.Blackout"/>).</summary>
+    private void Blackout(Action during) => DayPass.Blackout(_view, during);
 }

@@ -265,7 +265,8 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
 
         int next = (isSkill ? son.Skills[index] : son.Tongues[index]) + 1;
         int days = Home.EducateDays(son, next);
-        _player.AdvanceDays(days);
+        // 가르치는 동안 화면이 덮였다 밝는다(0x004A5AE0(0x14, 1)).
+        DayPass.Blackout(_view, () => _player.AdvanceDays(days));
         // 가르치는 동안 쉰 셈으로 컨디션이 찬다(0x0046155B 의 날/10).
         _player.SetCondition(_player.Condition + days / 10);
 

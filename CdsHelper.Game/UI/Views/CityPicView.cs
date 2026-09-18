@@ -1160,7 +1160,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
         if (!ConfirmDialog.Ask(this, Lodging.OddJobAsk, face: face)) return;
 
         int pay = inn.OddJobPay(_cityId);
-        _player.AdvanceDays(Lodging.OddJobDays);
+        // 한 해가 가는 동안 화면이 덮였다 밝는다(0x004A5AE0(0x14, 1)).
+        DayPass.Blackout(this, () => _player.AdvanceDays(Lodging.OddJobDays));
         _player.SetCondition(_player.Condition + Lodging.OddJobRest(_random));
         TellTongue(inn.LearnTongue(_player, _cityId, _game.Nations, _random));
 
