@@ -1391,6 +1391,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 // 게임도 알릴 것이 있고 <b>모항</b>일 때만 줄을 켠다(0x00476DE0).
                 CanAnnounce: _cityId == _player.HomePort && Port.Announceable().Count > 0,
                 PatronRow: patron == null ? null : Patrons.PatronRow(patron),
+                PatronBribe: patron != null && Patrons.CanBribe(patron),
                 Commented: Commented(code),
                 Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,
                 Contracted: _player.Contract != null,
@@ -1718,6 +1719,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.PlayPoker() => Guests.PlayPoker();
     void ITownScreen.Report(Patron patron) => Patrons.Report(patron);
     void ITownScreen.BreakContract(Patron patron) => Patrons.BreakContract(patron);
+    void ITownScreen.BribeInspector(Patron patron) => Patrons.BribeInspector(patron);
 
     void ITownScreen.Sail()
     {

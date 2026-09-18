@@ -182,7 +182,8 @@ public static class GameSave
         List<Support.Local.Models.Player.Rumor>? PersonLines = null,
         Dictionary<int, int>? CityBuildings = null, Dictionary<int, int>? NationStatus = null,
         List<int>? GiftedBarmaids = null, List<int>? RefusedBarmaids = null,
-        int? Laps = null, Dictionary<string, int>? Purses = null);
+        int? Laps = null, Dictionary<string, int>? Purses = null,
+        List<int>? Hidden = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -193,7 +194,7 @@ public static class GameSave
     public sealed record Deal(
         int Hint, string Sponsor, string City, int Amount, DateTime SignedOn, int Years,
         List<int>? Found = null, string Inspector = "", bool ShipsLent = false,
-        bool LoanAnnounced = false);
+        bool LoanAnnounced = false, bool BribeOpen = true);
 
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
@@ -277,7 +278,9 @@ public static class GameSave
                             // 지구를 몇 바퀴 돌았는지. 이 칸 앞의 세이브는 0 바퀴로 연다.
                             Laps: player.Laps,
                             // 후원자 지갑. 이 칸 앞의 세이브는 재력 가득으로 연다.
-                            Purses: player.Purses.ToDictionary(e => e.Key, e => e.Value));
+                            Purses: player.Purses.ToDictionary(e => e.Key, e => e.Value),
+                            // 감찰관을 매수해 숨겨 둔 발견물.
+                            Hidden: [.. player.HiddenDiscoveries]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
@@ -295,7 +298,7 @@ public static class GameSave
     private static Deal? DealOf(Player player) =>
         player.Contract is not { } c ? null
         : new Deal(c.Hint, c.Sponsor, c.City, c.Amount, c.SignedOn, c.Years, [.. c.Found],
-                   c.Inspector, c.ShipsLent, c.LoanAnnounced);
+                   c.Inspector, c.ShipsLent, c.LoanAnnounced, c.BribeOpen);
 
     /// <summary>적어 둔 계약을 놀이 쪽 모델로. 없으면 null.</summary>
     public static Contract? ContractOf(Data saved)
@@ -306,6 +309,7 @@ public static class GameSave
                                     d.Inspector);
         contract.Restore(d.Found);
         contract.ShipsLent = d.ShipsLent;
+        contract.BribeOpen = d.BribeOpen;
         contract.LoanAnnounced = d.LoanAnnounced;
         return contract;
     }

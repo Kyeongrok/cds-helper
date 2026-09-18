@@ -1261,6 +1261,33 @@ public sealed class Player
     /// <summary>그것을 이미 발견했는지.</summary>
     public bool HasFound(int discovery) => _found.Contains(discovery);
 
+    /// <summary>
+    /// 감찰관을 매수해 <b>숨겨 둔</b> 발견물(발견물 칸 <c>+0x16</c> 의 비트 <c>0x20</c>).
+    /// </summary>
+    /// <remarks>
+    /// 보고 목록에서 빠지고(<c>0x0046B0A0</c>), 보고를 마치고 건물을 나설 때 그 증거품이
+    /// 소지품으로 들어오면서 비트가 지워진다(<c>0x0044E6C0</c> → <c>0x0041C480</c>).
+    /// </remarks>
+    public IReadOnlyCollection<int> HiddenDiscoveries => _hidden;
+
+    private readonly HashSet<int> _hidden = [];
+
+    /// <summary>그것을 숨겼는지.</summary>
+    public bool IsHidden(int discovery) => _hidden.Contains(discovery);
+
+    /// <summary>숨긴 것으로 적는다.</summary>
+    public void Hide(int discovery) => _hidden.Add(discovery);
+
+    /// <summary>숨긴 표를 모두 지운다 — 증거품을 돌려받은 뒤다.</summary>
+    public void ClearHidden() => _hidden.Clear();
+
+    /// <summary>적어 둔 숨긴 발견물을 되돌린다.</summary>
+    public void RestoreHidden(IEnumerable<int>? hidden)
+    {
+        _hidden.Clear();
+        foreach (int id in hidden ?? []) _hidden.Add(id);
+    }
+
     /// <summary>발견한 것으로 적는다. 처음 발견하는 것이면 true.</summary>
     /// <remarks>
     /// 계약 중이면 그 계약에도 얹는다 — 계약 정보 창의 "발견물" 칸이 그것이다.

@@ -31,7 +31,7 @@ public enum TownWork
     Stay, OddJob, MateForm, Treat,
 
     // ── 자택 ──────────────────────────────────────────────────────────────
-    Rest, Store, Savings, Heir, Educate, Succeed, Encyclopedia, Chronicle, Retire,
+    Rest, Store, Savings, Heir, Educate, Succeed, Encyclopedia, Chronicle, Retire, BribeInspector,
 
     // ── 자리를 가리지 않는 것들 ───────────────────────────────────────────
 
@@ -130,6 +130,7 @@ public static class TownWorks
         new(TownWork.Persuade, Facility.Persuade),
         new(TownWork.Report, Facility.Report),
         new(TownWork.BreakContract, Facility.Break),
+        new(TownWork.BribeInspector, Facility.Bribe),
     ];
 
     /// <summary>가르치는 건물이면 그 자리가 어디든 수련이 뜬다.</summary>
@@ -148,6 +149,9 @@ public static class TownWorks
     /// <param name="PatronRow">
     /// 후원자가 앉았으면 그 줄(설득 · 보고 · 계약중단). 없으면 null.
     /// </param>
+    /// <param name="PatronBribe">
+    /// 「감찰관을 매수」 줄이 설 조건인지(<c>0x0044EA30</c>) — 그 줄은 후원자 줄 <b>바로 밑</b>이다.
+    /// </param>
     /// <param name="Commented">
     /// 이 건물이 발견물이고 <b>이미 발견했는지</b> — 그때만 "해설" 줄이 붙는다.
     /// </param>
@@ -164,7 +168,7 @@ public static class TownWorks
                                             string? PatronRow, bool Commented = false,
                                             IReadOnlyList<string>? Drinks = null,
                                             bool Contracted = false, bool HasHeir = false,
-                                            bool Wed = false);
+                                            bool Wed = false, bool PatronBribe = false);
 
     /// <summary>
     /// 그 시설의 명령 창에 늘어놓을 줄들. 차례와 문구는 <see cref="Facility.Menu"/> 것이고,
@@ -214,6 +218,10 @@ public static class TownWorks
         // 학자 저택 어디든 그렇다. 계약을 맺은 자리이고 맡은 것을 찾아 왔으면 "보고" 다
         // (게임도 같은 자리를 계약 상태로 갈아 끼운다 — 0x0044EAE0).
         if (state.PatronRow is { Length: > 0 } row) items.Insert(0, row);
+
+        // 「감찰관을 매수」는 후원자 줄 바로 밑이다(0x0044EAE0 이 둘째 칸에 넣는다).
+        if (state.PatronBribe)
+            items.Insert(state.PatronRow is { Length: > 0 } ? 1 : 0, NameOf(TownWork.BribeInspector));
 
         return items;
     }
