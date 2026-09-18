@@ -4085,8 +4085,9 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
-            ConfirmDialog.Tell(this, $"제독, {party.Name}{GameUi.Josa(party.Name, "이", "가")} 나타났습니다!",
-                               face: MateFace());
+            // 0x0048BFD6 — 제목이 <b>"Encounter!"</b>(0x0056FB00) 다. 원본 글 그대로 둔다.
+            ConfirmDialog.Tell(this,
+                $"{party.Name}{GameUi.Josa(party.Name, "과", "와")} 부딪쳤습니다!", "Encounter!");
 
             var player = _game.Player;
             var aide = player.MateAt(0) is { Length: > 0 } name ? player.MateInfoOf(name) : null;
