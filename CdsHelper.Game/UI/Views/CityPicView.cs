@@ -1798,10 +1798,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
     {
         if (!CanExplore(buildingCode)) return;
 
-        // 관문을 넘으면 한 번 더 묻는다(0x0046894F) — 제목이 「탐험하러 출발하십니까?」다.
+        // 관문을 넘으면 한 번 더 묻는다(0x0046894F). 글 둘을 넘기지만 0x00469680 이
+        // <b>부관 있고 없고로 하나만</b> 고른다 — 제목 띠가 아니다.
         // 준비하는 열흘은 성문을 나설 때 도는 PassPortDays 가 그대로 쓴다.
-        if (!ConfirmDialog.Ask(this, "탐험을 떠납니까? 준비하는데 10일 걸립니다. 좋습니까?",
-                               "탐험하러 출발하십니까?")) return;
+        if (!ConfirmDialog.Ask(this, _game.Player.MateAt(0).Length > 0
+                ? "탐험을 떠납니까? 준비하는데 10일 걸립니다. 좋습니까?"
+                : "탐험하러 출발하십니까?")) return;
 
         Explored = true;
         Close();
