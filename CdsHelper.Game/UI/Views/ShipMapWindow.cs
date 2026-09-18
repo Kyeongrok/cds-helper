@@ -3013,6 +3013,11 @@ public sealed class ShipMapWindow : Window
             Dispatcher.BeginInvoke(ReturnToTitle);
             return false;
         }
+
+        // 조약에 막힌 문을 무릅쓰고 들어섰으면 부관이 걱정한다(0x0046A787).
+        if (end.Entered && treaty && _game.Player.MateAt(0).Length > 0)
+            TalkDialog.Say(this, MateFace(), "", Standoff.TreatyBrokenWord);
+
         return end.Entered;
     }
 

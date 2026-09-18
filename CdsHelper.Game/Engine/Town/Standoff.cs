@@ -369,6 +369,15 @@ public static class Standoff
         "여기는 {0}령이다. {1}에 의해 {2}의 함대를 항구에 들여보낼 수 없다!";
 
     /// <summary>
+    /// 조약을 무릅쓰고 들어섰을 때 부관이 하는 말(<c>0x00552280</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>0x0046A787</c> 이 도시 객체 <c>+0x08</c> 에 1 을 박아 <b>조약을 깬 것</b>으로 적고
+    /// 이 말을 낸다. <c>0x004696B0</c> 이라 <b>부관이 없으면 아무 말도 없다</b>.
+    /// </remarks>
+    public const string TreatyBrokenWord = "조약을 깨뜨려, 곤란하게 되었군요...";
+
+    /// <summary>
     /// 조약에 막히는지 — <b>1494년부터 포르투갈과 에스파니아가 서로를 막는다</b>.
     /// </summary>
     /// <remarks>
