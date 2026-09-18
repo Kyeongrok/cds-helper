@@ -609,6 +609,14 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// 제목이 <c>"저금 %8ld 닢"</c>(<c>0x005398C0</c>) 이라 지금 맡겨 둔 돈이 창 이름에 붙는다.
     /// 줄의 켜짐도 게임과 같다 — 저금은 소지금이, 꺼내기는 저금이 있어야 눌린다.
     /// </remarks>
+    /// <summary>
+    /// 소지금도 저금도 없으면 창이 <b>아예 안 열린다</b>(<c>0x00460A01</c>).
+    /// </summary>
+    public bool HasMoneyToBank => _player.Gold > 0 || _player.Savings > 0;
+
+    /// <summary>그때 내는 말(<c>0x005398A0</c>).</summary>
+    public const string NoMoneyAtAll = "소지금도 저금도 없습니다!";
+
     public GameMenu SavingsMenu() => new(
         $"저금 {_player.Savings,8} 닢", null,
         [.. Facility.SavingsMenu.Select(item => (item, SavingsAction(item)))]);

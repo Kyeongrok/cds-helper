@@ -1967,7 +1967,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.Succeed() => HomeRooms.Succeed();
     void ITownScreen.Educate() => HomeRooms.Educate();
     void ITownScreen.OpenRestMenu() => Menu.Push(HomeRooms.RestMenu);
-    void ITownScreen.OpenSavingsMenu() => Menu.Push(HomeRooms.SavingsMenu);
+    void ITownScreen.OpenSavingsMenu()
+    {
+        // 소지금도 저금도 없으면 창을 안 연다(0x00460A01).
+        if (!HomeRooms.HasMoneyToBank) { GameDialog.Show(this, HomeMenu.NoMoneyAtAll); return; }
+        Menu.Push(HomeRooms.SavingsMenu);
+    }
     void ITownScreen.OpenStorage() => StorageDialog.Show(Menu.Window ?? this, _player, _game.Items);
 
     void ITownScreen.ShowEncyclopedia() =>
