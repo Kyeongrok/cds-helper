@@ -268,8 +268,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 차례가 이렇다.
     /// <list type="number">
     ///   <item><b>부관이 깨운다</b>(<c>0x0042EA40</c>) — 부관이 있고 굴림에 걸릴 때.</item>
-    ///   <item><b>부인이 깨운다</b>(<c>0x0042EAA0</c>) — 여기가 자택이 있는 도시일 때.
-    ///         우리는 아직 혼인을 안 다루므로 이 갈래는 건너뛴다.</item>
+    ///   <item><b>부인이 깨운다</b>(<c>0x0042EAA0</c>) — 여기가 모항일 때. 굴림 없이 이것만 난다.</item>
     ///   <item>아니면 <b>다섯 가지 가운데 하나</b>(<c>0x0042F07F</c>). 소지금이 100닢
     ///         이하면 넷 중에서 뽑는다 — 한턱은 낼 돈이 있어야 낸다.</item>
     /// </list>
@@ -283,8 +282,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         bool hasMate = first.Length > 0;
         var mate = hasMate && _player.MateInfoOf(first) is { } who ? MateFace(who) : null;
 
-        // 부관이 깨운다 — 게임은 능력치로 굴리는데(0x0042F1A7) 우리는 부관 유무만 본다.
-        if (hasMate && _game.Random.Next(2) == 0)
+        // 부관이 깨운다 — <c>부관 지력 + 1 + 제독 운 + 1 &gt;= rand(150)</c> 이라야 한다
+        // (0x0042F191 · 0x0042F1A7). 지력은 0x00468F10(부관, 1) 이 사람 칸 +0x24 에서 꺼낸다.
+        if (hasMate && MateGuards())
         {
             ConfirmDialog.Tell(_view, "제독! 이봐요, 제독! 괜찮습니까?", face: mate);
             ConfirmDialog.Tell(_view, "부관의 목소리에 정신이 들었다");
@@ -315,6 +315,20 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             case 3: FoundMoney(hasMate, mate); break;
             default: BuyRound(mate); break;
         }
+    }
+
+    /// <summary>
+    /// 뻗었을 때 부관이 지켜 주는지(<c>0x0042F180</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>(부관 지력 + 1) + 제독 운 + 1 &gt;= rand(150)</c> 다 — 지력이 곧 눈치다.
+    /// 부관이 없거나 신상을 못 찾으면 0 으로 본다.
+    /// </remarks>
+    private bool MateGuards()
+    {
+        string first = _player.MateAt(0);
+        int mind = first.Length > 0 && _player.MateInfoOf(first) is { } who ? who.Mind : 0;
+        return mind + 1 + _player.AbilityOf(Ability.Luck) + 1 >= _game.Random.Next(150);
     }
 
     /// <summary>취해서 벌어지는 가짓수와, 한턱이 나오려면 있어야 할 소지금.</summary>
