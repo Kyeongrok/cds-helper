@@ -1072,15 +1072,25 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (!Palace.CounterfeitCaught(sponsorRow?.Closeness ?? 0, luck, _random)) return false;
 
         string me = _player.Name;
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
         if (Palace.CounterfeitForgiven(_player.ClosenessOf(patron.Name), luck, _random))
         {
-            TalkDialog.Say(_view, FaceOf(patron), "",
-                $"안됐지만, {me}, 이것은 모조품이네. 자네에게 한번 더 기회를 주겠다. 기한까지 진짜를 발견해 오게.");
+            // 0x004123FA — 봐줄 때의 말투 셋(0x00530BC8 벌).
+            TalkDialog.Say(_view, FaceOf(patron), "", Pick3(
+                $".......{me}, 안됐지만, 이것은 모조품이네. 자네에게 한번 더 기회를 주겠다. 기한까지 진짜를 발견해 오게.",
+                $"안됐지만 ......{me}, 이것은 모조품인 것 같군요. 이렇다면 사례를 할 수 없군요. 당신에게 한번 더 기회를 드리겠습니다. 기한까지 진짜를 발견해 오십시오.",
+                $"......안됐지만, 이것은 모조품이로군. {me}, 이번에야 말로 진짜를 가져 오게. 기한까지 발견되기를 기대하겠네."));
             _player.Infamy += Palace.CounterfeitInfamyRoll(_random);
         }
         else
         {
-            TalkDialog.Say(_view, FaceOf(patron), "", "이런 모조품으로 나를 속이려 했나!");
+            // 0x004123CA — 못 봐줄 때의 말투 셋(0x00530E88 벌).
+            TalkDialog.Say(_view, FaceOf(patron), "", Pick3(
+                "이런 모조품으로 나를 속이려 했나!",
+                "이런 모조품으로 저를 속일 작정이라고는...용서할 수 없습니다.",
+                "바보녀석, 이런 모조품으로 나를 속일 작정이었나!"));
             _player.Sulk(patron.Name);
         }
         return true;
