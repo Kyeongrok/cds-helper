@@ -3802,6 +3802,47 @@ public sealed class ShipMapWindow : Window
     /// 말보다 먼저 덤불 장면(<c>0x0048E820(8)</c>)이 함대 자리에서 돈다 — 독충
     /// (<c>0x00427866</c>)과 짐승(<c>0x00427B4C</c>)이 같은 8 이다.
     /// </remarks>
+    /// <summary>
+    /// 동굴을 찾았다(<c>0x0048DC60</c>) — 들어가 보면 보물이거나 짐승의 소굴이다.
+    /// </summary>
+    /// <remarks>
+    /// 보물은 <c>운 x 100 + 100 + rand(20)</c> 닢이 그대로 소지금에 들어오고
+    /// (<c>0x0048DD32</c>), 소굴이면 선원을 잃는다(<see cref="LandEvents.DenLoss"/>).
+    /// </remarks>
+    private void Cave(GameRandom dice)
+    {
+        var player = _game.Player;
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            var mate = MateFace();
+            TalkDialog.Say(this, mate, "", "제독, 동굴을 발견했습니다!");
+            if (!ConfirmDialog.Ask(this, "제독, 동굴속을 탐색하겠습니까?", face: mate)) return;
+
+            if (LandEvents.CaveTreasure(player.AbilityOf(Ability.Faith),
+                                        player.AbilityOf(Ability.Luck), dice))
+            {
+                TalkDialog.Say(this, mate, "", "제독, 원주민의 보물을 발견했습니다!");
+                int gold = LandEvents.CaveGold(player.AbilityOf(Ability.Luck), dice);
+                player.Earn(gold);
+                NoticeDialog.Show(this, $"제독, 금화 {gold}닢에 해당하는 보물을 발견했습니다!");
+                return;
+            }
+
+            TalkDialog.Say(this, mate, "", "아뿔싸! 짐승의 소굴이다!");
+            int lost = Math.Min(LandEvents.DenLoss(dice), player.Crew);
+            if (lost <= 0) return;
+            player.SetCrew(player.Crew - lost);
+            NoticeDialog.Show(this, $"{lost}명이 당했습니다!");
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
     private void CheckLandEvent()
     {
         var dice = new GameRandom(Environment.TickCount);
@@ -3812,6 +3853,9 @@ public sealed class ShipMapWindow : Window
 
         // 다음이 회오리다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
         if (LandEvents.Tornado(dice, ground, _game.Player.Date.Year)) { Tornado(dice); return; }
+
+        // 동굴은 지형을 안 가리고 백에 하나 난다(0x0048DC60).
+        if (dice.Next(LandEvents.CaveOdds) == 0) { Cave(dice); return; }
 
         if (LandEvents.Meet(dice, ground, []) is not { } met) return;
 
