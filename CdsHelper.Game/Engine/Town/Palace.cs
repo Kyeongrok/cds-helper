@@ -347,10 +347,16 @@ public static class Palace
     /// 계약을 깨는 것을 후원자가 눈감아 주는지(<c>0x0044F8B0</c>).
     /// </summary>
     /// <remarks>
-    /// 서로의 이름값이 높을수록 잘 봐 준다 — 문턱은 <c>후원자 명성/100 + 내 명성/100 + 1</c>
-    /// 이고 아무리 높아도 97 에서 잘린다. 기한을 넘겼으면 주사위 폭이 넓어져 더 어렵다.
+    /// <code>
+    ///   0044f8ba  주사위 = rand(기한을 넘겼으면 150, 아니면 100)
+    ///   0044f8ca  문턱  = min(97, [후원자+0x20] + [0x005B60D0] + 1)
+    ///   0044f8de  용서받는다 = 주사위 &lt; 문턱
+    /// </code>
+    /// <c>[후원자+0x20]</c> 은 <b>친밀도</b>(<see cref="Support.Local.Models.Player.Closeness"/>)이고
+    /// <c>[0x005B60D0]</c> 은 능력치 넷째인 <b>운</b>이다 — 모조품을 봐주는 판정
+    /// (<see cref="CounterfeitForgiven"/>)과 <b>똑같은 꼴</b>이다.
     /// </remarks>
-    public static bool Forgiven(int patronFame, int playerFame, bool overdue, Random random) =>
+    public static bool Forgiven(int closeness, int luck, bool overdue, Random random) =>
         random.Next(overdue ? LateRoll : OnTimeRoll)
-            < Math.Min(ForgiveCap, patronFame / 100 + playerFame / 100 + 1);
+            < Math.Min(ForgiveCap, closeness + luck + 1);
 }
