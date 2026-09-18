@@ -128,13 +128,23 @@ internal static class HostileCityMenu
                         // 부대가 모두 쓰러졌으면 놀이가 끝난다 — 마을 공략에서 지면 게임 오버다.
                         // 퇴각했으면(Wiped 가 안 선다) 차림표로 돌아간다.
                         if (field.Wiped) return new Outcome(Entered: false, GameOver: true);
+
+                        // 퇴각했으면 부관이 물러서자고 한다(0x00468A17). 부관이 없으면 상자만 뜬다.
+                        if (game.AideFace is { } backFace)
+                            TalkDialog.Say(owner, backFace, "", Standoff.RaidLostWord);
+                        else
+                            NoticeDialog.Show(owner, Standoff.RaidLostNews, "");
                         break;
                     }
 
                     // 이겼으면 그 도시는 그 뒤로 그냥 열린다 — 교섭·잠입으로 뚫었을 때와
                     // 같다("제독, 이것으로 마을에 들어갈 수 있습니다").
                     player.OpenGate(city);
-                    NoticeDialog.Show(owner, string.Format(Standoff.TalkWonWord, where), "");
+                    // 공략 문구는 교섭 것과 따로다(0x004689BA) — 마을 이름이 안 들어간다.
+                    if (game.AideFace is { } wonFace)
+                        TalkDialog.Say(owner, wonFace, "", Standoff.RaidWonWord);
+                    else
+                        NoticeDialog.Show(owner, Standoff.RaidWonNews, "");
                     return new Outcome(true, false);
 
                 case Standoff.Sneak:
