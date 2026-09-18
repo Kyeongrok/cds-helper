@@ -186,8 +186,8 @@ public static class LandEvents
     ///   경도 0x2710~0x411B · 위도 0x208E~0x411A   쟈가   · 사자
     ///   그 밖                                     늑대
     /// </code>
-    /// <b>우리는 아직 그 자리 값을 안 들고 다닌다</b> — 걸을 때 위·경도를 재는 자리가
-    /// 따로 없어서, 지금은 늑대로만 낸다. 자리를 넘겨 주면 표대로 갈린다.
+    /// 위·경도는 지도가 넘겨 준다(<c>ShipMapHost.ShipLatLon</c>) — 게임 눈금
+    /// (0~20000, 10000 이 적도·본초자오선)을 도로 바꾼 값이라 네모도 도로 적었다.
     /// </remarks>
     private static int BeastAt(double lat, double lon, GameRandom dice)
     {
