@@ -56,7 +56,69 @@ public static class LandEvents
     /// </remarks>
     public static int DenLoss(GameRandom dice) => dice.Next(10) + 10;
 
-    /// <summary>독충 — 이름 둘.</summary>
+    // ── 하루가 갈 때 도는 뭍 사건들(0x00426E80 의 땅 갈래) ────────────────────
+    //
+    // 차례가 있다 — 더위(4) · 추위(2) · 온천(2) · 낙석(3) · 늪(6) · 유사(4) · 독충(6) ·
+    // 짐승(2) 순으로 굴려 <b>하루에 하나만</b> 터진다. 도시 안에서는 아무것도 안 난다.
+
+    /// <summary>뭍 사건 대부분이 쓰는 분모(<c>0x0042731F</c> 따위).</summary>
+    public const int GroundOdds = 250;
+
+    /// <summary>지형 부류 — 초원 2 · 산 3 · 사막 4 · 밀림(늪) 6.</summary>
+    public const int Grass = 2, Mountain = 3, Desert = 4, Jungle = 6;
+
+    /// <summary>쉬어 가는 사건(더위 · 추위 · 온천)이 풀어 주는 피로도 — <c>rand(10)+10</c>.</summary>
+    public static int RestGain(GameRandom dice) => dice.Next(10) + 10;
+
+    /// <summary>그 셋이 함께 올려 주는 규율(<c>0x004273BB</c>).</summary>
+    public const int RestMorale = 10;
+
+    /// <summary>다치는 사건(낙석 · 늪 · 유사)이 앗아 가는 사람 수 — <c>rand(10)+5</c>.</summary>
+    public static int HurtCount(GameRandom dice) => dice.Next(10) + 5;
+
+    /// <summary>
+    /// 다친 사람 가운데 <b>돌아오는 수</b>(<c>0x00426DA0</c>) — 의학이 높을수록 많이 돌아온다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   X = 제독과 부관 가운데 높은 의학
+    ///   돌아온수 = clamp((X + rand(2)) * n / 10 + 1, 1, n*2/5 + 1)
+    ///   실제로 주는 수 = n − 돌아온수
+    /// </code>
+    /// 말은 <b>n</b> 으로 「대원 %d명이 사망했습니다.」를 내고, 그 뒤에 돌아온 수를 따로 이른다.
+    /// </remarks>
+    public static int Returned(int medicine, int hurt, GameRandom dice) =>
+        Math.Clamp((medicine + dice.Next(2)) * hurt / 10 + 1, 1, hurt * 2 / 5 + 1);
+
+    /// <summary>사막에서 목이 타다 물을 찾는다(<c>0x00427311</c>).</summary>
+    public static bool Heat(GameRandom dice, int ground) =>
+        ground == Desert && dice.Next(GroundOdds) == 0;
+
+    /// <summary>
+    /// 얼어붙을 만큼 춥다가 불빛을 보고 오두막에 든다(<c>0x00427424</c>).
+    /// </summary>
+    /// <remarks>초원이고 <b>북위 60~70도 · 서경 10~25도</b>(아이슬란드 언저리)라야 난다.</remarks>
+    public static bool Cold(GameRandom dice, int ground, double lat, double lon) =>
+        ground == Grass && lat >= 60 && lat <= 70 && lon >= -25 && lon <= -10
+        && dice.Next(GroundOdds) == 0;
+
+    /// <summary>온천을 만난다(<c>0x0042756D</c>) — 초원이고 북위 40~50도다.</summary>
+    public static bool HotSpring(GameRandom dice, int ground, double lat) =>
+        ground == Grass && lat >= 40 && lat <= 50 && dice.Next(GroundOdds) == 0;
+
+    /// <summary>산에서 돌이 굴러떨어진다(<c>0x00427672</c>).</summary>
+    public static bool Rockfall(GameRandom dice, int ground) =>
+        ground == Mountain && dice.Next(GroundOdds) == 0;
+
+    /// <summary>늪에 빠진다(<c>0x00427704</c>) — 독충보다 먼저 굴린다.</summary>
+    public static bool Swamp(GameRandom dice, int ground) =>
+        ground == Jungle && dice.Next(GroundOdds) == 0;
+
+    /// <summary>모래수렁에 빠진다(<c>0x00427796</c>) — 더위 굴림에 진 뒤다.</summary>
+    public static bool Quicksand(GameRandom dice, int ground) =>
+        ground == Desert && dice.Next(GroundOdds) == 0;
+
+    /// <summary>독충 — 이름 둘.</summary>    /// <summary>독충 — 이름 둘.</summary>
     public static readonly string[] Vermin = ["독거미", "독사"];
 
     /// <summary>짐승 — 이름 여섯. 자리로 갈린다.</summary>
