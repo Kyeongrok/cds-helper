@@ -494,8 +494,14 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 이야기를 받아 줄지 가린다 — 게임 <c>0x004AE5F0</c> 의 차례 그대로다.
     /// </summary>
     /// <remarks>
-    /// 말은 세 벌(문화권별)이 있는데 우리는 한 벌만 쓴다. 아주 물리면 게임은 후원자의
-    /// 기분을 상하게 해 한동안 안 만나 주는데, 그 자리는 아직 안 들고 있다.
+    /// 반응 대사는 <b>말투 세 벌</b>이다(<c>0x00469450</c> — <see cref="StyleOf"/>).
+    /// <code>
+    ///   좋아하는 갈래   0x00546008 · 0x00546018 · 0x00546038
+    ///   말솜씨로 넘김   0x00546050 · 0x00546098 · 0x005460E8
+    ///   다른 이야기를   0x00546120 · 0x00546158 · 0x00546198
+    ///   아주 물림       0x005461F0 · 0x00546218 · 0x00546250
+    /// </code>
+    /// 아주 물리면 게임은 후원자의 기분을 상하게 해 한동안 안 만나 주는데, 그 자리는 아직 안 들고 있다.
     /// </remarks>
     private Persuasion.Verdict Decide(HintTable.Hint hint, Patron patron,
                                       SponsorTable.Sponsor? sponsor,
@@ -503,6 +509,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     {
         var dice = new GameRandom(Environment.TickCount);
         var stage = _view as CityPicView;
+
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
 
         // 1. 이야기가 감당할 만한가. 게임은 여기서 <b>설득 애니메이션(5번)</b>을 돌린다
         //    (0x004AE68D) — 감당할 만하면 청을 들어주고 아니면 엎어진다.
@@ -526,7 +535,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 2. 좋아하는 갈래면 두말이 없다.
         if (Persuasion.Likes(sponsor?.Tastes ?? 0, hint.Category))
         {
-            Say("흐음, 흥미있군.");
+            Say(Pick3("흐음, 흥미있군.",
+                      "그거 흥미있는 이야기로군요.",
+                      "음음, 흥미있을 것 같군."));
             return Persuasion.Verdict.Interested;
         }
 
@@ -540,7 +551,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         if (talked)
         {
-            Say("흐음, 그다지 흥미가 없지만 자네의 부탁이라면 안 들어 줄 것도 없지.");
+            Say(Pick3("흐음, 그다지 흥미가 없지만 자네의 부탁이라면 안 들어 줄 것도 없지.",
+                      "그렇습니까? 그다지 내키지 않지만 다름 아닌 당신 부탁이니 원조하겠습니다.",
+                      "썩 흥미롭지는 않지만 자네 부탁이니 거절할 수 없군."));
             return Persuasion.Verdict.Reluctant;
         }
 
@@ -550,11 +563,15 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         if (softened)
         {
-            Say("흐음, 썩 내키지 않는군. 좀더 흥미있는 이야기는 없는가?");
+            Say(Pick3("흐음, 썩 내키지 않는군. 좀더 흥미있는 이야기는 없는가?",
+                      "어쩐지 내키지 않는군요. 그밖에 흥미있는 이야기는 없습니까?",
+                      "흐~음, 조금도 흥미가 일어나지 않는군. 좀더 호기심을 불러 일으킬 이야기를 찾아 오게."));
             return Persuasion.Verdict.AskAnother;
         }
 
-        Say("그런 쓸데없는 이야기에 버릴 돈은 없네.");
+        Say(Pick3("그런 쓸데없는 이야기에 버릴 돈은 없네.",
+                  "그런 이야기에는 안됐지만 힘이 되어드릴 수 없습니다.",
+                  "흐~음, 흥미없군. 이것으로는 원조할 기분이 안나는군."));
         return Persuasion.Verdict.Refused;
     }
 
