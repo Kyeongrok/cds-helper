@@ -351,7 +351,14 @@ internal sealed class MazePuzzleDialog : InfoDialog
     private void OpenChest()
     {
         int number = _game.OpenChest();
-        if (number == 0) return;
+        if (number == 0)
+        {
+            // 이미 연 상자를 또 눌렀다(0x0042BA29).
+            if (!_game.Emptied) return;
+            _game.Emptied = false;
+            NoticeDialog.Show(this, "이 보물 상자는 이미 열려져 있었습니다.", "빈 보물 상자");
+            return;
+        }
 
         if (_game.Over == MazePuzzle.Result.Trapped)
         {

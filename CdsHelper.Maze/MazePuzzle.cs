@@ -239,7 +239,10 @@ public sealed class MazePuzzle
         if (Over != Result.Playing) return 0;
 
         int number = ChestAt(Here);
-        if (number == 0 || _opened[number - 1]) return 0;
+        if (number == 0) return 0;
+
+        // 이미 연 상자를 또 누르면 빈 상자라고 이른다(0x0042BA17 의 cmp 2).
+        if (_opened[number - 1]) { Emptied = true; return 0; }
 
         if (number != Opened + 1)
         {
@@ -251,6 +254,12 @@ public sealed class MazePuzzle
         Opened++;
         return number;
     }
+
+    /// <summary>
+    /// 마지막 <see cref="OpenChest"/> 가 <b>이미 연 상자</b>였는지(<c>0x0042BA29</c>).
+    /// </summary>
+    /// <remarks>부르는 쪽이 「이 보물 상자는 이미 열려져 있었습니다.」를 내고 도로 내린다.</remarks>
+    public bool Emptied { get; set; }
 
     /// <summary>되돌릴 수 있는지 — 한 발 이상 왔고 세 번을 안 넘겼을 때.</summary>
     public bool CanUndo => Over == Result.Playing && _path.Count > 1 && Undone < MaxUndo;
