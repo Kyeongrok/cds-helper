@@ -1711,6 +1711,42 @@ public sealed class ShipMapWindow : Window
     ///
     /// 자세한 것은 볼트 <c>39.분석-NEW GAME(주인공 만들기와 은퇴)</c>.
     /// </remarks>
+    /// <summary>
+    /// 누적 캐릭터를 이번 판에 내보낼지 묻는다(<c>0x0041AC60</c> 의 <c>mode 0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x0055DFB0  「누적캐릭터를 등장시킨다」
+    ///   0x0055DFC8  「누적캐릭터를 등장시키지 않는다」
+    ///   0x0055DFE8  다섯이 다 찼을 때의 본문 — 「…등장시키면 지금부터 시작하는 캐릭터로는 은퇴할 수 없게 됩니다.」
+    ///   0x0055E0B0  그 밖의 본문
+    /// </code>
+    /// 「않는다」를 고르면 깃발(<c>0x005A4D1A</c> 비트 0x10)이 서고, 그 판에서 은퇴하면
+    /// <b>올라 있던 다섯을 다 지운다</b>(<c>0x0041AD55</c>) — 우리는 그 자리에서 바로 비운다.
+    ///
+    /// <b>아직 안 옮긴 것</b> — 내보내기로 했을 때 남으로 서는 자리(인물 번호 276~280)와
+    /// 행적 대본 되돌리기(<c>ACCDATA%d.ACC</c> · <c>0x0040D1D0</c>)다.
+    /// </remarks>
+    /// <returns>이어서 제독을 지어도 되면 true.</returns>
+    private bool AskCumulative()
+    {
+        var all = Engine.AccData.Load();
+        if (all.Count == 0) return true;
+
+        string names = string.Join("\n", all.Select(c => c.Name));
+        string body = $"{names}\n{all.Count}명의 누적캐릭터가 등록되어 있습니다.\n"
+                    + "이 캐릭터들을 게임 속에 등장시킬 수 있습니다만, 어떻게 하시겠습니까?"
+                    + (all.Count >= Engine.AccData.Slots
+                        ? "\n또, 이 캐릭터들을 등장시키면 지금부터 시작하는 캐릭터로는 은퇴할 수 없게 됩니다."
+                        : "");
+
+        int at = ChoiceDialog.Ask(this, body,
+            ["누적캐릭터를 등장시킨다", "누적캐릭터를 등장시키지 않는다"]);
+        if (at < 0) return false;
+        if (at == 1) Engine.AccData.Clear();
+        return true;
+    }
+
     private void NewGame()
     {
         // 게임도 여기부터는 메인메뉴를 걷는다 — 고르는 창이 그 자리에 뜬다.
@@ -1737,9 +1773,11 @@ public sealed class ShipMapWindow : Window
                 if (who < 0) return;
                 Beginner.Apply(_game.Player, Beginner.All[who]);
             }
-            else if (!MakeCharacter())
+            else
             {
-                return;
+                // 누적 캐릭터가 올라 있으면 <b>제독을 짓기 앞서</b> 내보낼지 묻는다(0x0041AF00).
+                if (!AskCumulative()) return;
+                if (!MakeCharacter()) return;
             }
             made = true;
         }
