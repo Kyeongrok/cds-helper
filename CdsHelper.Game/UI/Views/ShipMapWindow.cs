@@ -3970,7 +3970,7 @@ public sealed class ShipMapWindow : Window
         if (LandEvents.Swamp(dice, ground)) { Mishap(dice, EventAnimation.Swamp, "제독, 큰일입니다. 늪입니다!"); return; }
         if (LandEvents.Quicksand(dice, ground)) { Mishap(dice, EventAnimation.Quicksand, "제독, 큰일입니다. 유사입니다!"); return; }
 
-        if (LandEvents.Meet(dice, ground, []) is { } met) { MeetBeast(dice, met); return; }
+        if (LandEvents.Meet(dice, ground, lat, lon) is { } met) { MeetBeast(dice, met); return; }
 
         // 마지막이 공통 꼬리다 — 유성, 그리고 삼 년에 두 해는 회오리다(0x00427D05 · 0x00427DA3).
         if (LandEvents.Meteor(dice, _game.Player.Date.Month)) { Meteor(); return; }
@@ -4068,7 +4068,8 @@ public sealed class ShipMapWindow : Window
 
             NoticeDialog.Show(this, end.Cornered ? "위험하다! 제독, 도망칠 수 없습니다!"
                                                  : "우와앗, 안되겠다, 제독");
-            NoticeDialog.Show(this, $"대원 {end.Dead}명이 사망했습니다.");
+            // 다친 사람도 의학으로 더러 돌아온다(0x00426DA0).
+            Casualties(dice, end.Dead);
         }
         finally
         {
