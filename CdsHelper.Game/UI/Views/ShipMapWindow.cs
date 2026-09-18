@@ -534,9 +534,10 @@ public sealed class ShipMapWindow : Window
             ("인물 이동", () => PersonMoveDialog.Show(this, _game)),
             // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
             ("발견물 지도", ShowDiscoveryMap),
-            // 「기능·언어」는 개발 창 체크상자로 옮겼다 — 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 뜬다.
             // 도구 앱은 따로 도는 exe 다. 게임을 하다 표를 손볼 일이 생기면 여기서 띄운다.
             ("도구 앱", RunHelperApp),
+            // 원본에 없는 편의 기능(컨디션·미니맵·기능·언어·출입 일수)은 모드 창에 모아 두었다.
+            ("모드", ShowModDialog),
             ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
         shell.Children.Add(titleBar);
@@ -2298,13 +2299,13 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 개발 창 — 소지금과 명성을 손으로 넣고, 놀이에 없는 것들을 켜고 끈다.
+    /// 모드 창 — 원본에 없는 <b>편의 기능</b>만 모아 켜고 끈다.
     /// </summary>
     /// <remarks>
-    /// 게임 상단 띠에 칸으로 두었던 것을 제목 줄 햄버거로 옮겼다. 놀이에는 없는 자리라
-    /// 게임 띠에 섞여 있으면 원본과 달라 보인다 — 앱이 얹은 것은 앱 쪽 차림표에 둔다.
+    /// 개발 창에 섞여 있던 컨디션·미니맵·기능·언어·출입 일수를 여기로 옮겼다. 개발 창은
+    /// 값을 밀어 넣어 시험하는 데고, 이쪽은 판을 그대로 두고 보기를 거드는 데다.
     /// </remarks>
-    private void ShowDevDialog() => DevDialog.Show(this, _game.Player, new DevDialog.Options
+    private void ShowModDialog() => ModDialog.Show(this, new ModDialog.Options
     {
         MiniMapOn = () => _miniWanted,
         SetMiniMap = on =>
@@ -2320,6 +2321,17 @@ public sealed class ShipMapWindow : Window
             GameSettings.ShowConditionOverlay = on;   // 다음에 켤 때도 그대로
             SyncOverlay();
         },
+    });
+
+    /// <summary>
+    /// 개발 창 — 소지금과 명성을 손으로 넣고, 놀이에 없는 것들을 켜고 끈다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 상단 띠에 칸으로 두었던 것을 제목 줄 햄버거로 옮겼다. 놀이에는 없는 자리라
+    /// 게임 띠에 섞여 있으면 원본과 달라 보인다 — 앱이 얹은 것은 앱 쪽 차림표에 둔다.
+    /// </remarks>
+    private void ShowDevDialog() => DevDialog.Show(this, _game.Player, new DevDialog.Options
+    {
         PeopleOn = () => _peopleWanted,
         SetPeople = on =>
         {
@@ -2341,7 +2353,6 @@ public sealed class ShipMapWindow : Window
             if (_toolBar != null)
                 _toolBar.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         },
-        GameDirectory = _game.Directory,
         // 게임에는 없는 것이라 해상 커맨드에서 개발 창으로 옮겼다(fb-ui-21). 지도를 Shift+오른쪽 클릭해
         // 바로 찍는 길은 그대로다.
         AutoSail = () =>
