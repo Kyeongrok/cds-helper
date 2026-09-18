@@ -89,6 +89,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </remarks>
     public void Greet()
     {
+        // 들어서면 부관이 먼저 한마디 한다(0x0042E940) — 부관이 없으면 이 줄은 통째로 없다.
+        if (_game.AideFace is { } aide)
+            TalkDialog.Say(_view, aide, "", "제독, 적당히 하고 있겠습니다.");
+
         // 악명이 높으면 누군가 결투를 걸어 온다(0x0042FB60).
         if (Challenged()) return;
 
