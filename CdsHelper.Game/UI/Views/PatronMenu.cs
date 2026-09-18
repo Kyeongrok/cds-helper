@@ -910,8 +910,16 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         {
             // 모조품(0x00412460)은 들키지 않으면 진짜와 똑같이 통과된다 — 들켰을 때만
             // 따로 간다(Report(Patron) 의 볼트 주석 참고).
-            if (row.IsCounterfeit && ReportCounterfeit(patron, row, inTime)) continue;
-            Credit(row);
+            if (!row.IsCounterfeit) { Credit(row); continue; }
+            if (!ReportCounterfeit(patron, row, inTime, out bool broke)) { Credit(row); continue; }
+
+            // 못 봐주면 그 자리에서 <b>계약이 파기된다</b>(0x004123F1 이 0x0044EEA0 을 부른다).
+            // 남은 보고도, 사례도, 가늠도 없다 — 봐주는 갈래만 0x0041243D 로 그냥 빠진다.
+            if (!broke) continue;
+
+            ReturnLentShips(broken: true);
+            _player.EndContract();
+            return (0, Palace.ReportGrade.Poor);
         }
 
         // 다 보고하고 나면 후원자가 <b>성과를 가늠해</b> 한 마디 하고 사례를 친다(0x00411AA0).
@@ -1065,8 +1073,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 못 봐주면 사이가 상한다.
     /// </remarks>
     /// <returns>이 발견물의 사례를 건너뛰어야 하면 true.</returns>
-    private bool ReportCounterfeit(Patron patron, DiscoveryTable.Record row, bool inTime)
+    private bool ReportCounterfeit(Patron patron, DiscoveryTable.Record row, bool inTime,
+                                   out bool broke)
     {
+        broke = false;
         var sponsorRow = _game.Sponsors?.FindByName(patron.Name);
         int luck = _player.AbilityOf(Ability.Luck);
         if (!Palace.CounterfeitCaught(sponsorRow?.Closeness ?? 0, luck, _random)) return false;
@@ -1092,6 +1102,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             TalkDialog.Say(_view, spy, "", $"오~ , 오, 용서를. {sir}, 우, 저는 아무것도...");
 
             if (Jail(patron, new GameRandom(Environment.TickCount))) EndGame();
+            broke = true;
             return true;
         }
 
@@ -1116,6 +1127,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                 "이런 모조품으로 저를 속일 작정이라고는...용서할 수 없습니다.",
                 "바보녀석, 이런 모조품으로 나를 속일 작정이었나!"));
             _player.Sulk(patron.Name);
+            broke = true;
         }
         return true;
     }
