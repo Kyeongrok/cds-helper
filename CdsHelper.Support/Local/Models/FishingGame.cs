@@ -137,6 +137,12 @@ public sealed class FishingGame
     public bool Started { get; private set; }
 
     /// <summary>이번 틱은 안 내려간다(<c>[0x1F8]</c>). 떨어뜨린 첫 틱이 그렇다 — 그래야 마흔 틱째에 y 103 가로줄에 닿는다.</summary>
+    /// <summary>
+    /// 이번 틱은 안 내려간다(<c>[0x1F8]</c>).
+    /// </summary>
+    /// <remarks>
+    /// 처음 한 틱과, <b>방향을 받아들인 틱마다</b> 선다(<c>0x0047A935</c> 벌).
+    /// </remarks>
     private bool _hold = true;
 
     /// <summary>
@@ -191,21 +197,28 @@ public sealed class FishingGame
     /// </remarks>
     public FishingGame(Random rng)
     {
-        int column = rng.Next(Columns);
-        DropColumn = column;
+        DropColumn = rng.Next(Columns);
         var path = new int[WalkSteps];
 
-        for (int i = 0; i < WalkSteps; i++)
+        // <b>끝 칸이 출발 칸이면 처음부터 다시 굴린다</b>(0x0047B864) — 그래서 대어는
+        // 반드시 딴 칸에 있고, 이기려면 적어도 한 번은 옆으로 건너야 한다.
+        int column;
+        do
         {
-            int step = column == 0 ? rng.Next(2)
-                     : column == Columns - 1 ? rng.Next(2) * 2
-                     : rng.Next(3);
-            if (step == 2) step = -1;
+            column = DropColumn;
+            for (int i = 0; i < WalkSteps; i++)
+            {
+                int step = column == 0 ? rng.Next(2)
+                         : column == Columns - 1 ? rng.Next(2) * 2
+                         : rng.Next(3);
+                if (step == 2) step = -1;
 
-            int at = i == 0 ? column : path[i - 1] + Columns;
-            path[i] = at + step;
-            column += step;
+                int at = i == 0 ? column : path[i - 1] + Columns;
+                path[i] = at + step;
+                column += step;
+            }
         }
+        while (column == DropColumn);
 
         BigOneColumn = column;
 
@@ -228,6 +241,13 @@ public sealed class FishingGame
         //
         // 가는 쪽도 굴리는 것이 아니라 <b>이웃을 보고</b> 정한다 — 0x0047B976 이 왼쪽 칸이
         // 오징어(2)나 낙지(4)면 그쪽으로 안 간다. 양쪽이 다 막혔으면 오른쪽으로 둔다.
+        // 줄마다 <b>미리 걷는 걸음 수</b>(0x0047B8DA · 0x0047B902) — 바늘이 그 줄에 닿을
+        // 때까지 흐른 줄 수다. 길이 옆으로 꺾인 줄에서는 한 걸음이 더 붙는다.
+        var lead = new int[Rows];
+        lead[0] = path[0] == DropColumn ? 1 : 2;
+        for (int i = 1; i < Rows; i++)
+            lead[i] = lead[i - 1] + 1 + (path[i] - path[i - 1] != Columns ? 1 : 0);
+
         var taken = new bool[Cells];
         for (int k = 0; k < Swimmers; k++)
         {
@@ -235,12 +255,12 @@ public sealed class FishingGame
             do { at = rng.Next(Cells); } while (_cell[at] != Empty || taken[at]);
             taken[at] = true;
 
-            int side = at % Columns;
-            bool leftWall = side == 0 || _cell[at - 1] >= Squid;
-            bool rightWall = side == Columns - 1 || _cell[at + 1] >= Squid;
-            int way = leftWall ? 1 : rightWall ? 2 : rng.Next(2) + 1;
+            // <b>가는 쪽은 굴리지 않는다</b> — 한쪽으로 두고 그 줄의 걸음 수만큼 미리
+            // 걷힌다(0x0047B961~0x0047B9E8). 벽이나 오징어·낙지에 닿으면 돌아선다.
+            var fish = new Swimmer(at, 1, rng.Next(5) >= 4 ? 0 : 1);
+            for (int step = 0; step < lead[at / Columns]; step++) fish = Ahead(fish);
 
-            _swim[k] = new Swimmer(at, way, rng.Next(5) >= 4 ? 0 : 1);
+            _swim[k] = fish;
         }
 
         // 바늘은 떨어뜨리는 칸의 <b>맨 윗줄 위</b>에서 시작한다(0x0047BA33 의 -7).
@@ -263,20 +283,20 @@ public sealed class FishingGame
     /// </remarks>
     private void Swim()
     {
-        for (int k = 0; k < Swimmers; k++)
-        {
-            var fish = _swim[k];
-            int next = fish.Cell + (fish.Way == 1 ? 1 : -1);
+        for (int k = 0; k < Swimmers; k++) _swim[k] = Ahead(_swim[k]);
+    }
 
-            bool wall = fish.Way == 1 ? next % Columns == 0
-                                      : fish.Cell % Columns == 0;
-            if (wall || next < 0 || next >= Cells || _cell[next] >= Squid)
-            {
-                _swim[k] = fish with { Way = fish.Way == 1 ? 2 : 1 };
-                continue;
-            }
-            _swim[k] = fish with { Cell = next };
-        }
+    /// <summary>한 마리를 한 걸음 옮긴다. 막혔으면 자리는 두고 돌아선다.</summary>
+    private Swimmer Ahead(Swimmer fish)
+    {
+        int next = fish.Cell + (fish.Way == 1 ? 1 : -1);
+
+        bool wall = fish.Way == 1 ? next % Columns == 0
+                                  : fish.Cell % Columns == 0;
+        if (wall || next < 0 || next >= Cells || _cell[next] >= Squid)
+            return fish with { Way = fish.Way == 1 ? 2 : 1 };
+
+        return fish with { Cell = next };
     }
 
     /// <summary>
@@ -301,15 +321,12 @@ public sealed class FishingGame
         // 다시 해 바늘이 제자리로 튄다. 건넌 다음 꼭짓점은 어차피 반드시 밑으로 간다.
         if (Lean != 0) return;
 
-        if (Tick == 0 && At >= 0)
-        {
-            // 지금이 꼭짓점(가로줄 위)이다 — 곧장 건넌다.
-            if (wish == 0) return;
-            Lean = wish;
-            Wish = 0;
-            return;
-        }
+        // <b>곧장 건너는 길은 없다</b> — 원본은 누른 것을 적어만 두고(0x0047A935 벌),
+        // 다음 마흔 틱 경계에서 비로소 건너기를 시작한다(0x0047AB0F).
         Wish = wish;
+
+        // 방향을 받아들인 틱은 <b>안 내려간다</b>(0x0047A935 의 [0x1F8] = 1).
+        if (wish != 0) _hold = true;
     }
 
     /// <summary>다음 꼭짓점에서 꺾을 쪽. 0 이면 곧장 내려간다.</summary>
@@ -365,7 +382,9 @@ public sealed class FishingGame
                  && SwimmerAt(At, Tick == MeetRight ? 1 : 2) is { } hooked)
         {
             Caught = hooked;
-            Got = Catch.SmallFry;
+            // 오른쪽으로 헤엄치는 놈이면 3, 왼쪽이면 4 다(0x0047ABF1 · 0x0047AC31).
+            // <b>말은 둘 다 같다</b> — 뜀표가 한 자리로 모인다(0x0047AD60).
+            Got = Tick == MeetRight ? Catch.SmallFry : Catch.SmallFryToo;
             return false;
         }
         else if (Tick == MeetTick && At >= 0 && At < Cells)
