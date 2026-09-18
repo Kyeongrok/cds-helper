@@ -425,6 +425,58 @@ public static class Home
         : player.Children.Where(c => c.Daughter && c.AgeOn(player.Date) >= MarriageAge)
                          .OrderBy(c => c.Born).FirstOrDefault();
 
+    // ── 집에 돌아왔을 때 나는 사건(0x00460530) ──────────────────────────────
+
+    /// <summary>
+    /// 집에 사건이 나는가 — 아내가 있고, <c>rand(100) &lt;= 2</c> 이고, 저금이 만 닢을 넘어야 한다
+    /// (<c>0x00460530</c>).
+    /// </summary>
+    public static bool IncidentDue(Player player, Random random) =>
+        player.Spouse.Length > 0 && random.Next(100) <= 2 && player.Savings > MarriageSavings;
+
+    /// <summary>
+    /// 사진 쪽인가 동물 쪽인가 — <b>제독의 직업</b>이 가른다(<c>0x00460583</c> 의 점프표 <c>0x004605A8</c>).
+    /// </summary>
+    /// <remarks>
+    /// 탐험가(0)·발굴자(1)는 「서적·유물」(분류 7)을 가져오니 아내가 사진을 팔고, 사냥꾼(2)·
+    /// 정복자(3)는 「동물」(분류 8)을 가져오니 구경거리가 된다. 직업이 넷을 넘으면 아무 일도 없다.
+    /// </remarks>
+    public static bool SellsPhotos(int jobIndex) => jobIndex is 0 or 1;
+
+    /// <summary>사진 사건이 뒤지는 아이템 분류 — 서적·유물(<c>0x0046044A</c>).</summary>
+    public const int RelicCategory = 7;
+
+    /// <summary>동물 사건이 뒤지는 아이템 분류 — 동물(<c>0x004602AC</c>).</summary>
+    public const int AnimalCategory = 8;
+
+    /// <summary>
+    /// 아내의 욕심 칸 — 성미 여덟 가운데 <b>여섯째</b>(편협 0 · 1 · 욕심장이 2).
+    /// </summary>
+    public const int GreedSlot = 5;
+
+    /// <summary>
+    /// 동물을 구경시켜 돈을 벌었는가, 아니면 놓쳤는가(<c>0x00460306</c>).
+    /// </summary>
+    /// <remarks>
+    /// 욕심 칸이 2 면 언제나 구경거리로 삼고, 0 이면 언제나 놓친다. 1 이면
+    /// <c>rand(100) &lt;= 운 + 1</c> 일 때만 벌어 온다.
+    /// </remarks>
+    public static bool ShowsAnimals(int greed, int luck, Random random) =>
+        greed >= 2 || (greed > 0 && random.Next(100) <= luck + 1);
+
+    /// <summary>사진을 팔려면 욕심 칸이 <b>1 이상</b>이라야 한다(<c>0x00460471</c>).</summary>
+    public static bool SellsRelicPhotos(int greed) => greed >= 1;
+
+    /// <summary>구경삯 — 가진 동물 <b>모두</b>의 매각가를 백으로 나눠 더한다(<c>0x004603CD</c>).</summary>
+    public static int ShowFee(int sellPrice) => sellPrice / 100;
+
+    /// <summary>사진 값 — <c>rand(운 + 1) + 매각가 / 300</c>(<c>0x004604E2</c>).</summary>
+    public static int PhotoFee(int sellPrice, int luck, Random random) =>
+        random.Next(luck + 1) + sellPrice / 300;
+
+    /// <summary>놓친 동물이 물어 오는 악명 — <c>매각가 / 300</c>(<c>0x00460395</c>).</summary>
+    public static int RunawayInfamy(int sellPrice) => sellPrice / 300;
+
     /// <summary>교육 나이 — 열 살부터(<c>0x0046181E</c>).</summary>
     public const int EducateAge = 10;
 
