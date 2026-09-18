@@ -3064,6 +3064,9 @@ public sealed class ShipMapWindow : Window
             // 새 도시가 섰으면 알린다 — 날이 간 뒤라야 그 달로 넘어간 것이 보인다.
             TellFounded();
 
+            // 극지방은 뭍이든 바다든 같이 본다(0x0048D690) — 넘어서는 걸음에만 한 번 난다.
+            if (!CheckPolar()) return;
+
             // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
             if (_host.IsOnLand)
             {
@@ -4652,6 +4655,48 @@ public sealed class ShipMapWindow : Window
             NoticeDialog.Show(this, $"[{got}]{GameUi.Josa(got, "을", "를")} 받았다");
         }
         finally { _host.Paused = false; _asking = false; }
+    }
+
+    /// <summary>바로 앞서 잰 |위도| — 게임의 <c>[함대+0x128]</c> 자리다.</summary>
+    private double _polarWas;
+
+    /// <summary>
+    /// 극지방 경고와 전멸(<c>0x0048D690</c>). 놀이가 이어지면 true.
+    /// </summary>
+    private bool CheckPolar()
+    {
+        var (lat, _) = _host.ShipLatLon;
+        var step = SeaEvents.PolarAt(lat, _polarWas);
+        _polarWas = Math.Abs(lat);
+        if (step == SeaEvents.PolarStep.None) return true;
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            if (step == SeaEvents.PolarStep.Warn)
+            {
+                string way = SeaEvents.PolarWay(lat);
+                ConfirmDialog.Tell(this,
+                    $"제독, 너무 춥습니다! 더 이상 {way}{GameUi.Josa(way, "으로", "로")} 가는 것은 위험합니다!",
+                    face: MateFace());
+                return true;
+            }
+
+            if (step == SeaEvents.PolarStep.Alarm)
+            {
+                ConfirmDialog.Tell(this, SeaEvents.PolarAlarmWord(_host.IsOnLand), face: MateFace());
+                return true;
+            }
+
+            ConfirmDialog.Tell(this, SeaEvents.PolarDoomWord(_host.IsOnLand, _game.Random),
+                               face: MateFace());
+        }
+        finally { _host.Paused = false; _asking = false; }
+
+        GameOver();
+        Dispatcher.BeginInvoke(ReturnToTitle);
+        return false;
     }
 
     private void CheckSeaEvent()
