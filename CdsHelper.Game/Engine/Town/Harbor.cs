@@ -1,4 +1,4 @@
-using CdsHelper.Game.Local.Helpers;
+﻿using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Town;
@@ -48,9 +48,14 @@ public static class Harbor
     /// 칸 2 는 「세상에 처음 알린 사람」이고, 채우는 것은 <b>역사 항해자 대본(HISTCHR)</b>이다 —
     /// 디아스·다 가마가 제 각본대로 정해진 해에 발표하면 그때부터 값이 없어진다.
     ///
-    /// <b>우리 쪽에는 그 칸이 없다.</b> 발표 날짜(<c>+0x28</c>·<c>+0x2C</c>)만 들고 있고 사람은
-    /// 안 적어서, 제독이 언제 가져가도 늘 처음이 된다. 붙이려면 인스턴스에 「누가 알렸나」 칸을
-    /// 두어 세이브에 싣고, HISTCHR 대본에서 그것을 채우는 명령을 옮겨야 한다.
+    /// <b>그런데 원본에서도 이 말은 안 나온다.</b> 칸 2 에 남의 이름을 올리는 길은 대본 명령
+    /// 둘뿐인데(<c>0x3F</c> · <c>0x68 0B</c> — <c>0x0040AFC6</c> 이 <c>0x004AACA0</c> 으로 적는다),
+    /// 딸려 오는 대본 어디에도 그 명령이 없다. 새 판은 세 칸을 다 비우고 시작한다
+    /// (<c>0x004AA9B3</c>). <see cref="Palace.FameFor"/> 의 <c>known</c> 과 같은 사정이다.
+    ///
+    /// 역사 항해자(<see cref="Discovery.HistoryVoyages"/>)가 채가는 것은 칸 <b>0·1</b>(발견)이라
+    /// 이 자리가 아니다 — 그쪽은 <b>한 번짜리를 아예 못 찾게</b> 막는 길로 이미 옮겨 두었다
+    /// (<c>0x004AAC10</c>).
     /// </remarks>
     public const string AlreadyKnown = "자네, 그런 건 벌써 모두 알고 있네.";
 
