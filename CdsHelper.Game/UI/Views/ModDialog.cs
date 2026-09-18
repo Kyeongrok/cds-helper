@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using CdsHelper.Game.Local.Settings;
@@ -12,7 +12,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 개발 창에 섞여 있던 것 가운데 <b>놀 때 쓰는 것</b>만 따로 뽑아 왔다. 개발 창은 값을
 /// 손으로 밀어 넣어 시험하는 데고, 여기는 판을 그대로 두고 보기를 거드는 데다.
 ///
-/// 지금 든 것은 컨디션 막대 · 미니맵 · 기능·언어 쪽지 · 출입 일수 넷이다.
+/// 지금 든 것은 컨디션 막대 · 미니맵 · 발견물 지도 · 기능·언어 쪽지 · 출입 일수 다섯이다.
 /// </remarks>
 public sealed class ModDialog : GameWindow
 {
@@ -47,6 +47,12 @@ public sealed class ModDialog : GameWindow
         // 미니맵 — D 로 여는 발견물 지도를 항해·뭍 이동 중에 오른쪽 아래에 작게 띄운다.
         rows.Children.Add(Toggle("미니맵", options.MiniMapOn(), options.SetMiniMap,
             "항해·뭍 이동 중에 발견물 지도를 지도 오른쪽 아래에 작게 띄웁니다. 배를 가운데 두고 따라갑니다(빨강 찾음 · 회색 아직 · 파랑 내 자리)"));
+
+        // 발견물 지도 — 햄버거 줄과 단축키를 함께 여닫는다. 원본 항해지도는 표식을 안 찍는다.
+        rows.Children.Add(Toggle("발견물 지도", GameSettings.ShowDiscoveryMapMenu,
+            on => GameSettings.ShowDiscoveryMapMenu = on,
+            "햄버거에 「발견물 지도」 줄을 냅니다. 어디에 무엇이 있는지 표식으로 찍어 보여 줍니다"
+            + " — 끄면 줄도 단축키도 안 먹습니다"));
 
         // 기능·언어 — 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 쪽지로 뜬다.
         rows.Children.Add(Toggle("기능·언어", GameSettings.ShowSkillOverlay,
