@@ -2425,7 +2425,9 @@ public sealed class ShipMapWindow : Window
             // 물어보는 창(<see cref="CheckPort"/>)에서 아니오를 눌렀어도 이 줄로 다시 들어간다.
             int town = _host.NearestTown();
             if (town >= 0)
-                items.Add(($"{_game.CityName(town)}에 들어간다", () => { Close(); EnterCity(town); }));
+                // 줄 글은 0x0056F990 "[%s]에 들어간다" 다 — 이름을 꺾쇠에 넣는다(0x0048B2F4).
+                items.Add(($"[{_game.CityName(town)}]에 들어간다",
+                           () => { Close(); AskEnterCity(town); }));
 
             // 상륙해 있으면 「보급」·「수리」가 붙는다(0x0048E5E0 의 상륙 차림표 — 탐색 ·
             // 보급 · 수리 · 승선한다). 「탐색」은 우리 쪽에서 걸으며 하는 발견 판정이 대신한다.
@@ -2845,6 +2847,24 @@ public sealed class ShipMapWindow : Window
                 _asking = false;
             }
         }
+    }
+
+    /// <summary>
+    /// 커맨드로 고른 도시에 들어갈지 한 번 묻는다(<c>0x0048B4F8</c>).
+    /// </summary>
+    /// <remarks>
+    /// 다가갈 때 뜨는 물음(<see cref="CheckPort"/>)과는 <b>글이 다르다</b> —
+    /// 이쪽은 <c>0x0056FA20</c> 「[%s]에 들어갑니다」다.
+    /// </remarks>
+    private void AskEnterCity(int city)
+    {
+        _asking = true;
+        _host.Paused = true;
+        bool ok;
+        try { ok = ConfirmDialog.Ask(this, $"[{_game.CityName(city)}]에 들어갑니다"); }
+        finally { _host.Paused = false; _asking = false; }
+
+        if (ok) EnterCity(city);
     }
 
     /// <summary>
