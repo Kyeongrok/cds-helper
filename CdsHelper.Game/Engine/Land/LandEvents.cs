@@ -23,6 +23,39 @@ namespace CdsHelper.Game.Engine.Land;
 /// </remarks>
 public static class LandEvents
 {
+    /// <summary>
+    /// 뭍을 걷다 <b>동굴</b>을 찾는다(<c>0x0048DC60</c>) — 백에 하나다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0048dc6a  rand(100) == 0
+    ///   0048dc7c  부관 「제독, 동굴을 발견했습니다!」   0x005708D0
+    ///   0048dca1  물음 「제독, 동굴속을 탐색하겠습니까?」 0x005708F0
+    ///   0048dcd7  문턱 = (신앙심 + 운 + 2) / 5
+    ///   0048dce8  문턱 >= rand(100) 이면 보물, 아니면 짐승의 소굴
+    /// </code>
+    /// </remarks>
+    public const int CaveOdds = 100;
+
+    /// <summary>동굴을 뒤져 보물을 찾는지(<c>0x0048DCE8</c>).</summary>
+    public static bool CaveTreasure(int faith, int luck, GameRandom dice) =>
+        (faith + luck + 2) / 5 >= dice.Next(100);
+
+    /// <summary>
+    /// 찾은 보물의 닢수(<c>0x0048DD0C</c>) — <c>운 x 100 + 100 + rand(20)</c>.
+    /// </summary>
+    public static int CaveGold(int luck, GameRandom dice) =>
+        (luck * 4 + 4) * 25 + dice.Next(20);
+
+    /// <summary>
+    /// 짐승의 소굴에서 당하는 사람 수의 <b>밑값</b>(<c>0x0048DD62</c> — <c>rand(10)+10</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이 값을 부하 값 하나(<c>0x0048DDB2</c> 의 <c>+0x34</c>)로 다시 깎는데 그 칸이
+    /// 무엇인지 아직 못 짚어 <b>밑값 그대로</b> 쓴다.
+    /// </remarks>
+    public static int DenLoss(GameRandom dice) => dice.Next(10) + 10;
+
     /// <summary>독충 — 이름 둘.</summary>
     public static readonly string[] Vermin = ["독거미", "독사"];
 
