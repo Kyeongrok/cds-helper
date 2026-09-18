@@ -1736,8 +1736,8 @@ public sealed class ShipMapWindow : Window
     /// 「않는다」를 고르면 깃발(<c>0x005A4D1A</c> 비트 0x10)이 서고, 그 판에서 은퇴하면
     /// <b>올라 있던 다섯을 다 지운다</b>(<c>0x0041AD55</c>) — 우리는 그 자리에서 바로 비운다.
     ///
-    /// <b>아직 안 옮긴 것</b> — 내보내기로 했을 때 남으로 서는 자리(인물 번호 276~280)와
-    /// 행적 대본 되돌리기(<c>ACCDATA%d.ACC</c> · <c>0x0040D1D0</c>)다.
+    /// 「등장시킨다」를 고르면 인물 276~280 자리에 앉히고(<see cref="Engine.AccData.Place"/>)
+    /// 옛 발자취를 날마다 되짚게 건다(<see cref="Engine.AccReplay"/>).
     /// </remarks>
     /// <returns>이어서 제독을 지어도 되면 true.</returns>
     private bool AskCumulative()
@@ -4381,7 +4381,6 @@ public sealed class ShipMapWindow : Window
     /// </list>
     /// 붙고 난 뒤의 교섭 · 도망 · 응전 차례와 셈은 게임 것 그대로다(<see cref="Encounter"/>).
     ///
-    /// <b>해전은 아직 못 옮겼다.</b> 싸우게 되면 그렇다고 이르고 넘어간다.
     /// </remarks>
     /// <param name="steps">지난번 뒤로 걸은 걸음 수.</param>
     private void CheckEncounter(int steps)
