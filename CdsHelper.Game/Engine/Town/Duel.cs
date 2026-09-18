@@ -71,6 +71,55 @@ public sealed class Duel
     /// <summary>아이템 분류. 표 <c>+0x14</c> 의 번호다.</summary>
     public const int WeaponCategory = 3, ArmorCategory = 4;
 
+    /// <summary>
+    /// 맞붙는 상대가 <b>지니고 나오는 무기와 방어구</b>(<c>0x004A89D4</c>~<c>0x004A8D16</c>).
+    /// </summary>
+    /// <remarks>
+    /// 인물 표에 적혀 있는 것이 아니라 <b>그 자리에서 짓는다</b> — 복장 갈래(나라 갈래를
+    /// <c>Local.Helpers.FighterSprites.SetForCulture</c> 로 옮긴 값)와 <b>무력</b>으로 가른다.
+    /// <code>
+    ///   갈래 6(중국)  무기 무력&gt;90 ? 0x3A : 0x39     방어구 무력&gt;70 ? 0x4B : 0x4A
+    ///   갈래 7(일본)  무기 무력&gt;90 ? 0x3C : 0x3B     방어구 무력&gt;70 ? 0x4D : 0x4C
+    ///   갈래 1·3      아래 표대로 굴린다
+    ///   그 밖         무기 0x40 · 방어구 0x42          ; 한 벌로 못 박혀 있다
+    /// </code>
+    /// 갈래 1(유럽)·3(아랍)은 방어구를 먼저 굴리고 무기를 굴린다.
+    /// <code>
+    ///   방어구  무력&gt;90  rand(2) ? 0x49 : 0x45      무력&gt;80  rand(2) ? 0x44 : 0x48
+    ///           무력&gt;70  rand(2) ? 0x47 : 0x46      그 밖    rand(2) ? 0x42 : 0x43
+    ///   무기 1  무력&gt;90  rand(2) ? 0x2E : 0x2D      무력&gt;80  rand(2) ? 0x2C : 0x2B
+    ///           무력&gt;70  rand(2) ? 0x2A : 0x29      그 밖    rand(3) 0x28 · 0x26 · 0x25
+    ///   무기 3  무력&gt;90  rand(2) ? 0x37 : 0x38      무력&gt;80  rand(2) ? 0x36 : 0x41
+    ///           무력&gt;70  rand(2) ? 0x32 : 0x35      그 밖    0x34         ; 굴림 없음
+    /// </code>
+    /// 이긴 뒤 「모두 뺏는다」를 고르면 이 둘을 그대로 얻는다(<c>0x004AA4B3</c>).
+    /// </remarks>
+    /// <param name="set">복장 갈래(1~8).</param>
+    /// <param name="might">상대의 무력.</param>
+    public static (int Weapon, int Armor) GearOf(int set, int might, GameRandom dice)
+    {
+        if (set == 6) return (might > 90 ? 0x3A : 0x39, might > 70 ? 0x4B : 0x4A);
+        if (set == 7) return (might > 90 ? 0x3C : 0x3B, might > 70 ? 0x4D : 0x4C);
+        if (set is not (1 or 3)) return (0x40, 0x42);
+
+        int armor = might > 90 ? (dice.Next(2) == 0 ? 0x45 : 0x49)
+                  : might > 80 ? (dice.Next(2) == 0 ? 0x48 : 0x44)
+                  : might > 70 ? (dice.Next(2) == 0 ? 0x46 : 0x47)
+                  : dice.Next(2) == 0 ? 0x43 : 0x42;
+
+        int weapon = set == 1
+            ? might > 90 ? (dice.Next(2) == 0 ? 0x2D : 0x2E)
+            : might > 80 ? (dice.Next(2) == 0 ? 0x2B : 0x2C)
+            : might > 70 ? (dice.Next(2) == 0 ? 0x29 : 0x2A)
+            : dice.Next(3) switch { 0 => 0x28, 1 => 0x26, _ => 0x25 }
+            : might > 90 ? (dice.Next(2) == 0 ? 0x38 : 0x37)
+            : might > 80 ? (dice.Next(2) == 0 ? 0x41 : 0x36)
+            : might > 70 ? (dice.Next(2) == 0 ? 0x35 : 0x32)
+            : 0x34;
+
+        return (weapon, armor);
+    }
+
     /// <summary>도망 판정(<c>0x004A9EED</c>) — <c>운*5 + 10 + rand(60) &gt;= rand(1000)</c>.</summary>
     private const int FleeLuck = 5, FleeBase = 10, FleeDice = 60, FleeRoll = 1000;
 
