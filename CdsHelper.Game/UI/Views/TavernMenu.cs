@@ -222,17 +222,60 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (lost > 0) ConfirmDialog.Tell(_view, "돈을 도둑 맞았다!!");
     }
 
-    /// <summary>시비가 붙어 일기토가 벌어진다(<c>0x0042EC10</c>).</summary>
+    /// <summary>취해서 시비가 붙어 일기토가 벌어진다(<c>0x0042EC10</c>).</summary>
     /// <remarks>
-    /// 게임은 걸 사람을 그 자리에서 고르고 <b>싸움 창</b>을 띄운다. 우리는 아직 취중
-    /// 일기토를 붙이지 않고 말만 낸다 — 거는 말은 게임 것 그대로 둘 중 하나다.
+    /// 걸리는 상대는 <b>인물 275</b>로 박혀 있다(<c>0x0042EC19</c> 의 <c>push 0x113</c>).
+    /// 말은 굴림 하나로 둘 중 한 벌씩 — 제독이 걸고, 상대가 받고, 부관이 말린다.
+    /// <code>
+    ///   0042ec6e  제독   0x0054A6A0 · 0x0054A6D0
+    ///   0042ec86  상대   0x0054A6F8 · 0x0054A718
+    ///   0042ec9f  부관   0x0054A740 · 0x0054A770
+    ///   0042ecd3  이기면 명성 +100 · 악명 +500
+    ///   0042ecf6  지면   악명 += rand(100) + 100
+    ///   0042ed16  죽으면 게임 오버
+    /// </code>
     /// </remarks>
     private void PickFight(uint[]? mate)
     {
         int k = _game.Random.Next(Taunts.Length);
         ConfirmDialog.Tell(_view, Taunts[k]);
+        ConfirmDialog.Tell(_view, Retorts[k]);
         if (_player.MateAt(0).Length > 0) ConfirmDialog.Tell(_view, MateStops[k], face: mate);
+
+        if (PersonTable.Open().Find(BrawlPerson) is not { } row || row.Stats.Length < 5) return;
+
+        var dice = new GameRandom(Environment.TickCount);
+        int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
+        var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
+
+        var face = _game.PersonTemplates?.Find(BrawlPerson) is { } t
+            ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
+        DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
+                        FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
+        _player.Hurt(duel.BodyLost);
+
+        if (duel.Won == true)
+        {
+            _player.Fame += BrawlFame;
+            _player.Infamy += BrawlWinInfamy;
+            return;
+        }
+        _player.Infamy += dice.Next(100) + 100;
     }
+
+    /// <summary>취중에 시비가 붙는 상대(<c>0x0042EC19</c> 의 <c>0x113</c>).</summary>
+    private const int BrawlPerson = 275;
+
+    /// <summary>이겼을 때 오르는 값(<c>0x0042ECD3</c>).</summary>
+    private const int BrawlFame = 100, BrawlWinInfamy = 500;
+
+    /// <summary>시비를 받아 주는 말(<c>0x0054A6F8</c> · <c>0x0054A718</c>).</summary>
+    private static readonly string[] Retorts =
+    [
+        "얕보는 거냐, 이봐! 검을 빼라.",
+        "무례한 놈, 지옥에 가서나 후회하거라.",
+    ];
 
     /// <summary>토하고 뻗는다 — 여관에서 깨고 돈과 이름을 잃는다(<c>0x0042ED30</c>).</summary>
     private void ThrowUp(bool hasMate, uint[]? mate)
