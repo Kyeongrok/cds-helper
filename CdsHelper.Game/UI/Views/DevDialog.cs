@@ -18,6 +18,9 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 늘리고 줄이는 단추는 정해진 폭으로 움직이고, 칸에 수를 적어 넣으면 그 값이 그대로 된다.
 /// 값은 0 밑으로 안 내려간다.
+///
+/// 놀 때 켜고 끄는 편의 기능(컨디션·미니맵·기능·언어·출입 일수)은 <see cref="ModDialog"/> 로
+/// 옮겼다 — 여기는 값을 밀어 넣어 <b>시험</b>하는 데다.
 /// </remarks>
 public sealed class DevDialog : GameWindow
 {
@@ -39,14 +42,6 @@ public sealed class DevDialog : GameWindow
         public Func<bool> PeopleOn { get; init; } = () => false;
         public Action<bool> SetPeople { get; init; } = _ => { };
 
-        /// <summary>제독 컨디션(HP) 상자.</summary>
-        public Func<bool> ConditionOn { get; init; } = () => false;
-        public Action<bool> SetCondition { get; init; } = _ => { };
-
-        /// <summary>미니맵 — 발견물 지도를 작게 잘라 배를 따라간다.</summary>
-        public Func<bool> MiniMapOn { get; init; } = () => false;
-        public Action<bool> SetMiniMap { get; init; } = _ => { };
-
         /// <summary>지도 위의 까만 조작 줄(체크상자·안내 글).</summary>
         public Func<bool> ToolBarOn { get; init; } = () => false;
         public Action<bool> SetToolBar { get; init; } = _ => { };
@@ -54,16 +49,11 @@ public sealed class DevDialog : GameWindow
         /// <summary>자동항해 — 목적지 도시를 골라 손을 놓고 몬다. 개발 창을 닫은 뒤 부른다.</summary>
         public Action? AutoSail { get; init; }
 
-        /// <summary>게임 폴더. 화면 조각을 뽑을 때 쓴다.</summary>
-        public string GameDirectory { get; init; } = "";
     }
-
-    private readonly string _gameDirectory;
 
     private DevDialog(Player player, Options options)
     {
         _player = player;
-        _gameDirectory = options.GameDirectory;
 
         Title = "개발";
         WindowStyle = WindowStyle.None;
@@ -89,36 +79,11 @@ public sealed class DevDialog : GameWindow
         rows.Children.Add(Toggle("정보", options.PeopleOn(), options.SetPeople,
             "말을 걸어 본 여급의 친밀도·궁합과, 만난 인물 목록을 지도 위에 띄웁니다"));
 
-        // 컨디션 — 제독 HP(0x005B60D8)를 지도 왼쪽 아래에 막대로 띄운다. 300·100 문턱도 같이 그린다.
-        rows.Children.Add(Toggle("컨디션", options.ConditionOn(), options.SetCondition,
-            "제독 컨디션(HP, 0~2000)을 지도 왼쪽 아래에 띄웁니다. 300·100 아래면 부관이 쉬라고 하고, 0 이면 쓰러집니다"));
-
-        // 미니맵 — D 로 여는 발견물 지도를 항해·뭍 이동 중에 오른쪽 아래에 작게 띄운다.
-        rows.Children.Add(Toggle("미니맵", options.MiniMapOn(), options.SetMiniMap,
-            "항해·뭍 이동 중에 발견물 지도를 지도 오른쪽 아래에 작게 띄웁니다. 배를 가운데 두고 따라갑니다(빨강 찾음 · 회색 아직 · 파랑 내 자리)"));
-
-        // 기능·언어 — 햄버거에 있던 창을 옮겼다. 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 쪽지로 뜬다.
-        rows.Children.Add(Toggle("기능·언어", GameSettings.ShowSkillOverlay, on => GameSettings.ShowSkillOverlay = on,
-            "도시에 들어가면 제독과 부하 넷의 기능·언어를 도시 그림 왼쪽에 띄웁니다. 끌어 옮기면 그 자리를 기억합니다"));
-
         // 점그림을 이웃과 섞어 늘일지. 화면을 키워 놓았을 때 계단을 갈아 준다.
         rows.Children.Add(Toggle("이웃 섞기", GameSettings.SmoothSprites,
             GameUi.SetSpriteSmoothing,
             "점그림을 이웃과 섞어 늘입니다(Linear). 끄면 점 그대로입니다(NearestNeighbor)."
             + " 메인메뉴와 지도는 바로 듭니다 — 나머지 창은 다시 열 때 듭니다."));
-
-        // 게임 창 단추의 좌우 여백. 띠 마구리(양 끝 조각)가 앉을 자리다 — 크게 잡으면
-        // 글자에서 멀어지고 작게 잡으면 글자가 마구리 위로 올라앉는다.
-        rows.Children.Add(Tune("단추 여백", GameSettings.BandPad,
-            GameSettings.MinBandPad, GameSettings.MaxBandPad, v => GameSettings.BandPad = v,
-            $"게임 창 단추의 좌우 여백(점). 띠 마구리는 실제로 16점입니다. 기본값 {GameSettings.DefaultBandPad}."
-            + " 바꾼 값은 다음에 여는 창부터 듭니다."));
-
-        // 마을·항구에 들고 날 때 보내는 날수. 원본은 열흘씩이라 오가는 시험이 더디다.
-        rows.Children.Add(Tune("출입 일수", GameSettings.PortDays,
-            GameSettings.MinPortDays, GameSettings.MaxPortDays, v => GameSettings.PortDays = v,
-            $"항구·마을에 들어가고 나올 때 각각 지나는 날수(1~10). 원본 기본값 {GameSettings.DefaultPortDays}."
-            + " 바꾼 값은 다음 출입부터 곧바로 듭니다."));
 
         // 인물 이동 — 떠날지 굴리는 때와 확률. 원본은 매월 1일 5분의 1이다.
         // 첫 줄(0)이 원본 「매월 1일」이고, 그 뒤 줄 번호가 곧 날수다.
@@ -135,30 +100,6 @@ public sealed class DevDialog : GameWindow
             GameSettings.PersonMoveOdds - GameSettings.MinPersonMoveOdds,
             i => GameSettings.PersonMoveOdds = i + GameSettings.MinPersonMoveOdds,
             $"굴릴 때마다 떠날 확률. 원본은 {GameSettings.DefaultPersonMoveOdds}분의 1입니다."));
-
-        // 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다.
-        var dump = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 10, 0, 4),
-        };
-        dump.Children.Add(new TextBlock
-        {
-            Text = "화면 조각",
-            Width = 64,
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        dump.Children.Add(GameUi.PushButton("MISC.CDS 뽑기", () =>
-        {
-            string result = _gameDirectory.Length == 0
-                ? "게임 폴더를 아직 모릅니다"
-                : UiSpriteDump.Run(_gameDirectory);
-            NoticeDialog.Show(this, result);
-        }, 180));
-        rows.Children.Add(dump);
 
         // 자동항해 — 해상 커맨드에 있던 것을 옮겼다. 창을 닫고 나서 목적지를 고른다.
         if (options.AutoSail is { } autoSail)
@@ -331,49 +272,6 @@ public sealed class DevDialog : GameWindow
         box.LostFocus += (_, _) => Apply();
         box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Apply(); };
 
-        return line;
-    }
-
-    /// <summary>
-    /// 수를 하나 맞추는 줄. 단추로 한 칸씩 움직이고 칸에 적어 넣어도 된다.
-    /// <see cref="Row"/> 와 달리 놀이 값이 아니라 <b>설정</b>을 만지므로 따로 둔다.
-    /// </summary>
-    private static UIElement Tune(string label, int value, int min, int max,
-                                  Action<int> set, string tip)
-    {
-        var box = Field();
-        box.Width = 60;
-        box.Text = value.ToString();
-
-        var line = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 8, 0, 2),
-            ToolTip = tip,
-        };
-        line.Children.Add(new TextBlock
-        {
-            Text = label,
-            Width = 64,
-            Foreground = GameUi.Text,
-            FontWeight = FontWeights.Bold,
-            FontSize = 15,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-
-        void Put(int v)
-        {
-            int clamped = Math.Clamp(v, min, max);
-            set(clamped);
-            box.Text = clamped.ToString();
-        }
-
-        line.Children.Add(GameUi.PushButton("-1", () => Put(Current(box) - 1), 48));
-        line.Children.Add(box);
-        line.Children.Add(GameUi.PushButton("+1", () => Put(Current(box) + 1), 48));
-
-        box.LostFocus += (_, _) => Put(Current(box));
-        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Put(Current(box)); };
         return line;
     }
 
