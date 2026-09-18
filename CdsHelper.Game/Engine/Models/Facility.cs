@@ -124,9 +124,10 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     /// (<c>0x00532228</c> 벌 — <c>0x004966E0</c> 이 쌓는다).
     /// </summary>
     /// <remarks>
-    /// 게임도 할 수 없는 줄은 <b>흐리게</b> 둔다(줄마다 켜짐 칸이 둘씩 딸린다). 그래서
-    /// 여기서도 줄을 빼지 않고 그대로 늘어놓고 손이 안 달린 줄로 낸다 —
-    /// 돛·마스트·대포·배 이름은 우리 쪽에 아직 그 값이 없다.
+    /// 게임도 할 수 없는 줄은 <b>흐리게</b> 둔다(줄마다 켜짐 칸이 둘씩 딸린다). 우리는 줄을
+    /// 빼지 않고 그대로 늘어놓되, 못 하는 줄도 <b>골라 보고 까닭을 듣게</b> 한다 — 게임도
+    /// 그 말을 갖춰 두었다(<see cref="ShipyardMenu"/> 의 <c>RefitBlocked</c>).
+    /// 빌린 배의 「선명변경」만은 처음부터 흐리다(<c>0x004967C2</c>).
     /// </remarks>
     public static readonly string[] RefitMenu =
     [
