@@ -1317,6 +1317,32 @@ public sealed class Player
     /// </remarks>
     public IReadOnlyList<Trace> Traces => _traces;
 
+    private readonly Dictionary<int, string> _namedDiscoveries = [];
+
+    /// <summary>
+    /// 대본으로 <b>이름을 지어 준</b> 발견물(<c>1F 0B</c>, <c>0x004AAB00</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 이름을 발견물 레코드에 그대로 써 넣어서 그 뒤로는 어디서든 그 이름이 보인다.
+    /// 우리는 표를 안 건드리고 이 칸에 적어 두었다가 판을 열 때 표에 덧씌운다.
+    /// </remarks>
+    public IReadOnlyDictionary<int, string> NamedDiscoveries => _namedDiscoveries;
+
+    /// <summary>그 발견물의 이름을 적어 둔다.</summary>
+    public void NameDiscovery(int id, string name)
+    {
+        if (id < 0 || string.IsNullOrWhiteSpace(name)) return;
+        _namedDiscoveries[id] = name.Trim();
+    }
+
+    /// <summary>세이브에서 되돌린다.</summary>
+    public void RestoreNamedDiscoveries(IEnumerable<KeyValuePair<int, string>>? named)
+    {
+        _namedDiscoveries.Clear();
+        if (named == null) return;
+        foreach (var (id, name) in named) NameDiscovery(id, name);
+    }
+
     private readonly List<Trace> _traces = [];
 
     /// <summary>행적에 한 줄 더한다(<c>0x0041A070</c>).</summary>
