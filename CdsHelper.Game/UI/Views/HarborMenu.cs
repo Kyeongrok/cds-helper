@@ -354,17 +354,25 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// <remarks>
     /// 정원이 찼으면 아예 묻지 않고 물린다. 값을 못 치르면 다시 묻고, 다 태우고 나서도
     /// 최저 승원에 모자라면 한 번 더 권한다 — 게임도 그 자리에서 되돌아간다.
+    ///
+    /// 막는 말 둘은 <b>부관이 있으면 다른 말</b>이다(<c>0x00469680</c>).
+    /// <code>
+    ///   0x00545008 · 0x00545048   정원이 찼다
+    ///   0x00545118 · 0x00545148   돈이 모자란다
+    /// </code>
     /// </remarks>
     private void HireCrew()
     {
         var owner = Owner;
+        bool mate = _player.MateAt(0).Length > 0;
 
         while (true)
         {
             if (_player.Crew >= _player.MaxCrew)
             {
-                GameDialog.Show(owner,
-                    "선원수가 함대의 상한에 달하고 있습니다! 이 이상 고용해도 승선할 수 없습니다.");
+                GameDialog.Show(owner, mate
+                    ? "제독, 이 이상 선원을 고용해도, 태울 수 있는 배가 없습니다."
+                    : "선원수가 함대의 상한에 달하고 있습니다! 이 이상 고용해도 승선할 수 없습니다.");
                 return;
             }
 
@@ -379,7 +387,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
             if (price * want > _player.Gold)
             {
-                GameDialog.Show(owner, "소지금이 모자랍니다.");
+                GameDialog.Show(owner, mate
+                    ? "그렇게 고용할 수 있을 정도로 돈이 없습니다." : "소지금이 모자랍니다.");
                 continue;
             }
 
