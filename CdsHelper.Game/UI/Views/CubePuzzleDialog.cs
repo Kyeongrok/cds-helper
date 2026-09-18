@@ -539,23 +539,34 @@ internal sealed class CubePuzzleDialog : GameWindow
         // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다.
         Explain(owner);
 
-        var dialog = new CubePuzzleDialog(rng) { Owner = owner };
-
-        // <b>금괴를 밟는 그 자리에서</b> 벌고 알린다. 예전에는 판을 나간 뒤에야 알려
-        // 「얻은 것과 알림」이 한 박자 어긋났다. 글은 게임 것 그대로다(0x0056DDF8).
-        dialog._onGold = () =>
+        bool paid = false;
+        while (true)
         {
-            player.Earn(CubePuzzle.Prize);
-            NoticeDialog.Show(dialog,
-                $"금화로 따지면 {CubePuzzle.Prize} 닢에 상당되는 금괴를 손에 넣었다!",
-                "게임 클리어");
-        };
+            var dialog = new CubePuzzleDialog(rng) { Owner = owner };
 
-        dialog.ShowDialog();
+            // <b>금괴를 밟는 그 자리에서</b> 벌고 알린다. 예전에는 판을 나간 뒤에야 알려
+            // 「얻은 것과 알림」이 한 박자 어긋났다. 글은 게임 것 그대로다(0x0056DDF8).
+            // 판을 다시 줘도 <b>삯은 한 번뿐</b>이다.
+            dialog._onGold = () =>
+            {
+                if (paid) return;
+                paid = true;
+                player.Earn(CubePuzzle.Prize);
+                NoticeDialog.Show(dialog,
+                    $"금화로 따지면 {CubePuzzle.Prize} 닢에 상당되는 금괴를 손에 넣었다!",
+                    "게임 클리어");
+            };
 
-        if (dialog._game.Over == false)
-        {
-            NoticeDialog.Show(owner, "좌대가 판에서 떨어지고 말았다!", "게임 오버");
+            dialog.ShowDialog();
+
+            if (dialog._game.Over != false || dialog._game.GaveUp) return;
+
+            // 떨어져도 끝이 아니다 — 아래층이 있었다며 판을 새로 깔아 준다(0x0049B3C0).
+            NoticeDialog.Show(owner,
+                "아니! 밑바닥으로 떨어진 줄 알았는데 실은 그 아래층이 존재했다!"
+                + Environment.NewLine
+                + "자, 모험자여! 이것이 마지막 찬스다! 입방체를 잘 조작하여 이 상황을 타파하라!",
+                "다시 한번 도전할 수 있습니다!");
         }
     }
 }
