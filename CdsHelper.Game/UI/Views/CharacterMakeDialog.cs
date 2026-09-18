@@ -470,6 +470,14 @@ internal sealed class CharacterMakeDialog : GameWindow
             NoticeDialog.Show(this, "이름을 정확히 입력해 주십시오", InputError);
             return;
         }
+
+        // 누적 캐릭터와 이름이 겹치면 물린다(0x0045CF4A — 자리 다섯의 IDX 를 열어 견준다).
+        if (Engine.AccData.NameTaken($"{_given.Text.Trim()}·{_family.Text.Trim()}"))
+        {
+            NoticeDialog.Show(this, "같은 성명을 쓰는 누적 캐릭터가 있습니다", InputError);
+            return;
+        }
+
         int age = Number(_age, 0);
         if (age < Player.MinAge || age > Player.MaxAge)
         {

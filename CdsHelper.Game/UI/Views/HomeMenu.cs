@@ -202,7 +202,8 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     {
         var player = _game.Player;
         string me = player.Name;
-        string first = player.ActiveStoryBook is { Length: > 0 }
+        bool novice = player.ActiveStoryBook is { Length: > 0 };
+        string first = novice
             ? $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키겠습니다. 단, 초심자용 캐릭터는 "
               + "누적 캐릭터로 등록할 수 없습니다. 좋습니까?"
             : $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키고 누적 캐릭터로 등록하겠습니다. 괜찮습니까?";
@@ -214,6 +215,10 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         _game.Bgm.Play(RetireTrack);
         DiscoveryDialog.Show(_view, _game.EventStills, RetireStill,
                              $"{me}{GameUi.Josa(me, "은", "는")} 모험가로서의 일생을 마쳤다...");
+        // 초심자용 캐릭터가 아니면 누적 캐릭터 다섯 자리에 올린다(0x0041AB90).
+        // 자리가 다 찼으면 <b>아무 말 없이</b> 못 올린다 — 원본도 그렇다.
+        if (!novice) Engine.AccData.Register(player);
+
         Engine.GameSave.Delete();
         return true;
     }
