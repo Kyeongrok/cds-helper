@@ -452,9 +452,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     private void MeetBarmaid(BarmaidTable.Barmaid her)
     {
         bool destined = Barmaids.Destined(_player, her);
+        bool first = _player.LikingOf(her.Id) == 0;
 
         // 낯 트기 전에는 얼굴도 이름도 없다.
-        if (_player.LikingOf(her.Id) == 0)
+        if (first)
         {
             if (TalkDialog.Ask(_view, null, "", "아름다운 여성이 있다",
                                "한잔 산다", "무시한다") != 0) return;
@@ -464,9 +465,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         }
 
         var face = FaceOfMaid(her);
-        string words = destined
-            ? $"고마워요! 저는 {her.Name}. 물어보고 싶은 것이 있으면 뭐든지 물어보세요."
-            : $"아, 고마워요. 저는 {her.Name}. 무슨 일이시죠?";
+        // 첫 인사는 궁합과 술로 넷, 다시 왔을 때는 친밀도로 다섯이 갈린다
+        // (0x00466730 · 0x004667B0). 우리는 늘 한잔을 사고 들어간다.
+        string words = first
+            ? Barmaids.FirstWord(destined, boughtDrink: true, her.Name)
+            : Barmaids.AgainWord(_player.LikingOf(her.Id), _player.Name);
 
         while (true)
         {

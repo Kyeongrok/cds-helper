@@ -29,6 +29,47 @@ public static class Barmaids
     public static int FirstMeet(Player player, in BarmaidTable.Barmaid her) =>
         BarmaidTable.LikingGain(Destined(player, her));
 
+    /// <summary>
+    /// 첫 인사(<c>0x00466730</c>) — 궁합과 <b>술을 샀는지</b>로 넷이 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   궁합 · 한잔 삼  0x0055AE80    궁합 · 그냥   0x0055AEC0
+    ///   보통 · 한잔 삼  0x0055AF08    보통 · 그냥   0x0055AF30
+    /// </code>
+    /// 여기서 친밀도가 오른다 — 궁합이면 <b>50</b>, 아니면 <b>3</b>(<c>0x0046676A</c> · <c>0x0046679C</c>).
+    /// </remarks>
+    public static string FirstWord(bool destined, bool boughtDrink, string name) =>
+        destined
+            ? boughtDrink
+                ? $"고마워요! 저는 {name}. 물어보고 싶은 것이 있으면 뭐든지 물어보세요."
+                : $"처음 뵙겠어요! 저는 {name}. 물어보고 싶은 것이 있으면 뭐든지 물어 보세요."
+            : boughtDrink
+                ? $"아, 고마워요. 저는 {name}. 무슨 일이시죠?"
+                : $"처음 뵙겠어요. 저는 {name}. 무슨 일이시죠?";
+
+    /// <summary>
+    /// 다시 찾아갔을 때의 인사(<c>0x004667B0</c>) — <b>친밀도</b>로 다섯이 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   ~29   0x0055AF58  「무슨 일이시죠?」
+    ///   30~49 0x0055AF68  「어머, 오래간만이네. 잘 지냈어요?」
+    ///   50~69 0x0055AF90  「%s씨. 또 만나게 되어서 기뻐요. …」
+    ///   70~89 0x0055AFE0  「%s! 보고 싶었어요!!」
+    ///   90~   0x0055AFF8  「%s! 매일 당신을 기다리고 있었어요.」
+    /// </code>
+    /// 뒤 셋은 <b>제독 이름</b>을 부른다.
+    /// </remarks>
+    public static string AgainWord(int liking, string me) => liking switch
+    {
+        < 30 => "무슨 일이시죠?",
+        < 50 => "어머, 오래간만이네. 잘 지냈어요?",
+        < 70 => $"{me}씨. 또 만나게 되어서 기뻐요. 물어보고 싶은 것이 있으면 뭐든지 물어 보세요.",
+        < 90 => $"{me}! 보고 싶었어요!!",
+        _ => $"{me}! 매일 당신을 기다리고 있었어요.",
+    };
+
     /// <summary>말이 안 통하는 마을에서 오르는 친밀도(<c>0x0046651A</c>).</summary>
     public const int StrangerLike = 20;
 
