@@ -231,6 +231,12 @@ public static class Standoff
     ///   4a55e9  점수 &gt;= rand(200) 이면 교섭이 됐다
     /// </code>
     /// </remarks>
+    /// <remarks>
+    /// 같은 식을 쓰는 <b>쌍둥이 루틴</b>이 <c>0x0046AA70</c> 에 하나 더 있다 — 거기서는
+    /// 주사위가 <c>rand(150)</c> 이라 훨씬 잘 되고, 결과 글도 따로 든다
+    /// (<c>0x005524A8</c> 「잘 되었군요. …」 · <c>0x00552518</c> 「교섭이 되지 않습니다…」).
+    /// 어느 들머리가 그쪽으로 가는지는 아직 안 밝혔다. 우리는 <c>0x004A55C0</c> 쪽만 쓴다.
+    /// </remarks>
     public static bool Talks(Player player, GameRandom dice) =>
         player.LevelOf(Skill.Names[Skill.Rhetoric]) * 33
         + player.AbilityOf(Ability.Charm) + 1 >= dice.Next(200);
