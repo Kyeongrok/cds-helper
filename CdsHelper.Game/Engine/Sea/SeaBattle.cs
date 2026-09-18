@@ -459,6 +459,9 @@ public sealed class SeaBattle
     /// </summary>
     public void EndPlanning()
     {
+        // 위임 중이면 아군 길도 같은 AI 가 짠다(0x0043B730 의 바깥 되돌이가 한 바퀴 더 돈다).
+        if (Delegated) PlanSide(mine: true);
+
         foreach (var ship in Ships.Where(s => s.Mine && s.CanAct && !s.Ordered))
         {
             ship.Plan.Clear();
@@ -466,6 +469,35 @@ public sealed class SeaBattle
         }
         PlanSide(mine: false);
     }
+
+    // ── 부관 위임 — +0x944 ────────────────────────────────────────────────
+
+    /// <summary>
+    /// 부관에게 <b>전투 지휘를 맡겼는가</b>(<c>+0x944</c> 가 2).
+    /// </summary>
+    /// <remarks>
+    /// 칸 값은 0 부관 없음 · 1 제독이 직접 · 2 위임 중 · 3 방금 풀었음(턴이 넘어가면 1 로
+    /// 돌아간다)이다. 세우는 곳은 <c>0x00441CFA</c> 고, 켜는 곳은 <b>차림표 줄이 아니라
+    /// 물음</b> 둘이다.
+    /// <code>
+    ///   0x0043C586  턴이 시작될 때   「제독, 이번에는 저에게 맡겨 주십시오!」       0x0056B4A8
+    ///   0x0043DEEB  계획을 안 끝낼 때「한번 더 부관에게 전투 지휘를 위임하겠습니까?」0x0056B5C8
+    /// </code>
+    /// 위임 중에 아무 데나 누르면 「제독이 명령하시겠습니까?」(<c>0x0056AF28</c>)로 되찾는다.
+    ///
+    /// 켜 두면 <b>아군 여덟 칸도 적과 같은 AI 가 짜고</b>(<c>0x0043B730</c>), 바람 안내와
+    /// 이동 지시 재촉 대사가 안 나온다(<c>0x0043C5DE</c>).
+    /// </remarks>
+    public bool Delegated { get; set; }
+
+    /// <summary>부관이 맡겠다고 나서는 말(<c>0x0056B4A8</c>).</summary>
+    public const string OfferToLead = "제독, 이번에는 저에게 맡겨 주십시오!";
+
+    /// <summary>계획을 안 끝내고 물릴 때 다시 묻는 말(<c>0x0056B5C8</c>).</summary>
+    public const string OfferAgain = "한번 더 부관에게 전투 지휘를 위임하겠습니까?";
+
+    /// <summary>위임 중에 손을 대면 되찾겠냐고 묻는 말(<c>0x0056AF28</c>).</summary>
+    public const string TakeBack = "제독이 명령하시겠습니까?";
 
     // ── 적의 길 — 0x0043B710 ─────────────────────────────────────────────
 
@@ -564,8 +596,9 @@ public sealed class SeaBattle
     /// </summary>
     /// <remarks>
     /// 두 값은 <b>제독과 부관 가운데 높은 쪽</b>에 1 을 더한 것이다(<c>0x00441DB6</c> ·
-    /// <c>0x00441DE7</c>). 굴림에 <b>이기면 잠겨 있던 괴물이 떠오르고</b>, 지면 떠 있던
-    /// 괴물이 잠긴다 — 한 턴에 한쪽만 걸린다.
+    /// <c>0x00441DE7</c>) — 능력표 <c>0x005B60C0</c> 의 넷째 칸(<b>운</b>)과 둘째 칸(<b>지력</b>)이다.
+    /// 굴림에 <b>이기면 잠겨 있던 괴물이 떠오르고</b>, 지면 떠 있던 괴물이 잠긴다 —
+    /// 한 턴에 한쪽만 걸린다.
     ///
     /// 원본은 이 값을 <b>부호 없이</b> 재므로(<c>0x004B7C62</c>) 0 밑으로 떨어지면 도리어
     /// 늘 참이 된다 — 담력·지력이 낮을수록 괴물이 늘 떠 있는 셈이다. 그대로 옮긴다.
