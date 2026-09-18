@@ -79,8 +79,9 @@ internal sealed class EventAnimationPopup : Window
             EventAnimation.Tornado => new TornadoScene(),
             EventAnimation.Aurora => new AuroraScene(),
             EventAnimation.Meteor => new MeteorScene(),
-            EventAnimation.Oasis => new StripScene(6, 0x80, 0x80, 0x22, up: 0x20),
-            EventAnimation.Landslide => new StripScene(7, 0x80, 0x80, 0x23),
+            // 오아시스는 걸음 11 과 23 에 소리가 하나씩 걸린다(0x00497D74 · 0x00497D8B).
+            EventAnimation.Oasis => new StripScene(6, 0x80, 0x80, 0x22, up: 0x20, soundAt: 0x0B, sound: 0x3A),
+            EventAnimation.Landslide => new LandslideScene(),
             EventAnimation.Swamp => new StripScene(8, 0x60, 0x60, 0x24),
             EventAnimation.Quicksand => new StripScene(9, 0x60, 0x60, 0x25),
             EventAnimation.Iceberg => new StripScene(15, 0xC0, 0x60, 0x2A),
@@ -486,6 +487,63 @@ internal sealed class EventAnimationPopup : Window
     }
 
     /// <summary>
+    /// 5 사태 — 함대 자리 위로 바위가 무너져 내린다(<c>0x0061E008</c>).
+    /// </summary>
+    /// <remarks>
+    /// 다섯 가운데 <b>걸음별 장 표까지 푼 것은 이것뿐</b>이다(<c>0x00497F80</c>).
+    /// <code>
+    ///   0x00498160  파트 7, 128 x 1920(128x128 열다섯 장), 팔레트 0x23
+    ///   c &lt; 5              아직 안 찍는다
+    ///   5 &lt;= c &lt; 11        장 (c-5)/2               ; c==5 에 소리 0x3C
+    ///   11 &lt;= c &lt; 23       장 3 + ((c-11) % 6)/2    ; 3,3,4,4,5,5 되풀이
+    ///   23 &lt;= c &lt; 27       장 3 + (c-23)/2
+    ///   27 &lt;= c &lt; 43       장 6 + (c-27)/2
+    ///   43 &lt;= c &lt; 49       장 14                    ; c==43 에 소리 끔
+    ///   49 &lt;= c &lt; 54       사라지는 동안
+    /// </code>
+    /// </remarks>
+    private sealed class LandslideScene : Scene
+    {
+        private const int FrameW = 0x80, FrameH = 0x80;
+
+        private BitmapSource[] _art = [];
+        private int _x, _y;
+
+        public override bool Load(EventAnimation anims)
+        {
+            _art = Frames(anims, 7, FrameW, FrameH, 0x23) ?? [];
+            return _art.Length >= 15;
+        }
+
+        public override void Start(int w, int h, Point? ship, Random rng)
+        {
+            var at = ship ?? new Point(w / 2.0, h / 2.0);
+            int left = (int)at.X - 24, top = (int)at.Y - 24;
+            _x = left + (0x30 - FrameW) / 2;
+            _y = top + (0x30 - FrameH) / 2 - 7;
+        }
+
+        public override bool Step(int c, List<Draw> draws)
+        {
+            if (c >= 0x36) return true;
+            if (c == 5) Sfx?.Play(0x3C);
+            if (c == 0x2B) Sfx?.Stop();
+            if (c < 5) return false;
+
+            int f = c switch
+            {
+                < 0x0B => (c - 5) / 2,
+                < 0x17 => 3 + (c - 0x0B) % 6 / 2,
+                < 0x1B => 3 + (c - 0x17) / 2,
+                < 0x2B => 6 + (c - 0x1B) / 2,
+                _ => 14,
+            };
+            draws.Add(new Draw(_art[Math.Clamp(f, 0, _art.Length - 1)], _x, _y));
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 함대 자리에서 띠 한 벌을 처음부터 끝까지 넘기는 장면.
     /// </summary>
     /// <remarks>
@@ -502,7 +560,8 @@ internal sealed class EventAnimationPopup : Window
     /// 표를 두어 장을 오가며 되풀이하는데(덤불이 그 본보기다), 여기서는 한 걸음에 한 장씩
     /// 곧이 넘긴다. 유빙의 물보라(파트 16, 32x32 여덟 장)도 아직 안 얹었다.
     /// </remarks>
-    private sealed class StripScene(int part, int frameW, int frameH, int palette, int up = 7)
+    private sealed class StripScene(int part, int frameW, int frameH, int palette, int up = 7,
+                                    int soundAt = -1, int sound = -1, int soundOff = -1)
         : Scene
     {
         private BitmapSource[] _art = [];
@@ -524,6 +583,8 @@ internal sealed class EventAnimationPopup : Window
 
         public override bool Step(int count, List<Draw> draws)
         {
+            if (count == soundAt && sound >= 0) Sfx?.Play(sound);
+            if (count == soundOff) Sfx?.Stop();
             if (count >= _art.Length) return true;
             draws.Add(new Draw(_art[count], _x, _y));
             return false;
