@@ -771,8 +771,48 @@ public sealed class DisevRunner
         if (choices.Length == 0) return baseValue;
 
         int picked = ChoiceDialog.Ask(_owner, "", choices[..^1], choices[^1]);
-        return (picked >= 0 ? picked : choices.Length - 1) + baseValue;
+        int value = (picked >= 0 ? picked : choices.Length - 1) + baseValue;
+
+        // 고른 값이 0 이면 <b>교섭</b>이다(0x00409204) — 금이나 물건을 바쳐야 이야기가 이어진다.
+        if (value == 0) Appease();
+        return value;
     }
+
+    /// <summary>
+    /// 「뭔가 우호의 증표를 줍시다」(<c>0x0040920A</c>) — 금을 주거나 물건을 준다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00538618  「뭔가 우호의 증표를 줍시다」
+    ///   0x00538658  차림표 「교섭」 — 「금을 준다」 · 「아이템을 준다」
+    ///   금을 준다   계산판으로 얼마를 줄지 적는다(0x00481FE0) → 그만큼 소지금에서 빠진다
+    ///               <b>백 닢이 안 되면</b> 「아무래도 마음에 들지 않았던 모양입니다」(0x00538660) 하고 다시 묻는다
+    ///   아이템을 준다  그 자리에서 받아들인다(원본도 무엇을 줄지는 안 묻는다)
+    ///   물리면       다시 묻는다 — 주지 않고는 못 지나간다
+    /// </code>
+    /// </remarks>
+    private void Appease()
+    {
+        var player = _game.Player;
+        NoticeDialog.Show(_owner, "뭔가 우호의 증표를 줍시다");
+
+        while (true)
+        {
+            int at = ChoiceDialog.Ask(_owner, "교섭", ["금을 준다", "아이템을 준다"]);
+            if (at == 1) return;                       // 물건을 주면 그것으로 끝난다
+            if (at < 0) continue;                      // 물러도 다시 묻는다(0x004092B0)
+
+            int gold = CountDialog.Ask(_owner, "교섭", "금화", "닢", player.Gold, step: 100);
+            if (gold <= 0) continue;
+
+            player.SetGold(player.Gold - gold);
+            if (gold >= AppeaseLeast) return;
+            NoticeDialog.Show(_owner, "아무래도 마음에 들지 않았던 모양입니다");
+        }
+    }
+
+    /// <summary>이만큼은 줘야 마음에 들어 한다(<c>0x00409312</c> 의 <c>cmp 0x64</c>).</summary>
+    private const int AppeaseLeast = 100;
 
     /// <summary>
     /// 미니게임 한 판(<c>0x00408D16</c> 의 뜀표). 이겼으면 true.
