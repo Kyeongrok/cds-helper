@@ -82,8 +82,14 @@ public static class Encounter
     /// </summary>
     private static readonly string[][] Greetings =
     [
-        // 0 갑자기 쳐들어온 무리 — 이름을 아는 적이라 한 줄뿐이다(0x0055F6A8).
-        ["네가 {0}(이)군. 찾고 있었다! 너를 토벌하라는 명령이다. 각오해라."],
+        // 0 갑자기 쳐들어온 무리 (0x0055F5E0 벌) — 이쪽도 다섯 줄이다(0x00455600).
+        [
+            "제독, {0}입니다!",
+            "{0}(이)가 이쪽으로 오고 있습니다. 제독, 어떻게 할까요?",
+            "제독, {0}입니다. 어떻게 할까요?",
+            "{0}(이)가 왔습니다. 살기 등등합니다. 어떻게 할까요?",
+            "{0}(이)가 쳐들어 왔습니다!",
+        ],
 
         // 1 추격대·토벌대 (0x0055F6F0 벌)
         [
@@ -204,11 +210,17 @@ public static class Encounter
 
     private static string One(string[] lines, Random rng) => lines[rng.Next(lines.Length)];
 
-    /// <summary>들어설 때 건네는 말.</summary>
+    /// <summary>
+    /// 추격대장이 이름을 대며 거는 말은 <c>0x0055F6A8</c> 이고 ShipMapWindow 가 짓는다.
+    /// </summary>
+    /// <remarks>
+    /// <b>추격대(갈래 1)에만</b> 있다 — <c>0x004556E7</c> 이 그 사람을 찾아(<c>0x0044FD60</c>)
+    /// 얼굴을 걸고 말하게 한 뒤에 다섯 줄 가운데 하나를 잇는다. 예전에는 이 줄을 갈래 0 의
+    /// 하나뿐인 말로 잘못 두어 갈래 0 의 다섯 줄이 통째로 빠졌었다.
+    /// </remarks>
+    /// <summary>들어설 때 건네는 말 — 갈래마다 다섯 줄 가운데 하나다.</summary>
     public static string GreetOf(in Enemy foe, Random rng) =>
-        foe.Kind == EnemyKind.Raider
-            ? string.Format(Greetings[0][0], foe.Name)
-            : One(Greetings[(int)foe.Kind], rng);
+        string.Format(One(Greetings[(int)foe.Kind], rng), foe.Name);
 
     public static string NoWordsWord(Random rng) => One(NoWords, rng);
     public static string DemandWord(int gold, Random rng) => string.Format(One(Demands, rng), gold);
