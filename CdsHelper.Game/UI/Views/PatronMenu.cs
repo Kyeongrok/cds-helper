@@ -170,7 +170,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         _player.Endear(deal.Sponsor, -50);
         _player.Betray(deal.Sponsor, deal.City, deal.DueOn);
-        ReturnLentShips();
+        MutinousLentShips(deal.Sponsor);
         _player.EndContract();
         return true;
     }
@@ -1578,6 +1578,89 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.Earn(gold);
         GameDialog.Show(_view, Palace.ShipsReturnedCargoSold);
         GameDialog.Show(_view, $"금화 {gold}닢을 손에 넣었다!");
+    }
+
+    /// <summary>
+    /// 처벌한 후원자가 빌려준 배들이 나를 따를지 가른다(<c>0x004101B0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 여느 계약 끝과 달리 <b>돌려줄 상대가 없다</b> — 그래서 배마다 남을지 굴린다. 규칙은
+    /// <see cref="LentShips"/> 에 있다. 부하들이 안 따르면 「선장」이 일기토를 걸고,
+    /// <b>지면 그 자리에서 판이 끝난다</b>(<c>0x0044AF40(4)</c>).
+    ///
+    /// <b>원본과 다른 데 하나.</b> 게임은 배마다 어느 후원자가 빌려준 것인지 적어 두어 처벌한
+    /// 사람의 배만 고르는데, 우리 배는 빌린 것인지 아닌지만 안다. 처벌은 <b>지금 계약</b>의
+    /// 후원자에게만 할 수 있으니 빌린 배도 그 사람 것뿐이라 보고 다 건다.
+    /// </remarks>
+    private void MutinousLentShips(string sponsor)
+    {
+        var lent = _player.Ships.Where(s => s.Lent).ToList();
+        if (lent.Count == 0) { ReturnLentShips(); return; }
+
+        var dice = _random;
+        var sir = _game.Sponsors?.FindByName(sponsor);
+        string shown = sir?.Name ?? sponsor;
+
+        // 부하들이 순순히 따르지 않으면 배 한 척의 선장이 나서서 겨루자고 한다.
+        if (!LentShips.Obeys(_player.AbilityOf(Ability.Charm), _player.Fame, _player.Infamy, dice)
+            && !WonLoyaltyDuel(shown, lent[0].Name))
+            return;                                   // 졌다 — 판이 끝났으니 배는 손 안 댄다
+
+        // 함대가 온통 빌린 배면 그래도 한 척은 남는다(0x004104B0).
+        bool keep = LentShips.KeepsOne(lent.Count, _player.Ships.Count);
+        var stays = new List<Ship>();
+        foreach (var ship in lent)
+        {
+            bool mine = (keep && stays.Count == 0)
+                        || LentShips.Stays(_player.AbilityOf(Ability.Luck), dice);
+            if (mine) stays.Add(ship);
+        }
+
+        // 남는 배는 대출 표시를 지워 내 배가 되고(0x00410380), 표시가 남은 배는 떠난다.
+        foreach (var ship in stays) ship.Keep();
+        _player.TakeBackLentShips();
+
+        // <b>떠난다는 말은 없다.</b> 원본도 그 자리에서 아무 말을 안 한다 — 「%s호가
+        // 탈주했습니다!」는 조건이 뒤집혀 절대 안 뜨는 죽은 가지다(LentShips 주석).
+    }
+
+    /// <summary>
+    /// 「선장」과의 일기토(<c>0x0040FFC0</c>). 이겼으면 true — 지면 판이 끝난다.
+    /// </summary>
+    private bool WonLoyaltyDuel(string sponsor, string ship)
+    {
+        var dice = _random;
+        var face = _game.Faces?.TryGetBgra(LentShips.CaptainFace, female: false);
+        TalkDialog.Say(_view, face, "", LentShips.Challenge(sponsor));
+
+        var foe = LentShips.CaptainOf(dice) with { Name = LentShips.DuelName(ship) };
+        var duel = new Duel(Mine(), foe, _player.Items.Contains(Duel.EdithShieldId),
+                            Environment.TickCount);
+        DuelDialog.Show(_view, duel, new GameRandom(Environment.TickCount), face, _game.Fighters,
+                        FighterSprites.SetForCulture(_culture), arena: "duel-tavern", bgm: _game.Bgm);
+        _player.Hurt(duel.BodyLost);
+        return duel.Won == true;
+    }
+
+    /// <summary>일기토에 나서는 내 몫.</summary>
+    private Duel.Fighter Mine() =>
+        new(_player.Name.Length > 0 ? _player.Name : "제독",
+            _player.AbilityOf(Ability.Body),
+            _player.AbilityOf(Ability.Might),
+            _player.LevelOf(Skill.Names[Skill.Sword]),
+            _player.AbilityOf(Ability.Luck),
+            BestItem(Duel.WeaponCategory),
+            BestItem(Duel.ArmorCategory));
+
+    /// <summary>지닌 것 가운데 그 갈래에서 가장 센 효과. 표를 못 읽었으면 0.</summary>
+    private int BestItem(int category)
+    {
+        if (_game.Items is not { } table) return 0;
+        int best = 0;
+        foreach (int id in _player.Items)
+            if (table.Find(id) is { } item && item.Category == category && item.Effect > best)
+                best = item.Effect;
+        return best;
     }
 
     private Engine.Market.TradePost? _tradePost;
