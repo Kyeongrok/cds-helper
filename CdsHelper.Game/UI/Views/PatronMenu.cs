@@ -1490,7 +1490,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///   「감찰관은 어디에 있나?」 [병에 걸려 죽었다 / 도망쳤다]
     ///   거짓말 1   rand(120 · 150) ≤ 지력 + 1 — 못 넘으면 감찰관이 직접 나와 들킨다 → 친밀도 −20 · 감옥
     ///   거짓말 2   후원자 표 +0x30 &lt; rand(운 + 1) — 못 넘으면 「감찰관이 돌아오지 않을 이유가 없다!」 → −20 · 감옥
-    ///   위약금     후원자 표 +0x20 × (성미[4] + 1) × 1000 — 못 내면 감옥
+    ///   위약금     후원자 표 +0x20 × (성미[4] + 1) × 1000 — 못 내면 죄를 묻는다(0x0044FBBD)
     ///              내면 악명 +(rand100 + 150)×(199 − 매력)/100 · 친밀도 −20
     ///   끝에 배신 표시를 지우고(0x0044FBE7) 기분을 상하게 둔다
     /// </code>
@@ -1587,12 +1587,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             if (!_player.Pay(penalty))
             {
                 GameDialog.Show(_view, "위약금을 지불할 수 없습니다!");
-                // 0x0054B4A8 · 0x0054B4C8 · 0x0054B430 — 감옥에 넣으라는 말도 세 벌이다.
-                Say(Pick3("이 놈을 감옥에 쳐 넣어라!",
-                          "이 놈을 감옥에 넣어라.",
-                          "뭐라고, 위약금도 지불할 수 없다고! 음~, 어처구니없어 말도 안나오는군. "
-                        + "누구라도 좋으니, 이 놈을 감옥에 가둬 두어라."));
-                over = Jail(patron, dice);
+                // <b>여기서도 곧장 감옥은 아니다</b>(0x0044FBBD) — 죄를 묻는 본체가
+                // 용서·다시 물리는 위약금·감옥으로 갈라 준다.
+                over = Punish(patron, sponsor, Pick3);
                 return;
             }
 
