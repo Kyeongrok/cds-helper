@@ -98,6 +98,33 @@ public static class Standoff
     public const string GateLostPort =
         "무슨 말을 하는 건지 전혀 모르겠습니다만, 들여보내어 주지 않을 것 같습니다.";
 
+    /// <summary>
+    /// 부관이 덧붙이는 소리는 <b>세 갈래</b>다(<c>0x004A5266</c> ~ <c>0x004A52C5</c>).
+    /// </summary>
+    /// <remarks>
+    /// 제독과 문지기의 공유 언어(<c>0x004A5236</c>)를 <c>esi</c>, 부관과 문지기의 것
+    /// (<c>0x004A5261</c>)을 <c>eax</c> 라 할 때
+    /// <code>
+    ///   esi == 0 &amp;&amp; eax == 0   전혀 모르겠습니다만…           0x00551D48 · 0x00551D90
+    ///   eax &lt;= esi              들여보내 주지 않을 것 같군요.   0x00551DE0 · 0x00551E10
+    ///   eax &gt;  esi              제독, … 말을 하더군요.          0x00551E38 · 0x00551E78
+    /// </code>
+    /// 셋째 갈래는 <b>부관이 나보다 그 말을 잘할 때</b>다 — 그가 알아듣고 옮겨 준다.
+    /// <b>부관이 없으면 아예 아무 말도 없다</b>(<c>0x004A523D</c> 가 먼저 막는다).
+    /// </remarks>
+    public static string GateAideWord(int mine, int aide, bool byLand) =>
+        mine == 0 && aide == 0 ? byLand ? GateLostVillage : GateLostPort
+        : aide <= mine ? byLand ? GateDoubtVillage : GateDoubtPort
+        : byLand ? GateRelayVillage : GateRelayPort;
+
+    /// <summary>제독이 알아들었을 때(<c>0x00551DE0</c> · <c>0x00551E10</c>).</summary>
+    public const string GateDoubtVillage = "마을 안에는 들여보내 주지 않을 것 같군요.";
+    public const string GateDoubtPort = "웬지 들여보내 주지 않을 것 같군요.";
+
+    /// <summary>부관이 나보다 잘 알아들어 옮겨 줄 때(<c>0x00551E38</c> · <c>0x00551E78</c>).</summary>
+    public const string GateRelayVillage = "제독, 마을 안에는 들여보내지 않을 것 같은 말을 하더군요.";
+    public const string GateRelayPort = "제독, 어쩐지 외국인은 들여보내지 않을 것 같은 말을 하더군요.";
+
     /// <summary>못 알아듣는 말을 <b>×</b> 로 뭉갠다.</summary>
     /// <remarks>
     /// 게임은 <c>0x00469540</c> 에서 한다 — 말 번호가 0 이 아니면 일행(<c>0x005B60A0</c>)을
