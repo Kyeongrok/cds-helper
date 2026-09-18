@@ -1018,7 +1018,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
     /// <summary>
     /// 시설에서 "기능" 을 골랐을 때 뜨는 창. 제목이 없고 줄만 넷이다 —
-    /// 게임 재개를 고르면 하던 화면으로 돌아간다. 저장·로드는 아직 흉내내지 않는다.
+    /// 저장·로드·게임 종료·게임 재개를 <see cref="GameSystemMenu"/> 가 든다.
     /// </summary>
     /// <summary>
     /// 자택·여관의 "기능" 줄 — 저장·로드·게임 종료다. 도시 일이 아니라 판 일이라
