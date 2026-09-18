@@ -1068,21 +1068,37 @@ public sealed class DisevRunner
         if (expr["Const"] is { } constant) return N(constant);
         if (expr["Random"] is JsonObject random)
             return N(random["From"]) + _game.Random.Next((int)Math.Max(1, N(random["Width"])));
-        if (expr["Stat"] is not { } stat) return null;   // 적재량(Cargo)은 아직 안 옮겼다
+        if (expr["Stat"] is not { } stat) return null;
 
+        // 값 표는 0x00406E76 의 점프표(0x00407310) 그대로다. 능력치는 <b>1 을 더해</b> 낸다.
+        // 16(육상전 상대 병력)과 28(적재량)은 <b>원본도 아무 값을 안 낸다</b> — 그 자리가 빈 칸이다.
         var player = _game.Player;
         return N(stat) switch
         {
+            0 => player.Fatigue,                                        // 0x005AA2B8 vt+0x0C
+            1 => player.Morale,                                         // 0x005B3954
+            2 => player.Crew,                                           // 0x005AA2C4
             3 => player.Gold,
             4 => player.Infamy,
             5 => Sea.FleetRaid.AdmiralFortuneOf(player)[5],
             6 => player.AbilityOf(Support.Local.Models.Ability.Might) + 1,
+            7 => player.AbilityOf(Support.Local.Models.Ability.Body) + 1,
+            8 => player.Condition,                                      // 0x005B60D8
+            17 => player.Fame,
+            18 => player.AbilityOf(Support.Local.Models.Ability.Luck) + 1,
+            21 => player.AbilityOf(Support.Local.Models.Ability.Mind) + 1,
             22 => player.AbilityOf(Support.Local.Models.Ability.Charm) + 1,
+            23 => player.AbilityOf(Support.Local.Models.Ability.Faith) + 1,
+            25 => player.LevelOf(Support.Local.Models.Skill.Names[ScienceSkill]),   // 0x005B6110
+            26 => player.Nation,                                        // 제독 국적(vt+0x14)
             27 => player.Contract?.DaysLeft(player.Date) ?? 0,          // 후원자 계약 남은 기한(일)
             29 => player.StoryQuestDaysLeft,                            // STORY 의뢰 남은 기한(일)
             _ => null,
         };
     }
+
+    /// <summary>기능 칸 12 — 과학(<c>0x005B6110</c> 은 기능 표 <c>0x005B60E0</c> 의 열두째다).</summary>
+    private const int ScienceSkill = 12;
 
     /// <summary>부관 화자 이름. 대본에는 CP932 로 <c>副官</c> 이라 적혀 있다.</summary>
     private const string Aide = "부관";
