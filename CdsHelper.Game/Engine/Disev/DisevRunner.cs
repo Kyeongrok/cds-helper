@@ -839,7 +839,7 @@ public sealed class DisevRunner
             // 게임은 돌파 보상을 치른 갈래에서만 결과 1 을 박는다(0x0042B154) — 덫·실패·포기는 0.
             // 걸려 있지 않으면 대본이 막히지 않게 이긴 것으로 친다.
             case DisevMinigame.Maze:
-                return UI.Views.ShipMapWindow.MazeGame?.Invoke(_owner, _game.Random) ?? true;
+                return UI.Views.ShipMapWindow.MazeGame?.Invoke(_owner, _game.Random, _game.Player) ?? true;
             // 낚시는 대어일 때만 이긴 것이다(0x0047AD6C).
             case DisevMinigame.Fishing:
                 return FishingGameDialog.Play(_owner, _game.Random);

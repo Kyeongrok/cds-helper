@@ -1,4 +1,4 @@
-namespace CdsHelper.Maze;
+﻿namespace CdsHelper.Maze;
 
 /// <summary>
 /// 미니 게임 「미궁 64 퍼즐」 — 방 예순넷을 <b>한 번씩만</b> 밟고 출구로 나가는 놀이.
@@ -31,6 +31,19 @@ public sealed class MazePuzzle
 
     /// <summary>되돌리기와 처음부터 다시가 각각 몇 번까지인지.</summary>
     public const int MaxUndo = 3, MaxRestart = 3;
+
+    /// <summary>
+    /// 상자를 연 수만큼 주는 금화(<c>0x0042B136</c> 의 점프표 <c>0x0042B170</c>).
+    /// </summary>
+    /// <remarks>
+    /// 한 개 10 · 둘 110 · 셋 1110 · 넷 11110 닢이다. <b>발견 대본이 거는 미궁이 이 갈래다</b> —
+    /// <c>0x00408D80</c> 이 <c>0x0042C8A0(1)</c> 로 부르고, 그 1 이 인스턴스 <c>+0x310</c> 이 된다.
+    /// </remarks>
+    public static readonly int[] ChestPrize = [10, 110, 1110, 11110];
+
+    /// <summary>연 상자만큼의 금화. 하나도 못 열었으면 0.</summary>
+    public int Prize =>
+        Opened >= 1 && Opened <= Chests ? ChestPrize[Opened - 1] : 0;
 
     /// <summary>
     /// 여섯 방향. <b>차례가 게임 것</b>이다 — 화살표 조각도 이 차례로 두 장씩이다.
