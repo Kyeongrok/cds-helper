@@ -152,22 +152,74 @@ public static class Palace
     /// </remarks>
     public const int KeepsakeCategory = 7;
 
+    /// <summary>후원자가 성과를 어떻게 보았는가(<c>0x00411AA0</c>) — 사례와 대사가 여기서 갈린다.</summary>
+    public enum ReportGrade
+    {
+        /// <summary>「굉장하다! 잘 해냈네!!」 — 듬뿍 준다.</summary>
+        Good,
+
+        /// <summary>그저 그렇다 — 기한 안이면 <b>말없이</b> 미불 그대로, 늦었으면 반만.</summary>
+        Mid,
+
+        /// <summary>「이건가...」 — 깎아서 주거나 늦었으면 한 푼도 없다.</summary>
+        Poor,
+    }
+
     /// <summary>
-    /// 보고 사례. 미불(계약금의 반)에 비율을 먹이고 100닢 단위로 내린다.
+    /// 후원자가 성과를 보는 눈(<c>0x00411AA0</c>) — 안목 굴림 두 번으로 셋을 가른다.
     /// </summary>
     /// <remarks>
-    /// 게임의 <c>0x00411D10</c> · <c>0x004117D0</c> 그대로다.
     /// <code>
-    ///   411d29  기한 안이면 120 + rand(30) %
-    ///   411d47  늦었으면    90 - rand(20) %
-    ///   411d3e  미불 x 비율 / 100, 100 을 넘으면 100닢 단위로 내림
+    ///   411ab9  hit = 후원자표.+0x30(친밀도 밑값) >= rand(100)
+    ///   411ad4  hit  이면  surpass ? 굉장 : 보통
+    ///   411b1e  아니면  T = 40*성미[7] + (surpass ? 20 : 0)      ; 0x00411CC0
+    ///   411b2e          T <= rand(100) ? 굉장 : 시시
     /// </code>
+    /// <b>surpass</b> 는 보고한 발견물들의 보수를 다 더한 값이 <b>힌트 표의 자금</b>
+    /// (<see cref="HintTable.Hint.Funds"/>, <c>0x004D8E80+0x14</c>)보다 큰가다
+    /// (<c>0x00412289</c>) — 흥정으로 고친 계약금이 아니라 밑값과 견준다.
+    /// 성미[7] 은 후원자 성미 여덟 칸의 마지막(0~2)이라 <c>T</c> 는 0·20·40·60·80·100 여섯 가지다.
+    ///
+    /// 굴림은 화면이 제 씨앗으로 굴리는 것이라(<c>0x004A2780</c>) 같은 보고를 다시 하면
+    /// 같은 갈래가 나오는데, 우리는 그냥 화면의 난수를 쓴다.
     /// </remarks>
-    public static int RewardFor(int unpaid, bool inTime, Random random)
+    public static ReportGrade GradeOf(int closeness, int fortune7, bool surpass, Random random)
     {
-        int rate = inTime ? 120 + random.Next(30) : 90 - random.Next(20);
-        return To100((int)((long)unpaid * rate / 100));
+        if (closeness >= random.Next(100))
+            return surpass ? ReportGrade.Good : ReportGrade.Mid;
+
+        int need = GradeStep * Math.Clamp(fortune7, 0, 2) + (surpass ? GradeSurpass : 0);
+        return need <= random.Next(100) ? ReportGrade.Good : ReportGrade.Poor;
     }
+
+    /// <summary>성미 한 칸이 올리는 문턱(<c>0x00411CD7</c> 의 <c>imul 0x28</c>).</summary>
+    public const int GradeStep = 40;
+
+    /// <summary>자금보다 많이 물어 왔을 때 더 붙는 문턱(<c>0x00411CE6</c>).</summary>
+    public const int GradeSurpass = 20;
+
+    /// <summary>
+    /// 보고 사례. 미불(계약금의 반)에 갈래마다의 비율을 먹이고 100닢 단위로 내린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 <c>0x00411D10</c> · <c>0x004117D0</c> 이다. <b>기한을 먼저 보고 갈래를 나중에 본다</b> —
+    /// 비율이 걸리는 곳은 기한 안일 때뿐이다.
+    /// <code>
+    ///   굉장 · 기한 안   미불 x (120 + rand(30)) / 100
+    ///   굉장 · 늦음      미불                                ; 「늦은 것은 없었던 일로 하지」
+    ///   보통 · 기한 안   미불                                ; 대사가 아예 없다
+    ///   보통 · 늦음      미불 / 2                            ; 「늦은 것은 공제하겠네」
+    ///   시시 · 기한 안   미불 x (90 - rand(20)) / 100
+    ///   시시 · 늦음      0                                   ; 한 푼도 없다
+    /// </code>
+    /// 100 을 넘으면 100닢 단위로 내린다(<see cref="To100"/>).
+    /// </remarks>
+    public static int RewardFor(int unpaid, ReportGrade grade, bool inTime, Random random) => grade switch
+    {
+        ReportGrade.Good => To100(inTime ? (int)((long)unpaid * (120 + random.Next(30)) / 100) : unpaid),
+        ReportGrade.Mid => To100(inTime ? unpaid : unpaid / 2),
+        _ => inTime ? To100((int)((long)unpaid * (90 - random.Next(20)) / 100)) : 0,
+    };
 
     /// <summary>100닢 단위로 내린다(<c>0x004117D0</c>). 100 이하면 그대로 둔다.</summary>
     public static int To100(int coins) => coins > 100 ? coins / 100 * 100 : coins;
