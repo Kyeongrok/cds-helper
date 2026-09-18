@@ -155,6 +155,44 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// 게임은 날을 보내며 교육 애니메이션(<c>0x004A5AE0(0x14, 1)</c>)을 돌리고 능력치 쪽 무엇(<c>0x00469820(날/10)</c>)을
     /// 건드리는데, 그 둘은 아직 안 옮겼다. 아내가 없으면 막는 말도 없이 끝난다 — 게임 그대로다.
     /// </remarks>
+    /// <summary>
+    /// 자택 「은퇴한다」(<c>0x00462050</c>) — 두 번 묻고, 그림 15 를 세우고, 세이브를 지운 뒤 끝낸다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   초심자면      「…단, 초심자용 캐릭터는 누적 캐릭터로 등록할 수 없습니다. 좋습니까?」 0x0053A4D8
+    ///   아니면        「…은퇴시키고 누적 캐릭터로 등록하겠습니다. 괜찮습니까?」               0x0053A498
+    ///   두 번째 물음  「%s%s 모험가로서 게임에 복귀할 수 없게 됩니다만, 괜찮습니까?」          0x0053A630
+    ///   EVSTILL 15 · 곡 0x0C · 「%s%s 모험가로서의 일생을 마쳤다...」                          0x0053A670
+    ///   그 뒤 0x0041AB90 이 세이브(SAVEDATA.CDS·TMP·ACCDATA.CDS)를 지우고 끝낸다
+    /// </code>
+    /// <b>누적 캐릭터 등록은 안 옮겼다</b> — 은퇴한 제독이 다음 판에 남으로 나오는 그 자리(<c>ACCDATA%d.ACC</c>)는
+    /// 우리 쪽에 없다. 부하·아내·아이는 게임도 <b>안 건드린다</b>(세이브째 사라진다).
+    /// </remarks>
+    /// <returns>은퇴했으면 참 — 부르는 쪽이 첫 화면으로 돌아간다.</returns>
+    public bool Retire()
+    {
+        var player = _game.Player;
+        string me = player.Name;
+        string first = player.ActiveStoryBook is { Length: > 0 }
+            ? $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키겠습니다. 단, 초심자용 캐릭터는 "
+              + "누적 캐릭터로 등록할 수 없습니다. 좋습니까?"
+            : $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키고 누적 캐릭터로 등록하겠습니다. 괜찮습니까?";
+        if (!ConfirmDialog.Ask(_view, first)) return false;
+        if (!ConfirmDialog.Ask(_view,
+                $"{me}{GameUi.Josa(me, "은", "는")} 모험가로서 게임에 복귀할 수 없게 됩니다만, 괜찮습니까?"))
+            return false;
+
+        _game.Bgm.Play(RetireTrack);
+        DiscoveryDialog.Show(_view, _game.EventStills, RetireStill,
+                             $"{me}{GameUi.Josa(me, "은", "는")} 모험가로서의 일생을 마쳤다...");
+        Engine.GameSave.Delete();
+        return true;
+    }
+
+    /// <summary>은퇴 그림(EVSTILL 15)과 곡(<c>0x0C</c>).</summary>
+    private const int RetireStill = 15, RetireTrack = 0x0C;
+
     public void Educate()
     {
         var owner = Owner;
@@ -260,20 +298,22 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         if (age < Home.SucceedAge)
         {
             Wife($"{son.Name}에게는 책임이 너무 무거운 것 같아요. 당신도 아직 일할 수 있잖아요.");
+            GameDialog.Show(owner, $"{son.Name}{GameUi.Josa(son.Name, "은", "는")} {age}세입니다. "
+                                 + $"{Home.SucceedAge}세 미만의 아이는 세대교체를 할 수 없습니다.");
             return;
         }
         if (_player.Contract != null)
         {
             Wife("여보, 당신 지금 계약중이 아니에요? 자기 계약은 스스로 끝내 주세요.");
+            GameDialog.Show(owner, "계약중에는 세대교체를 할 수 없습니다");
             return;
         }
         if (!ConfirmDialog.Ask(owner, $"{son.Name}에게 뒤를 잇게 하겠습니까?")) return;
 
         string father = _player.Name;
 
-        // 물려주는 것 — 온전히는 못 준다.
-        _player.SetGold(_player.Gold * 2 / 3);
-        _player.SetSavings(_player.Savings * 4 / 5);
+        // 명성·악명만 깎여 물려진다. <b>소지금과 저금은 그대로 간다</b> — 게임도 아들 칸에 2/3·4/5 를 적어 두지만
+        // 제독 자리로 옮길 때 그 두 칸(+0xF4·+0xF8)을 안 베껴 원래 값이 그대로 남는다(0x0047D4B0).
         _player.Fame = Home.InheritedFame(_player.Fame);
         _player.Infamy = Home.InheritedInfamy(_player.Infamy);
 

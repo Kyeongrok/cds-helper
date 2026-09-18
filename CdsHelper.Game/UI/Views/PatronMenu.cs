@@ -1046,7 +1046,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///                      그 후원자 친밀도 0 · 소지품·보관품·배를 잃는다 → 「용케도 살아 있었군. 끈질긴 놈이군.」
     /// </code>
     /// 항구 여부는 게임이 도시 객체 <c>+0x1C</c> 비트 0 으로 보는데, 우리는 그 도시에 항구 건물이 있는지로 가른다.
-    /// 부하·아내·아이를 어떻게 하는지(<c>0x004534E0</c> · <c>0x00465900</c> · <c>0x0047D640</c>)는 아직 안 옮겼다.
+    /// 감옥은 <b>부하·아내·아이까지 한꺼번에</b> 잃는 유일한 자리다(<c>0x004534E0</c> · <c>0x00465900</c> ·
+    /// <c>0x0047D640</c> 을 차례로 부른다) — 말 한마디 없이 사라진다. 저금과 모항은 그대로다.
     /// </remarks>
     private bool Jail(Patron patron, GameRandom dice)
     {
@@ -1071,6 +1072,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.Fame = Math.Max(0, _player.Fame - 2000);
         _player.Infamy += (dice.Next(300) + 500) * Math.Max(0, 199 - charm) / 100;
         _player.Endear(patron.Name, -Player.MaxCloseness);
+
+        // 부하는 말없이 다 흩어지고(0x004534E0), 아내와 아이도 사라진다(0x00465900 · 0x0047D640).
+        for (int slot = 0; slot < _player.Mates.Count; slot++) _player.SetMate(slot, "");
+        _player.Marry(null);
+        _player.ClearChildren();
+
         _player.LoseBelongings();
         _player.LoseAllShips();
 
