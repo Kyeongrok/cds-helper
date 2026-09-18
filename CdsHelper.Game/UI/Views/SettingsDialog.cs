@@ -100,7 +100,7 @@ public sealed class SettingsDialog : GameWindow
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new GameButton("◀", () => { Step(-1); refresh(); }, BandStyle.Button, StepWidth));
-        row.Children.Add(new GameButton($"{name} {now}", null, BandStyle.Button, NumberWidth));
+        row.Children.Add(Value($"{name} {now}"));
         row.Children.Add(new GameButton("▶", () => { Step(+1); refresh(); }, BandStyle.Button, StepWidth));
         return row;
 
@@ -159,7 +159,7 @@ public sealed class SettingsDialog : GameWindow
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new GameButton("◀", () => step(-GameSettings.VolumeStep),
                                         BandStyle.Button, StepWidth));
-        row.Children.Add(new GameButton($"{name} {volume,3}", null, BandStyle.Button, NumberWidth));
+        row.Children.Add(Value($"{name} {volume,3}"));
         row.Children.Add(new GameButton("▶", () => step(GameSettings.VolumeStep),
                                         BandStyle.Button, StepWidth));
         return row;
@@ -167,6 +167,17 @@ public sealed class SettingsDialog : GameWindow
 
     /// <summary>소리 크기 줄의 칸 폭.</summary>
     private const double StepWidth = 32, NumberWidth = 120;
+
+    /// <summary>
+    /// ◀ ▶ 사이에 값을 보여 주는 칸. <b>누르는 데는 아니지만 글씨는 검정</b>이다.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="GameButton"/> 은 할 일이 없는 줄을 흐린 회색(색인 21)으로 찍는다. 여기는
+    /// 못 누르는 것이 아니라 <b>보여 주기만 하는</b> 칸이라 <see cref="GameButton.Lit"/> 를
+    /// 세워 여느 단추와 같은 먹색으로 둔다.
+    /// </remarks>
+    private static GameButton Value(string text) =>
+        new(text, null, BandStyle.Button, NumberWidth) { Lit = true };
 
     /// <summary>
     /// 게임 창 크기 한 줄 — <c>◀ 1200 x 800 ▶</c> 로 고른다.
@@ -180,8 +191,7 @@ public sealed class SettingsDialog : GameWindow
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new GameButton("◀", () => StepSize(-1), BandStyle.Button, StepWidth));
-        row.Children.Add(new GameButton($"화면 {GameSettings.WindowSize.Name}", null,
-                                        BandStyle.Button, NumberWidth));
+        row.Children.Add(Value($"화면 {GameSettings.WindowSize.Name}"));
         row.Children.Add(new GameButton("▶", () => StepSize(+1), BandStyle.Button, StepWidth));
         return row;
     }
@@ -243,8 +253,7 @@ public sealed class SettingsDialog : GameWindow
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new GameButton("◀", () => StepMap(-1), BandStyle.Button, StepWidth));
-        row.Children.Add(new GameButton($"지도 {GameSettings.MapScale:0.00}", null,
-                                        BandStyle.Button, NumberWidth));
+        row.Children.Add(Value($"지도 {GameSettings.MapScale:0.00}"));
         row.Children.Add(new GameButton("▶", () => StepMap(+1), BandStyle.Button, StepWidth));
         return row;
     }
