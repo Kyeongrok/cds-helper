@@ -526,6 +526,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         return true;
     }
 
+    /// <summary>위약금을 못 냈을 때 깎이는 친밀도(<c>0x0044F886</c>).</summary>
+    private const int BreakPenaltyCloseness = 20;
+
     /// <summary>10닢 단위로 내린다 — 게임의 <c>/10*10</c> 꼴이다.</summary>
     private static int To10(int coins) => coins / 10 * 10;
 
@@ -1162,6 +1165,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var face = FaceOf(patron);
         void Say(string text) => TalkDialog.Say(_view, face, "", text);
 
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
         bool overdue = contract.IsOverdue(_player.Date);
         if (!ConfirmDialog.Ask(owner, overdue
                 ? "기한을 넘겼다. 계약을 그만두겠나?"
@@ -1197,7 +1203,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (!_player.Pay(penalty))
         {
             GameDialog.Show(_view, "위약금을 지불할 수 없습니다!");
-            Say("바보같은, 위약금을 지불할 수 없다고! 어디까지 어리석은...");
+            Say(Pick3("이 바보같은 녀석!",
+                      "이런 바보같은!",
+                      "바보같은, 위약금을 지불할 수 없다고! 어디까지 어리석은..."));
+            // 못 내면 친밀도가 20 깎인다(0x0044F886 이 -0x14 를 0x00478530 에 넘긴다).
+            _player.Endear(patron.Name, -BreakPenaltyCloseness);
             ReturnLentShips();
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
