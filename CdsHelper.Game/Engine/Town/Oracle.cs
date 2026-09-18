@@ -48,6 +48,13 @@ public static class Oracle
         { 1, 1, -2, 1, -1, 0 }, { 3, -3, -5, 3, 2, 0 }, { -2, 3, -5, 2, 2, 0 }, { 5, -2, 3, -1, -5, 0 },
     };
 
+    /// <summary>
+    /// 아내 운명 코드 줄의 그 칸 값(<c>0x0051B0A0</c>) — 아이를 가질 때 능력치에 이 값이 얹힌다(<c>0x00461139</c>).
+    /// 코드나 칸이 표 밖이면 0.
+    /// </summary>
+    public static int WifeSlope(int code, int ability) =>
+        code >= 0 && code < Wife.GetLength(0) && ability >= 0 && ability < 6 ? Wife[code, ability] : 0;
+
     /// <summary>줄에서 가장 큰 양수 칸(같으면 앞 칸). 양수가 없으면 −1.</summary>
     private static int Best(int[,] rows, int code)
     {
