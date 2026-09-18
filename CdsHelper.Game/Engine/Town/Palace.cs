@@ -236,6 +236,24 @@ public static class Palace
         _ => inTime ? To100((int)((long)unpaid * (90 - random.Next(20)) / 100)) : 0,
     };
 
+    /// <summary>
+    /// 계약이 끝나 <b>빌린 배를 거둬 갈 때</b>(<c>0x0040FE40</c>) 낼 말.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0040fed9  배가 한 척이라도 남으면  0x0055C1A8 「스폰서에게 배를 돌려 주었습니다.」
+    ///   0040ff07  안 남고 짐이 있으면      0x0055C1F0 「… 남은 짐은 전부 팔았습니다.」
+    ///                                     0x0055C268 「금화 %ld닢을 손에 넣었다!」
+    ///   0040ff3d  안 남고 짐도 없으면      0x0055C288 「스폰서에게 배를 돌려 주었습니다.」
+    /// </code>
+    /// 짐 값은 그 도시 <b>매각가의 절반</b>이다(<c>0x0044D95C</c> 의 <c>sar 1</c>) — 급히 넘기는 값이다.
+    /// </remarks>
+    public const string ShipsReturned = "스폰서에게 배를 돌려 주었습니다.";
+    public const string ShipsReturnedCargoSold = "스폰서에게 배를 돌려 주었습니다. 남은 짐은 전부 팔았습니다.";
+
+    /// <summary>급히 넘기는 짐 값 — 매각가의 절반(<c>0x0044D95C</c>).</summary>
+    public static int DistressPrice(int sellPrice) => sellPrice / 2;
+
     /// <summary>100닢 단위로 내린다(<c>0x004117D0</c>). 100 이하면 그대로 둔다.</summary>
     public static int To100(int coins) => coins > 100 ? coins / 100 * 100 : coins;
 
