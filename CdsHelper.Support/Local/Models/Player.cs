@@ -454,6 +454,46 @@ public sealed class Player
         return now;
     }
 
+    /// <summary>
+    /// 후원자마다의 <b>지갑</b>(<c>후원자 +0x24</c>). 적어 둔 적 없는 사람은 여기 없다.
+    /// </summary>
+    /// <remarks>
+    /// 새 판을 열 때 <b>재력 x 10000</b> 으로 채워진다(<c>0x004AD88F</c> — 표 <c>+0x2C</c>).
+    /// 계약을 맺으면 계약금의 <b>절반</b>이 여기서 빠지고(<c>0x004ADF4A</c>), 발견물을 보고하면
+    /// 그 보수가 도로 차되 <b>재력 x 10000 을 못 넘는다</b>(<c>0x004113E4</c>).
+    /// <b>저절로 차지 않는다</b> — 달이 바뀌어도, 역사 대본으로도 안 바뀐다.
+    /// 위약금(계약중단 · 감찰관 사고)은 내 소지금만 건드리고 이 값은 안 건드린다.
+    /// </remarks>
+    public IReadOnlyDictionary<string, int> Purses => _purses;
+
+    private readonly Dictionary<string, int> _purses = [];
+
+    /// <summary>지갑 상한 한 칸이 만드는 닢수(<c>0x004AD88C</c> 의 <c>x10000</c>).</summary>
+    public const int GoldPerWealth = 10000;
+
+    /// <summary>그 후원자의 지갑. 아직 건드린 적이 없으면 <paramref name="wealth"/> x 10000 이다.</summary>
+    public int PurseOf(string name, int wealth) =>
+        !string.IsNullOrEmpty(name) && _purses.TryGetValue(name, out int now)
+            ? now : wealth * GoldPerWealth;
+
+    /// <summary>지갑을 움직인다 — 0 밑으로도, 재력 x 10000 위로도 안 간다.</summary>
+    public int SpendPurse(string name, int by, int wealth)
+    {
+        if (string.IsNullOrEmpty(name)) return 0;
+        int now = Math.Clamp(PurseOf(name, wealth) + by, 0, wealth * GoldPerWealth);
+        _purses[name] = now;
+        return now;
+    }
+
+    /// <summary>적어 둔 지갑을 되돌린다.</summary>
+    public void RestorePurses(Dictionary<string, int>? purses)
+    {
+        _purses.Clear();
+        if (purses == null) return;
+        foreach (var (name, value) in purses)
+            if (!string.IsNullOrEmpty(name)) _purses[name] = Math.Max(0, value);
+    }
+
     /// <summary>적어 둔 친밀도를 되돌린다.</summary>
     public void RestoreCloseness(Dictionary<string, int>? closeness)
     {
