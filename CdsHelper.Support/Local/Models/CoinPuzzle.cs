@@ -55,10 +55,10 @@ public sealed class CoinPuzzle
     public int Coins => _weight.Length;
 
     /// <summary>가짜 금화 번호(0부터).</summary>
-    public int Fake { get; }
+    public int Fake { get; private set; }
 
     /// <summary>가짜가 무거운 쪽인지.</summary>
-    public bool Heavy { get; }
+    public bool Heavy { get; private set; }
 
     /// <summary>지금까지 단 횟수.</summary>
     public int Weighed => _log.Count;
@@ -87,12 +87,26 @@ public sealed class CoinPuzzle
     /// </remarks>
     public CoinPuzzle(Random rng)
     {
+        _rng = rng;
         _weight = new int[rng.Next(MoreCoins) + LeastCoins];
-        Array.Fill(_weight, Sound);
+        Deal();
+    }
 
-        Heavy = rng.Next(2) == 0;
-        Fake = rng.Next(_weight.Length);
+    private readonly Random _rng;
+
+    /// <summary>
+    /// 무게를 다시 깐다 — 금화 수는 그대로다(<c>0x00452A80</c> 은 <c>+0x110</c> 을 안 건드린다).
+    /// </summary>
+    private void Deal()
+    {
+        Array.Fill(_weight, Sound);
+        Heavy = _rng.Next(2) == 0;
+        Fake = _rng.Next(_weight.Length);
         _weight[Fake] += Heavy ? 1 : -1;
+
+        _left.Clear();
+        _right.Clear();
+        _log.Clear();
     }
 
     /// <summary>접시에 더 놓을 자리가 있는지.</summary>
@@ -149,9 +163,20 @@ public sealed class CoinPuzzle
     /// </summary>
     public bool Decide(int coin)
     {
-        Won = coin == Fake;
-        return Won.Value;
+        if (coin == Fake) { Won = true; return true; }
+
+        // <b>첫 실패는 끝이 아니다</b>(0x00450CA9) — 판을 새로 깔고 한 번 더 준다.
+        // 두 번째로 틀려야 진짜 끝이고, 삯은 <b>첫 판에 맞혔을 때만</b> 나온다(0x00450C4C).
+        if (!Missed) { Missed = true; Deal(); return false; }
+
+        Won = false;
+        return false;
     }
+
+    /// <summary>
+    /// 한 번 잘못 골랐는가(<c>+0x150</c>) — 그러면 삯이 없고 다음에 틀리면 끝이다.
+    /// </summary>
+    public bool Missed { get; private set; }
 
     /// <summary>포기.</summary>
     public void GiveUp() => Won ??= false;
