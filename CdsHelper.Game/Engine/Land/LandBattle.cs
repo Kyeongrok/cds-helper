@@ -98,7 +98,6 @@ public sealed class LandBattle
         FoeBody = dice.Next(10) + new[] { 60, 75, 85, 90 }[band] - 1;
 
         Muster(scale, dice);
-        Shell(player, dice);
         for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
         FoeRoom = FoeUnits > 0 ? FoeFirst / FoeUnits : FoeFirst;
         MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
@@ -187,7 +186,6 @@ public sealed class LandBattle
         FoeBody = foe.Body;
 
         Deal(Math.Max(1, foeMen), dice);
-        Shell(player, dice);
         for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
         FoeRoom = FoeUnits > 0 ? FoeFirst / FoeUnits : FoeFirst;
         MyRoom = MyUnits > 0 ? MyFirst / MyUnits : MyFirst;
@@ -544,8 +542,9 @@ public sealed class LandBattle
     /// 다 빈치의 작렬탄(<c>0x00448DD0</c>) — 판이 열릴 때 한 번 굴린다.
     /// </summary>
     /// <remarks>
-    /// 아이템 2 를 지녔으면 40%로 <c>0x0056D340</c> "다 빈치 선생의 작렬탄을 받아라!"
-    /// 가 뜨고 그 뒤로 <b>포가 비를 안 탄다</b>. 그 아이템은 그 자리에서 없어진다.
+    /// <b>턴마다</b> 굴린다(<c>0x00449C9E</c>). 살아 있는 <b>포 부대</b>가 아군에 있고 아이템 2 를 지녔을 때,
+    /// 40%로 <c>0x0056D340</c> 「다 빈치 선생의 작렬탄을 받아라!」가 뜨고 그 아이템이 없어진다.
+    /// 한 번 받으면 그 판이 끝날 때까지 서 있다.
     /// </remarks>
     public const int ShellItem = 2, ShellOdds = 40;
 
@@ -570,17 +569,33 @@ public sealed class LandBattle
     public string ShellWord { get; private set; } = "";
 
     /// <summary>
-    /// 작렬탄을 굴린다 — 아이템을 지녔으면 <see cref="ShellOdds"/> 로 받는다.
+    /// 작렬탄을 굴린다(<c>0x00448DD0</c>) — 턴 첫머리마다 한 번씩이다.
     /// </summary>
-    /// <remarks>받으면 그 아이템은 그 자리에서 없어진다(<c>0x0047CDB0</c>).</remarks>
-    private void Shell(Player player, GameRandom dice)
+    /// <remarks>
+    /// 살아 있는 <b>포 부대</b>(총대장 부대는 안 센다, <c>0x00447580(2, 0)</c>)가 있어야 하고, 아이템을
+    /// 지녀야 하며, <c>rand(100) &lt; 40</c> 이라야 받는다. 받으면 그 아이템이 없어진다(<c>0x0047CDB0</c>).
+    /// </remarks>
+    /// <returns>이번 턴에 <b>새로</b> 받았으면 참 — 그때만 말이 나온다.</returns>
+    public bool TryShell(Player player, GameRandom dice)
     {
-        if (!player.HasItem(ShellItem)) return;
-        if (dice.Next(100) >= ShellOdds) return;
+        if (Shells || !player.HasItem(ShellItem)) return false;
+        if (!HasCannon(foe: false)) return false;
+        if (dice.Next(100) >= ShellOdds) return false;
 
         player.Drop(ShellItem);
         Shells = true;
         ShellWord = "다 빈치 선생의 작렬탄을 받아라!";
+        return true;
+    }
+
+    /// <summary>그 편에 살아 있는 포 부대가 있는지(<c>0x00447580(2, 편)</c>) — 총대장 부대는 안 센다.</summary>
+    public bool HasCannon(bool foe)
+    {
+        int side = foe ? FirstFoe : 0;
+        for (int i = side; i < side + PerSide; i++)
+            if (_units[i].Standing && !_units[i].IsLeader
+                && LandUnits.KindOf(_units[i].Kind) == LandUnits.Kind.Cannon) return true;
+        return false;
     }
 
     // ── 적 AI — 0x00447A60 ─────────────────────────────────────────────────────
@@ -608,9 +623,23 @@ public sealed class LandBattle
     public int FoeOrder(GameRandom dice)
     {
         bool ahead = MenOn(foe: true) >= MenOn(foe: false);
+        bool field = Sort == Field;                    // 들에서 마주친 부대는 셈이 다르다
 
         if (Turn >= LateTurn)
+        {
+            if (field)
+                return ahead ? (dice.Next(5) != 0 ? Charge : Normal)
+                             : (dice.Next(4) == 0 ? Retreat : Normal);
+            // 마을 공략은 앞서면 지키고, 밀리면 아홉에 여덟으로 지킨다.
             return dice.Next(ahead ? 4 : 9) != 0 ? Guarded : Normal;
+        }
+
+        // 들싸움 첫 턴은 그냥 친다(0x00447AA5).
+        if (Turn == 1 && field) return Normal;
+
+        if (field)
+            return ahead ? (dice.Next(9) > 3 ? Charge : Normal)
+                         : (dice.Next(5) > 3 ? Charge : Normal);
 
         return ahead ? (dice.Next(7) > 3 ? Charge : Normal)
                      : (dice.Next(7) > 2 ? Guarded : Normal);

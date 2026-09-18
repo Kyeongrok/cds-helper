@@ -118,11 +118,12 @@ internal sealed class LandBattleScene : GameWindow
         // 싸우는 동안은 그 곡이 돈다. 끝나면 부르는 쪽이 제 곡으로 되돌린다.
         _game?.Bgm.Play(BgmPlayer.BattleTrack);
 
-        // 판이 열릴 때 한 번 — 아이템을 지녔으면 작렬탄을 받는다(0x00448DD0).
-        if (_battle.ShellWord.Length > 0) NoticeDialog.Show(this, _battle.ShellWord, "");
-
         while (true)
         {
+            // 턴 첫머리마다 굴린다 — 살아 있는 아군 포가 있고 아이템을 지녔으면 40%다(0x00449C9E).
+            if (_game is { } g && _battle.TryShell(g.Player, dice))
+                NoticeDialog.Show(this, _battle.ShellWord, "");
+
             int order = Ask(dice);
             if (order < 0) continue;                 // 물러도 차림표가 다시 뜬다
 
