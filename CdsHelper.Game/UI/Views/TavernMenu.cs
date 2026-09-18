@@ -1306,6 +1306,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     internal const int SpareFame = 10, RobInfamy = 100;
 
     /// <summary>뺏는 금화 — <c>rand(11) + 20</c>(<c>0x004AA486</c>).</summary>
+    /// <remarks>
+    /// 게임은 금화에 이어 <b>상대의 무기·방어구</b>도 뺏고 「상대는 %s%s 장비하고 있다」
+    /// (<c>0x00534A50</c> · <c>0x00534A78</c>)를 낸다. 우리 인물 표에는 <b>소지품 칸이 없어</b>
+    /// 상대가 무엇을 들었는지 알 길이 없다 — 그래서 그쪽은 안 옮겼다(일기토에서도 상대
+    /// 무기·방어구 효과를 0 으로 둔다).
+    /// </remarks>
     internal const int RobGoldRoll = 11, RobGoldBase = 20;
 
     /// <summary>처형당하기 전에 하는 말(<c>0x005347F8</c> 다섯).</summary>
