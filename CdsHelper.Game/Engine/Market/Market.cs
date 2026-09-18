@@ -70,6 +70,9 @@ public sealed class Market
     /// 게임 EXE 의 도시 표에 박혀 있는 그대로다(<see cref="CityExeTable"/>). 켜 놓은
     /// 게임의 메모리를 226곳 다 읽어 대 보니 한 칸도 다르지 않았다.
     /// </remarks>
+    /// <summary>아이템 번호로 그 줄을 찾는다 — 소지품을 이름으로 늘어놓을 때 쓴다.</summary>
+    public ItemTable.Record? Find(int itemId) => _items.Find(itemId);
+
     public IReadOnlyList<ItemTable.Record> StockOf(int cityId)
     {
         if (_cache.TryGetValue(cityId, out var got)) return got;
