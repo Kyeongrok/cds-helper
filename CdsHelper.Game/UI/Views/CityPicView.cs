@@ -412,6 +412,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
             if (building.Kind == "항구") harborPlaced = true;
         }
 
+        // 도시 그림에 그려진 마을 사람들 — 건물 다음에 걸린다(0x00491DC0).
+        foreach (var folk in _game.TownFolk?.InCity(cityId) ?? []) AddFolk(folk, scale);
+
         // 표에 항구가 없는 도시는 아무 데나 눌러도 항구 명령 창이 열린다(건물 판이 먼저 먹는다).
         if (!harborPlaced)
         {
@@ -497,6 +500,62 @@ public sealed class CityPicView : GameWindow, ITownScreen
             Enter(building);
         };
         _layer.Children.Add(spot);
+    }
+
+    /// <summary>
+    /// 그림에 서 있는 마을 사람 하나를 누를 수 있게 한다(<c>0x00491DC0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 사람 그림은 도시 그림에 이미 있고 표는 누를 자리만 준다. 건물 자리와 겹치면 건물이 먼저다 —
+    /// 건물 자리를 뒤에 얹지 않고 여기서 먼저 깔아 두는 것으로 갈음한다.
+    /// </remarks>
+    private void AddFolk(TownFolkTable.Folk folk, int scale)
+    {
+        var a = new Rect(folk.HitX, folk.HitY, folk.HitWidth, folk.HitHeight);
+        var spot = new Border
+        {
+            Width = a.Width * scale,
+            Height = a.Height * scale,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+        };
+        Canvas.SetLeft(spot, a.X * scale);
+        Canvas.SetTop(spot, a.Y * scale);
+        spot.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        spot.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (MenuOpen) return;
+            TalkToFolk(folk);
+        };
+        _layer.Children.Add(spot);
+    }
+
+    /// <summary>
+    /// 마을 사람이 한 마디 한다(<c>0x00492DC4</c>) — <b>얼굴도 이름도 없는</b> 창이다.
+    /// </summary>
+    /// <remarks>
+    /// 1493년부터는 둘째 말이 있으면 그것을 한다. 갈래 100~102 는 반쯤 「이곳은 %s입니다.」·
+    /// 「이곳은 %s의 도시입니다.」로 도시·나라 이름만 말한다(<c>0x00492E40</c>).
+    /// 그 고장 말을 모르면 글자가 뭉개진다(<see cref="StrangerTalk.Garble"/>) — 부하가 더 잘하면
+    /// 「[…]라고 말하고 있는 것 같습니다.」로 옮겨 준다.
+    /// </remarks>
+    private void TalkToFolk(TownFolkTable.Folk folk)
+    {
+        string words = folk.WordsOn(_player.Date.Year);
+        if (folk.Kind < 200 && _random.Next(2) != 0)
+        {
+            string nation = _game.Nations?.Find(_game.CityRows?.NationOf(_cityId) ?? -1)?.Name ?? "";
+            words = _random.Next(2) == 0 || nation.Length == 0
+                ? $"이곳은 {_cityName}입니다."
+                : $"이곳은 {nation}의 도시입니다.";
+        }
+
+        // 말은 그 도시 나라 말이다 — 제독 수준으로 뭉개 들린다(0x004780E0).
+        int language = _game.Nations?.Find(_game.CityRows?.NationOf(_cityId) ?? -1)?.Language ?? -1;
+        int mine = language >= 0 && language < Skill.Languages.Length
+            ? _player.TongueOf(Skill.Languages[language]) : Skill.MaxLevel;
+        NoticeDialog.Show(this, StrangerTalk.Garble(words, mine, _random));
     }
 
     /// <summary>

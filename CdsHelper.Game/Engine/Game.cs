@@ -85,6 +85,7 @@ public sealed class Game
         _itemArt = null;
         _discoveries = null; _discoveriesTried = false;
         _voyagers = null; _voyagersTried = false;
+        _townFolk = null; _townFolkTried = false;
         _history = null; _historyTried = false;
         _stills = null; _stillsTried = false;
         _fighters = null; _fightersTried = false;
@@ -281,6 +282,14 @@ public sealed class Game
     public HistoryVoyages? Voyagers =>
         Once(ref _voyagers, ref _voyagersTried, HistoryVoyages.Open,
              () => HistoryVoyages.LastError, "역사 항해자");
+
+    /// <summary>도시 그림에 서 있는 마을 사람 표 — 누르면 그 고장 이야기를 한다.</summary>
+    public TownFolkTable? TownFolk =>
+        Once(ref _townFolk, ref _townFolkTried, TownFolkTable.Open,
+             () => TownFolkTable.LastError, "마을 사람 표");
+
+    private TownFolkTable? _townFolk;
+    private bool _townFolkTried;
 
     /// <summary>여급 표 — 술집에 서는 127명. 궁합이 여기서 나온다.</summary>
     public BarmaidTable? Barmaids =>
