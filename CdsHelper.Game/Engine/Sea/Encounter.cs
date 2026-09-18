@@ -237,13 +237,22 @@ public static class Encounter
     /// </summary>
     /// <remarks>
     /// <code>
-    ///   확률 = 내 함대수 / 2 + 매력 * 10 + 밑값
-    ///   밑값 = rand(10) + 30   (또는 딴 갈래에서 rand(5))
+    ///   0045597d  ebp = 말하는 이의 웅변([esi+0x58])
+    ///   00455980  [0x005B60F8](내 웅변 = 기능[6])이 더 크면 그것을 쓴다   ; max
+    ///   0045598e  갈래가 3(이슬람 함대)이면  밑값 = rand(5)
+    ///   004559a1  아니면                     밑값 = rand(10) + 30
+    ///   004559ae  확률 = 내 함대수 / 2 + 웅변 * 10 + 밑값
     /// </code>
-    /// 갈래를 가르는 조건을 아직 못 짚어 <b>너그러운 쪽(rand(10) + 30)</b>만 쓴다.
+    /// <b>매력이 아니라 웅변</b>이다(기능 여섯째, <c>0x005B60F8</c> = 기능표 <c>+4*6</c>).
+    /// 말은 부관이 대신하므로 부관 웅변과 내 웅변 가운데 <b>높은 쪽</b>을 쓴다.
+    /// 이슬람 함대에게는 밑값 서른이 안 붙어 <b>거의 안 통한다</b>.
     /// </remarks>
-    public static int TalkOdds(Player player, Random rng) =>
-        player.Ships.Count / 2 + player.AbilityOf(Ability.Charm) * 10 + rng.Next(10) + 30;
+    public static int TalkOdds(Player player, EnemyKind kind, int mateRhetoric, Random rng)
+    {
+        int rhetoric = Math.Max(mateRhetoric, player.LevelOf(Skill.Names[Skill.Rhetoric]));
+        int floor = kind == EnemyKind.Islam ? rng.Next(5) : rng.Next(10) + 30;
+        return player.Ships.Count / 2 + rhetoric * 10 + floor;
+    }
 
     /// <summary>
     /// 교섭이 통하는지. <b>추격대·토벌대에게는 통하지 않는다</b>(<c>0x0045585C</c>).

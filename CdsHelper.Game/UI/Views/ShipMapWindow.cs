@@ -4147,8 +4147,13 @@ public sealed class ShipMapWindow : Window
     {
         // 추격대·토벌대는 말이 안 통한다(0x0045585C) — 굴림 없이 진 동전이 돈다(0x00455860).
         // 통하는 적이면 굴리고 나서 동전을 돌린다(0x004559C2 → 0x004559CD).
+        // 말은 부관이 대신한다 — 부관 웅변과 내 웅변 가운데 높은 쪽이 먹힌다(0x0045597D).
+        string mate = _game.Player.MateAt(0);
+        int mateRhetoric = mate.Length > 0
+                           && _game.World?.People.FirstOrDefault(p => p.Name == mate) is { } who
+                           && who.Skills.Length > Skill.Rhetoric ? who.Skills[Skill.Rhetoric] : 0;
         bool heard = Encounter.CanTalk(foe.Kind)
-                     && Encounter.Roll(Encounter.TalkOdds(_game.Player, rng), rng);
+                     && Encounter.Roll(Encounter.TalkOdds(_game.Player, foe.Kind, mateRhetoric, rng), rng);
         EffectPopup.PlayCoin(this, _game, heard, MapAreaOnScreen());
         if (!heard)
         {
