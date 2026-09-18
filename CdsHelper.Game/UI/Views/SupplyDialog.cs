@@ -441,6 +441,14 @@ public sealed class SupplyDialog : GameWindow
             waterTo = haveWater + waterMore;
         }
 
+        // 한 통도 더 못 실으면 채우는 대신 부관이 한마디 한다(0x0040F3E8 →
+        // <c>0x00545678</c> 「이 이상 실을 여유가 없습니다.」). 0x004695C0 이라 부관 말이다.
+        if (foodTo <= haveFood && waterTo <= haveWater)
+        {
+            if (_mate) GameDialog.Show(Owner ?? this, "이 이상 실을 여유가 없습니다.");
+            return;
+        }
+
         _add[(int)SupplyKind.Food] = foodTo - haveFood;
         _add[(int)SupplyKind.Water] = waterTo - haveWater;
         _add[(int)SupplyKind.Material] = 0;
