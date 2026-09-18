@@ -108,6 +108,7 @@ public sealed class SupplyDialog : GameWindow
 
     private SupplyDialog(Player player, int rate)
     {
+        _mate = player.MateAt(0).Length > 0;
         _player = player;
         _rate = rate;
 
@@ -315,20 +316,48 @@ public sealed class SupplyDialog : GameWindow
 
     private int Total => Enumerable.Range(0, Supply.Count).Sum(Cost);
 
-    /// <summary>한 통 더 실을 수 있는지 — 용량·중량·소지금을 다 본다.</summary>
-    private bool CanAdd(int index)
+    /// <summary>
+    /// 한 통 더 실을 수 있는지 — 용량·중량·소지금을 다 본다. 못 실으면 <b>왜 못 싣는지</b>를
+    /// 게임 글로 돌려준다(<c>0x0040F480</c>~<c>0x0040F4E0</c>). 실을 수 있으면 빈 문자열이다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0040f494  용량 넘침   0x00545708 「용량 오버입니다.」
+    ///   0040f4ba  중량 넘침   0x00545720 「중량 오버입니다.」
+    ///   0040f439  소지금 0    0x00545698 · 0x005456B8
+    ///   0040f44e  값 모자람   0x005456D0 · 0x005456F0
+    /// </code>
+    /// 돈 쪽 둘은 <b>부관 있음·없음 두 벌</b>이다(<c>0x00469680</c>).
+    /// </remarks>
+    private string WhyNot(int index)
     {
         var supply = Supply.All[index];
-        return Barrels + 1 <= _player.Capacity
-               && Weight + supply.UnitWeight <= _player.Tonnage
-               && Total + supply.PriceAt(_rate) <= _player.Gold;
+        if (Barrels + 1 > _player.Capacity) return "용량 오버입니다.";
+        if (Weight + supply.UnitWeight > _player.Tonnage) return "중량 오버입니다.";
+        if (Total + supply.PriceAt(_rate) > _player.Gold)
+            return _player.Gold == 0
+                ? _mate ? "제독, 안됐지만 빈털터리입니다!" : "소지금이 없습니다"
+                : _mate ? "제독, 금화가 모자랍니다!" : "소지금이 모자랍니다.";
+        return "";
     }
+
+    /// <summary>부관이 있는가 — 막는 말이 갈린다.</summary>
+    private readonly bool _mate;
+
+    private bool CanAdd(int index) => WhyNot(index).Length == 0;
 
     private void Bump(int index, int by)
     {
         int step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? FastStep : Step;
         for (int i = 0; i < step; i++)
         {
+            // <b>왜 못 싣는지 말해 준다</b> — 게임도 누를 때마다 낸다. 한 번 눌러 여러 통이
+            // 올라가는 자리(Shift)에서는 첫 걸음에서 막혔을 때만 낸다.
+            if (by > 0 && WhyNot(index) is { Length: > 0 } why)
+            {
+                if (i == 0) GameDialog.Show(Owner ?? this, why);
+                break;
+            }
             if (by > 0 && !CanAdd(index)) break;
             // 내리면 0 에서 멈추지 않고 실어 둔 것까지 덜어 낸다 — 현재량 밑으로는 못 간다.
             if (by < 0 && _add[index] <= -_player.SupplyOf(Supply.All[index].Kind)) break;
