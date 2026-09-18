@@ -72,8 +72,12 @@ public sealed class BarmaidTable
     private const string Probe = "카를로타";
 
     /// <summary>성격 이름(<c>+0x18</c> 의 색인).</summary>
+    /// <remarks>
+    /// <c>0x004A2F10</c> 이 내주는 여덟 낱말 그대로다 — 성미 칸이 <b>2</b> 쪽일 때의 말이다.
+    /// 표 밖이면 <c>0x0054C878</c> 「친절한」이다.
+    /// </remarks>
     public static readonly string[] Personalities =
-        ["냉냉한", "강인한", "의지가 강한", "용감한", "친절한", "로맨틱한", "섬세한", "견실한"];
+        ["당당한", "강인한", "의지가 강한", "용감한", "친절한", "로맨틱한", "섬세한", "견실한"];
 
     /// <summary>혈액형 이름(<c>+0x10</c> 의 색인).</summary>
     public static readonly string[] Bloods = ["A형", "B형", "O형", "AB형"];
