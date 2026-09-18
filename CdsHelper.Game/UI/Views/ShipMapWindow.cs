@@ -1942,7 +1942,15 @@ public sealed class ShipMapWindow : Window
                         $"[{name}]{GameUi.Josa(name, "을", "를")} 은퇴시키겠습니까?")) continue;
 
                 // 적어 둔 것 그대로 누적 캐릭터로 올린다(0x0041AB90 → 0x0041A270).
-                Engine.AccData.Register(saved);
+                // <b>자리가 다 찼으면 못 올린다</b>(0x0045F83E) — 그때는 적어 둔 것을
+                // 지우지 않고 되돌아간다. 예전에는 올리지 못한 채로 지워 버렸다.
+                if (!Engine.AccData.Register(saved))
+                {
+                    ConfirmDialog.Tell(this,
+                        $"[{name}]에서는 {Engine.AccData.Slots}명의 캐릭터가 사용되고 있기 때문에 "
+                        + "이 캐릭터를 은퇴시킬 수 없습니다.", "모험 중단");
+                    continue;
+                }
 
                 if (GameSave.Delete()) return true;
                 NoticeDialog.Show(this, "적어 둔 것을 지우지 못했습니다.");
