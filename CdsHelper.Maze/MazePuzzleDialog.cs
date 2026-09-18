@@ -508,11 +508,9 @@ internal sealed class MazePuzzleDialog : InfoDialog
             case MazePuzzle.Result.Cleared:
             case MazePuzzle.Result.Perfect:
                 NoticeDialog.Show(owner, "축하하네! 드디어 자네는 미궁을 돌파했네!", "게임 클리어");
-                if (dialog._game.Prize is > 0 and var gold)
-                {
-                    player?.Earn(gold);
-                    NoticeDialog.Show(owner, $"금화 {gold}닢을 손에 넣었다!", "게임 클리어");
-                }
+                // <b>말없이 넣어 준다</b> — 코인 게임과 달리 알리는 글이 없다(0x0042B136 이
+                // 곧바로 0x0047CBC0 으로 간다).
+                if (dialog._game.Prize > 0) player?.Earn(dialog._game.Prize);
                 break;
         }
 
