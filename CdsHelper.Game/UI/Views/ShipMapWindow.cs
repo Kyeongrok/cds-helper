@@ -4303,6 +4303,13 @@ public sealed class ShipMapWindow : Window
     /// (<c>0x005B60A0</c>)가 아니면 그 사람 얼굴로 바꾼다. 부르는 쪽은 <c>0x0047CC60(0, 1)</c> 로
     /// 부관을 집고 없으면 제독 객체를 넘기므로, 부관이 없을 때 뱃사람 얼굴이 선다(볼트 81).
     /// </remarks>
+    /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
+    private uint[]? SponsorFaceOf(string? name)
+    {
+        if (name == null || _game.Sponsors?.FindByName(name) is not { } sponsor) return null;
+        return _game.Faces?.TryGetBgra(sponsor.Face, sponsor.IsFemale);
+    }
+
     private uint[]? MateFace()
     {
         string mate = _game.Player.MateAt(0);
@@ -4834,6 +4841,11 @@ public sealed class ShipMapWindow : Window
         }
         if (Vitality.EntryWarning(_game.Player) is { } warn)
             TalkDialog.Say(dialog, MateFace(), "", warn);
+
+        // 지구를 돌고 계약을 맺은 도시로 돌아왔으면 그 자리에서 세계일주 장면이 돈다
+        // (0x00492040) — 항구 명령 창보다 먼저다.
+        if (WorldRouteScene.Due(_game, city, _game.Player.MateAt(0).Length > 0))
+            WorldRouteScene.Play(dialog, _game, SponsorFaceOf(_game.Player.Contract?.Sponsor), MateFace());
         // 들어가는 데 열흘 — 다만 새 판은 이미 자택 안에서 시작하므로 날을 안 보낸다.
         // 게임도 새 판은 1월 1일에 자택 명령 창이 떠 있다. 여기서 열흘을 보내 1월 11일이 되었었다.
         if (!enterHome) PassPortDays();
