@@ -135,6 +135,12 @@ public static class Home
             : $"보세요, 당신의 아이에요. 이름은 {child.Name}…";
     }
 
+    /// <summary>이 나이까지는 소개할 때 사건 그림을 함께 낸다(<c>0x0045FFE6</c>).</summary>
+    public const int BabyAge = 5;
+
+    /// <summary>그때 세우는 사건 그림(<c>0x00472FA0(8)</c>).</summary>
+    public const int BabyStill = 8;
+
     // ── 딸의 결혼 ────────────────────────────────────────────────────────────
 
     /// <summary>이야기가 열리는 주사위(<c>0x00460180</c> 의 <c>rand(5) == 0</c>) — 다섯에 하나.</summary>
