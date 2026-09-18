@@ -1849,7 +1849,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     {
         if (_player.Gold < Tavern.DrinkPrice)
         {
-            ConfirmDialog.Tell(_view, "돈 먼저 지불하게.");
+            // 한잔 사 주는 자리는 말이 다르다(0x0042F2A6) — 「돈 먼저 지불하게.」(0x0054AC98)는
+            // 제 술을 시킬 때의 말이다(0x0042F638).
+            ConfirmDialog.Tell(_view, "공짜로 마시게 할 술은 없다!", face: HostFace());
             return false;
         }
         _player.SetGold(_player.Gold - Tavern.DrinkPrice);
