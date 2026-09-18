@@ -413,9 +413,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         LendShips(funds, Say, Pick3);
         SendInspector(inspector, me, Say, Pick3);
 
-        // 배웅도 신분마다 세 벌이다(0x00546D28 "그러면, %s, 기대하고 있겠네." 따위).
-        // 화면에서 본 셋째 벌(0x00546DA8)을 쓴다.
-        Say("기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게.");
+        // 배웅도 신분마다 세 벌이다(0x004AF3A8 이 0x00546D28 · 0x00546D48 · 0x00546DA8 을 넘긴다).
+        Say(Pick3($"그러면, {me}, 기대하고 있겠네.",
+                  $"그러면, {me}, 긴 여행이 되리라 생각되는데 조심하십시오. 여행의 성공을 기도하고 있겠습니다.",
+                  "기대하고 있겠네. 훌륭히 성공을 거두고 돌아오게."));
     }
 
     /// <summary>
