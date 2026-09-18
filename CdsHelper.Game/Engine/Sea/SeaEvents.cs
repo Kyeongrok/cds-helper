@@ -467,61 +467,8 @@ public static class SeaEvents
             tired, cold, weary, dead, dead > 0 ? ShortCrewWord(player) : "");
     }
 
-    /// <summary>선원 대표와 벌인 승부의 끝.</summary>
-    /// <param name="Won">이겼는지.</param>
-    /// <param name="Mine">내가 굴린 값.</param>
-    /// <param name="Rival">대표가 굴린 값.</param>
-    /// <param name="Deserted">져서 떠난 선원 수.</param>
-    public sealed record Fight(bool Won, int Mine, int Rival, int Deserted);
-
-    /// <summary>승부에 걸리는 기술 이름.</summary>
-    public const string SwordName = "검술";
-
-    /// <summary>검술 한 자리가 얹어 주는 값.</summary>
-    public const int SwordPerLevel = 15;
-
     /// <summary>반란을 눌러 앉히면 오르는 사기(<c>0x004753EA</c> 의 <c>push 0x1E</c>).</summary>
     public const int MutinyCheer = 30;
-
-    /// <summary>
-    /// 선원 대표와 승부한다.
-    /// </summary>
-    /// <remarks>
-    /// 게임(<c>0x004751E0</c>)은 여기서 <b>진짜 결투 창</b>을 띄운다 —
-    /// <c>0x004AA700(0x113, 상대, 7, -1)</c> 이고, 상대는 그 자리에서 지어낸 사람이다.
-    /// <code>
-    /// 475280  +0x0C = rand(10) + 0x14      ; 20~29
-    /// 47528e  +0x20 = rand(16) + 0x45      ; 69~84
-    /// 47529e  +0x24 = rand(16) + 0x27      ; 39~54
-    /// 4752ae  +0x28 = rand(15) + 0x3B      ; 59~73
-    /// 4752be  +0x2C = rand(16) + 0x27      ; 39~54
-    /// 4752ce  +0x30 = rand(16) + 0x27      ; 39~54
-    /// 4752e3  +0x34 = 0x31                 ; 49
-    /// </code>
-    /// <b>우리에게는 결투 창이 없어 한 판 주사위로 갈음한다</b> — 상대 값은 게임이 지어내는
-    /// 폭(<c>rand(16) + 0x27</c>) 그대로 쓰고, 이쪽은 <c>rand(100)</c> 에 검술 자리를 얹는다.
-    ///
-    /// 이기면 사기가 30 오른다(<c>0x004753EA</c>). <b>지면 게임이 끝난다</b> —
-    /// <c>0x0044AF40(0x5A4D18, 4)</c> 로 놀이 상태를 갈아 버린다. 우리 쪽에는 끝나는 길이
-    /// 없어 <b>선원 절반이 배를 버리고 사기가 바닥나는 것</b>으로 갈음한다. 이 벌은 우리가
-    /// 지은 것이다.
-    /// </remarks>
-    public static Fight Duel(Player player, Random rng)
-    {
-        int rival = rng.Next(16) + 0x27;
-        int mine = rng.Next(100) + player.LevelOf(SwordName) * SwordPerLevel;
-
-        if (mine >= rival)
-        {
-            player.Cheer(MutinyCheer);
-            return new Fight(true, mine, rival, 0);
-        }
-
-        int gone = player.Crew / 2;
-        player.AddCrew(-gone);
-        player.SetMorale(0);
-        return new Fight(false, mine, rival, gone);
-    }
 
     /// <summary>
     /// 폭풍을 맞는다. 배마다 내구를 깎고, 0 이 된 배는 놓친다.
