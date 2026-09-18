@@ -317,14 +317,19 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             _game.Sponsors?.FindByName(patron.Name)?.Closeness ?? DefaultCloseness,
             verdict);
 
-        // 재력 판정 — 낼 돈이 없으면 물린다.
-        if (patron.Wealth < funds)
+        // 재력 판정(0x004AF169) — 견주는 것은 <b>지갑</b>이다. 낼 돈이 모자라도 스무 닢만
+        // 넘으면 있는 만큼으로 깎아 내주고, 그마저 없으면 물린다(0x004AF264).
+        int purse = _player.PurseOf(patron.Name, patron.Wealth);
+        if (funds > purse)
         {
-            // 0x004AF264 — 재력이 모자랄 때.
-            Say(Pick3("흠, 원조 못 할 것은 없지만 요즘 지출이 많아서. 다른 이야기를 가지고 오는 것이 좋겠네.",
-                      "자금을 대 드리고 싶지만..., 아무래도..., 안됐지만 힘이 되드릴 수 없군요.",
-                      "원조는 해 주고 싶지만, 흐~음, 돈이... , 또 다음번이다."));
-            return;
+            if (purse <= Palace.PurseFloor)
+            {
+                Say(Pick3("흠, 원조 못 할 것은 없지만 요즘 지출이 많아서. 다른 이야기를 가지고 오는 것이 좋겠네.",
+                          "자금을 대 드리고 싶지만..., 아무래도..., 안됐지만 힘이 되드릴 수 없군요.",
+                          "원조는 해 주고 싶지만, 흐~음, 돈이... , 또 다음번이다."));
+                return;
+            }
+            funds = purse;
         }
 
         // 계약금은 반으로 나뉜다 — 절반은 선금으로 그 자리에서 받고, 절반은 성공한 뒤에
@@ -358,6 +363,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         _player.Sign(new Contract(it.Id, patron.Name, _cityName, funds,
                                   _player.Date, years, inspector));
+
+        // 선금은 <b>후원자 지갑에서</b> 나간다(0x004ADF4A) — 저절로 차지 않으므로
+        // 같은 사람에게 잇달아 계약을 맺으면 점점 적게 받는다.
+        _player.SpendPurse(patron.Name, -(funds / 2), patron.Wealth);
 
         // 맺고 나면 배 → 감찰관 → 배웅 차례다(게임 0x004AF2A3 · 0x004AF2B7 · 0x004AF3A4).
         LendShips(funds, Say);
@@ -486,7 +495,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (at == 0)
         {
             int raised = To10(funds * 13 / 10);
-            if (patron.Wealth < raised || years <= 1)
+            // 정적 재력 상한과 <b>지금 지갑</b>을 둘 다 넘지 못한다(0x004AEE7B · 0x004AEE85).
+            if (patron.Wealth < raised || _player.PurseOf(patron.Name, patron.Wealth) < raised
+                || years <= 1)
             {
                 Say(Pick3("탐욕스러운 놈! 너 같은 녀석에게 볼일 없다. 썩 꺼져라!",
                           "장래성이 있는 자라 생각했었는데 안됐습니다. 물러가 주십시오!",
@@ -822,6 +833,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
             // 알린 것마다 명성이 오른다. 항구 발표(보수/70)와 셈이 다르다 — 보고는
             // 보수/50 이고 늦으면 그 반이다(0x004111D0).
+            // 발견물의 보수가 후원자 지갑에 도로 쌓인다 — 재력 x 10000 을 못 넘는다(0x004113E4).
+            _player.SpendPurse(patron.Name, Palace.CreditFor(row.Reward, inTime, KnownByOthers),
+                               patron.Wealth);
+
             int up = Palace.FameFor(row, inTime, KnownByOthers);
             _player.Fame += up;
             if (up > 0) GameDialog.Show(_view, $"명성이 {up} 올라갔다!");

@@ -138,8 +138,10 @@ public static class Palace
     /// 표의 보수를 그대로 쌓되 <b>이미 알려진 것이면 깎는다</b> — 기한 안이면 1/4,
     /// 늦었으면 1/5 다(<c>0x0041139B</c>). 상한은 후원자 표 <c>+0x2C</c> 의 만 배다.
     ///
-    /// 이 값이 무엇에 쓰이는지는 아직 못 짚었다(후원자의 재산으로 보인다). 내 소지금과는
-    /// 다른 자리다 — 내가 받는 돈은 <see cref="RewardFor"/> 뿐이다.
+    /// 이 값은 후원자의 <b>지갑</b>이다(<see cref="Support.Local.Models.Player.Purses"/>) —
+    /// 새 판에 재력 x 10000 으로 차고(<c>0x004AD88F</c>), 계약을 맺으면 계약금의 절반이 빠지고
+    /// (<c>0x004ADF4A</c>), 보고하면 여기로 도로 쌓인다. 상한은 재력 x 10000 이다.
+    /// 내 소지금과는 다른 자리다 — 내가 받는 돈은 <see cref="RewardFor"/> 뿐이다.
     /// </remarks>
     public static int CreditFor(int reward, bool inTime, bool known) =>
         known ? reward / (inTime ? 4 : 5) : reward;
@@ -250,6 +252,14 @@ public static class Palace
     /// </remarks>
     public const string ShipsReturned = "스폰서에게 배를 돌려 주었습니다.";
     public const string ShipsReturnedCargoSold = "스폰서에게 배를 돌려 주었습니다. 남은 짐은 전부 팔았습니다.";
+
+    /// <summary>
+    /// 지갑이 이만큼도 안 남으면 아예 물린다(<c>0x004AF183</c> 의 <c>cmp 0x14</c>).
+    /// </summary>
+    /// <remarks>
+    /// 그 위라면 후원자는 <b>있는 만큼으로 깎아</b> 내준다(<c>0x004AF18C</c>) — 물리지 않는다.
+    /// </remarks>
+    public const int PurseFloor = 20;
 
     /// <summary>급히 넘기는 짐 값 — 매각가의 절반(<c>0x0044D95C</c>).</summary>
     public static int DistressPrice(int sellPrice) => sellPrice / 2;
