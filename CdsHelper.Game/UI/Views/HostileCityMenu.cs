@@ -109,10 +109,12 @@ internal static class HostileCityMenu
             switch (pick)
             {
                 case Standoff.Attack:
-                    // 물음은 하나다 — 게임이 글 둘을 넘기지만 그중 하나만 띄운다
-                    // (0x00469680, Standoff.SureWord 주석 참고).
-                    // 되묻는 것도 <b>부관</b>이고 <b>제목 띠가 없다</b>.
-                    if (!ConfirmDialog.Ask(owner, Standoff.SureWord, null, game.AideFace)) break;
+                    // 물음은 하나다 — 게임이 글 둘을 넘기면 0x00469680 이 부관 있고 없고로
+                    // 하나만 띄운다. 되묻는 것도 <b>부관</b>이고 <b>제목 띠가 없다</b>.
+                    if (!ConfirmDialog.Ask(owner,
+                            Standoff.HasAide(player) ? Standoff.SureWord : Standoff.AttackWord,
+                            null, game.AideFace))
+                        break;
 
                     // 게임도 물음 뒤에 부대배치 화면부터 편다(0x0044A870 의 0x00446E60).
                     // 배치가 끝나면 그 길로 싸움터로 넘어간다.
