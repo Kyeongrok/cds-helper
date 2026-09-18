@@ -54,8 +54,11 @@ namespace CdsHelper.Game.UI.Views;
 /// 어두웠다.
 /// <b>금 천칭은 안 쓴다</b> — 왼 접시에 얹힌 장식은 다 풀고 난 뒤에 나오는 것이다.
 ///
-/// 금화는 <b>끌어다 접시에 놓을 수</b> 있고, 딸깍으로도 놓인다(왼쪽 단추가 왼접시,
-/// 오른쪽 단추가 오른접시). 접시에 올린 금화는 쟁반에서 빠져 접시에 쌓이는데,
+/// 금화는 <b>끌어다</b> 접시에 놓는다 — 원본 설명도 「금화 위에서 마우스 왼쪽을 클릭하여
+/// 버튼을 누른 체 금화를 이동하면 움직일 수 있습니다」 한 줄뿐이다(<c>0x0053B0C0</c>).
+/// <b>끌지 않고 딸깍하면 그 닢을 고른다</b> — 「가짜 금화 선택」이 고른 닢을 쓰고
+/// (<c>+0x11C</c>), 고른 닢은 손이 얹힌 벌로 바뀐다. 오른쪽 단추로는 오른 접시에 바로 놓는다.
+/// 접시에 올린 금화는 쟁반에서 빠져 접시에 쌓이는데,
 /// <b>쟁반의 빈자리는 그대로 둔다</b> — 남은 금화가 앞으로 당겨지지 않는다.
 /// </remarks>
 internal sealed class CoinPuzzleDialog : InfoDialog
@@ -183,7 +186,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         Lay(Picture("coin-post.png"), PostAt.X, PostAt.Y, 64, 160);
         Lay(Picture("coin-stand.png"), StandAt.X, StandAt.Y, 96, 48);
 
-        // 금화를 오른쪽 칸에 늘어놓는다. 왼쪽 단추로 왼접시, 오른쪽 단추로 오른접시.
+        // 금화를 오른쪽 칸에 늘어놓는다. 끌어다 접시에 놓고, 딸깍하면 그 닢을 고른다.
         for (int i = 0; i < _game.Coins; i++)
         {
             int coin = i;
