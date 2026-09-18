@@ -1273,8 +1273,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///                                                            「금화 %d닢을 손에 넣었다」 20 + rand(11)
     ///                                                            「상대는 %s 장비하고 있다」 → 그 무기·방어구를 얻는다
     /// </code>
-    /// 상대가 지닌 무기·방어구 번호(<c>[결투+0x198]</c> · <c>+0x19C</c>)는 우리 인물 표에 없어
-    /// 장비를 뺏는 것만 아직 못 옮겼다. 창을 물리면 놓아 준 것으로 친다.
+    /// 상대가 지닌 무기·방어구(<c>[결투+0x198]</c> · <c>+0x19C</c>)는 인물 표에 적혀 있는 것이
+    /// 아니라 복장 갈래와 무력으로 그 자리에서 굴린다(<see cref="Engine.Town.Duel.GearOf"/>).
+    /// 창을 물리면 놓아 준 것으로 친다.
     /// </remarks>
     private void Triumph(TavernRoster.Person who, uint[]? face, GameRandom dice)
     {
