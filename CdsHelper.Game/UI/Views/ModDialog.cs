@@ -13,7 +13,7 @@ namespace CdsHelper.Game.UI.Views;
 /// 손으로 밀어 넣어 시험하는 데고, 여기는 판을 그대로 두고 보기를 거드는 데다.
 ///
 /// 지금 든 것은 컨디션 막대 · 미니맵 · 발견물 지도 · 여급 수첩 · 기능·언어 쪽지 ·
-/// 출입 일수 · 인물 이동 두 줄이다.
+/// Ctrl+클릭 배 놓기 · 출입 일수 · 인물 이동 두 줄이다.
 /// </remarks>
 public sealed class ModDialog : GameWindow
 {
@@ -59,6 +59,11 @@ public sealed class ModDialog : GameWindow
         rows.Children.Add(Toggle("여급 수첩", GameSettings.ShowBarmaidBookMenu,
             on => GameSettings.ShowBarmaidBookMenu = on,
             "햄버거에 「여급 수첩」 줄을 냅니다. 낯을 튼 여급의 친밀도와 궁합을 모아 봅니다"));
+
+        // Ctrl+클릭 배 놓기 — 지도를 찍은 자리로 배가 뛴다. 켠 채로 시작한다.
+        rows.Children.Add(Toggle("Ctrl+클릭 배 놓기", GameSettings.PlaceShipByCtrlClick,
+            on => GameSettings.PlaceShipByCtrlClick = on,
+            "Ctrl 을 짚고 지도를 찍으면 배를 그 자리에 놓습니다. 끄면 여느 클릭처럼 닻만 오르내립니다"));
 
         // 기능·언어 — 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 쪽지로 뜬다.
         rows.Children.Add(Toggle("기능·언어", GameSettings.ShowSkillOverlay,

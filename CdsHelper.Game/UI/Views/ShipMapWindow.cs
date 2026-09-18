@@ -320,9 +320,12 @@ public sealed class ShipMapWindow : Window
         stopAuto.Click += (_, _) => { _host.StopAutoSail(); Say("자동항해를 껐습니다"); };
         _stopAutoButton = stopAuto;
 
+        // 안내 글은 띠를 지을 때 한 번 박힌다 — 모드에서 배 놓기를 끄면 다음에 여는 판부터 든다.
         var hint = new TextBlock
         {
-            Text = "왼쪽 클릭: 정박/닻 올리기 · Ctrl+클릭: 배 놓기 · Shift+오른쪽 클릭: 자동항해",
+            Text = "왼쪽 클릭: 정박/닻 올리기"
+                   + (GameSettings.PlaceShipByCtrlClick ? " · Ctrl+클릭: 배 놓기" : "")
+                   + " · Shift+오른쪽 클릭: 자동항해",
             Foreground = Brushes.Gray,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 0, 0),
@@ -583,8 +586,9 @@ public sealed class ShipMapWindow : Window
             // 커맨드 창·물음창으로 멎어 있을 때도 마찬가지다. 게임이 서 있는데 손이
             // 먹으면 창 뒤에서 말이 서고 가고, 닻 소리까지 난다.
             if (_host.SeaBlocked || _host.Paused) return;
-            // Ctrl 을 누른 채 찍으면 그 자리에 배를 놓는다. 시작 자리를 손으로 잡는 길이다.
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+            // Ctrl 을 누른 채 찍으면 그 자리에 배를 놓는다. 시작 자리를 손으로 잡는 길인데,
+            // 놀이에는 없는 것이라 모드 창에서 끌 수 있다.
+            if (GameSettings.PlaceShipByCtrlClick && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
             {
                 _host.PlaceShipAt(e.GetPosition(input));
                 return;
