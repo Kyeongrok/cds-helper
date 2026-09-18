@@ -175,6 +175,9 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     /// <summary>후원자가 앉은 자리의 둘째 줄(<c>0x005324C0</c>) — 감찰관에게 뇌물을 준다.</summary>
     public const string Bribe = "감찰관을 매수";
 
+    /// <summary>셋째 줄(<c>0x005324D0</c>) — 계약 중에 배를 더 빌린다.</summary>
+    public const string Borrow = "배를 빌린다";
+
     /// <summary>
     /// 자택 휴양 창의 줄. 게임 것 그대로다(<c>0x00539778</c> 벌 — 휴양 <c>0x00460660</c>).
     /// </summary>

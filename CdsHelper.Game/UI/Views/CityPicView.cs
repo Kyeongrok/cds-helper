@@ -1392,6 +1392,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 CanAnnounce: _cityId == _player.HomePort && Port.Announceable().Count > 0,
                 PatronRow: patron == null ? null : Patrons.PatronRow(patron),
                 PatronBribe: patron != null && Patrons.CanBribe(patron),
+                PatronBorrow: patron != null && Patrons.CanBorrow(patron, KindsHere.Contains("항구")),
                 Commented: Commented(code),
                 Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,
                 Contracted: _player.Contract != null,
@@ -1720,6 +1721,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.Report(Patron patron) => Patrons.Report(patron);
     void ITownScreen.BreakContract(Patron patron) => Patrons.BreakContract(patron);
     void ITownScreen.BribeInspector(Patron patron) => Patrons.BribeInspector(patron);
+    void ITownScreen.BorrowShips(Patron patron) => Patrons.BorrowShips(patron);
 
     void ITownScreen.Sail()
     {

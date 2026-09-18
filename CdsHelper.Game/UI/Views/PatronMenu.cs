@@ -1544,6 +1544,84 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
     private Engine.Market.TradePost? _tradePost;
 
+    // ── 배를 빌린다 ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 「배를 빌린다」 줄이 설 조건인지(<c>0x0044EA80</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0044ea83  계약이 있고 이 자리다
+    ///   0044ea8e  <b>그 사람 본인</b>이다(0x0044E590 — 선대의 계약으로는 못 빌린다)
+    ///   0044ea97  빌린 배가 하나도 없다(0x0040FC20 이 배 표를 훑는다)
+    ///   0044eaa7  <b>항구가 있는 도시</b>다([+0x1C] 비트 1)
+    ///   0044eac0  기한이 아직 남았다
+    /// </code>
+    /// </remarks>
+    public bool CanBorrow(Patron patron, bool hasHarbor) =>
+        hasHarbor
+        && _player.Contract is { } c && c.Sponsor == patron.Name && c.City == _cityName
+        && c.DaysLeft(_player.Date) > 0
+        && !_player.Ships.Any(s => s.Lent)
+        && !_player.Docked.Values.Any(list => list.Any(s => s.Lent));
+
+    /// <summary>
+    /// 계약 중에 배를 더 빌린다(<c>0x00410660</c>) — 계약을 맺을 때와 말이 다르다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   004106a4  아직 한 번도 안 빌렸으면  0x0055C4F0 · 0x0055C530 · 0x0055C580
+    ///   004106c7  또 조르는 것이면          0x0055C5E0 · 0x0055C628 · 0x0055C680
+    /// </code>
+    /// </remarks>
+    public void BorrowShips(Patron patron) => Alone(() => BorrowNow(patron));
+
+    private void BorrowNow(Patron patron)
+    {
+        if (_player.Contract is not { } contract) return;
+
+        _cityMenu.Close();
+        var face = FaceOf(patron);
+        void Say(string words) => TalkDialog.Say(_view, face, "", words);
+
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
+        int ships = Math.Min(contract.Amount / GoldPerShip + 1, Player.MaxShips - _player.Ships.Count);
+        if (ships <= 0)
+        {
+            Say(Pick3("흐음, 빌려주고 싶은 마음은 굴뚝같지만 배가 전부 나가고 없네. 다시 오게.",
+                      "안됐지만, 준비할 수 있는 배가 없습니다. 자신의 힘으로 해결해 주십시오.",
+                      "흐~음, 때가 나쁘군. 지금은 가지고 있는 배가 없네. 다시 오게."));
+            return;
+        }
+
+        Say(string.Format(contract.ShipsLent
+            ? Pick3("뭐라고? 또 배를 빌려 달라고... 으~음, 그러면 {0}척 준비시키도록 하지.",
+                    "···어쩔 수 없군요. 그러면 항구에 {0}척 준비시켜 놓겠습니다. 기대하고 있겠습니다.",
+                    "또 배가 필요한가? 어쩔 수 없군. 항구에 {0}척 준비해 놓겠네.")
+            : Pick3("좋다. 배를 {0}척 항구에 준비시켜 놓겠네. 충분히 사용하도록 하게.",
+                    "좋습니다. 항구에 배를 {0}척 준비시켜 놓겠습니다. 모험에 도움이 될 것입니다.",
+                    "처음부터 이야기했으면 좋았을 것을. 좋다. 항구에 배를 {0}척 준비시켜 놓겠다. 충분히 사용하게."),
+            ships));
+
+        if ((_player.Ships.Any(s => !s.Lent) || _player.DockedAt(_cityId).Any(s => !s.Lent))
+            && !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?"))
+        {
+            Say(Pick3("그런가. 그렇다면, 좋을 대로 하게.",
+                      "그렇습니까. 좋을 대로 하십시오.",
+                      "그래, 괜찮겠나."));
+            return;
+        }
+
+        if (Hull.All.MinBy(h => h.Price) is not { } hull) return;
+
+        int given = 0;
+        for (int i = 0; i < ships; i++) if (_player.Give(hull, _cityId)) given++;
+        if (given > 0) contract.ShipsLent = true;
+        _menu.Refresh();
+    }
+
     // ── 감찰관을 매수 ───────────────────────────────────────────────────────
 
     /// <summary>
