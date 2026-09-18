@@ -148,6 +148,51 @@ public static class Standoff
     /// <summary>「떠난다」를 골랐을 때의 말(<c>0x005521D0</c>).</summary>
     public const string GiveUpWord = "할 수 없군요. 포기합시다.";
 
+    // ── 모항이 등을 돌린다 — 0x0046B6F0 ─────────────────────────────────────
+
+    /// <summary>
+    /// 악명이 이만큼을 넘으면 <b>모항</b>의 항구·성문에서 병사가 막아선다
+    /// (<c>0x0046B6F0</c> 의 <c>cmp 0xBB8</c>).
+    /// </summary>
+    /// <remarks>
+    /// 도시 <c>+0x1D</c> 비트 8(모항)까지 맞아야 한다 — <b>제 고향만 등을 돌린다</b>.
+    /// 시설에 들어서는 첫머리에서 걸리고(<c>0x0046885D</c>), 걸리면 그 시설의 여느
+    /// 인사는 아예 없다.
+    /// </remarks>
+    public const int VillainInfamy = 3000;
+
+    /// <summary>막아서며 하는 말 둘(<c>0x005525F8</c> · <c>0x00552628</c>) — <c>rand(2)</c> 다.</summary>
+    public static readonly string[] VillainWords =
+    [
+        "너 같은 악당을 마을에 들여보낼 수는 없다!!",
+        "나타났군 원수! 우리들이 결판을 내 주겠다.",
+    ];
+
+    /// <summary>덤비는 병사의 이름 — 항구면 「항구의 병사」, 성문이면 「수위의 병사」다.</summary>
+    public static string SoldierName(bool harbor) => harbor ? "항구의 병사" : "수위의 병사";
+
+    /// <summary>
+    /// 그 병사의 능력치(<c>0x0046B7DD</c> 벌) — 그 자리에서 지어낸다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   +0x20 체력 = rand(16) + 0x45      ; 69~84
+    ///   +0x24 지력 = 0x27                  ; 39
+    ///   +0x28 무력 = rand(16) + 0x45      ; 69~84
+    ///   +0x2C 매력 = 0x27
+    ///   +0x30 운   = rand(16) + 0x27      ; 39~54
+    ///   +0x34 신앙심 = 0x31
+    ///   +0x48 검술 = rand(2) + 2          ; 2~3
+    /// </code>
+    /// 일기토는 갈래 5 로 열린다(<c>0x004A2D80(0x113, 5, …)</c>). <b>지면 게임이 끝나고</b>
+    /// (<c>0x0044AF40</c> 상태 4), 이기면 <b>악명이 500 오른다</b>(<c>0x0046B944</c>).
+    /// </remarks>
+    public static (int Body, int Might, int Sword, int Luck) SoldierOf(Random dice) =>
+        (dice.Next(16) + 0x45, dice.Next(16) + 0x45, dice.Next(2) + 2, dice.Next(16) + 0x27);
+
+    /// <summary>이기고 나면 오르는 악명(<c>0x0046B944</c> 의 <c>push 0x1F4</c>).</summary>
+    public const int VillainInfamyUp = 500;
+
     // ── 성문 화면 두 벌 ──────────────────────────────────────────────────────
 
     /// <summary>
