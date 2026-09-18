@@ -938,6 +938,40 @@ public sealed class Player
     /// <summary>친밀도의 위. 게임도 0~100 으로 자른다.</summary>
     public const int MaxLiking = 100;
 
+    private readonly HashSet<int> _giftedBarmaids = [];
+    private readonly HashSet<int> _refusedBarmaids = [];
+
+    /// <summary>선물을 받아 본 여급(여급 칸 <c>+0x34</c>). 설득이 90 문턱을 넘으려면 있어야 한다.</summary>
+    public IReadOnlyCollection<int> GiftedBarmaids => _giftedBarmaids;
+
+    /// <summary>퇴짜를 놓은 여급(여급 칸 <c>+0x30</c> 이 0 이 된 것). 그 여급에게는 다시 프로포즈를 못 한다.</summary>
+    public IReadOnlyCollection<int> RefusedBarmaids => _refusedBarmaids;
+
+    /// <summary>그 여급이 선물을 받아 봤는지.</summary>
+    public bool HasGifted(int barmaid) => _giftedBarmaids.Contains(barmaid);
+
+    /// <summary>선물을 받은 것으로 적는다(<c>0x00466B45</c>).</summary>
+    public void MarkGifted(int barmaid) => _giftedBarmaids.Add(barmaid);
+
+    /// <summary>그 여급에게 퇴짜를 맞았는지.</summary>
+    public bool WasRefusedBy(int barmaid) => _refusedBarmaids.Contains(barmaid);
+
+    /// <summary>퇴짜를 맞은 것으로 적고 친밀도를 0 으로 되돌린다(<c>0x00465B9E</c> · <c>0x00466214</c>).</summary>
+    public void MarkRefused(int barmaid)
+    {
+        _refusedBarmaids.Add(barmaid);
+        _liking[barmaid] = 0;
+    }
+
+    /// <summary>세이브에서 여급 형편을 되돌린다.</summary>
+    public void RestoreBarmaidFlags(IEnumerable<int>? gifted, IEnumerable<int>? refused)
+    {
+        _giftedBarmaids.Clear();
+        foreach (int id in gifted ?? []) _giftedBarmaids.Add(id);
+        _refusedBarmaids.Clear();
+        foreach (int id in refused ?? []) _refusedBarmaids.Add(id);
+    }
+
     /// <summary>아내를 맞는다. 빈 이름을 주면 홀로 돌아간다.</summary>
     public void Marry(string? name, int barmaid = -1)
     {

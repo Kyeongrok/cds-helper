@@ -470,19 +470,30 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         while (true)
         {
-            switch (TalkDialog.Ask(_view, face, "", words,
-                                   "이야기한다", "선물을 보낸다", "설득한다", "떠난다"))
+            // 「프로포즈 한다」는 친밀도 80 이 넘고, 아내가 없고, 퇴짜를 안 맞았을 때만 선다(0x004668A0).
+            bool canPropose = _player.LikingOf(her.Id) >= Barmaids.ProposeNeeded
+                              && _player.Spouse.Length == 0 && !_player.WasRefusedBy(her.Id);
+            var rows = canPropose
+                ? (string[])["이야기한다", "설득한다", "선물을 보낸다", "프로포즈 한다", "떠난다"]
+                : ["이야기한다", "설득한다", "선물을 보낸다", "떠난다"];
+
+            int pick = TalkDialog.Ask(_view, face, "", words, rows);
+            if (pick == 0) { Chat(her, destined); }
+            else if (pick == 1)
             {
-                case 0: Chat(her, destined); break;
-
-                // 선물은 몇 번이고 낼 수 있다 — 낸 만큼 친밀도가 오른다(0x00466A80).
-                case 1: Gift(her, face); break;
-
-                // 설득은 한 번뿐이다 — 되든 안 되든 그 자리에서 술집을 나온다.
-                case 2: Woo(her, face); _leave?.Invoke(); return;
-
-                default: return;
+                // 설득은 한 번 하고 창을 접는다(0x0046664E 가 줄을 끄고 돌아간다).
+                Persuade(her, face);
+                _leave?.Invoke();
+                return;
             }
+            else if (pick == 2) Gift(her, face);
+            else if (pick == 3 && canPropose)
+            {
+                Propose(her, face);
+                _leave?.Invoke();
+                return;
+            }
+            else return;
             // 한 번 인사를 나눈 뒤로는 <b>줄만 다시 뜬다</b> — 게임은 "무슨 일이시죠?" 를
             // 되풀이하지 않는다. 빈 글이면 대사 창을 건너뛴다(TalkDialog.Ask).
             words = "";
@@ -558,20 +569,133 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///
     /// <b>문턱은 우리가 정했다</b> — 게임에서 그 자리를 아직 못 짚었다.
     /// </remarks>
-    private void Woo(in BarmaidTable.Barmaid her, uint[]? face)
+    private void Persuade(in BarmaidTable.Barmaid her, uint[]? face)
     {
-        // 유혹의 말은 <b>제독이 하는 것</b>이라 대사 창에 안 뜬다 — 여급 얼굴을 걸고
-        // 제독이 말하는 창은 게임에 없다. 바로 대답부터 나온다.
-        if (_player.LikingOf(her.Id) < Barmaids.WooNeeded || _player.Spouse.Length > 0)
+        var dice = _game.Random;
+        string tongue = TongueOfCity();
+        var talk = Barmaids.Persuade(_player, her, _cultureNo, tongue, dice);
+
+        if (!talk.Proposes)
         {
-            TalkDialog.Say(_view, face, "",
-                           Barmaids.Refusals[_game.Random.Next(Barmaids.Refusals.Length)]);
+            _player.AddLiking(her.Id, talk.Liking - _player.LikingOf(her.Id));
+            TalkDialog.Say(_view, face, "", talk.Words);
             return;
         }
 
+        // 친밀도가 다 차면 여급이 먼저 물어 온다. 아내가 있으면 굴리지도 않고 떨어진다(0x00465AD8).
+        bool ok = _player.Spouse.Length == 0
+                  && Barmaids.Score(_player, her, Barmaids.Destined(_player, her),
+                                    tongue.Length > 0 && _player.TongueOf(tongue) == Barmaids.FluentTongue)
+                     >= dice.Next(Barmaids.WooRoll);
+        if (!ok)
+        {
+            TalkDialog.Say(_view, face, "", Barmaids.Fond);
+            return;
+        }
+
+        if (TalkDialog.Ask(_view, face, "", Barmaids.Invitations[dice.Next(Barmaids.Invitations.Length)],
+                           "그러겠소", "미안하오") == 0)
+        {
+            Wed(her, face);
+            return;
+        }
+
+        // 물리면 그 여급과는 끝이다 — 친밀도가 0 이 되고 프로포즈 줄도 다시 안 선다(0x00465B9E).
+        TalkDialog.Say(_view, face, "", Barmaids.Jilted[dice.Next(Barmaids.Jilted.Length)]);
+        GameDialog.Show(_view, Barmaids.JiltedNotice);
+        _player.MarkRefused(her.Id);
+    }
+
+    /// <summary>
+    /// 「프로포즈 한다」(<c>0x00466150</c>) — 소지품의 유혹어를 골라 읊고 한 번에 판가름한다.
+    /// </summary>
+    /// <remarks>
+    /// 점수는 밑점수(<see cref="Barmaids.Score"/>)에 유혹어 보너스를 더한 것이고 <c>rand(250)</c> 과 견준다.
+    /// 떨어지면 <b>친밀도가 0 이 되고</b> 그 여급에게는 다시 프로포즈를 못 한다.
+    /// </remarks>
+    private void Propose(in BarmaidTable.Barmaid her, uint[]? face)
+    {
+        var dice = _game.Random;
+        string tongue = TongueOfCity();
+        int bonus = 0;
+
+        // 유혹어를 지녔으면 어느 것을 쓸지 고른다(0x00466250) — 안 쓰면 보너스도 말도 없다.
+        var wooItems = _player.Items
+            .Where(id => id >= Barmaids.FirstWooItem && id < Barmaids.FirstWooItem + Barmaids.WooItemCount)
+            .Distinct().Order().ToList();
+        if (wooItems.Count > 0)
+        {
+            var names = wooItems.Select(id => _game.Items?.Find(id)?.Name ?? $"유혹어 {id}").ToList();
+            int at = ChoiceDialog.Ask(_view, "유혹어", names, Barmaids.NoWooItem);
+            if (at >= 0 && at < wooItems.Count)
+            {
+                foreach (string line in Barmaids.WooWordsOf(wooItems[at]))
+                    GameDialog.Show(_view, string.Format(line, her.Name));
+                bonus = Barmaids.WooBonus(_cultureNo, dice);
+            }
+        }
+
+        int score = bonus + Barmaids.Score(_player, her, Barmaids.Destined(_player, her),
+                                           tongue.Length > 0 && _player.TongueOf(tongue) == Barmaids.FluentTongue);
+        if (score >= dice.Next(Barmaids.WooRoll))
+        {
+            Wed(her, face);
+            return;
+        }
+
+        // 모항에서는 「이 마을을 떠날 수는 없어요」가 안 나온다(0x004661F6).
+        int rows = _cityId == _player.HomePort ? 2 : Barmaids.Refusals.Length;
+        TalkDialog.Say(_view, face, "", Barmaids.Refusals[dice.Next(rows)]);
+        _player.MarkRefused(her.Id);
+    }
+
+    /// <summary>
+    /// 맺어진다(<c>0x00465910</c>) — 넷에 한 번은 연적이 끼어들어 일기토가 붙는다(<c>0x004659C0</c>).
+    /// </summary>
+    private void Wed(in BarmaidTable.Barmaid her, uint[]? face)
+    {
+        var dice = _game.Random;
+        if (dice.Next(4) == 0 && !RivalBeaten(new GameRandom(dice.Next()))) return;
+
+        TalkDialog.Say(_view, face, "", Barmaids.Yeses[dice.Next(Barmaids.Yeses.Length)]);
         _player.Marry(her.Name, her.Id);
-        TalkDialog.Say(_view, face, "", Barmaids.Yes);
-        ConfirmDialog.Tell(_view, string.Format(Barmaids.Married, _player.Name, her.Name));
+        DiscoveryDialog.Show(_view, _game.EventStills, Barmaids.WeddingStill,
+                             string.Format(Barmaids.Married, _player.Name, her.Name));
+    }
+
+    /// <summary>
+    /// 연적과의 일기토(<c>0x004659C0</c>) — 이기면 명성 +100 으로 혼인이 이어지고, 지면 악명 +500 으로 끝난다.
+    /// </summary>
+    /// <returns>혼인을 이어도 되면 참.</returns>
+    private bool RivalBeaten(GameRandom dice)
+    {
+        GameDialog.Show(_view, Barmaids.RivalWord);
+
+        var me = _player;
+        var mine = new Engine.Town.Duel.Fighter(me.Name.Length > 0 ? me.Name : "제독",
+                                                me.AbilityOf(Ability.Body), me.AbilityOf(Ability.Might),
+                                                me.LevelOf(Skill.Names[Skill.Sword]),
+                                                me.AbilityOf(Ability.Luck), 0, 0);
+        var foe = new Engine.Town.Duel.Fighter("연적", 80, 80, 2, 50, 0, 0);
+        var duel = new Engine.Town.Duel(mine, foe, shield: false, dice.Next());
+        if (DuelDialog.Show(_view, duel, dice, null, bgm: _game.Bgm))
+        {
+            TalkDialog.Say(_view, null, "연적", Barmaids.RivalBeaten);
+            GameDialog.Show(_view, Barmaids.RivalFame);
+            _player.Fame += Barmaids.RivalFameUp;
+            return true;
+        }
+
+        _player.Infamy += Barmaids.RivalInfamyUp;
+        return false;
+    }
+
+    /// <summary>이 도시 나라의 말. 모르면 빈 글이다.</summary>
+    private string TongueOfCity()
+    {
+        int nation = _game.CityRows?.NationOf(_cityId) ?? -1;
+        int language = _game.Nations?.Find(nation)?.Language ?? -1;
+        return language >= 0 && language < Skill.Languages.Length ? Skill.Languages[language] : "";
     }
 
     /// <summary>
