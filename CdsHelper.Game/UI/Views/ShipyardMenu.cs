@@ -340,7 +340,9 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         Facility.RefitTurrets => () => ChangeTurrets(ship),
         Facility.RefitCannon => () => BuyCannon(ship),
         Facility.RefitFigurehead => () => Carve(ship),
-        Facility.RefitRename => () => RenameShip(ship),
+        // 빌린 배는 <b>이름을 못 바꾼다</b> — 게임이 그 줄을 흐리게 둔다(0x004967C2 가
+        // 제독의 소유주 번호와 배 주인을 견준다). 이 줄만은 처음부터 흐리다.
+        Facility.RefitRename when !ship.Lent => () => RenameShip(ship),
         Facility.RefitExit => _menu.Pop,
         _ => null,
     };
