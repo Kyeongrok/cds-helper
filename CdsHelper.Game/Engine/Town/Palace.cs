@@ -395,6 +395,34 @@ public static class Palace
         random.Next(100) < Math.Max(CounterfeitCatchFloor, sponsorTableCloseness * 2 - luck - 1);
 
     /// <summary>
+    /// 계약을 그르친 죄를 <b>얼마나 무겁게 보는가</b>(<c>0x0044F170</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   문턱 = −(악명/100) − 계약금/100 + 명성/100 + 신앙심 + 1      ; 0 밑은 0 으로 자른다
+    ///   문턱 == 0        → 그냥 봐 준다
+    ///   문턱 &gt;= 친밀도  → 감옥
+    ///   그 밖            → 위약금
+    /// </code>
+    /// <b>부호가 뒤집혀 보인다.</b> 명성과 신앙심이 높을수록 문턱이 커져 감옥에 가기 쉽고,
+    /// 악명이 높거나 계약금이 클수록 문턱이 작아져 용서받기 쉽다 — <c>idiv</c> 의 제수가
+    /// <c>-100</c> 이고 계약금은 <c>sub</c> 다. 「믿었던 만큼 실망도 크다」는 결로 읽힌다.
+    /// </remarks>
+    public static int Reckoning(int fame, int infamy, int funds, int faith) =>
+        Math.Max(0, -(infamy / 100) - funds / 100 + fame / 100 + faith + 1);
+
+    /// <summary>
+    /// 그때 무는 위약금(<c>0x0044F1B7</c>) — <b>계약금의 4분의 1</b>을 내림한 것이다.
+    /// </summary>
+    /// <remarks>100 을 넘으면 100 닢 단위로, 10 을 넘으면 10 닢 단위로 자른다.</remarks>
+    public static int FineFor(int funds)
+    {
+        int fine = funds / 4;
+        if (fine > 100) return fine / 100 * 100;
+        return fine > 10 ? fine / 10 * 10 : fine;
+    }
+
+    /// <summary>
     /// 후원자 성미 여덟 칸 가운데 <b>관용</b>에 쓰는 칸(<c>0x00412490</c> · <c>0x0044F145</c>).
     /// </summary>
     /// <remarks>
