@@ -39,6 +39,12 @@ public enum SeaEventKind
     /// <summary>전염병이 돌기 전의 귀띔 — 터지지는 않는다.</summary>
     StrangeIllness,
 
+    /// <summary>괴혈병을 보리로 눌러 앉힌다 — 의학이나 과학이 <b>제독의 것</b>일 때.</summary>
+    BarleyByMe,
+
+    /// <summary>괴혈병을 보리로 눌러 앉힌다 — 그 기능이 <b>부관의 것</b>일 때.</summary>
+    BarleyByMate,
+
     /// <summary>반란. 갈래 셋.</summary>
     Mutiny,
 }
@@ -108,15 +114,19 @@ public static class SeaEvents
     /// </remarks>
     public const int ScurvyNotice = 120, PlagueNotice = 60;
 
-    /// <summary>괴혈병을 막는 의술의 자리(<c>0x0047484C</c> · <c>0x0047486A</c> 의 <c>cmp 3</c>).</summary>
+    /// <summary>괴혈병을 막는 기능의 자리(<c>0x0047484C</c> · <c>0x0047486A</c> 의 <c>cmp 3</c>).</summary>
     /// <remarks>
-    /// 게임은 부하 둘의 자리를 3 과 견준다. 우리는 부하마다 기능을 들고 있지 않아
-    /// <b>주인공의 의학</b>으로 갈음한다 — 전염병 쪽에는 이 관문이 아예 없다.
+    /// 게임은 <b>과학</b>(기능 12)을 먼저 보고 그 다음 <b>의학</b>(기능 5)을 본다. 어느 쪽이든
+    /// 자리가 3 이면 괴혈병이 안 터지고 <b>보리를 먹여</b> 넘긴다. 전염병 쪽에는 이 관문이 없다.
+    ///
+    /// 누구 것을 보는가는 <c>0x0047CCA0(기능, 0, -1, -1, -1)</c> — <b>제독과 부하 자리 0</b>
+    /// 가운데 높은 쪽이다. 우리는 부하마다 기능을 안 들고 있어 제독 것만 본다.
+    /// 그래서 <see cref="SeaEventKind.BarleyByMate"/> 는 아직 안 난다.
     /// </remarks>
     public const int MedicineNeeded = 3;
 
-    /// <summary>그 의술의 이름.</summary>
-    public const string MedicineSkill = "의학";
+    /// <summary>그 기능들의 이름 — 보는 차례 그대로다.</summary>
+    public const string ScienceSkill = "과학", MedicineSkill = "의학";
 
     /// <summary>반란을 그냥 보는 주기(<c>mov $0x7,%ecx ; idiv</c>).</summary>
     public const int MutinyPeriod = 7;
@@ -179,7 +189,11 @@ public static class SeaEvents
 
             // 병 둘은 먼저 귀띔 주사위를 굴린다. 걸리면 그것으로 끝이다.
             ScurvyKind when rng.Next(ScurvyNotice) < faith + 1 => SeaEventKind.Weakening,
-            ScurvyKind when player.LevelOf(MedicineSkill) >= MedicineNeeded => null,
+            // 과학이나 의학이 3 이면 보리를 먹여 넘긴다(0x0047484C · 0x0047486A).
+            // 말은 그 기능을 제독이 가졌는지 부관이 가졌는지로 갈린다(0x0047499E).
+            ScurvyKind when player.LevelOf(ScienceSkill) >= MedicineNeeded
+                         || player.LevelOf(MedicineSkill) >= MedicineNeeded
+                => SeaEventKind.BarleyByMe,
             ScurvyKind =>
                 Figureheads.Blocks(carved, Figureheads.GuardsSickness, rng)
                     ? null : SeaEventKind.Scurvy,
