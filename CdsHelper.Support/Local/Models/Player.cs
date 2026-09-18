@@ -1290,6 +1290,47 @@ public sealed class Player
         foreach (int id in hidden ?? []) _hidden.Add(id);
     }
 
+    // ── 행적(ACCDATA) ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 행적 한 줄 — <b>언제 무슨 일이 있었는가</b>(<c>0x0041A070</c> 이 쌓는 레코드).
+    /// </summary>
+    /// <param name="Kind">갈래 0~22. 낱말 수는 표 <c>0x005375C8</c> 이 정한다.</param>
+    /// <param name="A">첫째 낱말. 갈래 1(입항)이면 <b>도시 번호</b>다.</param>
+    /// <param name="B">둘째 낱말. 갈래 1 이면 <b>나라</b>다.</param>
+    public readonly record struct Trace(DateTime On, int Kind, int A, int B);
+
+    /// <summary>
+    /// 지금까지의 행적. 은퇴하면 이것이 누적 캐릭터의 <c>ACCDATA%d.ACC</c> 가 된다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 <c>ACCDATA.CDS</c> 에 <b>스물다섯 자리</b>에서 스물세 갈래를 쌓는다. 우리는 그 가운데
+    /// <b>갈래 1(도시 입항)</b>만 적는다 — 되돌려 틀 때 쓰는 것이 그것뿐이라, 나머지를 적어 봐야
+    /// 읽는 데가 없다.
+    /// </remarks>
+    public IReadOnlyList<Trace> Traces => _traces;
+
+    private readonly List<Trace> _traces = [];
+
+    /// <summary>행적에 한 줄 더한다(<c>0x0041A070</c>).</summary>
+    /// <remarks>같은 날 같은 곳이 잇달아 적히지는 않는다 — 도시를 드나들 때마다 불리기 때문이다.</remarks>
+    public void Note(int kind, int a = 0, int b = 0)
+    {
+        if (_traces.Count > 0 && _traces[^1] is { } last
+            && last.Kind == kind && last.A == a && last.B == b && last.On == Date) return;
+        _traces.Add(new Trace(Date, kind, a, b));
+    }
+
+    /// <summary>적어 둔 판에서 되돌린다.</summary>
+    public void RestoreTraces(IEnumerable<Trace>? traces)
+    {
+        _traces.Clear();
+        foreach (var one in traces ?? []) _traces.Add(one);
+    }
+
+    /// <summary>행적 갈래 — 우리가 쓰는 것은 입항뿐이다.</summary>
+    public const int TraceArrival = 1;
+
     /// <summary>발견한 것으로 적는다. 처음 발견하는 것이면 true.</summary>
     /// <remarks>
     /// 계약 중이면 그 계약에도 얹는다 — 계약 정보 창의 "발견물" 칸이 그것이다.
