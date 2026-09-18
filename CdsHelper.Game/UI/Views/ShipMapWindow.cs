@@ -2089,6 +2089,8 @@ public sealed class ShipMapWindow : Window
                 Sailing.SpeedOf(_game.Player, _game.Sails, dir, speed, heading, onLand);
             // 뱃머리가 도는 빠르기도 기함 종류가 정한다(0x00569FC0) — 큰 배일수록 굼뜨다.
             _host.TurnRateOf = () => Sailing.TurnRateOf(_game.Player.FlagshipHull?.Hull);
+            // 날짜변경선을 넘을 때마다 바퀴 수를 센다(0x0047D11B) — 세계일주 장면이 쓴다.
+            _host.Lapped = laps => _game.Player.Laps += laps;
             if (!_host.Start(_game.Directory)) { _status.Text = _host.Status; return; }
             _host.ShowFlowArrows = GameSettings.ShowFlowArrows;
             _started = true;
@@ -2128,6 +2130,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityBuildings(saved.CityBuildings);
             _game.Player.RestoreNationStatus(saved.NationStatus);
             _game.Player.RestoreBarmaidFlags(saved.GiftedBarmaids, saved.RefusedBarmaids);
+            _game.Player.Laps = saved.Laps ?? 0;
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
             _game.Player.RestoreAnnouncedDates(saved.AnnouncedOn, saved.AnnouncedYears);

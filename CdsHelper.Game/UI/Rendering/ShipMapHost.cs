@@ -1748,7 +1748,11 @@ public sealed class ShipMapHost : HwndHost
         _shipX += dx;
         _shipY += dy;
         // 지도 밖으로는 못 나간다. 가로는 이어져 있으므로 나머지로 접는다.
-        _shipX -= Math.Floor(_shipX / WorldMapRenderer.UnfoldedW) * WorldMapRenderer.UnfoldedW;
+        // 접힌 바퀴 수를 세어 알린다 — 세계일주 장면이 이 값으로 「며칠 어긋났다」를 센다
+        // (0x0047D11B: 경도가 0 밑이면 +40000 하며 −1, 40000 을 넘으면 −40000 하며 +1).
+        double laps = Math.Floor(_shipX / WorldMapRenderer.UnfoldedW);
+        _shipX -= laps * WorldMapRenderer.UnfoldedW;
+        if (laps != 0) Lapped?.Invoke((int)laps);
         _shipY = Math.Clamp(_shipY, 0, WorldMapRenderer.CellH - 1);
     }
 
@@ -1862,6 +1866,11 @@ public sealed class ShipMapHost : HwndHost
         int Row, int Col, int Offset, byte Terrain, byte Attr, int Tile, double LandRatio);
 
     /// <summary>지금 배가 선 칸.</summary>
+    /// <summary>
+    /// 날짜변경선을 넘을 때 부른다 — 동으로 넘으면 +1, 서로 넘으면 −1 이다(<c>0x0047D11B</c>).
+    /// </summary>
+    public Action<int>? Lapped;
+
     public CellInfo? ShipCell => _shipKnown ? Describe(_shipX, _shipY) : null;
 
     /// <summary>

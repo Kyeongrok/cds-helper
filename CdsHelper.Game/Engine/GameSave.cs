@@ -181,7 +181,8 @@ public static class GameSave
         List<Support.Local.Models.Player.Rumor>? Rumors = null,
         List<Support.Local.Models.Player.Rumor>? PersonLines = null,
         Dictionary<int, int>? CityBuildings = null, Dictionary<int, int>? NationStatus = null,
-        List<int>? GiftedBarmaids = null, List<int>? RefusedBarmaids = null);
+        List<int>? GiftedBarmaids = null, List<int>? RefusedBarmaids = null,
+        int? Laps = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -272,7 +273,9 @@ public static class GameSave
                             NationStatus: player.NationStatus.ToDictionary(e => e.Key, e => e.Value),
                             // 여급 형편 — 선물을 받아 봤는지, 퇴짜를 놓았는지.
                             GiftedBarmaids: [.. player.GiftedBarmaids],
-                            RefusedBarmaids: [.. player.RefusedBarmaids]);
+                            RefusedBarmaids: [.. player.RefusedBarmaids],
+                            // 지구를 몇 바퀴 돌았는지. 이 칸 앞의 세이브는 0 바퀴로 연다.
+                            Laps: player.Laps);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
