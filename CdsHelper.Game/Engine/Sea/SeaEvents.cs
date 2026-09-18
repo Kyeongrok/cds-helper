@@ -54,7 +54,7 @@ public enum SeaEventKind
 
 /// <summary>폭풍이 지나간 뒤에 남은 것.</summary>
 /// <param name="Kind">폭풍인지 눈보라인지.</param>
-/// <param name="Hurt">배마다 깎인 내구. 함대 차례대로다.</param>
+/// <param name="Hurt">배마다 깎인 값. 추진력과 내구를 <b>같은 만큼</b> 깎는다. 함대 차례대로다.</param>
 /// <param name="Lost">놓친 배의 이름.</param>
 public sealed record SeaEventResult(SeaEventKind Kind, IReadOnlyList<int> Hurt,
                                     IReadOnlyList<string> Lost)
@@ -633,6 +633,8 @@ public static class SeaEvents
         {
             var ship = player.Ships[i];
             bool flag = i == player.Flagship;
+            // 폭풍은 <b>추진력과 내구를 같은 만큼</b> 깎는다(0x00474F28 · 0x00474F5A).
+            ship.SlowDown(hurt[i]);
             ship.Hurt(hurt[i], floor: flag ? 1 : 0);
             if (ship.Hp == 0 && !flag && player.Ships.Count > 1)
             {

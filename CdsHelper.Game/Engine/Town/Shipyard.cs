@@ -51,7 +51,7 @@ public static class Shipyard
     /// 우리 선체 표에는 돛 값이 없어 <b>내구만</b> 센다.
     /// </remarks>
     public static int RepairCost(Ship ship, int cityRate, Random random) =>
-        Math.Max(1, (RepairRate + random.Next(4)) * ship.Damage * cityRate / 100);
+        Math.Max(1, (RepairRate + random.Next(4)) * ship.RepairNeed * cityRate / 100);
 
     /// <summary>
     /// 이 마을에서 고칠 수 있는 배 — 함대 먼저, 그 뒤가 이 마을이 맡은 배다.

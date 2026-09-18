@@ -3927,11 +3927,13 @@ public sealed class ShipMapWindow : Window
 
                 player.AddSupply(SupplyKind.Material, -barrels);
                 int was = ship.Hp;
-                ship.SetHp(ship.Hp + ShoreRepair.PerBarrel(skill) * barrels);
-                int up = ship.Hp - was;
+                int wasSpeed = ship.Speed;
+                int gain = ShoreRepair.PerBarrel(skill) * barrels;
+                // 자재 수리는 <b>추진력과 내구를 같은 만큼</b> 올린다(0x0048E4FE · 0x0048E537).
+                ship.SpeedUp(gain);
+                ship.SetHp(ship.Hp + gain);
 
-                NoticeDialog.Show(this, up > 0 ? $"내구력이 {up} 올라갔습니다!"
-                                               : "수리하는데 실패했습니다!");
+                NoticeDialog.Show(this, ShoreRepair.RepairWord(ship.Hp - was, ship.Speed - wasSpeed));
             }
         }
         finally

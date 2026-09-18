@@ -41,7 +41,9 @@ public sealed class Ship
         Name = Trim(name) is { Length: > 0 } given ? given : hull.Name;
         var s = stats ?? Stats.Of(hull);
         MaxHp = Bound(s.MaxHp, hull.HpCeiling);
-        Speed = Bound(s.Speed, hull.SpeedCeiling);
+        MaxSpeed = Bound(s.Speed, hull.SpeedCeiling);
+        // 옛 세이브에는 지금 추진력 칸이 없다 — 그러면 꽉 찬 채로 연다.
+        Speed = Math.Clamp(s.SpeedNow ?? MaxSpeed, 0, MaxSpeed);
         Capacity = Bound(s.Capacity, hull.CapacityCeiling);
         Tonnage = Bound(s.Tonnage, hull.TonnageCeiling);
         Crew = Bound(s.Crew, hull.Crew * RefitCeiling);
@@ -102,8 +104,27 @@ public sealed class Ship
     public void Carve(int index) =>
         Figurehead = index >= 0 && index < FigureheadCount ? index : -1;
 
-    /// <summary>최대 추진력. 개조가 깎는다.</summary>
+    /// <summary>
+    /// <b>지금</b> 추진력 — 폭풍·충돌이 깎고 수리가 되돌린다(배 레코드 <c>+0x38</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 지금 추진력과 최대 추진력(<c>+0x3C</c>)을 <b>따로</b> 든다. 내구가
+    /// <see cref="Hp"/>·<see cref="MaxHp"/> 로 갈리는 것과 똑같다 — 예전에는 이 둘을
+    /// 하나로 두어 <b>폭풍이 추진력을 안 깎았고</b>, 해전에서 부딪히면 최대치가 영영 줄었다.
+    /// </remarks>
     public int Speed { get; private set; }
+
+    /// <summary>최대 추진력(<c>+0x3C</c>). 개조가 올리고 깎는다.</summary>
+    public int MaxSpeed { get; private set; }
+
+    /// <summary>폭풍·충돌이 추진력을 깎는다. 0 밑으로는 안 간다.</summary>
+    public void SlowDown(int amount) => Speed = Math.Clamp(Speed - Math.Max(0, amount), 0, MaxSpeed);
+
+    /// <summary>추진력을 그만큼 되돌린다 — 최대치까지다.</summary>
+    public void SpeedUp(int amount) => Speed = Math.Clamp(Speed + Math.Max(0, amount), 0, MaxSpeed);
+
+    /// <summary>추진력을 그대로 박는다 — 해전 판이 되쓸 때 쓴다.</summary>
+    public void SetSpeed(int speed) => Speed = Math.Clamp(speed, 0, MaxSpeed);
 
     /// <summary>적재용량. 개조 "용량증가" 가 올린다.</summary>
     public int Capacity { get; private set; }
@@ -225,7 +246,7 @@ public sealed class Ship
 
     /// <summary>돛을 더 달 수 있는지 — 최대 추진력이 상한에 안 닿았으면.</summary>
     /// <remarks>게임은 선체 표 <c>+0x10</c>(추진력 상한)과 견준다(<c>0x004951C0</c>).</remarks>
-    public bool CanAddSail => Masts > 0 && Speed < Hull.SpeedCeiling;
+    public bool CanAddSail => Masts > 0 && MaxSpeed < Hull.SpeedCeiling;
 
     /// <summary>돛 한 벌을 더 달면 오르는 추진력.</summary>
     public const int SailSpeedStep = 10;
@@ -246,9 +267,10 @@ public sealed class Ship
     public Refit AddSail()
     {
         var was = Snapshot();
-        int grown = Math.Min(Speed + SailSpeedStep, Hull.SpeedCeiling) - Speed;
+        int grown = Math.Min(MaxSpeed + SailSpeedStep, Hull.SpeedCeiling) - MaxSpeed;
 
-        Speed += grown;
+        MaxSpeed += grown;
+        Speed = MaxSpeed;                 // 0x004952xx — 돛을 더 달면 추진력이 꽉 찬다
         MaxHp = Math.Max(1, MaxHp - grown / 2);
         Hp = Math.Min(Hp, MaxHp);
         Crew++;
@@ -313,7 +335,14 @@ public sealed class Ship
     public int Damage => Math.Max(0, MaxHp - Hp);
 
     /// <summary>손볼 데가 있는지.</summary>
-    public bool NeedsRepair => Damage > 0;
+    /// <remarks>
+    /// 게임도 <c>0x0044BBF0</c> 이 <b>(최대추진 − 지금추진) + (최대내구 − 지금내구)</b> 를
+    /// 더해 0 보다 크면 고칠 배로 친다 — 추진력만 상해도 목록에 오른다.
+    /// </remarks>
+    public bool NeedsRepair => Damage > 0 || Speed < MaxSpeed;
+
+    /// <summary>고칠 거리 — 추진력과 내구의 모자란 만큼을 더한 값(<c>0x0044BBF0</c>).</summary>
+    public int RepairNeed => Math.Max(0, MaxSpeed - Speed) + Math.Max(0, MaxHp - Hp);
 
     /// <summary>
     /// 그만큼 상한다. <paramref name="floor"/> 밑으로는 안 내려간다.
@@ -326,8 +355,14 @@ public sealed class Ship
     public void Hurt(int amount, int floor = 0) =>
         Hp = Math.Clamp(Hp - Math.Max(0, amount), Math.Clamp(floor, 0, MaxHp), MaxHp);
 
-    /// <summary>말끔히 고친다.</summary>
-    public void Repair() => Hp = MaxHp;
+    /// <summary>
+    /// 말끔히 고친다 — <b>내구와 추진력을 둘 다</b> 꽉 채운다(<c>0x0044BBB0</c>).
+    /// </summary>
+    public void Repair()
+    {
+        Speed = MaxSpeed;
+        Hp = MaxHp;
+    }
 
     /// <summary>
     /// 내구를 그대로 박는다 — 해전 끝에 판의 칸 내구를 레코드에 되쓴다(<c>0x004350F0</c> → <c>0x0044C850</c>).
@@ -452,7 +487,8 @@ public sealed class Ship
 
         MaxHp += grown;
         Hp = MaxHp;
-        Speed = Math.Max(1, Speed - grown / 3);
+        MaxSpeed = Math.Max(1, MaxSpeed - grown / 3);
+        Speed = Math.Min(Speed, MaxSpeed);
         Tonnage = Math.Max(1, Tonnage - grown * 50 / 3);
         return Refit.Between(was, Snapshot());
     }
@@ -460,7 +496,8 @@ public sealed class Ship
     /// <summary>추진력과 내구를 그만큼 깎는다. 지금 내구는 새 상한까지 잘린다.</summary>
     private void Wear(int amount)
     {
-        Speed = Math.Max(1, Speed - amount);
+        MaxSpeed = Math.Max(1, MaxSpeed - amount);
+        Speed = Math.Min(Speed, MaxSpeed);
         MaxHp = Math.Max(1, MaxHp - amount);
         Hp = Math.Min(Hp, MaxHp);
     }
@@ -472,10 +509,13 @@ public sealed class Ship
     /// <param name="Tonnage">적재중량.</param>
     /// <param name="Crew">필요승원.</param>
     /// <param name="Sails">마스트 셋에 달린 돛. 안 주면 메인마스트에 삼각돛 하나다.</param>
+    /// <param name="SpeedNow">
+    /// 지금 추진력. <b>옛 세이브에는 없는 칸</b>이라 없으면 꽉 찬 채로 연다.
+    /// </param>
     public sealed record Stats(int MaxHp, int Speed, int Capacity, int Tonnage, int Crew,
                                int Turrets = 0, int Gun = -1, int Guns = 0,
                                IReadOnlyList<int>? Sails = null, int? Figurehead = null,
-                               bool Lent = false)
+                               bool Lent = false, int? SpeedNow = null)
     {
         /// <summary>
         /// 선체 기본값 그대로. 포탑은 다 달린 채로 나오고 대포는 안 실려 있으며,
@@ -488,7 +528,8 @@ public sealed class Ship
 
     /// <summary>지금 값을 통째로.</summary>
     public Stats Snapshot() =>
-        new(MaxHp, Speed, Capacity, Tonnage, Crew, Turrets, Gun, Guns, [.. _sails], Figurehead, Lent);
+        new(MaxHp, MaxSpeed, Capacity, Tonnage, Crew, Turrets, Gun, Guns, [.. _sails], Figurehead,
+            Lent, Speed);
 
     /// <summary>개조로 값이 갈렸는지.</summary>
     public bool IsRefitted => Snapshot() with { Lent = false } != Stats.Of(Hull);
