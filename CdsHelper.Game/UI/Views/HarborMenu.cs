@@ -159,12 +159,19 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// 없고 뒤의 셋만 얼굴이 선다. 그 얼굴은 <b>부관</b>이고, 부관 자리가 비면
     /// <b>항구 화자</b>가 대신 나선다(<see cref="SailFace"/>).
     ///
-    /// 게임이 맨 앞에서 보는 "편성돼 있지 않은 선박"(<c>0x004688A0</c>) 은 우리 쪽에
-    /// 그런 자리가 없어 뺐다.
+    /// 맨 앞에서 보는 것은 "편성돼 있지 않은 선박"(<c>0x004688A0</c>) — 이 마을에
+    /// <b>맡겨 둔 배</b>가 한 척이라도 있으면 출항을 막는다.
     /// </remarks>
     public bool ConfirmSail()
     {
         var owner = Owner;
+
+        // 이 마을에 맡겨 둔 배가 있으면 출항이 막힌다(0x004688CE) — 얼굴 없는 알림이다.
+        if (_player.DockedAt(_cityId).Count > 0)
+        {
+            ConfirmDialog.Tell(owner, "편성돼 있지 않은 선박이 있습니다! 출항할 수 없습니다");
+            return false;
+        }
 
         if (_player.Crew <= 0)
         {

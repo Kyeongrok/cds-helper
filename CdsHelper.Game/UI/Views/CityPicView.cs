@@ -1828,12 +1828,24 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 부하 자리는 제독 물건(<c>0x005B60A0</c>)의 0번 자리다
     /// (<c>0x0047CC60</c> 이 그 자리의 인물을 찾아 준다 — 항구에서 인사하는 그 부관이다).
     ///
-    /// 맨 앞의 「편성돼 있지 않은 선박」은 우리 쪽에 그런 자리가 없어 뺐다
-    /// (<see cref="HarborMenu.ConfirmSail"/> 도 같은 까닭으로 뺐다).
+    /// 맨 앞의 「편성돼 있지 않은 선박」은 이 마을에 <b>맡겨 둔 배</b>가 있을 때다
+    /// (<c>0x004688E1</c>) — 출항 쪽과 한 함수이고 글만 갈린다
+    /// (<see cref="HarborMenu.ConfirmSail"/>).
     /// </remarks>
     /// <param name="buildingCode">성문의 건물 코드 — 막아서는 병사 얼굴을 화자표에서 집는다.</param>
     private bool CanExplore(int buildingCode)
     {
+        // 맡겨 둔 배가 있으면 탐험대를 못 모은다(0x004688E1) — 부관 있고 없고로 두 벌이다.
+        if (_player.DockedAt(_cityId).Count > 0)
+        {
+            const string word = "항구에 편성돼 있지 않은 선박이 있습니다! 탐험대를 모집할 수 없습니다.";
+            if (Port.MateFace() is { } who)
+                ConfirmDialog.Tell(this, "제독, " + word, face: who);
+            else
+                ConfirmDialog.Tell(this, word);
+            return false;
+        }
+
         if (_player.Crew > 0) return true;
 
         // 부하가 있으면 부하가 말리고, 없으면 성문 병사가 막아선다.
