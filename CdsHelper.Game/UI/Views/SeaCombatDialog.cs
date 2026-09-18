@@ -300,6 +300,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
             said = true;
             Say(_battle.WindNotice());
             Say(_battle.OrderPrompt());
+            // 괴물 판이면 숨었다는 말이 한 마디 더 붙는다(0x0043C670).
+            if (_battle.MonsterHidWord() is { Length: > 0 } hid) Say(hid);
         };
     }
 
@@ -624,6 +626,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         if (_running) return;
         foreach (var ship in _battle.Ships.Where(s => s.Mine && s.CanAct)) ship.Plan.Clear();
         Say(_battle.OrderPrompt());
+        if (_battle.MonsterHidWord() is { Length: > 0 } hid) Say(hid);
         Unpick();
     }
 
@@ -656,6 +659,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
 
         if (_battle.Wind != windBefore) Say(_battle.WindNotice());
         Say(_battle.OrderPrompt());
+        if (_battle.MonsterHidWord() is { Length: > 0 } hid) Say(hid);
 
         // 지난 턴에 부딪혀 이번 턴에 못 움직이는 배만 남았으면 그대로 다음 계획으로 넘어간다.
         if (_battle.Ships.Where(s => s.Mine && s.CanAct).All(s => s.Stuck))
