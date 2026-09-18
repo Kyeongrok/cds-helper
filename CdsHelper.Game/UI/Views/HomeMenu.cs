@@ -46,6 +46,18 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     {
         var owner = Owner;
 
+        // 아내와 아이가 먼저 맞는다(0x004144C0 · 0x00414550) — 아직 소개 안 한 아이는 뒤에서 따로 인사한다.
+        if (_player.Spouse.Length > 0)
+            TalkDialog.Say(owner, null, _player.Spouse,
+                           Home.WifeWelcome[_random.Next(Home.WifeWelcome.Length)]);
+
+        foreach (var child in _player.Children)
+        {
+            if (!child.IsBornBy(_player.Date) || !child.Introduced) continue;
+            TalkDialog.Say(owner, ChildFace(child), child.Name,
+                           Home.WelcomeOf(child.Daughter, child.AgeOn(_player.Date), _random));
+        }
+
         foreach (var child in Home.NotIntroduced(_player)) Introduce(owner, child);
 
         if (_random.Next(Home.MarriageRoll) == 0 && Home.MarriageableDaughter(_player) is { } daughter)
