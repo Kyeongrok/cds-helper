@@ -2505,6 +2505,9 @@ public sealed class ShipMapWindow : Window
         var owner = CommandMenu.Window ?? this;
         if (!ConfirmDialog.Ask(owner, "지금 플레이하고 있는 게임을 중단하겠습니까?")) return;
 
+        // 적기 앞서 한 번 더 묻는다(0x004A27D0) — 물리면 아무것도 안 적고 놀이로 돌아간다.
+        if (!ConfirmDialog.Ask(owner, "이 시점에서 데이터를 저장하고 게임을 중단하겠습니다.")) return;
+
         _game.Player.SetSeaCell(_host.SeaSpot);
         string error = GameSave.Save(_game.Player);
         if (error.Length > 0)
