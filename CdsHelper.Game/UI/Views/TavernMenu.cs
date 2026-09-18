@@ -1508,11 +1508,22 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             for (int i = 0; i < Player.MaxMates; i++)
             {
                 string role = Player.MateRoles[i], sitting = _player.MateAt(i);
-                rows.Add((sitting.Length > 0 ? $"{role} ({sitting})" : role, CanSit(row, i)));
+                // <b>줄은 다 살아 있다</b> — 게임도 고르게 두고 나서 물린다(0x00453F8E).
+                rows.Add((sitting.Length > 0 ? $"{role} ({sitting})" : role, true));
             }
 
             int slot = ChoiceDialog.Pick(_view, "", rows, exitRow: false);
             if (slot < 0 || slot >= Player.MaxMates) continue;    // 물릴 수 없다 — 다시 묻는다
+
+            // 부관·통역은 <b>제독과 말이 3 이상</b>이라야 앉는다(0x00453F86).
+            // 안 되면 한 줄 내고 고르기로 되돌아간다.
+            if (!CanSit(row, slot))
+            {
+                GameDialog.Show(_view, slot == FirstMateSlot
+                    ? "말이 통하지 않는 자는 부관이 될 수 없습니다!"
+                    : "말이 통하지 않는 자는 통역이 될 수 없습니다!");
+                continue;
+            }
 
             string old = _player.MateAt(slot);
             if (old.Length > 0)
