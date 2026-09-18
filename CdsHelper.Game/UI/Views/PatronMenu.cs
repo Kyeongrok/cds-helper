@@ -584,6 +584,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// <summary>위약금을 못 냈을 때 깎이는 친밀도(<c>0x0044F886</c>).</summary>
     private const int BreakPenaltyCloseness = 20;
 
+    /// <summary>죄를 물을 때 먼저 깎는 친밀도(<c>0x0044F10E</c> 의 <c>push -0x14</c>).</summary>
+    private const int ClosenessLost = 20;
+
     /// <summary>10닢 단위로 내린다 — 게임의 <c>/10*10</c> 꼴이다.</summary>
     private static int To10(int coins) => coins / 10 * 10;
 
@@ -1128,9 +1131,88 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                 "이런 모조품으로 저를 속일 작정이라고는...용서할 수 없습니다.",
                 "바보녀석, 이런 모조품으로 나를 속일 작정이었나!"));
             _player.Sulk(patron.Name);
+            if (Punish(patron, sponsorRow, Pick3)) EndGame();
             broke = true;
         }
         return true;
+    }
+
+    /// <summary>
+    /// 계약을 그르친 죄를 묻는다(<c>0x0044F100</c>) — <b>용서 · 위약금 · 감옥</b> 셋 중 하나다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   44f10e  친밀도 −20
+    ///   44f11b  후원자 깃발 14(계약 파기 이력)나 13(감찰관 처벌)이 서 있으면 곧장 감옥
+    ///   44f155  성미 칸 4 가 2 보다 작으면 감옥
+    ///   44f166  친밀도가 0 이하면 감옥
+    ///   44f170  문턱(<see cref="Palace.Reckoning"/>) 으로 갈린다
+    /// </code>
+    /// 깃발 14 는 우리 쪽에 적어 두는 자리가 없어 <b>깃발 13 만</b> 본다.
+    /// 말은 신분마다 세 벌씩이고, 위약금을 못 내면 그대로 감옥이다.
+    /// </remarks>
+    /// <returns>감옥에서 놀이가 끝났으면 true.</returns>
+    private bool Punish(Patron patron, SponsorTable.Sponsor? sponsorRow,
+                        Func<string, string, string, string> Pick3)
+    {
+        var face = FaceOf(patron);
+        void Say(string words) => TalkDialog.Say(_view, face, "", words);
+        var dice = new GameRandom(Environment.TickCount);
+
+        // 친밀도부터 깎고 시작한다(0x0044F10E → 0x00478530 이 −20, 0~100 으로 자른다).
+        _player.Endear(patron.Name, -ClosenessLost);
+        int close = _player.ClosenessOf(patron.Name);
+
+        bool jail = _player.IsBetrayed(patron.Name)
+                    || SponsorFortune(sponsorRow)[Palace.MercyFortune] < 2
+                    || close <= 0;
+
+        if (!jail)
+        {
+            int funds = _player.Contract?.Amount ?? 0;
+            int mark = Palace.Reckoning(_player.Fame, _player.Infamy, funds,
+                                        _player.AbilityOf(Ability.Faith));
+
+            if (mark == 0)
+            {
+                // 0x0044F2AF — 그냥 봐 준다. 위약금도 감옥도 없다.
+                Say(Pick3("인간이니 실패할 수도 있겠지. 어쩔 수 없군. 이번 실패는 불문에 부쳐두기로 하지.",
+                          "인간이니 실패하는 일도 있겠지요. 이번 실패는 눈감아 드리지요. 다음을 기대하고 있겠습니다.",
+                          "음, 실패 안하는 사람은 없으니까. 이번은 너그러이 봐 주겠다."));
+                return false;
+            }
+
+            if (mark < close)
+            {
+                int fine = Palace.FineFor(funds);
+                Say(string.Format(Pick3(
+                    "어쩔 수 없다. {0}닢을 위약금으로 지불한다면 감옥행만은 면하게 해주지.",
+                    "감옥으로 보내려고 생각했지만, 위약금으로 금화 {0}닢을 지불한다면 이번 건은 없었던 일로 해 드리지요.",
+                    "위약금은 금화 {0}닢이다. 이것으로 없었던 일로 하지."), fine));
+
+                if (_player.Gold >= fine)
+                {
+                    _player.Pay(fine);
+                    Say(Pick3("음, 이것으로 용서해 주지.",
+                              "이것으로 이번 건은 없었던 일로 하지.",
+                              "자, 이번은 이것으로 눈감아 주지."));
+                    return false;
+                }
+
+                // 못 내면 감옥이다. 이 갈래만은 「감옥에 쳐 넣어라」 셋이 안 나온다(0x0044F22B).
+                Say(Pick3("뭐라고! 위약금을 지불하지 못하겠다고?···누가 이 놈을 감옥에 가두어라.",
+                          "위약금도 지불할 수 없습니까? 당신에게 실망했습니다. 누가 이 자를 감옥에 넣어라.",
+                          "뭐라고, 위약금도 지불할 수 없다고! 음~, 어처구니없어 말도 안나오는군. "
+                        + "누구라도 좋으니, 이 놈을 감옥에 가둬 두어라."));
+                return Jail(patron, dice);
+            }
+        }
+
+        // 0x0044F241 — 곧장 감옥으로 갈 때만 이 셋이 나온다.
+        Say(Pick3("이 놈을 감옥에 쳐 넣어라!",
+                  "이 놈을 감옥에 넣어라.",
+                  "누구라도 좋으니 눈에 거슬리는 이 놈을 감옥에 가둬 버려라."));
+        return Jail(patron, dice);
     }
 
     /// <summary>
