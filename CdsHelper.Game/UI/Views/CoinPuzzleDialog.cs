@@ -420,7 +420,7 @@ internal sealed class CoinPuzzleDialog : InfoDialog
 
         if (!_game.Put(coin, left))
         {
-            NoticeDialog.Show(this, "접시 위에는 더 이상 금화를 실을 수 없습니다", "천칭 퍼즐");
+            NoticeDialog.Show(this, " 더 이상 접시에 금화를 실을 수 없습니다", "천칭 퍼즐");
             return;
         }
         Sync();
@@ -460,7 +460,24 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         if (!ConfirmDialog.Ask(this, "이 금화가 딴 것과 무게가 다르다고 단정해도 좋습니까?",
                                "천칭 퍼즐")) return;
 
-        _game.Decide(Chosen);
+        if (_game.Decide(Chosen)) { Close(); return; }
+
+        // 첫 실패는 끝이 아니다(0x00450CE4) — 판을 새로 깔고 한 번 더 준다.
+        if (_game.Won == null)
+        {
+            NoticeDialog.Show(this,
+                " 가려야 할 금화를 잘못 고른 것 같다. 천칭은 기울어져 금화를 떨어뜨리기 시작했다." +
+                Environment.NewLine + "장치가 작동된 것 같은 소리가 들리고" +
+                Environment.NewLine + "방이 흔들흔들 움직였다. 여기저기 벽에 금이 가기 시작한다.",
+                "클리어 실패");
+            NoticeDialog.Show(this,
+                " 한번 더 방이 흔들리면 찌그러질 겁니다. 빨리 가짜 금화를 발견해서 이곳으로부터 탈출합시다.",
+                "천칭 퍼즐");
+            Chosen = 0;
+            Sync();
+            return;
+        }
+
         Close();
     }
 
