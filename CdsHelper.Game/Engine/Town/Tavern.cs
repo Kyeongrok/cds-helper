@@ -16,5 +16,6 @@ public static class Tavern
     public static Player.MateInfo MateInfoOf(TavernRoster.Person who) =>
         new(who.Name, who.FaceCode, who.Fame, who.Age,
             who.Body, who.Mind, who.Might, who.Charm, who.Luck,
-            who.Sword, who.Shooting, who.Gunnery);
+            who.Sword, who.Shooting, who.Gunnery, Player.ConditionFull,
+            who.Sailing, who.Handling, who.Medicine, who.Science);
 }

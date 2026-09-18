@@ -45,6 +45,9 @@ public enum SeaEventKind
     /// <summary>괴혈병을 보리로 눌러 앉힌다 — 그 기능이 <b>부관의 것</b>일 때.</summary>
     BarleyByMate,
 
+    /// <summary>부관이 쥐를 미리 퇴치한다 — 재해로는 안 남는다.</summary>
+    RatsKilled,
+
     /// <summary>반란. 갈래 셋.</summary>
     Mutiny,
 }
@@ -98,6 +101,15 @@ public static class SeaEvents
     /// <summary>쥐의 갈래 번호 둘. 점프표가 0 과 6 을 같은 자리로 보낸다.</summary>
     public const int RatsKind = 0, RatsAgainKind = 6;
 
+    /// <summary>
+    /// 부관이 쥐를 퇴치하는 판정(<c>0x0047478D</c>~<c>0x004747AB</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>운용술 x 25 + 지력 + 1 &gt; rand(200)</c> 이면 쥐가 안 퍼진다. <b>부관이 없으면
+    /// 굴리지도 않는다</b>(<c>0x0047477A</c> 가 자리 0 을 먼저 본다).
+    /// </remarks>
+    public const int RatsPerLevel = 25, RatsRoll = 200;
+
     /// <summary>괴혈병(<c>0x00474812</c>)과 전염병(<c>0x004749FA</c>)의 갈래 번호.</summary>
     public const int ScurvyKind = 1, PlagueKind = 2;
 
@@ -120,8 +132,7 @@ public static class SeaEvents
     /// 자리가 3 이면 괴혈병이 안 터지고 <b>보리를 먹여</b> 넘긴다. 전염병 쪽에는 이 관문이 없다.
     ///
     /// 누구 것을 보는가는 <c>0x0047CCA0(기능, 0, -1, -1, -1)</c> — <b>제독과 부하 자리 0</b>
-    /// 가운데 높은 쪽이다. 우리는 부하마다 기능을 안 들고 있어 제독 것만 본다.
-    /// 그래서 <see cref="SeaEventKind.BarleyByMate"/> 는 아직 안 난다.
+    /// 가운데 높은 쪽이다.
     /// </remarks>
     public const int MedicineNeeded = 3;
 
@@ -140,8 +151,8 @@ public static class SeaEvents
     /// 신앙심(<c>0x005B60D4</c>)이 그대로 얹히므로 <b>100 이면 자리 넷과 맞먹는다</b>.
     ///
     /// 그리고 항해술은 제독 것만 보지 않는다 — <c>0x0047CCA0(0, 1, -1, -1, -1)</c> 이
-    /// <b>제독과 부하 자리 1</b> 가운데 높은 쪽을 집는다(자리 0 이 아니다). 우리는 부하마다
-    /// 기능을 안 들고 있어 제독 것만 본다.
+    /// <b>제독과 부하 자리 1</b> 가운데 높은 쪽을 집는다. 괴혈병 쪽은 자리 0 을 보는데
+    /// 여기만 자리 1 이다 — <b>원본이 그렇다</b>.
     /// </remarks>
     public const int SafeBase = 26;
 
@@ -166,15 +177,25 @@ public static class SeaEvents
     /// <param name="player">함대.</param>
     /// <param name="lat">지금 위도(북이 양수).</param>
     /// <param name="rng">주사위.</param>
-    public static SeaEventKind? Roll(Player player, double lat, Random rng)
+    /// <param name="mateAt">
+    /// 그 자리의 부하 신상. 게임은 기능마다 <b>제독과 어느 한 자리</b>를 견주므로(<c>0x0047CCA0</c>)
+    /// 부르는 쪽이 자리 번호로 찾아 준다. 안 주면 제독 것만 본다.
+    /// </param>
+    public static SeaEventKind? Roll(Player player, double lat, Random rng,
+                                     Func<int, Player.MateInfo?>? mateAt = null)
     {
         if (player.DaysAtSea <= MinDaysAtSea) return null;
 
-        int safe = player.LevelOf(SkillName) * SafePerLevel
-                   + player.AbilityOf(Ability.Faith) + SafeBase;
+        // 항해술은 <b>자리 1</b> 의 부하와 견준다 — 자리 0 이 아니다(0x00474692 의 인자).
+        var second = mateAt?.Invoke(1);
+        int sail = Math.Max(player.LevelOf(SkillName), second?.Sailing ?? 0);
+        int faith = player.AbilityOf(Ability.Faith);
+
+        int safe = sail * SafePerLevel + faith + SafeBase;
         if (safe >= rng.Next(SafeRoll)) return null;
 
-        int faith = player.AbilityOf(Ability.Faith);
+        // 과학·의학은 <b>자리 0</b> 과 견준다(0x0047484C · 0x0047486A 의 인자).
+        var aide = mateAt?.Invoke(0);
         int carved = FigureheadOf(player);
 
         // 굴린 갈래의 재해가 이미 서 있으면 그날은 그냥 넘긴다(0x004746DC) — 겹쳐 뜨지 않는다.
@@ -183,9 +204,15 @@ public static class SeaEvents
 
         return kind switch
         {
-            RatsKind or RatsAgainKind =>
-                Figureheads.Blocks(carved, Figureheads.GuardsRats, rng)
-                    ? null : SeaEventKind.Rats,
+            RatsKind or RatsAgainKind when
+                Figureheads.Blocks(carved, Figureheads.GuardsRats, rng) => null,
+
+            // 선수상이 안 막으면 <b>부관이 나선다</b>(0x00474770) — 자리 0 의 부하가 있어야 한다.
+            RatsKind or RatsAgainKind when
+                aide is { } who && who.Handling * RatsPerLevel + who.Mind + 1 > rng.Next(RatsRoll)
+                => SeaEventKind.RatsKilled,
+
+            RatsKind or RatsAgainKind => SeaEventKind.Rats,
 
             // 병 둘은 먼저 귀띔 주사위를 굴린다. 걸리면 그것으로 끝이다.
             ScurvyKind when rng.Next(ScurvyNotice) < faith + 1 => SeaEventKind.Weakening,
@@ -194,6 +221,9 @@ public static class SeaEvents
             ScurvyKind when player.LevelOf(ScienceSkill) >= MedicineNeeded
                          || player.LevelOf(MedicineSkill) >= MedicineNeeded
                 => SeaEventKind.BarleyByMe,
+            ScurvyKind when aide is { } who
+                         && (who.Science >= MedicineNeeded || who.Medicine >= MedicineNeeded)
+                => SeaEventKind.BarleyByMate,
             ScurvyKind =>
                 Figureheads.Blocks(carved, Figureheads.GuardsSickness, rng)
                     ? null : SeaEventKind.Scurvy,

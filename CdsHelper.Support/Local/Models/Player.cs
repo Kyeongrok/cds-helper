@@ -562,10 +562,16 @@ public sealed class Player
     /// 육상전 부대배치가 제독 것과 견주어 <b>높은 쪽</b>을 쓴다(<c>0x00446F70</c>).
     /// 검술처럼 예전 갈무리에는 없던 칸이라 없으면 0 이다.</param>
     /// <param name="Condition">컨디션(인물 <c>+0x38</c>). 일기토에 대신 나가면 이것이 깎인다.</param>
+    /// <param name="Sailing">항해술(0~3) · <paramref name="Handling"/> 운용술 ·
+    /// <paramref name="Medicine"/> 의학 · <paramref name="Science"/> 과학.
+    /// 바다 사건이 제독 것과 견주어 <b>높은 쪽</b>을 쓴다(<c>0x0047CCA0</c>).
+    /// 예전 갈무리에는 없던 칸이라 없으면 0 이다.</param>
     public readonly record struct MateInfo(string Name, int Face, int Fame, int Age,
                                            int Body, int Mind, int Might, int Charm, int Luck,
                                            int Sword = 0, int Shooting = 0, int Gunnery = 0,
-                                           int Condition = ConditionFull);
+                                           int Condition = ConditionFull,
+                                           int Sailing = 0, int Handling = 0,
+                                           int Medicine = 0, int Science = 0);
 
     private readonly Dictionary<string, MateInfo> _mateBook = [];
 

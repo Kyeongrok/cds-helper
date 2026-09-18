@@ -4650,7 +4650,7 @@ public sealed class ShipMapWindow : Window
     private void CheckSeaEvent()
     {
         var (lat, _) = _host.ShipLatLon;
-        if (SeaEvents.Roll(_game.Player, lat, _game.Random) is not { } kind) return;
+        if (SeaEvents.Roll(_game.Player, lat, _game.Random, MateSheetAt) is not { } kind) return;
 
         if (kind == SeaEventKind.Mutiny) { Mutiny(); return; }
         if (Plagued(kind)) return;
@@ -4714,6 +4714,7 @@ public sealed class ShipMapWindow : Window
     ///   0x00534FC8  귀띔      제독! 이상한 병이 돌고 있습니다. 상륙하는 것이 좋겠습니다.
     ///   0x00534E20  보리      제독, 선원들이 약해져 있습니다. 제독의 지시대로 보리를 먹이겠습니다.
     ///   0x00534E68  보리      제독, 선원들이 약해져 있으니 보리를 먹이겠습니다.
+    ///   0x00534D60  퇴치      제독, 쥐들이 늘었으므로 퇴치하겠습니다.
     /// </code>
     /// 게임은 병이 돌면 선원을 하나씩 골라 이름을 부르며 죽이는데(<c>0x00534F30</c>
     /// "%s%s 괴혈병에 걸려…") 우리는 함대가 선원을 통째로 태우므로 머릿수만 던다.
@@ -4736,6 +4737,8 @@ public sealed class ShipMapWindow : Window
                 "제독, 선원들이 약해져 있습니다. 제독의 지시대로 보리를 먹이겠습니다.",
             SeaEventKind.BarleyByMate =>
                 "제독, 선원들이 약해져 있으니 보리를 먹이겠습니다.",
+            SeaEventKind.RatsKilled =>
+                "제독, 쥐들이 늘었으므로 퇴치하겠습니다.",
             _ => "",
         };
         if (word.Length == 0) return false;
@@ -4787,6 +4790,18 @@ public sealed class ShipMapWindow : Window
     {
         if (name == null || _game.Sponsors?.FindByName(name) is not { } sponsor) return null;
         return _game.Faces?.TryGetBgra(sponsor.Face, sponsor.IsFemale);
+    }
+
+    /// <summary>
+    /// 그 자리의 부하 신상. 빈 자리면 null 이다.
+    /// </summary>
+    /// <remarks>
+    /// 바다 사건이 기능마다 <b>제독과 어느 한 자리</b>를 견주는 데 쓴다(<c>0x0047CCA0</c>).
+    /// </remarks>
+    private Player.MateInfo? MateSheetAt(int slot)
+    {
+        string name = _game.Player.MateAt(slot);
+        return name.Length > 0 ? _game.MateInfo(name) : null;
     }
 
     private uint[]? MateFace()
