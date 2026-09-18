@@ -38,6 +38,16 @@ public sealed class PlayerNameTable
     /// <summary>성 수와 명 줄 수. 게임이 자르는 값 그대로다(<c>0x30</c> · <c>0x25</c>).</summary>
     public const int FamilyCount = 48, GivenCount = 37;
 
+    /// <summary>
+    /// 여자 이름 열여섯(<c>0x0057B3F0</c>) — 딸이 태어나면 여기서 뽑는다(<c>0x004ABCC0</c>).
+    /// </summary>
+    /// <remarks>주인공은 남자뿐이라 신규 캐릭터 창에는 안 뜨고, 아이 이름에만 쓰인다.</remarks>
+    public static readonly string[] Girls =
+    [
+        "안나", "카롤리나", "칼로타", "카타리나", "크리스티나", "도나", "프란시스카", "헬레나",
+        "이자벨", "조안나", "루이자", "마르가리타", "마리아", "마틸다", "테레사", "펠리파",
+    ];
+
     /// <summary>명 표의 열 수 — 국적 둘이다(0 포르투갈 · 1 에스파니아).</summary>
     public const int Nations = 2;
 

@@ -146,8 +146,10 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
 
         // 아내의 운명 코드와 혈액형이 아이 능력치·혈액형에 든다(0x00461139 · 0x00460FA0).
         var wife = _player.SpouseId >= 0 ? _game.Barmaids?.Find(_player.SpouseId) : null;
-        var child = Home.Conceive(_player, _random, HeirName(),
-                                  wife?.Fortune ?? -1, wife?.Blood ?? -1);
+        // 성별이 먼저 정해져야 이름을 뽑는다 — 이미 아이가 있으면 그 반대다(0x00460CA1).
+        bool daughter = _player.Children.Count > 0 ? !_player.Children[^1].Daughter : _random.Next(2) == 0;
+        var child = Home.Conceive(_player, _random, HeirName(daughter),
+                                  wife?.Fortune ?? -1, wife?.Blood ?? -1, daughter);
         _player.AddChild(child);
         GameDialog.Show(Owner, $"{_player.Spouse}님이 아이를 가졌습니다. {child.Born:yyyy년 M월}에 태어날 {(child.Daughter ? "딸" : "아들")}의 이름은 {child.Name}입니다!");
     }
@@ -393,14 +395,25 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// 아이 이름. 게임은 이름 표에서 뽑는데(<c>0x004611E0</c>) 우리는 <b>제독의 이름</b>에 차례를 붙인다.
     /// </summary>
     /// <remarks>
-    /// 세대교체하면 이 이름이 제독의 이름(명)이 되고 성은 그대로라, 성까지 넣으면 「…·벨라스케스·벨라스케스」가 된다.
-    /// 그래서 명만 쓴다 — 첫째가 「카를로스 2세」다.
+    /// 게임은 이름 표에서 <b>아무거나 하나 뽑는다</b>(<c>0x004611E0</c>) — 아들은 주인공 이름 목록 서른일곱,
+    /// 딸은 여자 이름 열여섯(<see cref="PlayerNameTable.Girls"/>)이다. 성은 아버지 것을 그대로 붙인다.
+    /// 표를 못 읽으면 예전처럼 「제 이름 N세」로 물러선다.
     /// </remarks>
-    private string HeirName()
+    /// <summary>아들 이름 목록 — 한 번 읽어 들고 있는다.</summary>
+    private IReadOnlyList<string>? _boyNames;
+
+    private string HeirName(bool daughter)
     {
-        string given = _player.Given.Length > 0 ? _player.Given
-                     : _player.Name.Length > 0 ? _player.Name : "이름 없는";
-        return $"{given} {_player.Children.Count + 2}세";
+        var names = daughter
+            ? Local.Helpers.PlayerNameTable.Girls
+            : _boyNames ??= Local.Helpers.PlayerNameTable.Open(_game.Directory)?.GivenFor(_player.Nation) ?? [];
+        if (names.Count == 0)
+        {
+            string given = _player.Given.Length > 0 ? _player.Given
+                         : _player.Name.Length > 0 ? _player.Name : "이름 없는";
+            return $"{given} {_player.Children.Count + 2}세";
+        }
+        return names[_random.Next(names.Count)];
     }
 
     /// <summary>

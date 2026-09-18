@@ -91,18 +91,19 @@ public static class Home
     /// </remarks>
     /// <param name="wifeFortune">아내 운명 코드. 모르면 −1 이라 보정이 없다.</param>
     /// <param name="wifeBlood">아내 혈액형. 모르면 −1 이라 아버지 것만 본다.</param>
+    /// <param name="daughter">딸인지. 안 주면 여기서 굴린다(이미 아이가 있으면 그 반대 성별이다).</param>
     public static Player.Child Conceive(Player father, Random random, string name,
-                                        int wifeFortune = -1, int wifeBlood = -1)
+                                        int wifeFortune = -1, int wifeBlood = -1, bool? daughter = null)
     {
-        bool daughter = father.Children.Count > 0 ? !father.Children[^1].Daughter : random.Next(2) == 0;
+        daughter ??= father.Children.Count > 0 ? !father.Children[^1].Daughter : random.Next(2) == 0;
 
         var due = DueDate(father.Date, random);
 
         var abilities = new int[6];
         for (int i = 0; i < abilities.Length; i++)
-            abilities[i] = AbilityOfChild(father.AbilityOf(i), i, daughter, wifeFortune, random);
+            abilities[i] = AbilityOfChild(father.AbilityOf(i), i, daughter.Value, wifeFortune, random);
 
-        var child = new Player.Child(name, daughter, due, abilities,
+        var child = new Player.Child(name, daughter.Value, due, abilities,
                                      new int[Skill.Names.Length], new int[Skill.Languages.Length],
                                      Blood: BloodOf(father.Blood, wifeBlood, random));
         return Bless(father, random, child);
