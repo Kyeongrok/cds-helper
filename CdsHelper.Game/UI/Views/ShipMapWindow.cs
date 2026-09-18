@@ -2997,7 +2997,8 @@ public sealed class ShipMapWindow : Window
         bool veiled = _game.CityPics != null;
         if (veiled) SetInCity(true);
 
-        var end = HostileCityMenu.Run(this, _game, city, name, byLand, MapAreaOnScreen());
+        var end = HostileCityMenu.Run(this, _game, city, name, byLand, MapAreaOnScreen(),
+                                      byTreaty: treaty && !angry);
 
         // 성문 앞에서는 막이 씌워지고 그 도시 곡이 돌았다. 못 들어가고 물러서면 되돌린다 —
         // 들어갔으면 ShowCityPicture 가 막도 곡도 제 것으로 다시 건다.
