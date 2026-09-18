@@ -3898,33 +3898,87 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
-            if (dice.Next(LandEvents.CaveOdds) != 0) return;
-
-            var mate = MateFace();
-            TalkDialog.Say(this, mate, "", "제독, 동굴을 발견했습니다!");
-            if (!ConfirmDialog.Ask(this, "제독, 동굴속을 탐색하겠습니까?", face: mate)) return;
-
-            if (LandEvents.CaveTreasure(player.AbilityOf(Ability.Faith),
-                                        player.AbilityOf(Ability.Luck), dice))
-            {
-                TalkDialog.Say(this, mate, "", "제독, 원주민의 보물을 발견했습니다!");
-                int gold = LandEvents.CaveGold(player.AbilityOf(Ability.Luck), dice);
-                player.Earn(gold);
-                NoticeDialog.Show(this, $"제독, 금화 {gold}닢에 해당하는 보물을 발견했습니다!");
-                return;
-            }
-
-            TalkDialog.Say(this, mate, "", "아뿔싸! 짐승의 소굴이다!");
-            int lost = Math.Min(LandEvents.DenLoss(dice), player.Crew);
-            if (lost <= 0) return;
-            player.SetCrew(player.Crew - lost);
-            NoticeDialog.Show(this, $"{lost}명이 당했습니다!");
+            Cave(dice);
+            Gather(dice);
         }
         finally
         {
             _host.Paused = false;
             _asking = false;
         }
+    }
+
+    /// <summary>
+    /// 보급 앞머리의 동굴(<c>0x0048DC8A</c>) — 백에 하나다.
+    /// </summary>
+    private void Cave(GameRandom dice)
+    {
+        var player = _game.Player;
+        if (dice.Next(LandEvents.CaveOdds) != 0) return;
+
+        var mate = MateFace();
+        TalkDialog.Say(this, mate, "", "제독, 동굴을 발견했습니다!");
+        if (!ConfirmDialog.Ask(this, "제독, 동굴속을 탐색하겠습니까?", face: mate)) return;
+
+        if (LandEvents.CaveTreasure(player.AbilityOf(Ability.Faith),
+                                    player.AbilityOf(Ability.Luck), dice))
+        {
+            TalkDialog.Say(this, mate, "", "제독, 원주민의 보물을 발견했습니다!");
+            int gold = LandEvents.CaveGold(player.AbilityOf(Ability.Luck), dice);
+            player.Earn(gold);
+            NoticeDialog.Show(this, $"제독, 금화 {gold}닢에 해당하는 보물을 발견했습니다!");
+            return;
+        }
+
+        TalkDialog.Say(this, mate, "", "아뿔싸! 짐승의 소굴이다!");
+        int lost = Math.Min(LandEvents.DenLoss(dice), player.Crew);
+        if (lost <= 0) return;
+        player.SetCrew(player.Crew - lost);
+        NoticeDialog.Show(this, $"{lost}명이 당했습니다!");
+    }
+
+    /// <summary>
+    /// 물과 식량을 찾는다(<c>0x0048DEC6</c>) — 동굴이 나오든 말든 보급은 여기까지 간다.
+    /// </summary>
+    /// <remarks>
+    /// 찾은 만큼 다 싣지는 못한다. 남은 짐 칸과 적재 중량이 허락하는 데까지만 담고,
+    /// 담을 때는 <b>지금 적은 쪽</b>을 먼저 채워 물과 식량을 맞춘다. 규칙은
+    /// <see cref="Foraging"/> 에 있다.
+    /// </remarks>
+    private void Gather(GameRandom dice)
+    {
+        var player = _game.Player;
+        int ground = _host.TerrainClass;
+        int bonus = Foraging.CrewBonus(player.Crew);
+
+        int waterLevel = Foraging.LevelOf(Foraging.WaterLevels, ground);
+        int foodLevel = Foraging.LevelOf(Foraging.FoodLevels, ground);
+
+        int water = Foraging.Found(waterLevel, bonus, dice) ? Foraging.Amount(waterLevel, dice) : 0;
+        int food = Foraging.Found(foodLevel, bonus, dice) ? Foraging.Amount(foodLevel, dice) : 0;
+
+        var (gotWater, gotFood) = Foraging.Stow(
+            water, food,
+            player.SupplyOf(SupplyKind.Water), player.SupplyOf(SupplyKind.Food),
+            Math.Max(0, player.Capacity - player.LoadedBarrels),        // 0x00474490
+            Math.Max(0, player.Tonnage - player.LoadedWeight));         // 0x004743D0
+
+        player.AddSupply(SupplyKind.Food, gotFood);                     // 0x00474160
+        player.AddSupply(SupplyKind.Water, gotWater);                   // 0x004740C0
+
+        // 식량 줄과 물 줄을 한 말로 잇는다(0x0048E018 · 0x0048E054).
+        string said = (gotFood > 0 ? $"식량을 {gotFood}통 발견했습니다!" : "식량을 발견할 수 없었습니다!")
+                      + "\n"
+                      + (gotWater > 0 ? $"물을 {gotWater}통 발견했습니다!" : "물을 발견할 수 없었습니다!");
+
+        bool empty = gotFood == 0 && gotWater == 0;
+        player.Tire(empty ? Foraging.EmptyFatigue : Foraging.TiredFatigue);
+        player.Cheer(empty ? -Foraging.EmptyMorale : -Foraging.TiredMorale);
+
+        var mate = MateFace();
+        TalkDialog.Say(this, mate, "", said);
+        TalkDialog.Say(this, mate, "",
+                       empty ? "선원들이 불평을 하고 있습니다!" : "다들 조금씩 지친 것 같습니다!");
     }
 
     private void CheckLandEvent()
