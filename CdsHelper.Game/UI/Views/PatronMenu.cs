@@ -1396,6 +1396,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         _cityMenu.Close();
 
+        // 문간에서 집사가 먼저 맞는다(0x0044F2E0) — <b>기한을 지켰는지</b>와 <b>계약한 사람이
+        // 아직 그 자리에 앉아 있는지</b>로 네 갈래다(0x0054B520 · 0x0054B558 · 0x0054B5A0 ·
+        // 0x0054B618). 뒤에 이어지는 「…이 왔습니다」는 집사가 주인에게 아뢰는 딴 말이다.
+        GreetAtDoor(patron, contract, overdue);
+
         // 집사가 먼저 알린다. 기한을 넘겼으면 말이 달라진다.
         string me = _player.Name;
         // 계약을 맺은 사람이 은퇴하고 뒷사람이 앉았으면 집사가 <b>선대의 계약</b>이라 이른다
@@ -1477,6 +1482,51 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.EndContract();
         GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 물었다.");
         RecontractMates();
+    }
+
+    /// <summary>
+    /// 계약을 그만두러 왔을 때 문간에서 집사가 맞는 말(<c>0x0044F2E0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   기한 안 · 그 사람   0x0054B520  "%s님. %s에게 용건이 있으시면, 안내하겠습니다만...."
+    ///   기한 넘음 · 그 사람 0x0054B558  "너는 %s... 용케도 얼굴을 내밀었군. 그 배짱을 보아…"
+    ///   기한 안 · 뒷사람    0x0054B5A0  "%s님. 잘 맞춰 오셨습니다. 몇일전에 …새로운 주인이…"
+    ///   기한 넘음 · 뒷사람  0x0054B618  "너는 %s... 용케도 얼굴을 내밀었군. 가르쳐 주겠지만…"
+    /// </code>
+    /// 갈래를 가르는 것은 <c>0x0044F7B0</c> 이 넘기는 「기한이 남았나」와
+    /// <c>0x0044E590</c> 의 「계약한 사람이 그 자리인가」다.
+    /// </remarks>
+    private void GreetAtDoor(Patron patron, Contract contract, bool overdue)
+    {
+        var sponsor = _game.Sponsors?.FindByName(patron.Name);
+        string shown = sponsor?.Name ?? patron.Name;
+        string sir = sponsor?.Honorific ?? "각하";
+        string me = _player.Name;
+
+        var old = _game.Sponsors?.FindByName(contract.Sponsor);
+        string oldName = $"{old?.Name ?? contract.Sponsor} {old?.Honorific ?? "각하"}";
+        string now = $"{shown} {sir}";
+        bool handed = contract.Sponsor != patron.Name;
+
+        void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
+
+        if (!handed)
+        {
+            Steward(overdue
+                ? $"너는 {me}... 용케도 얼굴을 내밀었군. 그 배짱을 보아 {now}"
+                  + $"{GameUi.Josa(sir, "을", "를")} 만나게 해 주지."
+                : $"{me}님. {sir}에게 용건이 있으시면, 안내하겠습니다만....");
+            return;
+        }
+
+        Steward(overdue
+            ? $"너는 {me}... 용케도 얼굴을 내밀었군. 가르쳐 주겠지만 {oldName}"
+              + $"{GameUi.Josa(oldName, "이", "가")} 은퇴해 지금은 {now}"
+              + $"{GameUi.Josa(now, "이", "가")} 새로운 주인이 되었다. 일단 안내하겠네."
+            : $"{me}님. 잘 맞춰 오셨습니다. 몇일전에 {oldName}"
+              + $"{GameUi.Josa(oldName, "이", "가")} 은퇴하여 지금은 {now}"
+              + $"{GameUi.Josa(now, "이", "가")} 새로운 주인이 되었습니다. 오늘은 무슨 용건이십니까?");
     }
 
     /// <summary>
