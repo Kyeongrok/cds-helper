@@ -471,12 +471,15 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         while (true)
         {
             switch (TalkDialog.Ask(_view, face, "", words,
-                                   "이야기한다", "설득한다", "떠난다"))
+                                   "이야기한다", "선물을 보낸다", "설득한다", "떠난다"))
             {
                 case 0: Chat(her, destined); break;
 
+                // 선물은 몇 번이고 낼 수 있다 — 낸 만큼 친밀도가 오른다(0x00466A80).
+                case 1: Gift(her, face); break;
+
                 // 설득은 한 번뿐이다 — 되든 안 되든 그 자리에서 술집을 나온다.
-                case 1: Woo(her, face); _leave?.Invoke(); return;
+                case 2: Woo(her, face); _leave?.Invoke(); return;
 
                 default: return;
             }
@@ -484,6 +487,38 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             // 되풀이하지 않는다. 빈 글이면 대사 창을 건너뛴다(TalkDialog.Ask).
             words = "";
         }
+    }
+
+    /// <summary>
+    /// 「선물을 보낸다」(<c>0x00466A80</c>) — 소지품에서 선물 갈래(<see cref="Barmaids.GiftCategory"/>)만 골라 낸다.
+    /// </summary>
+    /// <remarks>
+    /// 낼 것이 없으면 <b>아무 말 없이</b> 차림표로 돌아간다 — 게임도 목록이 비면 창을 안 띄운다.
+    /// 고르면 그 물건이 소지품에서 빠지고 친밀도가 <c>친밀도 x (값/200) / 100</c> 만큼 오른 뒤,
+    /// 오른 자리에 맞는 말이 나온다(<c>0x00466B70</c>).
+    /// </remarks>
+    private void Gift(in BarmaidTable.Barmaid her, uint[]? face)
+    {
+        if (_game.Items is not { } table) return;
+
+        var slots = new List<int>();
+        var names = new List<string>();
+        foreach (int id in _player.Items)
+        {
+            if (table.Find(id) is not { } item || item.Category != Barmaids.GiftCategory) continue;
+            slots.Add(id);
+            names.Add(item.Name);
+        }
+        if (slots.Count == 0) return;
+
+        NoticeDialog.Show(_view, "무엇을 보내시겠습니까?");
+        int at = ChoiceDialog.Ask(_view, "선물 선택", names);
+        if (at < 0 || at >= slots.Count) return;
+
+        int price = table.Find(slots[at])?.BuyList ?? 0;
+        _player.Drop(slots[at]);
+        _player.AddLiking(her.Id, Barmaids.GiftGain(_player.LikingOf(her.Id), price));
+        TalkDialog.Say(_view, face, "", Barmaids.GiftWord(_player.LikingOf(her.Id)));
     }
 
     /// <summary>잡담. 게임 표(<c>0x0055B0C0</c> 벌)에서 한 줄을 집는다.</summary>

@@ -39,13 +39,18 @@ public static class Barmaids
     /// </remarks>
     public static int ChatLike(bool destined) => destined ? 4 : 2;
 
-    /// <summary>선물 한 번에 오르는 폭. 값이 비쌀수록 많이 오른다.</summary>
+    /// <summary>선물로 낼 수 있는 아이템의 분류(<c>0x004B0A4D</c> 이 아이템 표 <c>+0x14</c> 를 1 과 견준다).</summary>
+    public const int GiftCategory = 1;
+
+    /// <summary>
+    /// 선물 한 번에 오르는 친밀도(<c>0x00466B0B</c>) — <c>지금 친밀도 x (값 / 200) / 100</c> 이다.
+    /// </summary>
     /// <remarks>
-    /// 게임은 물건 값을 그대로 먹이는 자리가 있는데(<c>0x00466B33</c> 의 나눗셈) 나누는
-    /// 수를 아직 못 짚었다. <b>천 닢에 한 칸</b>으로 두되 적어도 하나는 오르게 한다 —
-    /// 우리가 정한 값이다.
+    /// <b>지금 친밀도에 비례한다</b> — 낯을 튼 지 얼마 안 되면(친밀도 3) 아무리 비싼 것을 줘도 한 칸 남짓이고,
+    /// 절반쯤 든 사이(50)에 이만 닢짜리를 주면 한 번에 오십이 오른다. 나눗셈이 둘 다 버림이라
+    /// 이천 닢 밑짜리는 아무 값도 안 올린다.
     /// </remarks>
-    public static int GiftLike(int price) => Math.Clamp(price / 1000, 1, 20);
+    public static int GiftGain(int liking, int price) => liking * (price / 200) / 100;
 
     /// <summary>선물 반응이 갈리는 자리(<c>0x00466B70</c>).</summary>
     public static readonly int[] GiftSteps = [30, 50, 70, 90];
