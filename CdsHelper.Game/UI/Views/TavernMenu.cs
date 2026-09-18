@@ -1329,6 +1329,41 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         "기억해 두어라, 비겁한 녀석!",
     ];
 
+    /// <summary>
+    /// 이긴 상대의 <b>무기와 방어구를 뺏는다</b>(<c>0x004AA4B3</c>).
+    /// </summary>
+    /// <remarks>
+    /// 무엇을 지녔는지는 <see cref="Engine.Town.Duel.GearOf"/> 가 정한다 — 인물 표에 적혀 있는
+    /// 것이 아니라 복장 갈래와 무력으로 그 자리에서 굴린다. 소지품 칸이 다 차면 못 받는다.
+    /// <code>
+    ///   0x00534A48  "상대는 %s%s %s%s 장비하고 있다"   ; 방어구가 있을 때
+    ///   0x00534A70  "상대는 %s%s 장비하고 있다"        ; 무기뿐일 때
+    /// </code>
+    /// </remarks>
+    private void Loot(in TavernRoster.Person who, GameRandom dice)
+    {
+        var (weapon, armor) = Engine.Town.Duel.GearOf(
+            FighterSprites.SetForCulture(_cultureNo), who.Might, dice);
+        string Name(int id) => _game.Items?.Find(id)?.Name ?? "";
+
+        string w = Name(weapon), a = Name(armor);
+        if (w.Length == 0) return;
+
+        NoticeDialog.Show(_view, a.Length > 0
+            ? $"상대는 {w}{NameToken.Of(w, 3)} {a}{NameToken.Of(a, 2)} 장비하고 있다"
+            : $"상대는 {w}{NameToken.Of(w, 2)} 장비하고 있다", "일기토");
+
+        foreach (int id in a.Length > 0 ? new[] { weapon, armor } : [weapon])
+        {
+            if (_player.IsBagFull)
+            {
+                NoticeDialog.Show(_view, "더 이상 가질 수 없습니다! 소지품을 삭제해 주십시오", "일기토");
+                return;
+            }
+            _player.Take(id);
+        }
+    }
+
     /// <summary>내 몫 — 능력치와 검술, 그리고 지닌 무기·방어구 가운데 가장 센 것.</summary>
     private Engine.Town.Duel.Fighter Mine() =>
         new(_player.Name.Length > 0 ? _player.Name : "제독",
