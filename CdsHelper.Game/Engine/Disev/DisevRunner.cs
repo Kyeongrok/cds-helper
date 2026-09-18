@@ -522,6 +522,12 @@ public sealed class DisevRunner
                 return null;
             }
 
+            // 32 [값 식] — <b>그만큼 날을 보낸다</b>. 하루에 피로 −1 · 사기 +3 이 함께 먹는다
+            // (마을에서 날을 넘길 때와 같은 셈).
+            case DisevCall.AdvanceDays:
+                if (ValueOf(args["Days"] as JsonObject) is { } days) _game.Player.AdvanceDays((int)days);
+                return null;
+
             case DisevCall.AddStat:
                 if (ValueOf(args["Value"] as JsonObject) is { } plus) Adjust(I("Stat"), +(int)plus);
                 return null;
