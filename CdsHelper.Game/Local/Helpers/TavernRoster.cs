@@ -31,7 +31,9 @@ public sealed class TavernRoster
     public readonly record struct Person(int Index, string Name, int Fame, int Age,
                                          byte Hire, int FaceCode, int City, byte Building,
                                          byte Body, byte Mind, byte Might, byte Charm, byte Luck,
-                                         byte Sword, byte Shooting = 0, byte Gunnery = 0)
+                                         byte Sword, byte Shooting = 0, byte Gunnery = 0,
+                                         byte Sailing = 0, byte Handling = 0,
+                                         byte Medicine = 0, byte Science = 0)
     {
         /// <summary>
         /// 술집 이름표에 적는 짧은 이름 — 이름 칸(<c>+0x32</c>)만 쓴다.
@@ -99,7 +101,11 @@ public sealed class TavernRoster
                 Stat(r, 0), Stat(r, 1), Stat(r, 2), Stat(r, 3), Stat(r, 4),
                 Level(r, Support.Local.Models.Skill.Sword),
                 Level(r, Support.Local.Models.Skill.Shooting),
-                Level(r, Support.Local.Models.Skill.Gunnery)));
+                Level(r, Support.Local.Models.Skill.Gunnery),
+                Level(r, Support.Local.Models.Skill.Sailing),
+                Level(r, Support.Local.Models.Skill.Handling),
+                Level(r, Support.Local.Models.Skill.Medicine),
+                Level(r, Support.Local.Models.Skill.Science)));
         }
         return new TavernRoster(people);
     }
