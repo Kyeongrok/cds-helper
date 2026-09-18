@@ -404,6 +404,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
             _skillNote?.Refresh(_player);
         };
 
+        // 도시 그림에 그려진 마을 사람들. <b>건물보다 먼저</b> 깐다 — 자리가 겹치면 건물이 이긴다(0x00491DC0).
+        foreach (var folk in _game.TownFolk?.InCity(cityId) ?? []) AddFolk(folk, scale);
+
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
         bool harborPlaced = false;
         foreach (var building in Standing(cityId))
@@ -411,9 +414,6 @@ public sealed class CityPicView : GameWindow, ITownScreen
             AddSpot(building, scale);
             if (building.Kind == "항구") harborPlaced = true;
         }
-
-        // 도시 그림에 그려진 마을 사람들 — 건물 다음에 걸린다(0x00491DC0).
-        foreach (var folk in _game.TownFolk?.InCity(cityId) ?? []) AddFolk(folk, scale);
 
         // 표에 항구가 없는 도시는 아무 데나 눌러도 항구 명령 창이 열린다(건물 판이 먼저 먹는다).
         if (!harborPlaced)
