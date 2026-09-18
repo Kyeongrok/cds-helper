@@ -1604,7 +1604,13 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 부하들이 순순히 따르지 않으면 배 한 척의 선장이 나서서 겨루자고 한다.
         if (!LentShips.Obeys(_player.AbilityOf(Ability.Charm), _player.Fame, _player.Infamy, dice)
             && !WonLoyaltyDuel(shown, lent[0].Name))
-            return;                                   // 졌다 — 판이 끝났으니 배는 손 안 댄다
+        {
+            // 졌다 — 그 자리에서 판이 끝난다(0x0044AF40(4)). 배는 손대지 않는다.
+            GameOverDialog.Show(_view, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+            if (_view.Owner is ShipMapWindow map)
+                _view.Dispatcher.BeginInvoke(map.ReturnToTitle);
+            return;
+        }
 
         // 함대가 온통 빌린 배면 그래도 한 척은 남는다(0x004104B0).
         bool keep = LentShips.KeepsOne(lent.Count, _player.Ships.Count);
