@@ -597,7 +597,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// 496234  값 = (새 - 지금) x 5 x 5 x 8 = 200 x 늘린 수
     /// 49624a  "금화 %ld닢 받겠네."                        0x00531F28
     /// 49625c  줄일 때는 "뗄 거라면 돈은 필요없네."         0x00531F40
-    /// 4960d4  넘치는 대포는 "가격의 30프로로 사 주겠네."   0x00531F80
+    /// 4960d4  넘치는 대포는 "실을 수 없게 된 대포는…"      0x00531E20
     /// </code>
     /// </remarks>
     private void ChangeTurrets(Ship ship)
@@ -623,10 +623,10 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         int spilled = ship.SetTurrets(want);
         if (spilled > 0 && gun != null)
         {
-            Say("지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
-            int back = gun.Price * spilled * Cannon.BuyBackPercent / 100;
-            _player.Earn(back);
-            Say($"금화 {back}닢을 벌었습니다.");
+            // 포탑을 줄여 <b>못 싣게 된</b> 대포다 — 대포 갈래를 바꿀 때의 말(0x00531F80)과
+            // 다른 글이다(0x004960D4).
+            Say("실을 수 없게 된 대포는 가격의 30프로로 사 주겠네.");
+            _player.Earn(gun.Price * spilled * Cannon.BuyBackPercent / 100);
         }
 
         ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
@@ -697,10 +697,10 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         // 갈래가 갈리면 실려 있던 것은 30프로로 되사 준다.
         if (at != ship.Gun && Cannon.Of(ship.Gun) is { } old && ship.Guns > 0)
         {
+            // 0x0049632E. <b>얼마를 받았는지는 안 알린다</b> — 0x00531E58
+            // 「금화 %ld닢을 벌었습니다.」는 EXE 에 있기만 하고 아무도 안 가리키는 죽은 글이다.
             Say("지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
-            int back = old.Price * ship.Guns * Cannon.BuyBackPercent / 100;
-            _player.Earn(back);
-            Say($"금화 {back}닢을 벌었습니다.");
+            _player.Earn(old.Price * ship.Guns * Cannon.BuyBackPercent / 100);
             ship.Load(at, want);
         }
         else
