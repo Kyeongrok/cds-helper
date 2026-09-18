@@ -1904,6 +1904,15 @@ public sealed class Player
     }
 
     /// <summary>
+    /// 함대에 편입해 둔 빌린 배의 척수(<c>0x0040FB80</c>) — <b>항구에 대 놓은 것은 안 친다</b>.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 함대 자리 여덟을 돌며 배마다 <c>0x0040FBE0</c> 으로 거른다 — 빌려준 사람이
+    /// 지금 그 자리에 앉은 후원자일 때만 센다. 우리는 계약이 하나뿐이라 <c>Lent</c> 만 본다.
+    /// </remarks>
+    public int LentInFleet => _ships.Count(s => s.Lent);
+
+    /// <summary>
     /// 빌린 배를 모두 거둬 간다(<c>0x0040FE40</c>) — 계약이 끝나는 자리마다 돈다.
     /// </summary>
     /// <remarks>

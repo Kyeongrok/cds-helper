@@ -1104,6 +1104,15 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         string Pick3(string plain, string polite, string merchant) =>
             style switch { 1 => polite, 2 => merchant, _ => plain };
 
+        // 보고를 시작하기 <b>앞서</b> 부관이 한 번 막아 선다(0x004124F0). 세 가지가 다 맞을
+        // 때만이다 — 부관이 있고(0x00468EF0), 짐이 실려 있고(0x004B5950), 이 후원자에게
+        // 돌려줄 배가 함대에 있을 때(0x0040FB80)다. 보고가 끝나면 빌린 배를 거둬 가니
+        // 남은 배에 짐이 안 들어갈 수 있다는 말이다. NO 면 보고 자체가 없던 일이 된다.
+        if (_player.MateAt(0).Length > 0 && _player.CargoHold.Count > 0 && _player.LentInFleet > 0
+            && !ConfirmDialog.Ask(_view, "제독, 보고하고 배를 돌려주면 짐이 넘칠지도 모릅니다. 좋습니까?",
+                                  face: _game.AideFace))
+            return;
+
         bool inTime = contract.DaysLeft(_player.Date) > 0;
         bool world = rows.Any(r => r.Id == Palace.WorldRoute);
 
