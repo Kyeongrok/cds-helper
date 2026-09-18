@@ -47,6 +47,78 @@ public static class Home
     /// <summary>후손을 보려면 컨디션이 이만큼은 있어야 한다(<c>0x0046139E</c> 의 <c>cmp 0x64</c>).</summary>
     public const int HeirCondition = 100;
 
+    /// <summary>
+    /// 자택에 들어서면 <b>아내</b>가 맞는 말(<c>0x004144C0</c>) — 여덟 가운데 하나를 굴린다.
+    /// </summary>
+    /// <remarks><c>0x0055E5F8</c> ~ <c>0x0055E720</c>. 아내가 없으면 아무 말도 없다.</remarks>
+    public static readonly string[] WifeWelcome =
+    [
+        "수고했어요. 다친 데는 없는 것 같아 안심했어요.",
+        "어디까지 갔었어요. 걱정했었어요.",
+        "모험은 어땠어요? 이번에는 오래 있을 수 있지요.",
+        "어서 오세요. 오늘 돌아오는 날이었어요?",
+        "끼얏, 놀랬어요. 도둑이 들어왔나 했어요.",
+        "어서 오세요, 당신!",
+        "어서 오세요. 슬슬 돌아올 때라고 생각하고 있었어요.",
+        "어서 오세요. 목욕, 식사? 아니면 저요?",
+    ];
+
+    /// <summary>
+    /// 자택에 들어서면 <b>아이</b>가 맞는 말(<c>0x00414550</c>) — 아들·딸과 <b>열 살</b>로 넷이 갈린다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   아들 ~9세  0x0055E748 (다섯)     아들 10세~ 0x0055E830 (다섯)
+    ///   딸   ~9세  0x0055E958 (다섯)     딸   10세~ 0x0055EA60 (넷)
+    /// </code>
+    /// 태어나기 전이면 아무 말도 없다.
+    /// </remarks>
+    public static string WelcomeOf(bool daughter, int age, Random random)
+    {
+        var set = daughter
+            ? age < GrownChildAge ? YoungGirl : GrownGirl
+            : age < GrownChildAge ? YoungBoy : GrownBoy;
+        return set[random.Next(set.Length)];
+    }
+
+    /// <summary>아이 말이 갈리는 나이(<c>0x00414571</c> 의 <c>cmp 0xA</c>).</summary>
+    public const int GrownChildAge = 10;
+
+    private static readonly string[] YoungBoy =
+    [
+        "앗, 아버지 돌아오셨어요! 나, 많이 컸죠.",
+        "가끔은 나와 놀아 주세요~. 항상 집에 없어.",
+        "아버지 도와 주세요. 오줌 싸서 엄마가 화내고 있어요.",
+        "어서 오세요. 아버지! 나도 크면 아버지 배에 탈거야.",
+        "어서 오세요. 응, 선물은?",
+    ];
+
+    private static readonly string[] GrownBoy =
+    [
+        "어서 오세요. 모험 그렇게 재미있어요? 가끔은 집에 돌아 오세요.",
+        "돌아오셨어요? 빨리 모험 이야기 해 주세요.",
+        "아버지 기다렸어요? 얼마 전 싸움에 지고 말았어요. 저에게도 검술을 가르쳐 주세요!",
+        "돌아오셨어요? 아버지. 팔씨름 한판 할까요. 이번에는 자신 있어요.",
+        "돌아오셨어요? 그런데 용돈이 필요해요.",
+    ];
+
+    private static readonly string[] YoungGirl =
+    [
+        "돌아오셨어요? 아버지. 함께 목욕해요.",
+        "요리 배웠어요! 먹어 주실거죠.",
+        "이번에 놀러 데리고 가 주세요. 가끔은 괜찮죠.",
+        "돌아오셨어요? 이번에 아버지 배에 태워 주세요!",
+        "돌아오셨어요? 있잖아요, 아버지는 어머니 어떻게 알게 되셨어요? 어머니는 전혀 가르쳐 주지 않아요.",
+    ];
+
+    private static readonly string[] GrownGirl =
+    [
+        "아버지, 돌아오셨어요? 이번에는 오래 머무르실 거죠.",
+        "돌아오셨어요? 가끔은 집에 있어 주세요. 집안일도 생각해 주셔야죠.",
+        "돌아오셨어요? 오늘은 제가 요리했어요! 먹어 주실거죠? 둘이 먹다 하나가 죽어도 모른다니까요.",
+        "돌아오셨어요? 그런데 저 예뻐졌어요?",
+    ];
+
     /// <summary>컨디션이 모자랄 때 아내가 하는 말(<c>0x00539A70</c>).</summary>
     public const string HeirTired = "안색이 안 좋은데요. 너무 무리하지 마세요.";
 
