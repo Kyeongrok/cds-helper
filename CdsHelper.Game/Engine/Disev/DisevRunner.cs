@@ -654,6 +654,18 @@ public sealed class DisevRunner
                 return null;
             }
 
+            // 26 0F [벌] — 이어 붙는 일기토의 <b>벌 번호</b>를 적어 둔다(무대·몸짓 그림).
+            case DisevCall.SetDuelSet:
+                _duelSet = I("Set");
+                return null;
+
+            // 0C 0D [인물] — 그 인물과 <b>일기토</b>. 이기면 결과 참이다.
+            case DisevCall.Duel:
+            {
+                _result = DuelWith(I("Person"));
+                return null;
+            }
+
             // 0D 0D [인물] — 그 인물(괴물)과 해전. 지도 창에서만 연다 — 판을 열 손이 거기 있다.
             case DisevCall.SeaBattle:
             {
@@ -899,6 +911,45 @@ public sealed class DisevRunner
     /// 파르테논 신전(파트 23)은 26 1C 02 = 70, 26 1C 10 = 100~139, 적 대장 206 이다.
     /// <b>지형</b>은 우리가 배 자리 부류를 안 들고 있어 도시 안이면 도시, 아니면 숲으로 둔다.
     /// </remarks>
+    /// <summary>이어 붙는 일기토의 벌(<c>26 0F</c>). 안 정했으면 1 이다.</summary>
+    private int _duelSet = 1;
+
+    /// <summary>
+    /// 대본이 거는 일기토(<c>0C 0D</c>) — 이기면 참.
+    /// </summary>
+    /// <remarks>
+    /// 상대 능력치는 인물 표의 것을 그대로 쓴다(체력 0 · 무력 2 · 운 4, 검술은 기능 표).
+    /// 무기·방어구는 인물 표에 칸이 없어 0 으로 둔다. 몸짓 그림 벌은 바로 앞의
+    /// <c>26 0F</c> 가 정한다(<see cref="_duelSet"/>).
+    /// </remarks>
+    private bool DuelWith(int person)
+    {
+        var me = _game.Player;
+        var mine = new Town.Duel.Fighter(me.Name.Length > 0 ? me.Name : "제독",
+            me.AbilityOf(Support.Local.Models.Ability.Body), me.AbilityOf(Support.Local.Models.Ability.Might),
+            me.LevelOf(Support.Local.Models.Skill.Names[Support.Local.Models.Skill.Sword]), me.AbilityOf(Support.Local.Models.Ability.Luck), 0, 0);
+
+        var foe = new Town.Duel.Fighter("상대", 80, 80, 2, 50, 0, 0);
+        uint[]? face = null;
+        if (PersonTable.Open()?.Find(person) is { } row && row.Stats.Length >= 5)
+        {
+            int sword = row.Skills.Length > Support.Local.Models.Skill.Sword ? row.Skills[Support.Local.Models.Skill.Sword] : 0;
+            foe = new Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+            face = _game.PersonTemplates?.Find(person) is { } t
+                ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
+        }
+
+        var duel = new Town.Duel(mine, foe, me.Items.Contains(Town.Duel.EdithShieldId),
+                                 Environment.TickCount);
+        bool won = UI.Views.DuelDialog.Show(_owner, duel, _dice, face, _game.Fighters,
+            foeSet: Math.Max(0, _duelSet),
+            myFace: _game.Faces?.TryGetBgra(
+                Local.Helpers.PortraitAges.At(me.Face, me.Age, false, _game.Faces), female: false),
+            bgm: _game.Bgm);
+        me.Hurt(duel.BodyLost);
+        return won;
+    }
+
     private LandBattle LeaderBattle(int person)
     {
         var player = _game.Player;
