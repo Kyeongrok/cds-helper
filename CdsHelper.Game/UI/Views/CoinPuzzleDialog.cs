@@ -666,20 +666,34 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// 가려냈는지. 발견 대본 <c>0E 14|1A … 04 04 00</c> 은 <c>0x004531F0(1)</c> 이 1 을 돌려줄 때만
     /// 이긴 것으로 친다(<c>0x00408E44</c>).
     /// </returns>
-    public static bool Play(Window owner, Random rng)
+    /// <param name="player">삯을 받을 제독. 없으면 금화만 안 준다.</param>
+    public static bool Play(Window owner, Random rng,
+                            Support.Local.Models.Player? player = null)
     {
         var dialog = new CoinPuzzleDialog(rng) { Owner = owner };
         dialog.ShowDialog();
 
         bool won = dialog._game.Won == true;
         if (won)
+        {
             NoticeDialog.Show(owner,
                 "무게가 다른 금화를 잘 가려낸 것 같다. 천칭은 평형을 이루고" +
                 Environment.NewLine + "보물 상자를 무사히 가질 수 있었다.", "게임 클리어");
+
+            // 삯은 <b>첫 판에 맞혔을 때만</b> 나온다(0x00450C4C 가 +0x150 을 본다).
+            if (!dialog._game.Missed)
+            {
+                player?.Earn(CoinPuzzle.Prize);
+                NoticeDialog.Show(owner, $" 금화 {CoinPuzzle.Prize}닢을 손에 넣었다!", "게임 클리어");
+            }
+        }
         else
+        {
             NoticeDialog.Show(owner,
-                "가려야 할 금화를 잘못 고른 것 같다. 천칭은 기울어지고 말았다.",
+                " 금화를 잘못 가려낸 것 같다. 천칭은 기울어지고 말았다. " +
+                Environment.NewLine + "순식간에 장치가 작동되어 방이 무너져 간다.",
                 "클리어 실패");
+        }
         return won;
     }
 }

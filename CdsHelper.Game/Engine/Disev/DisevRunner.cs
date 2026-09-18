@@ -675,7 +675,7 @@ public sealed class DisevRunner
                 switch ((DisevMinigame)I("Game"))
                 {
                     case DisevMinigame.Coin:
-                        _result = CoinPuzzleDialog.Play(_owner, _game.Random);
+                        _result = CoinPuzzleDialog.Play(_owner, _game.Random, _game.Player);
                         break;
                     case DisevMinigame.Tower:
                         _result = TowerPuzzleDialog.Play(_owner, _game.Random, I("Discs"));
