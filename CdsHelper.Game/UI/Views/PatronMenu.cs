@@ -369,7 +369,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.SpendPurse(patron.Name, -(funds / 2), patron.Wealth);
 
         // 맺고 나면 배 → 감찰관 → 배웅 차례다(게임 0x004AF2A3 · 0x004AF2B7 · 0x004AF3A4).
-        LendShips(funds, Say);
+        LendShips(funds, Say, Pick3);
         SendInspector(inspector, me, Say);
 
         // 배웅도 신분마다 세 벌이다(0x00546D28 "그러면, %s, 기대하고 있겠네." 따위).
@@ -427,19 +427,27 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 계약이 끝나면 <see cref="ReturnLentShips"/> 가 거둬 간다(<c>0x0040FE40</c>) — 다만
     /// 후원자 나라가 멸망해 바다에서 계약이 깨질 때는 아직 안 거둔다(그 자리는 도시 밖이다).
     /// </remarks>
-    private void LendShips(int funds, Action<string> Say)
+    private void LendShips(int funds, Action<string> Say, Func<string, string, string, string> Pick3)
     {
         int ships = Math.Min(funds / GoldPerShip + 1, Player.MaxShips - _player.Ships.Count);
         if (ships <= 0)
         {
-            Say("흐음, 빌려주고 싶은 마음은 굴뚝같지만 배가 전부 나가고 없네. 다시 오게.");
+            // 0x0055C718 · 0x0055C760 · 0x0055C7A8
+            Say(Pick3("흐음, 빌려주고 싶은 마음은 굴뚝같지만 배가 전부 나가고 없네. 다시 오게.",
+                      "안됐지만, 준비할 수 있는 배가 없습니다. 자신의 힘으로 해결해 주십시오.",
+                      "흐~음, 때가 나쁘군. 지금은 가지고 있는 배가 없네. 다시 오게."));
             return;
         }
 
         // <b>후원자가 먼저 내주겠다고 말한 뒤에</b> 빌릴지 묻는다 — 물음창이 먼저 뜨면
         // 무엇을 빌리는지 모른 채 고르게 된다. 게임 차례가 그렇다.
-        Say($"모험의 도움을 위해서 배 {ships}척을 항구에 준비시켜 놓겠네. "
-          + "마음대로 사용해도 상관없네.");
+        // 계약을 맺으며 내주는 벌이다(0x004106ED) — 계약 뒤에 따로 조를 때는 딴 말을 한다
+        // (0x004106A4 「좋다. 배를 %d척…」 · 0x004106C7 「뭐라고? 또 배를 빌려 달라고…」).
+        // 우리는 계약 자리에서만 빌려주므로 첫 벌만 쓴다.
+        Say(string.Format(Pick3(
+            "그리고, 배를 {0}척 항구에 준비시켜 놓겠네. 충분히 사용하게나.",
+            "예예, 항구에 배를 {0}척 준비시켜 놓겠습니다. 모험에 도움이 될 것입니다.",
+            "모험의 도움을 위해서 배 {0}척을 항구에 준비시켜 놓겠네. 마음대로 사용해도 상관없네."), ships));
 
         // <b>내 배</b>가 한 척이라도 있으면 빌릴지 묻는다. 한 척도 없으면 묻지 않고 그냥 준다
         // (0x00410718 이 0x00410800 으로 가려, 0 이면 물음창을 건너뛴다). 그 셈(0x0040E210 · 0x0040E320)은
@@ -447,7 +455,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if ((_player.Ships.Any(s => !s.Lent) || _player.DockedAt(_cityId).Any(s => !s.Lent))
             && !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?"))
         {
-            Say("그런가. 그렇다면, 좋을 대로 하게.");
+            // 0x0055C6C0 · 0x0055C6E8 · 0x0055C708
+            Say(Pick3("그런가. 그렇다면, 좋을 대로 하게.",
+                      "그렇습니까. 좋을 대로 하십시오.",
+                      "그래, 괜찮겠나."));
             return;
         }
 
