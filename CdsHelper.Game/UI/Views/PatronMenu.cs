@@ -400,7 +400,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         // 맺고 나면 배 → 감찰관 → 배웅 차례다(게임 0x004AF2A3 · 0x004AF2B7 · 0x004AF3A4).
         LendShips(funds, Say, Pick3);
-        SendInspector(inspector, me, Say);
+        SendInspector(inspector, me, Say, Pick3);
 
         // 배웅도 신분마다 세 벌이다(0x00546D28 "그러면, %s, 기대하고 있겠네." 따위).
         // 화면에서 본 셋째 벌(0x00546DA8)을 쓴다.
@@ -416,12 +416,14 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///   546CE0  "감찰관으로서 %s%s 따라가 주게. %s, 부탁하네."   후원자 얼굴
     ///   546D10  "하앗, 알겠습니다."                              감찰관 얼굴(232)
     /// </code>
-    /// 앞의 것은 신분마다 세 벌인데(<c>0x00546C80</c>·<c>0x00546CB0</c>·<c>0x00546CE0</c>)
-    /// 화면에서 본 셋째 벌만 쓴다 — 이 글의 다른 대사와 같은 다룸이다.
+    /// 앞의 것은 말투마다 세 벌이다(<c>0x00546C80</c>·<c>0x00546CB0</c>·<c>0x00546CE0</c>).
     /// </remarks>
-    private void SendInspector(string inspector, string me, Action<string> Say)
+    private void SendInspector(string inspector, string me, Action<string> Say,
+                               Func<string, string, string, string> Pick3)
     {
-        Say($"감찰관으로서 {me}{Particle(me)} 따라가 주게. {inspector}, 부탁하네.");
+        Say(Pick3($"{inspector}, 감찰관으로서 여기 있는 {me}{Particle(me)} 따라가게.",
+                  $"{inspector}, 자네를 거기 있는 {me}의 감찰관에 임명하겠다.",
+                  $"감찰관으로서 {me}{Particle(me)} 따라가 주게. {inspector}, 부탁하네."));
 
         var face = _game.Faces?.TryGetBgra(Inspector.Face, female: false);
         TalkDialog.Say(_view, face, "", "하앗, 알겠습니다.");
