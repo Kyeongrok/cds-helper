@@ -48,6 +48,24 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         "헤에, 너무 마셨나. 거기 자네, 좀더 마시고 싶으니 같이 마십시다.",
     ];
 
+    /// <summary>
+    /// 인사 대신 <b>포카를 걸어 오는</b> 말 셋. 같은 표(<c>0x005473D8</c>)의 뒤쪽이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 굴림 하나로 인사와 이 권유를 함께 뽑는다(<c>0x0042E997</c>) — 포카를 할 수
+    /// 있는 마을이면 <c>rand(8)</c> 로 굴려 <b>5~7 이 이 셋</b>이고, 아니면 <c>rand(5)</c>
+    /// 라 영영 안 나온다. 그래서 <b>여덟 번에 세 번</b>이 권유다.
+    /// </remarks>
+    private static readonly string[] PokerCalls =
+    [
+        "오우, 자네 꽤 운이 있을 것 같은데, 어때, 포카로 내기하지 않겠나?",
+        "여, 포카로 나와 내기하세. 도저히 따분해서 말이지.",
+        "거기, 이쪽으로 오게 포카나 하세.",
+    ];
+
+    /// <summary>권유를 마다했을 때(<c>0x0054A438</c>).</summary>
+    private const string PokerTurnedDown = "쳇, 재미없군.";
+
     private readonly Window _view = view;
     private readonly Engine.Game _game = game;
     private readonly int _cityId = cityId;
@@ -101,7 +119,19 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         // 자리에서 얼굴을 못 구하면 그 마을 술집 화자로 물러선다 — 게임은 늘
         // 얼굴을 걸고 말하므로 얼굴 없는 창이 뜨는 것이 더 어긋난다.
         var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
-        ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)], face: face);
+
+        // 포카를 할 수 있는 마을이면 굴림이 여덟이고, 5~7 이면 인사 대신 판을 걸어 온다
+        // (0x0042E9AE). 물음 창에서 「예」면 곧바로 포카다(0x0042EA02).
+        bool poker = Engine.Town.Poker.CanPlayIn(_cultureNo);
+        int at = _game.Random.Next(poker ? Greetings.Length + PokerCalls.Length : Greetings.Length);
+        if (at >= Greetings.Length)
+        {
+            if (ConfirmDialog.Ask(_view, PokerCalls[at - Greetings.Length], face: face)) PlayPoker();
+            else ConfirmDialog.Tell(_view, PokerTurnedDown, face: face);
+            return;
+        }
+
+        ConfirmDialog.Tell(_view, Greetings[at], face: face);
     }
 
     /// <summary>
