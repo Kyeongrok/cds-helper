@@ -3792,7 +3792,7 @@ public sealed class ShipMapWindow : Window
             var face = MateFace();
             var lines = LandEvents.MeteorLines;
             ConfirmDialog.Tell(this, lines[0], face: face);
-            PlayEventScene(EventAnimation.Meteor);     // 0x00427D59 — 아직 안 그리는 장면이라 조용히 넘어간다
+            PlayEventScene(EventAnimation.Meteor);     // 0x00427D59 — EVANIME 파트 19
             ConfirmDialog.Tell(this, lines[1], face: face);
             ConfirmDialog.Tell(this, lines[2], face: face);
         }
