@@ -2369,6 +2369,10 @@ public sealed class ShipMapWindow : Window
             if (_game.Player.Ships.Count > 1)
                 items.Add(("대열", () => { Close(); FormationDialog.Show(this, _game.Player); }));
         }
+        // 「도시좌표」는 측량을 아는 사람이 있어야 뜬다(0x0048B469) — 제독이거나 측량사 자리 부하다.
+        if (SurveyLevel() >= 1)
+            items.Add(("도시좌표", () => { Close(); ShowCityCoordinates(); }));
+
         items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
         // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는
         // 방위를 바로 아는 편이 낫다 — 그래서 켜고 끌 수 있게 여기에 둔다.
@@ -2505,11 +2509,18 @@ public sealed class ShipMapWindow : Window
     /// 지도에 쓰는 측량술 — <c>0x0047CCA0(제독, 기능 7, 2, -1, -1, -1)</c> 의 <c>+0x5C</c>.
     /// </summary>
     /// <remarks>
-    /// 게임은 제독과 <b>역할 2 부하</b>(<c>0x0047CC60(2, 0)</c>) 가운데 높은 쪽을 쓴다. 우리 부하
-    /// 자료(<see cref="Player.MateInfo"/>)는 기능을 안 들어서 도시 알아보기(<see cref="SpotCities"/>)
-    /// 처럼 <b>제독의 측량술</b>만 본다.
+    /// 게임은 제독과 <b>측량사 자리 부하</b>(부하 자리 2, <c>0x0047CCA0(7, 2, …)</c>) 가운데 높은 쪽을 쓴다.
+    /// 부하 기능은 인물 표(<see cref="PersonTable"/>)에서 본다 — 부하 자료 쪽에는 기능이 없다.
     /// </remarks>
-    private int SurveyLevel() => _game.Player.LevelOf(Skill.Names[Skill.Survey]);
+    private int SurveyLevel()
+    {
+        int best = _game.Player.LevelOf(Skill.Names[CityCoordinates.SurveySkill]);
+        string mate = _game.Player.MateAt(CityCoordinates.SurveyorSlot);
+        if (mate.Length > 0 && _game.World?.People.FirstOrDefault(r => r.Name == mate) is { } row
+            && CityCoordinates.SurveySkill < row.Skills.Length)
+            best = Math.Max(best, row.Skills[CityCoordinates.SurveySkill]);
+        return best;
+    }
 
     /// <summary>함대정보 판의 함대좌표 줄. 게임 말투 그대로 "북위 38도 서경 9도" 다.</summary>
     private string CoordLine()
@@ -4654,6 +4665,79 @@ public sealed class ShipMapWindow : Window
     /// </summary>
     private void ShowLogbook() =>
         ChronicleDialog.ShowLogbook(this, _game.Player, _game.Discoveries?.Table);
+
+    /// <summary>
+    /// 「도시좌표」(<c>0x004269F0</c>) — 가 본 도시를 골라 위도·경도를 듣는다.
+    /// </summary>
+    /// <remarks>
+    /// 가 본 곳이 열여섯 곳이 넘으면 문화권부터 고르고(맨 끝에 「전도시 일람」), 그 밑이면 바로 도시 목록이다.
+    /// 측량사 자리에 사람이 있으면 <b>그 사람이 말하고</b>, 없으면 얼굴 없는 알림이다(<c>0x00426C6E</c>).
+    /// </remarks>
+    private void ShowCityCoordinates()
+    {
+        var player = _game.Player;
+        var rows = _game.CityRows;
+        var seen = new List<int>();
+        for (int city = 0; city < CityExeTable.Count; city++)
+            if (player.Knows(city) && CityCoordinates.Of(rows, city) != null) seen.Add(city);
+
+        if (seen.Count == 0)
+        {
+            NoticeDialog.Show(this, "아직 가 본 도시가 없습니다");
+            return;
+        }
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            bool guided = false;
+            while (true)
+            {
+                var list = seen;
+                if (seen.Count >= CityCoordinates.AskRegionFrom)
+                {
+                    if (!guided) { guided = true; NoticeDialog.Show(this, CityCoordinates.Guide); }
+
+                    var regions = seen.Select(c => rows?.CultureOf(c) ?? -1)
+                                      .Where(r => r >= 0 && r < CityCoordinates.Regions.Length)
+                                      .Distinct().Order().ToList();
+                    var names = regions.Select(r => CityCoordinates.Regions[r]).ToList();
+                    names.Add(CityCoordinates.AllCities);
+
+                    int at = ChoiceDialog.Ask(this, "", names);
+                    if (at < 0) return;
+                    if (at < regions.Count)
+                        list = [.. seen.Where(c => rows?.CultureOf(c) == regions[at])];
+                }
+
+                int pick = ChoiceDialog.Ask(this, CityCoordinates.CityListTitle,
+                                            [.. list.Select(_game.CityName)]);
+                if (pick < 0)
+                {
+                    if (seen.Count >= CityCoordinates.AskRegionFrom) continue;    // 도시 목록만 낼 때는 그대로 끝난다
+                    return;
+                }
+
+                int city = list[pick];
+                if (CityCoordinates.Of(rows, city) is not { } spot) continue;
+
+                string name = _game.CityName(city);
+                string mate = player.MateAt(CityCoordinates.SurveyorSlot);
+                if (mate.Length > 0 && player.MateInfoOf(mate) is { } who)
+                    TalkDialog.Say(this, _game.Faces?.TryGetBgra(who.Face, female: false), "",
+                                   $"{name}{NameToken.Of(name, 9)} {spot.Words}");
+                else NoticeDialog.Show(this, $"{name}  {spot.Words}");
+
+                if (seen.Count < CityCoordinates.AskRegionFrom) return;
+            }
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
 
     /// <summary>
     /// 도시 밖에서 하루 — 제독 HP 를 닳리고, 문턱을 막 넘었으면 부관이 말한다(<see cref="Vitality.PassDay"/>).
