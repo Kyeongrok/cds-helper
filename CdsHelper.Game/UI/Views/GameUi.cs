@@ -596,28 +596,13 @@ internal static class GameUi
     /// 때는 <b>가장 긴 글자로 잰 값</b>을 죄다 같이 쓰면 폭이 맞으면서도 헐렁하지 않다.
     /// </remarks>
     /// <summary>
-    /// 점그림을 늘이는 결 — 설정을 그대로 따른다(<see cref="GameSettings.SmoothSprites"/>).
-    /// </summary>
-    public static BitmapScalingMode SpriteScaling =>
-        GameSettings.SmoothSprites ? BitmapScalingMode.Linear : BitmapScalingMode.NearestNeighbor;
-
-    /// <summary>
-    /// 늘이는 결이 바뀌었을 때 울린다 — 이미 지어 둔 화면을 <b>다시 지으라</b>는 뜻이다.
+    /// 점그림을 늘이는 결 — <b>늘 이웃과 섞는다</b>(<c>Linear</c>).
     /// </summary>
     /// <remarks>
-    /// 결은 시각물(<see cref="Image"/>·<see cref="ImageBrush"/>)마다 지을 때 한 번 박히고,
-    /// 굳힌 붓(<c>Freeze</c>)은 나중에 고칠 수도 없다. 그래서 값만 바꿔서는 떠 있는 화면이
-    /// 안 바뀐다 — 듣는 쪽이 그 화면을 새로 지어야 한다.
+    /// 한때 개발 창에서 켜고 끄게 두었는데, 화면을 키워 놓으면 점 하나가 큰 네모가 되어
+    /// 계단이 굵게 지는 것이 늘 더 나빴다. 이제는 기본으로 박아 둔다.
     /// </remarks>
-    public static event Action? SpriteScalingChanged;
-
-    /// <summary>결을 바꾸고 듣는 쪽에 알린다.</summary>
-    public static void SetSpriteSmoothing(bool on)
-    {
-        if (GameSettings.SmoothSprites == on) return;
-        GameSettings.SmoothSprites = on;
-        SpriteScalingChanged?.Invoke();
-    }
+    public static BitmapScalingMode SpriteScaling => BitmapScalingMode.Linear;
 
     public static double BandWidthFor(string text) =>
         Math.Max(UiSprites.WidthFor(1), GameSettings.BandPad * 2 + (Font?.TextWidth(text) ?? 0));

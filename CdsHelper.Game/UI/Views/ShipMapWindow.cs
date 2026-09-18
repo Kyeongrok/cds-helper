@@ -511,17 +511,17 @@ public sealed class ShipMapWindow : Window
         _titleRoot = BuildTitleScreen();
         _screen.Content = _titleRoot;
 
-        // 「이웃 섞기」를 켜고 끄면 타이틀을 그 자리에서 다시 짓는다 — 늘이는 결은 시각물마다
-        // 지을 때 박히는 것이라, 값만 바꿔서는 떠 있는 메인메뉴가 그대로다.
-        GameUi.SpriteScalingChanged += OnSpriteScalingChanged;
-        Closed += (_, _) => GameUi.SpriteScalingChanged -= OnSpriteScalingChanged;
-
         // 윈도 제목 줄 대신 크롬처럼 우리가 그린 줄을 얹는다.
         // 왼쪽 위 햄버거에는 앱이 적어 둔 것을 들여다보는 줄을 단다.
         var shell = new DockPanel { LastChildFill = true };
         var titleBar = ChromeTitleBar.Attach(this, out var hamburger,
-            // 「발견물 지도」는 원본에 없는 것이라 모드 창에서 켜야 줄이 뜬다.
-            label => label != DiscoveryMapRow || GameSettings.ShowDiscoveryMapMenu,
+            // 원본에 없는 줄은 모드 창에서 켜야 뜬다.
+            label => label switch
+            {
+                DiscoveryMapRow => GameSettings.ShowDiscoveryMapMenu,
+                BarmaidBookRow => GameSettings.ShowBarmaidBookMenu,
+                _ => true,
+            },
             // 설정은 게임 띠에 두었다가 햄버거로 옮겼다 — 게임 띠에 없는 칸이라
             // 섞여 있으면 원본과 달라 보인다(개발 창을 옮긴 것과 같은 까닭이다).
             // 지도 배율은 고르는 그 자리에서 지도에 먹인다.
@@ -529,7 +529,7 @@ public sealed class ShipMapWindow : Window
             ("게임데이터", () => GameDataDialog.Show(this)),
             // 낯을 튼 여급과 그 궁합. 궁합은 초상화 번호 하나로 갈리는데 화면에서는
             // 볼 길이 없어 여기에 둔다.
-            ("여급 수첩", () => BarmaidBookDialog.Show(this, _game)),
+            (BarmaidBookRow, () => BarmaidBookDialog.Show(this, _game)),
             // 제독의 값이 화면 곳곳에 흩어져 있어 한자리에 모아 볼 데가 없었다.
             ("제독 정보", () => PlayerInfoDialog.Show(this, _game)),
             // 누가 어느 도시로 가고 있는지는 지도에 배만 떠 있어 알 길이 없다.
@@ -690,6 +690,9 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     /// <summary>햄버거의 발견물 지도 줄 이름. 모드 창이 이 줄을 켜고 끈다.</summary>
     internal const string DiscoveryMapRow = "발견물 지도";
+
+    /// <summary>햄버거의 여급 수첩 줄 이름. 모드 창이 이 줄을 켜고 끈다.</summary>
+    internal const string BarmaidBookRow = "여급 수첩";
 
     private void ShowDiscoveryMap()
     {
@@ -1444,15 +1447,6 @@ public sealed class ShipMapWindow : Window
             System.Diagnostics.Debug.WriteLine($"[ShipMap] 타이틀 무늬 로드 실패: {ex.Message}");
             return BarFill;
         }
-    }
-
-    /// <summary>늘이는 결이 바뀌면 타이틀을 다시 짓는다. 지도가 떠 있으면 둘 것 없다.</summary>
-    private void OnSpriteScalingChanged()
-    {
-        if (_titleRoot == null || !ReferenceEquals(_screen.Content, _titleRoot)) return;
-
-        _titleRoot = BuildTitleScreen();
-        _screen.Content = _titleRoot;
     }
 
     /// <summary>타이틀 메뉴에서 초점이 오가는 줄 묶음. 화면을 다시 지을 때 새로 잡는다.</summary>
