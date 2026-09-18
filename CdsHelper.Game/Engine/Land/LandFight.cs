@@ -334,7 +334,10 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
 
             case LandUnits.Kind.Cannon:
                 if (Damp(unit.Kind)) { Say(slot, "비에 젖어 불이 붙지 않는다!"); break; }
-                foreach (int at in Facing(mine, frontOnly: false)) Hit(slot, at);
+                // 작렬탄을 받으면 <b>아군 포만</b> 한 차례에 두 번 쏜다(0x00448BD3).
+                int volleys = Shells && slot < LandBattle.FirstFoe ? 2 : 1;
+                for (int v = 0; v < volleys; v++)
+                    foreach (int at in Facing(mine, frontOnly: false)) Hit(slot, at);
                 break;
 
             default:
@@ -415,8 +418,8 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
             hurt = Worth(from, to);
         }
 
-        // 닌자의 변신술 — 비가 아닐 때 40%로 피해가 없다.
-        if (battle.Units[to].Kind == LandUnits.Ninja && !Raining && dice.Next(100) < 40)
+        // 닌자의 변신술 — <b>작렬탄이 없을 때</b> 40%로 피해가 없다(0x004492AA 는 비가 아니라 작렬탄을 본다).
+        if (battle.Units[to].Kind == LandUnits.Ninja && !Shells && dice.Next(100) < 40)
         {
             Log(new Line("둔갑술의 하나, 변신술!", from, to, 0, LandUnits.Sound.Ninja));
             return;
