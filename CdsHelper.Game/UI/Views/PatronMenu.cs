@@ -240,6 +240,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     private void Audience(Patron patron, string shown, string sir, string me,
                           uint[]? face, Action<string> Say, Action<string> Steward)
     {
+        // 설득 대사도 말투 세 벌이다(0x004694C0 이 반말 · 존댓말 · 상인 반말 셋을 받는다).
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
         Steward($"오래 기다리셨습니다. 제가 {shown} {sir}의 집사입니다.");
         Steward("무기는 여기서 보관하겠습니다. 그러면 안으로 들어가십시오.");
         Steward($"{sir}. {me}{Particle(me)} 데리고 왔습니다.");
@@ -264,14 +268,20 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         int row = HintListDialog.Pick(_view, names, "제안 선택", marks: liked);
         if (row < 0)
         {
-            Say("뭔가, 용건이 없는가? 이쪽은 바쁘네, 빨리 나가주게.");
+            // 0x004AF415 — 반말 쪽만 제독 이름을 부른다.
+            Say(Pick3($"{me}, 사람을 방문해 놓고 꽤 무례하군. 그만 나가게!",
+                      $"{me}, 용건도 없으면서 무턱대고 방문하는 것은 무례한 일입니다. 다음에 와 주십시오.",
+                      "뭔가, 용건이 없는가? 이쪽은 바쁘네, 빨리 나가주게."));
             return;
         }
 
         var hint = _game.Hints?.Find(mine[row]);
         if (hint == null)
         {
-            Say("흠, 원조해 주고 싶은 마음은 많지만.");
+            // 0x004AF14D — 이야기가 후원자 안목에 벅찰 때의 말이다.
+            Say(Pick3("흠, 원조해 주고 싶은 마음은 많지만.",
+                      "원조해 드리고 싶지만, 그렇게 큰 모험은, 저로서는 도저히...",
+                      "가능한 한 원조해 주고 싶지만, 너무 이야기가 엄청나네."));
             return;
         }
 
@@ -294,7 +304,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 재력 판정 — 낼 돈이 없으면 물린다.
         if (patron.Wealth < funds)
         {
-            Say("원조는 해 주고 싶지만, 흐~음, 돈이... , 또 다음번이다.");
+            // 0x004AF264 — 재력이 모자랄 때.
+            Say(Pick3("흠, 원조 못 할 것은 없지만 요즘 지출이 많아서. 다른 이야기를 가지고 오는 것이 좋겠네.",
+                      "자금을 대 드리고 싶지만..., 아무래도..., 안됐지만 힘이 되드릴 수 없군요.",
+                      "원조는 해 주고 싶지만, 흐~음, 돈이... , 또 다음번이다."));
             return;
         }
 
@@ -304,9 +317,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         int years = it.Deadline;
         int half = funds / 2;
 
-        TalkDialog.Say(_view, face, "",
-            $"모험하는데 돈은 필요하겠지. 먼저 금화 {half}닢을 주겠다. " +
-            $"{years}년 내에 성공하면 {half}닢의 사례를 약속하겠네. 이것으로 어떤가.");
+        Say(string.Format(Pick3(
+            "그러면, 자금으로 금화 {0}닢을 주겠다. {1}년 내에 목적을 달성하면, 거기다 {0}닢을 더 약속하겠네.",
+            "그러면, 먼저 금화 {0}닢을 드리겠습니다. 또, {1}년 내에 달성했을 때에는, 거기다 금화 {0}닢을 더 약속하겠습니다.",
+            "모험하는데 돈은 필요하겠지. 먼저 금화 {0}닢을 주겠다. {1}년 내에 성공하면 {0}닢의 사례를 약속하겠네. 이것으로 어떤가."),
+            half, years));
 
         // 말과 고르기는 <b>따로 뜨는 창 둘</b>이다. 말은 얼굴을 단 알림창(0x004694C0)이고,
         // 고르기는 제목 띠에 기간·금화를 이고 승낙/교섭 두 줄만 놓인 창(0x00469A70,
