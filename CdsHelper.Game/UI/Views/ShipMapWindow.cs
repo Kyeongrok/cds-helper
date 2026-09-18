@@ -5015,7 +5015,14 @@ public sealed class ShipMapWindow : Window
                 return;
             }
 
-            // 지면 <b>놀이가 끝난다</b> — 게임도 여기서 끝낸다(0x0044AF40 상태 4).
+            // 지면 대표가 마지막 한마디를 한다 — 반란 판(종류 7)만의 두 마디다
+            // (0x004AA0BF 의 rand(2), 0x005344E8 · 0x00534500).
+            ConfirmDialog.Tell(this, dice.Next(2) == 0
+                ? "자 제독, 죽어라!"
+                : $"자네, 제독감이 아니로군. {beast}의 먹이가 더 어울리는군.",
+                face: _game.Faces?.TryGetBgra(MutinyFace, female: false));
+
+            // 그리고 <b>놀이가 끝난다</b> — 게임도 여기서 끝낸다(0x0044AF40 상태 4).
             NoticeDialog.Show(this,
                 $"제독은 {beast}의 먹이가 되었다. 항해는 여기서 끝났다.");
 
