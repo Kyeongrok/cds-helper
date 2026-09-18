@@ -420,7 +420,8 @@ internal sealed class CoinPuzzleDialog : InfoDialog
 
         if (!_game.Put(coin, left))
         {
-            NoticeDialog.Show(this, " 더 이상 접시에 금화를 실을 수 없습니다", "천칭 퍼즐");
+            // 0x0053B018. 접시 하나에 여섯까지다(0x00450710).
+            NoticeDialog.Show(this, " 접시 위에는 더 이상 금화를 실을 수 없습니다", "천칭 퍼즐");
             return;
         }
         Sync();
