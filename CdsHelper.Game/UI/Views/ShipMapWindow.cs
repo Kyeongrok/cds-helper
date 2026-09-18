@@ -4094,7 +4094,8 @@ public sealed class ShipMapWindow : Window
             if (LandDeployDialog.Show(this, _game, "", -1) is not { } line) return;
 
             var roll = new GameRandom(Environment.TickCount);
-            var field = new LandBattle(line, 0, foeMen, player, aide, party.Culture, LandTerrain,
+            var field = new LandBattle(line, 0, foeMen, player, aide, party.Culture,
+                                       LandBattle.FieldFor(_host.TerrainClass),
                                        (roll.Next(10) + 74, roll.Next(10) + 69,
                                         roll.Next(10) + 64, roll.Next(10) + 84), roll,
                                        sort: LandBattle.Field);
@@ -4106,9 +4107,6 @@ public sealed class ShipMapWindow : Window
         }
         finally { _host.Paused = false; _asking = false; }
     }
-
-    /// <summary>들싸움의 싸움터 — 도시 밖이라 들판이다(<c>0x0044A624</c> 의 갈래 2).</summary>
-    private const int LandTerrain = 2;
 
     private void CheckLandEvent()
     {
