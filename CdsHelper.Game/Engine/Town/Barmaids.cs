@@ -37,6 +37,11 @@ public static class Barmaids
     /// 게임은 잡담마다 딴 폭을 주는데 그 표는 아직 못 짚었다. 첫 대화의 50 대 3 을
     /// 결로 삼아 <b>맞으면 4, 아니면 2</b> 로 둔다 — 우리가 정한 값이다.
     /// </remarks>
+    /// <remarks>
+    /// <b>쓰지 않는다</b> — 원본 「이야기한다」(<c>0x00466950</c>)는 친밀도를 안 건드린다. 값을 올리는 것은
+    /// 한잔 사기(<see cref="FirstMeet"/>) · 선물(<see cref="GiftGain"/>) · 설득(<see cref="Persuade"/>)뿐이다.
+    /// </remarks>
+    [Obsolete("원본은 잡담으로 친밀도를 안 올린다")]
     public static int ChatLike(bool destined) => destined ? 4 : 2;
 
     /// <summary>선물로 낼 수 있는 아이템의 분류(<c>0x004B0A4D</c> 이 아이템 표 <c>+0x14</c> 를 1 과 견준다).</summary>
