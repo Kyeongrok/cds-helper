@@ -155,7 +155,11 @@ public sealed class MarketBuyDialog : GameWindow
         string what = picked.Count > 1 ? "이것들의 아이템" : "이 아이템";
         if (!ConfirmDialog.Ask(this, $"{what}을 구입하겠습니까?")) return;
 
-        // 5. 이제서야 돈을 본다.
+        // 5. 소지품이 넘치면 <b>버릴 것을 고르게 한다</b>(0x004B1734) — 게임도 여기서 막지 않고
+        //    자리를 내게 한다. 다 비울 때까지 되풀이하고, 물리면 사지 않는다.
+        if (!MakeRoom(picked.Count)) return;
+
+        // 6. 이제서야 돈을 본다.
         var result = _market.Buy(_player, picked, _cityId);
         GameDialog.Show(this, result switch
         {
@@ -168,7 +172,40 @@ public sealed class MarketBuyDialog : GameWindow
         if (result == BuyResult.Ok) Close();
     }
 
-    /// <summary>시장 구입 창을 연다.</summary>
+    /// <summary>
+    /// 살 것을 들 자리를 낸다(<c>0x004B1734</c>) — 열여섯 칸을 넘으면 버릴 것을 고르게 한다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00544A30  「더 이상 가질 수 없습니다! 소지품을 삭제해 주십시오」
+    ///   0x005449D8  「삭제 아이템의 선택」        ← 목록 제목
+    ///   0x00544A00  「소지품을 앞으로 %d개 삭제해 주십시오」
+    /// </code>
+    /// </remarks>
+    /// <returns>자리가 났으면 true. 안 버리고 물리면 false.</returns>
+    private bool MakeRoom(int buying)
+    {
+        int over = _player.Items.Count + buying - Player.MaxItems;
+        if (over <= 0) return true;
+
+        GameDialog.Show(this, "더 이상 가질 수 없습니다! 소지품을 삭제해 주십시오");
+
+        while (over > 0)
+        {
+            GameDialog.Show(this, $"소지품을 앞으로 {over}개 삭제해 주십시오");
+
+            var held = _player.Items.ToList();
+            var names = held.Select(id => _market.Find(id)?.Name ?? $"아이템 {id}").ToList();
+            int at = ChoiceDialog.Pick(this, "삭제 아이템의 선택", names);
+            if (at < 0 || at >= held.Count) return false;
+
+            _player.Drop(held[at]);
+            over--;
+        }
+        return true;
+    }
+
+    /// <summary>시장 구입 창을 연다.</summary>    /// <summary>시장 구입 창을 연다.</summary>
     public static void Show(Window owner, Player player, Market market, int cityId,
                             ItemDescriptions? descriptions, ItemArt? art) =>
         new MarketBuyDialog(player, market, cityId, descriptions, art) { Owner = owner }.ShowDialog();
