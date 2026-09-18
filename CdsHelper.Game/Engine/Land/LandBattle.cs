@@ -52,6 +52,20 @@ public sealed class LandBattle
     /// <summary>지금 턴. 첫 턴이 1 이다.</summary>
     public int Turn { get; private set; } = 1;
 
+    /// <summary>
+    /// 그 자리의 <b>지형 부류</b>를 싸움터 그림 번호로 바꾼다(<c>0x0044A624</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   7  → 도시(0, 부르는 쪽이 넘긴 값)
+    ///   2  → 초지(1)
+    ///   4  → 황무지(3)
+    ///   그 밖 → 숲(2)
+    /// </code>
+    /// </remarks>
+    public static int FieldFor(int terrainClass) =>
+        terrainClass == 2 ? 1 : terrainClass == 4 ? 3 : 2;
+
     /// <summary>싸움터 그림 번호 — 0 도시 · 1 초지 · 2 숲 · 3 황무지.</summary>
     public int Terrain { get; }
 
