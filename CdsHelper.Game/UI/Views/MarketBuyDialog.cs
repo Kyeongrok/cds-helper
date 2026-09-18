@@ -53,17 +53,26 @@ public sealed class MarketBuyDialog : GameWindow
     private readonly int _cityId;
 
     private readonly ItemTable.Record[] _stock;
+
+    /// <summary>
+    /// 줄마다의 발견물 번호 — 모조품이 아니면 -1 이다. <see cref="_stock"/> 과 차례가 같다.
+    /// </summary>
+    private readonly int[] _asDiscovery;
+
+    private readonly Engine.Discovery.DiscoveryLog? _found;
     private readonly GameList _list;
     private readonly GameButton _decide;
 
     private MarketBuyDialog(Player player, Market market, int cityId,
-                            ItemDescriptions? descriptions, ItemArt? art)
+                            ItemDescriptions? descriptions, ItemArt? art,
+                            Engine.Discovery.DiscoveryLog? found)
     {
         _player = player;
         _market = market;
         _cityId = cityId;
         _descriptions = descriptions;
         _art = art;
+        _found = found;
 
         Title = "구입 아이템 선택";
         WindowStyle = WindowStyle.None;
@@ -73,7 +82,22 @@ public sealed class MarketBuyDialog : GameWindow
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        _stock = [.. market.StockOf(cityId)];
+        // 이 마을이 파는 <b>모조품</b>이 목록 맨 앞에 선다(0x004B38C7 이 그쪽을 먼저 채운다).
+        // 이미 찾은 것은 빠진다 — 게임은 깃발 0x44 로 거른다(0x004B0BA5).
+        var rows = new List<ItemTable.Record>();
+        var marks = new List<int>();
+        foreach (var one in found?.Table.SoldAt(cityId) ?? [])
+        {
+            if (player.Discoveries.Contains(one.Id)) continue;
+            if (market.Find(one.ItemId) is not { } sold) continue;
+            rows.Add(sold);
+            marks.Add(one.Id);
+        }
+
+        foreach (var one in market.StockOf(cityId)) { rows.Add(one); marks.Add(-1); }
+
+        _stock = [.. rows];
+        _asDiscovery = [.. marks];
         _list = new GameList(Columns, Cells, _stock.Length, "  지금 내놓은 물건이 없다.  ")
         {
             // 게임은 한 번에 여럿을 산다 — 고른 줄이 여럿이면 값도 한꺼번에 부른다.
@@ -139,8 +163,9 @@ public sealed class MarketBuyDialog : GameWindow
     private void Decide()
     {
         var picked = new List<ItemTable.Record>();
+        var pickedAt = new List<int>();
         foreach (int at in _list.Chosen)
-            if (at >= 0 && at < _stock.Length) picked.Add(_stock[at]);
+            if (at >= 0 && at < _stock.Length) { picked.Add(_stock[at]); pickedAt.Add(at); }
         if (picked.Count == 0) return;
 
         // 2. 무엇인지 한 장씩 보여 준다.
@@ -169,7 +194,21 @@ public sealed class MarketBuyDialog : GameWindow
             _ => "미안하네, 지금 물건이 떨어지고 없네.",
         });
 
-        if (result == BuyResult.Ok) Close();
+        if (result != BuyResult.Ok) return;
+
+        // 모조품을 샀으면 그 자리에서 <b>발견</b>이 된다(0x004B37B0). 게임은 이 두 마디를
+        // 「고맙네!」보다 <b>먼저</b> 낸다(0x004B3AE9 → 0x004B3B6A).
+        foreach (int at in pickedAt)
+        {
+            int id = _asDiscovery[at];
+            if (id < 0) continue;
+            if (_found?.Table.Find(id) is not { } row || !_player.Discover(id)) continue;
+
+            GameDialog.Show(this, "자네, 보는 눈이 있군. 득보는 걸세.");
+            ConfirmDialog.Tell(this, $"{row.Name}{GameUi.Josa(row.Name, "을", "를")} 발견했다!");
+        }
+
+        Close();
     }
 
     /// <summary>
@@ -210,8 +249,10 @@ public sealed class MarketBuyDialog : GameWindow
         return true;
     }
 
-    /// <summary>시장 구입 창을 연다.</summary>    /// <summary>시장 구입 창을 연다.</summary>
+    /// <summary>시장 구입 창을 연다.</summary>
     public static void Show(Window owner, Player player, Market market, int cityId,
-                            ItemDescriptions? descriptions, ItemArt? art) =>
-        new MarketBuyDialog(player, market, cityId, descriptions, art) { Owner = owner }.ShowDialog();
+                            ItemDescriptions? descriptions, ItemArt? art,
+                            Engine.Discovery.DiscoveryLog? found = null) =>
+        new MarketBuyDialog(player, market, cityId, descriptions, art, found)
+            { Owner = owner }.ShowDialog();
 }
