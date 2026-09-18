@@ -566,6 +566,10 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             var row = rows[at];
             if (!_player.Announce(row.Id)) continue;
 
+            // 자리로는 못 찾는 것(유적 속 물건·인물·비보)은 알려도 아무도 안 들어 준다
+            // (0x0047E820) — 명성도 회복도 없이 알린 것으로만 찍힌다.
+            if (row.Indirect) { GameDialog.Show(owner, Harbor.NobodyCares); continue; }
+
             int fame = Harbor.FameFor(row);
             _player.Fame += fame;
             Harbor.Celebrate(_player);

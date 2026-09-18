@@ -60,6 +60,17 @@ public static class Harbor
     public const string AlreadyKnown = "자네, 그런 건 벌써 모두 알고 있네.";
 
     /// <summary>
+    /// <b>자리로는 못 찾는 것</b>(유적 속 물건·인물·비보)을 알리려 들었을 때(<c>0x0055A318</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>0x0047E820</c> 이 발견물 인스턴스 <c>+0x16</c> 의 깃발 <c>0x04</c> 를 본다 —
+    /// 새 판을 열 때 <see cref="DiscoveryTable.Record.Indirect"/> 인 줄만 그 깃발을
+    /// 지우므로(<c>0x004AA97B</c>), 그런 것은 항구에서 알려도 <b>명성이 한 톨도 안 오르고</b>
+    /// 피로·규율도 안 풀린다. 그래도 <b>알린 것으로는 찍혀</b> 다시 못 낸다(<c>0x0047E680</c>).
+    /// </remarks>
+    public const string NobodyCares = "아무도 상대해 주지 않았습니다!";
+
+    /// <summary>
     /// 지금 항구에서 알릴 수 있는 발견물. 찾은 차례대로다.
     /// </summary>
     /// <remarks>
