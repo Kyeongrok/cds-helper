@@ -325,6 +325,15 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     private Point _grabbed;
     private bool _dragging;
 
+    /// <summary>
+    /// 지금 고른 금화(<c>+0x11C</c>) — 「가짜 금화 선택」이 이것을 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 원본은 목록 창 없이 <b>판에서 누른 닢</b>을 그대로 쓴다(<c>0x00450AB9</c>). 아무것도
+    /// 안 누르고 눌러도 처음 값 0(1번 금화)이 잡히는 것까지 그대로다.
+    /// </remarks>
+    private int Chosen { get; set; }
+
     /// <summary>끌었다고 치는 거리(판 점).</summary>
     private const double DragSlop = 4;
 
@@ -368,8 +377,9 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         var now = e.GetPosition(_scene);
         Release();
 
-        // 끌지 않고 딸깍했으면 예전처럼 왼접시에 놓는다.
-        if (!dragged) { Tap(coin, left: true); return; }
+        // <b>끌지 않고 딸깍하면 고를 뿐이다</b> — 원본 설명도 「누른 체 이동」만 이른다
+        // (0x0053B0C0). 「가짜 금화 선택(DECIDE)」이 이 고른 닢을 쓴다(인스턴스 +0x11C).
+        if (!dragged) { Chosen = coin; Sync(); return; }
 
         if (In(now, LeftPan)) Tap(coin, left: true);
         else if (In(now, RightPan)) Tap(coin, left: false);
@@ -393,6 +403,10 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// 금화는 쟁반에서 빠지고 <b>납작하게 누운 벌</b>로 접시에 쌓인다.
     /// </remarks>
     private static BitmapImage? Face(int coin) => Picture($"coin-face-{coin}.png");
+
+    /// <summary>손이 얹힌 벌 — 고른 닢을 이것으로 낸다(파트 0 의 13~25).</summary>
+    private static BitmapImage? Held(int coin) =>
+        Picture($"coin-face-dim-{coin}.png") ?? Face(coin);
 
     /// <summary>금화를 눌렀다 — 접시에 놓거나, 이미 접시에 있으면 두 접시를 비운다.</summary>
     private void Tap(int coin, bool left)
@@ -439,29 +453,25 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     {
         if (_game.Won != null) return;
 
-        var names = Enumerable.Range(1, _game.Coins).Select(n => $"{n}번 금화").ToList();
-        int pick = MapPointDialog.Ask(this, names, "가짜 금화 선택");
-        if (pick < 0) return;
-
+        // 목록 창은 없다 — 판에서 누른 닢을 그대로 쓴다(0x00450AB9).
         if (!ConfirmDialog.Ask(this, "이 금화가 딴 것과 무게가 다르다고 단정해도 좋습니까?",
                                "천칭 퍼즐")) return;
 
-        _game.Decide(pick);
+        _game.Decide(Chosen);
         Close();
     }
 
+    /// <summary>「게임 설명」 — 원본 글 그대로다(<c>0x0053B0C0</c>, 세 줄 한 벌).</summary>
+    /// <remarks>
+    /// 예전에는 여기에 없는 문장을 덧대 두었다 — 딸깍으로 접시에 놓는 법, 접시가 여섯까지라는
+    /// 것, 가벼운지 무거운지 안 알려 준다는 것. <b>원본에 없는 말은 걷었다.</b>
+    /// </remarks>
     private void Explain() =>
         NoticeDialog.Explain(this,
-            "금 천칭에는 함정이 있습니다. 함정에 빠지지 않게 하기 위해서는 무게가 다른 " +
+            " 금 천칭에는 함정이 있습니다. 함정에 빠지지 않게 하기 위해서는 무게가 다른 " +
             "금화를 가려내고 천칭이 평형을 이루게 해야 합니다." + Environment.NewLine +
-            Environment.NewLine +
-            "나무 천칭을 3번까지 쓰고 무게가 다른 금화를 선택해 주십시오." +
-            Environment.NewLine + Environment.NewLine +
-            "금화를 접시로 끌어다 놓으면 그 접시에 실립니다. 왼쪽 단추로 누르면 왼쪽 " +
-            "접시에, 오른쪽 단추로 누르면 오른쪽 접시에 놓입니다. 접시 하나에 여섯 " +
-            "닢까지 놓을 수 있고, 양쪽 수가 같아야 답니다." +
-            Environment.NewLine +
-            "가짜가 무거운지 가벼운지는 알려 주지 않습니다.");
+            " 나무 천칭을 3번까지 쓰고 무게가 다른 금화를 선택해 주십시오." + Environment.NewLine +
+            " 금화 위에서 마우스 왼쪽을 클릭하여 버튼을 누른 체 금화를 이동하면 움직일 수 있습니다.");
 
     private void AskGiveUp()
     {
@@ -497,7 +507,16 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         // 쟁반 — 접시에 올린 것만 숨긴다. <b>빈자리는 그대로 둔다</b> — 게임도 남은
         // 금화를 앞으로 당기지 않는다(1·2 를 올리면 3 이 첫 줄 오른쪽에 홀로 남는다).
         for (int i = 0; i < _game.Coins; i++)
+        {
             _coin[i].Visibility = _game.PanOf(i) != 0 ? Visibility.Collapsed : Visibility.Visible;
+
+            // 고른 닢은 <b>손이 얹힌 벌</b>로 갈아 끼운다 — 파트 0 의 13~25 가 그것이다
+            // (자리 표 0x00549E10). 「가짜 금화 선택」이 이 닢을 쓴다.
+            _coin[i].Background = new ImageBrush(i == Chosen ? Held(i) : Face(i))
+            {
+                Stretch = Stretch.Fill,
+            };
+        }
 
         // 접시 — 납작하게 누운 금화를 쌓는다.
         foreach (var image in _piled) _scene.Children.Remove(image);
