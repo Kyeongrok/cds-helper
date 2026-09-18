@@ -711,6 +711,15 @@ public sealed class DisevRunner
                     _game.Player.Meet(sponsor.Name);
                 return null;
 
+            // 1F 0B [발견물] 0A [꼬리말] — <b>이름을 지어 준다</b>(0x004098C0).
+            // 「명명」 창에 스무 글자에서 꼬리말 길이를 뺀 만큼 받고, 꼬리말을 뒤에 붙인 뒤
+            // 「[…]로 명명하겠습니다. 좋습니까?」로 한 번 더 묻는다. 아니오면 다시 받는다.
+            // 무르면 결과 0 이라 대본이 기본 이름 쪽으로 간다(43 47).
+            case DisevCall.InputDiscoveryName:
+                LastResult = NameDiscovery(I("Discovery"),
+                                           args["Suffix"]?.GetValue<string>() ?? "") ? 1 : 0;
+                return null;
+
             case DisevCall.SetAide:
                 Seat(AideSlot, "부관", I("Person"));
                 return null;
@@ -933,6 +942,34 @@ public sealed class DisevRunner
     }
 
     /// <summary>부관 신상. 없으면 null.</summary>
+    /// <summary>이름에 받을 수 있는 글자 수(<c>0x0040990B</c> 의 <c>mov edi, 0x14</c>).</summary>
+    private const int NameRoom = 20;
+
+    /// <summary>
+    /// 발견물에 이름을 지어 준다(<c>0x004098C0</c>). 이름을 정했으면 참.
+    /// </summary>
+    /// <remarks>
+    /// 지은 이름은 발견물 표에 덧씌워(<see cref="Local.Helpers.DiscoveryTable.SetName"/>)
+    /// 그 뒤로는 일람이든 지도든 어디서든 그 이름이 보인다 — 게임도 레코드를 갈아 버린다.
+    /// </remarks>
+    private bool NameDiscovery(int discovery, string suffix)
+    {
+        suffix ??= "";
+        while (true)
+        {
+            string? typed = UI.Views.TextInputDialog.Ask(_owner, "", Math.Max(1, NameRoom - suffix.Length), "명명");
+            if (typed == null) return false;                 // 무르면 기본 이름으로 간다
+
+            string name = typed + suffix;
+            if (!ConfirmDialog.Ask(_owner, $"[{name}]{GameUi.Josa(name, "으로", "로")} 명명하겠습니다. 좋습니까?"))
+                continue;                                     // 아니오면 다시 받는다
+
+            _game.Player.NameDiscovery(discovery, name);
+            Local.Helpers.DiscoveryTable.SetName(discovery, name);
+            return true;
+        }
+    }
+
     /// <summary>부하 자리 번호 — <see cref="Support.Local.Models.Player.MateRoles"/> 차례다.</summary>
     private const int AideSlot = 0, InterpreterSlot = 3;
 

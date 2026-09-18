@@ -171,18 +171,46 @@ public sealed class DiscoveryTable
             var edits = DiscoveryEdits.All;
             var merged = new List<Record>(_rows.Length + edits.Count);
             foreach (var row in _rows)
-                merged.Add(edits.TryGetValue(row.Id, out var edited) ? edited : row);
+                merged.Add(Rename(edits.TryGetValue(row.Id, out var edited) ? edited : row));
             foreach (var (id, row) in edits)
-                if (id < 0 || id >= _rows.Length) merged.Add(row);
+                if (id < 0 || id >= _rows.Length) merged.Add(Rename(row));
             return merged;
         }
     }
 
+    private static readonly Dictionary<int, string> Named = [];
+
+    /// <summary>
+    /// 놀이 안에서 <b>이름을 지어 준</b> 발견물(대본 <c>1F 0B</c> · <c>0x004AAB00</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 발견물 레코드의 이름 칸을 그대로 갈아 버려서, 그 뒤로는 일람이든 지도든
+    /// 어디서든 새 이름이 보인다. 우리도 표를 읽는 길목(<see cref="Find"/> ·
+    /// <see cref="Discoveries"/>)에서 덧씌워 같은 꼴로 만든다. 판마다 다르므로 세이브에
+    /// 적어 두었다가(<c>Player.NamedDiscoveries</c>) 판을 열 때 <see cref="ResetNames"/> 로 건다.
+    /// </remarks>
+    public static void SetName(int id, string name)
+    {
+        if (id < 0 || string.IsNullOrWhiteSpace(name)) return;
+        Named[id] = name.Trim();
+    }
+
+    /// <summary>판을 열 때 이름을 통째로 갈아 끼운다. 안 주면 다 지운다.</summary>
+    public static void ResetNames(IEnumerable<KeyValuePair<int, string>>? named)
+    {
+        Named.Clear();
+        if (named == null) return;
+        foreach (var (id, name) in named) SetName(id, name);
+    }
+
+    private static Record Rename(Record row) =>
+        Named.TryGetValue(row.Id, out string? name) ? row with { Name = name } : row;
+
     /// <summary>그 번호의 발견물. 표 밖이면 null 이었지만, 더해 둔 것이 있으면 그것이 나온다.</summary>
     public Record? Find(int id)
     {
-        if (DiscoveryEdits.Of(id) is { } edited) return edited;
-        return id >= 0 && id < _rows.Length ? _rows[id] : null;
+        if (DiscoveryEdits.Of(id) is { } edited) return Rename(edited);
+        return id >= 0 && id < _rows.Length ? Rename(_rows[id]) : null;
     }
 
     /// <summary><see cref="DiscoveryEdits"/> 로 덧씌우기 전의 원본 게임 값. 표 밖이면 null.</summary>

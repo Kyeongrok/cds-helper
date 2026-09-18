@@ -184,7 +184,8 @@ public static class GameSave
         List<int>? GiftedBarmaids = null, List<int>? RefusedBarmaids = null,
         int? Laps = null, Dictionary<string, int>? Purses = null,
         List<int>? Hidden = null,
-        List<Player.Trace>? Traces = null);
+        List<Player.Trace>? Traces = null,
+        Dictionary<int, string>? NamedDiscoveries = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -282,7 +283,8 @@ public static class GameSave
                             Purses: player.Purses.ToDictionary(e => e.Key, e => e.Value),
                             // 감찰관을 매수해 숨겨 둔 발견물.
                             Hidden: [.. player.HiddenDiscoveries],
-                            Traces: [.. player.Traces]);
+                            Traces: [.. player.Traces],
+                            NamedDiscoveries: player.NamedDiscoveries.ToDictionary(e => e.Key, e => e.Value));
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

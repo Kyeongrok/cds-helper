@@ -2210,6 +2210,9 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestorePurses(saved.Purses);
             _game.Player.RestoreHidden(saved.Hidden);
             _game.Player.RestoreTraces(saved.Traces);
+            // 대본으로 지어 준 발견물 이름을 표에 도로 덧씌운다 — 게임은 레코드에 직접 쓴다.
+            _game.Player.RestoreNamedDiscoveries(saved.NamedDiscoveries);
+            Local.Helpers.DiscoveryTable.ResetNames(_game.Player.NamedDiscoveries);
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
             _game.Player.RestoreAnnouncedDates(saved.AnnouncedOn, saved.AnnouncedYears);
