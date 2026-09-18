@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.UI.Views;
@@ -54,7 +54,8 @@ internal static class SphinxQuizDialog
             "〈스핑크스〉 아침에는 4개의 다리, 낮에는 2개의 다리." + Environment.NewLine +
             "밤에는 3개의 다리로 걷는 괴물은?", "스핑크스");
 
-        int said = MapPointDialog.Ask(owner, SphinxQuiz.Riddle, "스핑크스");
+        // 고르는 창은 <b>제목이 없다</b> — 원본이 0x004878A0 에 제목 인자로 0 을 넘긴다.
+        int said = MapPointDialog.Ask(owner, SphinxQuiz.Riddle, "");
         if (said < 0) return false;
         if (said != SphinxQuiz.RiddleAnswer) { Away(owner); return false; }
 
@@ -66,7 +67,7 @@ internal static class SphinxQuizDialog
         {
             NoticeDialog.Show(owner, Ask(quiz.Now, quiz.Step), "스핑크스");
 
-            int pick = MapPointDialog.Ask(owner, lines, "스핑크스");
+            int pick = MapPointDialog.Ask(owner, lines, "");
             var done = quiz.Answer(pick);
 
             if (done == null) continue;
