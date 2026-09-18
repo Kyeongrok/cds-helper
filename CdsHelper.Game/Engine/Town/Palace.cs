@@ -301,6 +301,33 @@ public static class Palace
     /// <summary>불가침 조약이 맺어진 해(<c>0x004698C0</c> 의 <c>cmp 0x5D6</c>).</summary>
     public const int TreatyYear = 1494;
 
+    // ── 문간의 명성 관문과 집사 뇌물(0x004AE260) ───────────────────────────
+
+    /// <summary>문간이 얹어 주는 명성(<c>0x004AE26F</c> 의 <c>add 0x5DC</c>).</summary>
+    public const int DoorBonus = 1500;
+
+    /// <summary>뇌물로 더 얹을 수 있는 명성(<c>0x004AE2D3</c> 의 <c>add 0x1F4</c>).</summary>
+    public const int BribeBonus = 500;
+
+    /// <summary>그냥 들여보내 주는지(<c>0x004AE290</c>) — 안목 x 100 이 명성 + 1500 이하라야 한다.</summary>
+    public static bool Admitted(int eye, int fame) => eye * 100 <= fame + DoorBonus;
+
+    /// <summary>
+    /// 집사를 매수해서라도 들어갈 수 있는지(<c>0x004AE2E1</c>).
+    /// </summary>
+    /// <remarks>명성이 오백이 더 있어야 그 자리가 열린다 — 아니면 「매수한다」 줄도 안 뜬다.</remarks>
+    public static bool BribeAdmits(int eye, int fame) =>
+        eye * 100 <= fame + DoorBonus + BribeBonus;
+
+    /// <summary>집사에게 줄 돈(<c>0x004AE35B</c>) — 후원자 표 <c>+0x20</c> 그대로다.</summary>
+    public static int StewardFee(int eye) => eye;
+
+    /// <summary>
+    /// 집사가 말을 들어 주는지(<c>0x004AE36C</c>) — <c>33 x 웅변 + 매력 + 1 &gt; rand(200)</c>.
+    /// </summary>
+    public static bool StewardTalks(int rhetoric, int charm, Random random) =>
+        rhetoric * 33 + charm + 1 > random.Next(200);
+
     /// <summary>급히 넘기는 짐 값 — 매각가의 절반(<c>0x0044D95C</c>).</summary>
     public static int DistressPrice(int sellPrice) => sellPrice / 2;
 

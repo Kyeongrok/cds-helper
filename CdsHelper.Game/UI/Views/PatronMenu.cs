@@ -216,19 +216,36 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // "명성치가 모자랍니다" 는 내지 않는다 — 게임에서도 그 줄은 디버그 깃발
         // (0x00580C6C 의 2비트)이 서 있을 때만 나오는 기록용이지 사람에게 보이는 말이 아니다.
         //
-        // 아직 안 하는 것 — 게임에는 집사에게 뇌물을 주어 이 관문을 뚫는 길이 있다
-        // ("매수한다" / "포기하고 돌아간다" → "집사에게 뇌물을 주겠습니다. 좋습니까?").
-        //
         // <b>식이 문간(0x0044E740)과 다르다.</b> 0x004AE260 은 후원자 안목(표 +0x20) x 100 을 명성 + 1500 과
         // 견준다 — 문간은 안목 x 70 을 명성 그대로와 견준다(patrons.json 의 fame 이 그 값이다). 예전에는 문간 식을
         // 여기에도 써서, 명성 1500 인 초심자 라몬이 안목 24 인 파브리스(2400 ≤ 3000)에게 막혔다.
         int eye = _game.Sponsors?.FindByName(patron.Name)?.Eye ?? patron.Fame / 70;
-        if (eye * 100 > _player.Fame + 1500)
+        if (!Palace.Admitted(eye, _player.Fame))
         {
             // 문 앞에서 돌려보낼 때 소리가 한 번 난다(닻 소리와 같은 파트다).
             _game.Sfx?.Play(SoundBank.TurnedAwayPart);
-            Steward($"{shown}님은 바쁘셔서 만나실 수 없습니다.");
-            return;
+            Steward($"죄송하지만, {shown} {sir}께서는 바쁘셔서 만나실 수 없습니다. 다른 날에 와 주십시오.");
+
+            // 명성이 오백만 더 있으면 <b>집사를 매수</b>해 뚫을 수 있다(0x004AE2E1).
+            if (!Palace.BribeAdmits(eye, _player.Fame)) return;
+            if (ChoiceDialog.Ask(_view, "", ["매수한다", "포기하고 돌아간다"]) != 0) return;
+            if (!ConfirmDialog.Ask(_view, "집사에게 뇌물을 주겠습니까?")) return;
+
+            int fee = Palace.StewardFee(eye);
+            if (_player.Gold < fee)
+            {
+                NoticeDialog.Show(_view, "뇌물에 사용할 금화가 모자랍니다");
+                return;
+            }
+            if (!Palace.StewardTalks(_player.LevelOf(Skill.Names[Skill.Rhetoric]),
+                                     _player.AbilityOf(Ability.Charm), _random))
+            {
+                Steward("만날 수 없는 사람은 만날 수 없습니다. 돌아가 주십시오.");
+                return;
+            }
+
+            Steward($"......어쩔 수 없군요. {shown}에게 교섭해 보지요. 무기는 여기서 보관하겠습니다.");
+            _player.Pay(fee);
         }
 
         // 관문을 넘으면 집사가 맞고, 무기를 맡기고, 안에 들여보낸 뒤 주인에게 알린다.
