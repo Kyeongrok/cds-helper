@@ -57,8 +57,11 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
             ["포카를 권한다", "부하편성", "술집을 나온다"],
             BgmPlayer.TavernTrack),
 
+        // 차례는 게임 차림표 표(<c>0x005692E8</c>) 그대로다 — <b>부하편성이 허드렛일보다 위</b>다.
+        // 표는 (글, 보임, 누를 수 있음) 셋씩이고, 허드렛일의 보임 칸을 0x0047FE38 이
+        // 「소지금 100 이하」로 켠다.
         new(FacilityKind.Inn, "여관",
-            ["숙박", "허드렛일", "부하편성", "기능", "여관을 나온다"]),
+            ["숙박", "부하편성", "허드렛일", "기능", "여관을 나온다"]),
 
         new(FacilityKind.Market, "시장",
             ["구입", "매각", "시장을 나온다"]),
