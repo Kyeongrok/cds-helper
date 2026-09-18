@@ -11,15 +11,24 @@ namespace CdsHelper.Game.Engine.Town;
 /// 갈리는지</b>만 든다. 자세한 것은 볼트 <c>58.분석-술집 여급과 궁합</c>.
 ///
 /// <b>궁합은 얼굴 코드다.</b> 주인공의 표시 얼굴 코드(신상에서 고른 초상화 열여섯 중
-/// 하나에, 서른여섯 살부터 16 을 더한 것)와 여급의 <see cref="BarmaidTable.Barmaid.Fortune"/>
+/// 하나, <b>나이 보정 없이</b>)와 여급의 <see cref="BarmaidTable.Barmaid.Fortune"/>
 /// 가 같거나 하나 차이면 맞는 것이다. 맞으면 첫 대화에서만 친밀도가 <b>50</b> 오르고
 /// 아니면 <b>3</b> 이다.
 /// </remarks>
 public static class Barmaids
 {
-    /// <summary>주인공의 표시 얼굴 코드. 서른여섯부터 열여섯이 더 붙는다.</summary>
-    public static int FortuneOf(Player player) =>
-        BarmaidTable.FortuneOf(player.Fortune, player.Age);
+    /// <summary>궁합을 잴 때 쓰는 주인공의 운명 코드.</summary>
+    /// <remarks>
+    /// <b>나이 보정을 안 한다.</b> 게임의 궁합 판정(<c>0x00465E76</c>)은 나이를 얹는 게터
+    /// (<c>0x0047CAF0</c>, 서른여섯부터 +16)가 아니라 날것 게터 <c>0x0047CB10</c>
+    /// (<c>[제독+0x08]</c>)을 부른다. 그래서 <b>나이를 먹어도 궁합은 안 바뀐다</b>.
+    ///
+    /// 그 바람에 <b>여급 절반 가까이는 어떤 주인공과도 궁합이 안 맞는다</b> — 새 놀이 화면이
+    /// 운명 코드를 0~15 로 자르는데(<c>0x0045C6DE</c>) 여급 표 <c>+0x14</c> 는 30 까지 쓴다.
+    /// 17 이상을 바라는 여급들은 첫 대화 +50 도, 밑점수 +50 도 영영 못 받는다.
+    /// 원본 데이터의 흠이라 그대로 둔다.
+    /// </remarks>
+    public static int FortuneOf(Player player) => player.Fortune;
 
     /// <summary>이 여급과 궁합이 맞는지.</summary>
     public static bool Destined(Player player, in BarmaidTable.Barmaid her) =>
