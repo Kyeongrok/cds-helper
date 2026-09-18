@@ -389,7 +389,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         Say("어느 상을 달겠나?");                                   // 0x00531C10
         int at = HintListDialog.Pick(owner,
             [.. offer.Select((i, k) => $"{NameOf(i),-12}{CostOf(i, k < stock.Count),7}닢")],
-            "선수상 선택", "달 수 있는 선수상이 없습니다");
+            "선수상 선택", "달 수 있는 선수상이 없습니다", CarveHead);
         if (at < 0) return;
 
         int pick = offer[at];
@@ -659,7 +659,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         Say("어느 대포를 실을 건가?");
         int at = HintListDialog.Pick(owner,
             [.. Cannon.All.Select(c => $"{GameUi.Pad(c.Name, 12)}{c.Price,6}닢{c.Weight,5}")],
-            "대포 선택", "대포가 없네.");
+            "대포 선택", "대포가 없네.", GunHead);
         if (at < 0 || at >= Cannon.Count) return;
 
         var gun = Cannon.All[at];
@@ -789,6 +789,19 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// 「대포명  포문수」 · 돛종류).
     /// </summary>
     private const string RefitHead = "        선명  추진력      대포명  포문수  돛종류";
+
+    /// <summary>
+    /// 선수상 고르는 목록의 머리글(<c>0x00532380</c>, <c>0x00443D5D</c>).
+    /// </summary>
+    /// <remarks>
+    /// EXE 글은 " 선두상 명    가격" 인데, 개조 줄 이름과 마찬가지로 화면에서 본 대로
+    /// <b>선수상</b> 으로 적는다(<see cref="Engine.Models.Facility.RefitFigurehead"/> 참고).
+    /// 안 쓰이는 벌 <c>0x0053C078</c> 도 "선수상     가격" 으로 적어 두고 있다.
+    /// </remarks>
+    private const string CarveHead = " 선수상 명    가격";
+
+    /// <summary>대포 고르는 목록의 머리글(<c>0x005323A8</c>, <c>0x004441FD</c>).</summary>
+    private const string GunHead = "    대포명   단가   중량";
 
     /// <summary>돛 한 자리를 글자로 — 없음 <c>＿</c> · 삼각 <c>△</c> · 사각 <c>□</c>(0x005455F0 벌).</summary>
     private static string SailMark(int sail) => sail switch
