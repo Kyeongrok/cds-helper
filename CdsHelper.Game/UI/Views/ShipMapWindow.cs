@@ -3798,17 +3798,6 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 상륙 차림표의 「보급」(<c>0x0048DC60</c>) — 둘레를 뒤져 물과 먹을 것을 찾는다.
-    /// </summary>
-    /// <remarks>
-    /// 맨 먼저 <b>백에 하나</b> 동굴이 나온다(<c>0x0048DC6A</c>) — 들어가 보면 보물이거나
-    /// 짐승의 소굴이다. 보물은 <c>운 x 100 + 100 + rand(20)</c> 닢이 그대로 소지금에 들어오고
-    /// (<c>0x0048DD32</c>), 소굴이면 선원을 잃는다(<see cref="LandEvents.DenLoss"/>).
-    ///
-    /// <b>물·식량을 찾는 자리는 아직 안 옮겼다</b>(<c>0x0048DF9A</c> 의 되돌이) —
-    /// 「물을 %d통 발견했습니다!」(<c>0x00570A08</c>) 쪽이다.
-    /// </remarks>
-    /// <summary>
     /// 상륙 차림표의 「수리」(<c>0x0048E140</c>) — 자재로 배를 고친다.
     /// </summary>
     /// <remarks>
@@ -3890,6 +3879,13 @@ public sealed class ShipMapWindow : Window
         }
     }
 
+    /// <summary>
+    /// 상륙 차림표의 「보급」(<c>0x0048DC60</c>) — 둘레를 뒤져 물과 먹을 것을 찾는다.
+    /// </summary>
+    /// <remarks>
+    /// 맨 먼저 <b>백에 하나</b> 동굴이 나오고(<see cref="Cave"/>), 그러고 나면 <b>언제나</b>
+    /// 물과 식량을 찾는다(<see cref="Gather"/>). 동굴에서 보물을 얻었어도 찾기는 그대로 돈다.
+    /// </remarks>
     private void Forage()
     {
         var dice = new GameRandom(Environment.TickCount);
