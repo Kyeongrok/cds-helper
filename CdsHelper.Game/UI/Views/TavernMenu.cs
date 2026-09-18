@@ -89,6 +89,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </remarks>
     public void Greet()
     {
+        // 악명이 높으면 누군가 결투를 걸어 온다(0x0042FB60).
+        if (Challenged()) return;
+
         if (_game.Random.Next(GreetDice) != 0) return;
 
         // 자리에서 얼굴을 못 구하면 그 마을 술집 화자로 물러선다 — 게임은 늘
@@ -96,6 +99,104 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var face = DrinkerFace() ?? _game.SpeakerFace(BuildingCode, _cultureNo);
         ConfirmDialog.Tell(_view, Greetings[_game.Random.Next(Greetings.Length)], face: face);
     }
+
+    /// <summary>
+    /// 술집에서 누가 결투를 걸어 온다(<c>0x0042FB60</c>) — <b>악명이 높을수록</b> 자주 붙는다.
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0042fb69  rand(5) != 0 이면 아무 일 없다
+    ///   0042fb89  rand(악명 / 500) &gt; rand(운 + 1) + 5 라야 걸린다
+    ///   0042fbc7  rand(3) 으로 말 한 벌씩을 고른다(도전 · 부관 · 받음 · 무시)
+    ///   0042fd1e  이기면 명성 +100 · 악명 +1000
+    ///   0042fd3b  지면   악명 += rand(100) + 100
+    /// </code>
+    /// 게임은 술집에서 <b>무엇을 고를 때마다</b> 이 굴림을 하는데(<c>0x0042FFBC</c>) 우리는
+    /// 들어설 때 한 번만 한다.
+    /// </remarks>
+    /// <returns>결투가 벌어졌으면 true — 그러면 인사는 건너뛴다.</returns>
+    private bool Challenged()
+    {
+        var dice = _game.Random;
+        if (dice.Next(5) != 0) return false;
+
+        int infamy = _player.Infamy / 500;
+        if (infamy <= 0) return false;
+        if (dice.Next(infamy) <= dice.Next(_player.AbilityOf(Ability.Luck) + 1) + 5) return false;
+
+        if (PersonTable.Open().Find(BrawlPerson) is not { } row || row.Stats.Length < 5) return false;
+
+        int k = dice.Next(3);
+        var face = _game.PersonTemplates?.Find(BrawlPerson) is { } t
+            ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
+        var mate = _game.AideFace;
+        bool hasMate = _player.MateAt(0).Length > 0;
+
+        TalkDialog.Say(_view, face, "", Challenges[k]);
+        if (hasMate) TalkDialog.Say(_view, mate, "", ChallengeAdvice[k]);
+
+        if (ChoiceDialog.Ask(_view, "", ["도전을 받는다", "무시한다"]) != 0)
+        {
+            TalkDialog.Say(_view, face, "", Jeers[k]);
+            return true;
+        }
+
+        TalkDialog.Say(_view, hasMate ? mate : face, "", (hasMate ? TakeUpWithMate : TakeUpAlone)[k]);
+
+        var roll = new GameRandom(Environment.TickCount);
+        int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
+        var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
+        DuelDialog.Show(_view, duel, roll, face, _game.Fighters,
+                        FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
+        _player.Hurt(duel.BodyLost);
+
+        if (duel.Won == true)
+        {
+            _player.Fame += BrawlFame;
+            _player.Infamy += ChallengeWinInfamy;
+        }
+        else _player.Infamy += roll.Next(100) + 100;
+        return true;
+    }
+
+    /// <summary>도전을 받아 이겼을 때 오르는 악명(<c>0x0042FD2A</c>).</summary>
+    private const int ChallengeWinInfamy = 1000;
+
+    private static readonly string[] Challenges =
+    [
+        "거기 자네! 마음에 안 드는군, 나랑 결투하자.",
+        "어이, 거기 겁장이! 바다의 사나이라면 검을 뽑아라.",
+        "어이, 나보다 강한 놈을 찾고 있다네. 우선 나와 결투해 주겠나?",
+    ];
+
+    private static readonly string[] ChallengeAdvice =
+    [
+        "제독, 상대하지 않는 편이 좋습니다.",
+        "그런 말을 듣고 가만히 있을 수 없다. 제독! 해치웁시다.",
+        "[나보다 강한자] ? 자네 머리 이상한 것 아닌가?",
+    ];
+
+    private static readonly string[] TakeUpWithMate =
+    [
+        "어쩔 수 없군요. 일단 손 좀 볼까요.",
+        "제독! 부탁합니다.",
+        "제독! 가볍게 손 봐 드리지요?",
+    ];
+
+    private static readonly string[] TakeUpAlone =
+    [
+        "멍청이, 지옥에서나 후회해라.",
+        "그럼 그래야지! 그래야 바다의 사나이다.",
+        "죽더라도 원망하지 말게.",
+    ];
+
+    private static readonly string[] Jeers =
+    [
+        "흠, 꼬리를 감추고 도망치긴가!",
+        "겁장이! 너는 바다의 사나이가 아니다!",
+        "싫다면 어쩔 수 없군.",
+    ];
 
     // ── 술 ──────────────────────────────────────────────────────────────────
 
