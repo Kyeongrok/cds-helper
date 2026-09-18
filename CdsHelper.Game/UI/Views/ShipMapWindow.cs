@@ -991,18 +991,23 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>좌표 상자를 띄울 때인지 다시 따진다 — 켜 두었고, 지도가 떠 있고, 이 창이 앞일 때만.</summary>
+    /// <remarks>
+    /// <b>컨디션만은 도시에 들어가도 그대로 둔다.</b> 다른 상자는 지도를 읽는 것이라 지도가
+    /// 안 보이면 뜻이 없지만, 컨디션은 도시에서 쉬거나 다치는 동안에도 봐야 하는 값이다.
+    /// </remarks>
     private void SyncOverlay()
     {
-        bool room = _started && IsActive
-                    && WindowState != WindowState.Minimized
-                    && ReferenceEquals(_screen.Content, _mapRoot);
+        // 지도가 화면에 걸려 있는가. 도시 창은 딴 창이라 이 값은 그대로 참이다.
+        bool up = _started && WindowState != WindowState.Minimized
+                  && ReferenceEquals(_screen.Content, _mapRoot);
+        bool room = up && IsActive;
         _overlay.IsOpen = _overlayWanted && room;
 
         bool people = _peopleWanted && room;
         if (people) FillPeople();
         _people.IsOpen = people;
 
-        bool vital = _vitalWanted && room;
+        bool vital = _vitalWanted && up;
         if (vital) FillVital();
         _vital.IsOpen = vital;
 
@@ -2340,13 +2345,6 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private void ShowDevDialog() => DevDialog.Show(this, _game.Player, new DevDialog.Options
     {
-        PeopleOn = () => _peopleWanted,
-        SetPeople = on =>
-        {
-            _peopleWanted = on;
-            GameSettings.ShowPeopleOverlay = on;   // 다음에 켤 때도 그대로
-            SyncOverlay();
-        },
         CoordsOn = () => _overlayWanted,
         SetCoords = on =>
         {

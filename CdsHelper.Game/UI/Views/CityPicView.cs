@@ -1870,7 +1870,6 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.ReadBooks() =>
         Books.Read(Menu.Window ?? this, text => (Owner as ShipMapWindow)?.Say(text));
 
-    void ITownScreen.SearchBooks() => Books.Search(Menu.Window ?? this);
 
     bool ITownScreen.IsDrink(string item) => DrinkAt(item) != null;
 

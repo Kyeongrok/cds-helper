@@ -38,10 +38,6 @@ public sealed class DevDialog : GameWindow
         public Func<bool> CoordsOn { get; init; } = () => false;
         public Action<bool> SetCoords { get; init; } = _ => { };
 
-        /// <summary>만난 사람 상자 — 여급 친밀도·궁합과 만난 인물.</summary>
-        public Func<bool> PeopleOn { get; init; } = () => false;
-        public Action<bool> SetPeople { get; init; } = _ => { };
-
         /// <summary>지도 위의 까만 조작 줄(체크상자·안내 글).</summary>
         public Func<bool> ToolBarOn { get; init; } = () => false;
         public Action<bool> SetToolBar { get; init; } = _ => { };
@@ -73,10 +69,6 @@ public sealed class DevDialog : GameWindow
         // 놀이에는 없는 것이라 이 창으로 옮겨 두었다.
         rows.Children.Add(Toggle("좌표 겹쳐 보기", options.CoordsOn(), options.SetCoords,
             "배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄웁니다"));
-
-        // 만난 사람 — 좌표 상자와 같은 꼴로 지도 오른쪽 위에 겹쳐 낸다. 기본은 꺼짐이다.
-        rows.Children.Add(Toggle("정보", options.PeopleOn(), options.SetPeople,
-            "말을 걸어 본 여급의 친밀도·궁합과, 만난 인물 목록을 지도 위에 띄웁니다"));
 
         // 자동항해 — 해상 커맨드에 있던 것을 옮겼다. 창을 닫고 나서 목적지를 고른다.
         if (options.AutoSail is { } autoSail)
