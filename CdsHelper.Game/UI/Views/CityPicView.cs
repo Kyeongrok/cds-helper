@@ -991,7 +991,62 @@ public sealed class CityPicView : GameWindow, ITownScreen
             case FacilityKind.Market: Shop.Greet(); break;
             case FacilityKind.TradingPost: TradePostDialog.Greet(this, _game, _cultureNo); break;
             case FacilityKind.Home: HomeRooms.Greet(); break;
+
+            // 조합(0x004AC840) — 부관이 있으면 부관이, 없으면 조합 사람이 말한다.
+            case FacilityKind.Guild:
+                if (_game.AideFace is { } trainer)
+                    TalkDialog.Say(this, trainer, "", "제독, 조합에 무슨 일이십니까?");
+                else
+                    ConfirmDialog.Tell(this, "훌륭한 선원이 되고 싶다면 여기서 수행하고 가게.",
+                                       face: _game.SpeakerFace(building.Code, _cultureNo));
+                break;
         }
+
+        MeetFamily(facility, building);
+    }
+
+    /// <summary>
+    /// 모항의 시설에서 아내·아이와 마주친다(<c>0x004A1EB0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 인사 다음, <b>후원자가 앉아 있지 않을 때만</b> 이 자리를 본다 — 왕궁에 후원자가
+    /// 앉은 날에는 가족 대사 여섯 줄이 안 나온다. 규칙과 문구는 <see cref="FamilyVisit"/> 에 있다.
+    /// </remarks>
+    private void MeetFamily(Facility facility, CityBuildingTable.Building building)
+    {
+        // 말하는 시설은 다섯뿐이다. 그 밖은 vtbl+0x10 이 기본 구현이라 아무 일도 안 난다.
+        if (facility.Kind is not (FacilityKind.TradingPost or FacilityKind.Inn
+                                  or FacilityKind.Shipyard or FacilityKind.Palace
+                                  or FacilityKind.Market)) return;
+
+        // 후원자가 앉은 건물이면 그쪽이 먼저다(slot7 이 1 을 돌려주면 slot8 이 아예 안 불린다).
+        if (building.Kind is { Length: > 0 } kind && PatronAt(kind) != null) return;
+
+        if (!FamilyVisit.Due(_player, _cityId, _game.Random)) return;
+        if (FamilyVisit.MetChild(_player, _game.Random) is not { } child) return;
+
+        var face = _game.Faces?.TryGetBgra(Home.FaceOf(child, child.AgeOn(_player.Date)),
+                                           child.Daughter);
+        bool girl = child.Daughter;
+        var dice = _game.Random;
+
+        // 시장만 아내가 먼저 말을 걸고 아이가 받는다 — 아내가 없으면 한 줄도 안 나온다.
+        if (facility.Kind == FacilityKind.Market)
+        {
+            if (_player.Spouse.Length == 0) return;
+            var (wife, said) = FamilyVisit.MarketWords(girl, dice);
+            TalkDialog.Say(this, null, _player.Spouse, wife);
+            TalkDialog.Say(this, face, child.Name, said);
+            return;
+        }
+
+        TalkDialog.Say(this, face, child.Name, facility.Kind switch
+        {
+            FacilityKind.TradingPost => FamilyVisit.TradePostWord(girl, dice),
+            FacilityKind.Inn => FamilyVisit.InnWord(girl, dice),
+            FacilityKind.Shipyard => FamilyVisit.ShipyardWord(girl, dice),
+            _ => FamilyVisit.PalaceWord(girl, dice),
+        });
     }
 
     /// <summary>지금 떠 있는 건물 사진. 명령 창을 닫으면 같이 걷는다.</summary>
