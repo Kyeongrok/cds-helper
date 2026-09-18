@@ -1,4 +1,4 @@
-namespace CdsHelper.Game.Engine.Land;
+﻿namespace CdsHelper.Game.Engine.Land;
 
 /// <summary>
 /// 뭍을 걷다 마주치는 부대 열여섯 — 구역 여덟에 두 벌씩이다(<c>0x00569EC0</c>).
@@ -54,6 +54,66 @@ public static class LandFieldFoes
         new("수우족",        50,  50,  9, "북아메리카"),
         new("나체즈족",      50,  50,  9, "북아메리카"),
     ];
+
+    /// <summary>
+    /// 뭍을 걷다가 무리와 마주칠 주사위 폭(<c>0x0048BE9B</c> 의 <c>push 0x1F4</c>).
+    /// </summary>
+    /// <remarks>
+    /// 바다에서는 굴리지 않는다(<c>0x0048BE86</c> 이 먼저 막는다) — 걸을 때만이다.
+    /// </remarks>
+    public const int Roll = 500;
+
+    /// <summary>
+    /// 구역 여덟의 네모(<c>0x00569EC0</c>, 한 줄 32바이트) — 도로 바꾼 값이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 경도(<c>0x005B63B0</c>)와 위도(<c>0x005B63B4</c>)를 <b>16 으로 나눈</b> 눈금으로
+    /// 견준다(<c>0x0048BEE3</c>). 경도 눈금 하나가 0.144도, 위도도 같다.
+    /// <code>
+    ///   0  경도  20.0~ 64.9 · 위도  40.0~ 15.0   예니체리 · 맘루크
+    ///   1  경도 -15.0~ 45.1 · 위도  20.0~-30.0   마차이족 · 자가족
+    ///   2  경도  64.9~ 90.0 · 위도  40.0~  9.9   무슬림 · 마라타
+    ///   3  경도  99.9~129.9 · 위도  45.1~ 25.1   경비병 · 도적단
+    ///   4  경도 129.9~139.9 · 위도  40.0~ 30.0   전국 무사단 · 산적
+    ///   5  경도  45.1~ 99.9 · 위도  60.0~ 40.0   타타르족 · 몽골족
+    ///   6  경도  99.9~135.1 · 위도  15.0~-10.0   네그리트 · 도둑족
+    ///   7  경도-120.0~-90.0 · 위도  50.0~ 25.1   수우족 · 나체즈족
+    /// </code>
+    /// 어느 네모에도 안 들면 <b>아무 일도 안 난다</b>(<c>0x0048BF04</c>).
+    /// </remarks>
+    private static readonly (double W, double E, double N, double S)[] Zones =
+    [
+        ( 20.0,  64.9,  40.0,  15.0),
+        (-15.0,  45.1,  20.0, -30.0),
+        ( 64.9,  90.0,  40.0,   9.9),
+        ( 99.9, 129.9,  45.1,  25.1),
+        (129.9, 139.9,  40.0,  30.0),
+        ( 45.1,  99.9,  60.0,  40.0),
+        ( 99.9, 135.1,  15.0, -10.0),
+        (-120.0, -90.0, 50.0,  25.1),
+    ];
+
+    /// <summary>그 자리가 드는 구역. 어디에도 안 들면 −1.</summary>
+    /// <remarks>
+    /// 게임은 <b>앞에서부터 훑되 마지막으로 맞은 것</b>을 쓴다(<c>0x0048BEF6</c> 이 덮어쓴다) —
+    /// 네모가 겹치면 뒤쪽 구역이 이긴다. 중국(3)과 동남아(6)가 겹치는 데가 그렇다.
+    /// </remarks>
+    public static int ZoneAt(double lat, double lon)
+    {
+        int found = -1;
+        for (int i = 0; i < Zones.Length; i++)
+        {
+            var (w, e, n, s) = Zones[i];
+            if (lon >= w && lon < e && lat <= n && lat > s) found = i;
+        }
+        return found;
+    }
+
+    /// <summary>그 구역에서 마주치는 무리 — 둘 가운데 <c>rand(2)</c> 다(<c>0x0048BF16</c>).</summary>
+    public static int PartyAt(int zone, GameRandom dice) => zone * 2 + dice.Next(2);
+
+    /// <summary>그 무리 대장의 인물 번호(<c>0x0048BF1D</c> 의 <c>+0xF6</c>).</summary>
+    public const int FirstLeader = 246;
 
     /// <summary>그 벌의 병력을 굴린다 — <c>밑 + rand(폭)</c> 이다.</summary>
     public static int MenOf(int at, GameRandom dice)

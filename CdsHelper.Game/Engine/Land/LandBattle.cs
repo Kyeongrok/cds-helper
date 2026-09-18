@@ -163,13 +163,17 @@ public sealed class LandBattle
     /// 적 대장의 실제 기능(검술 · 포술 · 사격술). 편성을 <b>이 생성자 안에서</b> 짓기 때문에(<c>Deal</c>)
     /// 초기화 식으로 나중에 넣으면 늦는다 — 여기서 받는다.
     /// </param>
+    /// <param name="sort">
+    /// 판의 갈래. 대본은 <see cref="Script"/>, <b>뭍에서 마주친 무리</b>는 <see cref="Field"/> 다 —
+    /// 들싸움은 판이 끝날 때까지 버티면 이긴 것으로 친다(<see cref="TimeUpWon"/>).
+    /// </param>
     public LandBattle(IReadOnlyList<int> mine, int myMen, int foeMen, Player player,
                       Player.MateInfo? aide, int culture, int terrain,
                       (int Might, int Mind, int Luck, int Body) foe, GameRandom dice,
-                      (int Sword, int Gunnery, int Shooting)? foeSkills = null)
+                      (int Sword, int Gunnery, int Shooting)? foeSkills = null, int sort = Script)
     {
         FoeSkills = foeSkills;
-        Sort = Script;
+        Sort = sort == Field ? Field : Script;
         Nation = -1;
         Culture = culture;
         Terrain = Math.Clamp(terrain, 0, 3);
