@@ -2393,6 +2393,11 @@ public sealed class ShipMapWindow : Window
             if (town >= 0)
                 items.Add(($"{_game.CityName(town)}에 들어간다", () => { Close(); EnterCity(town); }));
 
+            // 상륙해 있으면 「보급」·「수리」가 붙는다(0x0048E5E0 의 상륙 차림표 — 탐색 ·
+            // 보급 · 수리 · 승선한다). 「탐색」은 우리 쪽에서 걸으며 하는 발견 판정이 대신한다.
+            items.Add(("보급", () => { Close(); Forage(); }));
+            items.Add(("수리", () => { Close(); RepairAshore(); }));
+
             if (_host.IsNearWater())
                 // 뭍에서 배로 옮겨 타는 줄은 「승선」이다(0x0056F9A8, 0x0048B3ED) — 「출항」은 항구 것이다.
                 items.Add(("승선", () => { if (_host.Embark()) _game.Bgm.Play(BgmPlayer.SeaTrack); Close(); }));
@@ -3803,19 +3808,108 @@ public sealed class ShipMapWindow : Window
     /// (<c>0x00427866</c>)과 짐승(<c>0x00427B4C</c>)이 같은 8 이다.
     /// </remarks>
     /// <summary>
-    /// 동굴을 찾았다(<c>0x0048DC60</c>) — 들어가 보면 보물이거나 짐승의 소굴이다.
+    /// 상륙 차림표의 「보급」(<c>0x0048DC60</c>) — 둘레를 뒤져 물과 먹을 것을 찾는다.
     /// </summary>
     /// <remarks>
-    /// 보물은 <c>운 x 100 + 100 + rand(20)</c> 닢이 그대로 소지금에 들어오고
+    /// 맨 먼저 <b>백에 하나</b> 동굴이 나온다(<c>0x0048DC6A</c>) — 들어가 보면 보물이거나
+    /// 짐승의 소굴이다. 보물은 <c>운 x 100 + 100 + rand(20)</c> 닢이 그대로 소지금에 들어오고
     /// (<c>0x0048DD32</c>), 소굴이면 선원을 잃는다(<see cref="LandEvents.DenLoss"/>).
+    ///
+    /// <b>물·식량을 찾는 자리는 아직 안 옮겼다</b>(<c>0x0048DF9A</c> 의 되돌이) —
+    /// 「물을 %d통 발견했습니다!」(<c>0x00570A08</c>) 쪽이다.
     /// </remarks>
-    private void Cave(GameRandom dice)
+    /// <summary>
+    /// 상륙 차림표의 「수리」(<c>0x0048E140</c>) — 자재로 배를 고친다.
+    /// </summary>
+    /// <remarks>
+    /// 규칙은 <see cref="ShoreRepair"/> 에 있다. 되돌이라 자재가 남는 한 배 고르기부터
+    /// 되풀이한다. 추진력은 우리 배 모델에 「지금 추진력」 칸이 없어 안 고친다.
+    /// </remarks>
+    private void RepairAshore()
     {
+        var player = _game.Player;
+        var mate = MateFace();
+
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            if (player.SupplyOf(SupplyKind.Material) <= 0)
+            {
+                TalkDialog.Say(this, mate, "", "수리하는데 필요한 자재가 없습니다!");
+                return;
+            }
+
+            // 조선기술은 제독과 부관(자리 0) 가운데 높은 쪽이다(0x0047CCA0).
+            int mine = player.LevelOf(ShoreRepair.Skill);
+            string aide = player.MateAt(0);
+            int his = aide.Length > 0 && _game.World?.People.FirstOrDefault(r => r.Name == aide) is { } row
+                      && row.Skills.Length > Skill.Shipwright ? row.Skills[Skill.Shipwright] : 0;
+            int skill = Math.Max(mine, his);
+
+            if (skill <= 0)
+            {
+                TalkDialog.Say(this, mate, "", "조선기술을 가진 사람이 없습니다!");
+                return;
+            }
+
+            // 부관이 더 잘하면 부관이 나선다(0x0048E408).
+            if (his > mine) TalkDialog.Say(this, mate, "", "제가 수리하겠습니다.");
+
+            while (true)
+            {
+                if (player.SupplyOf(SupplyKind.Material) <= 0)
+                {
+                    TalkDialog.Say(this, mate, "", "수리하는데 필요한 자재가 없습니다!");
+                    return;
+                }
+
+                var hurt = player.Ships.Where(ShoreRepair.Damaged).Take(ShoreRepair.MaxListed).ToList();
+                if (hurt.Count == 0)
+                {
+                    TalkDialog.Say(this, mate, "", "어느 배도 다 완전합니다. 수리할 필요는 없습니다.");
+                    return;
+                }
+
+                TalkDialog.Say(this, mate, "", "어느 배를 수리하겠습니까?");
+                int at = ChoiceDialog.Pick(this, "선박 일람",
+                    [.. hurt.Select(sh => $"{sh.Name} ({sh.Hp}/{sh.MaxHp})")]);
+                if (at < 0 || at >= hurt.Count) return;
+
+                var ship = hurt[at];
+                if (!ConfirmDialog.Ask(this, $"{ship.Name}호로 좋습니까?")) continue;
+
+                TalkDialog.Say(this, mate, "", "자재를 몇 통 쓰겠습니까?");
+                int have = player.SupplyOf(SupplyKind.Material);
+                int barrels = CountDialog.Ask(this, "수리", "자재", "통", have);
+                if (barrels <= 0) continue;
+
+                player.AddSupply(SupplyKind.Material, -barrels);
+                int was = ship.Hp;
+                ship.SetHp(ship.Hp + ShoreRepair.PerBarrel(skill) * barrels);
+                int up = ship.Hp - was;
+
+                NoticeDialog.Show(this, up > 0 ? $"내구력이 {up} 올라갔습니다!"
+                                               : "수리하는데 실패했습니다!");
+            }
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
+    }
+
+    private void Forage()
+    {
+        var dice = new GameRandom(Environment.TickCount);
         var player = _game.Player;
         _asking = true;
         _host.Paused = true;
         try
         {
+            if (dice.Next(LandEvents.CaveOdds) != 0) return;
+
             var mate = MateFace();
             TalkDialog.Say(this, mate, "", "제독, 동굴을 발견했습니다!");
             if (!ConfirmDialog.Ask(this, "제독, 동굴속을 탐색하겠습니까?", face: mate)) return;
@@ -3853,9 +3947,6 @@ public sealed class ShipMapWindow : Window
 
         // 다음이 회오리다 — 고를 것도 없이 대원을 서른 넘게 앗아 간다.
         if (LandEvents.Tornado(dice, ground, _game.Player.Date.Year)) { Tornado(dice); return; }
-
-        // 동굴은 지형을 안 가리고 백에 하나 난다(0x0048DC60).
-        if (dice.Next(LandEvents.CaveOdds) == 0) { Cave(dice); return; }
 
         if (LandEvents.Meet(dice, ground, []) is not { } met) return;
 
