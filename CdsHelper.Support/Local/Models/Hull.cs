@@ -27,10 +27,32 @@ namespace CdsHelper.Support.Local.Models;
 /// 게임 선체 번호(<c>0x004FC1E0</c> 차례, <see cref="Table"/>). 등록해 넣은 배는 −1 이다.
 /// <b>세이브는 선체를 이름으로 적으므로</b> 이 칸을 더해도 옛 세이브가 안 깨진다.
 /// </param>
+/// <param name="HpTop">
+/// 개조로 갈 수 있는 <b>내구 한계</b>(선체 표 <c>+0x18</c>). 0 이면 등록해 넣은 배라
+/// <see cref="Ship.RefitCeiling"/> 배로 갈음한다. <paramref name="SpeedTop"/>(<c>+0x10</c>) ·
+/// <paramref name="CapacityTop"/>(<c>+0x28</c>) · <paramref name="TonnageTop"/>(<c>+0x20</c>) ·
+/// <paramref name="GunsTop"/>(<c>+0x30</c>) 도 같다.
+/// </param>
 public sealed record Hull(
     string Name, int Hp, int Speed, int Capacity, int Tonnage, int Crew, int Guns, int Price,
-    int Skin, int MaxMasts = 3, bool CanChangeSail = true, string? SpriteFolder = null, int Id = -1)
+    int Skin, int MaxMasts = 3, bool CanChangeSail = true, string? SpriteFolder = null, int Id = -1,
+    int HpTop = 0, int SpeedTop = 0, int CapacityTop = 0, int TonnageTop = 0, int GunsTop = 0)
 {
+    /// <summary>내구를 개조로 올릴 수 있는 데까지(선체 표 <c>+0x18</c>).</summary>
+    public int HpCeiling => HpTop > 0 ? HpTop : Hp * Ship.RefitCeiling;
+
+    /// <summary>추진력 한계(<c>+0x10</c>).</summary>
+    public int SpeedCeiling => SpeedTop > 0 ? SpeedTop : Speed * Ship.RefitCeiling;
+
+    /// <summary>적재용량 한계(<c>+0x28</c>).</summary>
+    public int CapacityCeiling => CapacityTop > 0 ? CapacityTop : Capacity * Ship.RefitCeiling;
+
+    /// <summary>적재중량 한계(<c>+0x20</c>).</summary>
+    public int TonnageCeiling => TonnageTop > 0 ? TonnageTop : Tonnage * Ship.RefitCeiling;
+
+    /// <summary>포탑 한계(<c>+0x30</c>).</summary>
+    public int GunsCeiling => GunsTop > 0 ? GunsTop : Guns * Ship.RefitCeiling;
+
     /// <summary>게임 선체 번호.</summary>
     public const int Cog = 0, Caravel = 1, LargeCaravel = 2, Carrack = 3, LargeCarrack = 4,
                      HeavyCarrack = 5, Galleon = 6, Dhow = 7;
@@ -167,11 +189,16 @@ public sealed record Hull(
     /// </remarks>
     public static readonly Hull[] Builtin =
     [
-        new("갤리온",     70, 55, 375, 3500, 40, 24, 250000, 3, Id: Galleon),
-        new("중카락",     60, 35, 400, 4000, 45, 24, 180000, 2, Id: HeavyCarrack),
-        new("카락",       30, 60, 200, 1750, 20,  6,  50000, 2, Id: Carrack),
-        new("대형카라벨", 35, 50, 250, 2000, 30,  8,  40000, 1, CanChangeSail: false, Id: LargeCaravel),
-        new("카라벨",     20, 80, 125, 1250, 15,  2,  10000, 1, MaxMasts: 2, CanChangeSail: false, Id: Caravel),
+        new("갤리온",     70, 55, 375, 3500, 40, 24, 250000, 3, Id: Galleon,
+            HpTop: 100, SpeedTop: 75, CapacityTop: 500, TonnageTop: 5000, GunsTop: 40),
+        new("중카락",     60, 35, 400, 4000, 45, 24, 180000, 2, Id: HeavyCarrack,
+            HpTop:  80, SpeedTop: 55, CapacityTop: 500, TonnageTop: 5000, GunsTop: 32),
+        new("카락",       30, 60, 200, 1750, 20,  6,  50000, 2, Id: Carrack,
+            HpTop:  50, SpeedTop: 80, CapacityTop: 275, TonnageTop: 2500, GunsTop: 12),
+        new("대형카라벨", 35, 50, 250, 2000, 30,  8,  40000, 1, CanChangeSail: false, Id: LargeCaravel,
+            HpTop:  50, SpeedTop: 70, CapacityTop: 300, TonnageTop: 2750, GunsTop: 14),
+        new("카라벨",     20, 80, 125, 1250, 15,  2,  10000, 1, MaxMasts: 2, CanChangeSail: false, Id: Caravel,
+            HpTop:  30, SpeedTop: 100, CapacityTop: 225, TonnageTop: 2000, GunsTop: 8),
     ];
 
     private static Hull[]? _all;

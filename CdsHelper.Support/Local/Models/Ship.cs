@@ -26,8 +26,8 @@ public sealed class Ship
     /// </summary>
     /// <remarks>
     /// <b>이 수는 게임 것이 아니다.</b> 게임은 선체 표(<c>0x004FC1E0</c>)에 값마다 상한을
-    /// 따로 들고(내구 상한은 <c>+0x18</c>) 거기서 자른다. 우리 선체 표에는 그 칸이 없어
-    /// 기본값의 배로 갈음한다.
+    /// 따로 든다 — 붙박이 선체 다섯은 그 값을 <see cref="Hull.HpTop"/> 벌로 옮겨 두었고,
+    /// 이 배수는 <b>등록해 넣은 배</b>처럼 상한을 모르는 선체에만 쓰인다.
     /// </remarks>
     public const int RefitCeiling = 2;
 
@@ -40,12 +40,12 @@ public sealed class Ship
         Hull = hull;
         Name = Trim(name) is { Length: > 0 } given ? given : hull.Name;
         var s = stats ?? Stats.Of(hull);
-        MaxHp = Bound(s.MaxHp, hull.Hp);
-        Speed = Bound(s.Speed, hull.Speed);
-        Capacity = Bound(s.Capacity, hull.Capacity);
-        Tonnage = Bound(s.Tonnage, hull.Tonnage);
-        Crew = Bound(s.Crew, hull.Crew);
-        Turrets = Math.Clamp(s.Turrets, 0, Math.Max(0, hull.Guns));
+        MaxHp = Bound(s.MaxHp, hull.HpCeiling);
+        Speed = Bound(s.Speed, hull.SpeedCeiling);
+        Capacity = Bound(s.Capacity, hull.CapacityCeiling);
+        Tonnage = Bound(s.Tonnage, hull.TonnageCeiling);
+        Crew = Bound(s.Crew, hull.Crew * RefitCeiling);
+        Turrets = Math.Clamp(s.Turrets, 0, Math.Max(0, hull.GunsCeiling));
         for (int i = 0; i < MastSlots; i++)
             _sails[i] = i < (s.Sails?.Count ?? 0) ? Math.Clamp(s.Sails![i], NoSail, Square) : NoSail;
         // 물음표를 붙여 둔 것은 <b>옛 세이브</b> 때문이다 — 그 칸이 없으면 0(송골매상)이
@@ -59,8 +59,8 @@ public sealed class Ship
         Lent = s.Lent;
     }
 
-    private static int Bound(int value, int basis) =>
-        Math.Clamp(value, 1, Math.Max(1, basis * RefitCeiling));
+    private static int Bound(int value, int ceiling) =>
+        Math.Clamp(value, 1, Math.Max(1, ceiling));
 
     /// <summary>선체 종류. 값·그림 같은 것은 여기에 있다.</summary>
     public Hull Hull { get; }
@@ -225,7 +225,7 @@ public sealed class Ship
 
     /// <summary>돛을 더 달 수 있는지 — 최대 추진력이 상한에 안 닿았으면.</summary>
     /// <remarks>게임은 선체 표 <c>+0x10</c>(추진력 상한)과 견준다(<c>0x004951C0</c>).</remarks>
-    public bool CanAddSail => Masts > 0 && Speed < Hull.Speed * RefitCeiling;
+    public bool CanAddSail => Masts > 0 && Speed < Hull.SpeedCeiling;
 
     /// <summary>돛 한 벌을 더 달면 오르는 추진력.</summary>
     public const int SailSpeedStep = 10;
@@ -246,7 +246,7 @@ public sealed class Ship
     public Refit AddSail()
     {
         var was = Snapshot();
-        int grown = Math.Min(Speed + SailSpeedStep, Hull.Speed * RefitCeiling) - Speed;
+        int grown = Math.Min(Speed + SailSpeedStep, Hull.SpeedCeiling) - Speed;
 
         Speed += grown;
         MaxHp = Math.Max(1, MaxHp - grown / 2);
@@ -363,13 +363,13 @@ public sealed class Ship
     // ── 개조 ─────────────────────────────────────────────────────────────────
 
     /// <summary>용량을 더 늘릴 수 있는지(<c>0x004953F0</c>).</summary>
-    public bool CanGrowCapacity => Capacity < Hull.Capacity * RefitCeiling;
+    public bool CanGrowCapacity => Capacity < Hull.CapacityCeiling;
 
     /// <summary>중량을 더 늘릴 수 있는지(<c>0x004956A0</c>).</summary>
-    public bool CanGrowTonnage => Tonnage < Hull.Tonnage * RefitCeiling;
+    public bool CanGrowTonnage => Tonnage < Hull.TonnageCeiling;
 
     /// <summary>더 보강할 수 있는지(<c>0x00495920</c>).</summary>
-    public bool CanReinforce => MaxHp < Hull.Hp * RefitCeiling;
+    public bool CanReinforce => MaxHp < Hull.HpCeiling;
 
     /// <summary>개조 한 번에 늘어나는 적재용량·적재중량.</summary>
     public const int GrowStep = 50;
@@ -395,11 +395,11 @@ public sealed class Ship
     public Refit GrowCapacity()
     {
         var was = Snapshot();
-        int grown = Math.Min(Capacity + GrowStep, Hull.Capacity * RefitCeiling) - Capacity;
+        int grown = Math.Min(Capacity + GrowStep, Hull.CapacityCeiling) - Capacity;
         int d = grown * 10;
 
         Capacity += grown;
-        Tonnage = Math.Min(Tonnage + d / 3, Hull.Tonnage * RefitCeiling);
+        Tonnage = Math.Min(Tonnage + d / 3, Hull.TonnageCeiling);
         Wear(d / 100);
         Crew++;
         return Refit.Between(was, Snapshot());
@@ -412,11 +412,11 @@ public sealed class Ship
     public Refit GrowTonnage()
     {
         var was = Snapshot();
-        int grown = Math.Min(Tonnage + GrowStep, Hull.Tonnage * RefitCeiling) - Tonnage;
+        int grown = Math.Min(Tonnage + GrowStep, Hull.TonnageCeiling) - Tonnage;
         int d = grown * 10;
 
         Tonnage += grown;
-        Capacity = Math.Min(Capacity + d / 3, Hull.Capacity * RefitCeiling);
+        Capacity = Math.Min(Capacity + d / 3, Hull.CapacityCeiling);
         Wear(d / 100);
         return Refit.Between(was, Snapshot());
     }
@@ -437,7 +437,7 @@ public sealed class Ship
     public Refit Reinforce()
     {
         var was = Snapshot();
-        int grown = Math.Min(MaxHp + ReinforceStep, Hull.Hp * RefitCeiling) - MaxHp;
+        int grown = Math.Min(MaxHp + ReinforceStep, Hull.HpCeiling) - MaxHp;
 
         MaxHp += grown;
         Hp = MaxHp;
