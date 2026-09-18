@@ -1288,7 +1288,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         bool forgiven = Forgiven(patron, overdue);
         if (!forgiven)
         {
-            ReturnLentShips();
+            ReturnLentShips(broken: true);
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
                                   "가까이 하지 않는 것이 좋을 것 같군요.");
@@ -1318,7 +1318,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                       "바보같은, 위약금을 지불할 수 없다고! 어디까지 어리석은..."));
             // 못 내면 친밀도가 20 깎인다(0x0044F886 이 -0x14 를 0x00478530 에 넘긴다).
             _player.Endear(patron.Name, -BreakPenaltyCloseness);
-            ReturnLentShips();
+            ReturnLentShips(broken: true);
             _player.EndContract();
             GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
                                   "가까이 하지 않는 것이 좋을 것 같군요.");
@@ -1326,7 +1326,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             return;
         }
 
-        ReturnLentShips();
+        ReturnLentShips(broken: true);
         _player.EndContract();
         GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 물었다.");
         RecontractMates();
@@ -1587,19 +1587,28 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 배가 한 척도 안 남으면 짐을 대신 팔아 준다 — <b>그 도시 매각가의 절반</b>이다
     /// (<see cref="Palace.DistressPrice"/>).
     /// </remarks>
-    private void ReturnLentShips()
+    private void ReturnLentShips(bool broken = false)
     {
+        bool mate = _player.MateAt(0).Length > 0;
+        bool hadCargo = _player.CargoHold.Count > 0;
         if (_player.TakeBackLentShips() == 0) return;
+
+        // 계약을 파기했으면 짐까지 가져간다(0x0040FE5C) — 빌린 배가 있었을 때만이다.
+        if (broken && hadCargo)
+        {
+            _player.DropAllCargo();
+            GameDialog.Show(_view, mate ? Palace.CargoSeized : Palace.CargoSeizedAlone);
+        }
 
         if (_player.Ships.Count > 0)
         {
-            GameDialog.Show(_view, Palace.ShipsReturned);
+            GameDialog.Show(_view, mate ? Palace.ShipsReturned : Palace.ShipsReturnedAlone);
             return;
         }
 
         if (_player.CargoHold.Count == 0)
         {
-            GameDialog.Show(_view, Palace.ShipsReturned);
+            GameDialog.Show(_view, mate ? Palace.ShipsReturned : Palace.ShipsReturnedAlone);
             return;
         }
 
@@ -1612,7 +1621,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         _player.DropAllCargo();
         _player.Earn(gold);
-        GameDialog.Show(_view, Palace.ShipsReturnedCargoSold);
+        GameDialog.Show(_view, mate ? Palace.ShipsReturnedCargoSold
+                                    : Palace.ShipsReturnedCargoSoldAlone);
         GameDialog.Show(_view, $"금화 {gold}닢을 손에 넣었다!");
     }
 
