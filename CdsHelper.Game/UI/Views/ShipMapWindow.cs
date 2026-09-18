@@ -1885,8 +1885,8 @@ public sealed class ShipMapWindow : Window
     /// 게임 폴더의 SAVEDATA.CDS 는 사람이 진짜로 놀던 것이라 우리는 읽기만 한다 —
     /// 그것을 지우면 되돌릴 길이 없다.
     ///
-    /// <b>은퇴는 아직 없다.</b> 누적 캐릭터 다섯 자리를 우리 쪽에 안 지어서(볼트
-    /// <c>39.분석-NEW GAME</c>) 고르면 그 까닭만 이르고 물러난다.
+    /// 「은퇴시킨다」는 그 제독을 누적 캐릭터 다섯 자리에 올린다(<see cref="Engine.AccData"/>) —
+    /// 초심자용 캐릭터만 물린다(<c>0x0045F886</c>).
     /// </remarks>
     /// <returns>새로 만들어도 되면 true, 물러났으면 false.</returns>
     private bool BreakOff()
@@ -1906,10 +1906,24 @@ public sealed class ShipMapWindow : Window
 
             if (at == 0)
             {
-                ConfirmDialog.Tell(this,
-                    $"[{name}]{GameUi.Josa(name, "은", "는")} 은퇴시킬 수 없습니다. " +
-                    "누적 캐릭터 자리가 아직 없습니다.", "모험 중단");
-                continue;
+                // 초심자용 캐릭터는 못 올린다(0x0045F886).
+                if (saved.ActiveStoryBook is { Length: > 0 })
+                {
+                    ConfirmDialog.Tell(this,
+                        $"[{name}]{GameUi.Josa(name, "은", "는")} 초심자용 캐릭터입니다. 은퇴할 수 없습니다.",
+                        "모험 중단");
+                    continue;
+                }
+
+                if (!ConfirmDialog.Ask(this,
+                        $"[{name}]{GameUi.Josa(name, "을", "를")} 은퇴시키겠습니까?")) continue;
+
+                // 적어 둔 것 그대로 누적 캐릭터로 올린다(0x0041AB90 → 0x0041A270).
+                Engine.AccData.Register(saved);
+
+                if (GameSave.Delete()) return true;
+                NoticeDialog.Show(this, "적어 둔 것을 지우지 못했습니다.");
+                return false;
             }
 
             if (at != 1) return false;      // 신규작성을 중지한다 · ESC

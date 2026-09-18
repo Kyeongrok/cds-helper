@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using CdsHelper.Support.Local.Models;
 
@@ -75,6 +75,24 @@ public static class AccData
                               new Dictionary<string, int>(player.Skills),
                               new Dictionary<string, int>(player.Tongues),
                               player.Date));
+        return Save(all);
+    }
+
+    /// <summary>
+    /// 적어 둔 판(세이브) 그대로 올린다 — 타이틀의 「모험 중단 → 은퇴시킨다」가 쓴다(<c>0x0045F77F</c>).
+    /// </summary>
+    public static bool Register(GameSave.Data saved)
+    {
+        var all = Load();
+        if (all.Count >= Slots) return false;
+
+        all.Add(new Character(saved.Name ?? "", saved.Family ?? "", saved.Given ?? "",
+                              saved.Face ?? 0, saved.Nation ?? 0, saved.JobIndex ?? 0,
+                              saved.Blood ?? 0, saved.Fame ?? 0,
+                              saved.Abilities?.ToArray() ?? [],
+                              new Dictionary<string, int>(saved.Skills),
+                              new Dictionary<string, int>(saved.Tongues ?? []),
+                              saved.Date));
         return Save(all);
     }
 
