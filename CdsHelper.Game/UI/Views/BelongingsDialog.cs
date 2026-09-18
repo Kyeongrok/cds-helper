@@ -299,7 +299,17 @@ public sealed class BelongingsDialog : GameWindow
     /// <param name="discoveries">발견물 칸에 늘어놓을 이름. 찾은 차례대로 준다.</param>
     public static void Show(Window owner, Player player, ItemTable? items,
                             ItemDescriptions? descriptions, ItemArt? art,
-                            IReadOnlyList<string> discoveries) =>
+                            IReadOnlyList<string> discoveries)
+    {
+        // <b>두 칸이 다 비면 창을 아예 안 연다</b>(0x0044CD06) — 「소지품이 없습니다」
+        // 알림 한 장으로 끝난다(0x0055AD90, 제목 없음).
+        if (player.Items.Count == 0 && discoveries.Count == 0)
+        {
+            NoticeDialog.Show(owner, "소지품이 없습니다");
+            return;
+        }
+
         new BelongingsDialog(player, items, descriptions, art, discoveries) { Owner = owner }
             .ShowDialog();
+    }
 }
