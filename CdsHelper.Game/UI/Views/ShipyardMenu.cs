@@ -763,13 +763,15 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         string sails = string.Concat(ship.Sails.Select(SailMark));
 
         return $"{(flag ? "*" : " ")}{GameUi.Pad(ship.Name, 10)}"
-             + $" {ship.Speed,3}/{ship.Hull.SpeedCeiling,3}"
+             + $" {ship.MaxSpeed,3}/{ship.Hull.SpeedCeiling,3}"
              + $"  {gun}  {sails}";
     }
 
     internal static string ShipLine(Ship ship, bool flag)
     {
         string hp = ship.NeedsRepair ? $"{ship.Hp,3}/{ship.MaxHp,-3}" : $"{ship.MaxHp,3}    ";
-        return $"{(flag ? "*" : " ")}{ship.Name}  내구{hp} 추진{ship.Speed,3} 적재{ship.Capacity,4}";
+        // 추진력도 상했으면 내구처럼 지금/최대로 낸다.
+        string go = ship.Speed < ship.MaxSpeed ? $"{ship.Speed,3}/{ship.MaxSpeed,-3}" : $"{ship.MaxSpeed,3}    ";
+        return $"{(flag ? "*" : " ")}{ship.Name}  내구{hp} 추진{go} 적재{ship.Capacity,4}";
     }
 }

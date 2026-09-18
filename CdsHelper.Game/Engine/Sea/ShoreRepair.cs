@@ -1,4 +1,4 @@
-using CdsHelper.Support.Local.Models;
+﻿using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Sea;
 
@@ -20,9 +20,9 @@ namespace CdsHelper.Game.Engine.Sea;
 /// 조선기술은 <b>제독과 부관(자리 0) 가운데 높은 쪽</b>이고(<c>0x0047CCA0(0xA,0,-1,-1,-1)</c>),
 /// 부관이 더 높으면 부관이 「제가 수리하겠습니다.」(<c>0x00570BB0</c>) 하고 나선다.
 ///
-/// <b>추진력은 안 옮겼다.</b> 원본은 배 레코드에 지금 추진력(<c>+0x38</c>)과 최대 추진력
-/// (<c>+0x3C</c>)을 따로 들고 둘 다 올리는데, 우리 배는 <see cref="Ship.Speed"/> 하나가
-/// 곧 최대라(해전에서 깎이면 최대째 준다) 되돌릴 자리가 없다.
+/// 자재 수리는 <b>추진력과 내구를 같은 만큼</b> 올린다(<c>0x0048E4FE</c>·<c>0x0048E537</c>) —
+/// 각각 제 최대치에서 잘린다. 그래서 폭풍에 상한 배는 여기서 둘 다 되돌아온다.
+/// 알리는 말도 넷으로 갈린다(<c>0x00570BE8</c>·<c>0x00570C10</c>·<c>0x00570C38</c>·<c>0x00570C58</c>).
 /// </remarks>
 public static class ShoreRepair
 {
@@ -42,7 +42,18 @@ public static class ShoreRepair
     }
 
     /// <summary>고칠 데가 있는 배인지 — 성한 배는 목록에 안 오른다(<c>0x0048E284</c>).</summary>
-    public static bool Damaged(Ship ship) => ship.Hp < ship.MaxHp;
+    public static bool Damaged(Ship ship) => ship.Hp < ship.MaxHp || ship.Speed < ship.MaxSpeed;
+
+    /// <summary>
+    /// 고친 뒤에 내는 말(<c>0x0048E1BF</c> 벌) — 무엇이 얼마나 올랐는지로 넷이 갈린다.
+    /// </summary>
+    public static string RepairWord(int hp, int speed) =>
+        hp > 0 && speed > 0
+            ? hp == speed ? $"내구력, 추진력이 {hp}씩 올라갔습니다!"
+                          : $"내구력이 {hp}, 추진력이 {speed} 올라갔습니다!"
+        : speed > 0 ? $"추진력이 {speed} 올라갔습니다!"
+        : hp > 0 ? $"내구력이 {hp} 올라갔습니다!"
+        : "수리하는데 실패했습니다!";
 
     /// <summary>한 번에 고르게 하는 배 수(<c>0x0048E360</c> 의 <c>cmp 8</c>).</summary>
     public const int MaxListed = 8;
