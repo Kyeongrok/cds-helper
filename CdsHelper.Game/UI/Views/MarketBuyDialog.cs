@@ -181,12 +181,17 @@ public sealed class MarketBuyDialog : GameWindow
     ///   0x005449D8  「삭제 아이템의 선택」        ← 목록 제목
     ///   0x00544A00  「소지품을 앞으로 %d개 삭제해 주십시오」
     /// </code>
+    /// 그 앞에 <b>한 번 더 묻는다</b>(<c>0x004B39AD</c>) — 고른 것까지 더해 열여섯을 넘으면
+    /// <c>0x00544748</c> 「이대로는 %d개 들을 수 없습니다. 괜찮습니까?」이고, 아니오면
+    /// 고르기로 되돌아간다.
     /// </remarks>
     /// <returns>자리가 났으면 true. 안 버리고 물리면 false.</returns>
     private bool MakeRoom(int buying)
     {
         int over = _player.Items.Count + buying - Player.MaxItems;
         if (over <= 0) return true;
+
+        if (!ConfirmDialog.Ask(this, $"이대로는 {over}개 들을 수 없습니다. 괜찮습니까?")) return false;
 
         GameDialog.Show(this, "더 이상 가질 수 없습니다! 소지품을 삭제해 주십시오");
 
