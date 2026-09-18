@@ -110,6 +110,23 @@ public static class FleetRaid
         return slots;
     }
 
+    /// <summary>
+    /// 별자리 번호를 이미 아는 사람의 운세 여덟 칸(<c>0x00477FE0</c> 의 뒷부분).
+    /// </summary>
+    /// <remarks>
+    /// 아내처럼 <b>생월·생일</b>로 별자리를 쥔 사람(<c>vtbl+0x28</c> = <c>0x0047CB50</c>)은 얼굴로
+    /// 별자리를 지어내지 않는다. 여급 표는 별자리 번호를 그대로 들고 있다.
+    /// </remarks>
+    public static int[] FortuneOfZodiac(int zodiac, int blood)
+    {
+        int z = ((zodiac % 12) + 12) % 12;
+        int b = Math.Clamp(blood, 0, 3);
+        var slots = new int[FortuneSlots];
+        for (int k = 0; k < FortuneSlots; k++)
+            slots[k] = Math.Clamp(ZodiacFortune[z, k] + BloodFortune[b, k], 0, 2);
+        return slots;
+    }
+
     /// <summary>제독의 성미 여덟 칸 — <see cref="AdmiralFortuneOf(int,int,int,int,int)"/> 에 제 값을 넣는다.</summary>
     public static int[] AdmiralFortuneOf(Support.Local.Models.Player player) =>
         AdmiralFortuneOf(player.BirthMonth, player.BirthDay, player.Blood, player.Fortune, player.Age);

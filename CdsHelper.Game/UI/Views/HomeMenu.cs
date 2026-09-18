@@ -46,7 +46,18 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     {
         var owner = Owner;
 
-        // 아내와 아이가 먼저 맞는다(0x004144C0 · 0x00414550) — 아직 소개 안 한 아이는 뒤에서 따로 인사한다.
+        // 아직 소개 안 한 아이가 있으면 그것으로 끝난다(0x0045FFC0 이 참이면 뒤가 다 건너뛴다).
+        var newborns = Home.NotIntroduced(_player);
+        if (newborns.Count > 0)
+        {
+            foreach (var child in newborns) Introduce(owner, child);
+            return;
+        }
+
+        // 그 다음이 사건이다 — 사건이 나면 맞이하는 말은 안 한다(0x004605C0).
+        if (Incident(owner)) return;
+
+        // 아내와 아이가 맞는다(0x004144C0 · 0x00414670).
         if (_player.Spouse.Length > 0)
             TalkDialog.Say(owner, null, _player.Spouse,
                            Home.WifeWelcome[_random.Next(Home.WifeWelcome.Length)]);
@@ -55,11 +66,97 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         if (Home.WelcomerOf(_player, _random) is { } welcomer)
             TalkDialog.Say(owner, ChildFace(welcomer), welcomer.Name,
                            Home.WelcomeOf(welcomer.Daughter, welcomer.AgeOn(_player.Date), _random));
+    }
 
-        foreach (var child in Home.NotIntroduced(_player)) Introduce(owner, child);
-
+    /// <summary>
+    /// 집에 돌아왔을 때 나는 사건 — 딸의 결혼이 먼저고, 그 다음이 아내의 돈벌이다(<c>0x004605C0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 딸의 결혼은 <c>rand(5) == 0</c>, 돈벌이는 <c>rand(100) &lt;= 2</c> 다. 어느 쪽이든 하나가
+    /// 나면 그 날의 맞이하는 말은 없다.
+    /// </remarks>
+    /// <returns>사건이 났으면 참.</returns>
+    private bool Incident(Window owner)
+    {
         if (_random.Next(Home.MarriageRoll) == 0 && Home.MarriageableDaughter(_player) is { } daughter)
+        {
             ProposeMarriage(owner, daughter);
+            return true;
+        }
+
+        if (!Home.IncidentDue(_player, _random)) return false;
+        return Home.SellsPhotos(_player.JobIndex) ? SellPhotos(owner) : ShowAnimals(owner);
+    }
+
+    /// <summary>
+    /// 아내의 욕심 칸(성미 여섯째). 여급 표에서 별자리와 혈액형을 꺼내 센다(<c>0x0047CB70</c>).
+    /// </summary>
+    /// <remarks>
+    /// 아내는 별자리를 <b>생월·생일</b>로 쥐고 있어(<c>0x0047CB50</c>) 얼굴로 지어내지 않는다.
+    /// 운명 코드 보정(<c>0x0047D710</c>)은 여자면 <c>clamp(나이/5, 0, 2)</c> 줄인데 그 줄들이
+    /// 손대는 칸이 여섯째가 아니라 여기서는 없는 셈이다. 아내를 못 찾으면 1 로 둔다.
+    /// </remarks>
+    private int WifeGreed()
+    {
+        if (_game.Barmaids?.Find(_player.SpouseId) is not { } her) return 1;
+        return Engine.Sea.FleetRaid.FortuneOfZodiac(her.Zodiac, her.Blood)[Home.GreedSlot];
+    }
+
+    /// <summary>가진 아이템 가운데 그 분류인 것(<c>0x004AB680</c>).</summary>
+    private List<Local.Helpers.ItemTable.Record> Owned(int category)
+    {
+        var table = _game.Items;
+        if (table == null) return [];
+        return [.. _player.Items.Select(table.Find)
+                               .Where(r => r is { } rec && rec.Category == category)
+                               .Select(r => r!.Value)];
+    }
+
+    /// <summary>
+    /// 잡아 온 동물로 구경거리를 벌였거나, 놓쳐서 소문이 났거나(<c>0x00460280</c>).
+    /// </summary>
+    private bool ShowAnimals(Window owner)
+    {
+        var mine = Owned(Home.AnimalCategory);
+        if (mine.Count == 0) return false;
+
+        if (Home.ShowsAnimals(WifeGreed(), _player.AbilityOf(Ability.Luck), _random))
+        {
+            int fee = mine.Sum(r => Home.ShowFee(r.SellList));
+            if (fee <= 0) return false;
+            TalkDialog.Say(owner, null, _player.Spouse,
+                           "돌아오셨어요? 참, 마을 사람들에게 당신이 잡아온 희한한 동물을 보여 주었더니, "
+                           + $"관람료로 금화 {fee}닢이나 모아졌지 뭐예요!");
+            _player.SetSavings(_player.Savings + fee);
+            return true;
+        }
+
+        var ran = mine[_random.Next(mine.Count)];
+        TalkDialog.Say(owner, null, _player.Spouse,
+                       $"돌아오셨어요? 여보, 큰일 났었어요! 당신이 키우고 있는 {ran.Name}"
+                       + $"{Local.Helpers.NameToken.Of(ran.Name, 0)} 도망쳐서 마을이 온통 야단법석이었어요! "
+                       + "마을 사람들이 잡아 주었으니 망정이지, 영주님께 혼이났어요.");
+        _player.Infamy += Home.RunawayInfamy(ran.SellList);
+        return true;
+    }
+
+    /// <summary>
+    /// 가져온 유물의 사진을 아내가 팔았다(<c>0x00460420</c>).
+    /// </summary>
+    private bool SellPhotos(Window owner)
+    {
+        var mine = Owned(Home.RelicCategory);
+        if (mine.Count == 0 || !Home.SellsRelicPhotos(WifeGreed())) return false;
+
+        var shot = mine[_random.Next(mine.Count)];
+        int paid = Home.PhotoFee(shot.SellList, _player.AbilityOf(Ability.Luck), _random);
+        if (paid <= 0) return false;
+
+        TalkDialog.Say(owner, null, _player.Spouse,
+                       $"다녀오셨어요? 당신이 집에 없을 때, [{shot.Name}]의 사진을 찍어서 팔았더니, "
+                       + $"인기가 좋아서 금화 {paid}닢이나 벌었어요. 놀랐지 뭐예요.");
+        _player.SetSavings(_player.Savings + paid);
+        return true;
     }
 
     /// <summary>아이 하나를 소개하고, 바라면 이름을 새로 짓는다(<c>0x00460070</c>).</summary>
