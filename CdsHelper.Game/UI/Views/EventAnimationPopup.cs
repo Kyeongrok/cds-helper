@@ -78,6 +78,7 @@ internal sealed class EventAnimationPopup : Window
             EventAnimation.Bush => new BushScene(),
             EventAnimation.Tornado => new TornadoScene(),
             EventAnimation.Aurora => new AuroraScene(),
+            EventAnimation.Meteor => new MeteorScene(),
             _ => null,
         };
         if (play == null || !play.Load(anims)) return;
@@ -262,23 +263,26 @@ internal sealed class EventAnimationPopup : Window
     /// 검은 막은 우리 것이다 — 게임은 팔레트를 단계별로 어둡게 하지만(<c>0x0049A1A0</c>)
     /// 우리는 지도 위에 검은 네모를 덮어 같은 꼴을 낸다.
     /// </remarks>
-    private sealed class AuroraScene : Scene
+    /// <summary>
+    /// 밤하늘을 가르는 <b>유성</b> 장면(<c>0x004992A0</c>, 장면 12) — 뭍에서 8월·12월에 뜬다.
+    /// </summary>
+    /// <remarks>
+    /// EVANIME 파트 19(368x192, 스물여섯 장, 팔레트 45)를 지도 가운데에 한 장씩 얹는다.
+    /// <code>
+    ///   0~3      지도가 어두워진다(그림 없음)
+    ///   4~9      첫 장
+    ///   10       소리 0x3A                        14~20  첫 장
+    ///   10~13    걸음-9 (1~4)                     21~41  걸음-16 (5~25)
+    ///   42~47    첫 장                            48~51  지도가 밝아진다
+    ///   52       끝                               곡은 안 끊는다
+    /// </code>
+    /// </remarks>
+    private sealed class MeteorScene : Scene
     {
-        private const int FrameW = 640, FrameH = 0xC0;
+        private const int FrameW = 368, FrameH = 0xC0;
         private const int DarkStep = 4, SoundStep = 10, LightStep = 48, EndStep = 52;
 
-        /// <summary>
-        /// 우리 걸음 <b>둘</b>이 게임 한 걸음이다 — 원본은 이 장면이 <b>10초 넘게</b> 돈다.
-        /// </summary>
-        /// <remarks>
-        /// 걸음 표대로면 쉰두 걸음(5.2초)인데 원본은 그 갑절쯤 간다. 장면 객체가 한 틱에
-        /// 한 걸음씩 세지 않는 듯한데 거기까지는 못 짚어, 눈으로 잰 길이에 맞춰 늘린다.
-        /// </remarks>
-        private const int Slow = 2;
-
-        /// <summary>
-        /// 가장 어두울 때의 짙기. <b>완전히 덮지 않는다</b> — 원본도 뭍과 물결이 비쳐 보인다.
-        /// </summary>
+        /// <summary>가장 어두울 때의 짙기. <b>완전히 덮지 않는다</b> — 원본도 뭍과 물결이 비쳐 보인다.</summary>
         private const double DarkMost = 0.82;
 
         private BitmapSource[] _art = [];
@@ -286,7 +290,8 @@ internal sealed class EventAnimationPopup : Window
         private double _dim;
         private bool _rang;
 
-        public override bool StopsMusic => true;
+        /// <summary>곡은 그대로 돈다(<c>0x00499460</c> 은 <c>0x00422A40</c> 을 안 부른다).</summary>
+        public override bool StopsMusic => false;
 
         public override double Dim => _dim;
 
@@ -295,7 +300,7 @@ internal sealed class EventAnimationPopup : Window
 
         public override bool Load(EventAnimation anims)
         {
-            _art = Frames(anims, 18, FrameW, FrameH, 0x2C) ?? [];
+            _art = Frames(anims, 19, FrameW, FrameH, 0x2D) ?? [];
             return _art.Length > 0;
         }
 
@@ -307,9 +312,8 @@ internal sealed class EventAnimationPopup : Window
             _rang = false;
         }
 
-        public override bool Step(int count, List<Draw> draws)
+        public override bool Step(int step, List<Draw> draws)
         {
-            int step = count / Slow;                 // 게임 걸음
             if (step >= EndStep) { _dim = 0; return true; }
 
             // 어두워지고 밝아지는 동안에는 그림이 없다 — 지도만 여닫힌다.
@@ -328,6 +332,86 @@ internal sealed class EventAnimationPopup : Window
             {
                 >= SoundStep and < 14 => step - 9,
                 >= 21 and < 42 => step - 16,
+                _ => 0,
+            };
+            draws.Add(new Draw(_art[Math.Clamp(frame, 0, _art.Length - 1)], _x, _y));
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 밤하늘에 펴지는 <b>오로라</b> 장면(<c>0x00498FF0</c>, 장면 11) — 발견 대본의 특수 조우 4 가 부른다.
+    /// </summary>
+    /// <remarks>
+    /// EVANIME 파트 18(640x192, 스물두 장, 팔레트 44)을 지도 가운데에 얹는다. 유성과 달리 <b>곡을 끊고</b>
+    /// 일흔세 걸음(7.3초)을 도는데, 장이 오르내리기를 되풀이해 빛의 장막이 일렁이는 것처럼 보인다.
+    /// <code>
+    ///   0~3      어두워진다        10   소리 0x45        63   소리를 끈다
+    ///   10~22    걸음-9            23~29  36-걸음        30~42  걸음-23
+    ///   43~47    62-걸음           48~54  걸음-33        55~58  76-걸음
+    ///   59~62    걸음-41           그 밖 첫 장           69~72  밝아진다 · 73 끝
+    /// </code>
+    /// </remarks>
+    private sealed class AuroraScene : Scene
+    {
+        private const int FrameW = 640, FrameH = 0xC0;
+        private const int DarkStep = 4, SoundStep = 10, HushStep = 63, LightStep = 69, EndStep = 73;
+        private const double DarkMost = 0.82;
+
+        private BitmapSource[] _art = [];
+        private int _x, _y;
+        private double _dim;
+        private bool _rang, _hushed;
+
+        public override bool StopsMusic => true;
+
+        public override double Dim => _dim;
+
+        public override int SoundPart => -1;
+
+        public override bool Load(EventAnimation anims)
+        {
+            _art = Frames(anims, 18, FrameW, FrameH, 0x2C) ?? [];
+            return _art.Length > 0;
+        }
+
+        public override void Start(int w, int h, Point? ship, Random rng)
+        {
+            _x = (w - FrameW) / 2;
+            _y = 0;
+            _dim = 0;
+            _rang = _hushed = false;
+        }
+
+        public override bool Step(int step, List<Draw> draws)
+        {
+            if (step >= EndStep) { _dim = 0; return true; }
+
+            if (step < DarkStep) { _dim = DarkMost * step / DarkStep; return false; }
+            if (step >= LightStep) { _dim = DarkMost * (EndStep - step) / DarkStep; return false; }
+
+            _dim = DarkMost;
+
+            if (step >= SoundStep && !_rang)
+            {
+                _rang = true;
+                Sfx?.Play(0x45 - WaveBank.FirstSoundId);
+            }
+            if (step >= HushStep && !_hushed)
+            {
+                _hushed = true;
+                Sfx?.Stop();                       // 0x00422A40(0x45, 3)
+            }
+
+            int frame = step switch
+            {
+                >= 10 and <= 22 => step - 9,
+                >= 23 and <= 29 => 36 - step,
+                >= 30 and <= 42 => step - 23,
+                >= 43 and <= 47 => 62 - step,
+                >= 48 and <= 54 => step - 33,
+                >= 55 and <= 58 => 76 - step,
+                >= 59 and <= 62 => step - 41,
                 _ => 0,
             };
             draws.Add(new Draw(_art[Math.Clamp(frame, 0, _art.Length - 1)], _x, _y));

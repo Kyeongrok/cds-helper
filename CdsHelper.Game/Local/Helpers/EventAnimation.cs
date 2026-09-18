@@ -47,8 +47,7 @@ public sealed class EventAnimation
     public const int Tornado = 13;
 
     /// <summary>
-    /// 유성 장면 — 뭍에서 8월·12월에 유성이 흐르면(<c>0x00427D59</c>). <b>아직 안 그린다</b> —
-    /// 부르면 조용히 넘어가고 말만 난다.
+    /// 유성 장면 — 뭍에서 8월·12월에 유성이 흐르면(<c>0x00427D59</c>). EVANIME 파트 19(368x192 스물여섯 장)다.
     /// </summary>
     public const int Meteor = 12;
 
