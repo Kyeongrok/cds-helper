@@ -2969,12 +2969,17 @@ public sealed class ShipMapWindow : Window
         bool treaty = Standoff.TreatyBars(_game.Player.Date.Year, _game.Player.Nation, nation);
         if (!angry && !treaty) return true;
 
-        // 조약 쪽은 무엇에 막혔는지를 먼저 이른다(0x00552208).
+        // 조약 쪽은 무엇에 막혔는지를 먼저 이른다(0x0046A6C0) — <b>문지기가 얼굴을 걸고</b>
+        // 말하고, 마을(0x00552208)과 항구(0x00552240)의 글이 다르다.
         if (treaty && !angry)
         {
             string theirs = _game.Nations?.Find(nation)?.Name ?? "";
-            NoticeDialog.Show(this,
-                string.Format(Standoff.TreatyWord, Standoff.TreatyName, theirs), name);
+            string mine = _game.Player.NationName;
+            int culture = _game.CityRows?.CultureOf(city) ?? 0;
+            var gate = _game.SpeakerFace(Standoff.GateSpeaker(byLand), culture);
+            TalkDialog.Say(this, gate, "", byLand
+                ? string.Format(Standoff.TreatyWord, Standoff.TreatyName, mine)
+                : string.Format(Standoff.TreatyPortWord, theirs, Standoff.TreatyName, mine));
         }
 
         // 도시 그림이 펴지는 동안은 이미 도시에 닿은 것이다 — 지도에 남색 막을 씌운다.
