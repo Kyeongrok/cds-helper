@@ -472,7 +472,8 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// 돌파했는지. 게임은 돌파 보상을 치른 갈래에서만 결과 <c>[+0x9C] = 1</c> 을 박고
     /// (<c>0x0042B154</c>) 덫·실패·포기는 0 이다 — 발견 대본(<c>0E 04 02</c>)이 이 값으로 갈라진다.
     /// </returns>
-    public static bool Play(Window owner, Random rng)
+    public static bool Play(Window owner, Random rng,
+                            CdsHelper.Support.Local.Models.Player? player = null)
     {
         // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다(0x0042C84E).
         Explain(owner);
@@ -489,8 +490,10 @@ internal sealed class MazePuzzleDialog : InfoDialog
                 break;
 
             case MazePuzzle.Result.Failed:
+                // 발견 대본이 거는 미궁은 <b>상금 갈래</b>다(0x00408D80 이 0x0042C8A0(1)).
+                // 그 갈래의 실패 말이 이것이다(0x0042B0C8) — 문이 닫힌다는 쪽은 딴 갈래다.
                 NoticeDialog.Show(owner,
-                    "이번엔 되돌아 오지 않았지만 문이 닫히고 말았다. 이제 탈출은 불가능하다.",
+                    "이번엔 되돌아 오지 않았지만, 바닥이 불길한 소리를 내기 시작했다!",
                     "클리어 실패");
                 NoticeDialog.Show(owner, "게임 오버입니다. 다음 번엔 노력합시다.", "게임 오버");
                 break;
@@ -500,14 +503,16 @@ internal sealed class MazePuzzleDialog : InfoDialog
                 NoticeDialog.Show(owner, "게임 오버입니다. 다음 번엔 노력합시다.", "게임 오버");
                 break;
 
+            // 상금 갈래는 <b>실수를 안 따진다</b> — 다 밟고 나가면 한 가지 말이고,
+            // 연 상자 수만큼 금화를 준다(0x0042B11A 의 점프표).
             case MazePuzzle.Result.Cleared:
-                NoticeDialog.Show(owner, "축하하네! 드디어 자네는 미궁을 돌파했네!", "게임 클리어");
-                break;
-
             case MazePuzzle.Result.Perfect:
-                NoticeDialog.Show(owner,
-                    "축하하네! 자네는 실수하지 않고 미궁을 돌파해 보물을 손에 넣었네!",
-                    "게임 클리어");
+                NoticeDialog.Show(owner, "축하하네! 드디어 자네는 미궁을 돌파했네!", "게임 클리어");
+                if (dialog._game.Prize is > 0 and var gold)
+                {
+                    player?.Earn(gold);
+                    NoticeDialog.Show(owner, $"금화 {gold}닢을 손에 넣었다!", "게임 클리어");
+                }
                 break;
         }
 
