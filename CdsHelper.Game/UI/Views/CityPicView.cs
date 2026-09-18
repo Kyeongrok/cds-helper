@@ -1136,12 +1136,48 @@ public sealed class CityPicView : GameWindow, ITownScreen
         NoticeDialog.Show(this, Lodging.WakeWord(_random));
         // 한 달 묵으면 HP 가 30~59 찬다(0x0047FCFF).
         _player.SetCondition(_player.Condition + Vitality.InnRest(_random));
+        TellTongue(inn.LearnTongue(_player, _cityId, _game.Nations, _random));
     }
 
     private Lodging? _lodging;
 
     /// <summary>셋 중 하나를 고르는 데 쓴다. 게임도 rand(3) 으로 고른다.</summary>
     private readonly Random _random = new();
+
+    /// <summary>
+    /// 여관 「허드렛일」(<c>0x0047FD60</c>) — 주머니가 가벼울 때만 나오는 줄이다.
+    /// </summary>
+    /// <remarks>
+    /// YES 면 <b>한 해</b>가 통째로 가고(피로가 다 풀리고 규율이 가득 찬다) 컨디션이 10~19 차며,
+    /// 그 고장 말을 배울 수도 있다(<see cref="Lodging.LearnTongue"/>). 삯은 시세를 먹인 1200 닢이다.
+    /// 게임은 <b>삯을 알리고 나서</b> 돈을 넣는데, 셈이 같으니 여기서는 알림 뒤에 넣는다.
+    /// NO 면 아무 말 없이 끝난다.
+    /// </remarks>
+    private void OddJob()
+    {
+        var inn = _lodging ??= new Lodging(_game.CityRows, _game.Rates);
+        var face = _game.SpeakerFace(InnCode, _cultureNo);
+        if (!ConfirmDialog.Ask(this, Lodging.OddJobAsk, face: face)) return;
+
+        int pay = inn.OddJobPay(_cityId);
+        _player.AdvanceDays(Lodging.OddJobDays);
+        _player.SetCondition(_player.Condition + Lodging.OddJobRest(_random));
+        TellTongue(inn.LearnTongue(_player, _cityId, _game.Nations, _random));
+
+        ConfirmDialog.Tell(this, Lodging.OddJobDone, face: face);
+        NoticeDialog.Show(this, $"금화 {pay}닢을 손에 넣었다!");
+        _player.Earn(pay);
+    }
+
+    /// <summary>여관 건물 코드(화자표) — 주인은 여자다.</summary>
+    private const int InnCode = 5;
+
+    /// <summary>말을 한 조각 배웠으면 알린다(<c>0x005443B8</c>).</summary>
+    private void TellTongue(string? tongue)
+    {
+        if (tongue is { Length: > 0 })
+            NoticeDialog.Show(this, $"{tongue}{GameUi.Josa(tongue, "을", "를")} 조금 습득했다!");
+    }
 
     /// <summary>
     /// 교역소 「회화」(<c>0x00481A10</c>) — 도시 상태로 비싸게 팔리는 것이 있으면 금화 1닢에 일러 주고,
@@ -1671,6 +1707,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.TradeTalk() => TradeTalk();
 
     void ITownScreen.Stay() => Stay();
+
+    void ITownScreen.OddJob() => OddJob();
     void ITownScreen.ShowMates() => MateRosterDialog.Show(this, _player);
 
     void ITownScreen.LeaveHeir() => HomeRooms.LeaveHeir();
