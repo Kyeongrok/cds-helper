@@ -531,11 +531,10 @@ public sealed class ShipMapWindow : Window
             // 지도 배율은 고르는 그 자리에서 지도에 먹인다.
             ("설정", () => SettingsDialog.Show(this, _game.Bgm, s => _host.ApplyMapScale(s))),
             ("게임데이터", () => GameDataDialog.Show(this)),
+            // 「제독 정보」 줄은 걷었다 — 자택 차림표에서 여는 길이 있어 창 자체는 그대로 둔다.
             // 낯을 튼 여급과 그 궁합. 궁합은 초상화 번호 하나로 갈리는데 화면에서는
             // 볼 길이 없어 여기에 둔다.
             (BarmaidBookRow, () => BarmaidBookDialog.Show(this, _game)),
-            // 제독의 값이 화면 곳곳에 흩어져 있어 한자리에 모아 볼 데가 없었다.
-            ("제독 정보", () => PlayerInfoDialog.Show(this, _game)),
             // 누가 어느 도시로 가고 있는지는 지도에 배만 떠 있어 알 길이 없다.
             (PersonMoveRow, () => PersonMoveDialog.Show(this, _game)),
             // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
