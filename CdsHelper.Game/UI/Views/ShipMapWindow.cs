@@ -2617,8 +2617,8 @@ public sealed class ShipMapWindow : Window
             GameSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
             Close();
         }));
+        // 줄은 「기능」에서 끝난다(0x0048B4B5) — 「취소」는 기능 아래에만 있고 커맨드는 오른쪽 단추로 닫는다.
         items.Add(("기능", () => CommandMenu.Push(SeaSystemMenuBox)));
-        items.Add(("취소", Close));
 
         // 넓히는 것은 GameUi 가 창을 지으며 한다 — 커맨드 창만이 아니라 도시 창·시설 창도
         // 같이 넓어야 모양이 맞는다.
