@@ -700,8 +700,16 @@ public sealed class ShipMapWindow : Window
             FocusWatch.After("지도창 초점 잃음");
         };
         StateChanged += (_, _) => SyncOverlay();
+
+        // 육상전·일기토가 열려도 비·눈이 그친다(0x0044AA31 · 0x004AA87F) — 발견 대본의 육상전이나
+        // 바다 조우의 일기토는 이 창 밖에서 열리므로 판 쪽이 알린다.
+        Action endWeather = () => Dispatcher.Invoke(EndWeather);
+        LandBattleScene.Opening += endWeather;
+        DuelDialog.Opening += endWeather;
         Closed += (_, _) =>
         {
+            LandBattleScene.Opening -= endWeather;
+            DuelDialog.Opening -= endWeather;
             _overlay.IsOpen = false;
             _statusTimer.Stop();
             _game.Close();

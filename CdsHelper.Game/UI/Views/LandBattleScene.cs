@@ -84,11 +84,16 @@ internal sealed class LandBattleScene : GameWindow
         };
     }
 
+    /// <summary>판이 열리기 직전 — 바다 지도가 비·눈을 거둔다(<c>0x0044AA31</c>).</summary>
+    public static event Action? Opening;
+
     /// <summary>
     /// 판을 펴고 싸운다. <b>이겨서 도시에 들어가게 되면 참</b>이다.
     /// </summary>
     public static bool Run(Window? owner, Engine.Game game, LandBattle battle, GameRandom dice)
     {
+        Opening?.Invoke();
+
         // 배치 판과 같은 셈이다 — 화면 점에 딱 떨어져야 점이 안 뭉갠다.
         double scale = GameUi.PixelFitDip(owner, LandArt.FieldWidth, LandArt.FieldHeight);
 
