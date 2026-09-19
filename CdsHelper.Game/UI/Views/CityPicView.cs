@@ -1021,7 +1021,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         // 적지 않고 놀이를 끝낸다 — 바다·뭍 발견과 같은 차례다(ShipMapWindow.CheckDiscovery).
         if (Engine.Disev.DisevRunner.LastEndedInGameOver)
         {
-            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+            GameOverDialog.Show(this, _game.EventStills, Engine.Disev.DisevRunner.LastGameOverPicture, bgm: _game.Bgm);
             if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
             return;
         }
@@ -1057,7 +1057,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         if (Engine.Disev.DisevRunner.LastEndedInGameOver)
         {
-            GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+            GameOverDialog.Show(this, _game.EventStills, Engine.Disev.DisevRunner.LastGameOverPicture, bgm: _game.Bgm);
             if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
             return true;
         }

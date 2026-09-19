@@ -20,15 +20,19 @@ namespace CdsHelper.Game.UI.Views;
 /// 그림은 <c>EVSTILL.CDS</c> 에 있다 — 발견물 스틸과 짜임이 같아 같은 손으로 읽는다
 /// (<see cref="Engine.Game.EventStills"/>).
 ///
-/// <b>어느 까닭에 어느 번호인지는 아직 못 갈랐다.</b> <c>0x00410CA1</c> 의 뜀표를 따라가야
-/// 하는데 거기까지는 안 훑어, 반란에 진 자리는 <c>0x0B</c> 로 둔다.
+/// 그림은 끝난 까닭(<c>0x005A4D18</c> 아래 세 비트, <c>0x0044AF40</c> 이 적는다)으로 고른다(<c>0x00410CA1</c> 뜀표).
+/// <code>
+///   0 반란·대본 4A·컨디션   4 일기토 죽음   5 감옥   6 사냥꾼에게 붙잡힘   → 0x0B
+///   1 선원 0·배 0·극지방    2 해전 패배                                 → 0x0C
+///   3 육상전 전멸(0x00449920)                                            → 0x0D
+/// </code>
 ///
 /// 바탕의 벽지 무늬는 타이틀 화면 것과 같은 그림이라 그것을 깔아 쓴다.
 /// </remarks>
 public sealed class GameOverDialog : GameWindow
 {
     /// <summary>놀이가 끝나는 까닭마다의 그림 번호(<c>0x00410CC2</c>).</summary>
-    public const int MutinyLost = 0x0B, Ending2 = 0x0C, Ending3 = 0x0D;
+    public const int MutinyLost = 0x0B, FleetLost = 0x0C, LandLost = 0x0D;
 
     private bool _again;
 
