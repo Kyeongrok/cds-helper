@@ -652,7 +652,39 @@ public sealed class CityPicView : GameWindow, ITownScreen
         int language = _game.Nations?.Find(_game.CityRows?.NationOf(_cityId) ?? -1)?.Language ?? -1;
         int mine = language >= 0 && language < Skill.Languages.Length
             ? _player.TongueOf(Skill.Languages[language]) : Skill.MaxLevel;
+
+        // 부하 가운데 그 말을 더 잘 아는 사람이 있으면 그 사람이 옮겨 준다(0x00492F47 → 0x0047CD20) —
+        // 그 사람 수준으로 뭉갠 글을 그 얼굴로 「[%s]라고 말하고 있는 것 같습니다.」(0x0053BDE8) 한다.
+        if (language >= 0 && BestTongue(language) is var (name, level) && level > mine)
+        {
+            var who = _game.MateInfo(name);
+            var face = who is { Face: >= 0 and < 0xFFFF } m
+                ? _game.Faces?.TryGetBgra(m.Face, female: false) : null;
+            TalkDialog.Say(this, face, "",
+                           $"[{StrangerTalk.Garble(words, level, _random)}]라고 말하고 있는 것 같습니다.");
+            return;
+        }
+
         NoticeDialog.Show(this, StrangerTalk.Garble(words, mine, _random));
+    }
+
+    /// <summary>그 말을 가장 잘 아는 부하와 그 수준(<c>0x0047CD20</c>). 아무도 없으면 빈 이름에 0 이다.</summary>
+    private (string Name, int Level) BestTongue(int language)
+    {
+        string best = "";
+        int level = 0;
+        if (_game.World?.People is not { } people) return (best, level);
+
+        for (int slot = 0; slot < Player.MaxMates; slot++)
+        {
+            string mate = _player.MateAt(slot);
+            if (mate.Length == 0) continue;
+            if (people.FirstOrDefault(r => r.Name == mate) is not { } row) continue;
+            if (language >= row.Languages.Length || row.Languages[language] <= level) continue;
+            best = mate;
+            level = row.Languages[language];
+        }
+        return (best, level);
     }
 
     /// <summary>
