@@ -2292,6 +2292,31 @@ public sealed class ShipMapHost : HwndHost
         _renderer.Erase(patch);
     }
 
+    /// <summary>
+    /// 지금 선 자리가 어귀인 도시 <b>모두</b> — 게임 커맨드 창은 창 안에 드는 도시마다 「…에 들어간다」 줄을
+    /// 하나씩 단다(<c>0x0048B1E2</c> 가 둘레 칸을 훑는다). 차례는 도시 번호 차례다.
+    /// </summary>
+    public List<int> TownsAt()
+    {
+        var got = new List<int>();
+        if (!_shipKnown || _cities == null) return got;
+
+        int fx = (int)Math.Floor(_shipX);
+        int fy = (int)Math.Floor(_shipY);
+        for (int id = 0; id < CityExeTable.Count; id++)
+        {
+            if (CityOpen is { } open && !open(id)) continue;
+            if (!_cities.TryCell(id, out int cx, out int cy, out int reach)) continue;
+            if (fy < cy - TownSlack - TouchSlack || fy > cy + reach + TouchSlack) continue;
+            int dx = fx - cx;
+            if (dx > WorldMapRenderer.UnfoldedW / 2) dx -= WorldMapRenderer.UnfoldedW;
+            if (dx < -WorldMapRenderer.UnfoldedW / 2) dx += WorldMapRenderer.UnfoldedW;
+            if (dx < -TownSlack - TouchSlack || dx > reach + TouchSlack) continue;
+            got.Add(id);
+        }
+        return got;
+    }
+
     private int CityAt()
     {
         if (!_shipKnown || _cities == null) return -1;
