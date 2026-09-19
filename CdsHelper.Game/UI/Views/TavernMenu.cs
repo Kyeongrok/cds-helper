@@ -142,9 +142,13 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   0042fb69  rand(5) != 0 이면 아무 일 없다
     ///   0042fb89  rand(악명 / 500) &gt; rand(운 + 1) + 5 라야 걸린다
     ///   0042fbc7  rand(3) 으로 말 한 벌씩을 고른다(도전 · 부관 · 받음 · 무시)
-    ///   0042fd1e  이기면 명성 +100 · 악명 +1000
-    ///   0042fd3b  지면   악명 += rand(100) + 100
+    ///   0042fd1e  결과 0(이겨서 처형)      명성 +100 · 악명 +1000
+    ///   0042fd3b  결과 1(이겨서 놓아 줌·뺏음) 악명 += rand(100) + 100
+    ///             결과 2(져도 살았다)       아무 일 없다
+    ///   0042fd55  결과 3(베였다)            놀이 끝
     /// </code>
+    /// 판 결과는 <c>[일기토+0x1C0]</c> 이다(<c>0x004AA6F0</c>) — 처형이 0(<c>0x004AA362</c>), 그 밖의 승리가 1,
+    /// 도망·용서가 2, 죽음이 3 이다. 술집 판(갈래 0)은 이기면 처형·놓아 준다·모두 뺏는다를 고른다.
     /// 「술집을 나온다」를 눌렀을 때만 굴린다(<c>0x0042FFBC</c> — 부르는 곳은 여기 하나다).
     /// 원본 함수는 늘 1 을 내 어떻게 되든 술집을 나선다.
     /// </remarks>
@@ -186,8 +190,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (duel.Won == true)
         {
             _player.Hurt(duel.BodyLost);
-            _player.Fame += BrawlFame;
-            _player.Infamy += ChallengeWinInfamy;
+            if (Triumph(BrawlPerson, face, roll) == 0)
+            {
+                _player.Fame += BrawlFame;
+                _player.Infamy += ChallengeWinInfamy;
+            }
+            else _player.Infamy += roll.Next(100) + 100;
             return true;
         }
         if (LostDuel(duel, face, roll, mateFought: false))
@@ -196,7 +204,6 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return true;
         }
         _player.Hurt(duel.BodyLost);
-        _player.Infamy += roll.Next(100) + 100;
         return true;
     }
 
@@ -424,9 +431,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   0042ec6e  제독   0x0054A6A0 · 0x0054A6D0
     ///   0042ec86  상대   0x0054A6F8 · 0x0054A718
     ///   0042ec9f  부관   0x0054A740 · 0x0054A770
-    ///   0042ecd3  이기면 명성 +100 · 악명 +500
-    ///   0042ecf6  지면   악명 += rand(100) + 100
-    ///   0042ed16  죽으면 게임 오버
+    ///   0042ecd3  결과 0(이겨서 처형)         명성 +100 · 악명 +500
+    ///   0042ecf6  결과 1(놓아 줌·뺏음)         악명 += rand(100) + 100
+    ///             결과 2(져도 살았다)          아무 일 없다
+    ///   0042ed16  결과 3(베였다)               게임 오버
     /// </code>
     /// </remarks>
     private void PickFight(uint[]? mate)
@@ -450,8 +458,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (duel.Won == true)
         {
             _player.Hurt(duel.BodyLost);
-            _player.Fame += BrawlFame;
-            _player.Infamy += BrawlWinInfamy;
+            if (Triumph(BrawlPerson, face, dice) == 0)
+            {
+                _player.Fame += BrawlFame;
+                _player.Infamy += BrawlWinInfamy;
+            }
+            else _player.Infamy += dice.Next(100) + 100;
             return;
         }
         if (LostDuel(duel, face, dice, mateFought: false))
@@ -460,7 +472,6 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return;
         }
         _player.Hurt(duel.BodyLost);
-        _player.Infamy += dice.Next(100) + 100;
     }
 
     /// <summary>취중에 시비가 붙는 상대(<c>0x0042EC19</c> 의 <c>0x113</c>).</summary>
@@ -1263,7 +1274,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         if (duel.Won == true)
         {
-            Triumph(who, face, dice);
+            Triumph(who.Index, face, dice);
             Setback(who, face, dice);
         }
         else if (LostDuel(duel, face, dice, mate is { }))
@@ -1475,13 +1486,15 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         "생각보단 꽤 하는군. 하지만 이런 곳에서 죽을 수 있나. 내게는 큰 꿈이 있다.",
     ];
 
-    private void Triumph(TavernRoster.Person who, uint[]? face, GameRandom dice)
+    /// <summary>이긴 뒤 처형·놓아 준다·모두 뺏는다(<c>0x004A8380(3)</c>). 고른 번호(0 처형 · 1 놓아 줌 · 2 뺏음)를 낸다.</summary>
+    private int Triumph(int person, uint[]? face, GameRandom dice)
     {
-        switch (ChoiceDialog.Pick(_view, "", ["처형한다", "놓아 준다", "모두 뺏는다"]))
+        int pick = ChoiceDialog.Pick(_view, "", ["처형한다", "놓아 준다", "모두 뺏는다"]);
+        switch (pick)
         {
             case 0:
                 TalkDialog.Say(_view, face, "", Executed[dice.Next(Executed.Length)]);
-                if (_game.World?.People.FirstOrDefault(r => r.Id == who.Index) is { } row)
+                if (_game.World?.People.FirstOrDefault(r => r.Id == person) is { } row)
                     row.Appear = 0;
                 break;
 
@@ -1500,6 +1513,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 NoticeDialog.Show(_view, $"명성이 {SpareFame} 올라갔다", "일기토");
                 break;
         }
+        return pick;
     }
 
     /// <summary>놓아 주면 오르는 명성(<c>0x004AA3E0</c>) · 뺏으면 오르는 악명(<c>0x004AA470</c> 알림 값).</summary>
