@@ -27,12 +27,26 @@ public static class Vitality
     private static readonly DateTime Epoch = new(1480, 1, 1);
 
     /// <summary>
+    /// 1480년 1월 1일부터의 <b>게임 날수</b>(<c>0x0042E6A0</c>) — 이레를 세는 자다.
+    /// </summary>
+    /// <remarks>
+    /// 게임 달력은 <b>율리우스력</b>이라 100 으로 나뉘는 해도 윤년이다(<c>y % 4</c>) — 1500년 2월 29일이 있다.
+    /// 우리 <see cref="DateTime"/> 은 그레고리력이라 그날이 없으므로, 1500년 3월부터는 하루를 더해 날수를 맞춘다.
+    /// 그래야 이레마다 도는 것(컨디션 −1 · 바람)이 원본과 같은 날에 돈다.
+    /// </remarks>
+    public static int DaySerial(DateTime when) =>
+        (when - Epoch).Days + (when >= JulianLeap ? 1 : 0);
+
+    /// <summary>그레고리력에 없는 율리우스력 윤일(1500-02-29) 다음 날.</summary>
+    private static readonly DateTime JulianLeap = new(1500, 3, 1);
+
+    /// <summary>
     /// 도시 밖에서 하루가 갔다(<c>0x0047CEE0</c>). 막 문턱 아래로 떨어졌으면 부관 말을, 아니면 null 을 낸다.
     /// </summary>
     public static string? PassDay(Player player)
     {
         int before = player.Condition;
-        if ((player.Date - Epoch).Days % 7 == 0) player.SetCondition(player.Condition - 1);
+        if (DaySerial(player.Date) % 7 == 0) player.SetCondition(player.Condition - 1);
         if (player.Has(SeaAilment.Scurvy)) player.SetCondition(player.Condition - 3);
         if (player.Has(SeaAilment.Plague)) player.SetCondition(player.Condition - 3);
 
