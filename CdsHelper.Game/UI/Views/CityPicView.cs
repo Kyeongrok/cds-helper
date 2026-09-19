@@ -1801,6 +1801,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,
                 Contracted: _player.Contract != null,
                 HasHeir: _player.Heirs.Count > 0,
+                HasSon: Home.EldestSon(_player) != null,
                 Wed: Home.CanLeaveHeir(_player)),
             this);
     }
@@ -2098,7 +2099,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     // (0x00476CBB · 0x00476D09 → 0x0040E1C0(도시, 1)).
     bool ITownScreen.HasShips => _player.FleetHere(_cityId, 1);
     bool ITownScreen.HasCrew => _player.Crew > 0;
-    bool ITownScreen.HasItems => _player.Items.Count > 0;
+    // 보관은 지닌 것이든 맡긴 것이든 하나라도 있으면 켜진다(0x00462407 — 소지품 · 보관품 둘 다 본다).
+    bool ITownScreen.HasItems => _player.Items.Count > 0 || _player.Stored.Count > 0;
     bool ITownScreen.HasMates => _player.MateCount > 0;
     bool ITownScreen.CanBuyGoods => Market != null;
     bool ITownScreen.CanSellGoods => Market != null && _game.Items != null;
@@ -2108,7 +2110,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     bool ITownScreen.CanRefitShip => _player.FleetHere(_cityId, 1);                              // 0x0044BD69
     bool ITownScreen.CanRead => Books.CanRead;
     bool ITownScreen.CanLeaveHeir => Home.CanLeaveHeir(_player);
-    bool ITownScreen.CanSucceed => _player.Children.Count > 0;
+    bool ITownScreen.CanSucceed => Home.EldestSon(_player) != null;
     bool ITownScreen.CanEducate => _player.Children.Count > 0;
 
     void ITownScreen.CloseMenu() => CloseMenu();
