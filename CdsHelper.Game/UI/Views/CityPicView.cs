@@ -469,7 +469,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         // 도시를 나가는 길은 항구의 "출항" 하나뿐이다(HarborMenu.ConfirmSail).
         KeyDown += (_, e) =>
         {
-            if (e.Key is not Key.Escape) return;
+            if (e.Key is not Key.Escape) { e.Handled = PickByKey(e.Key); return; }
             e.Handled = true;
             // 창이 초점을 쥐고 있으면 그쪽이 제 ESC 로 닫힌다(MenuWindow). 여기까지 온 것은
             // 그림이 초점을 쥔 자리라, 열려 있는 것이 있으면 대신 닫아 준다.
@@ -505,6 +505,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         };
         Canvas.SetLeft(spot, a.X * scale);
         Canvas.SetTop(spot, a.Y * scale);
+        _spots.Add((building, tag, a, scale));
         spot.MouseEnter += (_, _) => ShowTag(tag, a, scale);
         spot.MouseLeave += (_, _) => tag.Visibility = Visibility.Collapsed;
         // 건물을 누른 것은 여기서 삼킨다 — 안 그러면 그림 끌기가 먼저 걸려 메뉴가 안 열린다.
@@ -522,10 +523,56 @@ public sealed class CityPicView : GameWindow, ITownScreen
         {
             e.Handled = true;
             if (MenuOpen) return;
-            string title = building.Name.Length > 0 ? building.Name : building.Kind;
-            if (ChoiceDialog.Pick(this, title, ["안으로 들어간다", "도시로 돌아간다"]) == 0) Enter(building);
+            AskEnter(building);
         };
         _layer.Children.Add(spot);
+    }
+
+    /// <summary>
+    /// 곧장 들지 않고 묻는다 — 오른쪽 단추와 글쇠(Enter · Space)가 이 길이다(<c>0x004934E0</c>).
+    /// </summary>
+    private void AskEnter(CityBuildingTable.Building building)
+    {
+        string title = building.Name.Length > 0 ? building.Name : building.Kind;
+        if (ChoiceDialog.Pick(this, title, ["안으로 들어간다", "도시로 돌아간다"]) == 0) Enter(building);
+    }
+
+    /// <summary>그림에 올린 건물들 — 글쇠로 고를 때 차례와 이름표 자리를 여기서 찾는다.</summary>
+    private readonly List<(CityBuildingTable.Building Building, Border Tag, Rect Area, int Scale)> _spots = [];
+
+    /// <summary>글쇠로 고른 건물 코드(<c>[+0x1E0]</c>). 닿은 건물(항구·성문)이나 마지막에 든 건물에서 시작한다.</summary>
+    private int _pickedCode = -1;
+
+    /// <summary>
+    /// 방향 글쇠로 건물을 고른다(<c>0x00491981</c>) — ↑·← 는 앞, →·↓ 는 뒤 코드로 돌며 선 건물만 밟고,
+    /// 고른 건물에 이름표를 띄운다(<c>0x0044C150</c>). Enter · Space 는 그 건물을 묻는다(<c>0x0049195D</c>).
+    /// </summary>
+    private bool PickByKey(Key key)
+    {
+        if (_spots.Count == 0 || MenuOpen) return false;
+        var order = _spots.OrderBy(sp => sp.Building.Code).ToList();
+        int at = order.FindIndex(sp => sp.Building.Code == _pickedCode);
+
+        switch (key)
+        {
+            case Key.Up or Key.Left:
+                at = at < 0 ? order.Count - 1 : (at - 1 + order.Count) % order.Count;
+                break;
+            case Key.Right or Key.Down:
+                at = at < 0 ? 0 : (at + 1) % order.Count;
+                break;
+            case Key.Enter or Key.Space:
+                if (at < 0) return false;
+                AskEnter(order[at].Building);
+                return true;
+            default:
+                return false;
+        }
+
+        _pickedCode = order[at].Building.Code;
+        foreach (var tag in _tags) tag.Visibility = Visibility.Collapsed;
+        ShowTag(order[at].Tag, order[at].Area, order[at].Scale);
+        return true;
     }
 
     /// <summary>
@@ -620,6 +667,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         ShowPhoto(facility.Kind, building.Code);
         if (arrived) facility = ArrivalHarbor(facility);
         _openKind = facility.Kind;
+        _pickedCode = building.Code;
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.Code, building.TeachMask,
                                  building.Kind),
@@ -678,6 +726,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     {
         if (!bySea)
         {
+            _pickedCode = GateCode;   // 글쇠 고르기는 들어온 성문에서 시작한다(0x00492CCA)
             LeaveGateway(FacilityKind.Gate, arrived: true);
             return;
         }
