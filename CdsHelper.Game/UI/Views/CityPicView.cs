@@ -1802,6 +1802,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 Contracted: _player.Contract != null,
                 HasHeir: _player.Heirs.Count > 0,
                 HasSon: Home.EldestSon(_player) != null,
+                HasBooks: _game.Books?.InLibrary(_cityId, _player.Date.Year).Count > 0,
                 Wed: Home.CanLeaveHeir(_player)),
             this);
     }
