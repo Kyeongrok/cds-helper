@@ -2220,6 +2220,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityStates(saved.CityStates);
             _game.Player.RestoreCityScales(saved.CityScales);
             _game.Player.RestoreCityBuildings(saved.CityBuildings);
+            _game.Player.RestoreScriptedCities(saved.ScriptedCities);
             _game.Player.RestoreNationStatus(saved.NationStatus);
             _game.Player.RestoreBarmaidFlags(saved.GiftedBarmaids, saved.RefusedBarmaids);
             _game.Player.Laps = saved.Laps ?? 0;
@@ -3194,8 +3195,15 @@ public sealed class ShipMapWindow : Window
         var now = CityFounding.FoundedBy(_game.Player.Date);
 
         // 처음 셀 때는 알리지 않는다 — 이어 가는 판이면 이미 다 선 뒤다.
-        if (_founded == null) { _founded = now; HideCities(now); return; }
-        if (now.Count == _founded.Count) return;
+        // 발견 대본이 도시를 세우고 없앤 것은 알리지 않고 지도만 다시 짓는다(0x0040A038 은 말이 없다).
+        int scripted = _game.Player.ScriptedCities.Count;
+        if (_founded == null) { _founded = now; _scriptedSeen = scripted; HideCities(now); return; }
+        if (now.Count == _founded.Count)
+        {
+            if (scripted != _scriptedSeen) { _scriptedSeen = scripted; HideCities(now); }
+            return;
+        }
+        _scriptedSeen = scripted;
 
         foreach (int city in now)
         {
@@ -3216,7 +3224,8 @@ public sealed class ShipMapWindow : Window
 
         for (int city = 0; city < CityExeTable.Count; city++)
         {
-            bool standing = !CityFounding.Hidden.Contains(city) || up.Contains(city);
+            bool standing = _game.Player.ScriptedCities.TryGetValue(city, out bool set) ? set
+                            : !CityFounding.Hidden.Contains(city) || up.Contains(city);
             if (!standing || !_game.CityKnown(city)) gone.Add(city);
         }
         _host.HideCities(gone, HiddenPlaces());
@@ -3765,6 +3774,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>지난번에 세어 둔, 선 도시들.</summary>
     private HashSet<int>? _founded;
+
+    /// <summary>지도를 지을 때 본 「발견 대본이 세우고 없앤 도시」 수.</summary>
+    private int _scriptedSeen;
 
     /// <summary>
     /// 한 번에 몰아 셀 걸음의 윗값. 창이 오래 멎었다 살아나도 날이 왕창 넘어가지 않게 한다.

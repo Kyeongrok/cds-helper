@@ -429,10 +429,10 @@ public sealed class Game
     /// </summary>
     /// <remarks>
     /// 신대륙 식민 도시 스물셋은 켤 때 없고 해가 가야 하나씩 선다
-    /// (<see cref="CityFounding"/>). 멕시코·산타마르타·리마 셋은 걷어 줄 이벤트가
-    /// 아예 없어 끝까지 안 선다.
+    /// (<see cref="CityFounding"/>). 산타마르타·리마는 걷어 줄 이벤트가 아예 없어 끝까지
+    /// 안 서고, 멕시코는 아스텍을 무너뜨리는 발견 이벤트(263)로만 선다(<c>Player.ScriptedCities</c>).
     /// </remarks>
-    public bool CityStanding(int city) => CityFounding.Standing(city, Player.Date);
+    public bool CityStanding(int city) => CityFounding.Standing(city, Player.Date, Player.ScriptedCities);
 
     /// <summary>
     /// 그 도시를 <b>아는지</b> — 지도에 뜨는지.

@@ -437,8 +437,7 @@ public sealed class DisevRunner
             //                              마을 공략에 이겼을 때(0x00468B20)도 이 비트와 나라를 함께 세운다.
             //                              비트 2 를 누가 읽는지는 아직 못 밝혔다.
             //    3  MoveEventTarget(3C 08)
-            //    2  CreateCity(26 08)
-            //    1  AddCityRumor · RemoveCity · HalveTroops
+            //    1  AddCityRumor · HalveTroops
             default:
                 return null;
         }
@@ -605,6 +604,18 @@ public sealed class DisevRunner
                 return null;
             case DisevCall.BuildSpecialBuilding:
                 Market.CityHistory.SetBuilding(_game.Player, _game.CityRows, I("City"), I("Building"), on: true);
+                return null;
+
+            // 22 08 [도시] — 도시를 <b>없앤다</b>(도시 레코드 +0x04 |= 4, 0x00409DC8).
+            // 26 08 [도시] — 도시를 <b>세운다</b>(+0x04 &amp;= ~4, 0x0040A038). 대본 주인([문맥+0x10],
+            // 발견 대본은 제독 0x004783C0)의 갈래가 1(역사 항해자)이면 세우지 않고 그리로 뱃길을 트는데
+            // (0x0040A04C) — 그것은 HISTCHR 의 「경유 항구」다. 발견 이벤트 263 이 테노치티틀란을 없애고
+            // 멕시코를 세운다.
+            case DisevCall.RemoveCity:
+                _game.Player.SetScriptedCity(I("City"), false);
+                return null;
+            case DisevCall.CreateCity:
+                _game.Player.SetScriptedCity(I("City"), true);
                 return null;
 
             // 46 — 결과를 거짓으로(0x0040B1BC).

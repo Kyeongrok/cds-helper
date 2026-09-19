@@ -160,13 +160,13 @@ public sealed class CityHistory
                     i += p[i] == 0x1B ? 7 : 4;
                     break;
                 case (0x27, 0x08) when i + 3 < p.Length:                        // 도시가 있어야
-                    term = Standing(U16(p, i + 2), when);
+                    term = Standing(U16(p, i + 2), when, player);
                     i += 4;
                     break;
                 case (0x28, 0x08) when i + 3 < p.Length:                        // 도시가 없어야
                     // 도시 세우기는 CityFounding 이 따로 세므로 이 칸이 세우는 도시와 부딪친다.
                     // 「그 달부터」 칸은 한 번 돈 것을 적어 두므로 참으로 둔다.
-                    term = once || !Standing(U16(p, i + 2), when);
+                    term = once || !Standing(U16(p, i + 2), when, player);
                     i += 4;
                     break;
                 case (0x27, 0x00) or (0x28, 0x00) when i + 6 < p.Length:        // 나라가 ~이어야 / 아니어야
@@ -359,8 +359,9 @@ public sealed class CityHistory
     private static HashSet<int> _standing = [];
 
     /// <summary>그 달에 그 도시가 서 있는지 — 한 달 안에서 여러 번 묻기에 그 달 셈을 들고 있는다.</summary>
-    private static bool Standing(int city, DateTime when)
+    private static bool Standing(int city, DateTime when, Player player)
     {
+        if (player.ScriptedCities.TryGetValue(city, out bool set)) return set;
         if (!CityFounding.Hidden.Contains(city)) return true;
         int key = MonthKey(when.Year, when.Month);
         if (key != _standingKey)
