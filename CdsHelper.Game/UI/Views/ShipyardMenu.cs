@@ -308,21 +308,36 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         if (_player.Ships.Count == 0) { Say("배가 없습니다"); return; }
 
         Say("어느 배를 개조할 건가?");                       // 0x005322E8
-        int at = HintListDialog.Pick(owner,
-            [.. _player.Ships.Select((s, i) => RefitLine(s, i == _player.Flagship))],
-            "개조선박의 선택", "배가 없습니다", RefitHead);   // 0x00532300
-        if (at < 0 || at >= _player.Ships.Count) return;
+        PickRefitShip();
+    }
 
-        // 그 마을에서 손댈 수 있는 배인지 본다(0x004969F9) — 유럽권(0·1·2·10)은 다우선을
-        // 못 고치고, 그 밖의 문화권은 다우선만 고친다.
-        if (!Shipyard.CanRefitHere(_player.Ships[at].Hull.Id, _culture))
+    /// <summary>
+    /// 개조할 배를 고른다(<c>0x004969CE</c>) — 못 고치는 배면 말하고 다시 고르고(<c>0x00496A38</c>),
+    /// 「개조를 그만둔다」로 나와도 여기로 돌아온다(<c>0x00496A36</c>). 「어느 배를…」은 다시 안 묻는다.
+    /// </summary>
+    private void PickRefitShip()
+    {
+        var owner = Owner;
+        while (true)
         {
-            Say("이 배 형은 내가 어떻게 할 수 없다.");        // 0x00532338
+            int at = HintListDialog.Pick(owner,
+                [.. _player.Ships.Select((s, i) => RefitLine(s, i == _player.Flagship))],
+                "개조선박의 선택", "배가 없습니다", RefitHead);   // 0x00532300
+            if (at < 0 || at >= _player.Ships.Count) return;
+
+            // 그 마을에서 손댈 수 있는 배인지 본다(0x004969F9) — 유럽권(0·1·2·10)은 다우선을
+            // 못 고치고, 그 밖의 문화권은 다우선만 고친다.
+            if (!Shipyard.CanRefitHere(_player.Ships[at].Hull.Id, _culture))
+            {
+                Say("이 배 형은 내가 어떻게 할 수 없다.");        // 0x00532338
+                continue;
+            }
+
+            Say("어디를 개조할 건가?");                          // 0x005322C0
+            var ship = _player.Ships[at];
+            _menu.Push(() => RefitMenu(ship));
             return;
         }
-
-        Say("어디를 개조할 건가?");                          // 0x005322C0
-        _menu.Push(() => RefitMenu(_player.Ships[at]));
     }
 
     /// <summary>
@@ -356,7 +371,18 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         return true;
     }
 
-    private Action? RefitAction(Ship ship, string item) => item switch
+    /// <summary>
+    /// 줄의 손잡이 — 한 줄을 마치면 차림으로 돌아오며 「어디를 개조할 건가?」를 다시 묻는다(<c>0x0049682C</c> 가
+    /// 되풀이 안에 있다). 「개조를 그만둔다」는 배 고르기로 돌아간다.
+    /// </summary>
+    private Action? RefitAction(Ship ship, string item)
+    {
+        if (item == Facility.RefitExit) return () => { _menu.Pop(); PickRefitShip(); };
+        if (RefitWork(ship, item) is not { } work) return null;
+        return () => { work(); Say("어디를 개조할 건가?"); };
+    }
+
+    private Action? RefitWork(Ship ship, string item) => item switch
     {
         Facility.RefitCapacity or Facility.RefitTonnage or Facility.RefitReinforce =>
             () => { if (!Blocked(ship, item)) DoRefit(ship, item); },
@@ -369,7 +395,6 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         // 빌린 배는 <b>이름을 못 바꾼다</b> — 게임이 그 줄을 흐리게 둔다(0x004967C2 가
         // 제독의 소유주 번호와 배 주인을 견준다). 이 줄만은 처음부터 흐리다.
         Facility.RefitRename when !ship.Lent => () => RenameShip(ship),
-        Facility.RefitExit => _menu.Pop,
         _ => null,
     };
 
