@@ -25,7 +25,7 @@ namespace CdsHelper.Game.Local.Helpers;
 public sealed class SponsorTable
 {
     /// <summary>알맹이 모양 판. 안목·친밀도·취향 칸을 더하면서 올렸다.</summary>
-    private const int SnapshotVersion = 3;
+    private const int SnapshotVersion = 4;
 
     private const int TableVa = 0x005228B8;
     private const int RowCount = 81;
@@ -65,9 +65,14 @@ public sealed class SponsorTable
     /// </param>
     /// <param name="Nation">나라(<c>+0x0C</c>). 추격이 이 나라 도시에서 벌어진다(<c>0x00450140</c>).</param>
     /// <param name="Blood">혈액형으로 보이는 칸(<c>+0x1C</c>, 0~3). 성미를 셀 때 쓴다 — 짝이 확실하지는 않다.</param>
+    /// <param name="Languages">
+    /// 하는 말(<c>+0x3A</c> 워드의 비트, 언어 열넷 차례). 비트가 선 말은 <b>수준 3</b>으로 친다
+    /// (vtbl+0x20 = <c>0x004AD7B0</c>) — 설득 들머리의 말 관문이 이것을 본다(<c>0x004AE0B0</c>).
+    /// </param>
     public readonly record struct Sponsor(int Index, string Name, int Face, bool IsFemale,
                                           int JobCode, int Eye = 0, int Closeness = 0,
-                                          int Tastes = 0, int Nation = -1, int Blood = 0)
+                                          int Tastes = 0, int Nation = -1, int Blood = 0,
+                                          int Languages = 0)
     {
         /// <summary>직업 이름. 모르는 코드면 빈 문자열.</summary>
         public string Job => JobCode switch
@@ -161,7 +166,8 @@ public sealed class SponsorTable
                 Closeness: exe.Int(row + 0x30),
                 Tastes: exe.Int(row + 0x38) & 0xFF,
                 Nation: exe.Int(row + 0x0C),
-                Blood: exe.Int(row + 0x1C)));
+                Blood: exe.Int(row + 0x1C),
+                Languages: (exe.Int(row + 0x38) >> 16) & 0xFFFF));
         }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다.

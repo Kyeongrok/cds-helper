@@ -175,6 +175,34 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         return true;
     }
 
+    /// <summary>
+    /// 후원자와 말이 통하는지 — 게임의 <c>0x00468F70</c>(제독·부관·통역 가운데 가장 잘 통하는 수준)이 3 이상인지.
+    /// </summary>
+    /// <remarks>
+    /// 후원자는 표 <c>+0x3A</c> 에 비트가 선 말을 수준 3 으로 한다(<c>0x004AD7B0</c>). 두 사람의 통하는 수준은
+    /// 말마다 낮은 쪽을 잡아 그 가운데 큰 값이다(<c>0x00478050</c>). 표를 못 읽었으면 막지 않는다.
+    /// </remarks>
+    private bool SpeaksWith(SponsorTable.Sponsor? sponsor)
+    {
+        if (sponsor is not { Languages: not 0 } s) return true;
+        var people = _game.World?.People;
+        for (int i = 0; i < Skill.Languages.Length; i++)
+        {
+            if ((s.Languages & (1 << i)) == 0) continue;
+            if (_player.TongueOf(Skill.Languages[i]) >= SponsorTongue) return true;
+            foreach (int slot in (int[])[0, 3])
+            {
+                string name = _player.MateAt(slot);
+                if (name.Length > 0 && people?.FirstOrDefault(r => r.Name == name) is { } row
+                    && i < row.Languages.Length && row.Languages[i] >= SponsorTongue) return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>후원자가 하는 말의 수준(<c>0x004AD7D3</c> 의 <c>and eax, 3</c>) — 이만큼 통해야 설득한다.</summary>
+    private const int SponsorTongue = 3;
+
     private void PersuadeBody(Patron patron)
     {
 
@@ -187,6 +215,25 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         void Say(string words) => TalkDialog.Say(_view, face, "", words);
         void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
 
+        // 기분이 상한 후원자는 문간에서 돌려보낸다(0x004AEFC1, 후원자 비트 14) — 설득을 물렸거나
+        // 계약 결판을 치른 뒤 30일 동안이다(0x004A2AD0 이 푼다).
+        if (_player.IsSulking(patron.Name))
+        {
+            Steward($"{shown} {sir}께서는 꽤 기분이 안좋은 상태이니 여기서 일단 돌아가 주십시오.");
+            return;
+        }
+
+        // 말이 통해야 설득한다(0x004AEFE5 → 0x004AE0B0) — 후원자가 하는 말(표 +0x3A 비트, 수준 3) 가운데
+        // 제독·부관·통역 누군가 수준 3 이상이어야 한다(0x00468F70). 모자라면 두 말 가운데 하나다(0x00469680).
+        if (!SpeaksWith(sponsor))
+        {
+            if (_player.MateAt(0).Length > 0)
+                TalkDialog.Say(_view, _game.AideFace, "", "말이 통하지 않는 것만은 어쩔 수가 없군요.");
+            else
+                GameDialog.Show(_view, "말이 통하지 않아서 상대해 주지 않았습니다.");
+            return;
+        }
+
         // 1494년부터 포르투갈·에스파니아 사이에는 불가침 조약이 있다(0x004AE0F0 → 0x004698C0) —
         // 남의 나라 후원자와 계약하면 배반자가 된다고 <b>알려만 주고</b> 막지는 않는다.
         int theirNation = Array.FindIndex(Player.Nations, n => n == patron.Nationality);
@@ -198,14 +245,6 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                         + "배반자가 되어 모국에 돌아갈 수 없게 됩니다.";
             if (_game.AideFace is { } aide) TalkDialog.Say(_view, aide, "", $"제독, 알고 계시리라 생각합니다만, {word}");
             else GameDialog.Show(_view, $"현재 {word}");
-        }
-
-        // 기분이 상한 후원자는 문간에서 돌려보낸다(0x004AEFC1, 후원자 비트 14) — 설득을 물렸거나
-        // 계약 결판을 치른 뒤 30일 동안이다(0x004A2AD0 이 푼다).
-        if (_player.IsSulking(patron.Name))
-        {
-            Steward($"{shown} {sir}께서는 꽤 기분이 안좋은 상태이니 여기서 일단 돌아가 주십시오.");
-            return;
         }
 
         // 첫 관문은 명성이다. 모자라면 집사가 문간에서 돌려보낸다(게임 0x004AE1F0).
