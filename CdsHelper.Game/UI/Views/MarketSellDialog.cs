@@ -124,6 +124,10 @@ public sealed class MarketSellDialog : GameWindow
     }
 
     /// <summary>값을 부르고, YES 면 판다. 고른 것이 여럿이면 값을 합쳐 부른다.</summary>
+    /// <remarks>
+    /// 원본은 <b>한 번 고르면 끝</b>이다(<c>0x004B3D59</c> → <c>0x004B3D90</c>) — 팔든 안 팔든 창을 닫는다.
+    /// 값을 부르는 것은 장사꾼 얼굴이다(<c>0x004B3D51</c>).
+    /// </remarks>
     private void Decide()
     {
         // 뒤에서부터 걷어야 앞 줄을 뺄 때 뒷 줄 번호가 밀리지 않는다.
@@ -131,30 +135,28 @@ public sealed class MarketSellDialog : GameWindow
         if (at.Count == 0) return;
 
         int paid = at.Sum(i => _market.PaidFor(_held[i], _cityId));
-        if (!ConfirmDialog.Ask(this, $"으~음. 금화 {paid}닢이란 말이군.")) return;
-
-        foreach (int i in at)
-            if (_market.Sell(_player, _held[i], _cityId) == SellResult.Ok)
-                _held.RemoveAt(i);   // 판 줄을 목록에서 걷는다
-
-        _list.Rebuild(_held.Count);
-
-        // 다 팔았으면 더 볼 것이 없다.
-        if (_held.Count == 0) Close();
+        if (ConfirmDialog.Ask(this, $"으~음. 금화 {paid}닢이란 말이군.", face: _face))
+            foreach (int i in at) _market.Sell(_player, _held[i], _cityId);
+        Close();
     }
+
+    /// <summary>장사꾼 얼굴(시장 화자).</summary>
+    private uint[]? _face;
 
     /// <summary>
     /// 매각 창을 연다. 지닌 것이 없으면 창 대신 게임 그대로의 한 마디만 낸다.
     /// </summary>
-    public static void Show(Window owner, Player player, Market market, ItemTable items, int cityId)
+    /// <remarks>두 마디 다 장사꾼 얼굴이다(<c>0x004B3C95</c> · <c>0x004B3CB3</c>).</remarks>
+    public static void Show(Window owner, Player player, Market market, ItemTable items, int cityId,
+                            uint[]? face = null)
     {
         if (player.Items.Count == 0)
         {
-            GameDialog.Show(owner, "응? 도대체 무엇을 팔겠다는 건가?");
+            TalkDialog.Say(owner, face, "", "응? 도대체 무엇을 팔겠다는 건가?");
             return;
         }
 
-        GameDialog.Show(owner, "팔고 싶은 물건이 있으면 어디 보여주게!");
-        new MarketSellDialog(player, market, items, cityId) { Owner = owner }.ShowDialog();
+        TalkDialog.Say(owner, face, "", "팔고 싶은 물건이 있으면 어디 보여주게!");
+        new MarketSellDialog(player, market, items, cityId) { Owner = owner, _face = face }.ShowDialog();
     }
 }

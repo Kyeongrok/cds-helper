@@ -56,6 +56,7 @@ internal sealed class MarketMenu(Window view, Engine.Game game, int cityId, int 
     public void Sell()
     {
         if (_rules == null || _game.Items is not { } items) return;
-        MarketSellDialog.Show(_view, _game.Player, _rules, items, _cityId);
+        MarketSellDialog.Show(_view, _game.Player, _rules, items, _cityId,
+                              _game.SpeakerFace(BuildingCode, _culture));
     }
 }
