@@ -167,8 +167,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         _player.Endear(deal.Sponsor, -50);
         _player.Betray(deal.Sponsor, deal.City, deal.DueOn);
-        MutinousLentShips(deal.Sponsor);
+        // 나설 때 부하 재계약이 먼저고 빌린 배 돌려주기가 뒤다(0x0044E6D5 · 0x0044E6DC) — 감찰관을 처벌한
+        // 자리(+0xBC == 2)에서도 그대로 돈다.
         _player.EndContract();
+        RecontractMates();
+        MutinousLentShips(deal.Sponsor);
         return true;
     }
 
@@ -1392,11 +1395,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                     "다시 모험을 하게 되신다면 여기에 와 주십시오.",
                     "또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나."));
 
-        // 숨겨 둔 증거품은 보고를 마치고 나설 때 손에 들어온다(0x0044E6C0 → 0x0041C480).
-        HandHidden();
-
-        // 계약이 끝났으니 부하마다 다시 태울지 묻는다(0x00454160).
+        // 나설 때의 차례 그대로다(0x0044E6C0) — 부하 재계약(0x00454160) · 빌린 배 돌려주기(0x004105A0) 다음이
+        // 숨겨 둔 증거품(0x0041C480)이다.
         RecontractMates();
+
+        // 숨겨 둔 증거품은 보고를 마치고 나설 때 손에 들어온다.
+        HandHidden();
 
         // 보고가 끝나면 그 줄이 사라져야 한다 — 계약이 없어졌으니 「보고」 줄도 없다.
         // 줄 목록을 다시 지어 그리게 한다(TownWorks.LinesOf 가 후원자 줄을 다시 고른다).
