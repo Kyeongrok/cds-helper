@@ -98,7 +98,7 @@ internal static class PersonInfoMenu
         Held(hold, menu, () =>
         {
             if (who is { } mate)
-                PersonInfoDialog.ShowMate(owner, mate, Player.MateRoles[slot], game.Directory);
+                PersonInfoDialog.ShowMate(owner, mate, Engine.GameInfo.SheetOf(game, mate), game.Directory);
             else
                 NoticeDialog.Show(owner, $"{name}의 자료를 찾지 못했다");
         });

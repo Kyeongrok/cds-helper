@@ -77,6 +77,21 @@ public static class GameInfo
     /// <remarks>예전에는 갈래를 괄호로 붙였는데 원본에 없는 표시라 뺐다 — 갈래는 힌트 설명 판에서 본다.</remarks>
     public static string HintLabel(Game game, int id) => game.HintName(id);
 
+    /// <summary>
+    /// 부하의 인물 판에 적을 직업·별자리·혈액형·국적 — 인물 표에서 이름으로 번호를 찾아 밑표에서 꺼낸다.
+    /// 술집 인물 판(TavernMenu.SheetOf)과 같은 셈이다. 못 찾으면 빈 칸이다.
+    /// </summary>
+    internal static UI.Views.PersonInfoDialog.HireSheet SheetOf(Game game, Support.Local.Models.Player.MateInfo who)
+    {
+        int id = game.World?.People.FirstOrDefault(r => r.Name == who.Name)?.Id ?? -1;
+        if (id < 0 || game.PersonTemplates?.Find(id) is not { } t)
+            return new(who.Name, who.Body, who.Mind, who.Might, who.Charm, who.Age, "", "", "", "");
+
+        string job = t.JobName.Length > 0 ? t.JobName : Support.Local.Models.Job.Of(t.Job).Name;
+        string nation = game.Nations?.Find(t.Nation) is { } nat ? nat.Name : "";
+        return new(who.Name, who.Body, who.Mind, who.Might, who.Charm, who.Age, job, t.Zodiac, t.BloodName, nation);
+    }
+
     /// <summary>교역품 한 칸의 이름 — 「%s산」 뒤에 품목 이름(<c>0x0042E310</c>). 산지를 모르면 이름만이다.</summary>
     public static string CargoLabel(Game game, Support.Local.Models.Player.Cargo cargo)
     {
