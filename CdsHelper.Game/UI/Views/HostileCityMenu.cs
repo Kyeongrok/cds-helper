@@ -161,6 +161,10 @@ internal static class HostileCityMenu
                         TalkDialog.Say(owner, wonFace, "", Standoff.RaidWonWord);
                     else
                         NoticeDialog.Show(owner, Standoff.RaidWonNews, "");
+                    // 조약을 깨고 쳐서 이겼을 때만 부관이 걱정한다(0x0046A78E → 0x004696B0, 부관이 없으면 말 없음).
+                    // 교섭·침입으로 들어갔을 때는 이 말이 없다. 이어지는 굴림(0x0046A79D)이 무엇을 바꾸는지는 아직 모른다.
+                    if (byTreaty && Standoff.HasAide(player))
+                        TalkDialog.Say(owner, game.AideFace, "", Standoff.TreatyBrokenWord);
                     return new Outcome(true, false);
 
                 case Standoff.Sneak:
