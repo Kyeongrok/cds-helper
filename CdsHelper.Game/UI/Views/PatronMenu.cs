@@ -1657,8 +1657,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                          && dice.Next(inTime ? 150 : 200) < _player.ClosenessOf(patron.Name) + luck + 1;
             if (!mercy)
             {
-                Say("이 놈을 감옥에 쳐 넣어라!");
-                over = Jail(patron, dice);
+                // 못 넘으면 죄를 묻는 본체로 간다(0x0044F100) — 친밀도 −20 뒤, 배신 깃발(13)이 서 있으니
+                // 곧장 감옥이고 말은 말투 셋 가운데 하나다(0x0054B4A8 · 0x0054B4C8 · 0x0054B4E0).
+                over = Punish(patron, sponsor, Pick3);
                 return;
             }
 
@@ -1705,6 +1706,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             if (!_player.Pay(penalty))
             {
                 GameDialog.Show(_view, "위약금을 지불할 수 없습니다!");
+                // 이어 후원자가 말투대로 한마디 한다(0x0044FB27 — 0x0054C120 · 0x0054C138 · 0x0054C148).
+                // 계약중단 쪽 말(0x0054BC70~)과는 띄어쓰기가 다른 딴 글이다.
+                Say(Pick3("이 바보 같은 녀석!", "이런 바보 같은!",
+                          "바보 같은, 위약금도 지불할 수 없다고! 어디까지 어리석은..."));
                 // <b>여기서도 곧장 감옥은 아니다</b>(0x0044FBBD) — 죄를 묻는 본체가
                 // 용서·다시 물리는 위약금·감옥으로 갈라 준다.
                 over = Punish(patron, sponsor, Pick3);
