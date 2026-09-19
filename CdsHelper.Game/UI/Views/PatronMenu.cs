@@ -915,9 +915,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             GameDialog.Show(_view,
                 $"{me}{GameUi.Josa(me, "은", "는")} {row.Name}의 발견을 보고했다!!");
 
-            // 동영상이 있으면 틀고, 없고 그림만 있으면 그림을 낸다 — 발견할 때와 같다.
+            // 그림은 동영상 → 움직이는 그림(DISCOVER.CDS) → 스틸 차례다(0x004AAF30) — 발표와 같은 함수다.
             if (row.Movie >= 0)
                 MoviePlayer.Play(_view, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
+            else if (row.Clip >= 0)
+                DiscoveryClipPlayer.Play(_view, _game.Clips, row.Clip);
             else if (row.Picture >= 0)
                 DiscoveryDialog.ShowPicture(_view, _game.Stills, row.Picture);   // 그림만 — 이름 창은 안 붙는다(0x004AD640)
 

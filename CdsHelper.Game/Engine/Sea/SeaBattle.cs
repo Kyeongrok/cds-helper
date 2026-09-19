@@ -1717,6 +1717,18 @@ public sealed class SeaBattle
     /// </summary>
     public static string RecoveredWord(bool won) => won ? "빼앗긴 배를 되찾았습니다." : "빼앗긴 배를 되찾았습니다";
 
+    /// <summary>
+    /// 「로부터 / 으로부터」(<c>0x004281B0</c> 의 색인 0xD, 표 <c>0x0053C420</c>) — 받침이 없거나 ㄹ이면 「로부터」다.
+    /// </summary>
+    public static string FromJosa(string word)
+    {
+        if (word.Length == 0) return "로부터";
+        char last = word[^1];
+        if (last is < '가' or > '힣') return "로부터";
+        int jong = (last - '가') % 28;
+        return jong is 0 or 8 ? "로부터" : "으로부터";
+    }
+
     /// <summary>다 빠져나갔을 때의 다섯 벌(<c>0x00435ABF</c>).</summary>
     public string EscapedWord(string foe)
     {
@@ -1726,7 +1738,7 @@ public sealed class SeaBattle
             0 => "휴, 간신히 도망쳐 나왔습니다.",
             1 => "휴, 아슬아슬했다···",
             2 => $"겨우 {foe}{eul} 물리쳤습니다.",
-            3 => $"제독, {foe}에게서 도망쳐 나왔습니다.",
+            3 => $"제독, {foe}{FromJosa(foe)} 도망쳐 나왔습니다.",
             _ => $"{foe}의 추격을 물리친 것 같습니다!",
         };
     }
