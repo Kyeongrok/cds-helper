@@ -4923,10 +4923,22 @@ public sealed class ShipMapWindow : Window
             ConfirmDialog.Tell(this, "제독, 뭔가 기분 좋은 노래 소리가 들리는군요.", face: face);
             ConfirmDialog.Tell(this, "갑자기 졸음이...", face: face);
 
-            player.AdvanceDays(SeaEvents.SirenDays(rng));
+            // 자는 동안은 <b>항해 날</b>이 그대로 흐른다 — 0x00426FB1 이 깃발 4 를 세우고 0x0044AFD0 을 rand(5)+3 번
+            // 돌려 보급·피로·규율·컨디션·항해일수가 날마다 움직이되 사건만 안 난다. 도시의 쉬는 날(AdvanceDays)이 아니다.
+            int sleep = SeaEvents.SirenDays(rng);
+            var (lat, _) = _host.ShipLatLon;
+            for (int d = 0; d < sleep; d++)
+            {
+                player.PassDayAtSea();
+                Engine.Town.Vitality.PassDay(player);
+                SeaEvents.PassDay(player, lat, _game.Random, FleetLevel(Skill.Sailing));
+                player.Cheer(FleetLevel(Skill.Sailing)
+                             - (SeaMoraleStep * (_host.TerrainClass == 1 ? 2 : 1) + SeaEvents.ColdAt(lat)));
+            }
 
             ConfirmDialog.Tell(this, "으, 으...머리가 아프다... 자고 있었나...", face: face);
-            ConfirmDialog.Tell(this, "하아하아, 기분이 안좋다...");
+            // 제독이 혼잣말한다 — 0x00478280(제독)이라 뱃사람 얼굴 #299 가 선다.
+            ConfirmDialog.Tell(this, "하아하아, 기분이 안좋다...", face: _game.Faces?.TryGetBgra(SailorFace, female: false));
             ConfirmDialog.Tell(this, "선원들이 불안해 하고 있습니다.", face: face);
 
             // 0 이 되면 1 로, 100 이 되면 99 로 되돌린다 — 반란과 전멸을 여기서는 안 낸다.
