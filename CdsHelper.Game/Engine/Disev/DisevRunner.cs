@@ -439,7 +439,6 @@ public sealed class DisevRunner
             //    3  MoveEventTarget(3C 08) <b>옮길 것이 없다.</b> 대본 주인([문맥+0x10])의 갈래가 1(역사 항해자)일
             //                              때만 움직이는데(0x0040ABAE), 발견 대본의 주인은 제독(갈래 0,
             //                              0x004783D7)이다. HISTCHR 에서만 뜻이 있다.
-            //    1  HalveTroops
             default:
                 return null;
         }
@@ -632,6 +631,15 @@ public sealed class DisevRunner
                 _game.Player.AddRumor(I("City"), text, _game.Player.Date);
                 return null;
             }
+
+            // 34 1C [칸] [값 식] — 병력을 <b>반으로</b>(올림) 줄인다(0x0040A7C8). 값 식은 읽기만 하고 안 쓴다.
+            //   칸 2  빌린 묶음이 서 있으면 그 병력(0x0040A84E → 0x0045FF40), 아니면 제독 육상 묶음
+            //         0x005AA2B8 의 수(0x0040A830). 대본이 쓰는 곳은 잉카(파트 264)뿐이고, 800 을 빌려
+            //         싸우다 달아날 때라 빌린 쪽만 옮긴다.
+            //   칸 10·20 은 부관·함대 쪽인데 대본에 안 쓰인다.
+            case DisevCall.HalveTroops:
+                if (I("Stat") == 2 && _borrowedMen >= 0) _borrowedMen = (_borrowedMen + 1) / 2;
+                return null;
 
             // 46 — 결과를 거짓으로(0x0040B1BC).
             case DisevCall.ClearResult:
