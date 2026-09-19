@@ -70,6 +70,13 @@ internal sealed class TowerPuzzleDialog : InfoDialog
 
 
     private readonly TowerPuzzle _game;
+
+    /// <summary>처음 자리에서 모으는 가장 적은 수 — 끝날 때 「최소회수」로 보여 준다(<c>[+0x14C]</c>).</summary>
+    private readonly int _shortest;
+
+    /// <summary>「이동회수 %3d / 최소회수 %3d」(<c>0x0056BA50</c>) — 둘째 줄 끝에 덧말이 붙기도 한다.</summary>
+    private string Tally(string tail = "") =>
+        $"이동회수  {_game.Moves,3}{Environment.NewLine}최소회수  {_shortest,3}{tail}";
     private readonly Canvas _scene = new() { Width = SceneWidth, Height = SceneHeight };
     private readonly Border[] _spot = new Border[TowerPuzzle.Pegs];
     private readonly List<Image> _planks = [];
@@ -84,6 +91,7 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     private TowerPuzzleDialog(int planks, Random rng)
     {
         _game = new TowerPuzzle(planks, rng);
+        _shortest = _game.Shortest();
 
         Lay(Picture("tower-bg.png"), 0, 0, SceneWidth, SceneHeight);
 
@@ -148,9 +156,17 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     private IReadOnlyList<(string, Action?)> Commands() =>
     [
         ("게임 설명", Explain),
-        ("포기한다", Close),
+        ("포기한다", GiveUp),
         ("게임 복귀", () => { }),   // 차림표만 닫는다
     ];
+
+    /// <summary>「포기?」 — 물은 뒤 그때까지의 회수를 알리고 닫는다(0x004308CB · 0x004308F6).</summary>
+    private void GiveUp()
+    {
+        if (!ConfirmDialog.Ask(this, "포기하겠습니까?", "포기?")) return;
+        NoticeDialog.Show(this, Tally("  였습니다"), "포기");
+        Close();
+    }
 
     private void Lay(BitmapSource? art, double x, double y, double width, double height)
     {
@@ -279,19 +295,14 @@ internal sealed class TowerPuzzleDialog : InfoDialog
     {
         if (_game.Won) return;
 
-        if (!_game.Tap(peg))
-        {
-            if (_game.Held > 0)
-                NoticeDialog.Show(this, "저보다 작은 판자 위에는 놓을 수 없습니다",
-                                  "발라몬의 탑");
-            return;
-        }
+        // 못 놓는 자리면 말 없이 안 놓인다 — 원본은 알리는 글이 없다.
+        if (!_game.Tap(peg)) return;
         Sync();
 
+        // 다 모으면 「클리어」에 이동회수·최소회수다(0x00430604).
         if (_game.Won)
         {
-            NoticeDialog.Show(this,
-                $"판자 {_game.Planks}장을 {_game.Moves}수에 다 모았다!", "발라몬의 탑");
+            NoticeDialog.Show(this, Tally(), "클리어");
             Close();
         }
     }
