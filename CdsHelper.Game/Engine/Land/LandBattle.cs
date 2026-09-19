@@ -493,7 +493,7 @@ public sealed class LandBattle
     ///   복귀    율 = 운*5/100 + 의학*2
     ///           min(처음 - 1, 생존 + 율*(처음 - 생존 - 1)/10)
     ///   명성    이김 밑 100 · 악명 밑 200 / 짐 악명 밑 300, 명성 += 밑 + rand(11)
-    ///   무력    rand(20) == 0 일 때만 rand(2)+1
+    ///   무력    rand(20) == 0 일 때만 rand(2)+1, 마을 공략이면 +1
     /// </code>
     /// 마을 공략(갈래 2)이라 나라가 같을 일이 드물어 <b>이기면 명성 +10</b> 쪽을 쓴다.
     /// </remarks>
@@ -510,7 +510,8 @@ public sealed class LandBattle
         int fameBase = won ? 100 : 0;
         int infamy = won ? 200 : 300;
         int fame = fameBase + (won ? 10 : 0) + dice.Next(11);
-        int might = dice.Next(20) == 0 ? dice.Next(2) + 1 : 0;
+        // 마을 공략(갈래 2)이면 하나 더 오른다(0x00449760).
+        int might = dice.Next(20) == 0 ? dice.Next(2) + 1 + (Sort == Town ? 1 : 0) : 0;
 
         return new Spoils(loot, back, fame, infamy, might);
     }
