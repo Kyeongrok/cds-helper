@@ -65,7 +65,19 @@ public sealed class TradePostDialog : GameWindow
     private readonly int[] _sell = new int[Player.CargoSlots];
 
     /// <summary>흥정으로 깎인 값(%) · 이번에 몇 번 걸었나 · 판이 떠 있나.</summary>
-    private int _pct = 100, _tries;
+    private int _pct = 100;
+
+    /// <summary>
+    /// 흥정한 횟수(<c>[+0xBC]</c>) — <b>교역소에 들어설 때만</b> 0 이 된다(<c>0x00480C30</c>). 매매 창을 닫았다
+    /// 다시 열어도 이어진다.
+    /// </summary>
+    private static int _tries;
+
+    /// <summary>거래가 섰거나 깨져 창을 닫는 길인지 — 그때는 「흥정만 걸고 나감」을 안 본다.</summary>
+    private bool _settled;
+
+    /// <summary>상인 얼굴(교역소 화자).</summary>
+    private uint[]? _face;
     private bool _bargainOn;
 
     private string _message = "";
@@ -107,7 +119,6 @@ public sealed class TradePostDialog : GameWindow
         Array.Clear(_sell);
         _pct = 100;
         _wins = 0;
-        _tries = 0;
         _bargainOn = false;
         Paint();
     }
@@ -184,7 +195,6 @@ public sealed class TradePostDialog : GameWindow
         if (_bargainOn) return;
         _pct = 100;
         _wins = 0;
-        _tries = 0;
         int cost = Cost;
         if (!_post.CanBargain(_player, _city, cost)) { Apply(close: true); return; }
         _bargainOn = true;
@@ -214,7 +224,6 @@ public sealed class TradePostDialog : GameWindow
             }, true);
             _pct = 100;
             _wins = 0;
-            _tries = 0;
             _bargainOn = false;
             Paint();
             return;
@@ -223,8 +232,7 @@ public sealed class TradePostDialog : GameWindow
         int keep = _tries;
         string said = _message;
         Reload();
-        _tries = 0;
-        if (close) { Close(); return; }
+        if (close) { _settled = true; Close(); return; }
         Say(keep > 0 ? $"{said}  (지출 {cost:N0}닢 · 수입 {gain:N0}닢)" : $"지출 {cost:N0}닢 · 수입 {gain:N0}닢.", false);
         Paint();
     }
@@ -241,36 +249,47 @@ public sealed class TradePostDialog : GameWindow
         Say(TradePost.BargainLine(ok, _tries, Cost), !ok);
         _tries++;
 
+        // 세 번째에 이기면 그 값으로 거래가 서고 창이 닫힌다(0x004812DA → 0x00481430 → 0x0048187F).
         if (ok && _tries >= TradePost.BargainWins)
         {
             RaiseInfamy(TradePost.HaggleWinInfamy);
+            TalkDialog.Say(this, _face, "", _message);
             _bargainOn = false;
-            Apply(close: false);
+            Apply(close: true);
             return;
         }
+        // 두 번 넘게 지면 흥정이 깨진다 — 상인이 물건을 거둬 가고(0x00481190) 창이 닫힌다.
         if (!ok && _tries >= TradePost.BargainLosses)
         {
             int cut = _tries >= 3 ? TradePost.CutHard : TradePost.CutBreak;
-            string said = _message;
+            TalkDialog.Say(this, _face, "", _message);
             _post.CutSupply(_player, _city, cut);
-            Reload();
-            // 공급이 줄었다고 따로 이르지는 않는다 — 원본은 상인의 말만 한다.
-            Say(said, true);
-            Paint();
+            _settled = true;
+            Close();
             return;
         }
         Paint();
     }
 
-    /// <summary>흥정만 걸고 나가면 상인이 10% 를 거둬 간다. 그 말을 읽게 첫 닫기는 삼킨다.</summary>
+    /// <summary>
+    /// 흥정만 걸고 나갈 때(<c>0x00481832</c>) — 흥정한 적이 있으면 상인 얼굴로 한 마디 하고 닫힌다.
+    /// </summary>
+    /// <remarks>
+    /// 남은 공급이 하나도 없으면(<c>0x00480F70</c>) 「미안하지만, 자네에게 팔 물건은 아무것도 없네.」로
+    /// 끝이고, 있으면 「날 바보 취급하는 건가?…」와 함께 10% 를 거둬 간다. 창은 어느 쪽이든 닫힌다.
+    /// </remarks>
     private bool QuitBargain()
     {
-        if (_tries <= 0) return false;
+        if (_settled || _tries <= 0) return false;
+        _settled = true;
+        if (_post.RowsOf(_player, _city).Sum(r => r.Supply) == 0)
+        {
+            TalkDialog.Say(this, _face, "", "미안하지만, 자네에게 팔 물건은 아무것도 없네.");
+            return false;
+        }
+        TalkDialog.Say(this, _face, "", TradePost.QuitLine);
         _post.CutSupply(_player, _city, TradePost.CutQuit);
-        Reload();
-        Say(TradePost.QuitLine, true);
-        Paint();
-        return true;
+        return false;
     }
 
     private void OnKey(object sender, KeyEventArgs e)
@@ -659,6 +678,7 @@ public sealed class TradePostDialog : GameWindow
     /// </remarks>
     public static void Greet(Window owner, Engine.Game game, int culture)
     {
+        _tries = 0;   // 들어설 때 흥정 횟수를 비운다(0x00480C30)
         if (game.AideFace is { } aide)
             TalkDialog.Say(owner, aide, "", "제독, 여기는 교역소입니다. 무언가 거래를 하실 건가요?");
         else
@@ -687,6 +707,6 @@ public sealed class TradePostDialog : GameWindow
             ConfirmDialog.Tell(owner, "미안하지만, 자네에게 팔 물건은 아무것도 없네.", face: face);
             return;
         }
-        new TradePostDialog(game, post, city, cityName) { Owner = owner }.ShowDialog();
+        new TradePostDialog(game, post, city, cityName) { Owner = owner, _face = face }.ShowDialog();
     }
 }
