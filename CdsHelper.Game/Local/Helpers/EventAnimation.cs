@@ -124,6 +124,33 @@ public sealed class EventAnimation
     /// <param name="width">띠 폭. 게임이 <c>0x0049A210</c> 에 넘기는 값이다.</param>
     /// <param name="frameHeight">한 프레임 높이. 그리는 손(<c>0x0049A700</c>)에 넘기는 값이다.</param>
     /// <param name="palettePart">팔레트 파트.</param>
+    /// <summary>
+    /// 비·눈 조각(파트 0·1)을 푼다 — <b>팔레트가 없다</b>. 색인에 10 을 더해 공용 팔레트로 칠하고
+    /// 원래 색인 0x40 이 비침이다(<c>0x0049A374</c> 의 <c>0x0041F990</c>).
+    /// </summary>
+    public Strip? TryGetWeather(int part, int width, int frameHeight)
+    {
+        var idx = _archive.Decode(part);
+        if (idx == null || width <= 0 || frameHeight <= 0 || idx.Length < width * frameHeight) return null;
+        int count = idx.Length / width / frameHeight;
+        var bgra = new uint[count * width * frameHeight];
+        for (int i = 0; i < bgra.Length; i++)
+        {
+            int v = idx[i];
+            if (v == WeatherKey) continue;
+            int c = Math.Min(255, v + WeatherShift) * 3;
+            bgra[i] = 0xFF000000u | ((uint)GamePalette.Rgb[c] << 16) | ((uint)GamePalette.Rgb[c + 1] << 8)
+                      | GamePalette.Rgb[c + 2];
+        }
+        return new Strip(width, frameHeight, count, bgra);
+    }
+
+    /// <summary>비·눈 조각의 비침 색인과 색인 밀기.</summary>
+    private const int WeatherKey = 0x40, WeatherShift = 10;
+
+    /// <summary>비 장면 번호(파트 0, 32x32 한 장)와 눈 장면 번호(파트 1, 16x16 세 장).</summary>
+    public const int Rain = 0, Snow = 1;
+
     public Strip? TryGetStrip(int part, int width, int frameHeight, int palettePart)
     {
         if (width <= 0 || frameHeight <= 0) return null;

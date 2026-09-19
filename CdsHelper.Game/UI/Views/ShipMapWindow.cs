@@ -188,6 +188,16 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>미니맵 — 지도 오른쪽 아래. 개발 창의 「미니맵」으로 켠다.</summary>
     private Popup _miniPopup = null!;
+
+    /// <summary>바다의 비·눈 — 날마다 굴린다(<c>0x0044AFD0</c>). 그림은 <see cref="_weatherView"/> 가 그린다.</summary>
+    private readonly SeaWeather _seaWeather = new();
+    private readonly WeatherView _weatherView = new();
+    private Popup _weatherPopup = null!;
+    private bool _weatherLoaded;
+    private WindTable? _weatherWind;
+
+    /// <summary>빗소리 — 소리 0x3F(WAVE 파트 35).</summary>
+    private const int RainSoundPart = 0x3F - WaveBank.FirstSoundId;
     private readonly MiniMapView _mini = new();
     private bool _miniWanted = GameSettings.ShowMiniMap;
 
@@ -438,6 +448,17 @@ public sealed class ShipMapWindow : Window
         };
         surface.Children.Add(_vital);
 
+        // 비·눈은 지도 전체를 덮는 층이다 — 미니맵보다 먼저 연다(아래에 깔린다).
+        _weatherPopup = new Popup
+        {
+            PlacementTarget = input,
+            Placement = PlacementMode.Relative,
+            AllowsTransparency = true,
+            StaysOpen = true,
+            IsHitTestVisible = false,
+            Child = _weatherView,
+        };
+
         // 미니맵은 지도 오른쪽 아래다. 자리는 띄울 때 지도 크기로 다시 잡는다(SyncOverlay).
         _miniPopup = new Popup
         {
@@ -652,6 +673,7 @@ public sealed class ShipMapWindow : Window
             if (_overlay.IsOpen) FillOverlay(lat, lon);
             if (_vital.IsOpen) FillVital();
             if (_miniWanted) SyncMiniMap();
+            SyncWeather();
             SyncSeaMusic();
         });
         Loaded += OnLoaded;
@@ -1055,6 +1077,56 @@ public sealed class ShipMapWindow : Window
                       + (i < right.Count ? right[i] : ""));
 
         _peopleText.Text = string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>바다에서 하루 — 비·눈을 굴린다(<see cref="SeaWeather"/>). 비가 오면 빗소리를 되풀이한다.</summary>
+    private void RollWeather()
+    {
+        var (lat, lon) = _host.ShipLatLon;
+        int latRaw = (int)((90 - lat) / 180 * 20000), lonRaw = (int)((lon + 180) / 360 * 40000);
+        _weatherWind ??= WindTable.Open(_game.Directory);
+        int zone = _weatherWind?.ZoneAt(WindTable.CellOf(lonRaw, latRaw)) ?? -1;
+        if (_seaWeather.Roll(zone, _game.Player.Date.Month, latRaw, _game.Random) is not { } now) return;
+
+        if (now == SeaWeather.Kind.None)
+        {
+            _weatherView.Stop();
+            _game.Sfx?.StopLoop();          // 0x00422A40(0x3F, 3)
+            return;
+        }
+        _weatherView.Start(now);
+        if (now == SeaWeather.Kind.Rain) _game.Sfx?.PlayLoop(RainSoundPart);
+    }
+
+    /// <summary>비·눈을 곧바로 거둔다 — 입항·해전처럼 판이 바뀌는 자리(<c>0x0048EACA</c> · <c>0x00443822</c>).</summary>
+    private void EndWeather()
+    {
+        _seaWeather.Stop();
+        _weatherView.Clear();
+        _game.Sfx?.StopLoop();
+    }
+
+    /// <summary>
+    /// 비·눈 층을 한 걸음 옮기고 띄울지 따진다 — 0.1초마다. 지도가 앞이고 오는 것이 있을 때만 뜬다.
+    /// 사건 애니메이션이 도는 동안에는 원본도 안 그린다(<c>0x0048A9F0</c>) — 그 창이 앞이면 여기도 숨는다.
+    /// </summary>
+    private void SyncWeather()
+    {
+        bool show = _weatherView.Busy && _started && IsActive
+                    && WindowState != WindowState.Minimized
+                    && ReferenceEquals(_screen.Content, _mapRoot)
+                    && _input.ActualWidth > 0 && _input.ActualHeight > 0;
+        if (show)
+        {
+            if (!_weatherLoaded) { _weatherView.Load(_game.EventAnims); _weatherLoaded = true; }
+            var (pixelW, _) = _host.SurfaceSize;
+            double w = _input.ActualWidth, h = _input.ActualHeight;
+            double perPixel = pixelW > 0 ? w / pixelW : 1;
+            double scale = Math.Clamp(_host.GamePixelScale * perPixel, w / 1280, w / 320);
+            _weatherView.Resize(w, h, scale);
+            _weatherView.Step();
+        }
+        _weatherPopup.IsOpen = show;
     }
 
     /// <summary>
@@ -1586,6 +1658,8 @@ public sealed class ShipMapWindow : Window
         ConfirmDialog.Tell(this, Encounter.FightOnWord(rng), "응전", face);
         int leaderId = foe.Leader?.Id ?? Encounter.PirateLeader;
         var foeFace = PersonFace(leaderId);
+        EndWeather();   // 해전이 열리면 비가 그친다(0x00443822)
+
         SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
                               (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
                               foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm, game: _game);
@@ -3156,6 +3230,7 @@ public sealed class ShipMapWindow : Window
             }
 
             _game.Player.PassDayAtSea();
+            RollWeather();
             var (lat, _) = _host.ShipLatLon;
             Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
             PassSeaMorale();
@@ -3691,6 +3766,8 @@ public sealed class ShipMapWindow : Window
         var leader = CaptainOf(who.Id) ?? Encounter.CaptainOf(who.Id);
         var foe = Encounter.OfPerson(leader, who.Name);
         int capital = _game.Nations?.Find(nation)?.Capital ?? -1;
+
+        EndWeather();   // 해전이 열리면 비가 그친다(0x00443822)
 
         var report = SeaCombatDialog.Engage(this, player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx, foeFace,
@@ -4632,6 +4709,8 @@ public sealed class ShipMapWindow : Window
             // 판의 풍향·세기는 함대 자리의 바다 바람에서 온다(0x00441F1C).
             int leaderId = foe.Leader?.Id ?? Encounter.PirateLeader;
             var foeFace = PersonFace(leaderId);
+            EndWeather();   // 해전이 열리면 비가 그친다(0x00443822)
+
             var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
                                                 (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
                                                 foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm, game: _game);
@@ -4671,6 +4750,8 @@ public sealed class ShipMapWindow : Window
         string name = _game.World?.Table.Find(person)?.Name ?? "괴물";
         var foe = Encounter.OfPerson(leader, name);
         var foeFace = PersonFace(person);
+
+        EndWeather();   // 해전이 열리면 비가 그친다(0x00443822)
 
         var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
@@ -5553,6 +5634,9 @@ public sealed class ShipMapWindow : Window
         // 문화권은 건물에 들어갈 때 뜨는 타원 사진을 고르는 데도 쓴다(BuildingPhoto).
         string culture = _game.CultureOf(city);
         int track = BgmPlayer.CityTrackFor(culture, _game.CityRows?.CultureOf(city) ?? -1);
+
+        // 도시에 들어서면 비·눈이 그친다(0x0048EACA — 빗소리도 끊는다, 0x0048EA69).
+        EndWeather();
 
         // 바다로 들어서면 함대가 이 도시에 닻을 내린다(0x0048B54E). 말로 걸어 들어오면 안 바뀐다.
         if (enterHome || !_host.IsOnLand) _game.Player.MoorAt(city);
