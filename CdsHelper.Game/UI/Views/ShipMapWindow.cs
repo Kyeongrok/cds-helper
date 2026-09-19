@@ -2559,7 +2559,8 @@ public sealed class ShipMapWindow : Window
             items.Add(("보급", () => { Close(); Forage(); }));
             items.Add(("수리", () => { Close(); RepairAshore(); }));
 
-            if (_host.IsNearWater())
+            // 대 둔 배 곁(두 칸 안)이어야 선다(0x0048B397) — 아무 물가에서나 타지는 못한다.
+            if (_host.IsNearMoor())
                 // 뭍에서 배로 옮겨 타는 줄은 「승선」이다(0x0056F9A8, 0x0048B3ED) — 「출항」은 항구 것이다.
                 items.Add(("승선", () => { if (_host.Embark()) _game.Bgm.Play(BgmPlayer.SeaTrack); Close(); }));
         }
