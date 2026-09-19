@@ -380,8 +380,9 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
     /// <summary>지금 지니고 있는 선수상들 — 소지품에서 갈래 6 을 골라낸 것이다.</summary>
     /// <remarks>게임의 <c>0x00495BA0</c> 이 소지품을 훑어 같은 목록을 짓는다.</remarks>
+    /// <remarks>원본은 갈래 6 인 칸을 <b>전부</b> 늘어놓는다 — 재고와 겹쳐도, 같은 것이 둘이어도 빼지 않는다.</remarks>
     private List<int> Carried() =>
-        [.. _player.Items.Select(Figureheads.FromItem).Where(Figureheads.Known).Distinct()];
+        [.. _player.Items.Select(Figureheads.FromItem).Where(Figureheads.Known)];
 
     /// <summary>
     /// 선수상 — 조선소에서 사거나, 지니고 있는 것을 뱃머리에 단다.
@@ -407,7 +408,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         // 재고가 앞, 지닌 것이 뒤다 — 게임도 그 차례로 잇는다.
         var stock = Stock();
-        var carried = Carried().Where(i => !stock.Contains(i)).ToList();
+        var carried = Carried();
         var offer = new List<int>(stock);
         offer.AddRange(carried);
         if (offer.Count == 0) return;
@@ -438,7 +439,8 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
                   + Figureheads.CureHint(ship.Figurehead));
                 return;
             }
-            Say($"이 선수상이라면 자네가 지금 달고 있는 [{NameOf(ship.Figurehead)}]의 저주도 푸는 것이 가능하다네.");
+            // 원본 글은 「[%s의 선두상] 의」이고 %s 는 짧은 이름이다(0x00531C68 · 표 0x0054A0A0). 낱말은 선수상으로 둔다.
+            Say($"이 선수상이라면 자네가 지금 달고 있는 [{Figureheads.ShortName(ship.Figurehead)}의 선수상] 의 저주도 푸는 것이 가능하다네.");
         }
 
         // 저주받은 것을 달겠다고 하면 한 번 더 묻고(0x00495F54), 무르면 물러선다.

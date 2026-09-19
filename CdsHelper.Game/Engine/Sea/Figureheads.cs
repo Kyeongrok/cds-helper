@@ -69,6 +69,19 @@ public static class Figureheads
     /// <summary>저주받았는지 — 등급 0 이다.</summary>
     public static bool Cursed(int index) => GradeOf(index) == 0;
 
+    /// <summary>
+    /// 선수상 짧은 이름(<c>0x0054A0A0</c>, 8바이트 칸) — 「[%s의 선수상]」처럼 이름 뒤에 낱말을 붙일 때 쓴다.
+    /// </summary>
+    public static readonly string[] ShortNames =
+    [
+        "송골매", "요정", "제독", "백조", "말", "표범", "거북이", "이리", "올빼미", "돌고래", "사슴", "상어",
+        "뱀", "코끼리", "위인", "비룡", "불뱀", "정령", "사자", "일각수", "천사", "매", "고래", "인마",
+        "독수리", "바다뱀", "여신", "해신", "수룡", "화신", "청룡", "백호", "불사조", "천마", "사신", "마왕",
+    ];
+
+    /// <summary>그 선수상의 짧은 이름. 모르면 빈 글.</summary>
+    public static string ShortName(int index) => index >= 0 && index < ShortNames.Length ? ShortNames[index] : "";
+
     /// <summary>저주받은 둘과 그 저주를 푸는 짝(<c>0x00495ED4</c>).</summary>
     /// <remarks>
     /// <code>
