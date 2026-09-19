@@ -4251,7 +4251,11 @@ public sealed class ShipMapWindow : Window
             var (foe, foeSkills, culture) = LeaderOf(at, party.Culture);
             var field = new LandBattle(line, 0, foeMen, player, aide, culture,
                                        LandBattle.FieldFor(_host.TerrainClass),
-                                       foe, roll, foeSkills, sort: LandBattle.Field);
+                                       foe, roll, foeSkills, sort: LandBattle.Field)
+            {
+                FoeFace = _game.PersonTemplates?.Find(LandFieldFoes.FirstLeader + at) is { } chief
+                    ? _game.Faces?.TryGetBgra(chief.Face, female: false) : null,
+            };
             if (LandBattleScene.Run(this, _game, field, roll)) return;
             if (!field.Wiped) return;
 
