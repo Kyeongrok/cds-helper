@@ -4917,7 +4917,7 @@ public sealed class ShipMapWindow : Window
         }
 
         // 괴물에게 지면 여느 패배와 딴 말이다(0x004351F9).
-        NoticeDialog.Show(this, "괴물이 먹어 버렸습니다", "해전");
+        NoticeDialog.Show(this, "  괴물이 먹어 버렸습니다", "해전");   // 앞 빈칸 둘도 원본 그대로다(0x0056A3F8)
 
         GameOver(GameOverDialog.FleetLost);
         return (false, true);

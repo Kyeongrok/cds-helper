@@ -41,13 +41,14 @@ public static class EnemyFleet
     ///   맨터      지력 +5                      0x0056A7B8
     /// </code>
     /// </remarks>
+    /// <remarks>글 앞의 <b>빈칸 둘</b>도 원본 그대로다.</remarks>
     public static (string Words, (int Ability, int By)[] Gains) MonsterPrize(int person) => person switch
     {
-        ManEater => ("식인 상어를 퇴치했다! 무력이 5 올라갔다!", [(Ability.Might, 5)]),
-        Kraken => ("크라켄을 퇴치했다! 무력, 매력, 지력이 각각 2 올라갔다!",
+        ManEater => ("  식인 상어를 퇴치했다! 무력이 5 올라갔다!", [(Ability.Might, 5)]),
+        Kraken => ("  크라켄을 퇴치했다! 무력, 매력, 지력이 각각 2 올라갔다!",
                    [(Ability.Might, 2), (Ability.Mind, 2), (Ability.Charm, 2)]),
-        SeaSerpent => ("시서펜트를 퇴치했다! 매력이 5 올라갔다!", [(Ability.Charm, 5)]),
-        Manta => ("맨터를 퇴치했다! 지력이 5 올라갔다!", [(Ability.Mind, 5)]),
+        SeaSerpent => ("  시서펜트를 퇴치했다! 매력이 5 올라갔다!", [(Ability.Charm, 5)]),
+        Manta => ("  맨터를 퇴치했다! 지력이 5 올라갔다!", [(Ability.Mind, 5)]),
         _ => ("", []),
     };
 
