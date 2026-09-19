@@ -627,6 +627,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
         MarkGateway(facility.Kind, arrived);
     }
 
+    /// <summary>왕궁의 건물 코드 — 문간 관문의 배수가 x100 이다(<c>0x00470AC0</c>).</summary>
+    private const int PalaceCode = 2;
+
     /// <summary>지금 들어와 있는 시설 갈래 — 교회의 설득은 들머리 관문이 하나 더 있다(<c>0x004AE1F0</c>).</summary>
     private FacilityKind? _openKind;
 
@@ -1029,7 +1032,10 @@ public sealed class CityPicView : GameWindow, ITownScreen
             _game.Sponsors?.FindByName(patron.Name) is { } known && _player.HasMet(known.Name))
             return true;
 
-        bool passed = _player.Fame >= patron.Fame;
+        // 안목에 거는 배수가 건물마다 다르다 — 왕궁(코드 2)은 0x00470AC1 의 x100, 저택(12~15)은
+        // 0x0040D371 의 x70 이다(0x0044E740: 안목 x 배수 ≤ 명성이면 통과). patrons.json 의 fame 은 x70 값이다.
+        int eye = _game.Sponsors?.FindByName(patron.Name)?.Eye ?? patron.Fame / 70;
+        bool passed = _player.Fame >= eye * (building.Code == PalaceCode ? 100 : 70);
 
         PlayFameCheck(passed);
 
