@@ -515,6 +515,16 @@ public sealed class CityPicView : GameWindow, ITownScreen
             if (MenuOpen) return;   // 명령 창이 떠 있으면 딴 건물은 안 눌린다
             Enter(building);
         };
+        // 오른쪽 단추로 건물을 누르면 곧장 들지 않고 묻는다(0x004918D6 이 자리에 0x100 을 얹고,
+        // 0x004934E0 이 그 건물 이름을 제목으로 「안으로 들어간다 · 도시로 돌아간다」를 낸다).
+        // 빈 자리를 오른쪽으로 누르면 도시 커맨드다(0x110) — 그것은 창이 받는다.
+        spot.MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (MenuOpen) return;
+            string title = building.Name.Length > 0 ? building.Name : building.Kind;
+            if (ChoiceDialog.Pick(this, title, ["안으로 들어간다", "도시로 돌아간다"]) == 0) Enter(building);
+        };
         _layer.Children.Add(spot);
     }
 
