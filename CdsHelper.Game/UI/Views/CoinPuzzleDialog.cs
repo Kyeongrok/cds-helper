@@ -395,8 +395,8 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         // (0x0053B0C0). 「가짜 금화 선택(DECIDE)」이 이 고른 닢을 쓴다(인스턴스 +0x11C).
         if (!dragged) { Chosen = coin; Sync(); return; }
 
-        if (In(now, LeftPan)) Tap(coin, left: true);
-        else if (In(now, RightPan)) Tap(coin, left: false);
+        if (In(now, LeftPan)) Tap(coin, left: true, dropped: true);
+        else if (In(now, RightPan)) Tap(coin, left: false, dropped: true);
         else if (_game.PanOf(coin) != 0) { _game.Clear(); Sync(); }   // 접시 밖에 내려놓으면 내린다
     }
 
@@ -423,7 +423,8 @@ internal sealed class CoinPuzzleDialog : InfoDialog
         Picture($"coin-face-dim-{coin}.png") ?? Face(coin);
 
     /// <summary>금화를 눌렀다 — 접시에 놓거나, 이미 접시에 있으면 두 접시를 비운다.</summary>
-    private void Tap(int coin, bool left)
+    /// <param name="dropped">끌어다 놓았는지 — 원본은 끌어 놓을 때(0x004506B1)와 글쇠로 놓을 때(0x00451409) 막는 말이 다르다.</param>
+    private void Tap(int coin, bool left, bool dropped = false)
     {
         if (_game.Won != null) return;
 
@@ -431,8 +432,9 @@ internal sealed class CoinPuzzleDialog : InfoDialog
 
         if (!_game.Put(coin, left))
         {
-            // 0x0053B018. 접시 하나에 여섯까지다(0x00450710).
-            NoticeDialog.Show(this, " 접시 위에는 더 이상 금화를 실을 수 없습니다", "천칭 퍼즐");
+            // 접시 하나에 여섯까지다(0x00450710). 끌어 놓았으면 0x0053ABC8 · 0x0053AC00, 아니면 0x0053B018.
+            NoticeDialog.Show(this, dropped ? " 더 이상 접시에 금화를 실을 수 없습니다"
+                                            : " 접시 위에는 더 이상 금화를 실을 수 없습니다", "천칭 퍼즐");
             return;
         }
         Sync();
