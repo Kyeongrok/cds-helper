@@ -473,9 +473,26 @@ internal sealed class CharacterMakeDialog : GameWindow
     /// </remarks>
     private void Next()
     {
-        if (_family.Text.Trim().Length == 0 || _given.Text.Trim().Length == 0)
+        // 따지는 차례도 게임 그대로다(0x0045CC74 ~ 0x0045D01F) — 명 · 성 · 달 · 날 · 나이 · 혈액형 · 국적 · 겹치는 이름.
+        if (_given.Text.Trim().Length == 0 || _family.Text.Trim().Length == 0)
         {
             NoticeDialog.Show(this, "이름을 정확히 입력해 주십시오", InputError);
+            return;
+        }
+
+        // 날은 그 달의 날수까지다 — 달 길이 표(0x004FF940)에 윤년은 없어 2월은 28일까지다(0x0045CD1C).
+        int month = Number(_month, 0), day = Number(_day, 0);
+        if (month is < 1 or > 12 || day < 1 || day > DaysIn[month])
+        {
+            NoticeDialog.Show(this, "생일을 정확히 입력해 주십시오", InputError);
+            return;
+        }
+
+        // 나이는 18 ~ 49 로 따진다(0x0045CD45 · 0x0045CD4E) — 숫자판이 40 까지만 내므로 걸릴 일은 드물다.
+        int age = Number(_age, 0);
+        if (age < Player.MinAge || age > AgeCheckMax)
+        {
+            NoticeDialog.Show(this, "연령을 정확히 입력해 주십시오", InputError);
             return;
         }
 
@@ -492,8 +509,11 @@ internal sealed class CharacterMakeDialog : GameWindow
 
         string full = $"{_given.Text.Trim()}·{_family.Text.Trim()}";
 
-        // 판에 있는 인물과 이름이 겹쳐도 물린다(0x0045CE77 — 인물 281명을 훑는다).
-        if (PersonTable.Open().People.Any(r => r.Name == full))
+        // 판에 있는 사람과 이름이 겹쳐도 물린다 — 인물 281명(0x0045CE77), 후원자 81명(0x004AD810),
+        // 여급 127명(0x005B3C60) 차례로 훑고 문구는 셋 다 같다(0x00571698 · 0x005716D8 · 0x00571718).
+        if (PersonTable.Open().People.Any(r => r.Name == full)
+            || (_directory.Length > 0 && SponsorTable.Open(_directory)?.Sponsors.Any(s => s.Name == full) == true)
+            || (_directory.Length > 0 && BarmaidTable.Open(_directory)?.Barmaids.Any(b => b.Name == full) == true))
         {
             NoticeDialog.Show(this, "같은 성명을 쓰는 사람이 게임중에 있습니다", InputError);
             return;
@@ -506,22 +526,18 @@ internal sealed class CharacterMakeDialog : GameWindow
             return;
         }
 
-        int age = Number(_age, 0);
-        if (age < Player.MinAge || age > Player.MaxAge)
-        {
-            NoticeDialog.Show(this, "연령을 정확히 입력해 주십시오", InputError);
-            return;
-        }
-        int month = Number(_month, 0), day = Number(_day, 0);
-        if (month is < 1 or > 12 || day is < 1 or > 31)
-        {
-            NoticeDialog.Show(this, "생일을 정확히 입력해 주십시오", InputError);
-            return;
-        }
-
         _ok = true;
         Close();
     }
+
+    /// <summary>달마다의 날수(<c>0x004FF940</c>, 0 번은 빈 칸) — 윤년이 없다.</summary>
+    private static readonly int[] DaysIn = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    /// <summary>나이 검사의 위 끝(<c>0x0045CD4E</c> 의 <c>0x31</c>).</summary>
+    private const int AgeCheckMax = 49;
+
+    /// <summary>게임 폴더 — 후원자·여급 이름을 견줄 때 쓴다.</summary>
+    private string _directory = "";
 
     /// <summary>
     /// 신상 화면을 띄운다. "다음" 을 누르면 <paramref name="player"/> 에 적고 true.
@@ -532,7 +548,11 @@ internal sealed class CharacterMakeDialog : GameWindow
         var names = gameDirectory.Length > 0 ? PlayerNameTable.Open(gameDirectory) : null;
         var (given, family) = NamePool(names);
 
-        var dialog = new CharacterMakeDialog(player, faces, names, given, family) { Owner = owner };
+        var dialog = new CharacterMakeDialog(player, faces, names, given, family)
+        {
+            Owner = owner,
+            _directory = gameDirectory,
+        };
         dialog.ShowDialog();
         if (!dialog._ok) return false;
 
