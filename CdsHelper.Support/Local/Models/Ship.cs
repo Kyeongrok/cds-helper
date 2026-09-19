@@ -284,7 +284,7 @@ public sealed class Ship
         MaxHp = Math.Max(1, MaxHp - grown / 2);
         Hp = Math.Min(Hp, MaxHp);
         Crew++;
-        return Refit.Between(was, Snapshot());
+        return Refit.SailAdded(was, Snapshot());
     }
 
     /// <summary>
@@ -475,7 +475,7 @@ public sealed class Ship
         Tonnage += grown;
         Capacity = Math.Min(Capacity + grown / 10 / 3, Hull.CapacityCeiling);
         Wear(grown / 100);
-        return Refit.Between(was, Snapshot());
+        return Refit.Buoyancy(was, Snapshot());
     }
 
     /// <summary>
@@ -501,7 +501,7 @@ public sealed class Ship
         MaxSpeed = Math.Max(1, MaxSpeed - grown / 3);
         Speed = Math.Min(Speed, MaxSpeed);
         Tonnage = Math.Max(1, Tonnage - grown * 50 / 3);
-        return Refit.Between(was, Snapshot());
+        return Refit.Reinforced(was, Snapshot());
     }
 
     /// <summary>추진력과 내구를 그만큼 깎는다. 지금 내구는 새 상한까지 잘린다.</summary>
@@ -562,7 +562,7 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
     public bool Any => Lines.Count > 0;
 
     /// <summary>
-    /// 마스트·돛·용량·부력·보강을 마쳤을 때 뜨는 상자(<c>0x00495550</c>).
+    /// 용량을 마쳤을 때 뜨는 상자(<c>0x004955A1</c>). 마스트·돛·부력·보강은 줄이 달라 따로 짓는다.
     /// </summary>
     /// <remarks>
     /// <b>바뀐 줄만 고르지 않는다.</b> 게임은 서식 하나에 열다섯 값을 한꺼번에 넣어
@@ -582,6 +582,41 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
             new Line("최대추진력", was.Speed, now.Speed),
             new Line("최대내구력", was.MaxHp, now.MaxHp),
             new Line("최저승원수", was.Crew, now.Crew, "명"),
+        ]);
+
+    /// <summary>마스트 추가(<c>0x00494B8E</c>, 서식 <c>0x005314F8</c>) — 적재용량 · 최저승원수 두 줄.</summary>
+    public static Refit Mast(Ship.Stats was, Ship.Stats now) =>
+        new([
+            new Line("적재용량", Room(was), Room(now), "통"),
+            new Line("최저승원수", was.Crew, now.Crew, "명"),
+        ]);
+
+    /// <summary>
+    /// 돛 추가(<c>0x004952F3</c>, 서식 <c>0x00531770</c>) — 최대추진력 · 최대내구력 · 셋째 줄.
+    /// 셋째 줄 이름은 「최대승원수」인데 값은 <b>필요 승원</b>이다(<c>0x0044C780</c>) — 원본 글 그대로 둔다.
+    /// </summary>
+    public static Refit SailAdded(Ship.Stats was, Ship.Stats now) =>
+        new([
+            new Line("최대추진력", was.Speed, now.Speed),
+            new Line("최대내구력", was.MaxHp, now.MaxHp),
+            new Line("최대승원수", was.Crew, now.Crew, "명"),
+        ]);
+
+    /// <summary>부력(적재중량 늘림, <c>0x00495825</c>, 서식 <c>0x005319C0</c>) — 네 줄.</summary>
+    public static Refit Buoyancy(Ship.Stats was, Ship.Stats now) =>
+        new([
+            new Line("적재중량", was.Tonnage, now.Tonnage),
+            new Line("적재용량", Room(was), Room(now), "통"),
+            new Line("최대추진력", was.Speed, now.Speed),
+            new Line("최대내구력", was.MaxHp, now.MaxHp),
+        ]);
+
+    /// <summary>보강(<c>0x00495A82</c>, 서식 <c>0x00531AE8</c>) — 최대내구력 · 최대추진력 · 적재중량.</summary>
+    public static Refit Reinforced(Ship.Stats was, Ship.Stats now) =>
+        new([
+            new Line("최대내구력", was.MaxHp, now.MaxHp),
+            new Line("최대추진력", was.Speed, now.Speed),
+            new Line("적재중량", was.Tonnage, now.Tonnage),
         ]);
 
     /// <summary>포탑수변경을 마쳤을 때 뜨는 상자(<c>0x00496157</c>, 서식 <c>0x00531E78</c>).</summary>
