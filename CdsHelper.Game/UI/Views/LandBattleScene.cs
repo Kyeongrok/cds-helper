@@ -145,7 +145,7 @@ internal sealed class LandBattleScene : GameWindow
             // 「일기토」는 판을 한 판에 가른다 — 이기면 그대로 이긴다(0x004478A0).
             if (order == LandBattle.Duel)
             {
-                if (!Asked()) continue;
+                Challenge();
                 var end = Fought(dice);
                 fight.End(end == DuelEnd.Won);
                 if (end == DuelEnd.Slain) { Slain(); return false; }
@@ -299,8 +299,11 @@ internal sealed class LandBattleScene : GameWindow
     /// 끝나고, 지면 그대로 진다. 마을 공략에서는 <b>적이 먼저 거는 일은 없다</b>
     /// (<c>0x004479D7</c> 이 갈래 2·4 를 걸러 낸다).
     /// </remarks>
-    /// <summary>일기토를 걸겠냐고 묻는다 — 게임도 「상대해 주마!」로 먼저 이른다.</summary>
-    private bool Asked() => ConfirmDialog.Ask(this, "상대해 주마!");
+    /// <summary>
+    /// 일기토를 걸면 「상대해 주마!」(<c>0x0056D728</c>)를 <b>알리고</b> 곧바로 판이 열린다 —
+    /// 되묻지 않는다(<c>0x00449A72</c> 의 <c>0x0049E3E0(0, …)</c> 뒤 바로 <c>0x004478A0</c>).
+    /// </summary>
+    private void Challenge() => NoticeDialog.Show(this, "상대해 주마!", "");
 
     /// <summary>일기토가 끝나는 세 갈래(<c>0x00449870</c> 이 보는 <c>+0x3C</c> — 0·1 이김 · 2 짐 · 4 죽음).</summary>
     private enum DuelEnd { Won, Lost, Slain }
