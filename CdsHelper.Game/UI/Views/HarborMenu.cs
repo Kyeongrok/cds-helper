@@ -263,16 +263,28 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         _ => null,
     };
 
+    /// <summary>함대 목록의 차례 — <b>기함이 맨 앞</b>이고 나머지는 칸 차례다(<c>0x0049D360</c>).</summary>
+    private List<int> FleetOrder()
+    {
+        var order = new List<int>();
+        int flag = _player.Flagship;
+        if (flag >= 0 && flag < _player.Ships.Count) order.Add(flag);
+        for (int i = 0; i < _player.Ships.Count; i++) if (i != flag) order.Add(i);
+        return order;
+    }
+
     /// <summary>기함을 바꾼다. 게임의 <c>0x0046A2F0</c> 자리다.</summary>
     private void ChangeFlagship()
     {
         var owner = Owner;
         var ships = _player.Ships;
 
-        int at = HintListDialog.Pick(owner,
-            [.. ships.Select((h, i) => ShipyardMenu.ShipLine(h, i == _player.Flagship))],
+        var order = FleetOrder();
+        int pick = HintListDialog.Pick(owner,
+            [.. order.Select(i => ShipyardMenu.ShipLine(ships[i], i == _player.Flagship))],
             "기함 변경", "바꿀 배가 없습니다");
-        if (at < 0) return;
+        if (pick < 0) return;
+        int at = order[pick];
 
         var name = ships[at].Name;
         if (!ConfirmDialog.Ask(owner, $"기함을 {name}호로 변경하겠습니다. 좋습니까?")) return;
@@ -330,10 +342,12 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     {
         var owner = Owner;
 
-        int at = HintListDialog.Pick(owner,
-            [.. _player.Ships.Select((h, i) => ShipyardMenu.ShipLine(h, i == _player.Flagship))],
+        var order = FleetOrder();
+        int pick = HintListDialog.Pick(owner,
+            [.. order.Select(i => ShipyardMenu.ShipLine(_player.Ships[i], i == _player.Flagship))],
             "선박삭제", "삭제할 배가 없습니다");
-        if (at < 0) return;
+        if (pick < 0) return;
+        int at = order[pick];
 
         if (!_player.Dock(at, _cityId))
             GameDialog.Show(owner, "이 이상 삭제할 수 없습니다.");
@@ -348,10 +362,12 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     {
         var owner = Owner;
 
-        int at = HintListDialog.Pick(owner,
-            [.. _player.Ships.Select((h, i) => ShipyardMenu.ShipLine(h, i == _player.Flagship))],
+        var order = FleetOrder();
+        int pick = HintListDialog.Pick(owner,
+            [.. order.Select(i => ShipyardMenu.ShipLine(_player.Ships[i], i == _player.Flagship))],
             "선박파기", "파기할 배가 없습니다");
-        if (at < 0) return;
+        if (pick < 0) return;
+        int at = order[pick];
 
         // 원본은 고르면 묻지 않고 곧바로 없앤다(0x0046A4B8 → 0x00473E60 · 0x0044CA90).
         if (!_player.Scrap(at))
