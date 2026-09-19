@@ -473,7 +473,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// </remarks>
     private void LendShips(int funds, Action<string> Say, Func<string, string, string, string> Pick3)
     {
-        int ships = Math.Min(funds / GoldPerShip + 1, Player.MaxShips - _player.Ships.Count);
+        // 함대가 이 도시에 없으면(걸어 들어온 마을) 한 척도 못 빌린다(0x004105D7 → 0x0040E1C0(도시, 0)).
+        int ships = !_player.FleetHere(_cityId) ? 0
+                  : Math.Min(funds / GoldPerShip + 1, Player.MaxShips - _player.Ships.Count);
         if (ships <= 0)
         {
             // 0x0055C718 · 0x0055C760 · 0x0055C7A8
@@ -1954,7 +1956,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         int style = StyleOf(patron);
         string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
 
-        int ships = Math.Min(contract.Amount / GoldPerShip + 1, Player.MaxShips - _player.Ships.Count);
+        int ships = !_player.FleetHere(_cityId) ? 0
+                  : Math.Min(contract.Amount / GoldPerShip + 1, Player.MaxShips - _player.Ships.Count);
         if (ships <= 0)
         {
             Say(Pick3("흐음, 빌려주고 싶은 마음은 굴뚝같지만 배가 전부 나가고 없네. 다시 오게.",

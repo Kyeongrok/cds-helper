@@ -52,6 +52,9 @@ internal interface ITownScreen
     /// <remarks>기함은 못 팔므로 한 척뿐이면 고를 것이 없다.</remarks>
     bool CanSellShip { get; }
 
+    /// <summary>개조 줄을 누를 수 있는지 — 함대가 이 도시에 있어야 한다.</summary>
+    bool CanRefitShip { get; }
+
     /// <summary>서가를 열 수 있는지 — 책 표를 읽었어야 한다.</summary>
     bool CanRead { get; }
 

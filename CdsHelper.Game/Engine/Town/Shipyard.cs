@@ -64,7 +64,9 @@ public static class Shipyard
     public static List<(Ship Ship, bool Docked)> RepairTargets(Player player, int cityId)
     {
         var hurt = new List<(Ship Ship, bool Docked)>();
-        foreach (var ship in player.Ships) if (ship.NeedsRepair) hurt.Add((ship, false));
+        // 함대 배는 함대가 이 도시에 있을 때만 든다(0x0044BC6B → 0x0040E1C0(도시, 0)).
+        if (player.FleetHere(cityId))
+            foreach (var ship in player.Ships) if (ship.NeedsRepair) hurt.Add((ship, false));
         foreach (var ship in player.DockedAt(cityId)) if (ship.NeedsRepair) hurt.Add((ship, true));
         return hurt;
     }
