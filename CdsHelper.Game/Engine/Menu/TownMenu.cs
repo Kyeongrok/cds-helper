@@ -91,8 +91,7 @@ internal static class TownMenu
             TownWork.Announce => screen.Announce,
 
             TownWork.BuyShip => screen.BuyShip,
-            // 팔 수 있는 배는 기함 말고 따로 있어야 한다 — 한 척 이하면 줄이 흐리다
-            // (0x0044B863 의 cmp esi,1 / jle).
+            // 함대가 닿아 있으면 켜진다(0x0044BD60). 기함뿐이면 눌러야 막힌다(0x0044B863 의 cmp esi,1 / jle).
             TownWork.SellShip when screen.CanSellShip => screen.SellShip,
             // 게임도 고칠 배가 없으면 이 줄을 흐리게 둔다(0x0044BD40).
             TownWork.RepairShip when screen.CanRepairShip => screen.RepairShip,
