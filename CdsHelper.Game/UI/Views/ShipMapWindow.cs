@@ -5214,6 +5214,9 @@ public sealed class ShipMapWindow : Window
         // 쥐는 실은 식량이 있어야 인다(0x004746F9 — (식량+9)/10 &gt; 0). 없으면 그날은 아무 일도 없다.
         if (kind == SeaEventKind.Rats && _game.Player.SupplyOf(SupplyKind.Food) <= 0) return true;
 
+        // 병이 터지는 자리에서 HP 가 0 이면 거기서 끝난다(0x004748F6 · 0x00474AA2).
+        if (kind is SeaEventKind.Scurvy or SeaEventKind.Plague && DiedOfDisease()) return true;
+
         // 터진 재해는 함대에 남는다 — 항해가 끝날 때까지 날마다 해를 끼친다(0x004747FF 벌).
         // 터지는 그 자리에서 죽는 사람은 없다 — 사람이 죽고 식량이 주는 것은 날마다의 0x00474DA0 뿐이다.
         _game.Player.Afflict(SeaEvents.AilmentOf(kind));
@@ -5764,8 +5767,11 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>
     /// 도시 밖에서 하루 — 제독 HP 를 닳리고, 문턱을 막 넘었으면 부관이 말한다(<see cref="Vitality.PassDay"/>).
-    /// 병 중에 HP 가 0 이 되면 GAME OVER 로 끝낸다. 놀이가 이어지면 true.
     /// </summary>
+    /// <remarks>
+    /// <b>여기서는 안 죽는다.</b> 게임이 HP 0 을 보는 자리는 둘뿐이다 — 도시에 들어설 때(<c>0x00492717</c>)와
+    /// 병이 새로 터질 때(<c>0x004748F6</c> · <c>0x00474AA2</c>)다. 바다에서는 0 인 채로 계속 떠 있는다.
+    /// </remarks>
     private bool PassVitalityDay()
     {
         var player = _game.Player;
@@ -5778,16 +5784,25 @@ public sealed class ShipMapWindow : Window
             _host.Paused = false;
         }
 
-        if (Vitality.DiseaseDeath(player) is not { } death) return true;
+        return true;
+    }
+
+    /// <summary>
+    /// 병이 새로 터지는 자리에서 HP 가 0 이면 그대로 끝난다(<c>0x004748F6</c> · <c>0x00474AA2</c> →
+    /// <c>0x0044AF40(0)</c>). 끝났으면 true.
+    /// </summary>
+    private bool DiedOfDisease()
+    {
+        if (Vitality.DiseaseDeath(_game.Player) is not { } death) return false;
 
         _host.Paused = true;
         _asking = true;
-        TalkDialog.Say(this, MateFace(), "", "제독, 정신차리십시오! 제독, 제독!");
-        NoticeDialog.Show(this, death);
+        TalkDialog.Say(this, MateFace(), "", "제독, 정신차리십시오! 제독, 제독!");   // 0x00534ED0
+        NoticeDialog.Show(this, death);                                              // 0x00534F30 · 0x00535090
         GameOver();
         _asking = false;
         Dispatcher.BeginInvoke(ReturnToTitle);
-        return false;
+        return true;
     }
 
     /// <summary>
