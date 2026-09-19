@@ -222,6 +222,9 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         foreach (int at in picked.OrderByDescending(i => i)) _player.Scrap(at);
         _player.Earn(paid);
 
+        // 배가 줄어 짐이 넘치면 짐 덜기 창이다(0x0044B968).
+        CargoDropDialog.Force(owner, _game, _cityId);
+
         // 한 척만 남았으면 "매각" 줄이 그 자리에서 꺼져야 한다.
         _menu.Refresh();
     }
@@ -824,6 +827,10 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         if (change.Any)
             NoticeDialog.Show(owner, string.Join(Environment.NewLine,
                 change.Lines.Select(l => $"{GameUi.Pad(l.Name, 12)}{l.Before,4} → {l.After,4}{l.Unit}")));
+
+        // 결과 상자 뒤에 짐이 넘치면 짐 덜기 창이다 — 마스트·보강·포탑수·대포(0x00494BA1 · 0x00495A95 ·
+        // 0x00496168 · 0x004963AF). 실을 곳을 늘리는 개조는 넘칠 일이 없어 모두에 걸어도 같다.
+        CargoDropDialog.Force(owner, _game, _cityId);
 
         _menu.Pop();
         _menu.Push(() => RefitMenu(ship));

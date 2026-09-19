@@ -265,13 +265,12 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
     /// <summary>
     /// 함대편성을 나선다(<c>0x0046A65F</c>) — 덜어 낸 배에서 내린 선원은 남은 정원만큼만 도로 타고
-    /// (<c>0x0040E3F0</c>) 나머지는 사라진다. 그 다음 짐이 넘치면 <b>여기서 한 번</b> 알린다(<c>0x0044DEF0</c>).
+    /// (<c>0x0040E3F0</c>) 나머지는 사라진다. 그 다음 짐이 넘치면 알리고 짐 덜기 창을 띄운다(<c>0x0044DEF0</c>).
     /// </summary>
-    /// <remarks>원본은 이어서 짐 덜기 창(<c>0x0044DCB0</c>)을 억지로 띄우는데, 그 창은 아직 옮기지 않았다.</remarks>
     private void FleetDone()
     {
         _player.SetCrew(_player.Crew);
-        WarnOverload(Owner);
+        CargoDropDialog.Force(Owner, _game, _cityId);
         _menu.Pop();
     }
 
@@ -303,24 +302,6 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         _player.SetFlagship(at);
         _menu.Refresh();   // 기함이 바뀌면 줄 켜짐도 다시 잰다
-    }
-
-    /// <summary>
-    /// 배를 덜어 내고 나서 짐이 넘치면 알린다(<c>0x0044D590</c>).
-    /// </summary>
-    /// <remarks>
-    /// 셋 가운데 하나다 — 둘 다 넘치면 <c>0x0055AC60</c>, 중량만 <c>0x0055AC88</c>,
-    /// 용량만 <c>0x0055ACA8</c> 이다. <b>막지는 않는다</b> — 알리기만 하고 그대로 둔다.
-    /// 배가 줄면 실을 수 있는 양이 줄어 이런 일이 난다.
-    /// </remarks>
-    private void WarnOverload(Window owner)
-    {
-        bool heavy = _player.LoadedWeight > _player.Tonnage;
-        bool full = _player.LoadedBarrels > _player.Capacity;
-        if (!heavy && !full) return;
-        GameDialog.Show(owner, heavy && full ? "중량도 용량도 한계를 넘고 있습니다!"
-                             : heavy ? "중량이 한계를 넘고 있습니다!"
-                                     : "용량이 한계를 넘고 있습니다!");
     }
 
     /// <summary>맡겨 둔 배를 함대에 넣는다. 게임의 <c>0x0046A350</c> 자리다.</summary>
