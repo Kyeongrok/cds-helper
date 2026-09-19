@@ -249,6 +249,12 @@ public sealed class Player
     /// </remarks>
     public int Laps { get; set; }
 
+    /// <summary>
+    /// NEW GAME 에서 「누적캐릭터를 등장시키지 않는다」를 골랐다(<c>0x005A4D1A</c> 비트 <c>0x10</c>).
+    /// 이 판에서 은퇴하면 올라 있던 누적 캐릭터를 모두 지우고 이 제독을 올린다(<c>0x0041AD55</c>).
+    /// </summary>
+    public bool SkipsCumulative { get; set; }
+
     /// <summary>빚(닢). 아직 빌려 주는 데가 없어 늘 0 이다.</summary>
     public int Debt { get; set; }
 
