@@ -166,12 +166,18 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
 
     private readonly DispatcherTimer _flameTimer;
 
+    /// <summary>짐 창에 쓸 표(교역소·교역품·도시). 없으면 짐 창을 건너뛴다.</summary>
+    private readonly Engine.Game? _game;
+    private readonly Random _random;
+
     private SeaCombatDialog(SeaBattle battle, CombatArt art, in Enemy foe, uint[]? face, double zoom,
                             SoundBank? sfx, uint[]? foeFace = null, Action<Window, Report>? settle = null,
                             Player? player = null,
                             IReadOnlyList<(SeaBattle.Ship, Support.Local.Models.Ship)>? fleet = null,
-                            Func<Window, bool?>? duel = null)
+                            Func<Window, bool?>? duel = null, Engine.Game? game = null, Random? rng = null)
     {
+        _game = game;
+        _random = rng ?? new Random();
         _battle = battle;
         _art = art;
         _foe = foe;
@@ -760,7 +766,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     ///                      → 되찾은 배(레코드는 싸움 전 값) · 나포선이 있으면 들임 차림표   → 적이 달아남
     /// </code>
     /// 값 치르기(<see cref="_settle"/>)와 들임·편성 창을 판 위에서 돌리고 닫는다 — 게임도 판을 닫기 전에 띄운다.
-    /// 짐 창(<c>0x004879A0</c>, 빼앗은 배의 교역품·보급품)은 옮기지 않았다. 음악을 끄고 켜는 것도 없다.
+    /// 짐 창(<c>0x004879A0</c>, 빼앗은 보급품·교역품)은 들임 차림표 뒤에 뜬다(<see cref="LootDialog"/>). 음악을 끄고 켜는 것은 없다.
     /// </remarks>
     private void Finish()
     {
@@ -891,7 +897,18 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
             .Where(s => s.State is SeaBattle.ShipState.Captured or SeaBattle.ShipState.Afloat)
             .Select(PrizeOf)
             .ToList();
-        if (prizes.Count > 0) PrizeFleetMenu.Run(this, player, prizes);
+        if (prizes.Count == 0) return;
+        PrizeFleetMenu.Run(this, player, prizes);
+
+        // 편성 뒤에 짐 창이 뜬다(0x00434D30 → 0x004879A0). 괴물과의 판에는 없다. 빼앗는 양은 편입과
+        // 상관없이 잡은 배 전부로 센다 — 빈 용량(포탑 뺀 적재량)과 선체 중량 한도의 합이다.
+        if (_battle.Monster || _game is not { } game) return;
+        int volume = prizes.Sum(s => s.UsableCapacity), weight = prizes.Sum(s => s.Tonnage);
+        int pool = BattleLoot.PoolOf(volume, weight);
+        var loot = game.CityRows is { } cities && game.Trade is { } trade && game.Goods is { } goods
+            ? BattleLoot.GoodsOf(_foe.Leader?.Nation ?? -1, volume, weight, pool, cities, trade, goods, _random)
+            : null;
+        LootDialog.Show(this, player, game.Goods, game.CityName, pool, loot);
     }
 
     /// <summary>빼앗은 적 칸 하나를 함대 배로 — 선체표 선체(<see cref="Hull.FromTable"/>), 이름은 선체 이름.</summary>
@@ -1267,9 +1284,9 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     public static Outcome Fight(Window owner, Player player, in Enemy foe, Random rng, uint[]? face,
                                 (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
                                 uint[]? foeFace = null, Func<Window, bool?>? duel = null,
-                                BgmPlayer? bgm = null, bool monster = false) =>
+                                BgmPlayer? bgm = null, bool monster = false, Engine.Game? game = null) =>
         Engage(owner, player, foe, rng, face, seaWind, sfx, foeFace, duel: duel, bgm: bgm,
-               monster: monster).Outcome;
+               monster: monster, game: game).Outcome;
 
     /// <summary>
     /// 해전을 벌이고 끝의 알맹이를 낸다. 그림을 못 읽었으면 도망친 것으로 치고 값 치르기는 안 부른다.
@@ -1280,7 +1297,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                                 (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
                                 uint[]? foeFace = null, Action<Window, Report>? settle = null,
                                 Func<Window, bool?>? duel = null, BgmPlayer? bgm = null,
-                                bool monster = false)
+                                bool monster = false, Engine.Game? game = null)
     {
         var art = CombatArt.Open();
         if (art == null)
@@ -1366,7 +1383,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         }
 
         var dialog = new SeaCombatDialog(battle, art, foe, face, ZoomFor(owner), sfx, foeFace, settle,
-                                         player, ours, duel)
+                                         player, ours, duel, game, rng)
         {
             Owner = owner,
         };

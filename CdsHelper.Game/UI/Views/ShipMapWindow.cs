@@ -1569,7 +1569,7 @@ public sealed class ShipMapWindow : Window
         var foeFace = PersonFace(leaderId);
         SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
                               (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
-                              foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm);
+                              foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm, game: _game);
     }
 
     /// <summary>그 인물의 얼굴. 인물표를 못 읽었으면 null.</summary>
@@ -3671,7 +3671,7 @@ public sealed class ShipMapWindow : Window
         var report = SeaCombatDialog.Engage(this, player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx, foeFace,
                                             (board, end) => SettleRaid(board, end, nation, capital, rng),
-                                            SeaDuel(who.Id, who.Name, foeFace), _game.Bgm);
+                                            SeaDuel(who.Id, who.Name, foeFace), _game.Bgm, game: _game);
 
         // 판이 어떻게 끝났든 상대는 제 나라 수도로 돌아가 예순 날 쉰다 — 곧바로 다시 못 만난다.
         world.SendHome(who, capital);
@@ -4610,7 +4610,7 @@ public sealed class ShipMapWindow : Window
             var foeFace = PersonFace(leaderId);
             var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
                                                 (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
-                                                foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm);
+                                                foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm, game: _game);
 
             // 기함을 잃으면(격침·나포·일기토 패배) 놀이가 끝난다 — 보이는 함대 해전(FightFolk)과 같다.
             if (outcome == SeaCombatDialog.Outcome.Defeated)
