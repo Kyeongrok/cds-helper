@@ -90,9 +90,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 대사는 게임 EXE 에 있는 말을 그대로 옮겼다(<c>0x00545A80</c>~<c>0x00546D80</c>).
     /// <b>말투 세 벌</b>(<see cref="StyleOf"/> — 반말 · 존댓말 · 상인 반말)을 다 갈아 쓴다.
     /// </remarks>
-    public void Persuade(Patron patron) => Alone(() => PersuadeNow(patron));
+    /// <param name="church">교회에 앉은 후원자인지 — 들머리 관문(<c>0x004AE1F0</c>)이 교회(건물 코드 3)에만 선다.</param>
+    public void Persuade(Patron patron, bool church = false) => Alone(() => PersuadeNow(patron, church));
 
-    private void PersuadeNow(Patron patron)
+    private void PersuadeNow(Patron patron, bool church = false)
     {
         // 내밀 것이 없으면 그 자리에서 물린다(0x004769D4). 문간 관문보다 먼저다.
         if (LiveHints.Count == 0)
@@ -112,7 +113,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
         try
         {
-            PersuadeBody(patron);
+            PersuadeBody(patron, church);
         }
         finally
         {
@@ -200,10 +201,16 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         return false;
     }
 
+    /// <summary>교회 들머리 관문의 안목 배수(<c>0x004AE1FD</c> 의 <c>push 0x50</c>).</summary>
+    private const int ChurchEye = 80;
+
+    /// <summary>교회의 건물 코드 — 돌려보내는 사람의 얼굴이 이 자리 화자다(<c>0x004AE21C</c> 의 <c>+0x84</c>).</summary>
+    private const int ChurchCode = 3;
+
     /// <summary>후원자가 하는 말의 수준(<c>0x004AD7D3</c> 의 <c>and eax, 3</c>) — 이만큼 통해야 설득한다.</summary>
     private const int SponsorTongue = 3;
 
-    private void PersuadeBody(Patron patron)
+    private void PersuadeBody(Patron patron, bool church = false)
     {
 
         var sponsor = _game.Sponsors?.FindByName(patron.Name);
@@ -214,6 +221,16 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var face = FaceOf(patron);
         void Say(string words) => TalkDialog.Say(_view, face, "", words);
         void Steward(string words) => TalkDialog.Say(_view, StewardFace(), "", words);
+
+        // 교회는 들머리에 관문이 하나 더 있다(0x004AE1F0 — 건물 코드 3 일 때만). 아직 못 만난 후원자
+        // (비트 15)면 안목 x 80 을 명성과 견주고(0x0044E740(0x50)), 모자라면 교회 사람이 돌려보낸다.
+        if (church && !_player.HasMet(patron.Name) && !(sponsor is { } met && _player.HasMet(met.Name))
+            && (sponsor?.Eye ?? patron.Fame / 70) * ChurchEye > _player.Fame)
+        {
+            TalkDialog.Say(_view, _game.SpeakerFace(ChurchCode, _culture), "",
+                           $"{shown}님은 바쁘셔서 만나실 수 없습니다.");
+            return;
+        }
 
         // 기분이 상한 후원자는 문간에서 돌려보낸다(0x004AEFC1, 후원자 비트 14) — 설득을 물렸거나
         // 계약 결판을 치른 뒤 30일 동안이다(0x004A2AD0 이 푼다).
@@ -247,10 +264,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             else GameDialog.Show(_view, $"현재 {word}");
         }
 
-        // 첫 관문은 명성이다. 모자라면 집사가 문간에서 돌려보낸다(게임 0x004AE1F0).
-        //
-        // 게임은 이 관문을 시설 종류 하나에만 건다(vtbl+0x48 이 3 일 때). 그 3 이 어느
-        // 건물인지는 아직 못 갈라서 여기서는 다 건다.
+        // 명성 관문이다. 모자라면 집사가 문간에서 돌려보낸다(게임 0x004AE260 — 어느 건물이든 건다).
+        // 교회에만 서는 들머리 관문(0x004AE1F0)은 위에서 따로 봤다.
         //
         // "명성치가 모자랍니다" 는 내지 않는다 — 게임에서도 그 줄은 디버그 깃발
         // (0x00580C6C 의 2비트)이 서 있을 때만 나오는 기록용이지 사람에게 보이는 말이 아니다.
