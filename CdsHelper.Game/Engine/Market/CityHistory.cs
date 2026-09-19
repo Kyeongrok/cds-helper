@@ -268,14 +268,7 @@ public sealed class CityHistory
                     break;
                 case (0x22 or 0x26, 0x10) when i + 6 < end:                     // 건물 비트 끄기·켜기(0x409DD1 · 0x40A118)
                 {
-                    int bit = U16(p, i + 2), city = U16(p, i + 5);
-                    if (cities != null && city < CityExeTable.Count && bit < 16)
-                    {
-                        int word = player.CityBuildings.TryGetValue(city, out int had) ? had
-                                   : Math.Max(0, cities.StartBuildingsOf(city));
-                        word = a == 0x26 ? word | 1 << bit : word & ~(1 << bit);
-                        player.SetCityBuildings(city, word);
-                    }
+                    SetBuilding(player, cities, U16(p, i + 5), U16(p, i + 2), a == 0x26);
                     i += 7;
                     break;
                 }
@@ -334,6 +327,19 @@ public sealed class CityHistory
             return;
         }
         player.SetHistoryNation(city, nation);
+    }
+
+    /// <summary>
+    /// 도시 건물 낱말(<c>+0x1C</c>)의 한 비트를 켜거나 끈다(<c>0x0040A118</c> · <c>0x00409E0F</c>).
+    /// 발견 대본의 <c>22/26 10</c> 도 같은 핸들러다.
+    /// </summary>
+    public static void SetBuilding(Player player, CityExeTable? cities, int city, int bit, bool on)
+    {
+        if (cities == null || city < 0 || city >= CityExeTable.Count || bit is < 0 or >= 16) return;
+        int word = player.CityBuildings.TryGetValue(city, out int had) ? had
+                   : Math.Max(0, cities.StartBuildingsOf(city));
+        word = on ? word | 1 << bit : word & ~(1 << bit);
+        player.SetCityBuildings(city, word);
     }
 
     /// <summary>사람 대본 한 칸의 몸통 끝 — 그보다 뒤에서 시작하는 가장 가까운 몸통.</summary>
