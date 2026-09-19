@@ -5670,6 +5670,9 @@ public sealed class ShipMapWindow : Window
 
         // 바다로 들어서면 함대가 이 도시에 닻을 내린다(0x0048B54E). 말로 걸어 들어오면 안 바뀐다.
         if (enterHome || !_host.IsOnLand) _game.Player.MoorAt(city);
+        // 함대가 기다리는 도시로 <b>걸어 돌아왔으면 배에 다시 오른다</b> — 성문 건물이 들어설 때
+        // 뭍 표시를 끄고 대 둔 바다 자리를 되돌린다(0x0046871F → 0x004745B0).
+        else if (_game.Player.FleetCity == city) _host.Embark();
 
         var dialog = CityPicView.Open(this, _game, city, name, MapAreaOnScreen(), track, culture);
         if (dialog == null) return false;
