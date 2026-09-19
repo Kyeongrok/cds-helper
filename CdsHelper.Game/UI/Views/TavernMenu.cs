@@ -126,8 +126,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         int at = _game.Random.Next(poker ? Greetings.Length + PokerCalls.Length : Greetings.Length);
         if (at >= Greetings.Length)
         {
-            if (ConfirmDialog.Ask(_view, PokerCalls[at - Greetings.Length], face: face)) PlayPoker();
-            else ConfirmDialog.Tell(_view, PokerTurnedDown, face: face);
+            // 판을 거는 말과 「쳇, 재미없군.」은 <b>술집 주인</b> 얼굴이다(0x0042E9DD 의 [+0x80]).
+            var host = HostFace();
+            if (ConfirmDialog.Ask(_view, PokerCalls[at - Greetings.Length], face: host)) PlayPoker();
+            else ConfirmDialog.Tell(_view, PokerTurnedDown, face: host);
             return;
         }
 
@@ -439,9 +441,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </remarks>
     private void PickFight(uint[]? mate)
     {
+        // 시비는 제독 얼굴(0x0042EC75), 받는 말은 인물 275 얼굴(0x0042EC8D)이다.
+        var face = _game.PersonTemplates?.Find(BrawlPerson) is { } t
+            ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
         int k = _game.Random.Next(Taunts.Length);
-        ConfirmDialog.Tell(_view, Taunts[k]);
-        ConfirmDialog.Tell(_view, Retorts[k]);
+        ConfirmDialog.Tell(_view, Taunts[k], face: MyFace());
+        ConfirmDialog.Tell(_view, Retorts[k], face: face);
         if (_player.MateAt(0).Length > 0) ConfirmDialog.Tell(_view, MateStops[k], face: mate);
 
         if (PersonTable.Open().Find(BrawlPerson) is not { } row || row.Stats.Length < 5) return;
@@ -451,8 +456,6 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
 
-        var face = _game.PersonTemplates?.Find(BrawlPerson) is { } t
-            ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
         if (duel.Won == true)
@@ -548,7 +551,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// <summary>한턱 낸다(<c>0x0042EE60</c>) — 돈을 쓰고 이름이 크게 오른다.</summary>
     private void BuyRound(uint[]? mate)
     {
-        ConfirmDialog.Tell(_view, "여~어, 주인! 여기에 있는 자들에게 한잔씩 돌리게.", face: HostFace());
+        // 한턱 내는 말은 제독이 한다(0x0042EE6F 의 화자 0x005B60A0).
+        ConfirmDialog.Tell(_view, "여~어, 주인! 여기에 있는 자들에게 한잔씩 돌리게.", face: MyFace());
 
         if (_player.MateAt(0).Length > 0)
             ConfirmDialog.Tell(_view, "역시 제독! 그럼 사양하지 않겠습니다.", face: mate);
@@ -563,6 +567,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
     /// <summary>술집 주인 얼굴. 화자표에서 온다.</summary>
     private uint[]? HostFace() => _game.SpeakerFace(BuildingCode, _cultureNo);
+
+    /// <summary>제독 얼굴 — 나이에 맞춘 초상화다.</summary>
+    private uint[]? MyFace() =>
+        _game.Faces?.TryGetBgra(PortraitAges.At(_player.Face, _player.Age, false, _game.Faces), female: false);
 
     /// <summary>시비 거는 말과, 부관이 말리는 말(<c>0x0042EC39</c>). 짝이 맞는 둘 중 하나다.</summary>
     private static readonly string[] Taunts =
