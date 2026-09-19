@@ -969,7 +969,7 @@ public sealed class DisevRunner
     ///   3  낚시          0x0047BDD0
     ///   6  큐브 퍼즐     0x0049B3C0
     /// </code>
-    /// 낚시·큐브는 창이 결과를 안 돌려줘 <b>이긴 것으로 친다</b> — 대본이 막히는 것보다 낫다.
+    /// 큐브는 창이 결과를 안 돌려줘 <b>이긴 것으로 친다</b> — 원본도 늘 1 이다. 낚시는 대어를 잡았는지를 그대로 쓴다.
     /// </remarks>
     private bool PlayMinigame(int game)
     {
