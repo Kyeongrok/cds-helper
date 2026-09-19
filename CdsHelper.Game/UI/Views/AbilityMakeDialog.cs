@@ -267,23 +267,31 @@ internal sealed class AbilityMakeDialog : InfoDialog
         Closed += (_, _) => timer.Stop();
     }
 
-    /// <summary>보너스 포인트를 능력치에 넣거나 도로 뺀다.</summary>
+    /// <summary>
+    /// 보너스 포인트를 능력치에 넣거나 도로 뺀다 — 빼는 것은 <b>넣은 만큼만</b>이라 굴린 값 밑으로는 안 내려간다
+    /// (<c>0x0045D971</c> 이 칸마다 넣은 수 <c>[+0x124]</c> 가 0 보다 클 때만 뺀다).
+    /// </summary>
     private void Move(int which, int by)
     {
         if (by > 0)
         {
             if (_left <= 0 || _stats[which] >= Ability.Max) return;
             _stats[which]++;
+            _added[which]++;
             _left--;
         }
         else
         {
-            if (_stats[which] <= Ability.Min) return;
+            if (_added[which] <= 0) return;
             _stats[which]--;
+            _added[which]--;
             _left++;
         }
         Sync();
     }
+
+    /// <summary>칸마다 보너스로 넣은 수.</summary>
+    private readonly int[] _added = new int[Ability.Names.Length];
 
     /// <summary>
     /// 직업을 고른다 — 능력치는 <b>다시 안 굴린다</b>(<c>0x0045D8DA</c>). 굴림은 이 화면에 들어오기 전에
