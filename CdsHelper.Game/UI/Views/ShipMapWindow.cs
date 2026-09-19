@@ -5086,6 +5086,9 @@ public sealed class ShipMapWindow : Window
     /// 게임은 병이 돌면 선원을 하나씩 골라 이름을 부르며 죽이는데(<c>0x00534F30</c>
     /// "%s%s 괴혈병에 걸려…") 우리는 함대가 선원을 통째로 태우므로 머릿수만 던다.
     /// </remarks>
+    /// <summary>쥐가 들끓을 때 깎이는 규율(<c>0x00474804</c>).</summary>
+    private const int RatsMoraleLoss = 10;
+
     private bool Plagued(SeaEventKind kind)
     {
         string word = kind switch
@@ -5110,13 +5113,15 @@ public sealed class ShipMapWindow : Window
         };
         if (word.Length == 0) return false;
 
+        // 쥐는 실은 식량이 있어야 인다(0x004746F9 — (식량+9)/10 &gt; 0). 없으면 그날은 아무 일도 없다.
+        if (kind == SeaEventKind.Rats && _game.Player.SupplyOf(SupplyKind.Food) <= 0) return true;
+
         // 터진 재해는 함대에 남는다 — 항해가 끝날 때까지 날마다 해를 끼친다(0x004747FF 벌).
+        // 터지는 그 자리에서 죽는 사람은 없다 — 사람이 죽고 식량이 주는 것은 날마다의 0x00474DA0 뿐이다.
         _game.Player.Afflict(SeaEvents.AilmentOf(kind));
 
-        int toll = SeaEvents.TollOf(kind, _game.Random);
-        if (toll > 0) _game.Player.SetCrew(_game.Player.Crew - toll);
-        if (kind == SeaEventKind.Rats)
-            _game.Player.AddSupply(SupplyKind.Food, -SeaEvents.RatsEat(_game.Random));
+        // 쥐가 들끓으면 규율이 10 준다(0x00474804 → 0x00474060(-10)).
+        if (kind == SeaEventKind.Rats) _game.Player.Cheer(-RatsMoraleLoss);
 
         // 터진 재해만 사건 스틸을 먼저 세운다(0x004747C4 쥐 #2 · 0x004748EA/0x00474A96 병 #1).
         // 귀띔(약해짐·이상한 병)에는 그림이 없다.

@@ -260,23 +260,6 @@ public static class SeaEvents
         return ships[Math.Clamp(player.Flagship, 0, ships.Count - 1)].Figurehead;
     }
 
-    /// <summary>
-    /// 병이나 쥐가 앗아 가는 선원 수. 없으면 0.
-    /// </summary>
-    /// <remarks>
-    /// 게임은 배마다 선원을 담고 하나씩 골라 죽이는데(<c>0x00474941</c> 벌이 이름을 뽑아
-    /// "…돌아올 수 없는 사람이 되었다" 를 낸다) 우리는 함대가 통째로 태우므로 <b>머릿수만</b>
-    /// 던다. 쥐는 사람을 안 잡고 <b>식량</b>을 축낸다.
-    /// </remarks>
-    public static int TollOf(SeaEventKind kind, Random rng) => kind switch
-    {
-        SeaEventKind.Scurvy or SeaEventKind.Plague => rng.Next(3) + 1,
-        _ => 0,
-    };
-
-    /// <summary>쥐가 축내는 식량 통 수(<c>0x0047476E</c> 벌).</summary>
-    public static int RatsEat(Random rng) => rng.Next(3) + 1;
-
     /// <summary>그 갈래가 남기는 재해. 쥐·괴혈병·전염병만 남는다.</summary>
     public static SeaAilment? AilmentOf(int kind) => kind switch
     {
