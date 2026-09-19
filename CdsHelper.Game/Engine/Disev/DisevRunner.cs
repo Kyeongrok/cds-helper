@@ -1108,7 +1108,7 @@ public sealed class DisevRunner
         var rows = _game.CityRows;
         return new LandBattle(Deploy(aide), player, aide, rows?.ScaleOf(city) ?? 0,
                               rows?.NationOf(city) ?? -1, rows?.CultureOf(city) ?? 0,
-                              0, _dice, myMen)
+                              0, _dice, myMen, city: city)
         {
             KeepsCrew = _borrowedMen >= 0,
         };

@@ -183,7 +183,8 @@ internal sealed class LandBattleScene : GameWindow
                 // 마을 공략에서는 적의 새 병력이 딱 한 번 붙는다(0x00449930).
                 if (won && _battle.Reinforce(dice))
                 {
-                    NoticeDialog.Show(this, LandBattle.ReinforceWord, "");
+                    // 증원 말은 부관(없으면 뱃사람) 얼굴이다(0x00446DF0 → 0x00478280).
+                    ConfirmDialog.Tell(this, _battle.ReinforceWordFor(dice), "", MateFace());
                     fight = new LandFight(_battle, dice);
                     Redraw();
                     continue;
@@ -195,8 +196,9 @@ internal sealed class LandBattleScene : GameWindow
             {
                 // 열 턴이 끝이다(0x00449420). <b>마을 공략은 이길 길이 없이 물러나고</b>,
                 // 들에서 마주친 부대(갈래 1)는 열 턴을 버티면 적이 물러가 이긴 것이 된다.
+                // 열 턴 뒤의 말도 부관 얼굴이다(0x00449420 → 0x00478280).
                 bool held = _battle.TimeUpWon;
-                NoticeDialog.Show(this, _battle.TimeUpWord(dice), "");
+                ConfirmDialog.Tell(this, _battle.TimeUpWord(dice), "", MateFace());
                 Settle(held, retreated: !held, dice, heldTenTurns: held);
                 return held;
             }
@@ -1088,6 +1090,9 @@ internal sealed class LandBattleScene : GameWindow
     /// 테를 두른 숫자 조각. 한 번 지어 두고 다시 쓴다 — 한 턴에 수십 번 부른다.
     /// </summary>
     /// <remarks>못 구한 자리는 빈 배열로 적어 둔다. 그래야 파트를 되풀이해 풀지 않는다.</remarks>
+    /// <summary>말하는 부관 얼굴 — 부하 자리 0 이 비었으면 뱃사람 #299 다(<c>0x00478280</c>).</summary>
+    private uint[]? MateFace() => _game?.MateSpeaks ?? _game?.AideFace;
+
     private uint[]? Glyph(int digit)
     {
         _glyphs[digit] ??= _art?.TryGetDigit(digit) is { } bgra ? Outlined(bgra) : [];
