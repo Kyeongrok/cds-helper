@@ -191,6 +191,12 @@ public sealed class ShipMapWindow : Window
     private readonly MiniMapView _mini = new();
     private bool _miniWanted = GameSettings.ShowMiniMap;
 
+    /// <summary>이벤트가 끝나고 이만큼 조용해야 미니맵이 다시 뜬다 — 연달아 뜨는 창 사이에 깜빡이지 않게.</summary>
+    private static readonly TimeSpan MiniCalm = TimeSpan.FromSeconds(1);
+
+    /// <summary>이벤트 없이 조용해진 때. 이벤트 중이면 null.</summary>
+    private DateTime? _miniCalmSince;
+
     /// <summary>컨디션 글 한 줄.</summary>
     private readonly TextBlock _vitalText = new()
     {
@@ -1054,9 +1060,22 @@ public sealed class ShipMapWindow : Window
     /// <summary>
     /// 미니맵을 띄울 때인지 따지고 배 자리로 옮긴다 — 켜 두었고, 지도가 앞이고, <b>도시 밖</b>(항해·뭍 이동)일 때만.
     /// </summary>
+    /// <remarks>
+    /// <b>이벤트 중에는 안 뜬다</b> — 발견물·바다 사건·도시 물음처럼 배를 세우거나(<c>Paused</c>) 물음을
+    /// 걸었거나(<c>_asking</c>) 지도 창 위에 딴 창이 떠 있으면 숨긴다. 이벤트 창이 연달아 뜨면 그 사이에
+    /// 지도 창이 잠깐 앞으로 와 켜졌다 꺼졌다 깜빡였으므로, 다시 띄우는 것은 <b>조용한 채로
+    /// <see cref="MiniCalm"/> 가 지난 뒤</b>다. 숨기는 것은 곧바로 한다.
+    /// </remarks>
     private void SyncMiniMap()
     {
-        bool room = _miniWanted && _started && IsActive
+        bool calm = !_asking && !_host.Paused
+                    && !OwnedWindows.Cast<Window>().Any(w => w.IsVisible);
+        var now = DateTime.UtcNow;
+        if (!calm) _miniCalmSince = null;
+        else _miniCalmSince ??= now;
+        bool settled = _miniCalmSince is { } since && now - since >= MiniCalm;
+
+        bool room = _miniWanted && _started && IsActive && settled
                     && WindowState != WindowState.Minimized
                     && ReferenceEquals(_screen.Content, _mapRoot)
                     && !_host.SeaBlocked
