@@ -300,17 +300,26 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     }
 
     /// <summary>맡겨 둔 배를 함대에 넣는다. 게임의 <c>0x0046A350</c> 자리다.</summary>
+    /// <remarks>
+    /// 한 척 받고 끝나지 않는다 — 물리거나 맡긴 배가 떨어질 때까지 목록을 다시 연다(<c>0x0046A3DE</c> →
+    /// <c>0x0046A355</c>). 받다가 여덟 척이 차면 「이 이상 편입할 수 없습니다.」(<c>0x005453D0</c>)다.
+    /// </remarks>
     private void TakeShip()
     {
         var owner = Owner;
-        var docked = _player.DockedAt(_cityId);
+        while (_player.DockedAt(_cityId) is { Count: > 0 } docked)
+        {
+            if (_player.IsFleetFull)
+            {
+                GameDialog.Show(owner, "이 이상 편입할 수 없습니다.");
+                break;
+            }
 
-        int at = HintListDialog.Pick(owner, [.. docked.Select(h => ShipyardMenu.ShipLine(h, false))],
-                                     "편입선박 선택", "이 마을에 맡겨 둔 배가 없습니다");
-        if (at < 0) return;
-
-        if (!_player.Undock(_cityId, at))
-            GameDialog.Show(owner, "이 이상 편입할 수 없습니다.");
+            int at = HintListDialog.Pick(owner, [.. docked.Select(h => ShipyardMenu.ShipLine(h, false))],
+                                         "편입선박 선택", "이 마을에 맡겨 둔 배가 없습니다");
+            if (at < 0) break;
+            _player.Undock(_cityId, at);
+        }
 
         // 계류된 배를 다 데려가면 「선박 편입」이 흐려진다 — 줄을 다시 지어야 보인다.
         _menu.Refresh();
