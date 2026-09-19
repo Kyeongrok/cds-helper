@@ -15,11 +15,15 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 사람 그림은 <b>도시 그림에 이미 그려져 있다</b> — 표는 누를 자리와 말만 든다(<c>0x00473800</c> 이 찾고
 /// <c>0x00473880</c> 이 상자를 낸다). 건물을 먼저 보고, 안 걸리면 사람을 본다(<c>0x00491DC0</c>).
 ///
-/// 갈래 100~102 는 뜨내기, 200~202 는 그 나라 사람이다 — 100 쪽은 반쯤 「이곳은 %s입니다.」처럼
-/// 도시·나라 이름만 말한다(<c>0x00492E40</c>).
+/// 갈래 100~102 는 <b>남자</b>, 200~202 는 <b>여자</b>다 — 커서를 올리면 이름표가 「남」·「여」로 뜨고
+/// (<c>0x00491BB4</c> 의 <c>0x0053B3B0</c>·<c>0x0053B3B4</c>), 여자는 「이곳은 %s입니다.」를 안 한다
+/// (<c>0x00492EC3</c>). 100 쪽은 반쯤 도시·나라 이름만 말한다(<c>0x00492E40</c>).
 /// </remarks>
 public sealed class TownFolkTable
 {
+    /// <summary>이 갈래부터가 여자다(<c>0x00491BB4</c> 의 <c>cmp 200</c>).</summary>
+    public const int FemaleKind = 200;
+
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\마을사람표.json</c>).</summary>
     private const string CacheName = "마을사람표";
 
