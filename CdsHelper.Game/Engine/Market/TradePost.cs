@@ -219,6 +219,15 @@ public sealed class TradePost
     /// <summary>한 개 무게.</summary>
     public int WeightOf(int kind) => _goods.Find(kind)?.Weight ?? 0;
 
+    /// <summary>새로 산 짐의 기한(날) — 수명 x 30(<c>0x004B5910</c>). 표에 없으면 안 썩는다.</summary>
+    public int FreshShelfOf(int kind) => _goods.Find(kind)?.FreshShelf ?? Player.NeverSpoils;
+
+    /// <summary>
+    /// 실은 짐 한 칸의 매각 단가 — <b>썩었으면(기한 0) 0 닢</b>이다(<c>0x004810BC</c>). 덜 썩었다고 깎이지는 않는다.
+    /// </summary>
+    public int SellPriceOf(Player player, int city, Player.Cargo cargo) =>
+        cargo.Spoiled ? 0 : SellPrice(player, city, cargo.Kind);
+
     /// <summary>교역품 이름.</summary>
     public string NameOf(int kind) => _goods.Find(kind)?.Name ?? "?";
 
@@ -278,7 +287,7 @@ public sealed class TradePost
     /// <summary>팔 것의 총액 — 매각가는 원산지와 상관없이 이 도시 값이다.</summary>
     public int GainOf(Player player, int city, Deal deal) =>
         deal.Sells.Sum(s => s.Slot >= 0 && s.Slot < player.CargoHold.Count
-                                ? s.Count * SellPrice(player, city, player.CargoHold[s.Slot].Kind) : 0);
+                                ? s.Count * SellPriceOf(player, city, player.CargoHold[s.Slot]) : 0);
 
     /// <summary>
     /// 거래를 따져 본다 — 먼저 팔고(번 돈으로 산다) 그 다음 산다. 아무것도 바꾸지 않는다.
@@ -289,7 +298,7 @@ public sealed class TradePost
         if (deal.Buys.Any(b => b.Count > b.Row.Supply)) return Outcome.NoSupply;
 
         int count = player.LoadedBarrels, weight = player.LoadedWeight;
-        var kinds = player.CargoHold.Select(c => (c.Kind, c.Origin, c.Count)).ToList();
+        var kinds = player.CargoHold.Select(c => (c.Kind, c.Origin, c.Count, c.Shelf)).ToList();
         foreach (var (slot, n) in deal.Sells)
         {
             if (slot < 0 || slot >= kinds.Count || n <= 0) continue;
@@ -303,8 +312,10 @@ public sealed class TradePost
             if (n <= 0) continue;
             count += n;
             weight += n * WeightOf(row.Kind);
-            if (!kinds.Any(k => k.Kind == row.Kind && k.Origin == row.Origin))
-                kinds.Add((row.Kind, row.Origin, n));
+            // 기한이 다르면 딴 칸이다 — 새로 사는 것은 기한이 가득이다.
+            int fresh = FreshShelfOf(row.Kind);
+            if (!kinds.Any(k => k.Kind == row.Kind && k.Origin == row.Origin && k.Shelf == fresh))
+                kinds.Add((row.Kind, row.Origin, n, fresh));
         }
         // 막는 차례는 게임(<c>0x00415B11</c>)의 차례 그대로다 — 품목 수 · 무게 · 자리 · 돈이고,
         // <b>돈이 맨 끝</b>이다. 짐이 안 들어가면 돈은 보지도 않는다.
@@ -339,7 +350,7 @@ public sealed class TradePost
         foreach (var (row, n) in deal.Buys)
         {
             if (n <= 0) continue;
-            player.LoadCargo(row.Kind, n, row.Origin, WeightOf(row.Kind));
+            player.LoadCargo(row.Kind, n, row.Origin, WeightOf(row.Kind), FreshShelfOf(row.Kind));
             Take(player, row.Origin, row.Cell, n);
         }
         player.SetGold(player.Gold - cost);

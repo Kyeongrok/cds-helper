@@ -1,4 +1,5 @@
 using CdsHelper.Game.Local.Helpers;
+using CdsHelper.Support.Local.Models;
 
 namespace CdsHelper.Game.Engine.Sea;
 
@@ -23,7 +24,9 @@ public static class BattleLoot
     private const int SupplyWeight = 40;
 
     /// <summary>빼앗은 교역품 한 무더기.</summary>
-    public readonly record struct Goods(int Kind, int Count, int Origin, int UnitWeight);
+    /// <param name="Shelf">유통 기한(날). 빼앗은 것은 가득이다(<c>0x00435045</c>).</param>
+    public readonly record struct Goods(int Kind, int Count, int Origin, int UnitWeight,
+                                        int Shelf = Player.NeverSpoils);
 
     /// <summary>보급품마다의 풀 N(통).</summary>
     public static int PoolOf(int volume, int weight)
@@ -60,7 +63,7 @@ public static class BattleLoot
             int kind = kinds[random.Next(kinds.Count)];
             int unit = goods.Find(kind)?.Weight ?? 1;
             int count = GoodsCountOf(volume, weight, pool, unit);
-            return new Goods(kind, count, city, unit);
+            return new Goods(kind, count, city, unit, goods.Find(kind)?.FreshShelf ?? Player.NeverSpoils);
         }
         return null;
     }
