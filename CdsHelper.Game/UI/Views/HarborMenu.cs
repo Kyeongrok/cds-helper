@@ -41,16 +41,21 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// 항구에 들어설 때 부관이 건네는 한마디. 부관 자리가 비었으면 아무 일도 없다.
     /// </summary>
     /// <remarks>
+    /// 칸 2 <c>0x004770A0</c> 이다. 바다로 <b>닿아서</b> 들어왔으면(<c>+0x98</c>) 묻지 않고,
+    /// 마을에서 걸어 들어왔을 때만 「제독, 바다에 나가시겠습니까?」(<c>0x00477141</c>)다.
+    /// 빌린 배 인사(<c>0x00476EC0</c>)는 그 <b>뒤</b>다.
+    /// </remarks>
+    /// <remarks>
     /// 여기만은 화자표가 아니라 <b>부하 제 얼굴</b>이다. 부하는 이름만 들고 있어 신상은
     /// 판이 찾아 준다(<see cref="Engine.Game.MateInfo"/>) — 못 찾으면 얼굴 없이 말만
     /// 낸다. 그림이 없다고 말까지 막을 일은 아니다.
     /// </remarks>
-    public void Greet()
+    public void Greet(bool arrived = false)
     {
-        GreetLoan();
+        if (!arrived && _player.MateAt(MateSlot).Length > 0)
+            ConfirmDialog.Tell(_view, "제독, 바다에 나가시겠습니까?", face: MateFace());
 
-        if (_player.MateAt(MateSlot).Length == 0) return;
-        ConfirmDialog.Tell(_view, "제독, 바다에 나가시겠습니까?", face: MateFace());
+        GreetLoan();
     }
 
     /// <summary>

@@ -128,6 +128,23 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </remarks>
     public bool Explored { get; private set; }
 
+    /// <summary>
+    /// 바다로 닿아 뜬 항구 차림표에서 곧장 출항했는지 — 그때는 나서는 열흘이 없다
+    /// (<c>0x00477310</c> 이 건물 <c>+0x98</c>「닿아서 들어옴」이 0 일 때만 열흘을 보낸다).
+    /// </summary>
+    public bool SailedOnArrival { get; private set; }
+
+    /// <summary>
+    /// 지금 열려 있는 항구·성문 — 나설 때(마지막 줄·ESC) 부관이 한마디 한다. 딴 건물이면 null.
+    /// </summary>
+    private FacilityKind? _gateway;
+
+    /// <summary>
+    /// 그 항구·성문에 <b>밖에서 닿아</b> 들어왔는지(건물 <c>+0x98</c>, <c>0x004A258A</c>).
+    /// 바다로 닿으면 항구 차림표가 먼저 뜨고 마지막 줄이 「마을에 들어간다」다(<c>0x0047797E</c>).
+    /// </summary>
+    private bool _arrived;
+
     /// <summary>펼치기 시작하는 크기(제 크기의 몇 곱).</summary>
     private const double OpenFrom = 0.1;
 
@@ -416,15 +433,14 @@ public sealed class CityPicView : GameWindow, ITownScreen
         }
 
         // 표에 항구가 없는 도시는 아무 데나 눌러도 항구 명령 창이 열린다(건물 판이 먼저 먹는다).
+        _harborPlaced = harborPlaced;
         if (!harborPlaced)
         {
-            var harbor = Facility.For("항구");
             picBox.Cursor = Cursors.Hand;
             picBox.MouseLeftButtonUp += (_, _) =>
             {
                 if (MenuOpen) return;   // 창이 떠 있으면 그림을 눌러도 안 열린다
-                ShowMenu(() => BuildMenu(harbor, harbor.Name, HarborCode, 0, harbor.Name),
-                         harbor.BgmTrack);
+                OpenBareHarbor(arrived: false);
             };
         }
 
@@ -568,7 +584,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 건물 하나에 들어간다. 그림에서 눌러도, 커맨드의 "맵 포인트에 들어간다" 로 골라도
     /// 이 길을 지난다.
     /// </summary>
-    private void Enter(CityBuildingTable.Building building)
+    private void Enter(CityBuildingTable.Building building, bool arrived = false)
     {
         // 초심자 개인 이야기(이야기0/1)가 <b>맨 먼저</b>다 — 게임은 들어서자마자 0x004AB5A0 으로
         // 건물 사건을 보고, 장면이 돌았으면 보복·문간 관문·차림표를 다 건너뛰고 건물을 나선다
@@ -581,13 +597,112 @@ public sealed class CityPicView : GameWindow, ITownScreen
         var facility = Facility.For(building.Kind, building.Code);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
         Discover(building);                              // 이 건물이 곧 발견물일 수 있다
-        Greet(facility, building);
+        Greet(facility, building, arrived);
         ShowPhoto(facility.Kind, building.Code);
+        if (arrived) facility = ArrivalHarbor(facility);
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.Code, building.TeachMask,
                                  building.Kind),
                  facility.BgmTrack);
+        MarkGateway(facility.Kind, arrived);
     }
+
+    /// <summary>건물 표에 항구가 서 있는지 — 없으면 그림 아무 데나 눌러 항구에 든다.</summary>
+    private readonly bool _harborPlaced;
+
+    /// <summary>
+    /// 건물 표에 항구가 없는 도시의 항구 차림표를 연다 — 그림 아무 데나 누르면 이리 온다.
+    /// </summary>
+    private void OpenBareHarbor(bool arrived)
+    {
+        var harbor = Facility.For("항구");
+        GreetHarbor(arrived);
+        var shown = arrived ? ArrivalHarbor(harbor) : harbor;
+        ShowMenu(() => BuildMenu(shown, harbor.Name, HarborCode, 0, harbor.Name), harbor.BgmTrack);
+        MarkGateway(FacilityKind.Harbor, arrived);
+    }
+
+    /// <summary>
+    /// 바다로 닿은 항구의 차림표 — 마지막 줄이 「마을로 돌아간다」 대신 「마을에 들어간다」다
+    /// (<c>0x00477979</c>: 건물 <c>+0x98</c> 이 서 있으면 <c>0x00545368</c>, 아니면 <c>0x00545378</c>).
+    /// </summary>
+    private static Facility ArrivalHarbor(Facility harbor) =>
+        harbor.Kind == FacilityKind.Harbor
+            ? harbor with { Menu = [.. harbor.Menu[..^1], "마을에 들어간다"] }
+            : harbor;
+
+    /// <summary>항구·성문이 열렸으면 나설 때 할 말을 위해 적어 둔다. 딴 건물이면 지운다.</summary>
+    private void MarkGateway(FacilityKind kind, bool arrived)
+    {
+        _gateway = kind is FacilityKind.Harbor or FacilityKind.Gate ? kind : null;
+        _arrived = _gateway != null && arrived;
+    }
+
+    /// <summary>
+    /// 도시에 닿았다 — <b>바다로 왔으면 항구 차림표가 먼저 뜬다</b>. 뭍으로 왔으면 성문을
+    /// 저절로 지나 부관 인사만 하고 도시 그림이다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 닿을 때 들어온 건물을 「닿아서 들어옴」(<c>+0x98</c>)으로 돌린다(<c>0x004A2530</c>).
+    /// 성문(코드 10)이면 차림표 없이 곧장 나서기 갈래(<c>0x004A2740</c> → 칸 10 <c>0x00468790</c>)를
+    /// 돌고(<c>0x004A2612</c>), 항구면 차림표를 연다. 그 차림표에서 「마을에 들어간다」를 골라야
+    /// 같은 칸 10 이 돌아 부관이 「이 마을에서 잠깐 쉽시다」 한다.
+    /// </remarks>
+    public void Arrive(bool bySea)
+    {
+        if (!bySea)
+        {
+            LeaveGateway(FacilityKind.Gate, arrived: true);
+            return;
+        }
+
+        foreach (var building in Standing(_cityId))
+            if (Facility.For(building.Kind, building.Code).Kind == FacilityKind.Harbor)
+            {
+                Enter(building, arrived: true);
+                return;
+            }
+        if (!_harborPlaced) OpenBareHarbor(arrived: true);
+    }
+
+    /// <summary>
+    /// 항구·성문을 나서 마을로 든다 — 칸 10(<c>0x00468790</c>)이다. 부관이 있을 때만 말한다(<c>0x004696B0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   닿아서 들어왔으면(+0x98)
+    ///     0x004687B0  항구이고 모항이면  rand(2) 로 0x00551960 · 0x00551980
+    ///     0x004687E5  그 밖이면          0x005519A0 「제독, 이 마을에서 잠깐 쉽시다.」
+    ///     0x0046885F  모항 악명 3000 넘으면 병사가 막는다(0x0046B980)
+    ///   아니면(마을에서 걸어 들어왔다 나간다)
+    ///     0x00468874  성문이면 0x005519C0 「출발할 때는…」, 항구면 0x005519F0 「출항할 때에는…」
+    /// </code>
+    /// 적대 도시 차림표(<c>0x004687FD</c>)는 우리 쪽이 도시 그림을 열기 전에 이미 돈다(<c>ShipMapWindow.PassGate</c>).
+    /// </remarks>
+    private void LeaveGateway(FacilityKind kind, bool arrived)
+    {
+        bool harbor = kind == FacilityKind.Harbor;
+        if (!arrived)
+        {
+            if (_game.AideFace is { } face)
+                TalkDialog.Say(this, face, "", harbor
+                    ? "출항할 때에는 말해 주십시오. 곧 준비하겠습니다."
+                    : "출발할 때는 말해 주십시오. 곧 준비하겠습니다.");
+            return;
+        }
+
+        if (_game.AideFace is { } aideFace)
+            TalkDialog.Say(this, aideFace, "",
+                harbor && _cityId == _player.HomePort
+                    ? _game.Random.Next(2) == 0
+                        ? "제독, 역시 모항이 좋군요." : "모항에 돌아오면 안심되는군요."
+                    : "제독, 이 마을에서 잠깐 쉽시다.");
+
+        // 악명이 3000 을 넘으면 <b>모항</b>에 닿을 때 병사가 막아선다(0x0046885D).
+        if (_player.Infamy > Standoff.VillainInfamy && _cityId == _player.HomePort)
+            Villain(harbor, harbor ? HarborCode : GateCode);
+    }
+
 
     /// <summary>
     /// 뭍의 추격 — 배신한 후원자의 보복(<c>0x00450140</c>). 건물에 못 들어가게 됐으면 true.
@@ -681,10 +796,10 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 막는 말은 둘 가운데 굴려 고르고 <b>문지기 얼굴</b>로 나온다. 지면 놀이가 끝나고
     /// (<c>0x0046B894</c> 가 상태 4 로 끝낸다), 이기면 악명이 500 오른다.
     /// </remarks>
-    private void Villain(bool harbor, CityBuildingTable.Building building)
+    private void Villain(bool harbor, int code)
     {
         var dice = _game.Random;
-        var face = _game.SpeakerFace(building.Code, _cultureNo);
+        var face = _game.SpeakerFace(code, _cultureNo);
         TalkDialog.Say(this, face, "", Standoff.VillainWords[dice.Next(Standoff.VillainWords.Length)]);
 
         var (body, might, sword, luck) = Standoff.SoldierOf(dice);
@@ -1007,6 +1122,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 우리가 "수련" 을 내는 곳은 교회와 조합 둘이라 그 둘만 갈랐다.
     /// </remarks>
 
+    /// <summary>항구에 들어설 때의 말 — 부관 물음과 빌린 배 인사(<see cref="HarborMenu.Greet"/>).</summary>
+    private void GreetHarbor(bool arrived) => Port.Greet(arrived);
+
     /// <summary>건물에 들어설 때 그 시설 사람이 건네는 한마디.</summary>
     /// <remarks>
     /// 인사말도 얼굴도 <b>시설이 든다</b> — 게임도 시설 객체마다 제 인사 자리가 있다
@@ -1015,41 +1133,15 @@ public sealed class CityPicView : GameWindow, ITownScreen
     ///
     /// 문구를 아직 못 찾은 시설은 창이 없거나 조용하다.
     /// </remarks>
-    private void Greet(Facility facility, CityBuildingTable.Building building)
+    private void Greet(Facility facility, CityBuildingTable.Building building, bool arrived = false)
     {
-        // 악명이 3000 을 넘으면 <b>모항</b>의 항구·성문에서 병사가 막아선다(0x0046885D) —
-        // 걸리면 여느 인사는 아예 없다.
-        if (facility.Kind is FacilityKind.Harbor or FacilityKind.Gate
-            && _player.Infamy > Standoff.VillainInfamy && _cityId == _player.HomePort)
-        {
-            Villain(facility.Kind == FacilityKind.Harbor, building);
-            return;
-        }
-
-        // 항구와 성문은 같은 밑자리(vtable 0x00519E68 · 0x00519EB8 의 0x00468790)를 먼저
-        // 거친다 — <b>부관이 있을 때만</b> 두 마디를 한다(0x004696B0).
-        // <code>
-        //   0x004687B0  항구이고 모항이면  rand(2) 로 0x00551960 · 0x00551980
-        //   0x004687E5  그 밖이면          0x005519A0 「제독, 이 마을에서 잠깐 쉽시다.」
-        //   0x00468874  성문이면 0x005519C0 「출발할 때는…」, 항구면 0x005519F0 「출항할 때에는…」
-        // </code>
-        if (facility.Kind is FacilityKind.Harbor or FacilityKind.Gate
-            && _game.AideFace is { } aideFace)
-        {
-            bool harbor = facility.Kind == FacilityKind.Harbor;
-            TalkDialog.Say(this, aideFace, "",
-                harbor && _cityId == _player.HomePort
-                    ? _game.Random.Next(2) == 0
-                        ? "제독, 역시 모항이 좋군요." : "모항에 돌아오면 안심되는군요."
-                    : "제독, 이 마을에서 잠깐 쉽시다.");
-            TalkDialog.Say(this, aideFace, "", harbor
-                ? "출항할 때에는 말해 주십시오. 곧 준비하겠습니다."
-                : "출발할 때는 말해 주십시오. 곧 준비하겠습니다.");
-        }
+        // 항구·성문의 부관 두 마디(「이 마을에서 잠깐 쉽시다」·「출항할 때에는…」)와 모항 병사는
+        // 들어설 때가 아니라 <b>나설 때</b>다 — 칸 10(0x00468790)이 나서기(0x004A2740)에서 돈다.
+        // 여기는 칸 2(항구 0x004770A0 · 성문 0x0048F1D0)다. 성문은 들어설 때 아무 말이 없다.
 
         switch (facility.Kind)
         {
-            case FacilityKind.Harbor: Port.Greet(); break;     // 부관은 제 얼굴로 인사한다
+            case FacilityKind.Harbor: GreetHarbor(arrived); break;
             case FacilityKind.Shipyard: Yard.Greet(); break;
             case FacilityKind.Library: Books.Greet(); break;
             case FacilityKind.Tavern: Guests.Greet(); break;
@@ -1230,6 +1322,16 @@ public sealed class CityPicView : GameWindow, ITownScreen
             _photoWindow?.Close();
             _photoWindow = null;
             _bgm?.Play(_cityTrack);
+
+            // 항구·성문을 마지막 줄(ESC 도 같다)로 나서 마을에 들면 부관이 한마디 한다 — 출항·탐험은
+            // 그 줄에서 먼저 지워 여기 안 온다.
+            if (_gateway is { } kind)
+            {
+                bool arrived = _arrived;
+                _gateway = null;
+                _arrived = false;
+                LeaveGateway(kind, arrived);
+            }
         });
 
     private CityMenus? _menus;
@@ -1627,6 +1729,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// <summary>항구의 건물 코드. 배에서 곧바로 항구 창을 열 때 쓴다.</summary>
     private const int HarborCode = 0;
 
+    /// <summary>성문의 건물 코드(<c>0x004A260D</c> 이 10 과 견준다).</summary>
+    private const int GateCode = 10;
+
     /// <summary>
     /// 이 건물의 수련 자리 — 조합 · 교회 · 학자 저택. 건물마다 사람도 말도 달라
     /// 그 건물의 코드로 짓는다.
@@ -1917,6 +2022,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     {
         if (!Port.ConfirmSail()) return;
         Sailed = true;
+        SailedOnArrival = _arrived;
+        _gateway = null;
         Close();
     }
 
@@ -1932,6 +2039,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 : "탐험하러 출발하십니까?")) return;
 
         Explored = true;
+        _gateway = null;
         Close();
     }
 
