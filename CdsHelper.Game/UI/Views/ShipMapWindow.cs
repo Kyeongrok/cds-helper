@@ -2043,26 +2043,44 @@ public sealed class ShipMapWindow : Window
                 $"현재 게임중의 캐릭터인 {name}{GameUi.Josa(name, "이", "가")} 있습니다만 " +
                 "어떻게 하겠습니까?", "모험 중단");
 
-            // <b>누적 캐릭터 자리가 다 찼으면 「은퇴시킨다」 줄이 아예 안 뜬다</b>
-            // (0x0045F700 이 [0x005A4D1A] 의 0x40 비트로 그 줄을 켠다).
+            // 누적 캐릭터 자리가 다 찼으면 「은퇴시킨다」 줄이 <b>흐리게 남는다</b> — 목록에서 빠지지는 않는다
+            // (0x0045F700 이 [0x005A4D1A] 의 0x40 비트로 그 줄의 켜짐 칸을 0 으로 둔다).
             bool room = Engine.AccData.Load().Count < Engine.AccData.Slots;
-            var rows = room ? new[] { "은퇴시킨다", "삭제한다" } : ["삭제한다"];
-            int at = ChoiceDialog.Ask(this, "", rows, "신규작성을 중지한다");
-            if (!room && at == 0) at = 1;
+            int at = ChoiceDialog.Ask(this, "", ["은퇴시킨다", "삭제한다"], "신규작성을 중지한다",
+                                      dim: room ? -1 : 0);
 
             if (at == 0)
             {
-                // 초심자용 캐릭터는 못 올린다(0x0045F886).
+                // 초심자용 캐릭터는 못 올린다(0x0045F886). 자리가 다 찼어도 마찬가지고, 둘 다 알린 뒤
+                // <b>타이틀로</b> 나간다(0x0045F89B · 0x0045F853 이 차림표를 부순다).
                 if (Beginner.IsBeginnerBook(saved.ActiveStoryBook))
                 {
                     ConfirmDialog.Tell(this,
                         $"[{name}]{GameUi.Josa(name, "은", "는")} 초심자용 캐릭터입니다. 은퇴할 수 없습니다.",
                         "모험 중단");
-                    continue;
+                    return false;
                 }
 
-                if (!ConfirmDialog.Ask(this,
-                        $"[{name}]{GameUi.Josa(name, "을", "를")} 은퇴시키겠습니까?")) continue;
+                if (!room)
+                {
+                    ConfirmDialog.Tell(this,
+                        $"[{name}]에서는 {Engine.AccData.Slots}명의 캐릭터가 사용되고 있기 때문에 "
+                        + "이 캐릭터를 은퇴시킬 수 없습니다.", "모험 중단");
+                    return false;
+                }
+
+                // 「누적캐릭터를 등장시키지 않는다」로 시작한 판만 되묻는다(0x0045F77F 의 비트 0x10, 0x00571CC8).
+                // 여느 판은 <b>묻지 않고</b> 그대로 올린다.
+                if (saved.SkipsCumulative == true
+                    && !ConfirmDialog.Ask(this,
+                        $"[{name}]{GameUi.Josa(name, "은", "는")} 누적 캐릭터를 사용하고 있지 않습니다. "
+                        + "이 캐릭터를 은퇴시키기 위해서는 현재 등록되어 있는 누적 캐릭터를 삭제할 필요가 있습니다."
+                        + Environment.NewLine
+                        + $"[{name}]{GameUi.Josa(name, "을", "를")} 은퇴시키겠습니까?"))
+                    return false;
+
+                // 그 깃발이 선 판은 올리기 앞서 다섯 자리를 비운다(0x0041AD55).
+                if (saved.SkipsCumulative == true) Engine.AccData.Clear();
 
                 // 적어 둔 것 그대로 누적 캐릭터로 올린다(0x0041AB90 → 0x0041A270).
                 // <b>자리가 다 찼으면 못 올린다</b>(0x0045F83E) — 그때는 적어 둔 것을
@@ -2072,7 +2090,7 @@ public sealed class ShipMapWindow : Window
                     ConfirmDialog.Tell(this,
                         $"[{name}]에서는 {Engine.AccData.Slots}명의 캐릭터가 사용되고 있기 때문에 "
                         + "이 캐릭터를 은퇴시킬 수 없습니다.", "모험 중단");
-                    continue;
+                    return false;
                 }
 
                 if (GameSave.Delete()) return true;
