@@ -855,6 +855,16 @@ internal sealed class LandBattleScene : GameWindow
     /// 몰살했을 때 살려 주는 문(<c>0x0056D6C8</c> "적이 봐 준 것 같습니다")은
     /// 마을 공략에서는 안 열리므로, 아군이 다 쓰러지면 그대로 진 것이다.
     /// </remarks>
+    /// <summary>몰살한 적장이 봐 주며 하는 말 다섯(<c>0x00549CB0</c>).</summary>
+    private static readonly string[] SparedWords =
+    [
+        "체, 피라미로군. 용서해 주지.",
+        "네놈을 죽여 보았자 자랑할 가치도 없다.",
+        "여자와 아이, 약자들은 죽이지 않는 주의거든···",
+        "네놈 따위는 죽일 가치도 없다. 빨리 꺼져 버려라!",
+        "이번만은 용서해 줄테니, 좀더 실력을 쌓도록 해라.",
+    ];
+
     /// <summary>봐 줄 수 있는 명성의 끝(<c>0x004498A2</c> 의 <c>0x7D0</c>).</summary>
     private const int SparedFame = 2000;
 
@@ -883,6 +893,8 @@ internal sealed class LandBattleScene : GameWindow
             if (_battle.Sort == LandBattle.Field && game.Player.Fame <= SparedFame
                 && _battle.MyFirst <= SparedMen && dice.Next(100) < SparedMen - _battle.MyFirst)
             {
+                // 적장이 먼저 한마디 한다(0x00446DB0 — 0x00549CB0 의 rand(5)).
+                TalkDialog.Say(this, _battle.FoeFace, "", SparedWords[dice.Next(SparedWords.Length)]);
                 NoticeDialog.Show(this, "적이 봐 준 것 같습니다", "");
                 retreated = true;
             }
