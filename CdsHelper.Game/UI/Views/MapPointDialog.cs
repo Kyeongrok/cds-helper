@@ -32,7 +32,8 @@ internal sealed class MapPointDialog : GameWindow
     /// <summary>닫히는 중인가. 초점을 잃었을 때 또 닫지 않으려고 둔다.</summary>
     private bool _closing;
 
-    private MapPointDialog(IReadOnlyList<string> names, string title, double rowWidth)
+    private MapPointDialog(IReadOnlyList<string> names, string title, double rowWidth,
+                           IReadOnlyList<bool>? enabled = null)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -45,7 +46,8 @@ internal sealed class MapPointDialog : GameWindow
         for (int i = 0; i < names.Count; i++)
         {
             int pick = i;
-            var button = new GameButton(names[i], () => { _picked = pick; Close(); },
+            bool on = enabled == null || i >= enabled.Count || enabled[i];
+            var button = new GameButton(names[i], on ? () => { _picked = pick; Close(); } : null,
                                         BandStyle.Button, rowWidth);
             button.Margin = new Thickness(0, 1, 0, 1);
             rows.Children.Add(button);
@@ -103,13 +105,14 @@ internal sealed class MapPointDialog : GameWindow
     /// </summary>
     /// <param name="title">제목 줄. 미니 게임 고르기처럼 다른 데서도 쓴다.</param>
     /// <param name="rowWidth">줄 하나의 너비. 짧은 이름만 늘어놓을 때는 좁힌다.</param>
+    /// <param name="enabled">줄마다 누를 수 있는지. 없으면 다 된다 — 안 되는 줄은 흐리게 선다.</param>
     public static int Ask(Window owner, IReadOnlyList<string> names,
                           string title = "어디로 들어 가시겠습니까?",
-                          double rowWidth = RowWidth)
+                          double rowWidth = RowWidth, IReadOnlyList<bool>? enabled = null)
     {
         if (names.Count == 0) return -1;
 
-        var dialog = new MapPointDialog(names, title, rowWidth) { Owner = owner };
+        var dialog = new MapPointDialog(names, title, rowWidth, enabled) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
     }

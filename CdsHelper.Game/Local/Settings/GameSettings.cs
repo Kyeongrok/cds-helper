@@ -62,6 +62,11 @@ public sealed class GameSettingsData
     /// <summary>항해·뭍 이동 중에 지도 오른쪽 아래에 미니맵을 띄울지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowMiniMap { get; set; }
 
+    /// <summary>
+    /// 풀린 미니게임 번호(0~6). 원본은 레지스트리 <c>MG00</c>~<c>MG06</c> 이라 세이브가 아니라 설치에 딸린다.
+    /// </summary>
+    public List<int> UnlockedMinigames { get; set; } = [];
+
     /// <summary>도시에 들어가면 도시 그림 왼쪽에 기능·언어 쪽지를 띄울지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowSkillOverlay { get; set; }
 
@@ -282,6 +287,19 @@ public static class GameSettings
     }
 
     // ── 값들 ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 그 미니게임이 MINI GAME 차림표에 풀렸는지 — 발견 이벤트에서 그 놀이를 이기면 풀린다
+    /// (<c>0x00406B60</c> 이 레지스트리 <c>MG%02d</c> 를 켜고 <c>0x0045FA54</c> 벌이 읽는다).
+    /// </summary>
+    public static bool IsMinigameUnlocked(int game) => Get(d => d.UnlockedMinigames.Contains(game));
+
+    /// <summary>미니게임 하나를 푼다.</summary>
+    public static void UnlockMinigame(int game)
+    {
+        if (IsMinigameUnlocked(game)) return;
+        Set(d => d.UnlockedMinigames.Add(game));
+    }
 
     /// <summary>
     /// 앱을 켤 때 함대 보기(Direct3D) 창을 바로 띄울지. 기본은 <b>켬</b>이다 — 이 앱이
