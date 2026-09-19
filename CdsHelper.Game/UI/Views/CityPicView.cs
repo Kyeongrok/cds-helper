@@ -1507,7 +1507,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
             ShowCityInfo: ShowCityInfo,
             ShowHints: ShowHints,
             ShowContract: ShowContract,
-            ShowPatrons: () => { CloseCityMenu(); Patrons.ShowPatrons(); },
+            ShowPatrons: () => KeepCityMenu(Patrons.ShowPatrons),
             ShowMap: () => _cityMenu.Push(MapMenu),
             Quit: () => GameSystemMenu.Quit(this, Menu),
             Cancel: CloseCityMenu));
@@ -1520,10 +1520,26 @@ public sealed class CityPicView : GameWindow, ITownScreen
     private void ShowPerson() => PersonInfoMenu.Show(this, _game, _cityMenu);
 
     /// <summary>함대 정보 판.</summary>
-    private void ShowFleet()
+    private void ShowFleet() => KeepCityMenu(() => FleetInfoDialog.Show(this, _player, items: _game.Items));
+
+    /// <summary>
+    /// 정보 판 하나를 띄우는 동안 도시 커맨드 창을 감춰 두었다가 <b>도로 편다</b> — 게임은 판을 닫으면 차림표를
+    /// 다시 낸다(<c>0x004934A3</c> 가 <c>0x110</c> 을 적어 <c>0x00492FE7</c> 로 되돌아간다). 창이 닫히는 것은
+    /// 취소 · 맵 포인트 · 게임 종료뿐이다.
+    /// </summary>
+    private void KeepCityMenu(Action show)
     {
-        CloseCityMenu();
-        FleetInfoDialog.Show(this, _player, items: _game.Items);
+        var menu = _cityMenu.Window;
+        if (menu != null) menu.Visibility = Visibility.Hidden;
+        try { show(); }
+        finally
+        {
+            if (menu != null && menu.IsLoaded)
+            {
+                menu.Visibility = Visibility.Visible;
+                menu.Activate();
+            }
+        }
     }
 
     /// <summary>
@@ -1572,13 +1588,10 @@ public sealed class CityPicView : GameWindow, ITownScreen
     }
 
     /// <summary>도시 정보 창을 낸다. 표를 못 읽어도 열린다 — 그 줄만 비는 채로 뜬다.</summary>
-    private void ShowCityInfo()
-    {
-        CloseCityMenu();
+    private void ShowCityInfo() => KeepCityMenu(() =>
         CityInfoDialog.Show(this, _cityName, _cityId, _game.CityRows,
                             _game.Nations, _game.Goods, _game.ItemPictures,
-                            Market?.Rates ?? _game.Rates);
-    }
+                            Market?.Rates ?? _game.Rates));
 
     /// <summary>
     /// 여관에 묵는다. 게임 차례 그대로 — 값을 부르고, YES 면 그때서야 돈을 본다.
@@ -1727,13 +1740,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// <summary>
     /// 소지품 정보 창을 낸다. 아이템 표를 못 읽어도 열린다 — 이름이 번호로 나올 뿐이다.
     /// </summary>
-    private void ShowBelongings()
-    {
-        CloseCityMenu();
-
+    private void ShowBelongings() => KeepCityMenu(() =>
         BelongingsDialog.Show(this, _player, _game.Items, _game.ItemText, _game.ItemPictures,
-                              GameInfo.DiscoveryNames(_game), _game);
-    }
+                              GameInfo.DiscoveryNames(_game), _game));
 
     /// <summary>
     /// 계약 정보 창을 낸다. 계약이 없으면 빈 판이 뜬다.
@@ -1743,16 +1752,14 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 팔아 버렸으면 내밀 증거가 없다. 판에 채울 것은 <see cref="GameInfo.ContractSheetOf"/>
     /// 가 짓는다(지도 창과 한 벌이다).
     /// </remarks>
-    private void ShowContract()
+    private void ShowContract() => KeepCityMenu(() =>
     {
-        CloseCityMenu();
-
         // 계약이 없어도 빈 판을 낸다 — 도시 커맨드는 그 자리에서 물리지 않는다.
         var sheet = GameInfo.ContractSheetOf(_game);
         ContractDialog.Show(this, sheet.Contract, _player.Date,
                             sheet.HintName, sheet.Found, sheet.Evidence,
                             _game.Sponsors?.FindByName(sheet.Contract?.Sponsor ?? "")?.Name);
-    }
+    });
 
     /// <summary>힌트 이름. 판이 게임 표 · DB · 번호 차례로 물러서며 찾아 준다.</summary>
     private string HintNameOf(int id) => _game.HintName(id);
