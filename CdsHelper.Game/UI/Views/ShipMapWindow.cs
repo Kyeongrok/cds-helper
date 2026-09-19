@@ -1919,6 +1919,9 @@ public sealed class ShipMapWindow : Window
                 {
                     // 누적 캐릭터가 올라 있으면 <b>제독을 짓기 앞서</b> 내보낼지 묻는다(0x0041AF00).
                     if (!AskCumulative() || !MakeCharacter()) { _game.NewPlayer(); continue; }
+                    // 새 주인공도 국적·직업에 따른 개인 이야기를 든다(0x0045ECA8).
+                    if (Engine.Disev.DisevBook.PersonalStory(_game.Player.Nation, _game.Player.JobIndex) is { } story)
+                        _game.Player.SetActiveStoryBook(story);
                 }
                 made = true;
             }
@@ -2057,7 +2060,7 @@ public sealed class ShipMapWindow : Window
             if (at == 0)
             {
                 // 초심자용 캐릭터는 못 올린다(0x0045F886).
-                if (saved.ActiveStoryBook is { Length: > 0 })
+                if (Beginner.IsBeginnerBook(saved.ActiveStoryBook))
                 {
                     ConfirmDialog.Tell(this,
                         $"[{name}]{GameUi.Josa(name, "은", "는")} 초심자용 캐릭터입니다. 은퇴할 수 없습니다.",

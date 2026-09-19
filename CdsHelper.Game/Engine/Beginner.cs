@@ -19,6 +19,12 @@ namespace CdsHelper.Game.Engine;
 /// </remarks>
 public static class Beginner
 {
+    /// <summary>
+    /// 초심자용 주인공인지(<c>0x005A4D1A</c> 비트 8) — 이야기0·1 을 든 주인공이다. 새 주인공도 개인 이야기를 들므로
+    /// 책이 있다는 것만으로는 가릴 수 없다.
+    /// </summary>
+    public static bool IsBeginnerBook(string? book) => book is "이야기0" or "이야기1";
+
     /// <summary>미리 만든 주인공 한 사람.</summary>
     /// <param name="Skills">기능 열셋(<see cref="Skill.Names"/> 차례).</param>
     /// <param name="Tongues">언어(<see cref="Skill.Languages"/> 차례, 모자라면 0).</param>

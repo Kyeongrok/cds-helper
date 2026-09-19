@@ -44,7 +44,23 @@ public sealed class DisevBook
         (CacheName, "발견 이벤트", "DISEV.CDS"),
         ("이야기0", "이야기 0(라몬)", "STORY0.CDS"),
         ("이야기1", "이야기 1(에밀리오)", "STORY1.CDS"),
+        // 새 주인공(NORMAL)의 개인 이야기 — 차례가 곧 국적 x 4 + 직업이다(0x00552750).
+        ("PEX", "개인 이야기(포르투갈 탐험가)", "PEX.CDS"),
+        ("PDG", "개인 이야기(포르투갈 발굴자)", "PDG.CDS"),
+        ("PHT", "개인 이야기(포르투갈 사냥꾼)", "PHT.CDS"),
+        ("PCQ", "개인 이야기(포르투갈 정복자)", "PCQ.CDS"),
+        ("EEX", "개인 이야기(에스파니아 탐험가)", "EEX.CDS"),
+        ("EDG", "개인 이야기(에스파니아 발굴자)", "EDG.CDS"),
+        ("EHT", "개인 이야기(에스파니아 사냥꾼)", "EHT.CDS"),
+        ("ECQ", "개인 이야기(에스파니아 정복자)", "ECQ.CDS"),
     ];
+
+    /// <summary>
+    /// 새 주인공(NORMAL)의 개인 이야기 책 — <c>0x0045ECA8</c> 이 마무리 뒤에 <c>0x00552750[국적 x 4 + 직업]</c> 을
+    /// 이야기 관리자(<c>0x004AB420</c>)에 건다. 표 밖이면 null.
+    /// </summary>
+    public static string? PersonalStory(int nation, int job) =>
+        nation is 0 or 1 && job is >= 0 and < 4 ? Books[3 + nation * 4 + job].Cache : null;
 
     /// <summary>
     /// 알맹이 모양 판. 1 은 파트 통째 <c>Hex</c>, 2 는 덩이별 16진 글, 3 은 덩이마다 분기로 가른
