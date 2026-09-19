@@ -393,7 +393,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     ///   531d40   "이! 이 선수상은... 정말 이것을 달아도 좋단 말이지?"  저주받은 것을 달 때
     ///   531e08   "돈이 모자라는 것 같군."
     /// </code>
-    /// 달고 있던 것은 <b>놓고 간다</b> — 게임은 그 매각값을 도로 얹어 준다
+    /// 달고 있던 것은 놓고 가면 그 매각값을 도로 얹어 주고, 가지고 가겠다면 소지품에 넣는다
     /// (<c>0x00495CB6</c> 이 더하고 <c>0x00495CD3</c> 이 새 값을 뺀다).
     /// </remarks>
     private void Carve(Ship ship)
@@ -455,18 +455,25 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         // 마지막으로 한 번 더 묻는다(0x00496017).
         if (!Ask("이것을 달겠네.")) return;
 
-        // 달고 있던 것을 놓고 갈지는 <b>맨 마지막</b>에 묻는다(0x00495C40).
-        if (ship.Figurehead >= 0
-            && !Ask("지금 붙어있는 선수상은 놓아 가고 가는가?")) return;
-
-        // 놓고 가는 것은 팔아 준다. 지닌 것을 달았으면 소지품에서 던다.
-        int back = ship.Figurehead >= 0 ? SellBack(ship.Figurehead) : 0;
-        _player.Pay(cost);
-        if (back > 0) _player.Earn(back);
+        // 다는 것은 0x00495C10 이다. 지닌 것을 달면 먼저 소지품에서 던다(0x00495C29).
         if (!buying) _player.Drop(Figureheads.ToItem(pick));
-        ship.Carve(pick);
 
-        Say($"{NameOf(pick)}을 달았네. 좋은 항해가 되기를!");
+        // 달고 있던 것을 놓고 갈지는 <b>맨 마지막</b>에 묻는다(0x00495C40). 「아니오」면 <b>가지고 간다</b> —
+        // 소지품에 넣고(0x004B1710(…, 1, 1), 넘치면 버리기 창을 물릴 수 있다), 못 넣었거나 「예」면
+        // 팔아 주며 「자, 금화 %ld닢으로 해 주겠네.」(0x00531BF0)라고 한다.
+        if (ship.Figurehead >= 0)
+        {
+            bool leave = Ask("지금 붙어있는 선수상은 놓아 가고 가는가?");
+            if (leave || !ItemGain.TryAdd(Owner, _game, Figureheads.ToItem(ship.Figurehead)))
+            {
+                int back = SellBack(ship.Figurehead);
+                Say($"자, 금화 {back}닢으로 해 주겠네.");
+                _player.Earn(back);
+            }
+        }
+
+        ship.Carve(pick);
+        _player.Pay(cost);
         _menu.Pop();
         _menu.Push(() => RefitMenu(ship));
     }

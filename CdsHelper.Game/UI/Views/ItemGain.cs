@@ -38,4 +38,30 @@ public static class ItemGain
         }
         player.ReplaceBelongings(all, player.Stored.ToList());   // 보관함은 그대로 — 비우기 전에 떠 둔다
     }
+
+    /// <summary>
+    /// 아이템 하나를 들이되 <b>물릴 수 있다</b> — <c>0x004B1710(목록, 1, 1)</c>. 넘치면 버리기 창에 「취소」가 붙고,
+    /// 무르면 아무것도 안 바뀌고 false 다.
+    /// </summary>
+    public static bool TryAdd(Window owner, Engine.Game game, int item)
+    {
+        var player = game.Player;
+        var all = player.Items.Append(item).ToList();
+
+        if (all.Count > Support.Local.Models.Player.MaxItems)
+        {
+            GameDialog.Show(owner, "더 이상 가질 수 없습니다! 소지품을 삭제해 주십시오");
+            while (all.Count > Support.Local.Models.Player.MaxItems)
+            {
+                GameDialog.Show(owner, $"소지품을 앞으로 {all.Count - Support.Local.Models.Player.MaxItems}개 삭제해 주십시오",
+                                "소지품 제한");
+                var names = all.Select(id => game.Items?.Find(id)?.Name ?? $"아이템 {id}").ToList();
+                int at = ChoiceDialog.Ask(owner, "삭제 아이템의 선택", names);
+                if (at < 0 || at >= all.Count) return false;
+                all.RemoveAt(at);
+            }
+        }
+        player.ReplaceBelongings(all, player.Stored.ToList());
+        return true;
+    }
 }
