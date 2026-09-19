@@ -31,6 +31,9 @@ internal interface ITownScreen
     /// <summary>지닌 물건이 있는지. 자택 보관이 이것을 본다.</summary>
     bool HasItems { get; }
 
+    /// <summary>부하가 하나라도 있는지.</summary>
+    bool HasMates { get; }
+
     /// <summary>시장에서 살 수 있는지 — 값 셈이 서 있어야 한다.</summary>
     bool CanBuyGoods { get; }
 

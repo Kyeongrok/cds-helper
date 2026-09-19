@@ -2099,6 +2099,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     bool ITownScreen.HasShips => _player.FleetHere(_cityId, 1);
     bool ITownScreen.HasCrew => _player.Crew > 0;
     bool ITownScreen.HasItems => _player.Items.Count > 0;
+    bool ITownScreen.HasMates => _player.MateCount > 0;
     bool ITownScreen.CanBuyGoods => Market != null;
     bool ITownScreen.CanSellGoods => Market != null && _game.Items != null;
     bool ITownScreen.CanFormFleet => _player.FleetHere(_cityId) && Port.CanFormFleet;   // 0x0046A1CC

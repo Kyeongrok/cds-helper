@@ -105,7 +105,8 @@ internal static class TownMenu
 
             TownWork.Stay => screen.Stay,
             TownWork.OddJob => screen.OddJob,
-            TownWork.MateForm => screen.ShowMates,
+            // 여관의 부하편성은 부하가 있어야 눌린다(0x0047FE3D — 0x00453CA0() > 0 을 켜짐 칸에).
+            TownWork.MateForm when facility.Kind != FacilityKind.Inn || screen.HasMates => screen.ShowMates,
 
             TownWork.Heir when screen.CanLeaveHeir => screen.LeaveHeir,
             TownWork.Succeed when screen.CanSucceed => screen.Succeed,
