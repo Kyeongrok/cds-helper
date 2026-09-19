@@ -3251,22 +3251,25 @@ public sealed class ShipMapWindow : Window
                 continue;
             }
 
+            // 차례는 원본 하루(0x0044B18A ~ 0x0044B23E) 그대로다 — 제독 컨디션(0x0047CE80)이 먼저,
+            // 그 다음 0x00475470 안에서 보급 · 피로 · 규율 · 바다 사건 · 재해 피해 · 선원 0 검사, 하루 사건(0x00426E80)이 끝이다.
             _game.Player.PassDayAtSea();
             RollWeather();
+
+            // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0). 병 중에 0 이면 거기서 끝이다.
+            if (!PassVitalityDay()) return;
+
             var (lat, _) = _host.ShipLatLon;
             Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random, FleetLevel(Skill.Sailing)));
             PassSeaMorale();
-            CheckSeaDailyEvent();
             CheckSeaEvent();
 
             // 서 있는 재해가 날마다 해를 끼친다 — 쥐는 식량을, 병은 선원을(0x00474DA0).
             SeaEvents.Ail(_game.Player, _game.Random, MateSheetAt);
             TellCrewShort();
 
-            // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0). 병 중에 0 이면 거기서 끝이다.
-            if (!PassVitalityDay()) return;
-
             if (CrewGone()) return;
+            CheckSeaDailyEvent();
         }
     }
 
