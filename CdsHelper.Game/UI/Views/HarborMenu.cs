@@ -448,17 +448,19 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             int price = CrewPrice;
             MateSays(owner, $"몇 명 모집하겠습니까? 한 사람 당 금화 {price}닢 필요합니다.");
 
-            int want = CountDialog.Ask(owner, "선원고용", "고용할 사람 수", "명",
+            // 돈이 모자라면 <b>수 적기 창으로 곧장</b> 되돌아간다(0x00477400 → 0x004773AB) — 값을 다시 이르지 않는다.
+            int want;
+            while (true)
+            {
+                want = CountDialog.Ask(owner, "선원고용", "고용할 사람 수", "명",
                                        _player.MaxCrew - _player.Crew, 1, false,
                                        new CountDialog.Gauge("현재의 선원 수", _player.Crew),
                                        new CountDialog.Gauge("최저 선원 수", _player.MinCrew));
-            if (want <= 0) return;
+                if (want <= 0) return;
+                if (price * want <= _player.Gold) break;
 
-            if (price * want > _player.Gold)
-            {
                 MateSays(owner, mate
                     ? "그렇게 고용할 수 있을 정도로 돈이 없습니다." : "소지금이 모자랍니다.");
-                continue;
             }
 
             _player.Pay(price * want);
