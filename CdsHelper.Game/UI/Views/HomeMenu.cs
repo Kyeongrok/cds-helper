@@ -187,7 +187,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     private void ProposeMarriage(Window owner, Player.Child daughter)
     {
         if (!ConfirmDialog.Ask(owner,
-                "아버지, 할 이야기가 있어요. 저 좋아하는 사람이 있는데… 아버지, 결혼해도 되겠지요?",
+                "아버지, 할 이야기가 있어요. 저 좋아하는 사람이 있는데, 그 사람이 결혼하재요···아버지, 결혼해도 되겠지요?",   // 0x00539488
                 face: ChildFace(daughter)))
         {
             TalkDialog.Say(owner, ChildFace(daughter), daughter.Name, "너무 해요! 아버지, 그런 슬픈 말씀 하지 마세요!");
@@ -196,7 +196,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
 
         TalkDialog.Say(owner, ChildFace(daughter), daughter.Name, "고마워요, 아버지! 꼭 행복하겠어요.");
         TalkDialog.Say(owner, null, _player.Spouse,
-            $"…그건 그렇고, 당신 결혼 준비금으로 금화를 {Home.MarriageDowry}닢 준비해 주세요!");
+            $"잘 되었구나. 그건 그렇고, 당신 결혼 준비금으로 금화를 {Home.MarriageDowry} 닢 준비해 주세요!");   // 0x00539580
 
         _player.SetSavings(_player.Savings - Home.MarriageDowry);
         _player.RemoveChild(daughter);
