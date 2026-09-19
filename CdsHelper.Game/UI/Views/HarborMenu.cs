@@ -630,10 +630,12 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             // 들어 주는지를 가린다(0x0047E810).
             GameDialog.Show(owner, $"{row.Name}의 발견을 발표했다!");
 
-            // 동영상이 있으면 틀고, 없고 그림만 있으면 그림을 낸다 — 보고와 같다
-            // (0x0047E96F → 0x004AAF30 이 표 +0x10 동영상을 튼다).
+            // 그림은 <b>세 단</b>이다(0x0047E96F → 0x004AAF30) — 표 +0x10 동영상, 없으면 +0x14 움직이는 그림
+            // (DISCOVER.CDS), 없으면 +0x0C 스틸이다. 보고도 같은 함수를 쓴다.
             if (row.Movie >= 0)
                 MoviePlayer.Play(owner, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
+            else if (row.Clip >= 0)
+                DiscoveryClipPlayer.Play(owner, _game.Clips, row.Clip);
             else if (row.Picture >= 0)
                 DiscoveryDialog.ShowPicture(owner, _game.Stills, row.Picture);   // 그림만(0x004AD640)
 
