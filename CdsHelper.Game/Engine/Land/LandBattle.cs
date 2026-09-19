@@ -493,30 +493,54 @@ public sealed class LandBattle
     /// <remarks>
     /// <code>
     ///   전리품  ((적 처음 - 적 남은) x (규모+1)) / 10 + rand(50)
-    ///   복귀    율 = 운*5/100 + 의학*2
+    ///           열 턴을 버텨 이긴 판이면 x (6 - 살아남은 적 부대 수) x 2 / 10       0x0044950A
+    ///   복귀    율 = (제독·부관 가운데 높은 운 + 1)*5/100 + 높은 의학*2             0x00449585
     ///           min(처음 - 1, 생존 + 율*(처음 - 생존 - 1)/10)
-    ///   명성    이김 밑 100 · 악명 밑 200 / 짐 악명 밑 300, 명성 += 밑 + rand(11)
-    ///   무력    rand(20) == 0 일 때만 rand(2)+1, 마을 공략이면 +1
+    ///   명성·악명 갈래마다 밑값이 다르다(뜀표 0x0044971C)
+    ///           0 명성 50 · 악명 150 / 1 들 60 · 0 / 2 마을 100 · 200 / 3 대본 50 · 없음 / 4 100 · 없음
+    ///           그 뒤 적 나라 == 내 나라면 악명 +100, 아니면 명성 +10. 갈래 3·4 는 악명을 아예 안 센다.
+    ///   무력    <b>적을 몰살했을 때만</b>(상태 0) rand(20) == 0 이면 rand(2)+1, 마을 공략이면 +1  0x00449730
     /// </code>
-    /// 마을 공략(갈래 2)이라 나라가 같을 일이 드물어 <b>이기면 명성 +10</b> 쪽을 쓴다.
     /// </remarks>
-    public Spoils Finish(bool won, GameRandom dice)
+    /// <param name="heldTenTurns">열 턴을 버텨 이긴 판인지(상태 1) — 전리품이 깎이고 무력은 안 오른다.</param>
+    public Spoils Finish(bool won, GameRandom dice, bool heldTenTurns = false)
     {
         int loot = won ? (FoeFirst - MenOn(foe: true)) * (Scale + 1) / 10 + dice.Next(50) : 0;
+        if (won && heldTenTurns) loot = (6 - UnitsAlive(foe: true)) * loot * 2 / 10;
 
         int alive = Math.Max(0, MenOn(foe: false) - 1);
-        int rate = _me.AbilityOf(Ability.Luck) * 5 / 100
-                   + _me.LevelOf(Skill.Names[Skill.Medicine]) * 2;
+        int luck = Math.Max(_me.AbilityOf(Ability.Luck), _aide?.Luck ?? 0) + 1;
+        int medicine = Math.Max(_me.LevelOf(Skill.Names[Skill.Medicine]), _aide?.Medicine ?? 0);
+        int rate = luck * 5 / 100 + medicine * 2;
         int back = Math.Min(MyFirst - 1, alive + rate * (MyFirst - alive - 1) / 10) - alive;
         back = Math.Max(0, back);
 
-        int fameBase = won ? 100 : 0;
-        int infamy = won ? 200 : 300;
-        int fame = fameBase + (won ? 10 : 0) + dice.Next(11);
-        // 마을 공략(갈래 2)이면 하나 더 오른다(0x00449760).
-        int might = dice.Next(20) == 0 ? dice.Next(2) + 1 + (Sort == Town ? 1 : 0) : 0;
+        var (fameBase, infamyBase) = Sort switch
+        {
+            Field => (60, 0),
+            Script => (50, 0),
+            _ => (100, 200),
+        };
+        bool countsInfamy = Sort != Script;         // 갈래 3·4 는 악명을 건너뛴다(0x004496DA)
+        bool same = Nation >= 0 && Nation == _me.Nation;
+
+        int fame = won ? fameBase + (same ? 0 : 10) + dice.Next(11) : dice.Next(11);
+        int infamy = !countsInfamy ? 0
+                   : won ? infamyBase + (same ? 100 : 0)
+                   : 300;
+
+        int might = won && !heldTenTurns && dice.Next(20) == 0
+                    ? dice.Next(2) + 1 + (Sort == Town ? 1 : 0) : 0;
 
         return new Spoils(loot, back, fame, infamy, might);
+    }
+
+    /// <summary>그 편에 아직 선 부대 수(<c>0x00447530</c>).</summary>
+    public int UnitsAlive(bool foe)
+    {
+        int side = foe ? FirstFoe : 0, n = 0;
+        for (int i = side; i < side + PerSide; i++) if (_units[i].Men > 0) n++;
+        return n;
     }
 
     // ── 턴 ─────────────────────────────────────────────────────────────────────

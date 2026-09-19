@@ -197,7 +197,7 @@ internal sealed class LandBattleScene : GameWindow
                 // 들에서 마주친 부대(갈래 1)는 열 턴을 버티면 적이 물러가 이긴 것이 된다.
                 bool held = _battle.TimeUpWon;
                 NoticeDialog.Show(this, _battle.TimeUpWord(dice), "");
-                Settle(held, retreated: !held, dice);
+                Settle(held, retreated: !held, dice, heldTenTurns: held);
                 return held;
             }
         }
@@ -871,7 +871,8 @@ internal sealed class LandBattleScene : GameWindow
     /// <summary>봐 줄 수 있는 처음 병력의 끝 — 이보다 적을수록 잘 봐 준다(<c>0x004498BD</c>).</summary>
     private const int SparedMen = 100;
 
-    private void Settle(bool won, bool retreated, GameRandom dice)
+    /// <param name="heldTenTurns">열 턴을 버텨 이긴 판인지 — 전리품이 깎이고 무력은 안 오른다(상태 1).</param>
+    private void Settle(bool won, bool retreated, GameRandom dice, bool heldTenTurns = false)
     {
         if (_game is not { } game) return;
 
@@ -910,7 +911,7 @@ internal sealed class LandBattleScene : GameWindow
         else if (won) _game?.Sfx?.Play(LandUnits.Sound.Won);
         else _game?.Sfx?.Play(LandUnits.Sound.Retreat);
 
-        var spoils = _battle.Finish(won, dice);
+        var spoils = _battle.Finish(won, dice, heldTenTurns);
         var player = game.Player;
 
         int left = Math.Max(0, _battle.MenOn(foe: false) - 1) + spoils.Back;
@@ -921,10 +922,24 @@ internal sealed class LandBattleScene : GameWindow
 
         if (!won) return;
 
-        player.SetGold(player.Gold + spoils.Loot);
-        NoticeDialog.Show(this, $"전리품으로서 금화 {spoils.Loot}닢을 손에 넣었다", "");
-        player.Fame += spoils.Fame;
-        player.Infamy += spoils.Infamy;
+        // 전리품은 <b>실제로 는 만큼</b>이 0 보다 클 때만 알린다(0x00449547). 「닢」 앞에 빈칸이 있다(0x0056D5D0).
+        if (spoils.Loot > 0)
+        {
+            player.SetGold(player.Gold + spoils.Loot);
+            NoticeDialog.Show(this, $"전리품으로서 금화 {spoils.Loot} 닢을 손에 넣었다", "");
+        }
+
+        // 명성·악명도 오른 만큼 알린다(0x00449600 — 0x0056D618 · 0x0056D630).
+        if (spoils.Fame > 0)
+        {
+            player.Fame += spoils.Fame;
+            NoticeDialog.Show(this, $"명성이 {spoils.Fame} 올라갔다", "");
+        }
+        if (spoils.Infamy > 0)
+        {
+            player.Infamy += spoils.Infamy;
+            NoticeDialog.Show(this, $"악명이 {spoils.Infamy} 올라갔다", "");
+        }
         // 무력은 <b>실제로 오른 만큼</b>을 이름과 함께 알린다. 부관(0x0047CC60(0,0))이 있으면 부관도
         // 같은 만큼 오른다(0x00449798).
         // <code>
