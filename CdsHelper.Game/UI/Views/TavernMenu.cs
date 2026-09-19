@@ -1256,17 +1256,22 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 판이 무엇이든(술집 손님 · 도전 · 싸움) 같은 뒤처리다. 베이면 판의 결과가 3 이 되고
     /// 부르는 쪽이 <c>0x0044AF40(4)</c> 로 놀이를 끝낸다(<c>0x004A4A74</c> · <c>0x0042FD55</c> · <c>0x0042ED16</c>).
     /// </remarks>
-    internal bool LostDuel(Engine.Town.Duel duel, uint[]? face, GameRandom dice, bool mateFought)
+    private bool LostDuel(Engine.Town.Duel duel, uint[]? face, GameRandom dice, bool mateFought) =>
+        LostDuel(_view, _player, duel, face, dice, mateFought);
+
+    /// <inheritdoc cref="LostDuel(Engine.Town.Duel, uint[], GameRandom, bool)"/>
+    internal static bool LostDuel(Window view, Player player, Engine.Town.Duel duel, uint[]? face,
+                                  GameRandom dice, bool mateFought)
     {
-        switch (duel.FateOf(_player.Fame))
+        switch (duel.FateOf(player.Fame))
         {
             case Engine.Town.Duel.Fate.Fled:
-                NoticeDialog.Show(_view, "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!", "일기토");
+                NoticeDialog.Show(view, "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!", "일기토");
                 // 등 뒤로 한마디 듣는다(0x004A9F78 의 rand(5)).
-                TalkDialog.Say(_view, face, "", Jeered[dice.Next(Jeered.Length)]);
+                TalkDialog.Say(view, face, "", Jeered[dice.Next(Jeered.Length)]);
                 return false;
             case Engine.Town.Duel.Fate.Spared:
-                TalkDialog.Say(_view, face, "", Spared[dice.Next(Spared.Length)]);
+                TalkDialog.Say(view, face, "", Spared[dice.Next(Spared.Length)]);
                 return false;
             default:
                 // <b>부관을 내보냈으면 말이 다르다</b>(0x004AA0A9 의 [+0x138]==1) —
@@ -1275,7 +1280,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 // 하는데, 우리 판정은 도망 실패를 따로 내지 않아 그 갈래는 안 쓴다.
                 // 제독이 몸소 졌으면 다섯 말 가운데 하나다(0x004AA142 의 rand(5)). 「자네, 제독감이
                 // 아니로군…」은 반란 판(갈래 7)에서 부관이 졌을 때만의 말이다(0x004AA0B6).
-                TalkDialog.Say(_view, face, "", mateFought
+                TalkDialog.Say(view, face, "", mateFought
                     ? AfterMate[dice.Next(AfterMate.Length)]
                     : Slain[dice.Next(Slain.Length)]);
                 return true;

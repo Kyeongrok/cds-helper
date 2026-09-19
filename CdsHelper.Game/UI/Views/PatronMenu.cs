@@ -1908,7 +1908,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (!LentShips.Obeys(_player.AbilityOf(Ability.Charm), _player.Fame, _player.Infamy, dice)
             && !WonLoyaltyDuel(shown, lent[0].Name))
         {
-            // 졌다 — 그 자리에서 판이 끝난다(0x0044AF40(4)). 배는 손대지 않는다.
+            // 베였다 — 그 자리에서 판이 끝난다(0x0044AF40(4)). 배는 손대지 않는다.
             GameOverDialog.Show(_view, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
             if (_view.Owner is ShipMapWindow map)
                 _view.Dispatcher.BeginInvoke(map.ReturnToTitle);
@@ -1937,21 +1937,25 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     }
 
     /// <summary>
-    /// 「선장」과의 일기토(<c>0x0040FFC0</c>). 이겼으면 true — 지면 판이 끝난다.
+    /// 「선장」과의 일기토(<c>0x0040FFC0</c>). 베였을 때만 false — 그러면 판이 끝난다.
     /// </summary>
     private bool WonLoyaltyDuel(string sponsor, string ship)
     {
-        var dice = _random;
         var face = _game.Faces?.TryGetBgra(LentShips.CaptainFace, female: false);
         TalkDialog.Say(_view, face, "", LentShips.Challenge(sponsor));
 
-        var foe = LentShips.CaptainOf(dice) with { Name = LentShips.DuelName(ship) };
+        var foe = LentShips.CaptainOf(_random) with { Name = LentShips.DuelName(ship) };
         var duel = new Duel(Mine(), foe, _player.Items.Contains(Duel.EdithShieldId),
                             Environment.TickCount);
-        DuelDialog.Show(_view, duel, new GameRandom(Environment.TickCount), face, _game.Fighters,
+        var dice = new GameRandom(Environment.TickCount);
+        DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
                         FighterSprites.SetForCulture(_culture), arena: "duel-tavern", bgm: _game.Bgm);
+        // 지면 여느 일기토처럼 도망·용서·죽음이 갈리고, <b>베였을 때만</b> 놀이가 끝난다(0x00410145 의
+        // 결과 3). 졌어도 살았으면 이긴 것과 같이 이어 간다 — 원본 함수는 그때도 1 을 낸다.
+        if (duel.Won != true && TavernMenu.LostDuel(_view, _player, duel, face, dice, mateFought: false))
+            return false;
         _player.Hurt(duel.BodyLost);
-        return duel.Won == true;
+        return true;
     }
 
     /// <summary>일기토에 나서는 내 몫.</summary>
