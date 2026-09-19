@@ -400,13 +400,8 @@ public sealed class SupplyDialog : GameWindow
         int haveFood = _player.SupplyOf(SupplyKind.Food);
         int haveWater = _player.SupplyOf(SupplyKind.Water);
 
-        // 한 통도 더 못 실으면 채우는 대신 부관이 한마디 한다(0x0040F3E8 →
-        // <c>0x00545678</c> 「이 이상 실을 여유가 없습니다.」). 0x004695C0 이라 부관 말이다.
-        if (foodTo <= haveFood && waterTo <= haveWater)
-        {
-            if (_mate) GameDialog.Show(Owner ?? this, "이 이상 실을 여유가 없습니다.");
-            return;
-        }
+        // 「최대」 단추는 말이 없다 — 더 못 실으면 그냥 그대로다. 여유가 없다는 말은 창을 열 때만 한다(Show).
+        if (foodTo <= haveFood && waterTo <= haveWater) return;
 
         _add[(int)SupplyKind.Food] = foodTo - haveFood;
         _add[(int)SupplyKind.Water] = waterTo - haveWater;
@@ -566,13 +561,30 @@ public sealed class SupplyDialog : GameWindow
 
     /// <summary>보급 화면을 연다. 배가 없으면 실을 데가 없다.</summary>
     /// <param name="ammoSold">그 도시가 탄약을 파는지 — 도시 형편 비트 8.</param>
-    public static void Show(Window owner, Player player, int rate = 100, bool ammoSold = true)
+    /// <remarks>
+    /// 여는 차례(<c>0x0040F38B</c>): 먼저 <b>전회분</b>을 채워 두고(<c>0x0040EC60</c>), 그것이 남은 중량·용량을
+    /// 넘으면 「최대」로 다시 맞춘다(<c>0x0040F3C9</c>). 그러고도 더 실을 여유가 전혀 없으면 부관이(없으면
+    /// 알림으로) 「이 이상 실을 여유가 없습니다.」(<c>0x00545678</c>) 하고 창이 곧 닫힌다(<c>0x0040F3F5</c>).
+    /// </remarks>
+    public static void Show(Window owner, Player player, int rate = 100, bool ammoSold = true,
+                            uint[]? mateFace = null)
     {
         if (player.Ships.Count == 0)
         {
             GameDialog.Show(owner, "실을 배가 없지 않은가.");
             return;
         }
-        new SupplyDialog(player, rate, ammoSold) { Owner = owner }.ShowDialog();
+        var dialog = new SupplyDialog(player, rate, ammoSold) { Owner = owner };
+        dialog.Last();
+        if (dialog.Weight > player.Tonnage || dialog.Barrels > player.Capacity) dialog.Fill();
+
+        var (foodTo, waterTo) = dialog.FillTargets();
+        if (foodTo <= player.SupplyOf(SupplyKind.Food) && waterTo <= player.SupplyOf(SupplyKind.Water))
+        {
+            if (mateFace != null) ConfirmDialog.Tell(owner, "이 이상 실을 여유가 없습니다.", face: mateFace);
+            else GameDialog.Show(owner, "이 이상 실을 여유가 없습니다.");
+            return;
+        }
+        dialog.ShowDialog();
     }
 }
