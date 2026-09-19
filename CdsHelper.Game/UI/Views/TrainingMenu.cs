@@ -60,24 +60,6 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
 
     private void Say(string text) => ConfirmDialog.Tell(_view, text, face: Face);
 
-    /// <summary>
-    /// 들어설 때의 인사 — <b>조합만</b> 있다(<c>0x004AC840</c>).
-    /// </summary>
-    /// <remarks>
-    /// 부관이 있으면 부관이 묻고(<c>0x00552658</c>), 없으면 조합 사람이 맞는다
-    /// (<c>0x00552678</c>). 교회·학자 저택에는 이 자리가 없어 아무 말도 없다 —
-    /// 그쪽 인사는 수련 차림 안에서 한다(<see cref="Teach"/>).
-    /// </remarks>
-    public void Greet()
-    {
-        if (_buildingCode != Guild) return;
-
-        if (_game.AideFace is { } aide)
-            TalkDialog.Say(_view, aide, "", "제독, 조합에 무슨 일이십니까?");
-        else
-            Say("훌륭한 선원이 되고 싶다면 여기서 수행하고 가게.");
-    }
-
     /// <summary>"수련" — 가르칠 것을 늘어놓고, 하나 배우면 끝나고, 종료면 배웅한다.</summary>
     /// <remarks>
     /// 차림을 열기 전에 두 문을 본다(<c>0x004914C8</c> · <c>0x004914D3</c>). 둘 다 얼굴 없는 알림이다.
