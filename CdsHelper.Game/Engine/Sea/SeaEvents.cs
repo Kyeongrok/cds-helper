@@ -86,8 +86,8 @@ public sealed record SeaEventResult(SeaEventKind Kind, IReadOnlyList<int> Hurt,
 /// </remarks>
 public static class SeaEvents
 {
-    /// <summary>이 날수를 넘겨야 사건이 일어난다(<c>0x00474680</c> 의 <c>cmpl $9</c>).</summary>
-    public const int MinDaysAtSea = 10;
+    /// <summary>항해 날수가 이 값을 넘겨야 사건이 일어난다(<c>0x00474680</c> 의 <c>cmp [0x005A4D40], 9; jle</c>) — 열흘째부터다.</summary>
+    public const int MinDaysAtSea = 9;
 
     /// <summary>사건 갈래 수(<c>rand(7)</c>).</summary>
     public const int KindCount = 7;
