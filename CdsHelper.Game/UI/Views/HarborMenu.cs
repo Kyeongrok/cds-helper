@@ -327,7 +327,7 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         _menu.Refresh();
     }
 
-    /// <summary>배를 없앤다. 게임의 <c>0x0046A490</c> 자리다 — 되돌릴 수 없어 한 번 묻는다.</summary>
+    /// <summary>배를 없앤다. 게임의 <c>0x0046A490</c> 자리다 — 묻지 않는다.</summary>
     private void ScrapShip()
     {
         var owner = Owner;
@@ -337,9 +337,7 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             "선박파기", "파기할 배가 없습니다");
         if (at < 0) return;
 
-        var name = _player.Ships[at].Name;
-        if (!ConfirmDialog.Ask(owner, $"{name}호를 파기하겠습니다. 좋습니까?")) return;
-
+        // 원본은 고르면 묻지 않고 곧바로 없앤다(0x0046A4B8 → 0x00473E60 · 0x0044CA90).
         if (!_player.Scrap(at))
             GameDialog.Show(owner, "이 이상 파기할 수 없습니다.");
         else
