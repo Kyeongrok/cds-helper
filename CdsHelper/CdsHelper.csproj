@@ -63,6 +63,15 @@
       <Content Include="이야기1.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <!-- 새 주인공(NORMAL)의 개인 이야기 여덟 — 국적 x 4 + 직업(0x00552750). PEX … ECQ.CDS.orig 를 떠서 넣었다. -->
+      <Content Include="PEX.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+      <Content Include="PDG.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+      <Content Include="PHT.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+      <Content Include="PCQ.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+      <Content Include="EEX.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+      <Content Include="EDG.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+      <Content Include="EHT.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+      <Content Include="ECQ.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
       <!-- 세이브 없이도 술집에 사람이 서게 하는 본. CdsHelper/SAVEDATA.CDS 에서 구웠다. -->
       <Content Include="인물표.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

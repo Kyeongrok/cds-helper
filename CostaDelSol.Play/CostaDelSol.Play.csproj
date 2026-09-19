@@ -61,6 +61,38 @@
         <Link>이야기1.json</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <Content Include="..\CdsHelper\PEX.json">
+        <Link>PEX.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="..\CdsHelper\PDG.json">
+        <Link>PDG.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="..\CdsHelper\PHT.json">
+        <Link>PHT.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="..\CdsHelper\PCQ.json">
+        <Link>PCQ.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="..\CdsHelper\EEX.json">
+        <Link>EEX.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="..\CdsHelper\EDG.json">
+        <Link>EDG.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="..\CdsHelper\EHT.json">
+        <Link>EHT.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="..\CdsHelper\ECQ.json">
+        <Link>ECQ.json</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
       <Content Include="..\CdsHelper\인물표.json">
         <Link>인물표.json</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
