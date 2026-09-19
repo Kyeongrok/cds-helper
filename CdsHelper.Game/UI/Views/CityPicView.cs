@@ -910,8 +910,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 모항이 등을 돌린다(<c>0x0046B980</c>) — 악명 3000 을 넘으면 병사가 일기토를 건다.
     /// </summary>
     /// <remarks>
-    /// 막는 말은 둘 가운데 굴려 고르고 <b>문지기 얼굴</b>로 나온다. 지면 놀이가 끝나고
-    /// (<c>0x0046B894</c> 가 상태 4 로 끝낸다), 이기면 악명이 500 오른다.
+    /// 막는 말은 둘 가운데 굴려 고르고 <b>문지기 얼굴</b>로 나온다. 지면(판 결과 2·3) 놀이가 끝나고
+    /// (<c>0x0046B894</c> 가 상태 4 로 끝낸다), 이기면 처형·놓아 준다·모두 뺏는다를 고른다 — 처형(결과 0)이면
+    /// 악명이 말없이 500 오르고(<c>0x004697C0(1, 500)</c>), 그 밖(결과 1)은 악명이 안 오른다.
     /// </remarks>
     private void Villain(bool harbor, int code)
     {
@@ -937,11 +938,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         if (won)
         {
-            _player.Infamy += Standoff.VillainInfamyUp;
-            NoticeDialog.Show(this, $"악명이 {Standoff.VillainInfamyUp} 올라갔다");
+            if (Guests.Triumph(TavernMenu.BrawlPerson, face, new GameRandom(Environment.TickCount)) == 0)
+                _player.Infamy += Standoff.VillainInfamyUp;
             return;
         }
 
+        TavernMenu.LostDuel(this, _player, duel, face, new GameRandom(Environment.TickCount), mateFought: false);
         GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
         if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
     }
