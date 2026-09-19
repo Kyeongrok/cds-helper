@@ -438,7 +438,7 @@ public sealed class DisevRunner
             //                              비트 2 를 누가 읽는지는 아직 못 밝혔다.
             //    3  MoveEventTarget(3C 08)
             //    2  CreateCity(26 08)
-            //    1  AddCityRumor · RemoveCity · HalveTroops · RemoveFacility
+            //    1  AddCityRumor · RemoveCity · HalveTroops
             default:
                 return null;
         }
@@ -596,6 +596,15 @@ public sealed class DisevRunner
             // 2 를 넣는다(0x00409DAD). 역사 대본이 쓰는 것과 같은 칸이다.
             case DisevCall.DestroyNation:
                 _game.Player.SetNationStatus(I("Nation"), 2);
+                return null;
+
+            // 22 10 [비트] 08 [도시] — 그 도시 건물 낱말(+0x1C)의 비트를 끈다(0x00409DD1).
+            // 26 10 은 켠다(0x0040A118). 역사 대본과 같은 핸들러다.
+            case DisevCall.RemoveFacility:
+                Market.CityHistory.SetBuilding(_game.Player, _game.CityRows, I("City"), I("Facility"), on: false);
+                return null;
+            case DisevCall.BuildSpecialBuilding:
+                Market.CityHistory.SetBuilding(_game.Player, _game.CityRows, I("City"), I("Building"), on: true);
                 return null;
 
             // 46 — 결과를 거짓으로(0x0040B1BC).
