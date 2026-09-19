@@ -977,7 +977,7 @@ public sealed class DisevRunner
             case DisevMinigame.Fishing:
                 return FishingGameDialog.Play(_owner, _game.Random);
             case DisevMinigame.Cube:
-                CubePuzzleDialog.Play(_owner, _game.Player, _game.Random);
+                CubePuzzleDialog.Play(_owner, _game.Player, _game.Random, _game.Sfx);
                 return true;
             // 4·5 와 7 넘는 번호는 뜀표가 곧장 다음 명령으로 간다 — 결과를 안 건드린다(0x0040C1B0).
             default:

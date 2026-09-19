@@ -1640,7 +1640,7 @@ public sealed class ShipMapWindow : Window
             case 3: FishingGameDialog.Play(this, _game.Random); break;
             case 4: CoinPuzzleDialog.Play(this, _game.Random); break;
             case 5: TowerPuzzleDialog.Play(this, _game.Random); break;
-            case 6: CubePuzzleDialog.Play(this, _game.Player, _game.Random); break;
+            case 6: CubePuzzleDialog.Play(this, _game.Player, _game.Random, _game.Sfx); break;
             case 7: PlayDuel(); break;
             case 8: LandSparDialog.Play(this, _game); break;
             case 9: MockSeaBattle(); break;
