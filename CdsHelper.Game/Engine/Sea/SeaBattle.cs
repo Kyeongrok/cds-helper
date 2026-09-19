@@ -1086,7 +1086,9 @@ public sealed class SeaBattle
             if (target.Hp == 0) break;
         }
 
-        if (ship.Mine) Ammo = Math.Max(0, Ammo - shots.Count);
+        // 탄약은 <b>한 벌의 발 수</b>만큼 깎인다 — 과녁이 먼저 가라앉아 발을 거뒀어도
+        // 다 깎인다(0x00437213 의 max(탄약 − 발수, 0), 발수는 3 또는 8 그대로다).
+        if (ship.Mine) Ammo = Math.Max(0, Ammo - volley);
 
         bool sunk = target.Hp == 0;
         if (sunk) target.State = ShipState.Sunk;       // 판 닫기·연출은 Execute 의 Sink 가 한다
