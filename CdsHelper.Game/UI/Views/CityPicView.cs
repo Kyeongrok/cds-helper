@@ -1782,7 +1782,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
             if (_game.Hints?.Find(ids[at]) is not { } hint) return;
 
             HintDetailDialog.Show(owner, hint, _game.Hints.CategoryOf(hint.Category),
-                                  _player.Fame, _player.MateCount > 0, _player.Contract?.Hint == hint.Id);
+                                  _player.Fame, _game.MateSpeaks, _player.Contract?.Hint == hint.Id);
         }
     }
 

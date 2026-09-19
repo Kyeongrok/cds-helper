@@ -173,9 +173,14 @@ public sealed class HintDetailDialog : GameWindow
     /// 지금 계약으로 좇는 힌트인지. 그러면 평 대신 「현재 계약중입니다.」다(<c>0x0046EDDA</c> —
     /// 계약 물건 <c>0x0061D1D0</c> 이 있고 그 힌트 <c>0x0061D1E0</c> 과 같을 때).
     /// </param>
+    /// <param name="mateFace">
+    /// 부하 첫 자리(부관)가 있으면 그 얼굴 — 평은 부관이 얼굴을 걸고 한다(<c>0x0046EE81</c> 이 <c>0x0047CC50(0)</c>
+    /// 을 보고 <c>0x00478280</c>). 없으면 null 이고 얼굴 없는 상자다(<c>0x0049E3E0</c>).
+    /// </param>
     public static void Show(Window owner, HintTable.Hint hint, string category,
-                            int fame, bool hasMate, bool contracted = false)
+                            int fame, uint[]? mateFace, bool contracted = false)
     {
+        bool hasMate = mateFace != null;
         string head = category.Length > 0 ? $"{hint.Name}({category})" : hint.Name;
         var panel = new HintDetailDialog(head, hint.Text) { Owner = owner };
 
@@ -193,7 +198,7 @@ public sealed class HintDetailDialog : GameWindow
         try
         {
             ConfirmDialog.Tell(owner, contracted ? "현재 계약중입니다." : CommentOn(hint.Grade, fame, hasMate),
-                               under: panel);
+                               face: mateFace, under: panel);
         }
         finally
         {

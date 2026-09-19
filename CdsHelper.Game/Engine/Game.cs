@@ -517,6 +517,9 @@ public sealed class Game
         }
     }
 
+    /// <summary>부하 첫 자리(부관)가 있으면 그 얼굴, 없으면 null — 부관이 있을 때만 얼굴을 걸고 말하는 창이 쓴다.</summary>
+    public uint[]? MateSpeaks => Player.MateAt(0).Length > 0 ? AideFace : null;
+
     /// <summary>부관이 없을 때 말하는 뱃사람 얼굴 번호(<c>0x00478280</c> 의 <c>0x12B</c>).</summary>
     public const int SailorFace = 299;
 
