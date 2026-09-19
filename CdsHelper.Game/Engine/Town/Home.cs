@@ -363,11 +363,18 @@ public static class Home
     private static readonly int[] DaughterBonus = [-10, 5, -10, 5, 5, 5];
 
     /// <summary>아이 능력치 한 칸(<c>0x004610C0</c>). 1~100 으로 자른다.</summary>
+    /// <remarks>
+    /// 게임의 능력치 칸(<c>0x005B60C0</c>)은 <b>보이는 값에서 1 을 뺀 것</b>을 담는다
+    /// (NEW GAME 이 <c>0x0045E47A</c> 에서 <c>dec</c> 하고, 읽는 쪽이 <c>0x00490C8F</c> 처럼
+    /// 도로 1 을 더한다). 그래서 원본 식은 담긴 값끼리 셈하느라 <c>+1</c> 을 했다가
+    /// (<c>0x004611A6</c>) 부르는 쪽이 도로 <c>dec</c> 한다(<c>0x00460E26</c>).
+    /// 우리는 보이는 값을 그대로 담으므로 <b>둘 다 없는 것이 같은 셈</b>이다.
+    /// </remarks>
     public static int AbilityOfChild(int fathers, int ability, bool daughter, int wifeFortune, Random random)
     {
         int value = fathers + random.Next(Spread[ability]) + Floor[ability]
                     + (daughter ? DaughterBonus[ability] : 0)
-                    + Oracle.WifeSlope(wifeFortune, ability) + 1;
+                    + Oracle.WifeSlope(wifeFortune, ability);
         return Math.Clamp(value, 1, 100);
     }
 
