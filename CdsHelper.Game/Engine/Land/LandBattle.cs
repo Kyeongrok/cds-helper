@@ -90,8 +90,9 @@ public sealed class LandBattle
     /// <param name="mock">모의전이면 참 — 값을 안 치른다.</param>
     public LandBattle(IReadOnlyList<int> mine, Player player, Player.MateInfo? aide,
                       int scale, int nation, int culture, int terrain, GameRandom dice,
-                      int myMen = 0, bool mock = false)
+                      int myMen = 0, bool mock = false, int city = -1)
     {
+        City = city;
         Nation = nation;
         Culture = culture;
         Terrain = Math.Clamp(terrain, 0, 3);
@@ -270,31 +271,48 @@ public sealed class LandBattle
     /// <summary>이미 한 번 붙었는지(<c>+0x88</c>). 한 판에 딱 한 번이다.</summary>
     private bool _reinforced;
 
-    /// <summary>증원이 왔을 때 나오는 말(<c>0x0056D0B8</c> 벌).</summary>
-    public const string ReinforceWord = "제독, 적의 새 병력입니다!";
+    /// <summary>치는 도시 번호 — 증원이 붙는지를 이것으로 가른다(<c>0x0044993C</c>의 <c>0x00429D20</c>). 모르면 −1.</summary>
+    public int City { get; } = -1;
+
+    /// <summary>
+    /// 증원이 왔을 때 나오는 말 — 리스본·세빌리아면 첫 줄(<c>0x0056D130</c>), 그 밖이면 셋 가운데 굴린다
+    /// (<c>0x00446DF0</c> 의 <c>0x00549CC8</c>). 모두 부관(없으면 뱃사람) 얼굴로 나온다.
+    /// </summary>
+    public string ReinforceWordFor(GameRandom dice) =>
+        City is ReinforcingCityA or ReinforcingCityB
+            ? "제독, 원군입니다!\n아니! 보십시오! 후방에도 증원부대가 대기하고\n있습니다! 이래서는 승산이 없습니다! 퇴각합시다···"
+            : dice.Next(3) switch
+            {
+                0 => "제독, 적의 새 병력입니다!",
+                1 => "안심할 때가 아닙니다!\n적의 증원부대입니다!",
+                _ => "제독, 조심하십시오!\n적의 원군입니다!",
+            };
 
     /// <summary>
     /// 이겼을 때 적의 새 병력이 붙는지 — <b>마을 공략에서 딱 한 번</b>이다.
     /// </summary>
     /// <remarks>
-    /// 도시 규모가 셋 위이거나, 작아도 나라가 <b>7</b> 이면 붙는다. 붙으면 적을 다시 짜고
-    /// 턴을 처음으로 돌린다(<c>0x0044998E</c> 가 3 을 내어 고리를 되돌린다).
+    /// 규모가 셋 위면 늘 붙고, 작으면 <b>리스본(0)·세빌리아(7)</b>에서만 붙는다(<c>0x0044993C</c> 가 도시 번호를 본다).
+    /// 붙어도 <b>턴은 그대로</b> 간다 — <c>0x00449930</c> 은 깃발만 세우고 돌아가며 턴 칸을 안 건드린다.
     /// </remarks>
     public bool Reinforce(GameRandom dice)
     {
         if (_reinforced) return false;
         if (Sort != Town) return false;     // 0x00449930 이 갈래 2 부터 본다
-        if (Scale < ReinforcingScale && Nation != ReinforcingNation) return false;
+        if (Scale < ReinforcingScale && City is not (ReinforcingCityA or ReinforcingCityB)) return false;
 
         _reinforced = true;
         for (int i = FirstFoe; i < Slots; i++) _units[i] = default;
 
         Muster(Scale, dice);
-        for (int i = FirstFoe; i < Slots; i++) FoeFirst += _units[i].Men;
+        // 적 처음 인원은 새 편성으로 <b>다시</b> 센다(0x004A1320 — 더하지 않는다).
+        FoeFirst = MenOn(foe: true);
         FoeRoom = FoeUnits > 0 ? MenOn(foe: true) / FoeUnits : FoeFirst;
-        Turn = 1;
         return true;
     }
+
+    /// <summary>규모가 작아도 증원이 붙는 도시 — 리스본과 세빌리아(<c>0x0044993C</c>).</summary>
+    private const int ReinforcingCityA = 0, ReinforcingCityB = 7;
 
     /// <summary>판을 열 때의 인원.</summary>
     public int MyFirst { get; }
