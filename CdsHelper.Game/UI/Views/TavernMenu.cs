@@ -969,26 +969,40 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// <summary>
     /// 연적과의 일기토(<c>0x004659C0</c>) — 이기면 명성 +100 으로 혼인이 이어지고, 지면 악명 +500 으로 끝난다.
     /// </summary>
+    /// <remarks>
+    /// 연적은 <b>인물 275</b>다(<c>0x004659C8</c> 의 <c>push 0x113</c> — 술집 싸움 상대와 같은 사람). 말은 그 얼굴을
+    /// 걸고 한다(<c>0x004659F0</c> · <c>0x00465A1B</c>). 판 갈래가 5 라 이겨도 처형 여부를 묻지 않는다.
+    /// 판 결과 0·1 이면 이기고, 2(져도 살았다)면 악명 +500, 3(베였다)이면 놀이가 끝난다(<c>0x00465A64</c>).
+    /// </remarks>
     /// <returns>혼인을 이어도 되면 참.</returns>
     private bool RivalBeaten(GameRandom dice)
     {
-        GameDialog.Show(_view, Barmaids.RivalWord);
+        var face = _game.PersonTemplates?.Find(BrawlPerson) is { } t
+            ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
+        TalkDialog.Say(_view, face, "", Barmaids.RivalWord);
 
-        var me = _player;
-        var mine = new Engine.Town.Duel.Fighter(me.Name.Length > 0 ? me.Name : "제독",
-                                                me.AbilityOf(Ability.Body), me.AbilityOf(Ability.Might),
-                                                me.LevelOf(Skill.Names[Skill.Sword]),
-                                                me.AbilityOf(Ability.Luck), 0, 0);
-        var foe = new Engine.Town.Duel.Fighter("연적", 80, 80, 2, 50, 0, 0);
-        var duel = new Engine.Town.Duel(mine, foe, shield: false, dice.Next());
-        if (DuelDialog.Show(_view, duel, dice, null, bgm: _game.Bgm))
+        if (PersonTable.Open().Find(BrawlPerson) is not { } row || row.Stats.Length < 5) return true;
+        int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
+        var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), dice.Next());
+        DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
+                        FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
+
+        if (duel.Won == true)
         {
-            TalkDialog.Say(_view, null, "연적", Barmaids.RivalBeaten);
+            _player.Hurt(duel.BodyLost);
+            TalkDialog.Say(_view, face, "", Barmaids.RivalBeaten);
             GameDialog.Show(_view, Barmaids.RivalFame);
             _player.Fame += Barmaids.RivalFameUp;
             return true;
         }
 
+        if (LostDuel(duel, face, dice, mateFought: false))
+        {
+            EndGame();   // 0x00465A64 → 0x0044AF40(4)
+            return false;
+        }
+        _player.Hurt(duel.BodyLost);
         _player.Infamy += Barmaids.RivalInfamyUp;
         return false;
     }
