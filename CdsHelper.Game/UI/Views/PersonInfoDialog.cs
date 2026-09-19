@@ -84,23 +84,20 @@ internal sealed class PersonInfoDialog : InfoDialog
     }
 
     /// <summary>
-    /// 부하 하나의 판. 제독 판과 같은 틀이되 <b>세이브가 아는 것만</b> 적는다.
+    /// 부하 하나의 판 — 술집 인물 판과 같은 줄이다(<c>0x0046DBC0</c>).
     /// </summary>
     /// <remarks>
-    /// 직업·소지금·저금·빚·국적·<b>별자리·혈액형</b>은 안 낸다 — 부하에게 없는 칸이다.
-    /// 인물 한 칸(0x90바이트)을 푸는 <c>0x00432B20</c> 을 따라가 보면 능력 여섯 · 행운 ·
-    /// 등급 · 기술 열셋 · 어학 열넷 … 으로 끝까지 채워지는데 그 어디에도 생일이나
-    /// 혈액형 칸이 없다. 「별자리」라는 글자도 EXE 전체에서 <b>딱 한 군데</b>,
-    /// 제독 판 서식(<c>0x00570FA8</c>)에만 있다. 혈액형 표(<c>0x005609A0</c>)를 쓰는 데도
-    /// 제독 판과 캐릭터 만들기 둘뿐이다.
+    /// 명성치·악명치·생년월일·소지금·저금·빚만 제독 판에 있다(<c>[객체+4] == 0</c> 일 때만 그린다).
+    /// 직업(<c>0x00570F28</c>) · 별자리/혈액형(<c>0x00570FA8</c> — 인물 객체의 가상 <c>+0x1C</c> · <c>+0x28</c>) ·
+    /// 국적(<c>0x00570FC8</c>)은 누구에게나 그린다. 부하에게 「자리」 줄은 없다.
     /// </remarks>
-    private PersonInfoDialog(Player.MateInfo who, string role, Portraits? faces)
+    private PersonInfoDialog(Player.MateInfo who, in HireSheet sheet, Portraits? faces)
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
         head.Children.Add(BlackLine($"  {who.Name}"));
-        head.Children.Add(BlackLine($"  체  력/{who.Body,4}    명성치/{who.Fame,8}"));
-        head.Children.Add(BlackLine($"  지  력/{who.Mind,4}    자리  /{role}"));
-        head.Children.Add(BlackLine($"  무  력/{who.Might,4}"));
+        head.Children.Add(BlackLine($"  체  력/{who.Body,4}"));
+        head.Children.Add(BlackLine($"  지  력/{who.Mind,4}"));
+        head.Children.Add(BlackLine($"  무  력/{who.Might,4}    직업  /{sheet.Job}"));
         head.Children.Add(BlackLine($"  매  력/{who.Charm,4}"));
 
         var top = new StackPanel { Orientation = Orientation.Horizontal };
@@ -112,6 +109,8 @@ internal sealed class PersonInfoDialog : InfoDialog
         rows.Children.Add(top);
         rows.Children.Add(Gap(14));
         rows.Children.Add(BlackLine($"  연령  /{who.Age,2}세"));
+        rows.Children.Add(BlackLine($"  별자리/{GameUi.Pad(sheet.Zodiac, 12)}혈액형  /{sheet.Blood}"));
+        rows.Children.Add(BlackLine($"  국적  /{sheet.Nation}"));
 
         Build("", rows, BoardWidth, BoardHeight,
               new GameButton("특기", () => ShowSkills(who.Name)), new GameButton("취소", Close));
@@ -222,10 +221,11 @@ internal sealed class PersonInfoDialog : InfoDialog
 
     /// <summary>부하 하나의 인물정보 판을 연다.</summary>
     /// <param name="role">그가 앉은 자리("부관" 따위). 판에 한 줄로 적는다.</param>
-    public static void ShowMate(Window owner, Player.MateInfo who, string role,
+    /// <param name="sheet">직업·별자리·혈액형·국적 — 인물 밑표에서 온다(<see cref="Engine.GameInfo.SheetOf"/>).</param>
+    public static void ShowMate(Window owner, Player.MateInfo who, in HireSheet sheet,
                                 string gameDirectory = "")
     {
         var faces = Portraits.Open(gameDirectory);
-        new PersonInfoDialog(who, role, faces) { Owner = owner }.ShowDialog();
+        new PersonInfoDialog(who, sheet, faces) { Owner = owner }.ShowDialog();
     }
 }
