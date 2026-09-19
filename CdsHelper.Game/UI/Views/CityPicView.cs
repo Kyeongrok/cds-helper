@@ -2117,6 +2117,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
     void ITownScreen.CloseMenu() => CloseMenu();
 
+    void ITownScreen.LeaveTavern()
+    {
+        Guests.Challenged();
+        CloseMenu();
+    }
+
     // 수련을 눌러도 인사는 다시 안 한다 — 조합 인사(0x004AC840)는 들어설 때 한 번뿐이다(0x004AC880 → 0x00491470).
     void ITownScreen.Train(int buildingCode, uint teachMask) => Training(buildingCode).Teach(teachMask);
 

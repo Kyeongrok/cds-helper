@@ -111,9 +111,6 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (_game.AideFace is { } aide)
             TalkDialog.Say(_view, aide, "", "제독, 적당히 하고 있겠습니다.");
 
-        // 악명이 높으면 누군가 결투를 걸어 온다(0x0042FB60).
-        if (Challenged()) return;
-
         if (_game.Random.Next(GreetDice) != 0) return;
 
         // 자리에서 얼굴을 못 구하면 그 마을 술집 화자로 물러선다 — 게임은 늘
@@ -145,11 +142,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   0042fd1e  이기면 명성 +100 · 악명 +1000
     ///   0042fd3b  지면   악명 += rand(100) + 100
     /// </code>
-    /// 게임은 술집에서 <b>무엇을 고를 때마다</b> 이 굴림을 하는데(<c>0x0042FFBC</c>) 우리는
-    /// 들어설 때 한 번만 한다.
+    /// 「술집을 나온다」를 눌렀을 때만 굴린다(<c>0x0042FFBC</c> — 부르는 곳은 여기 하나다).
+    /// 원본 함수는 늘 1 을 내 어떻게 되든 술집을 나선다.
     /// </remarks>
-    /// <returns>결투가 벌어졌으면 true — 그러면 인사는 건너뛴다.</returns>
-    private bool Challenged()
+    /// <returns>결투가 벌어졌으면 true.</returns>
+    public bool Challenged()
     {
         var dice = _game.Random;
         if (dice.Next(5) != 0) return false;
