@@ -38,10 +38,13 @@ namespace CdsHelper.Game.UI.Views;
 /// <c>날수 = min(식량통, 물통) * 10 / 총선원수</c> 이므로, 한 사람이 하루에 한 단위를 쓰고
 /// 한 통이 열 단위다. 그래서 <b>10일분은 선원수만큼의 통</b>이다.
 ///
-/// <b>지금 안 되는 것</b> — "일지정"(며칠분인지 손으로 적기)과 "전회분"(지난번과 같이)은
-/// 자리만 두고 흐리게 낸다. 앞엣것은 수를 적어 넣는 창이 아직 없고(셈은
-/// <see cref="FillDays"/> 로 이미 되어 있다), 뒤엣것은 지난번에 얼마를 실었는지 적어 두는
-/// 자리가 없다.
+/// <b>일지정</b>(<c>0x0040F6E0</c>)은 「최대」로 채울 수 있는 날수를 윗한도로 수 적기 창
+/// 「항해일수 보급」을 띄우고, 고른 날수로 10일분과 같은 셈을 한다. <b>전회분</b>(<c>0x0040EC60</c>)은
+/// 지난번 결정한 총량(<see cref="Player.LastSupply"/>)으로 되돌린다 — 탄약만은 그 도시가 탄약을 팔 때만
+/// 따라가고(<c>0x0040EC40</c>), 아니면 지금 실린 그대로다.
+///
+/// <b>탄약은 도시 형편 비트 8 이 선 곳에서만 판다</b>(121곳, 거의 유럽). 아니면 단가가 −1 이라
+/// (<c>0x00493FB0</c>) 단가 칸이 「---」(<c>0x0055F368</c>)이고 더 실을 수 없다 — 덜어 내기만 된다.
 ///
 /// 용량·중량은 함대가 실을 수 있는 양이다(<see cref="Player.Capacity"/> ·
 /// <see cref="Player.Tonnage"/> — 배마다의 적재량·톤수를 더한 것). 게임은 여기에 실어 둔
@@ -106,8 +109,12 @@ public sealed class SupplyDialog : GameWindow
     private readonly GameUi.GameLabel _total = Label("");
     private readonly GameButton _decide;
 
-    private SupplyDialog(Player player, int rate)
+    /// <summary>이 도시가 탄약을 파는지(도시 형편 비트 8, <c>0x00493FB0</c> · <c>0x0040EC40</c>).</summary>
+    private readonly bool _ammoSold;
+
+    private SupplyDialog(Player player, int rate, bool ammoSold)
     {
+        _ammoSold = ammoSold;
         _mate = player.MateAt(0).Length > 0;
         _player = player;
         _rate = rate;
@@ -169,8 +176,8 @@ public sealed class SupplyDialog : GameWindow
         var left = new StackPanel { Orientation = Orientation.Horizontal };
         left.Children.Add(Tight(new GameButton("최대", Fill), ButtonGap));
         left.Children.Add(Tight(new GameButton("10일분", TenDays), ButtonGap));
-        left.Children.Add(Tight(new GameButton("일지정"), ButtonGap));
-        left.Children.Add(Tight(new GameButton("전회분"), 0));
+        left.Children.Add(Tight(new GameButton("일지정", AskDays), ButtonGap));
+        left.Children.Add(Tight(new GameButton("전회분", Last), 0));
 
         var right = new StackPanel
         {
@@ -227,7 +234,8 @@ public sealed class SupplyDialog : GameWindow
         spin.Children.Add(Arrow("↓", () => Bump(index, -1)));
 
         return Row(Label(supply.Name),
-                   Cell(Label($"{supply.UnitWeight,3}/{supply.PriceAt(_rate),4}"), UnitWidth),
+                   Cell(Label(Sold(supply) ? $"{supply.UnitWeight,3}/{supply.PriceAt(_rate),4}"
+                                           : $"{supply.UnitWeight,3}/ ---"), UnitWidth),
                    Cell(Label($"{_player.SupplyOf(supply.Kind),5}통"), HaveWidth),
                    Cell(spin, AddWidth),
                    Cell(_costLabels[index], CostWidth));
@@ -329,9 +337,13 @@ public sealed class SupplyDialog : GameWindow
     /// </code>
     /// 돈 쪽 둘은 <b>부관 있음·없음 두 벌</b>이다(<c>0x00469680</c>).
     /// </remarks>
+    /// <summary>이 도시에서 파는 보급품인지 — 탄약만 도시를 가린다.</summary>
+    private bool Sold(Supply supply) => supply.Kind != SupplyKind.Ammo || _ammoSold;
+
     private string WhyNot(int index)
     {
         var supply = Supply.All[index];
+        if (!Sold(supply) && _add[index] >= 0) return "-";
         if (Barrels + 1 > _player.Capacity) return "용량 오버입니다.";
         if (Weight + supply.UnitWeight > _player.Tonnage) return "중량 오버입니다.";
         if (Total + supply.PriceAt(_rate) > _player.Gold)
@@ -355,7 +367,7 @@ public sealed class SupplyDialog : GameWindow
             // 올라가는 자리(Shift)에서는 첫 걸음에서 막혔을 때만 낸다.
             if (by > 0 && WhyNot(index) is { Length: > 0 } why)
             {
-                if (i == 0) GameDialog.Show(Owner ?? this, why);
+                if (i == 0 && why != "-") GameDialog.Show(Owner ?? this, why);
                 break;
             }
             if (by > 0 && !CanAdd(index)) break;
@@ -383,6 +395,28 @@ public sealed class SupplyDialog : GameWindow
     /// 총량을 맞추는 것이라 지금 실린 것이 n 보다 많으면 보충량이 음수(덜어 냄)가 된다.
     /// </remarks>
     private void Fill()
+    {
+        var (foodTo, waterTo) = FillTargets();
+        int haveFood = _player.SupplyOf(SupplyKind.Food);
+        int haveWater = _player.SupplyOf(SupplyKind.Water);
+
+        // 한 통도 더 못 실으면 채우는 대신 부관이 한마디 한다(0x0040F3E8 →
+        // <c>0x00545678</c> 「이 이상 실을 여유가 없습니다.」). 0x004695C0 이라 부관 말이다.
+        if (foodTo <= haveFood && waterTo <= haveWater)
+        {
+            if (_mate) GameDialog.Show(Owner ?? this, "이 이상 실을 여유가 없습니다.");
+            return;
+        }
+
+        _add[(int)SupplyKind.Food] = foodTo - haveFood;
+        _add[(int)SupplyKind.Water] = waterTo - haveWater;
+        _add[(int)SupplyKind.Material] = 0;
+        _add[(int)SupplyKind.Ammo] = 0;
+        Paint();
+    }
+
+    /// <summary>「최대」가 맞출 식량·물 총량(<c>0x0040ED20</c>). 일지정의 윗한도도 이것으로 센다.</summary>
+    private (int Food, int Water) FillTargets()
     {
         var food = Supply.Of(SupplyKind.Food);
         var water = Supply.Of(SupplyKind.Water);
@@ -440,19 +474,38 @@ public sealed class SupplyDialog : GameWindow
             foodTo = haveFood + foodMore;
             waterTo = haveWater + waterMore;
         }
+        return (foodTo, waterTo);
+    }
 
-        // 한 통도 더 못 실으면 채우는 대신 부관이 한마디 한다(0x0040F3E8 →
-        // <c>0x00545678</c> 「이 이상 실을 여유가 없습니다.」). 0x004695C0 이라 부관 말이다.
-        if (foodTo <= haveFood && waterTo <= haveWater)
-        {
-            if (_mate) GameDialog.Show(Owner ?? this, "이 이상 실을 여유가 없습니다.");
-            return;
-        }
+    /// <summary>
+    /// 「일지정」 — 며칠분인지 적게 한다(<c>0x0040F6E0</c>).
+    /// </summary>
+    /// <remarks>
+    /// 윗한도는 「최대」로 맞출 식량·물이 버티는 날수다(<c>0x0040EFA0</c> → <c>0x00494010</c>).
+    /// 선원이 없거나 한도가 0 이면 창도 안 뜬다.
+    /// <code>
+    ///   0x00454AA0("항해일수 보급", "항해일수", "일", 한도, "최대일수", 한도, "승원수", 선원, "명")
+    /// </code>
+    /// </remarks>
+    private void AskDays()
+    {
+        if (_player.Crew <= 0) return;
+        var (food, water) = FillTargets();
+        int most = Supply.DaysLeft(food, water, _player.Crew);
+        if (most <= 0) return;
 
-        _add[(int)SupplyKind.Food] = foodTo - haveFood;
-        _add[(int)SupplyKind.Water] = waterTo - haveWater;
-        _add[(int)SupplyKind.Material] = 0;
-        _add[(int)SupplyKind.Ammo] = 0;
+        int days = CountDialog.Ask(this, "항해일수 보급", "항해일수", "일", most, 1, false,
+                                   new CountDialog.Gauge("최대일수", most),
+                                   new CountDialog.Gauge("승원수", _player.Crew, "명"));
+        if (days > 0) FillDays(days);
+    }
+
+    /// <summary>「전회분」 — 지난번 결정한 총량으로(<c>0x0040EC60</c>).</summary>
+    private void Last()
+    {
+        for (int i = 0; i < Supply.Count; i++)
+            _add[i] = _player.LastSupply[i] - _player.SupplyOf(Supply.All[i].Kind);
+        if (!_ammoSold) _add[(int)SupplyKind.Ammo] = 0;
         Paint();
     }
 
@@ -500,6 +553,9 @@ public sealed class SupplyDialog : GameWindow
         int total = Total;
         if (_add.All(a => a == 0) || total > _player.Gold) return;
 
+        // 맞춘 총량을 「전회분」으로 적어 둔다(0x0040F541 → 0x0040ECA0).
+        _player.SetLastSupply([.. Enumerable.Range(0, Supply.Count)
+                                            .Select(i => _player.SupplyOf(Supply.All[i].Kind) + _add[i])]);
         for (int i = 0; i < Supply.Count; i++)
             if (_add[i] != 0) _player.AddSupply(Supply.All[i].Kind, _add[i]);
         _player.SetGold(_player.Gold - total);
@@ -509,13 +565,14 @@ public sealed class SupplyDialog : GameWindow
     }
 
     /// <summary>보급 화면을 연다. 배가 없으면 실을 데가 없다.</summary>
-    public static void Show(Window owner, Player player, int rate = 100)
+    /// <param name="ammoSold">그 도시가 탄약을 파는지 — 도시 형편 비트 8.</param>
+    public static void Show(Window owner, Player player, int rate = 100, bool ammoSold = true)
     {
         if (player.Ships.Count == 0)
         {
             GameDialog.Show(owner, "실을 배가 없지 않은가.");
             return;
         }
-        new SupplyDialog(player, rate) { Owner = owner }.ShowDialog();
+        new SupplyDialog(player, rate, ammoSold) { Owner = owner }.ShowDialog();
     }
 }

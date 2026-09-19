@@ -65,7 +65,8 @@ public sealed class CountDialog : GameWindow
     /// <summary>눈금 줄 하나 — 이름과 값.</summary>
     /// <param name="Name">줄 이름("현재의 선원 수").</param>
     /// <param name="Value">그 값.</param>
-    public readonly record struct Gauge(string Name, int Value);
+    /// <param name="Unit">이 줄만의 단위. null 이면 고르는 줄 단위를 따른다(원본 마지막 인자, 「항해일수 보급」의 「명」).</param>
+    public readonly record struct Gauge(string Name, int Value, string? Unit = null);
 
     private readonly int _max;
     private readonly int _step;
@@ -128,7 +129,7 @@ public sealed class CountDialog : GameWindow
 
         AddRow(rows, label, pick);
         // 눈금 줄에도 단위가 붙는다 — 화면은 "65명" · "15명" 이다.
-        foreach (var line in lines) AddRow(rows, line.Name, Label($"{line.Value}{unit}"));
+        foreach (var line in lines) AddRow(rows, line.Name, Label($"{line.Value}{line.Unit ?? unit}"));
 
         // 단추는 창 폭을 <b>나눠 채운다</b> — 결정·중단이 좁은 틈 하나를 두고 양옆으로 넓게 선다.
         // "최대" 는 계산기 판 안에도 MAX 로 있다. 돈처럼 자릿수가 큰 창에서만 밖에 낸다.
