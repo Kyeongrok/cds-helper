@@ -165,11 +165,17 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// <remarks>다섯 살 이하면 사건 그림 8 을 함께 낸다(<c>0x0045FFE6</c> 의 <c>cmp 나이, 5</c>).</remarks>
     private void Introduce(Window owner, Player.Child child)
     {
-        string words = Home.IntroductionOf(child, _player.Date);
-        if (child.AgeOn(_player.Date) <= Home.BabyAge)
-            DiscoveryDialog.Show(owner, _game.EventStills, Home.BabyStill, words);
-        else if (_player.Spouse.Length > 0) TalkDialog.Say(owner, null, _player.Spouse, words);
-        else TalkDialog.Say(owner, ChildFace(child), child.Name, words);
+        // 소개 대사는 <b>아내가 하는 말</b>이다 — 아내가 없으면 통째로 건너뛰고 이름 짓기만
+        // 묻는다(0x004600A5 의 je 0x004600F2). 아이 얼굴로 대신 내지 않는다.
+        // (원본은 아내가 없어도 다섯 살 이하면 EVSTILL 8 을 뒤에 세워 두지만, 우리 그림은
+        //  글 창과 한 벌이라 글이 없으면 그림도 안 띄운다.)
+        if (_player.Spouse.Length > 0)
+        {
+            string words = Home.IntroductionOf(child, _player.Date);
+            if (child.AgeOn(_player.Date) <= Home.BabyAge)
+                DiscoveryDialog.Show(owner, _game.EventStills, Home.BabyStill, words);
+            else TalkDialog.Say(owner, null, _player.Spouse, words);
+        }
 
         var named = child;
         if (ConfirmDialog.Ask(owner, "새로운 이름을 짓겠습니까?"))
