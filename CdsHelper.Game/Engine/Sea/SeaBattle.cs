@@ -639,11 +639,17 @@ public sealed class SeaBattle
 
     /// <summary>
     /// 물러설 배인지 — 내구 10 이하, 승원이 필요승원+10 이하, 또는 아군 수/3 이 적 수 이상.
-    /// <b>괴물은 안 물러선다.</b>
     /// </summary>
+    /// <remarks>
+    /// <b>괴물은 잠수해 있을 때만</b> 물러설 마음을 먹는다 — 내 배 가운데 격침·나포된 것이
+    /// 하나라도 있으면 가장자리로 간다(<c>0x0043B7A1</c>: <c>+0x8FC == 1</c> 이고 내 배
+    /// 1~7 에 상태 1·2 가 있을 때). 떠 있을 때(<c>+0x8FC == 2</c>)는 여느 내구·승원·척수
+    /// 판정을 그대로 탄다.
+    /// </remarks>
     private bool WantsRetreat(Ship ship, bool mine)
     {
-        if (!mine && Monster) return false;
+        if (!mine && Monster)
+            return !MonsterUp && Ships.Any(s => s.Mine && s.State is ShipState.Sunk or ShipState.Captured);
 
         int ours = Ships.Count(s => s.Mine && s.CanAct);
         int theirs = Ships.Count(s => !s.Mine && s.CanAct);
