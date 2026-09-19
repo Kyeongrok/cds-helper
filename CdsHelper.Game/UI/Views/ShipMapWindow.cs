@@ -4430,15 +4430,20 @@ public sealed class ShipMapWindow : Window
             var end = fight ? LandEvents.Fight(_game.Player, met, dice)
                             : LandEvents.Flee(_game.Player, met, dice);
 
+            // 끝말도 부관(아니면 뱃사람) 얼굴로 한다(0x00478280). 독충(0x00533958~)과 짐승(0x00533A98~)은
+            // 글이 조금씩 다르다 — 짐승 쪽은 「후우, 」·「큰일입니다! 」·끝 마침표다.
+            bool venom = met.Venomous;
             if (end.Won)
             {
-                NoticeDialog.Show(this, fight ? "제독, 퇴치했습니다."
-                                              : "후우..., 간신히 도망쳐 나왔습니다.");
+                ConfirmDialog.Tell(this, fight ? "제독, 퇴치했습니다."
+                                   : venom ? "후우..., 간신히 도망쳐 나왔습니다." : "후우, 간신히 도망쳐 나왔습니다.",
+                                   face: face);
                 return;
             }
 
-            NoticeDialog.Show(this, end.Cornered ? "위험하다! 제독, 도망칠 수 없습니다!"
-                                                 : "우와앗, 안되겠다, 제독");
+            ConfirmDialog.Tell(this, end.Cornered
+                ? venom ? "위험하다! 제독, 도망칠 수 없습니다!" : "큰일입니다! 제독, 도망칠 수 없습니다!"
+                : venom ? "우와앗, 안되겠다, 제독" : "우와앗, 안되겠다, 제독.", face: face);
             // 다친 사람도 의학으로 더러 돌아온다(0x00426DA0).
             Casualties(dice, end.Dead);
         }
