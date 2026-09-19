@@ -108,7 +108,7 @@ internal sealed class AbilityMakeDialog : InfoDialog
         bool again = spare >= 0;
         _stats = again
             ? [.. player.Abilities]
-            : Ability.Roll(Job.Of(_job), _age, player.BirthMonth, player.BirthDay, rng);
+            : Ability.Roll(Ability.BiasOf(player.Fortune), _age, player.BirthMonth, player.BirthDay, rng);
         _left = again ? spare : Ability.BonusFor(_stats, rng);
 
         var body = new Canvas { Width = BoardWidth, Height = BoardHeight };
@@ -275,22 +275,12 @@ internal sealed class AbilityMakeDialog : InfoDialog
     }
 
     /// <summary>
-    /// 직업을 고른다 — <b>그 자리에서 능력치를 다시 굴린다</b>.
+    /// 직업을 고른다 — 능력치는 <b>다시 안 굴린다</b>(<c>0x0045D8DA</c>). 굴림은 이 화면에 들어오기 전에
+    /// 한 번(<c>0x0045D450</c>)이고 보정 줄은 직업이 아니라 얼굴 자리다(<see cref="Ability.FaceBias"/>).
     /// </summary>
-    /// <remarks>
-    /// <b>게임과 다른 자리다.</b> 원본은 굴리는 <c>0x0045D450</c> 을 이 화면에 들어오기
-    /// 전에 한 번만 부르고, 직업을 바꿔도 다시 안 굴린다 — 직업 보정표
-    /// (<c>0x0051ACA0</c>)는 새 놀이에서 안 쓰이는 셈이다.
-    ///
-    /// 여기서는 <b>골라 가며 굴려 보라고</b> 다시 굴린다. 직업 보정이 값에 실제로
-    /// 얹히므로 탐험가·발굴자·사냥꾼·정복자가 서로 다르게 나온다. 손으로 올려 둔 것과
-    /// 남은 보너스도 함께 새로 잡힌다.
-    /// </remarks>
     private void ChooseJob(int pick)
     {
         _job = pick;
-        _stats = Ability.Roll(Job.Of(_job), _age, _birthMonth, _birthDay, _rng);
-        _left = Ability.BonusFor(_stats, _rng);
         Sync();
     }
 
