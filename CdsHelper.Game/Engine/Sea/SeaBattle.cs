@@ -1124,6 +1124,10 @@ public sealed class SeaBattle
     /// </remarks>
     private void EndTurn()
     {
+        // 이동력은 <b>바람을 돌리기 전에</b> 다시 센다(0x0043D9CB 의 0x004349A0 이 0x0043D9D0 의
+        // 굴림보다 먼저다) — 그래서 다음 턴 이동력은 바뀌기 전 바람으로 잰 값이다.
+        foreach (var ship in Ships) ship.Power = PowerOf(ship);
+
         // 바람은 <b>양쪽으로</b> 돈다 — rand(10) 이 0 이면 시계로 한 눈금(+1), 1 이면 반시계로
         // 한 눈금(+5)이고 그 밖이면 그대로다(0x0043D9D0~0x0043DA5F). 곧 각각 1/10 이다.
         int turn = _rng.Next(10);
@@ -1152,7 +1156,6 @@ public sealed class SeaBattle
                     }
                 }
             }
-            ship.Power = PowerOf(ship);
         }
     }
 
