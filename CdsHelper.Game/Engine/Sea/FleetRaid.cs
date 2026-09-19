@@ -141,6 +141,9 @@ public static class FleetRaid
     /// <summary>
     /// 적 기함을 꺾었거나 달아나게 했을 때 얹는 값 — 플래그 0 이면 명성 +120 · 악명 +180(<c>0x004355F4</c>).
     /// </summary>
+    /// <summary>바다에서 마주친 판(플래그 ≠ 0)에서 이겼을 때 붙는 명성(<c>0x0043560C</c> 의 <c>add esi, 0xC8</c>).</summary>
+    public const int MetFame = 200;
+
     public const int WinFame = 120, WinInfamy = 180;
 
     /// <summary>내 기함이 퇴각했을 때 얹는 악명 — 플래그 0 이면 +200. 명성은 없다.</summary>

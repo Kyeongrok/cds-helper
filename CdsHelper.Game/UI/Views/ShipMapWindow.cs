@@ -3807,7 +3807,7 @@ public sealed class ShipMapWindow : Window
 
         var report = SeaCombatDialog.Engage(this, player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx, foeFace,
-                                            (board, end) => SettleRaid(board, end, nation, capital, rng),
+                                            (board, end) => SettleRaid(board, end, nation, capital, rng, raid: true),
                                             SeaDuel(who.Id, who.Name, foeFace), _game.Bgm, game: _game,
                                             // 누적 캐릭터면 제 옛 함대의 선체로 싸운다(0x0048CC3D).
                                             hulls: world.Replay?.FleetOf(who.Id));
@@ -3823,12 +3823,13 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 보이는 함대 해전의 값 치르기(<c>0x004350F0</c>, 플래그 0) — 판 창 위에 알린다.
+    /// 해전이 끝난 뒤의 값 치르기(<c>0x004350F0</c>) — 판 창 위에 알린다.
     /// </summary>
     /// <remarks>
     /// <code>
     ///   밑값        적장 나라 == 내 나라 ? 악명 100 : 명성 100
-    ///   적 기함 격침 명성 +120 · 악명 +180 · 전리품 (100(규모+1)+rand100) x 꺾음 · 무력 오름 1/20
+    ///   적 기함 격침 플래그 0(보이는 함대)이면 명성 +120 · 악명 +180, 아니면(바다 주사위 조우) 명성 +200 만
+    ///                (0x004355F7) · 전리품 (100(규모+1)+rand100) x 꺾음 · 무력 오름 1/20
     ///   적 기함 퇴각 명성·악명 같음 · 전리품 없음 · 무력 오름 1/20        (알림 끝에 느낌표 없음)
     ///   내 기함 퇴각 악명 +200 만
     ///   내 기함 격침 없음(GAME OVER)
@@ -3836,7 +3837,9 @@ public sealed class ShipMapWindow : Window
     /// 곧 명성 220/120 · 악명 180/280(남의 나라/같은 나라), 도망 악명 200/300 이다. 항복은 게임에 없는
     /// 앱 차림표라 도망처럼 친다. 나포선 들임(<c>0x00434D30</c>)과 되찾은 배 알림은 나포가 없어 안 낸다.
     /// </remarks>
-    private void SettleRaid(Window board, SeaCombatDialog.Report end, int nation, int capital, Random rng)
+    /// <param name="raid">보이는 함대를 친 판인지(플래그 0). 바다에서 마주친 판은 거짓이다.</param>
+    private void SettleRaid(Window board, SeaCombatDialog.Report end, int nation, int capital, Random rng,
+                            bool raid)
     {
         const string Title = "해전";
         var player = _game.Player;
@@ -3849,8 +3852,8 @@ public sealed class ShipMapWindow : Window
             {
                 bool won = end.Outcome == SeaCombatDialog.Outcome.Won;
                 string bang = won ? "!" : "";                      // 0x0056A7E8 · 0x0056ADF8
-                fame += FleetRaid.WinFame;
-                infamy += FleetRaid.WinInfamy;
+                if (raid) { fame += FleetRaid.WinFame; infamy += FleetRaid.WinInfamy; }
+                else fame += FleetRaid.MetFame;
 
                 player.Fame = Math.Min(FleetRaid.MaxRenown, player.Fame + fame);
                 ConfirmDialog.Tell(board, $"명성이 {fame} 올라갔다{bang}", Title);
@@ -4763,9 +4766,16 @@ public sealed class ShipMapWindow : Window
             var foeFace = PersonFace(leaderId);
             EndWeather();   // 해전이 열리면 비가 그친다(0x00443822)
 
-            var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, face,
+            // 바다에서 마주친 판도 값을 치른다(0x004350F0 은 플래그와 상관없이 돈다) — 플래그가 0 이 아니라
+            // 명성이 200 붙고 악명 밑값만 간다.
+            int foeNation = _game.PersonTemplates?.Find(leaderId)?.Nation ?? -1;
+            int foeCapital = _game.Nations?.Find(foeNation)?.Capital ?? -1;
+            var outcome = SeaCombatDialog.Engage(this, _game.Player, foe, rng, face,
                                                 (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
-                                                foeFace, SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm, game: _game);
+                                                foeFace,
+                                                (board, end) => SettleRaid(board, end, foeNation, foeCapital, rng,
+                                                                           raid: false),
+                                                SeaDuel(leaderId, foe.Name, foeFace), _game.Bgm, game: _game).Outcome;
 
             // 기함을 잃으면(격침·나포·일기토 패배) 놀이가 끝난다 — 보이는 함대 해전(FightFolk)과 같다.
             if (outcome == SeaCombatDialog.Outcome.Defeated)
@@ -4805,10 +4815,16 @@ public sealed class ShipMapWindow : Window
 
         EndWeather();   // 해전이 열리면 비가 그친다(0x00443822)
 
-        var outcome = SeaCombatDialog.Fight(this, _game.Player, foe, rng, MateFace(),
+        // 괴물 판도 같은 값 치르기를 거친다 — 나라가 없으므로 명성 쪽이다(플래그는 대본 것이라 0 이 아니라고 본다).
+        int beastNation = _game.PersonTemplates?.Find(person)?.Nation ?? -1;
+        var outcome = SeaCombatDialog.Engage(this, _game.Player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx,
-                                            foeFace, SeaDuel(person, name, foeFace), _game.Bgm,
-                                            monster: true);
+                                            foeFace,
+                                            (board, end) => SettleRaid(board, end, beastNation,
+                                                                       _game.Nations?.Find(beastNation)?.Capital ?? -1,
+                                                                       rng, raid: false),
+                                            SeaDuel(person, name, foeFace), _game.Bgm,
+                                            monster: true).Outcome;
 
         if (outcome != SeaCombatDialog.Outcome.Defeated)
         {
