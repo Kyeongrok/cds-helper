@@ -20,13 +20,26 @@ internal static class GameSystemMenu
     /// <param name="view">차림표를 낸 시설 창. 물음창의 주인이고, 첫 화면은 이 창의 주인이 낸다.</param>
     /// <param name="game">적을 판.</param>
     /// <param name="menu">차림표를 든 자리. 고르고 나면 접는다.</param>
-    public static GameMenu Build(Window view, Engine.Game game, GameMenuHost menu) => new(
-        [.. Facility.SystemMenu.Select(item => (item, ActionOf(item, view, game, menu)))]);
+    /// <remarks>
+    /// 첫 줄은 <b>제 나라 도시면 「저장」, 남의 나라 도시면 「중단」</b>이다(<c>0x004A28F4</c> 가 제독 나라와
+    /// 도시 나라를 견준다 — <c>0x00568DA8</c> · <c>0x00568DB0</c>). 중단은 적고 나서 첫 화면으로 간다.
+    /// </remarks>
+    public static GameMenu Build(Window view, Engine.Game game, GameMenuHost menu)
+    {
+        int here = game.Player.CityId;
+        bool mine = here < 0 || (game.CityRows?.NationOf(here) ?? game.Player.Nation) == game.Player.Nation;
+        var rows = Facility.SystemMenu
+            .Select(item => item == "저장" && !mine ? "중단" : item)
+            .Select(item => (item, ActionOf(item, view, game, menu)));
+        return new GameMenu([.. rows]);
+    }
 
     private static Action? ActionOf(string item, Window view, Engine.Game game,
                                    GameMenuHost menu) => item switch
     {
         "저장" => () => Save(view, game, menu),
+        // 남의 나라 도시에서는 「중단」이다(0x004A27D0) — 적고 나서 첫 화면으로 돌아간다.
+        "중단" => () => Suspend(view, game, menu),
         "로드" => () => Load(view, menu),
         "게임 종료" => () => Quit(view, game, menu),
         "게임 재개" => menu.Close,
@@ -82,6 +95,24 @@ internal static class GameSystemMenu
 
         menu.Close();
         map.LoadGame();
+    }
+
+    /// <summary>
+    /// 중단(<c>0x004A27D0</c>) — 물어보고 적은 뒤 첫 화면으로 돌아간다.
+    /// </summary>
+    private static void Suspend(Window view, Engine.Game game, GameMenuHost menu)
+    {
+        if (!ConfirmDialog.Ask(view, "이 시점에서 데이터를 저장하고 게임을 중단하겠습니다.")) return;
+
+        string error = game.Save(suspended: true);
+        if (error.Length > 0)
+        {
+            ConfirmDialog.Tell(view, $"기록하지 못했다 — {error}");
+            return;
+        }
+
+        menu.Close();
+        if (view.Owner is ShipMapWindow map) map.ReturnToTitle();
     }
 
     /// <summary>
