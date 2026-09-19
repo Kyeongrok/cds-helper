@@ -913,6 +913,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         string me = _player.Name;
         int fame = 0, closer = 0;
 
+        // 남이 앞질렀는지는 <b>보고를 시작하기 전에</b> 다 적어 둔다 — 원본도 사례 갈림길
+        // (0x00412171)과 낱낱의 셈(0x004111F9)을 발표 깃발이 서기 전에 본다.
+        var scoopedRows = rows.Where(KnownByOthers).Select(r => r.Id).ToHashSet();
+        bool scoopedHead = Headline(rows) is { } head && scoopedRows.Contains(head.Id);
+
         void Credit(DiscoveryTable.Record row)
         {
             GameDialog.Show(_view,
@@ -929,7 +934,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             _player.Announce(row.Id);
 
             // 좋아하는 갈래를 물어다 주면 덤이 붙는다(0x004ADAE0 이 후원자 표 +0x38 을 본다).
-            int by = Palace.ClosenessFor(row, inTime, KnownByOthers,
+            bool scooped = scoopedRows.Contains(row.Id);
+            int by = Palace.ClosenessFor(row, inTime, scooped,
                                          patron.Likes(row.Category), _random);
             if (by != 0)
             {
@@ -956,10 +962,10 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             // 알린 것마다 명성이 오른다. 항구 발표(보수/70)와 셈이 다르다 — 보고는
             // 보수/50 이고 늦으면 그 반이다(0x004111D0).
             // 발견물의 보수가 후원자 지갑에 도로 쌓인다 — 재력 x 10000 을 못 넘는다(0x004113E4).
-            _player.SpendPurse(patron.Name, Palace.CreditFor(row.Reward, inTime, KnownByOthers),
+            _player.SpendPurse(patron.Name, Palace.CreditFor(row.Reward, inTime, scooped),
                                patron.Wealth);
 
-            int up = Palace.FameFor(row, inTime, KnownByOthers);
+            int up = Palace.FameFor(row, inTime, scooped);
             _player.Fame += up;
             if (up > 0) GameDialog.Show(_view, $"명성이 {up} 올라갔다!");
             fame += up;
@@ -990,7 +996,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         bool world = rows.Any(r => r.Id == Palace.WorldRoute);
         var grade = world ? Palace.ReportGrade.Good : GradeOf(patron, contract, rows);
         int paid = world ? Palace.WorldRouteRewardFor(contract.Unpaid, inTime, _random)
-                         : RewardFor(contract, grade, inTime);
+                         : RewardFor(contract, grade, inTime, scoopedHead);
         if (world) WorldRemark(patron, inTime); else Remark(patron, grade, inTime, paid);
 
         _player.Earn(paid);
@@ -1276,19 +1282,21 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     }
 
     /// <summary>
-    /// 남이 먼저 보고해 버린 발견물인가. <b>우리 쪽에서는 늘 거짓이다.</b>
+    /// 남이 먼저 보고해 버린 발견물인가(<c>0x004AADB0</c>).
     /// </summary>
     /// <remarks>
-    /// 게임은 <c>0x004AADB0</c> 으로 가리고, 참이면 <b>명성이 한 톨도 안 오르고</b> 사례도
-    /// 계약금/4(늦었으면 0)로 깎인다.
+    /// 게임은 발견물 인스턴스의 깃발 <c>0x80</c>(내가 발표함)이 안 서 있으면서 칸 2
+    /// (발표자 이름)가 차 있으면 참으로 본다. 참이면 <b>명성이 한 톨도 안 오르고</b>
+    /// 사례도 계약금/4(늦었으면 0)로 깎인다.
     ///
-    /// <b>원본에서도 이것이 켜지는 일은 없다.</b> 남의 이름을 사람 칸 2 에 올리는 길은
-    /// 이벤트 명령 둘뿐인데(<c>0x3F</c> · <c>0x68 0B</c>, 볼트 23), 딸려 오는 대본
-    /// (<c>DISEV.CDS</c> · <c>STORY0/1.CDS</c> · <c>HIST_EV.CDS</c>) 어디에도 그 명령이
-    /// 없다. 새 판은 세 칸을 모두 비우고 시작한다(<c>0x004AA9B3</c>). 그러니 이 자리는
-    /// 거짓이 맞고, 셈만 <see cref="Palace.FameFor"/> 에 갖춰 둔다.
+    /// 남의 이름이 칸 2 에 올라가는 길은 <b>누적 캐릭터</b>뿐이다 — 딸려 오는 대본
+    /// (<c>DISEV.CDS</c> · <c>STORY0/1.CDS</c> · <c>HIST_EV.CDS</c>)에는 그 명령
+    /// (<c>0x3F</c> · <c>0x68 0B</c>)이 없지만, 은퇴한 제독의 행적 갈래 9 가 되살아날 때
+    /// <c>68 0B</c> 로 <b>만들어져</b> 돈다(<c>0x0041A7CF</c>). 새 판은 세 칸을 모두 비우고
+    /// 시작한다(<c>0x004AA9B3</c>).
     /// </remarks>
-    private const bool KnownByOthers = false;
+    private bool KnownByOthers(DiscoveryTable.Record row) =>
+        !_player.HasAnnounced(row.Id) && _player.ScoopedBy(row.Id) != null;
 
     private void ReportNow(Patron patron)
     {
@@ -2224,9 +2232,20 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// <summary>
     /// 보고 사례. 남이 먼저 발표해 버렸으면 <b>깎인 사례</b>다(<c>0x00411FC0</c> 이 가른다).
     /// </summary>
-    private int RewardFor(Contract contract, Palace.ReportGrade grade, bool inTime) =>
-        KnownByOthers ? Palace.ScoopedRewardFor(contract.Amount, inTime)
-                      : Palace.RewardFor(contract.Unpaid, grade, inTime, _random);
+    private int RewardFor(Contract contract, Palace.ReportGrade grade, bool inTime, bool scooped) =>
+        scooped ? Palace.ScoopedRewardFor(contract.Amount, inTime)
+                : Palace.RewardFor(contract.Unpaid, grade, inTime, _random);
+
+    /// <summary>
+    /// 사례를 가를 때 보는 한 발견물 — <b>보수가 가장 큰 것</b>이다(<c>0x00412109</c>~<c>0x0041216F</c>
+    /// 가 발견물 표 <c>+0x18</c> 로 고른다). 여럿을 함께 보고해도 이 하나로 갈린다.
+    /// </summary>
+    private static DiscoveryTable.Record? Headline(IReadOnlyList<DiscoveryTable.Record> rows)
+    {
+        DiscoveryTable.Record? best = null;
+        foreach (var row in rows) if (best == null || row.Reward > best.Value.Reward) best = row;
+        return best;
+    }
 
 
     /// <summary>그 후원자의 얼굴. 표나 그림을 못 읽으면 null 이고, 그러면 대사만 나온다.</summary>
