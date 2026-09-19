@@ -210,5 +210,36 @@ public sealed class SoundBank : IDisposable
     /// <summary>WAV 머리 길이와 8비트 소리의 무음 자리.</summary>
     private const int WavHeader = 44, Silence = 128;
 
-    public void Dispose() => _player.Dispose();
+    private readonly SoundPlayer _loop = new();
+
+    /// <summary>
+    /// 되풀이해 내는 소리 — 지도 위 빗소리(<c>0x004225A0(0x3F, 0)</c>)가 이것이다. 효과음과 따로 돈다.
+    /// </summary>
+    public void PlayLoop(int part)
+    {
+        if (!GameSettings.SfxEnabled) return;
+        try
+        {
+            var wav = _bank?.Wav(part) ?? AssetWav(part);
+            if (wav == null) return;
+            _loop.Stream = new MemoryStream(Scaled(wav, GameSettings.SfxVolume));
+            _loop.PlayLooping();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SoundBank] 파트 {part} 를 되풀이하지 못했습니다 — {ex.Message}");
+        }
+    }
+
+    /// <summary>되풀이하던 소리를 끊는다.</summary>
+    public void StopLoop()
+    {
+        try { _loop.Stop(); } catch { }
+    }
+
+    public void Dispose()
+    {
+        _player.Dispose();
+        _loop.Dispose();
+    }
 }
