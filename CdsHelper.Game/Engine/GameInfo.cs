@@ -77,6 +77,13 @@ public static class GameInfo
     /// <remarks>예전에는 갈래를 괄호로 붙였는데 원본에 없는 표시라 뺐다 — 갈래는 힌트 설명 판에서 본다.</remarks>
     public static string HintLabel(Game game, int id) => game.HintName(id);
 
+    /// <summary>교역품 한 칸의 이름 — 「%s산」 뒤에 품목 이름(<c>0x0042E310</c>). 산지를 모르면 이름만이다.</summary>
+    public static string CargoLabel(Game game, Support.Local.Models.Player.Cargo cargo)
+    {
+        string name = game.Goods?.Find(cargo.Kind)?.Name ?? $"교역품 {cargo.Kind}";
+        return cargo.Origin >= 0 ? $"{game.CityName(cargo.Origin)}산 {name}" : name;
+    }
+
     /// <summary>그 힌트가 가리키는 발견물을 이미 찾았는지.</summary>
     private static bool Found(Game game, DiscoveryTable? table,
                               HintTable? hints, int hint)

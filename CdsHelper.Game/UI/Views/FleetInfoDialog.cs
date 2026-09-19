@@ -22,8 +22,8 @@ namespace CdsHelper.Game.UI.Views;
 /// <b>배 하나하나의 자세한 것은 이 판에 없다</b> — 이름 단추를 누르면 그 배의 판이 열린다
 /// (<see cref="ShipInfoDialog"/>). 게임도 목록이 먼저고 배는 그 다음이다.
 ///
-/// <b>대열과 짐(교역품일람)은 아직 안 눌린다</b> — 대열은 진형이라 해전과 함께 와야 하고,
-/// 교역품은 배마다 나눠 싣는 것을 아직 안 흉내낸다(우리는 함대가 통째로 싣는다).
+/// 「대열」은 함대배치도(<c>0x0046F619</c> → <c>0x00433F30</c>)를 열고, 「짐」은 보급물자와 교역품일람을
+/// 늘어놓는 판(<see cref="CargoView"/>)이다.
 /// </remarks>
 internal sealed class FleetInfoDialog : InfoDialog
 {
@@ -49,7 +49,7 @@ internal sealed class FleetInfoDialog : InfoDialog
     /// <inheritdoc/>
     protected override Brush BoardEdge => SteelEdge;
 
-    private FleetInfoDialog(Player player, string coord, ItemTable? items)
+    private FleetInfoDialog(Player player, string coord, ItemTable? items, Func<Player.Cargo, string>? cargoName)
     {
         var rows = new StackPanel();
 
@@ -80,7 +80,8 @@ internal sealed class FleetInfoDialog : InfoDialog
         rows.Children.Add(Row("짐중량", Bar(player.LoadedWeight, player.Tonnage)));
 
         Build("함대정보", rows, BoardWidth, BoardHeight,
-              new GameButton("대열", null), new GameButton("짐", null),
+              new GameButton("대열", () => FormationDialog.Show(this, player)),
+              new GameButton("짐", () => CargoView.Show(this, player, cargoName)),
               new GameButton("취소", Close));
     }
 
@@ -147,7 +148,42 @@ internal sealed class FleetInfoDialog : InfoDialog
     /// <summary>함대정보 판을 연다.</summary>
     /// <param name="coord">함대좌표에 적을 글. 도시 안이면 비워 둔다 — 게임처럼 <c>---</c> 다.</param>
     /// <param name="items">아이템 표. 배 정보의 선수상 이름을 여기서 낸다.</param>
+    /// <param name="cargoName">교역품 한 칸의 이름 — 「%s산」 과 품목 이름(<c>0x0042E310</c>).</param>
     public static void Show(Window owner, Player player, string coord = "",
-                            ItemTable? items = null) =>
-        new FleetInfoDialog(player, coord, items) { Owner = owner }.ShowDialog();
+                            ItemTable? items = null, Func<Player.Cargo, string>? cargoName = null) =>
+        new FleetInfoDialog(player, coord, items, cargoName) { Owner = owner }.ShowDialog();
+
+    /// <summary>
+    /// 「짐」 판 — 보급물자 한 줄과 교역품일람(<c>0x0046F97D</c> ~ <c>0x0046FC6D</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   보급물자                                               0x00571390
+    ///   식량%4d통    물  %4d통    자재%4d통    탄약%4d통        0x005713A0 (식량·물은 (값+9)/10 통)
+    ///   교역품일람                                             0x005713D8
+    ///   칸마다 「%s산」 + 품목 이름                              0x0042E310
+    ///   취소                                                   0x005713E8
+    /// </code>
+    /// </remarks>
+    private sealed class CargoView : InfoDialog
+    {
+        private CargoView(Player player, Func<Player.Cargo, string>? cargoName)
+        {
+            var rows = new StackPanel { Margin = new Thickness(RowInset, 0, RowInset, 0) };
+            rows.Children.Add(Label("보급물자"));
+            rows.Children.Add(Label($"식량{player.SupplyOf(SupplyKind.Food),4}통    "
+                                    + $"물  {player.SupplyOf(SupplyKind.Water),4}통    "
+                                    + $"자재{player.SupplyOf(SupplyKind.Material),4}통    "
+                                    + $"탄약{player.SupplyOf(SupplyKind.Ammo),4}통"));
+            rows.Children.Add(Gap(8));
+            rows.Children.Add(Label("교역품일람"));
+            foreach (var cargo in player.CargoHold)
+                rows.Children.Add(Label(cargoName?.Invoke(cargo) ?? $"교역품 {cargo.Kind}"));
+
+            Build("", rows, BoardWidth, BoardHeight, new GameButton("취소", Close));
+        }
+
+        public static void Show(Window owner, Player player, Func<Player.Cargo, string>? cargoName) =>
+            new CargoView(player, cargoName) { Owner = owner }.ShowDialog();
+    }
 }
