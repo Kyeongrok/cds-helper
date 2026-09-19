@@ -203,7 +203,7 @@ public sealed class LootDialog : GameWindow
     {
         if (CountDialog.Set(this, name, "탑재수", "통", now, max,
                             new CountDialog.Gauge("현재수", original),
-                            new CountDialog.Gauge("한통의 무게", unitWeight)) is { } v)
+                            new CountDialog.Gauge("한통의 무게", unitWeight, "")) is { } v)
         {
             set(Math.Clamp(v, 0, max));
             Paint();

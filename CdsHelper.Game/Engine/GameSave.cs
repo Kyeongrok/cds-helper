@@ -186,7 +186,8 @@ public static class GameSave
         List<int>? Hidden = null,
         List<Player.Trace>? Traces = null,
         Dictionary<int, string>? NamedDiscoveries = null,
-        Dictionary<int, bool>? ScriptedCities = null);
+        Dictionary<int, bool>? ScriptedCities = null,
+        List<int>? LastSupply = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -287,7 +288,9 @@ public static class GameSave
                             Traces: [.. player.Traces],
                             NamedDiscoveries: player.NamedDiscoveries.ToDictionary(e => e.Key, e => e.Value),
                             // 발견 대본이 세우고 없앤 도시. 이 칸 앞의 세이브는 날짜로만 센다.
-                            ScriptedCities: player.ScriptedCities.ToDictionary(e => e.Key, e => e.Value));
+                            ScriptedCities: player.ScriptedCities.ToDictionary(e => e.Key, e => e.Value),
+                            // 보급 창 「전회분」. 이 칸 앞의 세이브는 0 으로 연다.
+                            LastSupply: [.. player.LastSupply]);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);

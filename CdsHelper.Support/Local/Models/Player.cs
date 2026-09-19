@@ -2016,6 +2016,25 @@ public sealed class Player
     /// <summary>실어 둔 보급품을 원값으로 통째로. 세이브에 적을 때 쓴다.</summary>
     public IReadOnlyList<int> Supplies => _supplies;
 
+    private readonly int[] _lastSupply = new int[Supply.Count];
+
+    /// <summary>
+    /// 지난번 항구 보급에서 <b>맞춘 통 수</b> — 보급 창 「전회분」이 이것으로 되돌린다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 함대 전역에 넷을 든다 — 식량 <c>0x005B3970</c> · 물 <c>0x005B396C</c> · 자재 <c>0x005B3974</c> ·
+    /// 탄약 <c>0x005B3978</c>(읽기 <c>0x0040E960</c> · 쓰기 <c>0x0040E9B0</c>). 보급을 결정할 때
+    /// <c>0x0040F541</c> 이 그때 맞춘 총량을 적는다. 새 판은 0 이다.
+    /// </remarks>
+    public IReadOnlyList<int> LastSupply => _lastSupply;
+
+    /// <summary>이번 보급에서 맞춘 통 수를 적는다(색인은 <see cref="SupplyKind"/>).</summary>
+    public void SetLastSupply(IReadOnlyList<int>? barrels)
+    {
+        for (int i = 0; i < _lastSupply.Length; i++)
+            _lastSupply[i] = barrels != null && i < barrels.Count ? Math.Max(0, barrels[i]) : 0;
+    }
+
     // ── 교역품 짐 ────────────────────────────────────────────────────────────
 
     /// <summary>짐 칸 하나 — 교역품 종류 · 갯수 · 원산지 도시 · 한 개 무게.</summary>

@@ -2220,6 +2220,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityStates(saved.CityStates);
             _game.Player.RestoreCityScales(saved.CityScales);
             _game.Player.RestoreCityBuildings(saved.CityBuildings);
+            _game.Player.SetLastSupply(saved.LastSupply);
             _game.Player.RestoreScriptedCities(saved.ScriptedCities);
             _game.Player.RestoreNationStatus(saved.NationStatus);
             _game.Player.RestoreBarmaidFlags(saved.GiftedBarmaids, saved.RefusedBarmaids);
