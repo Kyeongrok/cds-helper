@@ -16,7 +16,7 @@ namespace CdsHelper.Game.Engine;
 /// 흐른 날수</b>에 늦어짐을 뺀 값으로 줄을 짚는다. 줄이 다하면 세상에서 사라진다
 /// (원본도 <c>0x0040D1D0</c> 이 −1 을 주면 그렇게 한다).
 ///
-/// 늦어짐은 <c>0x004A4A3D</c> 다 — 해적질을 당하면 <c>(rand(3) x 3 + 3) x 4</c> 날만큼
+/// 늦어짐은 <c>0x004A4A3D</c> 다 — 술집 일기토에서 지면 <c>(rand(3) x 3 + 3) x 4</c> 날만큼
 /// 밀리고 「%s의 행동이 늦어졌습니다」가 뜬다(그 자리는 <see cref="Delay"/>).
 /// </remarks>
 public sealed class AccReplay
