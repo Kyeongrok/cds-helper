@@ -255,7 +255,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         "기함 변경" when _player.Ships.Count > 1 => ChangeFlagship,
         "선박 편입" when !_player.IsFleetFull
                       && _player.DockedAt(_cityId).Count > 0 => TakeShip,
-        "선박 삭제" when _player.Ships.Count > 1
+        // 배를 맡겨 두는 것은 <b>모항에서만</b>이다(0x0046A2A4 — 도시 +0x1D 비트 8).
+        "선박 삭제" when _player.Ships.Count > 1 && _cityId == _player.HomePort
                       && _player.DockedAt(_cityId).Count < Player.MaxDocked => LeaveShip,
         "선박 파기" when _player.Ships.Count > 1 => ScrapShip,
         Facility.FleetExit => _menu.Pop,
