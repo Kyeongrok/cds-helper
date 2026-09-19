@@ -2882,22 +2882,9 @@ public sealed class ShipMapWindow : Window
     /// <b>그대로 같이 닫힌다</b> — 「인물정보를 눌러도 아무것도 안 열리던」 것이 이것이다.
     /// 부하가 없을 때는 물을 것이 없으니 예전처럼 곧장 판을 낸다.
     /// </remarks>
-    private void PersonInfo()
-    {
-        if (_game.Player.MateCount == 0)
-        {
-            Info(() => PersonInfoDialog.Show(this, _game.Player, _game.Directory));
-            return;
-        }
-
-        // 판이 떠 있는 동안 멈춤을 쥐고 있는다 — 창이 접히며 오는 알림이 풀지 못하게
-        // _asking 도 함께 세운다(Info 와 같은 길이다).
-        PersonInfoMenu.Show(this, _game, CommandMenu, hold =>
-        {
-            _asking = hold;
-            _host.Paused = hold;
-        });
-    }
+    private void PersonInfo() =>
+        // 판이 떠 있는 동안 커맨드 창은 감춰 둘 뿐이라 멈춤도 그대로 걸려 있다.
+        PersonInfoMenu.Show(this, _game, CommandMenu);
 
     /// <summary>해상 커맨드 창. 하나만 띄운다.</summary>
     private GameMenuHost? _commandMenuHost;
