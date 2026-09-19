@@ -194,7 +194,8 @@ public static class GameSave
         Dictionary<int, string>? NamedDiscoveries = null,
         Dictionary<int, bool>? ScriptedCities = null,
         List<int>? LastSupply = null,
-        int? FleetCity = null, bool? SkipsCumulative = null, bool? Suspended = null);
+        int? FleetCity = null, bool? SkipsCumulative = null, bool? Suspended = null,
+        Dictionary<int, string>? Scooped = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -296,6 +297,8 @@ public static class GameSave
                             Purses: player.Purses.ToDictionary(e => e.Key, e => e.Value),
                             // 감찰관을 매수해 숨겨 둔 발견물.
                             Hidden: [.. player.HiddenDiscoveries],
+                            // 누적 캐릭터가 먼저 세상에 알려 버린 발견물(발견물 칸 2).
+                            Scooped: player.Scooped.ToDictionary(e => e.Key, e => e.Value),
                             Traces: [.. player.Traces],
                             NamedDiscoveries: player.NamedDiscoveries.ToDictionary(e => e.Key, e => e.Value),
                             // 발견 대본이 세우고 없앤 도시. 이 칸 앞의 세이브는 날짜로만 센다.
