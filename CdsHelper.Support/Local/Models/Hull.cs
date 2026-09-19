@@ -135,7 +135,9 @@ public sealed record Hull(
         };
         return new Hull(spec.Name, spec.Hp, spec.Speed, spec.Capacity, spec.Tonnage, spec.Crew,
                         spec.GunsMin, spec.PriceFactor * 1000, TableSkins[spec.Id],
-                        MaxMasts: masts, CanChangeSail: spec.Id is not (Caravel or LargeCaravel), Id: spec.Id);
+                        // 돛종류는 카락 이상만 바꾼다 — 코구·카라벨·대형카라벨·다우는 안 된다(0x00494E00: 선체 0~2·7).
+                        MaxMasts: masts, CanChangeSail: spec.Id is not (Cog or Caravel or LargeCaravel or Dhow),
+                        Id: spec.Id);
     }
 
     /// <summary>선체표 이름으로 찾는다. 없으면 null — 세이브를 되돌릴 때 조선소에 없는 선체를 살린다.</summary>
