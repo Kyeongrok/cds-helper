@@ -379,6 +379,8 @@ public sealed class SeaBattle
         if (angle == 3) e = 0;
         else if (b == 0 && c == 0)
             e = band switch { 0 => a <= 1 ? 6 : 9, 1 => a <= 1 ? 5 : 6, _ => a <= 1 ? 3 : 1 };
+        // 원본은 첨자를 <b>안 자른다</b>(0x00434BE9) — 돛 값이 크면 표 밖 스택을 읽는다.
+        // 우리는 떨어지지 않게 자른다(돛 값이 0~2 면 어차피 같다).
         else e = SailTable[Math.Clamp(a + 2 * b + 4 * c, 3, 14) - 3, band];
 
         int power = e == 0 ? 1 : (WindStrength + 1) * ship.Speed * e / 100 + 1;
@@ -534,8 +536,11 @@ public sealed class SeaBattle
                     for (int dx = -3; dx <= 3; dx++)
                         for (int dy = -2; dy <= 2; dy++)
                         {
-                            int cx = foe.X + dx, cy = foe.Y + dy;
-                            if (OnBoard(cx, cy)) _marks[cx, cy] |= 4;
+                            // 판 밖은 건너뛰지 않고 <b>가장자리로 자른다</b>(0x0043BA66~0x0043BAA1
+                            // 의 clamp(x,0,0x16)·clamp(y,0,0x10)) — 그래서 가장자리 칸이 겹쳐 칠해진다.
+                            int cx = Math.Clamp(foe.X + dx, 0, Cols - 1);
+                            int cy = Math.Clamp(foe.Y + dy, 0, Rows - 1);
+                            _marks[cx, cy] |= 4;
                         }
 
                 plan = BestTowardEdge(ship, avoidDanger: true) ?? BestTowardEdge(ship, avoidDanger: false);
@@ -686,8 +691,10 @@ public sealed class SeaBattle
         if ((ax & 1) == 1 && Wind is 1 or 5) ay += (-1 - n) / 2;
         if (Wind >= 4) ax -= n;
         if (Wind is 1 or 2) ax += n;
+        // 판 밖으로 나가도 그대로 둔다 — 원본은 (짝수 X && Y == 16) 일 때만 제자리로
+        // 되돌리고 그 밖에는 자르지 않는다(0x0043BC33).
         if ((ax & 1) == 0 && ay == Rows - 1) return (target.X, target.Y);
-        return (Math.Clamp(ax, 0, Cols - 1), Math.Clamp(ay, 0, Rows - 1));
+        return (ax, ay);
     }
 
     /// <summary>대포 사거리(<c>0x0043699D</c> 벌) — 캘버린 4 · 카논 2 · 그 밖 3.</summary>
