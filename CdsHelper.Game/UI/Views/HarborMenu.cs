@@ -635,8 +635,19 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
             if (!_player.Announce(row.Id)) continue;
 
+            // 어느 것이든 먼저 「%s의 발견을 발표했다!」와 동영상이다(0x0047E953 · 0x0047E96F) — 그 다음에
+            // 들어 주는지를 가린다(0x0047E810).
+            GameDialog.Show(owner, $"{row.Name}의 발견을 발표했다!");
+
+            // 동영상이 있으면 틀고, 없고 그림만 있으면 그림을 낸다 — 보고와 같다
+            // (0x0047E96F → 0x004AAF30 이 표 +0x10 동영상을 튼다).
+            if (row.Movie >= 0)
+                MoviePlayer.Play(owner, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
+            else if (row.Picture >= 0)
+                DiscoveryDialog.ShowPicture(owner, _game.Stills, row.Picture);   // 그림만(0x004AD640)
+
             // 자리로는 못 찾는 것(유적 속 물건·인물·비보)은 알려도 아무도 안 들어 준다
-            // (0x0047E820) — 명성도 회복도 없이 알린 것으로만 찍힌다.
+            // (0x0047E8AE) — 명성도 회복도 없이 알린 것으로만 찍힌다.
             if (row.Indirect)
             {
                 GameDialog.Show(owner, Harbor.NobodyCares);
@@ -647,15 +658,6 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             int fame = Harbor.FameFor(row);
             _player.Fame += fame;
             Harbor.Celebrate(_player);
-
-            GameDialog.Show(owner, $"{row.Name}의 발견을 발표했다!");
-
-            // 동영상이 있으면 틀고, 없고 그림만 있으면 그림을 낸다 — 보고와 같다
-            // (0x0047E96F → 0x004AAF30 이 표 +0x10 동영상을 튼다).
-            if (row.Movie >= 0)
-                MoviePlayer.Play(owner, DiscoveryDialog.MovieOf(_game.Directory, row.Movie));
-            else if (row.Picture >= 0)
-                DiscoveryDialog.ShowPicture(owner, _game.Stills, row.Picture);   // 그림만(0x004AD640)
 
             GameDialog.Show(owner, $"명성이 {fame} 올라갔다!");
             GiveFound(owner, row);
