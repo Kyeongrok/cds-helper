@@ -111,6 +111,17 @@ internal sealed class AbilityMakeDialog : InfoDialog
             : Ability.Roll(Ability.BiasOf(player.Fortune), _age, player.BirthMonth, player.BirthDay, rng);
         _left = again ? spare : Ability.BonusFor(_stats, rng);
 
+        // 굴리는 자리(0x0045D450)에서 컨디션·소지금·명성·악명도 함께 정해 둔다 — 컨디션은 보너스를 얹기 전 체력이다.
+        if (again)
+            (_condition, _gold, _fame, _infamy) = (player.Condition, player.Gold, player.Fame, player.Infamy);
+        else
+        {
+            _condition = Ability.ConditionFor(_stats[Ability.Body]);
+            _gold = Ability.GoldRoll(_age, rng);
+            _fame = Ability.FameRoll(_age, rng);
+            _infamy = Ability.InfamyRoll(_age, rng);
+        }
+
         var body = new Canvas { Width = BoardWidth, Height = BoardHeight };
 
         for (int i = 0; i < Ability.Shown; i++)
@@ -322,10 +333,14 @@ internal sealed class AbilityMakeDialog : InfoDialog
 
         player.JobIndex = dialog._job;
         player.SetAbilities(dialog._stats);
-        // 컨디션(HP, 0x005B60D8)은 체력으로 정한다 — 0x0045D5A3 이 체력 x 20 을 10~2000 으로 잘라 두고
-        // 마무리(0x0045E485)가 옮겨 박는다. 초심자 주인공은 (체력 x 4 + 4) x 5 다(Beginner).
-        player.SetCondition(Math.Clamp(dialog._stats[Ability.Body] * 20, 10, Player.ConditionMax));
-        player.SetGold(Ability.GoldFor(dialog._stats[Ability.Body]));
+        // 마무리(0x0045E485 ~ 0x0045E4B1)가 옮겨 박는다. 초심자 주인공은 따로다(Beginner).
+        player.SetCondition(dialog._condition);
+        player.SetGold(dialog._gold);
+        player.Fame = dialog._fame;
+        player.Infamy = dialog._infamy;
         return dialog._left;
     }
+
+    /// <summary>굴릴 때 정해 둔 컨디션 · 소지금 · 명성 · 악명.</summary>
+    private int _condition, _gold, _fame, _infamy;
 }
