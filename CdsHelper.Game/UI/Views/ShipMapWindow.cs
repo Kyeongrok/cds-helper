@@ -3952,8 +3952,8 @@ public sealed class ShipMapWindow : Window
         // 그리고 오백에 한 번 <b>그 구역의 무리</b>와 마주쳐 들싸움이 붙는다(0x0048BE9B).
         CheckLandParty();
 
-        // 규율이 바닥나면 반란이다 — 게임도 뭍(0x0047557D)과 바다(0x004758B4) 양쪽에서
-        // <b>이전 규율 &gt; 0 이고 새 값이 0</b> 일 때만 0x004751E0 을 부른다.
+        // 규율이 바닥나면 반란이다 — 뭍에서는 <b>이전 규율 &gt; 0 이고 새 값이 0</b> 일 때만
+        // 0x004751E0 을 부른다(0x00475569). 바다는 새 값만 본다(PassSeaMorale).
         // 대표와의 일기토까지는 이미 옮겨 두었다(바다 사건 쪽 Mutiny).
         if (before > 0 && player.Morale == 0) Mutiny();
     }
@@ -3966,27 +3966,26 @@ public sealed class ShipMapWindow : Window
     /// <code>
     ///   47574a  edi = 그 기능을 제일 잘 아는 사람의 <b>항해술</b>  ; 뭍은 운용술이다
     ///   475810  test [0x005A4D18], 8       ; 항해 루프가 도는 날에만
-    ///   475822  eax = 0x00426740()         ; 지금 칸의 종류(0 근해 · 1 원양 · 2 뭍 …)
+    ///   475822  eax = 0x00426740()         ; 지금 칸의 부류
     ///   475827  dec eax
     ///   47582b  cmp eax, 1 ; mov eax, 2 ; adc eax, -1
-    ///             (종류-1) &lt; 1  → eax = 2   ; 근해·원양
-    ///             그 밖         → eax = 1
-    ///   475838  eax *= 3                   ; <b>바다 6 · 뭍 3</b>
+    ///             부류 1 이면 (0 &lt; 1, 부호 없이) → eax = 2
+    ///             그 밖(부류 0 은 −1 이 부호 없이 커서) → eax = 1
+    ///   475838  eax *= 3                   ; 부류 1 은 6, 그 밖은 3
     ///   47583b  edi -= eax
+    ///   47583d  edi -= [esp+0x14]          ; 추위(0~3) — 피로 셈과 같은 값이다
     /// </code>
-    /// <b>볼트 70편이 3 과 6 을 거꾸로 적어 두었다.</b> <c>cmp</c> 뒤의 <c>adc</c> 를
-    /// 풀면 근해·원양이 2(×3 = 6)다. 항해술 최대가 3 이라 바다에서는 하루 −3 이 가장
-    /// 느리고, 뭍(−1)보다 훨씬 빠르게 깎인다.
-    ///
-    /// <c>[esp+0x14]</c> 에서 한 번 더 빼는데 그 값은 아직 못 짚었다 — 여기서는 뺀다.
+    /// 바다 칸은 부류 0·1 이 번갈아 깔려 있어 하루 −3 과 −6 이 섞인다.
     /// </remarks>
     private void PassSeaMorale()
     {
         var player = _game.Player;
         int sailing = FleetLevel(Skill.Sailing);
+        int drain = SeaMoraleStep * (_host.TerrainClass == 1 ? 2 : 1)
+                    + SeaEvents.ColdAt(_host.ShipLatLon.Lat);
 
         int before = player.Morale;
-        player.Cheer(sailing - SeaMoraleDrain);
+        player.Cheer(sailing - drain);
 
         // 바다 쪽 문구는 「선원」이다 — 뭍의 「대원」과 갈린다(0x0047585E).
         if (MoraleLine(before, player.Morale) is { Length: > 0 } line)
@@ -3995,11 +3994,13 @@ public sealed class ShipMapWindow : Window
             _game.Sfx?.Play(SoundBank.BandNoticePart);   // 띠 알림 소리(0x0040E0B6)
         }
 
-        if (before > 0 && player.Morale == 0) Mutiny();
+        // 바다에서는 새 규율이 0 이면 <b>늘</b> 반란이다 — 전날 이미 0 이었어도 그렇다(0x004758AC).
+        // 이전 값을 보는 것은 뭍 쪽(0x00475569)뿐이다.
+        if (player.Morale == 0) Mutiny();
     }
 
-    /// <summary>바다에서 하루에 빠지는 규율의 밑값(<c>0x00475838</c> 의 3 x 2).</summary>
-    private const int SeaMoraleDrain = 6;
+    /// <summary>바다에서 하루에 빠지는 규율의 밑값(<c>0x00475838</c> 의 3, 부류 1 이면 두 배).</summary>
+    private const int SeaMoraleStep = 3;
 
     /// <summary>
     /// 그 기능을 <b>함대에서 제일 잘 아는 사람</b>의 수준 — 제독과 부하 가운데 가장 높은 값.
