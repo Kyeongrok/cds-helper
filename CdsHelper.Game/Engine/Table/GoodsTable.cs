@@ -10,7 +10,7 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   표 VA 0x004DCBB0, 136바이트 x 70 (색인 = 교역품 종류)
 ///   +0x00  이름 ptr("대포")        +0x04  그림 번호(134~203)
 ///   +0x08  분류(0~12)             +0x0C~ 27칸 지역별 시세
-///   +0x7C  개체중량
+///   +0x7C  개체중량               +0x80  수명(달) — 7 은 안 썩음, 어육 4·쇠고기 5·포도주·말·노예 6
 ///   분류 이름표 0x00547210, 13칸
 /// </code>
 /// 아이템 표(<see cref="ItemTable"/>)와는 <b>딴 표</b>다. 교역품 이름은 그쪽에 아예 없다.
@@ -41,7 +41,12 @@ public sealed class GoodsTable
     /// <param name="Pic">ITEM.CDS 그림 번호(134~203).</param>
     /// <param name="Weight">개체중량. 창에 그대로 뜬다.</param>
     [method: JsonConstructor]
-    public readonly record struct Goods(int Id, string Name, int Pic, int Category, int Weight);
+    /// <param name="Life">수명(달). 짐 기한 첫값이 이것 x 30 이다(<c>0x004B5910</c>).</param>
+    public readonly record struct Goods(int Id, string Name, int Pic, int Category, int Weight, int Life = 7)
+    {
+        /// <summary>새로 산 짐의 기한(날).</summary>
+        public int FreshShelf => Life * 30;
+    }
 
     /// <summary>JSON 으로 적어 두는 알맹이.</summary>
     internal sealed record Snapshot(Goods[] Items, string[] CategoryNames);
@@ -73,7 +78,7 @@ public sealed class GoodsTable
     /// <summary>표를 연다. 적어 둔 JSON 이 있으면 그것을 읽는다.</summary>
     public static GoodsTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error, 2);
         LastError = error;
         return snapshot == null ? null : new GoodsTable(snapshot);
     }
@@ -91,7 +96,8 @@ public sealed class GoodsTable
                 exe.Text(exe.Word(row + 0x00)) ?? "",
                 exe.Int(row + 0x04),
                 exe.Int(row + 0x08),
-                exe.Int(row + 0x7C));
+                exe.Int(row + 0x7C),
+                exe.Int(row + 0x80));
         }
 
         if (items[ProbeId].Name != ProbeName)

@@ -123,7 +123,7 @@ public sealed class TradePostDialog : GameWindow
     private int Profit => Enumerable.Range(0, _player.CargoHold.Count).Sum(s =>
     {
         var c = _player.CargoHold[s];
-        return _sell[s] * (_post.SellPrice(_player, _city, c.Kind) - _post.BuyPrice(_player, c.Origin, c.Kind));
+        return _sell[s] * (_post.SellPriceOf(_player, _city, c) - _post.BuyPrice(_player, c.Origin, c.Kind));
     });
 
     private int Pending(int kind, int origin) =>
@@ -391,7 +391,9 @@ public sealed class TradePostDialog : GameWindow
         int have = r.Slot >= 0 ? _player.CargoHold[r.Slot].Count : 0;
         int pend = Pending(r.Kind, r.Origin);
         int sell = r.Slot >= 0 ? _sell[r.Slot] : 0;
-        int here = _post.SellPrice(_player, _city, r.Kind);
+        // 썩은 짐(기한 0)은 0 닢이다(0x004810BC).
+        int here = r.Slot >= 0 ? _post.SellPriceOf(_player, _city, _player.CargoHold[r.Slot])
+                               : _post.SellPrice(_player, _city, r.Kind);
         int buy = _post.BuyPrice(_player, r.Origin, r.Kind);
         int diff = here - buy;
 
@@ -415,6 +417,9 @@ public sealed class TradePostDialog : GameWindow
         string third = sell > 0 ? $"{CityName(r.Origin)}산 · 팔 것 {sell:N0}개 ({sell * here:N0}닢)"
                      : buy > 0 ? $"{CityName(r.Origin)}산 · 매입 {buy:N0}닢"
                      : $"{CityName(r.Origin)}산";
+        // 썩는 짐이면 내구도(남은 달)를 붙인다 — 원본 수량 창의 「내구도」(0x00532F08) 값이다.
+        if (r.Slot >= 0 && _player.CargoHold[r.Slot] is { Shelf: not Player.NeverSpoils } kept)
+            third += kept.Spoiled ? " · 썩었다" : $" · 내구도 {kept.Months}";
         lines.Children.Add(Dark(third, 12, sell > 0 ? Warn : pend > 0 ? Cart : Dim));
 
         FrameworkElement buttons;

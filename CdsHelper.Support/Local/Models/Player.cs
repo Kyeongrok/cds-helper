@@ -824,6 +824,7 @@ public sealed class Player
         if (months <= 0) return;
         Date = Date.AddMonths(months);
         Recover(months * DaysPerMonth);
+        AgeCargo(months * DaysPerMonth);
     }
 
     /// <summary>게임이 달을 날로 셀 때 쓰는 날수. 달력 달이 아니라 서른 날이다.</summary>
@@ -840,6 +841,7 @@ public sealed class Player
         if (days <= 0) return;
         Date = Date.AddDays(days);
         Recover(days);
+        AgeCargo(days);
     }
 
     /// <summary>
@@ -1105,6 +1107,7 @@ public sealed class Player
     {
         DaysAtSea++;
         Date = Date.AddDays(1);
+        AgeCargo(1);
     }
 
     /// <summary>항해일을 그대로 박는다. 세이브를 되돌릴 때 쓴다.</summary>
@@ -2063,13 +2066,41 @@ public sealed class Player
 
     // ── 교역품 짐 ────────────────────────────────────────────────────────────
 
-    /// <summary>짐 칸 하나 — 교역품 종류 · 갯수 · 원산지 도시 · 한 개 무게.</summary>
+    /// <summary>짐 칸 하나 — 교역품 종류 · 갯수 · 원산지 도시 · 한 개 무게 · 유통 기한.</summary>
     /// <remarks>
-    /// 게임은 함대 전역 객체(<c>0x005B3928</c>)의 <c>+0x54</c> 에 <c>{종류, 갯수, 원산지, ?}</c>
-    /// 16바이트 x 8칸을 둔다(읽기 <c>0x004742B0</c> · 쓰기 <c>0x004742F0</c>). 넷째 칸은 뜻을
-    /// 못 갈랐다. 무게는 교역품 표에 있지만 이 모델은 그 표를 모르므로 실을 때 함께 적어 둔다.
+    /// 게임은 함대 전역 객체(<c>0x005B3928</c>)의 <c>+0x54</c> 에 <c>{종류, 갯수, 원산지, 기한}</c>
+    /// 16바이트 x 8칸을 둔다(읽기 <c>0x004742B0</c> · 쓰기 <c>0x004742F0</c>). 무게는 교역품 표에 있지만
+    /// 이 모델은 그 표를 모르므로 실을 때 함께 적어 둔다.
+    ///
+    /// <b>기한</b>은 남은 날수다 — 살 때 교역품 표 수명(달) x 30 으로 차고(<c>0x004B5910</c>), 날마다 하나씩
+    /// 준다(<c>0x004759ED</c>). <see cref="NeverSpoils"/>(210)는 「안 썩음」 표시라 안 준다 — 수명이 7달이
+    /// 아닌 어육·쇠고기·포도주·말·노예만 썩는다. 0 이 되어도 짐은 그대로 남고 <b>팔 값만 0</b> 이다.
+    /// 옛 세이브의 짐은 기한이 없어 안 썩는 것으로 연다.
     /// </remarks>
-    public readonly record struct Cargo(int Kind, int Count, int Origin, int UnitWeight);
+    public readonly record struct Cargo(int Kind, int Count, int Origin, int UnitWeight,
+                                        int Shelf = NeverSpoils)
+    {
+        /// <summary>썩어서 팔 값이 없는지.</summary>
+        public bool Spoiled => Shelf <= 0;
+
+        /// <summary>화면에 내는 달수 — <c>(기한 + 29) / 30</c>, 0 이하면 0(<c>0x004B58F0</c>).</summary>
+        public int Months => Shelf <= 0 ? 0 : (Shelf + 29) / 30;
+    }
+
+    /// <summary>「안 썩음」 기한 — 수명 7달 x 30(<c>0x004759F4</c> 의 <c>cmp 0xD2</c>).</summary>
+    public const int NeverSpoils = 210;
+
+    /// <summary>짐 기한을 날수만큼 줄인다 — 0 에서 멈추고 안 썩는 것은 그대로다(<c>0x004759ED</c>).</summary>
+    public void AgeCargo(int days)
+    {
+        if (days <= 0) return;
+        for (int i = 0; i < _cargo.Count; i++)
+        {
+            var c = _cargo[i];
+            if (c.Shelf == NeverSpoils) continue;
+            _cargo[i] = c with { Shelf = Math.Max(0, c.Shelf - days) };
+        }
+    }
 
     /// <summary>짐 칸 수. <b>함대 통틀어</b> 여덟이다 — 배마다가 아니다(<c>0x004B5780</c>).</summary>
     public const int CargoSlots = 8;
@@ -2086,20 +2117,20 @@ public sealed class Player
     public int CargoWeight => _cargo.Sum(c => c.Count * c.UnitWeight);
 
     /// <summary>
-    /// 교역품을 싣는다. 같은 종류 · 같은 원산지 칸이 있으면 합치고, 없으면 빈 칸에 넣는다
-    /// (게임 <c>0x004B5830</c> AddCargo 와 같다). 칸이 없으면 false.
+    /// 교역품을 싣는다. 같은 종류 · 같은 원산지 · <b>같은 기한</b> 칸이 있으면 합치고, 없으면 빈 칸에 넣는다
+    /// (게임 <c>0x004B5830</c> AddCargo — 짝 찾기 <c>0x004B5750</c> 이 기한까지 본다). 칸이 없으면 false.
     /// </summary>
-    public bool LoadCargo(int kind, int count, int origin, int unitWeight)
+    public bool LoadCargo(int kind, int count, int origin, int unitWeight, int shelf = NeverSpoils)
     {
         if (kind < 0 || count <= 0) return false;
-        int at = _cargo.FindIndex(c => c.Kind == kind && c.Origin == origin);
+        int at = _cargo.FindIndex(c => c.Kind == kind && c.Origin == origin && c.Shelf == shelf);
         if (at >= 0)
         {
             _cargo[at] = _cargo[at] with { Count = _cargo[at].Count + count };
             return true;
         }
         if (_cargo.Count >= CargoSlots) return false;
-        _cargo.Add(new Cargo(kind, count, origin, Math.Max(0, unitWeight)));
+        _cargo.Add(new Cargo(kind, count, origin, Math.Max(0, unitWeight), shelf));
         return true;
     }
 
@@ -2657,6 +2688,7 @@ public sealed class Player
         Gold -= Skill.Price;
         _skills[skill] = next;
         Date = Date.AddMonths(Skill.MonthsFor(next));
+        AgeCargo(Skill.MonthsFor(next) * DaysPerMonth);
         return LearnResult.Ok;
     }
 }

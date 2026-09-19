@@ -31,7 +31,7 @@ namespace CdsHelper.Game.UI.Views;
 ///
 /// 줄 이름을 누르면 수를 적는 창(<c>0x00454AA0</c> — 제목은 품목 이름, 「탑재수」「통」, 눈금 「현재수」
 /// 「한통의 무게」)이 뜬다. ↑↓(Shift 로 열씩)도 된다.
-/// 교역품의 유통 기한(「[%d]」)은 우리 짐 칸에 없어서 안 낸다.
+/// 교역품 이름 뒤 「[%d]」(<c>0x0055F338</c>)는 유통 기한의 달수다.
 /// </remarks>
 public sealed class LootDialog : GameWindow
 {
@@ -120,7 +120,7 @@ public sealed class LootDialog : GameWindow
             _original[i] = _now[i] = _player.SupplyOf(Supply.All[i].Kind);
         _rows.Clear();
         foreach (var c in _player.CargoHold)
-            _rows.Add(new GoodsRow(new BattleLoot.Goods(c.Kind, c.Count, c.Origin, c.UnitWeight)));
+            _rows.Add(new GoodsRow(new BattleLoot.Goods(c.Kind, c.Count, c.Origin, c.UnitWeight, c.Shelf)));
         _aside = _loot;
     }
 
@@ -174,7 +174,7 @@ public sealed class LootDialog : GameWindow
             int at = k;
             var r = _rows[k];
             _body.Children.Add(Row(Arrow(UiSprites.IconDown, () => Swap(at)),
-                Clickable(Label(GoodsName(r.Goods.Kind)), () => Enter(GoodsName(r.Goods.Kind), r.Now, r.Original,
+                Clickable(Label($"{GoodsName(r.Goods.Kind)} [{Months(r.Goods.Shelf)}]"), () => Enter(GoodsName(r.Goods.Kind), r.Now, r.Original,
                                                                      r.Original, r.Goods.UnitWeight,
                                                                      v => r.Now = v)),
                 Cell(Label($"{r.Goods.UnitWeight,6}"), UnitWidth),
@@ -192,9 +192,12 @@ public sealed class LootDialog : GameWindow
                 $"식량{PoolLeft(0),4}통　물{PoolLeft(1),4}통　자재{PoolLeft(2),4}통　탄약{PoolLeft(3),4}통")));
             if (_aside is { } aside)
                 _body.Children.Add(Row(Arrow(UiSprites.IconUp, LoadAside),
-                    Label($"{GoodsName(aside.Kind),-12} {aside.Count}통 ({_cityName(aside.Origin)}산)")));
+                    Label($"{GoodsName(aside.Kind),-12}[{Months(aside.Shelf)}] {aside.Count}통 ({_cityName(aside.Origin)}산)")));
         }
     }
+
+    /// <summary>「[%d]」 달수(<c>0x004B58F0</c>).</summary>
+    private static int Months(int shelf) => shelf <= 0 ? 0 : (shelf + 29) / 30;
 
     private string GoodsName(int kind) => _goods?.Find(kind)?.Name ?? $"교역품 {kind}";
 
@@ -269,7 +272,8 @@ public sealed class LootDialog : GameWindow
 
         for (int i = 0; i < Supply.Count; i++) _player.SetSupply(Supply.All[i].Kind, _now[i]);
         _player.RestoreCargo(_rows.Where(r => r.Now > 0)
-                                  .Select(r => new Player.Cargo(r.Goods.Kind, r.Now, r.Goods.Origin, r.Goods.UnitWeight)));
+                                  .Select(r => new Player.Cargo(r.Goods.Kind, r.Now, r.Goods.Origin, r.Goods.UnitWeight,
+                                                                r.Goods.Shelf)));
         _decided = true;
         Close();
     }
