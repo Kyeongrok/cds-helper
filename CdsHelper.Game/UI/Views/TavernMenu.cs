@@ -616,8 +616,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 string label = seat.Art.Female ? "여" : "남";
                 // 무명 남자 손님은 자리를 지을 때 어디서 왔는지와 할 이야기가 정해진다(0x004A15C0).
                 var talk = seat.Art.Female ? null : SeatStranger();
+                bool inn = kind == FacilityKind.Inn;
                 art.Add(new(bgra, seat.Art.Width, seat.Art.Height, label,
-                            () => Alone(() => MeetStranger(seat.Art.Female, talk))));
+                            () => Alone(() => MeetStranger(seat.Art.Female, talk, inn))));
             }
             else
             {
@@ -944,7 +945,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// <summary>
     /// 이름 없는 손님을 눌렀을 때. 게임 문구를 그대로 옮겼다(<c>0x0054AC40</c>·<c>0x0054AB98</c>).
     /// </summary>
-    private void MeetStranger(bool female, StrangerSeat? seat)
+    /// <remarks>
+    /// 남자 손님도 먼저 눈에 띈 것을 알리고 묻는다 — 술집은 「술을 마시고 있는 남자가 있다」
+    /// [한잔 산다 · 무시한다](<c>0x0042F4F0</c>)이고 <b>술을 사야</b>(<c>0x0042F250</c>) 입을 연다.
+    /// 여관은 「머무는 손님이 있다」 [말을 건다 · 무시한다](<c>0x004A5070</c>, 건물 코드 5)로 술 없이 듣는다.
+    /// </remarks>
+    private void MeetStranger(bool female, StrangerSeat? seat, bool inn = false)
     {
         // 여자 손님은 예전 그대로 — 한잔 사서 낯을 트는 자리다.
         if (female)
@@ -953,6 +959,13 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                                "한잔 산다", "무시한다") == 0) BuyDrink();
             return;
         }
+
+        if (inn)
+        {
+            if (TalkDialog.Ask(_view, null, "", "머무는 손님이 있다", "말을 건다", "무시한다") != 0) return;
+        }
+        else if (TalkDialog.Ask(_view, null, "", "술을 마시고 있는 남자가 있다",
+                                "한잔 산다", "무시한다") != 0 || !BuyDrink()) return;
 
         // 무명 손님은 <b>이야기만</b> 건넨다 — 고용도 결투도 없다(0x004A4E60).
         seat ??= SeatStranger();
