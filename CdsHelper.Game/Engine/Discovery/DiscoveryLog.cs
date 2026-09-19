@@ -170,7 +170,8 @@ public sealed class DiscoveryLog
     }
 
     /// <summary>
-    /// 발견한 것으로 적는다. 주는 아이템이 있으면 소지품에 넣는다.
+    /// 발견한 것으로 적는다. <b>주는 아이템은 소지품에 넣지 않는다</b> — 보고·발표할 때까지는 소지품
+    /// 일람에 비쳐 보이기만 한다(<see cref="GameInfo.VirtualItems"/>, <c>0x004AAC10</c> 은 칸 0 만 채운다).
     /// </summary>
     /// <remarks>
     /// 관문이 하나 더 있다(<c>0x004AAC10</c>) — 발견물 표 <c>+0x2C</c> 가 1
@@ -183,17 +184,11 @@ public sealed class DiscoveryLog
     /// 얻는다</b> — 희망봉(1488.01)·마젤란해협(1520.10)·기저의 3대 피라미드(1519.07)·
     /// 잉카제국(1533.11) 따위다.
     /// </remarks>
-    /// <returns>
-    /// 넣은 아이템 번호. 주는 것이 없거나, 이미 발견한 것이거나, <b>소지품이 꽉 차서</b>
-    /// 못 들었으면 -1. (발견 자체는 그대로 적힌다 — 물건만 못 드는 것이다.)
-    /// </returns>
-    public int Discover(Player player, int id)
+    /// <returns>새로 발견했으면 true.</returns>
+    public bool Discover(Player player, int id)
     {
-        if (_table.Find(id) is not { } row) return -1;
-        if (TakenBy(row, player.Date) >= 0) return -1;
-        if (!player.Discover(id)) return -1;
-
-        if (!row.GivesItem) return -1;
-        return player.Take(row.ItemId) ? row.ItemId : -1;
+        if (_table.Find(id) is not { } row) return false;
+        if (TakenBy(row, player.Date) >= 0) return false;
+        return player.Discover(id);
     }
 }

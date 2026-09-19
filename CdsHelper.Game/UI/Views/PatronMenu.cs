@@ -888,13 +888,20 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             }
             closer += by;
 
-            // 그 발견물이 준 물건은 후원자가 <b>돌려준다</b> — "이것은 자네가 가지고 가게"
-            // 하고 소지품에 넣는다(0x004113F5 → 0x004B1710). 빼앗기는 것이 아니다.
-            // 서적·유물(아이템 분류 7)만 그렇고, 이미 들고 있으면 그대로 둔다.
+            // 그 발견물의 물건은 <b>서적(아이템 분류 7)만</b> 후원자가 돌려준다(0x004113E6~0x00411469).
+            // 나머지는 후원자가 가져가 일람에서 사라진다 — 발견물 아이템은 보고 전까지 소지품에 없던 것이다.
+            // 말투 셋(0x0052FBE0 · 0x0052FC00 · 0x0052FC60) 뒤에 「%s%s 손에 넣었다!」(0x0052FCB0)이고,
+            // 넘치면 물릴 수 없는 버리기 창이다(0x004B1710).
             if (row.GivesItem && _game.Items?.Find(row.ItemId) is { } gift
-                && gift.Category == Palace.KeepsakeCategory
-                && !_player.Items.Contains(row.ItemId) && _player.Take(row.ItemId))
-                GameDialog.Show(_view, $"[{gift.Name}]{GameUi.Josa(gift.Name, "을", "를")} 손에 넣었다!");
+                && gift.Category == Palace.KeepsakeCategory)
+            {
+                int s = StyleOf(patron);
+                TalkDialog.Say(_view, FaceOf(patron), "", s == 1 ? "이것은 저에게는 필요없는 것입니다. 당신이 가지고 가 주십시오. 언젠가 필요할 때가 있을 것입니다."
+                  : s == 2 ? "그것은 자네가 발견한 물건이네. 가지고 가도 좋네. 무언가 도움이 될지도 모르니."
+                  : "이것은 자네가 가지고 가게.");
+                GameDialog.Show(_view, $"{gift.Name}{GameUi.Josa(gift.Name, "을", "를")} 손에 넣었다!");
+                ItemGain.AddForced(_view, _game, [row.ItemId]);
+            }
 
             // 알린 것마다 명성이 오른다. 항구 발표(보수/70)와 셈이 다르다 — 보고는
             // 보수/50 이고 늦으면 그 반이다(0x004111D0).
@@ -2130,10 +2137,11 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         foreach (int id in _player.HiddenDiscoveries.ToList())
         {
             if (_game.Discoveries?.Table?.Find(id) is not { GivesItem: true } row) continue;
-            if (_player.Items.Contains(row.ItemId) || !_player.Take(row.ItemId)) continue;
 
+            // 넘치면 물릴 수 없는 버리기 창이다(0x0041C480 → 0x004B1710).
             string got = _game.Items?.Find(row.ItemId)?.Name ?? $"아이템 {row.ItemId}";
             GameDialog.Show(_view, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다!");
+            ItemGain.AddForced(_view, _game, [row.ItemId]);
         }
         _player.ClearHidden();
     }

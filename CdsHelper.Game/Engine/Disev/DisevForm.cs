@@ -99,10 +99,10 @@ public static class DisevForm
 
             case "아이템 소지 조건":
             case "아이템 비소지 조건":
-            case "아이템 획득":
+            case "아이템 보이기":
             case "아이템 상실":
-            case "이벤트 아이템 등록":
-            case "이벤트 아이템 처리":
+            case "아이템 획득(발견물 제외)":
+            case "아이템 획득(버리기 창)":
                 return F(new Field("아이템", 2, 2, Lookup.Item));
 
             case "힌트 획득":

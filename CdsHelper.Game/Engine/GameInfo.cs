@@ -25,6 +25,24 @@ public static class GameInfo
     /// 발표한 것은 이 칸에서 빠진다. 우리는 그 칸을 <see cref="Support.Local.Models.Player.Announced"/> 로 든다.
     /// 볼트 <c>88.분석-발견물 일람 거르기(보고·발표)</c>.
     /// </remarks>
+    /// <summary>
+    /// <b>아직 보고·발표하지 않은 발견물의 아이템</b> — 소지품 일람에 덧붙는다(<c>0x0044CBB3</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 발견물 아이템(표 <c>+0x30</c>)을 발견할 때 소지품 16칸에 넣지 않는다. 찾았고(칸 0) 아직
+    /// 알리지 않은(<c>+0x16 &amp; 0x80</c> 이 꺼진) 동안만 일람에 비쳐 보이고, 발표할 때 소지품으로 들어온다
+    /// (<c>0x0047EA5F</c>). 「가졌는가」 조건·장비 효과·시장·선물은 이것을 안 센다 — 실제 16칸만 본다.
+    /// </remarks>
+    public static List<int> VirtualItems(Game game)
+    {
+        var table = game.Discoveries?.Table;
+        var player = game.Player;
+        if (table == null) return [];
+        return [.. player.Discoveries.Where(id => !player.HasAnnounced(id)).Order()
+                   .Select(id => table.Find(id)).Where(r => r is { GivesItem: true })
+                   .Select(r => r!.Value.ItemId)];
+    }
+
     public static List<string> DiscoveryNames(Game game)
     {
         var table = game.Discoveries?.Table;
@@ -118,7 +136,8 @@ public static class GameInfo
             if (target >= 0 && row != null && row.Value.Hint != target) continue;
             found.Add(row?.Name ?? $"발견물 {id}");
 
-            if (row is not { GivesItem: true } got || !game.Player.HasItem(got.ItemId)) continue;
+            // 증거품은 아직 보고 안 한 발견물의 아이템이다 — 소지품 16칸에 든 것이 아니다(VirtualItems).
+            if (row is not { GivesItem: true } got || game.Player.HasAnnounced(id)) continue;
             evidence.Add(items?.Find(got.ItemId)?.Name ?? $"아이템 {got.ItemId}");
         }
 

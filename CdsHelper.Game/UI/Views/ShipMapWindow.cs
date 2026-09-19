@@ -2222,6 +2222,9 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityBuildings(saved.CityBuildings);
             _game.Player.SetLastSupply(saved.LastSupply);
             _game.Player.RestoreFleetCity(saved.FleetCity);
+            // 앞 판은 발견물 아이템을 발견할 때 소지품에 넣었다 — 아직 안 알린 것은 한 벌씩 걷어 낸다.
+            if (saved.Version < GameSave.VirtualItemsFrom)
+                foreach (int item in GameInfo.VirtualItems(_game)) _game.Player.Drop(item);
             _game.Player.RestoreScriptedCities(saved.ScriptedCities);
             _game.Player.RestoreNationStatus(saved.NationStatus);
             _game.Player.RestoreBarmaidFlags(saved.GiftedBarmaids, saved.RefusedBarmaids);
@@ -5370,12 +5373,8 @@ public sealed class ShipMapWindow : Window
             // 대본이 돌았으면 발견은 <b>대본의 01 0B 만</b> 적는다 — 게임의 발견 판정(0x0048D3F0)은
             // 대본 뒤에 결과 코드만 볼 뿐 발견을 따로 안 적는다. 예전에는 여기서 늘 적어서 존왕의
             // 술잔(104)을 낚시에 지고도(대본은 4E 로 끝남) 손에 넣었다. 대본이 없을 때만 여기서 적는다.
-            int item = over || scripted ? -1 : log.Discover(_game.Player, id);
-            if (item >= 0)
-            {
-                string got = _game.Items?.Find(item)?.Name ?? $"아이템 {item}";
-                NoticeDialog.Show(this, $"[{got}]{GameUi.Josa(got, "을", "를")} 손에 넣었다");
-            }
+            // 발견물 아이템은 여기서 안 든다 — 발표할 때 들어온다(GameInfo.VirtualItems).
+            if (!over && !scripted) log.Discover(_game.Player, id);
         }
         finally
         {
