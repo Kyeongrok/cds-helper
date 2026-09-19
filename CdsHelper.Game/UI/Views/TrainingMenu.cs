@@ -175,7 +175,25 @@ internal sealed class TrainingMenu(Window view, Engine.Game game, int buildingCo
         else Player.SetSkill(name, level + 1);
 
         NoticeDialog.Show(_view, $"{name}{GameUi.Josa(name, "을", "를")} 습득했다!");
+        RaiseByMastery(name, level + 1);
         return true;
+    }
+
+    /// <summary>숙달했으면 능력을 올리고 오른 만큼 알린다(<see cref="Engine.Town.Mastery"/>).</summary>
+    private void RaiseByMastery(string name, int newLevel)
+    {
+        bool tongue = IsTongue(name);
+        var gains = Engine.Town.Mastery.Gains(tongue ? -1 : Array.IndexOf(Skill.Names, name), tongue, newLevel,
+                                              _game.Random);
+        for (int k = 0; k < gains.Length; k++)
+        {
+            if (gains[k] <= 0) continue;
+            int was = Player.AbilityOf(k);
+            Player.AdjustAbility(k, gains[k]);
+            int up = Math.Min(Player.AbilityOf(k), Ability.Max) - was;
+            if (up > 0)
+                NoticeDialog.Show(_view, $"{Ability.Names[k]}{GameUi.Josa(Ability.Names[k], "이", "가")} {up} 올라갔다!");
+        }
     }
 
     /// <summary>배우는 동안 화면을 잠깐 어둡게 했다 밝힌다(<see cref="DayPass.Blackout"/>).</summary>
