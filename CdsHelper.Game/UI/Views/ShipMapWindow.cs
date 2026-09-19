@@ -5021,24 +5021,28 @@ public sealed class ShipMapWindow : Window
         _host.Paused = true;
         try
         {
+            // 폭풍 말은 모두 부관(없으면 뱃사람 #299) 얼굴이다 — 0x00478280(0x0047CC60(0, 1)).
             string word = storm.Word;
-            NoticeDialog.Show(this,
-                $"제, 제독, 큰일입니다! {word}{GameUi.Josa(word, "이", "가")} 오고 있습니다!!");
-            NoticeDialog.Show(this, "빨리 돛을 접어라! 어떻게 해서든지 버텨라!!");
+            var face = MateFace();
+            ConfirmDialog.Tell(this,
+                $"제, 제독, 큰일입니다! {word}{GameUi.Josa(word, "이", "가")} 오고 있습니다!!", face: face);
+            ConfirmDialog.Tell(this, "빨리 돛을 접어라! 어떻게 해서든지 버텨라!!", face: face);
             PlayEventScene(kind == SeaEventKind.Storm ? EventAnimation.Storm : EventAnimation.Blizzard);
 
             if (storm.Lost.Count > 0)
             {
-                string names = string.Join(", ", storm.Lost.Select(n => $"{n}호"));
-                NoticeDialog.Show(this,
+                // 배 이름은 「,  %s호」(0x005351E8, 쉼표 뒤 두 칸)로 잇는다.
+                string names = string.Join(",  ", storm.Lost.Select(n => $"{n}호"));
+                ConfirmDialog.Tell(this,
                     $"제독 {names}{GameUi.Josa(names, "이", "가")} 눈에 띄지 않습니다. " +
-                    $"{word}에서 놓친 것 같습니다.");
+                    $"{word}에서 놓친 것 같습니다.", face: face);
             }
             else
             {
-                NoticeDialog.Show(this, kind == SeaEventKind.Storm
+                ConfirmDialog.Tell(this, kind == SeaEventKind.Storm
                     ? "간신히 빠져 나왔습니다만, 선원들이 지쳐 있습니다. 어디서 휴양하는 것이 좋겠습니다."
-                    : "간신히 빠져 나왔습니다만, 선원들이 얼어있습니다. 어딘가 상륙해서 몸을 녹이는 것이 좋을 것 같습니다.");
+                    : "간신히 빠져 나왔습니다만, 선원들이 얼어있습니다. 어딘가 상륙해서 몸을 녹이는 것이 좋을 것 같습니다.",
+                    face: face);
             }
         }
         finally
