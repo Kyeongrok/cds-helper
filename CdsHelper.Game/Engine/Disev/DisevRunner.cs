@@ -1078,16 +1078,20 @@ public sealed class DisevRunner
             // 인물 표를 못 읽으면 도시 규모 3~4 의 밑값으로 싸운다.
         }
 
-        // 문화권은 적 대장 나라의 수도 것이다(0x00447070).
-        int culture = 0;
+        // 문화권은 적 대장 나라의 수도 것이다(0x00447070). 규모도 그 수도에서 온다(0x004494B3).
+        int culture = 0, scale = 0, foeNation = -1;
         if (_game.PersonTemplates?.Find(person) is { } who
             && _game.Nations?.Find(who.Nation) is { } nation)
+        {
+            foeNation = who.Nation;
             culture = _game.CityRows?.CultureOf(nation.Capital) ?? 0;
+            scale = _game.CityRows?.ScaleOf(nation.Capital) ?? 0;
+        }
 
         int terrain = player.CityId >= 0 ? 0 : 2;
         // 적 기능은 생성자로 넘긴다 — 편성이 생성자 안에서 지어진다.
         return new LandBattle(Deploy(aide), myMen, foeMen, player, aide, culture, terrain, foe, _dice,
-                              foeSkills)
+                              foeSkills, scale: scale, nation: foeNation)
         {
             KeepsCrew = _borrowedMen >= 0,
         };
