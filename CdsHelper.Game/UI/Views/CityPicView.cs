@@ -1511,7 +1511,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
             ShowContract: ShowContract,
             ShowPatrons: () => KeepCityMenu(Patrons.ShowPatrons),
             ShowMap: () => _cityMenu.Push(MapMenu),
-            Quit: () => GameSystemMenu.Quit(this, Menu),
+            Quit: () => GameSystemMenu.Quit(this, _game, Menu),
             Cancel: CloseCityMenu));
 
     /// <summary>

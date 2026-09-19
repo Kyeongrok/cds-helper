@@ -28,7 +28,7 @@ internal static class GameSystemMenu
     {
         "저장" => () => Save(view, game, menu),
         "로드" => () => Load(view, menu),
-        "게임 종료" => () => Quit(view, menu),
+        "게임 종료" => () => Quit(view, game, menu),
         "게임 재개" => menu.Close,
         _ => null,
     };
@@ -91,14 +91,17 @@ internal static class GameSystemMenu
     /// 되돌리는 일은 함대 창이 맡는다 — 시설 창은 그 창이 거느린 것이라 곧 닫힌다.
     /// 물어보고 나서 하는 것은 되돌릴 수 없기 때문이다(적어 두지 않은 것은 사라진다).
     ///
-    /// 문구는 게임 것 그대로다(<c>0x00568D20</c>). 게임은 <b>아직 저장하지 않은 판</b>이면
-    /// 여기서 한 번 더 묻는데(<c>0x00568D38</c> · 상태비트 <c>0x005A4D18 &amp; 0x80</c>)
-    /// 우리는 그 비트를 아직 안 들고 있어 그 갈래가 없다.
+    /// 문구는 게임 것 그대로다(<c>0x00568D20</c>). <b>아직 저장하지 않은 판</b>이면 한 번 더 묻는다
+    /// (<c>0x00568D38</c> · 상태비트 <c>0x005A4D18 &amp; 0x80</c>, 우리는 <see cref="Engine.Game.Unsaved"/>).
     /// </remarks>
-    public static void Quit(Window view, GameMenuHost menu)
+    public static void Quit(Window view, Engine.Game game, GameMenuHost menu)
     {
         if (view.Owner is not ShipMapWindow map) { menu.Close(); return; }
         if (!ConfirmDialog.Ask(view, "게임을 종료하겠습니까?")) return;
+        if (game.Unsaved
+            && !ConfirmDialog.Ask(view, "이 게임은 저장되어 있지 않습니다." + Environment.NewLine
+                                        + "이대로 종료해도 괜찮습니까?"))
+            return;
 
         menu.Close();
         map.ReturnToTitle();

@@ -2359,6 +2359,8 @@ public sealed class ShipMapWindow : Window
             _game.Player.SetLastSupply(saved.LastSupply);
             _game.Player.RestoreFleetCity(saved.FleetCity);
             _game.Player.SkipsCumulative = saved.SkipsCumulative ?? false;
+            // 중단저장으로 적힌 판을 열었으면 「아직 저장 안 됨」이 선다(0x00478E2B).
+            _game.Unsaved = saved.Suspended == true;
             // 앞 판은 발견물 아이템을 발견할 때 소지품에 넣었다 — 아직 안 알린 것은 한 벌씩 걷어 낸다.
             if (saved.Version < GameSave.VirtualItemsFrom)
                 foreach (int item in GameInfo.VirtualItems(_game)) _game.Player.Drop(item);
@@ -2717,7 +2719,7 @@ public sealed class ShipMapWindow : Window
         if (!ConfirmDialog.Ask(owner, "지금 플레이하고 있는 게임을 중단하겠습니까?")) return;
 
         _game.Player.SetSeaCell(_host.SeaSpot);
-        string error = GameSave.Save(_game.Player);
+        string error = _game.Save(suspended: true);   // 중단저장(0x004791D0)
         if (error.Length > 0)
         {
             NoticeDialog.Show(owner, $"기록하지 못했다 — {error}");
