@@ -55,8 +55,12 @@ public sealed class HullSelectDialog : GameWindow
     /// <summary>이 창에서 고른 선체. 안 골랐으면 null.</summary>
     public Hull? Chosen { get; private set; }
 
-    private HullSelectDialog()
+    /// <summary>늘어놓을 선체. 조선소마다 파는 것이 다르다(<see cref="Engine.Town.ShipyardStock"/>).</summary>
+    private readonly IReadOnlyList<Hull> _hulls;
+
+    private HullSelectDialog(IReadOnlyList<Hull> hulls)
     {
+        _hulls = hulls;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -109,7 +113,7 @@ public sealed class HullSelectDialog : GameWindow
         var table = new StackPanel();
         table.Children.Add(Row(Headers, header: true));
 
-        foreach (var hull in Hull.All)
+        foreach (var hull in _hulls)
         {
             string[] cells =
             [
@@ -186,9 +190,10 @@ public sealed class HullSelectDialog : GameWindow
     }
 
     /// <summary>선체 표를 띄운다. 고른 선체를 낸다(중단이면 null).</summary>
-    public static Hull? Show(Window owner)
+    /// <param name="hulls">늘어놓을 선체. 안 주면 모두다.</param>
+    public static Hull? Show(Window owner, IReadOnlyList<Hull>? hulls = null)
     {
-        var dlg = new HullSelectDialog { Owner = owner };
+        var dlg = new HullSelectDialog(hulls ?? Hull.All) { Owner = owner };
         dlg.ShowDialog();
         return dlg.Chosen;
     }

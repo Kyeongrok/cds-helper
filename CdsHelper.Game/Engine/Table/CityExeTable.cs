@@ -13,6 +13,7 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   +0x0C  도시가 차지하는 칸 수(2 또는 3) — 다가섰는지 가릴 때 쓴다
 ///   +0x1C  지역 무리(0~26) — 항구 "마을정보" 가 이 무리 안의 도시를 늘어놓는다
 ///   +0x10,+0x14  딸린 내륙 도시 번호(-1 = 없음)
+///   +0x18  조선소가 만들 줄 아는 선체 비트(0 코그 ~ 7 다우) — <see cref="HullMaskOf"/>
 ///   +0x20  문화권 (0~10)         +0x24  나라 번호
 ///   +0x28  규모(처음 값, 0~7)     +0x2C  시세 첫값(어디나 100)
 ///   +0x30  특산품                 +0x3C  시장 물건 8칸 (i32), 빈 칸은 -1
@@ -42,7 +43,7 @@ public sealed class CityExeTable
     private const string CacheName = "도시표-게임";
 
     /// <summary>알맹이 모양 판. 지역 무리를 더하며 5 로 올렸다.</summary>
-    private const int Version = 8;
+    private const int Version = 9;
 
     private const int TableVa = 0x004D14B0;
     private const int RowSize = 136;
@@ -133,7 +134,8 @@ public sealed class CityExeTable
     internal sealed record Snapshot(int[][] Stock, int[] Cultures, int[] Scales,
                                     int[] Nations, int[][] Specials,
                                     int[] CellX, int[] CellY, int[] Reach, int[] Regions,
-                                    ushort[][] Erase, int[] Flags, int[]? Buildings = null);
+                                    ushort[][] Erase, int[] Flags, int[]? Buildings = null,
+                                    int[]? HullMasks = null);
 
     private readonly int[][] _stock;
     private readonly int[] _cultures;
@@ -144,9 +146,11 @@ public sealed class CityExeTable
     private readonly ushort[][] _erase;
     private readonly int[] _flags;
     private readonly int[] _buildings;
+    private readonly int[] _hullMasks;
 
     private CityExeTable(Snapshot snapshot)
     {
+        _hullMasks = snapshot.HullMasks ?? [];
         _buildings = snapshot.Buildings ?? [];
         _stock = snapshot.Stock;
         _cultures = snapshot.Cultures;
@@ -267,6 +271,13 @@ public sealed class CityExeTable
     public int StartBuildingsOf(int cityId) =>
         cityId >= 0 && cityId < _buildings.Length ? _buildings[cityId] : -1;
 
+    /// <summary>
+    /// 그 도시 조선소가 <b>만들 줄 아는</b> 선체 비트(<c>+0x18</c>, 비트 n = 선체 n). 표 밖이면 0.
+    /// 무엇을 지금 파는지는 규모와 해가 더 가린다(<see cref="Engine.Town.ShipyardStock"/>).
+    /// </summary>
+    public int HullMaskOf(int cityId) =>
+        cityId >= 0 && cityId < _hullMasks.Length ? _hullMasks[cityId] : 0;
+
     /// <summary>그 도시의 형편 낱말(<c>+0x62</c>). 범위 밖이면 0.</summary>
     public int FlagsOf(int cityId) =>
         cityId >= 0 && cityId < _flags.Length ? _flags[cityId] : 0;
@@ -352,6 +363,7 @@ public sealed class CityExeTable
         var erase = new ushort[Count][];
         var flags = new int[Count];
         var buildings = new int[Count];
+        var hullMasks = new int[Count];
         for (int city = 0; city < Count; city++)
         {
             int row = TableVa + city * RowSize;
@@ -364,6 +376,7 @@ public sealed class CityExeTable
             erase[city] = block;
             flags[city] = (int)(exe.Word(row + FlagOffset) & 0xFFFF);
             buildings[city] = (int)(exe.Word(row + BuildingOffset) & 0xFFFF);
+            hullMasks[city] = (int)(exe.Word(row + 0x18) & 0xFFFF);
 
             cellX[city] = exe.Int(row + CellXOffset);
             cellY[city] = exe.Int(row + CellYOffset);
@@ -407,6 +420,6 @@ public sealed class CityExeTable
         }
 
         return new Snapshot(stock, cultures, scales, nations, specials, cellX, cellY, reach,
-                            regions, erase, flags, buildings);
+                            regions, erase, flags, buildings, hullMasks);
     }
 }
