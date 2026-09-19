@@ -254,7 +254,9 @@ public static class Encounter
     /// 곧 <b>기능 넷의 합 x 척수 x 600</b> 이다. 백 닢 단위로 내림한다. 예전에는 능력 넷의 합에 x20 만 곱해
     /// 서른 곱이 빠져 있었다.
     /// </remarks>
-    public static int Demand(in Enemy foe) => (SkillSum(foe) + 1) * (foe.Ships * 30) * 20 / 100 * 100;
+    /// <param name="weight">셈에 드는 덩치 — 바다는 척수 x 30(<c>0x0044364F</c>), 뭍에서 마주친 무리는 그 인원이다.</param>
+    public static int Demand(in Enemy foe, int? weight = null) =>
+        (SkillSum(foe) + 1) * (weight ?? foe.Ships * 30) * 20 / 100 * 100;
 
     /// <summary>요구액에 드는 적장 기능 넷 — 검술·포술·사격술·신학(<c>0x00455A36</c>).</summary>
     private static int SkillSum(in Enemy foe) =>
