@@ -2514,6 +2514,12 @@ public sealed class ShipMapWindow : Window
             GameSettings.ShowCoordOverlay = on;   // 다음에 켤 때도 그대로
             SyncOverlay();
         },
+        ArrowsOn = () => _host.ShowFlowArrows,
+        SetArrows = on =>
+        {
+            _host.ShowFlowArrows = on;
+            GameSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
+        },
         ToolBarOn = () => GameSettings.ShowToolBar,
         SetToolBar = on =>
         {
@@ -2627,15 +2633,6 @@ public sealed class ShipMapWindow : Window
             items.Add(("도시좌표", () => { Close(); ShowCityCoordinates(); }));
 
         items.Add(("항해일지를 본다", () => { Close(); ShowLogbook(); }));
-        // 게임에는 없는 줄이다. 원본은 화살표 없이 물결로 해류를 보이는데, 지도로 읽을 때는
-        // 방위를 바로 아는 편이 낫다 — 그래서 켜고 끌 수 있게 여기에 둔다.
-        items.Add((_host.ShowFlowArrows ? "화살표를 감춘다" : "바람과 해류를 본다", () =>
-        {
-            bool on = !_host.ShowFlowArrows;
-            _host.ShowFlowArrows = on;
-            GameSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
-            Close();
-        }));
         // 줄은 「기능」에서 끝난다(0x0048B4B5) — 「취소」는 기능 아래에만 있고 커맨드는 오른쪽 단추로 닫는다.
         items.Add(("기능", () => CommandMenu.Push(SeaSystemMenuBox)));
 
