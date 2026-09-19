@@ -1635,7 +1635,7 @@ public sealed class ShipMapWindow : Window
             case 1: SphinxQuizDialog.Play(this, _game.Random); break;
             case 2:
                 if (MazeGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
-                else MazeGame(this, _game.Random, _game.Player);
+                else MazeGame(this, _game.Random, null);   // 미니 게임은 상금 갈래가 아니다(0x0042C8A0(0))
                 break;
             case 3: FishingGameDialog.Play(this, _game.Random); break;
             case 4: CoinPuzzleDialog.Play(this, _game.Random); break;
