@@ -175,8 +175,15 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// <summary>접시에 쌓아 둔 납작 금화들. 다시 그릴 때마다 걷고 새로 놓는다.</summary>
     private readonly List<Image> _piled = [];
 
-    private CoinPuzzleDialog(Random rng)
+    /// <summary>
+    /// 놀이 속 천칭인지(<c>+0x154</c>) — 들어올 때 받은 인자다. 미니 게임(0)은 한 번 틀리면 곧 끝나고
+    /// 삯도 없다(<c>0x00450C9C</c> → <c>0x00450D3D</c>).
+    /// </summary>
+    private readonly bool _stakes;
+
+    private CoinPuzzleDialog(Random rng, bool stakes)
     {
+        _stakes = stakes;
         _game = new CoinPuzzle(rng);
         _coin = new Border[_game.Coins];
 
@@ -463,8 +470,9 @@ internal sealed class CoinPuzzleDialog : InfoDialog
 
         if (_game.Decide(Chosen)) { Close(); return; }
 
-        // 첫 실패는 끝이 아니다(0x00450CE4) — 판을 새로 깔고 한 번 더 준다.
-        if (_game.Won == null)
+        // 첫 실패는 끝이 아니다(0x00450CE4) — 판을 새로 깔고 한 번 더 준다. 다만 미니 게임이면
+        // 여기서 끝난다(0x00450C9C).
+        if (_game.Won == null && _stakes)
         {
             NoticeDialog.Show(this,
                 " 가려야 할 금화를 잘못 고른 것 같다. 천칭은 기울어져 금화를 떨어뜨리기 시작했다." +
@@ -671,7 +679,8 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     public static bool Play(Window owner, Random rng,
                             Support.Local.Models.Player? player = null)
     {
-        var dialog = new CoinPuzzleDialog(rng) { Owner = owner };
+        bool stakes = player != null;
+        var dialog = new CoinPuzzleDialog(rng, stakes) { Owner = owner };
         dialog.ShowDialog();
 
         bool won = dialog._game.Won == true;
@@ -682,18 +691,24 @@ internal sealed class CoinPuzzleDialog : InfoDialog
                 Environment.NewLine + "보물 상자를 무사히 가질 수 있었다.", "게임 클리어");
 
             // 삯은 <b>첫 판에 맞혔을 때만</b> 나온다(0x00450C4C 가 +0x150 을 본다).
-            if (!dialog._game.Missed)
+            if (stakes && !dialog._game.Missed)
             {
                 player?.Earn(CoinPuzzle.Prize);
                 NoticeDialog.Show(owner, $" 금화 {CoinPuzzle.Prize}닢을 손에 넣었다!", "게임 클리어");
             }
         }
-        else
+        else if (stakes)
         {
             NoticeDialog.Show(owner,
                 " 금화를 잘못 가려낸 것 같다. 천칭은 기울어지고 말았다. " +
                 Environment.NewLine + "순식간에 장치가 작동되어 방이 무너져 간다.",
                 "클리어 실패");
+        }
+        // 미니 게임은 방이 무너지지 않는다 — 한 줄로 끝난다(0x00450D3F · 0x0053AEC8).
+        else if (dialog._game.Missed)
+        {
+            NoticeDialog.Show(owner, " 가려야 할 금화를 잘못 고른 것 같다. 천칭은 기울어지고 말았다.",
+                              "클리어 실패");
         }
         return won;
     }
