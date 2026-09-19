@@ -159,9 +159,9 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// 부관이 있으면 <c>0x00544ED8</c> "제독, … 함대가 늦어지지만", 없으면
     /// <c>0x00544F20</c> "… 함대의 속도가 늦어지지만" 이다. 한 글자씩 다르다.
     ///
-    /// <b>얼굴은 보급 쪽에만 선다.</b> 선원 둘은 <c>0x004695C0</c>·<c>0x00469680</c> 으로
-    /// 나가고 보급 셋은 <c>0x00469660</c> 으로 나가는데, 화면을 보면 앞의 둘은 얼굴이
-    /// 없고 뒤의 셋만 얼굴이 선다. 그 얼굴은 <b>부관</b>이고, 부관 자리가 비면
+    /// 선원 둘은 <c>0x004695C0</c>·<c>0x00469680</c> 으로 나간다 — 둘 다 <c>0x004695E0</c> 을 거쳐
+    /// <b>부관이 있으면 부관 얼굴</b>, 없으면 얼굴 없는 알림이다(예전 화면은 부관 없이 본 것이다).
+    /// 보급 셋은 <c>0x00469660</c> 으로 나가고 그 얼굴은 <b>부관</b>, 부관 자리가 비면
     /// <b>항구 화자</b>가 대신 나선다(<see cref="SailFace"/>).
     ///
     /// 맨 앞에서 보는 것은 "편성돼 있지 않은 선박"(<c>0x004688A0</c>) — 이 마을에
@@ -181,12 +181,12 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         if (_player.Crew <= 0)
         {
-            ConfirmDialog.Tell(owner, "선원이 모자랍니다. 이래서는 출항할 수 없습니다!");
+            MateSays(owner, "선원이 모자랍니다. 이래서는 출항할 수 없습니다!");
             return false;
         }
 
         if (_player.Crew < _player.MinCrew
-            && !ConfirmDialog.Ask(owner, _player.MateAt(0).Length > 0
+            && !MateAsks(owner, _player.MateAt(0).Length > 0
                    ? "제독, 선원이 모자랍니다. 이대로라면 함대가 늦어지지만, 괜찮으십니까?"
                    : "선원이 모자랍니다. 이대로라면 함대의 속도가 늦어지지만, 괜찮으십니까?"))
             return false;
@@ -439,14 +439,14 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         {
             if (_player.Crew >= _player.MaxCrew)
             {
-                GameDialog.Show(owner, mate
+                MateSays(owner, mate
                     ? "제독, 이 이상 선원을 고용해도, 태울 수 있는 배가 없습니다."
                     : "선원수가 함대의 상한에 달하고 있습니다! 이 이상 고용해도 승선할 수 없습니다.");
                 return;
             }
 
             int price = CrewPrice;
-            GameDialog.Show(owner, $"몇 명 모집하겠습니까? 한 사람 당 금화 {price}닢 필요합니다.");
+            MateSays(owner, $"몇 명 모집하겠습니까? 한 사람 당 금화 {price}닢 필요합니다.");
 
             int want = CountDialog.Ask(owner, "선원고용", "고용할 사람 수", "명",
                                        _player.MaxCrew - _player.Crew, 1, false,
@@ -456,7 +456,7 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
             if (price * want > _player.Gold)
             {
-                GameDialog.Show(owner, mate
+                MateSays(owner, mate
                     ? "그렇게 고용할 수 있을 정도로 돈이 없습니다." : "소지금이 모자랍니다.");
                 continue;
             }
@@ -467,7 +467,7 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             // 아직 최저 승원에 모자라면 한 번 더 권한다.
             int lack = _player.MinCrew - _player.Crew;
             if (lack <= 0) return;
-            if (!ConfirmDialog.Ask(owner,
+            if (!MateAsks(owner,
                     $"앞으로 적어도 {lack}명은 필요합니다. 좀더 선원을 모집하겠습니까?"))
                 return;
         }
@@ -478,9 +478,11 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// </summary>
     private void FireCrew()
     {
+        // 이 창의 말은 다 부관 몫이다(0x004695C0 · 0x00469680 → 0x004695E0) — 부관이 있으면 부관 얼굴,
+        // 없으면 얼굴 없는 알림이다.
         var owner = Owner;
 
-        GameDialog.Show(owner, "선원을 몇 명 해고시키겠습니까?");
+        MateSays(owner, "선원을 몇 명 해고시키겠습니까?");
 
         int want = CountDialog.Ask(owner, "선원해고", "해고할 사람 수", "명", _player.Crew,
                                    1, false,
@@ -490,11 +492,21 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         // 최저 승원을 밑돌게 되면 한 번 물어본다.
         if (_player.Crew - want < _player.MinCrew
-            && !ConfirmDialog.Ask(owner, "선원 수가 최저 승원 수를 밑돌고 있습니다. 괜찮습니까?"))
+            && !MateAsks(owner, "선원 수가 최저 승원 수를 밑돌고 있습니다. 괜찮습니까?"))
             return;
 
         _player.AddCrew(-want);
     }
+
+    /// <summary>부관이 말한다 — 부관이 없으면 얼굴 없는 알림이다(<c>0x004695E0</c>).</summary>
+    private void MateSays(Window owner, string text)
+    {
+        if (MateFace() is { } face) ConfirmDialog.Tell(owner, text, face: face);
+        else GameDialog.Show(owner, text);
+    }
+
+    /// <summary>부관이 묻는다 — 부관이 없으면 얼굴 없이 묻는다.</summary>
+    private bool MateAsks(Window owner, string text) => ConfirmDialog.Ask(owner, text, face: MateFace());
 
     // ── 마을정보 ────────────────────────────────────────────────────────────
 
