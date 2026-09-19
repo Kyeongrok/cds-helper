@@ -4310,9 +4310,13 @@ public sealed class ShipMapWindow : Window
 
             var roll = new GameRandom(Environment.TickCount);
             var (foe, foeSkills, culture) = LeaderOf(at, party.Culture);
+            // 규모는 적 대장 나라의 수도에서 온다(0x004494B3).
+            int bandNation = _game.PersonTemplates?.Find(bandLeader)?.Nation ?? -1;
+            int bandScale = _game.CityRows?.ScaleOf(_game.Nations?.Find(bandNation)?.Capital ?? -1) ?? 0;
             var field = new LandBattle(line, 0, foeMen, player, aide, culture,
                                        LandBattle.FieldFor(_host.TerrainClass),
-                                       foe, roll, foeSkills, sort: LandBattle.Field)
+                                       foe, roll, foeSkills, sort: LandBattle.Field,
+                                       scale: bandScale, nation: bandNation)
             {
                 FoeFace = _game.PersonTemplates?.Find(LandFieldFoes.FirstLeader + at) is { } chief
                     ? _game.Faces?.TryGetBgra(chief.Face, female: false) : null,

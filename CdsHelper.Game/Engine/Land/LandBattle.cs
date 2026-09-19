@@ -185,14 +185,16 @@ public sealed class LandBattle
     public LandBattle(IReadOnlyList<int> mine, int myMen, int foeMen, Player player,
                       Player.MateInfo? aide, int culture, int terrain,
                       (int Might, int Mind, int Luck, int Body) foe, GameRandom dice,
-                      (int Sword, int Gunnery, int Shooting)? foeSkills = null, int sort = Script)
+                      (int Sword, int Gunnery, int Shooting)? foeSkills = null, int sort = Script,
+                      int scale = 0, int nation = -1)
     {
         FoeSkills = foeSkills;
         Sort = sort == Field ? Field : Script;
-        Nation = -1;
+        Nation = nation;
         Culture = culture;
         Terrain = Math.Clamp(terrain, 0, 3);
-        Scale = 0;
+        // 들싸움·대본 판의 규모는 <b>적 대장 나라의 수도</b> 규모다(0x004494B3 — 갈래 2·4 만 그 도시를 쓴다).
+        Scale = Math.Max(0, scale);
         _me = player;
         _aide = aide;
 
