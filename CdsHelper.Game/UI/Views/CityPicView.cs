@@ -619,12 +619,16 @@ public sealed class CityPicView : GameWindow, ITownScreen
         Greet(facility, building, arrived);
         ShowPhoto(facility.Kind, building.Code);
         if (arrived) facility = ArrivalHarbor(facility);
+        _openKind = facility.Kind;
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.Code, building.TeachMask,
                                  building.Kind),
                  facility.BgmTrack);
         MarkGateway(facility.Kind, arrived);
     }
+
+    /// <summary>지금 들어와 있는 시설 갈래 — 교회의 설득은 들머리 관문이 하나 더 있다(<c>0x004AE1F0</c>).</summary>
+    private FacilityKind? _openKind;
 
     /// <summary>건물 표에 항구가 서 있는지 — 없으면 그림 아무 데나 눌러 항구에 든다.</summary>
     private readonly bool _harborPlaced;
@@ -2058,7 +2062,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </remarks>
     void ITownScreen.Persuade(Patron patron)
     {
-        Patrons.Persuade(patron);
+        Patrons.Persuade(patron, church: _openKind == FacilityKind.Church);
         CloseMenu();
     }
 
