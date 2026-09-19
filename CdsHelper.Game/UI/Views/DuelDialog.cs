@@ -845,6 +845,9 @@ public sealed class DuelDialog : GameWindow
         return row[_dice.Next(row.Length)];
     }
 
+    /// <summary>판이 열리기 직전 — 바다 지도가 비·눈을 거둔다(<c>0x004AA87F</c>).</summary>
+    public static event Action? Opening;
+
     /// <summary>판을 연다. 이겼으면 true.</summary>
     /// <param name="art">싸움 그림. 없으면 막대와 글로만 낸다.</param>
     /// <param name="foeSet">상대 스프라이트셋(1~8).</param>
@@ -857,6 +860,7 @@ public sealed class DuelDialog : GameWindow
                             uint[]? myFace = null, string arena = DuelArt.Field,
                             BgmPlayer? bgm = null)
     {
+        Opening?.Invoke();
         int before = bgm?.Track ?? -1;
         bgm?.Play(BgmPlayer.DuelTrack);
         try
