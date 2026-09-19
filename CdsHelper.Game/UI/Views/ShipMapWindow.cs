@@ -1618,19 +1618,15 @@ public sealed class ShipMapWindow : Window
 
     private void MiniGames()
     {
+        // 원본 차림표 그대로 일곱 줄이다 — 일기토·육상전 모의전·모의해전은 게임에 없는 줄이라 개발 창으로 옮겼다.
         string[] names =
         [
             "성배 퍼즐", "스핑크스 퀴즈", "미궁 64 퍼즐", "낚시 게임",
             "코인 게임", "발라몬의 탑 퍼즐", "화살표 입방체 퍼즐",
-            "일기토",
-            // 여기 아래 둘은 게임에 없는 줄이다 — 싸움 셈을 도시 없이 돌려 보려고
-            // 뒤에 붙였다. 해전은 메인메뉴에 두었던 것을 이리로 옮겼다(원본 메인메뉴에
-            // 없는 줄이라 거기 서 있으면 그만큼 게임이 아니게 된다).
-            "육상전 모의전", "모의해전",
         ];
 
-        // 원본 일곱 줄은 발견 이벤트에서 그 놀이를 이겨 풀린 것만 켜진다(0x0045FA54 벌). 뒤에 붙인 줄은 늘 된다.
-        bool[] open = [.. names.Select((_, i) => i >= OriginalMinigames || Local.Settings.GameSettings.IsMinigameUnlocked(i))];
+        // 발견 이벤트에서 그 놀이를 이겨 풀린 것만 켜진다(0x0045FA54 벌).
+        bool[] open = [.. names.Select((_, i) => Local.Settings.GameSettings.IsMinigameUnlocked(i))];
         int pick = MapPointDialog.Ask(this, names, "미니 게임", MapPointDialog.MenuWidth, open);
         if (pick < 0) return;
 
@@ -1646,9 +1642,6 @@ public sealed class ShipMapWindow : Window
             case 4: CoinPuzzleDialog.Play(this, _game.Random); break;
             case 5: TowerPuzzleDialog.Play(this, _game.Random); break;
             case 6: CubePuzzleDialog.Play(this, _game.Player, _game.Random, _game.Sfx); break;
-            case 7: PlayDuel(); break;
-            case 8: LandSparDialog.Play(this, _game); break;
-            case 9: MockSeaBattle(); break;
             default: NoticeDialog.Show(this, "아직 만들지 않았습니다"); break;
         }
     }
@@ -2514,6 +2507,10 @@ public sealed class ShipMapWindow : Window
             GameSettings.ShowCoordOverlay = on;   // 다음에 켤 때도 그대로
             SyncOverlay();
         },
+        // 싸움 셈을 도시 없이 돌려 보는 세 가지 — 미니 게임 차림표에 붙여 두었던 것을 옮겼다.
+        Duel = PlayDuel,
+        LandSpar = () => LandSparDialog.Play(this, _game),
+        SeaSpar = MockSeaBattle,
         ArrowsOn = () => _host.ShowFlowArrows,
         SetArrows = on =>
         {

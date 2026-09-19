@@ -45,6 +45,11 @@ public sealed class DevDialog : GameWindow
         /// <summary>자동항해 — 목적지 도시를 골라 손을 놓고 몬다. 개발 창을 닫은 뒤 부른다.</summary>
         public Action? AutoSail { get; init; }
 
+        /// <summary>싸움 셈을 돌려 보는 세 가지 — 일기토 · 육상전 모의전 · 모의해전. 창을 닫은 뒤 부른다.</summary>
+        public Action? Duel { get; init; }
+        public Action? LandSpar { get; init; }
+        public Action? SeaSpar { get; init; }
+
         /// <summary>바람·해류 화살표 — 원본에 없는 덧그림이라 이 창에 둔다.</summary>
         public Func<bool> ArrowsOn { get; init; } = () => false;
         public Action<bool> SetArrows { get; init; } = _ => { };
@@ -93,6 +98,25 @@ public sealed class DevDialog : GameWindow
             });
             sail.Children.Add(GameUi.PushButton("자동항해…", () => { Close(); autoSail(); }, 180));
             rows.Children.Add(sail);
+        }
+
+        // 모의전 셋 — 게임에 없는 줄이라 미니 게임 차림표에서 이 창으로 옮겼다.
+        foreach (var (label, run) in new (string, Action?)[]
+                 { ("일기토", options.Duel), ("육상전 모의전", options.LandSpar), ("모의해전", options.SeaSpar) })
+        {
+            if (run is not { } go) continue;
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+            line.Children.Add(new TextBlock
+            {
+                Text = "모의전",
+                Width = 64,
+                Foreground = GameUi.Text,
+                FontWeight = FontWeights.Bold,
+                FontSize = 15,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            line.Children.Add(GameUi.PushButton(label + "…", () => { Close(); go(); }, 180));
+            rows.Children.Add(line);
         }
 
         var buttons = new StackPanel
