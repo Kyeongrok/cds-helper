@@ -1820,7 +1820,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 PatronBorrow: patron != null && Patrons.CanBorrow(patron, KindsHere.Contains("항구")),
                 Commented: Commented(code),
                 Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,
-                Contracted: _player.Contract != null,
+                Contracted: facility.Kind == FacilityKind.Tavern && Guests.HasRumor,
                 HasHeir: _player.Heirs.Count > 0,
                 HasSon: Home.EldestSon(_player) != null,
                 HasBooks: _game.Books?.InLibrary(_cityId, _player.Date.Year).Count > 0,

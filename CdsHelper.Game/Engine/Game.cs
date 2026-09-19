@@ -216,6 +216,13 @@ public sealed class Game
     private TradeTable? _trade;
     private bool _tradeTried;
 
+    /// <summary>술집 소문 표(CDS_95.EXE <c>0x00525078</c>). 「정보를 듣는다」가 쓴다.</summary>
+    public RumorTable? Rumors =>
+        Once(ref _rumors, ref _rumorsTried, RumorTable.Open, () => RumorTable.LastError, "소문 표");
+
+    private RumorTable? _rumors;
+    private bool _rumorsTried;
+
     /// <summary>술 표(CDS_95.EXE). 술집이 그 고장에서 파는 술과 값이다.</summary>
     public DrinkTable? Drinks =>
         Once(ref _drinks, ref _drinksTried, DrinkTable.Open, () => DrinkTable.LastError, "술 표");
