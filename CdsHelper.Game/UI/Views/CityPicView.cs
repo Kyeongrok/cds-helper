@@ -1906,7 +1906,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                 Commented: Commented(code),
                 Drinks: facility.Kind == FacilityKind.Tavern ? DrinkNames : null,
                 Contracted: facility.Kind == FacilityKind.Tavern && Guests.HasRumor,
-                HasHeir: _player.Heirs.Count > 0,
+                HasHeir: Home.HasBornChild(_player),
                 HasSon: Home.EldestSon(_player) != null,
                 HasBooks: _game.Books?.InLibrary(_cityId, _player.Date.Year).Count > 0,
                 Wed: Home.CanLeaveHeir(_player)),

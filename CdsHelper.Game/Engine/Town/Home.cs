@@ -673,9 +673,20 @@ public static class Home
     /// <summary>세대교체 나이 — 열여덟부터(<c>0x00461AF4</c>).</summary>
     public const int SucceedAge = 18;
 
-    /// <summary>뒤를 이을 아들 — 성별 0 가운데 가장 나이 많은 것(<c>0x004AB790(0, 0)</c>). 없으면 null.</summary>
+    /// <summary>
+    /// 뒤를 이을 아들 — 성별 0 가운데 가장 나이 많은 것(<c>0x004AB790(0, 0)</c>). 없으면 null.
+    /// </summary>
+    /// <remarks>
+    /// <b>이미 태어난</b> 아이만 센다 — 원본은 나이 칸이 0 이상인 아이만 집으므로(<c>0x004AB7B7</c>),
+    /// 배 속에 있는 열 달 동안은 없는 것과 같다.
+    /// </remarks>
     public static Player.Child? EldestSon(Player player) =>
-        player.Children.Where(c => !c.Daughter).OrderBy(c => c.Born).FirstOrDefault();
+        player.Children.Where(c => !c.Daughter && c.IsBornBy(player.Date))
+                       .OrderBy(c => c.Born).FirstOrDefault();
+
+    /// <summary>이미 태어난 아이가 하나라도 있는지 — 「교육」 줄의 조건이다(<c>0x004AB8C0(0)</c>).</summary>
+    public static bool HasBornChild(Player player) =>
+        player.Children.Any(c => c.IsBornBy(player.Date));
 
     /// <summary>물려받는 명성(<c>0x00461B66</c>) — 3000 밑 0 · 6000 밑 1/5 · 그 위 1/5 + 1000.</summary>
     public static int InheritedFame(int fame) => fame < 3000 ? 0 : fame < 6000 ? fame / 5 : fame / 5 + 1000;
