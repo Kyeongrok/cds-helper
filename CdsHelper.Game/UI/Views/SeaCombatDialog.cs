@@ -292,13 +292,22 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                                  [("항복한다", Surrender), ("게임 복귀", () => { })]);
         };
 
-        // PgUp 은 「해전전황정보(제독·함대수)」다(0x0043F895). 괴물이 잠수한 판에서 적 칸을
-        // 누를 때도 같은 창이 뜬다(0x0043EBE2).
+        // 글쇠(0x0043EEDF 갈래) — PgUp 은 「해전전황정보(제독·함대수)」(0x0043F895),
+        // PgDn 은 지금 고른 배의 「해전전황정보(선박)」(0x0043F8FF)이다.
+        // (방향 글쇠·1~9·Enter·ESC·Space 는 원본의 커서 상태를 그대로 옮겨야 해서 아직 없다.)
         PreviewKeyDown += (_, e) =>
         {
-            if (_running || e.Key != Key.PageUp) return;
-            SeaBattleInfoDialog.Show(this, _battle, _player, _foe.Leader);
-            e.Handled = true;
+            if (_running) return;
+            if (e.Key == Key.PageUp)
+            {
+                SeaBattleInfoDialog.Show(this, _battle, _player, _foe.Leader);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.PageDown && _picked is { } shown)
+            {
+                SeaShipInfoDialog.Show(this, shown);
+                e.Handled = true;
+            }
         };
 
         Loaded += (_, _) => Redraw();
