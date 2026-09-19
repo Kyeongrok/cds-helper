@@ -971,7 +971,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
                                                         female: false),
                         arena: "duel-tavern", bgm: _game.Bgm);
         _huntSlain = false;
-        if (duel.Won != true && Guests.LostDuel(duel, face, dice, mateFought: false))
+        if (duel.Won != true && TavernMenu.LostDuel(this, _player, duel, face, dice, mateFought: false))
         {
             _huntSlain = true;
             return false;
