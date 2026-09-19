@@ -32,20 +32,24 @@ namespace CdsHelper.Game.UI.Views;
 /// <c>0x00470F60</c> → <c>0x00471FB0</c> → <c>0x00471FF0</c> → <c>0x00462E60</c>). 책등 풍선은
 /// 「백과사전 (%s)」(<c>0x0055AD10</c>)이다.
 ///
-/// 원본은 책마다 <b>보고한 비율만큼 빈 책등</b>을 뒤에 더 꽂아(보고 수 x 5 / 쪽 수, <c>0x00472430</c>)
-/// 책이 두꺼워 보이게 하고, 보고한 것이 하나라도 있으면 책등 무늬가 다르다(<c>0x004716A0</c>).
-/// 그 둘은 아직 옮기지 않았다.
+/// 책장은 <c>0x004722F0</c> 이 짓는다 — 갈래마다 책 한 권을 꽂고 곧바로 <b>빈 책등</b>을
+/// <c>보고 수 x 5 / 쪽 수</c>(0~5, <c>0x00472430</c>) 개 더 꽂아 많이 보고한 갈래일수록 두꺼워 보인다.
+/// 자리는 한 줄에 17칸이다(<c>0x00471550</c>). 책등 빛(<c>0x004716A0</c>, 모드 1)은 빈 책등 0(초록),
+/// 갈래 책은 보고한 것이 있으면 1(파랑) · 없으면 2(빨강)이다.
 /// </remarks>
 public sealed class EncyclopediaDialog : GameWindow
 {
-    /// <summary>책이 꽂히는 선반 — 백과사전은 <b>맨 윗줄 한 줄</b>이면 다 든다(여덟 권).</summary>
-    private const double ShelfTop = 66;
+    /// <summary>선반 셋의 윗변 — 도서관 서가와 같다.</summary>
+    private static readonly double[] ShelfTops = [66, 146.5, 227];
+
+    /// <summary>한 선반의 칸 수(<c>0x00471550</c> 의 <c>÷ 0x11</c>).</summary>
+    private const int SlotsPerShelf = 17;
 
     /// <summary>첫 자리와 자리 사이. 도서관 서가와 같은 치수다(책등이 반쯤 겹쳐 꽂힌다).</summary>
     private const double FirstSlotX = 30, SlotStep = 16.1;
 
-    /// <summary>백과사전 책등의 빛깔. 0 초록 · 1 파랑 · <b>2 빨강</b>.</summary>
-    private const int SpineRed = 2;
+    /// <summary>책등 빛깔 — 0 초록(빈 책등) · 1 파랑(보고한 것이 있다) · 2 빨강(없다).</summary>
+    private const int SpineGreen = 0, SpineBlue = 1, SpineRed = 2;
 
     /// <summary>닫기 조각의 크기와 양피지 모서리에서 떨어진 거리. 도서관 것과 같다.</summary>
     private const double CloseInset = 10;
@@ -85,8 +89,18 @@ public sealed class EncyclopediaDialog : GameWindow
         box.Children.Add(shelf);
         box.Children.Add(_layer);
 
-        var spine = ToBitmap(art.Spines[SpineRed], BookShelf.SpineWidth, BookShelf.SpineHeight);
-        for (int i = 0; i < DiscoveryTable.CategoryNames.Length; i++) AddBook(i, spine);
+        // 갈래 책 뒤에 보고한 비율만큼 빈 책등을 붙여 꽂는다(0x004722F0).
+        var spines = art.Spines.Select(p => ToBitmap(p, BookShelf.SpineWidth, BookShelf.SpineHeight)).ToArray();
+        int slot = 0;
+        var table = game.Discoveries!.Table;
+        for (int i = 0; i < DiscoveryTable.CategoryNames.Length; i++)
+        {
+            var pages = table.Discoveries.Where(r => r.Category == i && !r.Indirect).ToList();
+            int reported = pages.Count(r => game.Player.HasAnnounced(r.Id));
+            AddBook(i, slot++, spines[reported > 0 ? SpineBlue : SpineRed]);
+            int filler = pages.Count > 0 && reported <= pages.Count ? reported * 5 / pages.Count : 0;
+            for (int k = 0; k < filler; k++) AddBook(-1, slot++, spines[SpineGreen]);
+        }
 
         // 책등 밑에 뜨는 이름표 — 게임도 「지리」 처럼 낫표를 두른다.
         _tagText = new GameUi.GameLabel(GameFont.WhiteColor) { FallbackBrush = GameUi.Text };
@@ -116,9 +130,11 @@ public sealed class EncyclopediaDialog : GameWindow
     }
 
     /// <summary>갈래 한 권을 서가에 꽂는다.</summary>
-    private void AddBook(int category, BitmapSource spine)
+    private void AddBook(int category, int slot, BitmapSource spine)
     {
-        double x = FirstSlotX + category * SlotStep;
+        if (slot >= ShelfTops.Length * SlotsPerShelf) return;
+        double x = FirstSlotX + slot % SlotsPerShelf * SlotStep;
+        double top = ShelfTops[slot / SlotsPerShelf];
 
         var image = new Image
         {
@@ -126,21 +142,23 @@ public sealed class EncyclopediaDialog : GameWindow
             Width = BookShelf.SpineWidth * _scale,
             Height = BookShelf.SpineHeight * _scale,
             Stretch = Stretch.Fill,
-            Cursor = Cursors.Hand,
         };
         RenderOptions.SetBitmapScalingMode(image, GameUi.SpriteScaling);
         Canvas.SetLeft(image, x * _scale);
-        Canvas.SetTop(image, ShelfTop * _scale);
+        Canvas.SetTop(image, top * _scale);
+        _layer.Children.Add(image);
 
-        image.MouseEnter += (_, _) => ShowTag(category, x);
+        // 빈 책등(-1)은 눌리지 않는다(0x00470F60 이 -1 을 거른다).
+        if (category < 0) return;
+        image.Cursor = Cursors.Hand;
+        image.MouseEnter += (_, _) => ShowTag(category, x, top);
         image.MouseLeave += (_, _) => _tag.Visibility = Visibility.Collapsed;
         image.MouseLeftButtonDown += (_, e) => e.Handled = true;
         image.MouseLeftButtonUp += (_, e) => { e.Handled = true; Read(category); };
-        _layer.Children.Add(image);
     }
 
     /// <summary>책등 밑에 「백과사전 (갈래)」를 띄운다(<c>0x004718C0</c>).</summary>
-    private void ShowTag(int category, double x)
+    private void ShowTag(int category, double x, double top)
     {
         _tagText.Text = $"백과사전 ({DiscoveryTable.CategoryNames[category]})";
         _tag.Visibility = Visibility.Visible;
@@ -149,7 +167,7 @@ public sealed class EncyclopediaDialog : GameWindow
         double w = _tag.ActualWidth > 0 ? _tag.ActualWidth : 120;
         double left = (x + BookShelf.SpineWidth / 2.0) * _scale - w / 2;
         Canvas.SetLeft(_tag, Math.Clamp(left, 0, Math.Max(0, BookShelf.ShelfWidth * _scale - w)));
-        Canvas.SetTop(_tag, (ShelfTop + BookShelf.SpineHeight + 2) * _scale);
+        Canvas.SetTop(_tag, (top + BookShelf.SpineHeight + 2) * _scale);
     }
 
     /// <summary>한 권을 편다.</summary>
