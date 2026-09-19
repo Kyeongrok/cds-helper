@@ -3233,6 +3233,11 @@ public sealed class ShipMapWindow : Window
         int days = _ticks / TerrainTable.TicksPerDay;
         _ticks -= days * TerrainTable.TicksPerDay;
 
+        // 날을 다 보낸 뒤 이레째 날이거나 이레 넘게 흘렀으면 바람을 다시 흔든다(0x0044B25F → 0x00424E50).
+        // 앞에서 걸어 두면 이 고리가 끝나고 처음 읽을 때 새로 굴린다.
+        int serialAfter = (_game.Player.Date.AddDays(days) - WeekEpoch).Days;
+        if (days >= 7 || serialAfter % 7 == 0) _host.ShiftWind();
+
         for (int i = 0; i < days; i++)
         {
             // 새 도시가 섰으면 알린다 — 날이 간 뒤라야 그 달로 넘어간 것이 보인다.
@@ -3277,6 +3282,9 @@ public sealed class ShipMapWindow : Window
     /// 선원이 다 죽었으면 놀이가 끝난다 — 하루 셈 끝에 도시 밖이고 선원 합이 0 이면
     /// <c>0x0044AF40(0x5A4D18, 1)</c> 로 GAME OVER 다(<c>0x00475A2C</c>). 바다든 뭍이든 본다.
     /// </summary>
+    /// <summary>이레를 세는 밑날(<c>0x0042E6A0</c> 의 날수).</summary>
+    private static readonly DateTime WeekEpoch = new(1480, 1, 1);
+
     private bool CrewGone()
     {
         if (_game.Player.Ships.Count == 0 || _game.Player.Crew > 0) return false;

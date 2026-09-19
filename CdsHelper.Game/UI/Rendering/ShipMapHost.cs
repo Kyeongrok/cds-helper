@@ -163,6 +163,28 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>바람·해류 표. 못 열면 물결도 화살표도 안 나온다(지도는 그대로 돈다).</summary>
     private WindTable? _wind;
 
+    /// <summary>
+    /// 지금 쥐고 있는 바람 — 표 값에 방위를 <c>rand(3) − 1</c> 만큼 흔든 것(<c>0x00424E50</c>). 게임은 이 값을 바람 물건
+    /// <c>0x00586168</c> 에 박아 두고, 다시 읽을 때까지 그대로 쓴다.
+    /// </summary>
+    private (int Cell, int Month, WindTable.Flow Wind)? _heldWind;
+
+    /// <summary>
+    /// 그 칸의 바람. 칸이나 달이 바뀌었거나 <see cref="ShiftWind"/> 로 흔들라고 했으면 새로 읽는다 — 게임은 지도가 넘어갈
+    /// 때(<c>0x0047D1B0</c> 벌), 이레마다(<c>0x0044B27D</c>), 배에 오를 때(<c>0x0048EB94</c>) 다시 읽는다.
+    /// </summary>
+    private WindTable.Flow HeldWind(int cell, int month)
+    {
+        if (_heldWind is { } held && held.Cell == cell && held.Month == month) return held.Wind;
+        var raw = _wind!.WindAt(cell, month);
+        var wind = raw with { Dir = (raw.Dir + Random.Shared.Next(3) - 1) & 0xF };
+        _heldWind = (cell, month, wind);
+        return wind;
+    }
+
+    /// <summary>바람을 다시 흔든다 — 이레째 날이 넘어갔을 때와 배에 오를 때 부른다(<c>0x0044B27D</c> · <c>0x0048EB94</c>).</summary>
+    public void ShiftWind() => _heldWind = null;
+
     /// <summary>물결이 흐른 틱 수. 게임의 <c>0x00569554</c> 자리다.</summary>
     private int _rippleTick;
     private double _rippleAccum;
@@ -1008,7 +1030,7 @@ public sealed class ShipMapHost : HwndHost
         var (dx, dy) = _wind.Vector(flow.Dir);
         _renderer.Ripple = (dx, dy, flow.Speed, _rippleTick);
 
-        var wind = cell < 0 ? default : _wind.WindAt(cell, month);
+        var wind = cell < 0 ? default : HeldWind(cell, month);
         UpdateClouds(wind.Dir, wind.Speed, ticks);
 
         // 구름이 떠 있으면 틱마다 자리가 달라지므로 틱 자체가 곧 그림이다.
@@ -1441,7 +1463,7 @@ public sealed class ShipMapHost : HwndHost
         if (cell < 0) return (CellsPerTick, 0, 0);
 
         int month = MonthOf?.Invoke() ?? DefaultMonth;
-        var wind = _wind.WindAt(cell, month);
+        var wind = HeldWind(cell, month);
         int speed = FleetSpeed(wind.Dir, wind.Speed, _heading, _onLand);
 
         LastSpeed = speed;
@@ -2128,6 +2150,7 @@ public sealed class ShipMapHost : HwndHost
     public bool Embark()
     {
         if (SeaBlocked || !_onLand) return false;
+        ShiftWind();   // 배에 오르면 바람을 다시 읽는다(0x0048EB94)
 
         // 대 둔 자리로 돌아간다 — 게임도 상륙할 때 적어 둔 자리를 그대로 되돌린다
         // (0x004936DE). 그 자리가 물이 아니게 됐으면(있을 수 없지만) 가까운 물칸으로 간다.
