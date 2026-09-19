@@ -346,8 +346,14 @@ internal sealed class AbilityMakeDialog : InfoDialog
         player.SetGold(dialog._gold);
         player.Fame = dialog._fame;
         player.Infamy = dialog._infamy;
+        RolledMind = dialog._stats[Ability.Mind] - dialog._added[Ability.Mind];
         return dialog._left;
     }
+
+    /// <summary>
+    /// 굴린 지력(<c>[+0x110]</c>) — 보너스로 넣은 것을 뺀 값이다. 기술 화면의 상한이 이것으로 선다(<c>0x0045DFF6</c>).
+    /// </summary>
+    public static int RolledMind { get; private set; } = Ability.Base;
 
     /// <summary>굴릴 때 정해 둔 컨디션 · 소지금 · 명성 · 악명.</summary>
     private int _condition, _gold, _fame, _infamy;
