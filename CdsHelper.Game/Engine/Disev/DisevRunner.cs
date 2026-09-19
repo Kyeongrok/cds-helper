@@ -934,8 +934,9 @@ public sealed class DisevRunner
             if (at == 1) return;                       // 물건을 주면 그것으로 끝난다
             if (at < 0) continue;                      // 물러도 다시 묻는다(0x004092B0)
 
-            int gold = CountDialog.Ask(_owner, "교섭", "금화", "닢", player.Gold, step: 100);
-            if (gold <= 0) continue;
+            // 금액은 계산기 판으로 받는다(0x004092D2 → 0x00481FE0, 1~소지금). 물리면 다시 고르기로.
+            if (player.Gold <= 0 || NumberPadDialog.Ask(_owner, 1, 1, player.Gold) is not { } gold || gold <= 0)
+                continue;
 
             player.SetGold(player.Gold - gold);
             if (gold >= AppeaseLeast) return;
