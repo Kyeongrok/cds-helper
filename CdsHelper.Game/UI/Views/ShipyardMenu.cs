@@ -556,14 +556,18 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         }
         else
         {
-            Say("마스트에 달 돛의 종류를 정해 주게.");
-            int at = HintListDialog.Pick(owner, [Ship.SailNames[Ship.Lateen], Ship.SailNames[Ship.Square]],
-                                         "돛 종류", "");
-            if (at < 0) return;
-            sail = at == 0 ? Ship.Lateen : Ship.Square;
-            if (!Ask(sail == Ship.Lateen
-                    ? "이것은 역풍에 뛰어나네. 이 돛을 달겠네?"
-                    : "이것은 순풍에 뛰어나네. 이 돛을 달겠네?")) return;
+            // 돛을 고르고 「아니오」면 다시 고르게 한다(0x00494D50 → 0x00494CC5). 목록 끝에 「그만둔다」가 있다(0x005315E8).
+            while (true)
+            {
+                Say("마스트에 달 돛의 종류를 정해 주게.");
+                int at = HintListDialog.Pick(owner,
+                    [Ship.SailNames[Ship.Lateen], Ship.SailNames[Ship.Square], "그만둔다"], "돛 종류", "");
+                if (at < 0 || at == 2) return;
+                sail = at == 0 ? Ship.Lateen : Ship.Square;
+                if (Ask(sail == Ship.Lateen
+                        ? "이것은 역풍에 뛰어나네. 이 돛을 달겠네?"
+                        : "이것은 순풍에 뛰어나네. 이 돛을 달겠네?")) break;
+            }
         }
 
         var was = ship.Snapshot();
@@ -598,26 +602,40 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             if (ship.Sails[i] != Ship.NoSail) standing.Add(i);
         if (standing.Count == 0) return;
 
-        Say("어느 마스트의 돛을 바꿀건가?");
-        int pick = HintListDialog.Pick(owner,
-            [.. standing.Select(i => $"{GameUi.Pad(Ship.MastNames[i], 14)}{Ship.SailNames[ship.Sails[i]]}")],
-            "돛종류 변경", "");
-        if (pick < 0 || pick >= standing.Count) return;
+        // 마스트가 하나면 묻지도 늘어놓지도 않고 곧장 바꿀지 묻는다(0x00494F7D). 여럿이면 아니오·돈 부족·
+        // 바꾼 뒤에도 마스트 목록으로 돌아간다(jmp 0x00494F6B) — 물러야 나온다.
+        bool single = standing.Count == 1;
+        while (true)
+        {
+            int mast;
+            if (single) mast = standing[0];
+            else
+            {
+                Say("어느 마스트의 돛을 바꿀건가?");
+                int pick = HintListDialog.Pick(owner,
+                    [.. standing.Select(i => $"{GameUi.Pad(Ship.MastNames[i], 14)}{Ship.SailNames[ship.Sails[i]]}")],
+                    "돛종류 변경", "");
+                if (pick < 0 || pick >= standing.Count) break;
+                mast = standing[pick];
+            }
 
-        int mast = standing[pick];
-        bool lateen = ship.Sails[mast] == Ship.Lateen;
-        if (!Ask(lateen
-                ? "삼각돛을 순풍에 뛰어난 사각돛으로 바꿀 건가?"
-                : "사각돛을 역풍에 뛰어난 삼각돛으로 바꿀 건가?")) return;
-
-        int cost = Shipyard.SailCost(ship, _rate);
-        if (!Ask($"금화 {cost}닢이 드는데, 좋나?")) return;
-        if (!_player.Pay(cost)) { Say("돈이 모자라는 것 같군."); return; }
-        if (!ship.SwapSail(mast)) return;
-
-        string where = Ship.MastNames[mast], what = Ship.SailNames[ship.Sails[mast]];
-        NoticeDialog.Show(owner,
-            $"{where}{GameUi.Josa(where, "을", "를")} {what}{GameUi.Josa(what, "으로", "로")} 변경했습니다");
+            bool lateen = ship.Sails[mast] == Ship.Lateen;
+            int cost = Shipyard.SailCost(ship, _rate);
+            if (Ask(lateen
+                    ? "삼각돛을 순풍에 뛰어난 사각돛으로 바꿀 건가?"
+                    : "사각돛을 역풍에 뛰어난 삼각돛으로 바꿀 건가?")
+                && Ask($"금화 {cost}닢이 드는데, 좋나?"))
+            {
+                if (!_player.Pay(cost)) Say("돈이 모자라는 것 같군.");
+                else if (ship.SwapSail(mast))
+                {
+                    string where = Ship.MastNames[mast], what = Ship.SailNames[ship.Sails[mast]];
+                    NoticeDialog.Show(owner,
+                        $"{where}{GameUi.Josa(where, "을", "를")} {what}{GameUi.Josa(what, "으로", "로")} 변경했습니다");
+                }
+            }
+            if (single) break;
+        }
         _menu.Refresh();
     }
 
