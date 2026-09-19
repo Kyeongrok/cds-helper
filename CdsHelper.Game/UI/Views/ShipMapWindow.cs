@@ -2714,7 +2714,9 @@ public sealed class ShipMapWindow : Window
         ("힌트정보", () => Info(ShowHints)),
         ("계약정보", () => Info(ShowContract)),
         ("지도를 본다", () => CommandMenu.Push(MapMenuBox)),
-        ("돌아간다", CommandMenu.Pop),
+        // 「돌아간다」는 커맨드로 되짚지 않고 <b>커맨드 창을 통째로 닫는다</b> — 0x00425E40 이 돌아가면
+        // 0x0048B636 → 0x0048B798 로 창이 끝난다.
+        ("돌아간다", CommandMenu.Close),
     ]);
 
     /// <summary>
@@ -2865,18 +2867,11 @@ public sealed class ShipMapWindow : Window
         }
     }
 
-    private void Info(Action show)
-    {
-        // 창을 닫으면 Closed 가 멈춤을 푼다. 그런데 판이 뜨는 동안에도 <b>계속 멎어
-        // 있어야</b> 한다 — 안 그러면 인물정보를 보는 사이에 구름과 물결만 흘러 다닌다.
-        // 커맨드 창은 오므라든 뒤에 닫혀 그 알림이 <b>판이 떠 있는 사이에</b> 오므로,
-        // _asking 을 세워 그 손이 멈춤을 밟지 못하게 한다.
-        _asking = true;
-        _host.Paused = true;
-        CommandMenu.Close();
-        try { show(); }
-        finally { _asking = false; _host.Paused = false; }
-    }
+    /// <summary>
+    /// 정보 판 하나를 띄운다. 판을 닫으면 <b>정보 목록으로 되돌아온다</b> — 원본 0x00425E40 은 「돌아간다」(6)를
+    /// 고를 때까지 목록을 되풀이한다(0x004261E6). 판이 떠 있는 동안 커맨드 창은 감춰 둘 뿐이라 멈춤도 그대로다.
+    /// </summary>
+    private void Info(Action show) => WithMenuHidden(CommandMenu.Window, show);
 
     /// <summary>
     /// 인물정보 — 부하가 있으면 <b>이 창 위에 한 겹</b>을 쌓아 누구를 볼지 묻는다.
