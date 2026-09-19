@@ -578,7 +578,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         string where = Ship.MastNames[mast], what = Ship.SailNames[sail];
         NoticeDialog.Show(owner, $"{where}에 {what}{GameUi.Josa(what, "을", "를")} 달았습니다");
-        ShowRefit(owner, Refit.Between(was, ship.Snapshot()), ship);
+        ShowRefit(owner, Refit.Mast(was, ship.Snapshot()), ship);
     }
 
     /// <summary>
