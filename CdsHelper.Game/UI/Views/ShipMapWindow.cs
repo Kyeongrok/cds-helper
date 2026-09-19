@@ -4279,6 +4279,33 @@ public sealed class ShipMapWindow : Window
 
             var player = _game.Player;
             var aide = player.MateAt(0) is { Length: > 0 } name ? player.MateInfoOf(name) : null;
+
+            // 싸우기 전에 교섭·도망·응전을 고른다(0x0044AA30 → 0x0044A830 → 0x004555B0, 갈래 0) —
+            // 교섭이 되거나 달아나면 판을 안 연다. 요구액 셈에는 무리 인원이 든다.
+            int bandLeader = LandFieldFoes.FirstLeader + at;
+            var band = Encounter.OfPerson(CaptainOf(bandLeader) ?? Encounter.CaptainOf(bandLeader), party.Name)
+                       with { Kind = EnemyKind.Raider };
+            var talkFace = MateFace();
+            switch (ChoiceDialog.Ask(this, Encounter.TitleOf(EnemyKind.Raider), Encounter.Choices))
+            {
+                case 0 when Talked(band, dice, talkFace, weight: foeMen): return;
+                case 1:
+                    bool fled = Encounter.Escapes(player, band, dice,
+                                                  MateRow(0) is { } who && who.Stats.Length > Ability.Luck
+                                                      ? who.Stats[Ability.Luck] : 0);
+                    EffectPopup.PlayCoin(this, _game, fled, MapAreaOnScreen());
+                    if (fled)
+                    {
+                        ConfirmDialog.Tell(this, Encounter.FledWord(dice), "도망성공", talkFace);
+                        return;
+                    }
+                    ConfirmDialog.Tell(this, Encounter.CaughtWord(dice), "도망실패", talkFace);
+                    break;
+                case 2:
+                    ConfirmDialog.Tell(this, Encounter.FightOnWord(dice), "응전", talkFace);
+                    break;
+            }
+
             if (LandDeployDialog.Show(this, _game, "", -1) is not { } line) return;
 
             var roll = new GameRandom(Environment.TickCount);
@@ -4888,7 +4915,8 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>교섭 한 판. 돈을 물어 물러가면 true.</summary>
-    private bool Talked(in Enemy foe, Random rng, uint[]? face)
+    /// <param name="weight">요구액 셈의 덩치 — 바다는 안 준다(척수 x 30), 뭍 무리는 그 인원이다.</param>
+    private bool Talked(in Enemy foe, Random rng, uint[]? face, int? weight = null)
     {
         // 추격대·토벌대는 말이 안 통한다(0x0045585C) — 굴림 없이 진 동전이 돈다(0x00455860).
         // 통하는 적이면 굴리고 나서 동전을 돌린다(0x004559C2 → 0x004559CD).
@@ -4917,7 +4945,7 @@ public sealed class ShipMapWindow : Window
             return false;
         }
 
-        int want = Encounter.Demand(foe);
+        int want = Encounter.Demand(foe, weight);
         // 액수는 부관이 이르고(0x00455A7B), 낼지는 얼굴 없는 상자가 따로 묻는다(0x00455A8F).
         ConfirmDialog.Tell(this, Encounter.DemandWord(want, rng), "교섭", face: face);
         if (!ConfirmDialog.Ask(this, Encounter.PayDemandAsk, "교섭"))
