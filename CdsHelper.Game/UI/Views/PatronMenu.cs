@@ -95,12 +95,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
     private void PersuadeNow(Patron patron, bool church = false)
     {
-        // 내밀 것이 없으면 그 자리에서 물린다(0x004769D4). 문간 관문보다 먼저다.
-        if (LiveHints.Count == 0)
-        {
-            NoticeDialog.Show(_view, "설득 가능한 힌트가 없습니다");
-            return;
-        }
+        // 내밀 것이 없으면 줄부터 안 서지만, 그 사이 힌트가 사라졌으면 말없이 물린다(0x004AE8E0 의 −1).
+        if (LiveHints.Count == 0) return;
 
         // 딴 후원자와 계약 중이면 <b>감찰관이 막는다</b>(0x0044EB70 case 0 → 0x0044FC80). 그 후원자와의 계약이면
         // 이 줄 대신 「계약중단」이 뜨므로 여기 올 일이 없다.
@@ -789,19 +785,14 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
       : "";
 
     /// <summary>
-    /// 후원자가 앉아 있으면 "설득" 줄은 <b>늘 뜬다</b>.
+    /// "설득" 줄은 <b>내밀 힌트가 있을 때만</b> 선다(<c>0x0044E663</c> → <c>0x0044E9A0</c> 이
+    /// <c>0x0044E7B0(0) &gt; 0</c> 을 본다). 없으면 줄 상태가 −1 로 남아 줄이 아예 없다.
     /// </summary>
     /// <remarks>
-    /// 한때 내밀 힌트가 없으면 줄부터 감췄는데 <b>게임은 그렇지 않다</b> — 눌러 보고 나서
-    /// 「설득 가능한 힌트가 없습니다」로 물린다(<c>0x004769D4</c> 가 <c>0x0055E548</c> 을 낸다).
-    /// <code>
-    ///   004769c6  call 0x0044E7B0(&amp;buf)   ; 내밀 수 있는 힌트를 모은다
-    ///   004769d0  test esi, esi             ; 하나도 없으면
-    ///   004769d4  push 0x0055E548           ;   "설득 가능한 힌트가 없습니다"
-    ///   004769e5  eax = -1                  ;   그러고 물러난다
-    /// </code>
+    /// 「설득 가능한 힌트가 없습니다」(<c>0x0055E548</c>)는 설득이 아니라 정보 차림표의 힌트 일람
+    /// (<c>0x004769A0</c> — <c>0x0042618B</c> · <c>0x004933E4</c> 에서 부른다)이 내는 말이다.
     /// </remarks>
-    private static bool CanPersuade => true;
+    private bool CanPersuade => LiveHints.Count > 0;
 
     /// <summary>
     /// 아직 살아 있는 힌트 — 얻었고 아직 보고 안 한 것이다(원본 힌트 상태 13).
