@@ -190,7 +190,22 @@ public static class Ability
     /// 마흔이면 평균 +19.5 다. 그래서 <b>늙게 잡을수록 능력치가 세다</b> — 대신 잘
     /// 굴린 만큼 보너스 포인트를 덜 준다(<see cref="BonusFor"/>).
     /// </remarks>
-    public static int[] Roll(Job job, int age, int month, int day, Random rng)
+    /// <summary>
+    /// 굴림 보정 열여섯 줄(<c>0x0051ACA0</c>, 한 줄 32바이트의 앞 여섯) — <b>얼굴 자리</b>로 고른다(<c>0x0045D473</c> 가
+    /// <c>[+0xBC]</c> = 1단계에서 고른 초상화 번호를 줄로 쓴다). 직업이 아니다.
+    /// </summary>
+    public static readonly int[][] FaceBias =
+    [
+        [0, 0, 0, 0, 0, 0], [2, -3, -2, 5, -2, 0], [2, -3, 2, -3, 2, 0], [-2, 3, -2, 3, -2, 0],
+        [-2, -4, 5, -1, 2, 0], [-2, 4, -3, -1, 2, 0], [-3, 2, 4, -2, -1, 0], [2, 2, 2, -5, 2, 0],
+        [-5, -1, -1, 4, 3, 0], [5, -4, 4, 1, -5, 0], [3, 5, -3, -3, -1, 0], [2, 0, -2, -3, 3, 0],
+        [4, -2, 3, -4, 0, 0], [-3, -1, 4, -3, 3, 0], [1, -3, -3, 0, 5, 0], [2, 2, 2, -3, -3, 0],
+    ];
+
+    /// <summary>그 얼굴 자리의 보정 줄. 표 밖이면 0 줄이다.</summary>
+    public static int[] BiasOf(int face) => face >= 0 && face < FaceBias.Length ? FaceBias[face] : FaceBias[0];
+
+    public static int[] Roll(int[] bias, int age, int month, int day, Random rng)
     {
         var tier = AgeBias[TierOf(age)];
         var born = BirthBias(month, day);
@@ -198,7 +213,7 @@ public static class Ability
 
         for (int i = 0; i < Shown; i++)
             stats[i] = Math.Clamp(Base + born[i] + rng.Next(Math.Max(1, age))
-                                  + job.Bias[i] + tier[i], Min, Max);
+                                  + bias[i] + tier[i], Min, Max);
 
         stats[Faith] = rng.Next(FaithRoll) + FaithBase;
         return stats;
