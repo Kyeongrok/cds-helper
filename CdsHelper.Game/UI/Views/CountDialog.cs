@@ -77,6 +77,9 @@ public sealed class CountDialog : GameWindow
 
     private int _at;
 
+    /// <summary>0 도 고를 수 있는지 — 짐 창처럼 지금 값을 고쳐 적는 자리다(<see cref="Set"/>).</summary>
+    private bool _zeroOk;
+
     private CountDialog(string caption, string label, string unit, int max, int step,
                         bool full, Gauge[] lines)
     {
@@ -170,7 +173,7 @@ public sealed class CountDialog : GameWindow
             case Key.Escape: Close(); break;
             case Key.Up: Bump(+1); e.Handled = true; break;
             case Key.Down: Bump(-1); e.Handled = true; break;
-            case Key.Enter or Key.Space when _at > 0: Decide(); e.Handled = true; break;
+            case Key.Enter or Key.Space when _at > 0 || _zeroOk: Decide(); e.Handled = true; break;
         }
     }
 
@@ -184,12 +187,12 @@ public sealed class CountDialog : GameWindow
     private void Paint()
     {
         _count.Text = $"{_at}";
-        _decide.On = _at > 0;
+        _decide.On = _at > 0 || _zeroOk;
     }
 
     private void Decide()
     {
-        if (_at <= 0) return;
+        if (_at <= 0 && !_zeroOk) return;
         _picked = _at;
         Close();
     }
@@ -271,5 +274,21 @@ public sealed class CountDialog : GameWindow
         var dialog = new CountDialog(caption, label, unit, max, step, full, lines) { Owner = owner };
         dialog.ShowDialog();
         return dialog._picked;
+    }
+
+    /// <summary>
+    /// 지금 값을 고쳐 적게 한다 — <paramref name="start"/> 에서 시작하고 0 도 된다. 중단하면 null.
+    /// </summary>
+    /// <remarks>짐 창에서 줄을 누를 때가 이것이다(<c>0x00454AA0</c>, 「탑재수」「통」「현재수」「한통의 무게」).</remarks>
+    public static int? Set(Window owner, string caption, string label, string unit,
+                           int start, int max, params Gauge[] lines)
+    {
+        var dialog = new CountDialog(caption, label, unit, Math.Max(0, max), 1, false, lines) { Owner = owner };
+        dialog._zeroOk = true;
+        dialog._at = Math.Clamp(start, 0, Math.Max(0, max));
+        dialog._picked = -1;
+        dialog.Paint();
+        dialog.ShowDialog();
+        return dialog._picked < 0 ? null : dialog._picked;
     }
 }

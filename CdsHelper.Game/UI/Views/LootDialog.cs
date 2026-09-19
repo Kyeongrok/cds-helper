@@ -29,7 +29,8 @@ namespace CdsHelper.Game.UI.Views;
 /// (<c>0x00488980</c>) 넘으면 말만 하고 그대로 있는다. 되쓸 때 식량·물은 통 x 10 이고, 짐 칸은 갯수가
 /// 있는 줄만 줄 차례로 다시 쓴다. <b>미탑재품과 풀에 남은 것은 버린다.</b>
 ///
-/// 원본은 줄을 누르면 수를 적는 창(<c>0x00454AA0</c>)이 뜨는데 여기서는 ↑↓(Shift 로 열씩)만 둔다.
+/// 줄 이름을 누르면 수를 적는 창(<c>0x00454AA0</c> — 제목은 품목 이름, 「탑재수」「통」, 눈금 「현재수」
+/// 「한통의 무게」)이 뜬다. ↑↓(Shift 로 열씩)도 된다.
 /// 교역품의 유통 기한(「[%d]」)은 우리 짐 칸에 없어서 안 낸다.
 /// </remarks>
 public sealed class LootDialog : GameWindow
@@ -160,7 +161,9 @@ public sealed class LootDialog : GameWindow
         {
             int at = i;
             var s = Supply.All[i];
-            _body.Children.Add(Row(null, Label(s.Name),
+            _body.Children.Add(Row(null, Clickable(Label(s.Name), () => Enter(s.Name, _now[at], _original[at] + _pool,
+                                                                              _original[at], s.UnitWeight,
+                                                                              v => _now[at] = v)),
                 Cell(Label($"{s.UnitWeight,6}"), UnitWidth),
                 Cell(Label($"{_original[i],6}통"), HaveWidth),
                 Cell(Spin(_now[i] - _original[i], () => BumpSupply(at, +1), () => BumpSupply(at, -1)), AddWidth)));
@@ -171,7 +174,9 @@ public sealed class LootDialog : GameWindow
             int at = k;
             var r = _rows[k];
             _body.Children.Add(Row(Arrow(UiSprites.IconDown, () => Swap(at)),
-                Label(GoodsName(r.Goods.Kind)),
+                Clickable(Label(GoodsName(r.Goods.Kind)), () => Enter(GoodsName(r.Goods.Kind), r.Now, r.Original,
+                                                                     r.Original, r.Goods.UnitWeight,
+                                                                     v => r.Now = v)),
                 Cell(Label($"{r.Goods.UnitWeight,6}"), UnitWidth),
                 Cell(Label($"{r.Original,6}통"), HaveWidth),
                 Cell(Spin(r.Now - r.Original, () => BumpGoods(at, +1), () => BumpGoods(at, -1)), AddWidth)));
@@ -192,6 +197,26 @@ public sealed class LootDialog : GameWindow
     }
 
     private string GoodsName(int kind) => _goods?.Find(kind)?.Name ?? $"교역품 {kind}";
+
+    /// <summary>수를 적는 창을 띄워 그 줄을 고친다.</summary>
+    private void Enter(string name, int now, int max, int original, int unitWeight, Action<int> set)
+    {
+        if (CountDialog.Set(this, name, "탑재수", "통", now, max,
+                            new CountDialog.Gauge("현재수", original),
+                            new CountDialog.Gauge("한통의 무게", unitWeight)) is { } v)
+        {
+            set(Math.Clamp(v, 0, max));
+            Paint();
+        }
+    }
+
+    private static UIElement Clickable(FrameworkElement label, Action run)
+    {
+        label.Cursor = Cursors.Hand;
+        label.MouseLeftButtonDown += (_, e) => e.Handled = true;
+        label.MouseLeftButtonUp += (_, e) => { e.Handled = true; run(); };
+        return label;
+    }
 
     private void BumpSupply(int i, int by)
     {
