@@ -107,8 +107,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </remarks>
     public void Greet()
     {
-        // 들어설 때마다 새 술집 객체다 — 취기는 여기서만 0 이 된다(생성자 0x0042E870).
+        // 들어설 때마다 새 술집 객체다 — 취기는 여기서만 0 이 되고, 들려줄 소문도 새로 고른다(생성자 0x0042E870).
         _tipsy = 0;
+        _drank = false;
+        PickRumor();
 
         // 들어서면 부관이 먼저 한마디 한다(0x0042E940) — 부관이 없으면 이 줄은 통째로 없다.
         if (_game.AideFace is { } aide)
@@ -300,6 +302,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             ConfirmDialog.Tell(_view, "돈 먼저 지불하게.", face: face);
             return;
         }
+        PickRumor();   // 술을 시킬 때마다 소문을 새로 고른다(0x0042F61B)
         _drank = true;
 
         _player.Pay(price);
@@ -1869,50 +1872,49 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     private bool _drank;
 
     /// <summary>
-    /// 술집의 <b>정보를 듣는다</b> — 주인이 계약한 것의 실마리를 준다(<c>0x0042F8xx</c>).
+    /// 술집의 <b>정보를 듣는다</b>(<c>0x0042F8E0</c>) — 주인이 계약 목표에 얽힌 소문을 들려준다.
     /// </summary>
     /// <remarks>
+    /// 들려줄 소문은 들어설 때와 술을 시킬 때마다 새로 고른다(<see cref="PickRumor"/>). 말은 모두 술집 주인 얼굴이다.
     /// <code>
-    ///   계약 힌트 → 목적 도시를 찾는다          0x0042F790 → 0x00429970
-    ///   못 찾으면    "정보? 그런 것은 없네"                    0x0054ADB8
-    ///   술을 안 샀으면
-    ///     처음      "%s? 으~ ~음.....! … 마시면 가르쳐 주지"  0x0054ACB0
-    ///     그 뒤     "자, 우리 가게 술을 마신다면 가르쳐 주지." 0x0054AD10
-    ///   술을 샀으면
-    ///     여기면    힌트 본문을 그대로 읽어 준다               0x004B0990
-    ///     같은 문화권 "확실히 %s에서 비슷한 소문을 들은 적이…"  0x0054AD40
-    ///     아니면    "%s%s 간 선원한테서 그런 이야기를…"        0x0054AD70
+    ///   술을 안 샀으면   "%s? 으~ ~음.....! … 마시면 가르쳐 주지"   0x0054ACB0 (%s = 계약 힌트 이름)
+    ///                    소문의 목표가 계약 목표와 다르면 "자, 우리 가게 술을 마신다면 가르쳐 주지." 0x0054AD10
+    ///   말할 도시를 고른다(0x0042F790) — 못 고르면 "정보? 그런 것은 없네"           0x0054ADB8
+    ///   여기면            소문 본문을 그대로 읽어 준다                             0x004B0990
+    ///   같은 문화권       "확실히 %s에서 비슷한 소문을 들은 적이 있네."              0x0054AD40
+    ///   아니면            "%s%s 간 선원한테서 그런 이야기를 들은 적이 있네."          0x0054AD70
     /// </code>
     /// 방향 이름은 문화권 표(<c>0x00560BE8</c>)의 열하나인데 <b>아메리카만 「신대륙」</b>으로
-    /// 바꿔 부른다(<c>0x0042FA6C</c> 가 10 을 따로 가린다).
+    /// 바꿔 부른다(<c>0x0042FA6C</c> 가 10 을 따로 가린다). 답한 뒤에도 아무것도 지우지 않는다.
     ///
-    /// <b>목적 도시를 찾는 셈은 우리 것이다.</b> 게임의 <c>0x0042F790</c> 을 아직 못 풀어,
-    /// 발견물이 앉은 사각형에 든 도시를 찾고 없으면 가장 가까운 도시를 집는다.
+    /// 원본은 주인의 성미 여덟째 칸이 1 이상이면 술을 안 사도 말해 주는데(<c>0x0042F8F8</c>), 주인
+    /// 성미를 셀 값(화자 객체 <c>+0x18</c>)을 아직 못 밝혀 옮기지 않았다.
     /// </remarks>
     public void HearInfo() => Alone(() =>
     {
         var face = _game.SpeakerFace(BuildingCode, _cultureNo);
         void Say(string words) => TalkDialog.Say(_view, face, "", words);
 
-        if (_player.Contract is not { } deal
-            || _game.Hints?.Find(deal.Hint) is not { } hint
-            || TargetCity(hint.Discovery) is not int target)
+        if (_rumor < 0 || _game.Rumors?.Rumors is not { } rumors || _rumor >= rumors.Count) return;
+        var rumor = rumors[_rumor];
+
+        if (!_drank)
+        {
+            var hint = _player.Contract is { } deal ? _game.Hints?.Find(deal.Hint) : null;
+            Say(hint is { } h && h.Discovery == rumor.Discovery
+                ? $"{h.Name}? 으~ ~음.....! 그러고 보니 들은 적이 있는 것 같군! "
+                  + "자, 우리 가게 술을 마시면 가르쳐 주지."
+                : "자, 우리 가게 술을 마신다면 가르쳐 주지.");
+            return;
+        }
+
+        if (RumorCity(rumor) is not int target)
         {
             Say("정보? 그런 것은 없네");
             return;
         }
 
-        if (!_drank)
-        {
-            Say(_asked
-                ? "자, 우리 가게 술을 마신다면 가르쳐 주지."
-                : $"{hint.Name}? 으~ ~음.....! 그러고 보니 들은 적이 있는 것 같군! "
-                  + "자, 우리 가게 술을 마시면 가르쳐 주지.");
-            _asked = true;
-            return;
-        }
-
-        if (target == _cityId) { Say(hint.Text.Length > 0 ? hint.Text : hint.Name); return; }
+        if (target == _cityId) { Say(rumor.Text); return; }
 
         int mine = _game.CityRows?.CultureOf(_cityId) ?? -1;
         int there = _game.CityRows?.CultureOf(target) ?? -2;
@@ -1926,8 +1928,72 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         Say($"{way}{GameUi.Josa(way, "으로", "로")} 간 선원한테서 그런 이야기를 들은 적이 있네.");
     });
 
-    /// <summary>한 번이라도 물어봤는지 — 두 번째부터는 짧게 물린다.</summary>
-    private bool _asked;
+    /// <summary>들려줄 소문 줄(<c>[+0xB8]</c>). 없으면 −1 이고 「정보를 듣는다」 줄이 안 선다.</summary>
+    private int _rumor = -1;
+
+    /// <summary>말할 도시를 굴릴 씨(<c>[+0xBC]</c>) — 한 잔 사이에는 같은 도시를 댄다.</summary>
+    private int _rumorSeed;
+
+    /// <summary>「정보를 듣는다」 줄을 세울지 — 들려줄 소문이 골라졌는지(<c>0x0042FE5C</c>).</summary>
+    public bool HasRumor => Candidates(_cityId).Count > 0 || Candidates(-1).Count > 0;
+
+    /// <summary>
+    /// 들려줄 소문을 고른다(<c>0x0042E750</c> → <c>0x0042E780</c>) — 들어설 때와 술을 시킬 때마다다.
+    /// </summary>
+    /// <remarks>
+    /// 계약 힌트의 목표 발견물과 같은 소문 가운데 <b>이 도시가 칸에 든 것</b>을 먼저 모으고, 없으면 도시 칸이
+    /// 하나라도 선 것을 모아 무작위로 하나 고른다. 칸마다 한 번씩 담기므로 이 도시가 여러 칸에 든 소문일수록
+    /// 잘 뽑힌다(<c>0x00414390</c>). 계약이 없으면 −1 이다.
+    /// </remarks>
+    private void PickRumor()
+    {
+        var here = Candidates(_cityId);
+        var pool = here.Count > 0 ? here : Candidates(-1);
+        _rumor = pool.Count > 0 ? pool[_game.Random.Next(pool.Count)] : -1;
+        _rumorSeed = _game.Random.Next();
+    }
+
+    /// <summary>
+    /// 계약 목표와 같은 소문의 줄 번호를 도시 칸마다 모은다(<c>0x00414390</c>). <paramref name="city"/> 가 −1 이면
+    /// 칸의 도시가 무엇이든 담는다. 빈 칸 · 아직 안 선 도시는 뺀다(도시 형편 비트 2, <c>+4 &amp; 4</c>).
+    /// </summary>
+    private List<int> Candidates(int city)
+    {
+        var got = new List<int>();
+        if (_player.Contract is not { } deal || _game.Hints?.Find(deal.Hint) is not { } hint
+            || _game.Rumors?.Rumors is not { } rumors) return got;
+
+        for (int i = 0; i < rumors.Count; i++)
+        {
+            if (rumors[i].Discovery != hint.Discovery) continue;
+            foreach (int c in rumors[i].Cities)
+                if (c >= 0 && _game.CityStanding(c) && (city < 0 || c == city)) got.Add(i);
+        }
+        return got;
+    }
+
+    /// <summary>
+    /// 소문을 말할 도시(<c>0x0042F790</c>) — 소문의 도시 칸에서 <b>이 도시</b>, 없으면 <b>같은 문화권</b>,
+    /// 없으면 <b>아무 도시</b> 차례로 찾아 무작위로 하나 댄다. 굴림은 술을 시킬 때 적어 둔 씨로 하므로
+    /// 한 잔 사이에는 몇 번을 물어도 같은 도시다. 없으면 null.
+    /// </summary>
+    private int? RumorCity(RumorTable.Rumor rumor)
+    {
+        int culture = _game.CityRows?.CultureOf(_cityId) ?? -1;
+        var dice = new Random(_rumorSeed);
+        for (int mode = 0; mode < 3; mode++)
+        {
+            var got = rumor.Cities.Where(c => c >= 0 && _game.CityStanding(c)
+                && mode switch
+                {
+                    0 => c == _cityId,
+                    1 => (_game.CityRows?.CultureOf(c) ?? -2) == culture,
+                    _ => true,
+                }).ToList();
+            if (got.Count > 0) return got[dice.Next(got.Count)];
+        }
+        return null;
+    }
 
     /// <summary>
     /// 문화권을 부르는 이름(<c>0x00560BE8</c>). 아메리카(10)만 「신대륙」이다.
@@ -1946,33 +2012,6 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// <remarks>힌트 편집기가 같은 말을 미리 내 보이려고 함께 쓴다.</remarks>
     public static string BearingName(int culture) =>
         culture >= 0 && culture < Bearings.Length ? Bearings[culture] : "먼 바다";
-
-    /// <summary>
-    /// 그 발견물이 앉은 도시. 사각형 안에 든 도시를 찾고, 없으면 가장 가까운 도시다.
-    /// </summary>
-    /// <param name="serial">
-    /// 힌트가 가리키는 발견물 <b>일련번호</b>(<see cref="HintTable.Hint.Discovery"/>).
-    /// </param>
-    private int? TargetCity(int serial)
-    {
-        if (_game.CityRows is not { } cities) return null;
-        // 힌트가 든 것은 <b>일련번호</b>다 — 표에서 몇째 줄인지가 아니다.
-        if (_game.Discoveries?.Table.FindBySerial(serial) is not { HasPlace: true } row) return null;
-
-        int cx = (row.X1 + row.X2) / 2, cy = (row.Y1 + row.Y2) / 2;
-        int best = -1;
-        long near = long.MaxValue;
-
-        for (int city = 0; city < CityExeTable.Count; city++)
-        {
-            if (!cities.TryCell(city, out int x, out int y, out _)) continue;
-            if (row.Covers(x, y)) return city;
-
-            long dx = x - cx, dy = y - cy, far = dx * dx + dy * dy;
-            if (far < near) { near = far; best = city; }
-        }
-        return best >= 0 ? best : null;
-    }
 
     /// <summary>「포카를 권한다」 — 술집 주인과 카드 도박을 한다(<see cref="PokerDialog.Play"/>).</summary>
     public void PlayPoker() => Alone(() => PokerDialog.Play(_view, _game, _cultureNo));
