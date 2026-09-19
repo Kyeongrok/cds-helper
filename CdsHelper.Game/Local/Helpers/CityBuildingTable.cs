@@ -97,6 +97,15 @@ public sealed class CityBuildingTable
         [JsonIgnore] public int CenterX => X + BoxWidth / 2;
         [JsonIgnore] public int CenterY => Y + BoxHeight / 2;
 
+        /// <summary>
+        /// 누를 자리(<c>0x004733E0</c>) — 상자의 <b>가운데 절반</b>이다(<c>X + 너비/4, Y + 높이/4, 너비/2, 높이/2</c>).
+        /// 마을 사람도 같은 셈이다(<c>0x00473880</c>).
+        /// </summary>
+        [JsonIgnore] public int HitX => X + BoxWidth / 4;
+        [JsonIgnore] public int HitY => Y + BoxHeight / 4;
+        [JsonIgnore] public int HitWidth => BoxWidth / 2;
+        [JsonIgnore] public int HitHeight => BoxHeight / 2;
+
         /// <summary>무언가 가르치는 건물인지(조합·교회·학자 저택).</summary>
         [JsonIgnore] public bool Teaches => TeachMask != 0;
     }
