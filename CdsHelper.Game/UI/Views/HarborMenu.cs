@@ -259,9 +259,21 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         "선박 삭제" when _player.Ships.Count > 1 && _cityId == _player.HomePort
                       && _player.DockedAt(_cityId).Count < Player.MaxDocked => LeaveShip,
         "선박 파기" when _player.Ships.Count > 1 => ScrapShip,
-        Facility.FleetExit => _menu.Pop,
+        Facility.FleetExit => FleetDone,
         _ => null,
     };
+
+    /// <summary>
+    /// 함대편성을 나선다(<c>0x0046A65F</c>) — 덜어 낸 배에서 내린 선원은 남은 정원만큼만 도로 타고
+    /// (<c>0x0040E3F0</c>) 나머지는 사라진다. 그 다음 짐이 넘치면 <b>여기서 한 번</b> 알린다(<c>0x0044DEF0</c>).
+    /// </summary>
+    /// <remarks>원본은 이어서 짐 덜기 창(<c>0x0044DCB0</c>)을 억지로 띄우는데, 그 창은 아직 옮기지 않았다.</remarks>
+    private void FleetDone()
+    {
+        _player.SetCrew(_player.Crew);
+        WarnOverload(Owner);
+        _menu.Pop();
+    }
 
     /// <summary>함대 목록의 차례 — <b>기함이 맨 앞</b>이고 나머지는 칸 차례다(<c>0x0049D360</c>).</summary>
     private List<int> FleetOrder()
@@ -351,8 +363,6 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
 
         if (!_player.Dock(at, _cityId))
             GameDialog.Show(owner, "이 이상 삭제할 수 없습니다.");
-        else
-            WarnOverload(owner);
 
         _menu.Refresh();
     }
@@ -372,8 +382,6 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         // 원본은 고르면 묻지 않고 곧바로 없앤다(0x0046A4B8 → 0x00473E60 · 0x0044CA90).
         if (!_player.Scrap(at))
             GameDialog.Show(owner, "이 이상 파기할 수 없습니다.");
-        else
-            WarnOverload(owner);
 
         _menu.Refresh();
     }
