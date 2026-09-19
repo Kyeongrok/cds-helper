@@ -2117,6 +2117,17 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
     void ITownScreen.CloseMenu() => CloseMenu();
 
+    /// <summary>
+    /// 놀이를 끝낸다(<c>0x0044AF40</c>) — 그림 0x0B 와 CONTINUE? 뒤 첫 화면으로 돌아간다.
+    /// 끝난 까닭 0·4·5·6 은 그림 0x0B, 1·2 는 0x0C, 3 은 0x0D 다(<c>0x00410CA1</c> 뜀표).
+    /// </summary>
+    internal void EndGame()
+    {
+        CloseMenu();
+        GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
+        if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
+    }
+
     void ITownScreen.LeaveTavern()
     {
         Guests.Challenged();

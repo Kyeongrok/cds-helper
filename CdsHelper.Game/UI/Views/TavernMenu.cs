@@ -180,14 +180,20 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
         DuelDialog.Show(_view, duel, roll, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
-        _player.Hurt(duel.BodyLost);
-
         if (duel.Won == true)
         {
+            _player.Hurt(duel.BodyLost);
             _player.Fame += BrawlFame;
             _player.Infamy += ChallengeWinInfamy;
+            return true;
         }
-        else _player.Infamy += roll.Next(100) + 100;
+        if (LostDuel(duel, face, roll, mateFought: false))
+        {
+            EndGame();   // 0x0042FD55
+            return true;
+        }
+        _player.Hurt(duel.BodyLost);
+        _player.Infamy += roll.Next(100) + 100;
         return true;
     }
 
@@ -412,14 +418,19 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
-        _player.Hurt(duel.BodyLost);
-
         if (duel.Won == true)
         {
+            _player.Hurt(duel.BodyLost);
             _player.Fame += BrawlFame;
             _player.Infamy += BrawlWinInfamy;
             return;
         }
+        if (LostDuel(duel, face, dice, mateFought: false))
+        {
+            EndGame();   // 0x0042ED16
+            return;
+        }
+        _player.Hurt(duel.BodyLost);
         _player.Infamy += dice.Next(100) + 100;
     }
 
@@ -1226,39 +1237,55 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             Triumph(who, face, dice);
             Setback(who, face, dice);
         }
-        else
+        else if (LostDuel(duel, face, dice, mate is { }))
         {
-            switch (duel.FateOf(_player.Fame))
-            {
-                case Engine.Town.Duel.Fate.Fled:
-                    NoticeDialog.Show(_view, "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!", "일기토");
-                    // 등 뒤로 한마디 듣는다(0x004A9F78 의 rand(5)).
-                    TalkDialog.Say(_view, face, "", Jeered[dice.Next(Jeered.Length)]);
-                    break;
-                case Engine.Town.Duel.Fate.Spared:
-                    TalkDialog.Say(_view, face, "", Spared[dice.Next(Spared.Length)]);
-                    break;
-                default:
-                    // 게임은 여기서 놀이가 끝난다(0x004AA17B 의 [+0x1C0]=3). 우리는
-                    // 아직 그 끝을 안 지어서, 몸만 겨우 건진 것으로 둔다.
-                    //
-                    // <b>부관을 내보냈으면 말이 다르다</b>(0x004AA0A9 의 [+0x138]==1) —
-                    // 상대가 그 다음으로 제독에게 눈을 돌린다. 도망까지 실패한 판
-                    // ([+0x1D0] > 3)에서는 「너의 고용주도 함께 처리해 주겠다.」(0x00534538)
-                    // 하는데, 우리 판정은 도망 실패를 따로 내지 않아 그 갈래는 안 쓴다.
-                    // 제독이 몸소 졌으면 다섯 말 가운데 하나다(0x004AA142 의 rand(5)). 「자네, 제독감이
-                    // 아니로군…」은 반란 판(갈래 7)에서 부관이 졌을 때만의 말이다(0x004AA0B6).
-                    TalkDialog.Say(_view, face, "", mate is { }
-                        ? AfterMate[dice.Next(AfterMate.Length)]
-                        : Slain[dice.Next(Slain.Length)]);
-                    lost = Math.Max(lost, _player.AbilityOf(Ability.Body) - 1);
-                    break;
-            }
+            // 베였으면 놀이가 끝난다(0x004A4A74 → 0x0044AF40(4)).
+            EndGame();
+            return;
         }
 
         // 대신 나간 사람이 다친다.
         if (mate is { } hurt) _player.HurtMate(hurt.Name, lost);
         else _player.Hurt(lost);
+    }
+
+    /// <summary>
+    /// 일기토에 진 뒤처리(<c>0x004A9E50</c>) — 도망·용서·죽음을 가르고 그 말을 낸다. 베였으면 true.
+    /// </summary>
+    /// <remarks>
+    /// 판이 무엇이든(술집 손님 · 도전 · 싸움) 같은 뒤처리다. 베이면 판의 결과가 3 이 되고
+    /// 부르는 쪽이 <c>0x0044AF40(4)</c> 로 놀이를 끝낸다(<c>0x004A4A74</c> · <c>0x0042FD55</c> · <c>0x0042ED16</c>).
+    /// </remarks>
+    private bool LostDuel(Engine.Town.Duel duel, uint[]? face, GameRandom dice, bool mateFought)
+    {
+        switch (duel.FateOf(_player.Fame))
+        {
+            case Engine.Town.Duel.Fate.Fled:
+                NoticeDialog.Show(_view, "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!", "일기토");
+                // 등 뒤로 한마디 듣는다(0x004A9F78 의 rand(5)).
+                TalkDialog.Say(_view, face, "", Jeered[dice.Next(Jeered.Length)]);
+                return false;
+            case Engine.Town.Duel.Fate.Spared:
+                TalkDialog.Say(_view, face, "", Spared[dice.Next(Spared.Length)]);
+                return false;
+            default:
+                // <b>부관을 내보냈으면 말이 다르다</b>(0x004AA0A9 의 [+0x138]==1) —
+                // 상대가 그 다음으로 제독에게 눈을 돌린다. 도망까지 실패한 판
+                // ([+0x1D0] > 3)에서는 「너의 고용주도 함께 처리해 주겠다.」(0x00534538)
+                // 하는데, 우리 판정은 도망 실패를 따로 내지 않아 그 갈래는 안 쓴다.
+                // 제독이 몸소 졌으면 다섯 말 가운데 하나다(0x004AA142 의 rand(5)). 「자네, 제독감이
+                // 아니로군…」은 반란 판(갈래 7)에서 부관이 졌을 때만의 말이다(0x004AA0B6).
+                TalkDialog.Say(_view, face, "", mateFought
+                    ? AfterMate[dice.Next(AfterMate.Length)]
+                    : Slain[dice.Next(Slain.Length)]);
+                return true;
+        }
+    }
+
+    /// <summary>놀이 끝 — 그림 0x0B 와 CONTINUE? 뒤 첫 화면으로(<c>0x0044AF40(4)</c>).</summary>
+    private void EndGame()
+    {
+        if (_view is CityPicView city) city.EndGame();
     }
 
     /// <summary>
