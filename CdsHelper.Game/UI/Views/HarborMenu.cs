@@ -172,7 +172,8 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         var owner = Owner;
 
         // 이 마을에 맡겨 둔 배가 있으면 출항이 막힌다(0x004688CE) — 얼굴 없는 알림이다.
-        if (_player.DockedAt(_cityId).Count > 0)
+        // <b>모항은 예외</b>다 — 0x004688A8 이 도시 +0x1D 비트 8 을 보고 검사를 건너뛴다.
+        if (_cityId != _player.HomePort && _player.DockedAt(_cityId).Count > 0)
         {
             ConfirmDialog.Tell(owner, "편성돼 있지 않은 선박이 있습니다! 출항할 수 없습니다");
             return false;
