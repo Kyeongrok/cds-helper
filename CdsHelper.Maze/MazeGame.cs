@@ -17,7 +17,9 @@ public static class MazeGame
     /// 놀이를 한 판 하고 결과를 알린다. 돌파했으면 true.
     /// </summary>
     /// <param name="player">상금을 받을 제독. 없으면 금화만 안 준다.</param>
+    /// <param name="sfx">효과음. 상자를 열 때 난다.</param>
     public static bool Play(Window owner, Random rng,
-                            CdsHelper.Support.Local.Models.Player? player = null) =>
-        MazePuzzleDialog.Play(owner, rng, player);
+                            CdsHelper.Support.Local.Models.Player? player,
+                            CdsHelper.Game.Local.Helpers.SoundBank? sfx) =>
+        MazePuzzleDialog.Play(owner, rng, player, sfx);
 }
