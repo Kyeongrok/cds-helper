@@ -292,6 +292,15 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                                  [("항복한다", Surrender), ("게임 복귀", () => { })]);
         };
 
+        // PgUp 은 「해전전황정보(제독·함대수)」다(0x0043F895). 괴물이 잠수한 판에서 적 칸을
+        // 누를 때도 같은 창이 뜬다(0x0043EBE2).
+        PreviewKeyDown += (_, e) =>
+        {
+            if (_running || e.Key != Key.PageUp) return;
+            SeaBattleInfoDialog.Show(this, _battle, _player, _foe.Leader);
+            e.Handled = true;
+        };
+
         Loaded += (_, _) => Redraw();
 
         // 들머리 — <b>판이 펼쳐진 뒤에</b> 바람과 퇴각지점을 알리고 이동 지시를 재촉한다(0x0043C4E0).
