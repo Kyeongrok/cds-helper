@@ -2435,7 +2435,7 @@ public sealed class ShipMapWindow : Window
             string name = saved.CityName.Length > 0 ? saved.CityName : _game.CityName(city);
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (ShowCityPicture(city, name)) _host.Paused = true;
+                if (ShowCityPicture(city, name, resumed: true)) _host.Paused = true;
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
     }
@@ -5655,7 +5655,7 @@ public sealed class ShipMapWindow : Window
     /// 모달이면 함대 창 제목 줄이 죽는다. 그래서 창이 닫힐 때 곡·막·멈춤을 함께 푼다.
     /// </remarks>
     /// <returns>도시 창을 띄웠으면 true.</returns>
-    private bool ShowCityPicture(int city, string name, bool enterHome = false)
+    private bool ShowCityPicture(int city, string name, bool enterHome = false, bool resumed = false)
     {
         // 그림도 건물 표도 Game 이 처음 쓸 때 연다. 둘 중 하나라도 없으면 도시 화면을 안 연다.
         if (_game.CityPics == null || _game.Buildings == null) return false;
@@ -5669,7 +5669,8 @@ public sealed class ShipMapWindow : Window
         EndWeather();
 
         // 바다로 들어서면 함대가 이 도시에 닻을 내린다(0x0048B54E). 말로 걸어 들어오면 안 바뀐다.
-        if (enterHome || !_host.IsOnLand) _game.Player.MoorAt(city);
+        bool bySea = !_host.IsOnLand;
+        if (enterHome || bySea) _game.Player.MoorAt(city);
         // 함대가 기다리는 도시로 <b>걸어 돌아왔으면 배에 다시 오른다</b> — 성문 건물이 들어설 때
         // 뭍 표시를 끄고 대 둔 바다 자리를 되돌린다(0x0046871F → 0x004745B0).
         else if (_game.Player.FleetCity == city) _host.Embark();
@@ -5710,6 +5711,9 @@ public sealed class ShipMapWindow : Window
         if (!enterHome) PassPortDays();
         // 새 판은 자택 안에서 시작한다 — 게임도 판을 열면 자택 명령 창이 이미 떠 있다.
         if (enterHome) dialog.EnterHome();
+        // 닿았으면 바다는 항구 차림표부터, 뭍은 성문을 지나며 부관이 인사한다(0x004A2530).
+        // 세이브를 열어 이어 가는 도시는 이미 들어와 있던 것이라 이 대목이 없다.
+        else if (!resumed) dialog.Arrive(bySea);
         dialog.Closed += (_, _) =>
         {
             SetInCity(false);
@@ -5728,7 +5732,8 @@ public sealed class ShipMapWindow : Window
             _host.Paused = false;
             _asking = false;
             _game.Player.EnterCity(-1);
-            PassPortDays();          // 나오는 데도 열흘
+            // 나오는 데도 열흘 — 다만 닿자마자 뜬 항구 차림표에서 곧장 출항하면 없다(0x00477319).
+            if (!dialog.SailedOnArrival) PassPortDays();
             InfoMenu.Close();        // 도시를 나오면 도시정보 창도 같이 걷는다
 
             // 도시에서 계약을 맺거나 깨거나 보고했으면 목표 유적 그림이 드러나거나 다시 덮인다.
