@@ -2083,6 +2083,19 @@ public sealed class ShipMapHost : HwndHost
     }
 
     /// <summary>
+    /// 대 둔 배 곁인지 — 해상 커맨드의 「승선」은 상륙한 자리(<c>0x005B63B8</c>·<c>0x005B63BC</c>)에서
+    /// 가로세로 두 칸(1/16 눈금 0x20) 안일 때만 선다(<c>0x0048B397</c>). 경도는 한 바퀴 돌아 잰다.
+    /// </summary>
+    public bool IsNearMoor(int radiusCells = 2)
+    {
+        if (!_onLand || !_moored) return false;
+        double dx = _shipX - _mooredX, w = WorldMapRenderer.CellW;
+        if (dx < -w / 2) dx += w;
+        else if (dx > w / 2) dx -= w;
+        return Math.Abs(dx) <= radiusCells && Math.Abs(_shipY - _mooredY) <= radiusCells;
+    }
+
+    /// <summary>
     /// 상륙. 가장 가까운 뭍으로 한 칸 올라서고 말로 바뀐다. 지날 수 있는 칸도 뒤집힌다.
     /// </summary>
     public bool Land()
