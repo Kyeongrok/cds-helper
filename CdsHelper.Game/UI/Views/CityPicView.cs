@@ -1575,16 +1575,31 @@ public sealed class CityPicView : GameWindow, ITownScreen
                                face: _game.SpeakerFace(InnCode, _cultureNo)))
             return;
 
-        if (inn.Stay(_player, _cityId) != StayResult.Ok)
+        if (!_player.CanAfford(price))
         {
             NoticeDialog.Show(this, "소지금이 모자랍니다");
             return;
         }
 
+        // 차례는 원본 그대로다(0x0047FC78~): 화면을 덮고 값을 치르고 서른 날을 보낸 뒤 밝히고,
+        // 말을 조금 배우고(0x0047FAE0), 모항이면 능력이 오를 때가 있고(0x0047FB80), 일어난 말, HP 다.
+        DayPass.Blackout(this, () => inn.Stay(_player, _cityId));
+        TellTongue(inn.LearnTongue(_player, _cityId, _game.Nations, _random));
+        HomeInnBonus();
         NoticeDialog.Show(this, Lodging.WakeWord(_random));
         // 한 달 묵으면 HP 가 30~59 찬다(0x0047FCFF).
         _player.SetCondition(_player.Condition + Vitality.InnRest(_random));
-        TellTongue(inn.LearnTongue(_player, _cityId, _game.Nations, _random));
+    }
+
+    /// <summary>
+    /// 모항 여관에 묵으면 가끔 능력이 오른다(<c>0x0047FB80</c>) — <c>rand(100) &lt;= 5</c> 일 때 체력·지력·무력·매력·운
+    /// 가운데 <c>rand(5)</c> 로 하나를 1 올린다(<c>0x00432C50</c>, 100 에서 자름). 알리는 말은 없다.
+    /// </summary>
+    private void HomeInnBonus()
+    {
+        if (_cityId != _player.HomePort || _random.Next(100) > 5) return;
+        int which = _random.Next(5);
+        if (_player.Abilities[which] < Ability.Max) _player.AdjustAbility(which, 1);
     }
 
     private Lodging? _lodging;
