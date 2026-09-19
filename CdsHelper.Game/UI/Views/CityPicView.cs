@@ -1988,8 +1988,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     void ITownScreen.OpenStorage() => StorageDialog.Show(Menu.Window ?? this, _player, _game.Items);
 
     void ITownScreen.ShowEncyclopedia() =>
-        EncyclopediaDialog.Show(Menu.Window ?? this, _game.Directory, _player,
-                                _game.Discoveries?.Table, _game.Hints, _game.Book);
+        EncyclopediaDialog.Show(Menu.Window ?? this, _game);
 
     void ITownScreen.ShowChronicle() =>
         ChronicleDialog.ShowChronicle(Menu.Window ?? this, _player, _game.Discoveries?.Table);

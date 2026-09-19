@@ -33,7 +33,7 @@ public sealed class DiscoveryTable
     private const string CacheName = "발견물표";
 
     /// <summary>알맹이 모양 판. 그림·동영상·파는 도시 칸을 더하면서 올렸다.</summary>
-    private const int SnapshotVersion = 4;
+    private const int SnapshotVersion = 5;
 
     private const int TableVa = 0x0051C540;
 
@@ -44,6 +44,7 @@ public sealed class DiscoveryTable
     /// <code>
     ///   +0x0C  DSTILL.CDS 그림 번호(0~83)   -1 이면 없다
     ///   +0x10  AVI 동영상 번호(0~69)        -1 이면 없다  →  AVI\I{번호:00}_0000.AVI
+    ///   +0x14  DISCOVER.CDS 움직이는 그림(0~28) -1 이면 없다 — 보물 103~131 만 있다
     /// </code>
     /// 히랄다탑은 그림 69, 카르낙 거석군은 동영상 44 다. 동영상 파일이 <c>I00_0000.AVI</c>
     /// 부터 <c>I69_0000.AVI</c> 까지 일흔 개라 이 칸의 폭과 딱 맞는다.
@@ -116,7 +117,7 @@ public sealed class DiscoveryTable
         int Id, string Name, int Category, int Hint, int Reward, int ItemId,
         bool Indirect, bool OpenAtStart, bool OnLand, bool Once,
         int X1, int Y1, int X2, int Y2, int Picture = -1, int Movie = -1,
-        ushort[]? Erase = null, int SoldIn = -1)
+        ushort[]? Erase = null, int SoldIn = -1, int Clip = -1)
     {
         /// <summary>세계지도에 자리가 있는지. 없으면 다른 길로만 얻는다.</summary>
         [JsonIgnore] public bool HasPlace => X1 != NoPlace;
@@ -299,6 +300,7 @@ public sealed class DiscoveryTable
                 Picture: exe.Int(row + 0x0C),
                 Movie: exe.Int(row + 0x10),
                 SoldIn: exe.Int(row + 0x34),
+                Clip: exe.Int(row + 0x14),
                 // 아직 못 찾은 발견물을 지도에서 지울 때 깔 바탕 타일 2x2.
                 Erase:
                 [

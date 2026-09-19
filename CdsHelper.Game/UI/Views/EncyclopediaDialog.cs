@@ -28,8 +28,13 @@ namespace CdsHelper.Game.UI.Views;
 /// 책장 그림과 책등은 도서관 열람 화면과 같은 <c>BOOKSHEL.CDS</c> 다
 /// (<see cref="BookShelf"/>). 게임 갈무리에서 백과사전 책등은 <b>빨강</b>이다.
 ///
-/// 쪽은 펼친 책(<see cref="OpenBookDialog"/>)으로 한 장씩 넘긴다 — 도서관에서 힌트를
-/// 얻을 때 쓰는 그 화면이다. 쪽 글은 그 발견물에 딸린 힌트 글이다.
+/// 책등을 누르면 그 갈래 책이 <c>ENC.CDS</c> 화면으로 펴진다(<see cref="EncyclopediaPageDialog"/>,
+/// <c>0x00470F60</c> → <c>0x00471FB0</c> → <c>0x00471FF0</c> → <c>0x00462E60</c>). 책등 풍선은
+/// 「백과사전 (%s)」(<c>0x0055AD10</c>)이다.
+///
+/// 원본은 책마다 <b>보고한 비율만큼 빈 책등</b>을 뒤에 더 꽂아(보고 수 x 5 / 쪽 수, <c>0x00472430</c>)
+/// 책이 두꺼워 보이게 하고, 보고한 것이 하나라도 있으면 책등 무늬가 다르다(<c>0x004716A0</c>).
+/// 그 둘은 아직 옮기지 않았다.
 /// </remarks>
 public sealed class EncyclopediaDialog : GameWindow
 {
@@ -45,22 +50,15 @@ public sealed class EncyclopediaDialog : GameWindow
     /// <summary>닫기 조각의 크기와 양피지 모서리에서 떨어진 거리. 도서관 것과 같다.</summary>
     private const double CloseInset = 10;
 
-    private readonly Player _player;
-    private readonly DiscoveryTable _table;
-    private readonly HintTable? _hints;
-    private readonly OpenBookArt? _book;
+    private readonly Engine.Game _game;
     private readonly Canvas _layer = new();
     private readonly Border _tag;
     private readonly GameUi.GameLabel _tagText;
     private readonly int _scale;
 
-    private EncyclopediaDialog(BookShelf art, Player player, DiscoveryTable table,
-                               HintTable? hints, OpenBookArt? book, int scale)
+    private EncyclopediaDialog(BookShelf art, Engine.Game game, int scale)
     {
-        _player = player;
-        _table = table;
-        _hints = hints;
-        _book = book;
+        _game = game;
         _scale = scale;
 
         WindowStyle = WindowStyle.None;
@@ -141,11 +139,10 @@ public sealed class EncyclopediaDialog : GameWindow
         _layer.Children.Add(image);
     }
 
-    /// <summary>책등 밑에 갈래 이름을 띄운다 — 몇 쪽이 찼는지도 함께 낸다.</summary>
+    /// <summary>책등 밑에 「백과사전 (갈래)」를 띄운다(<c>0x004718C0</c>).</summary>
     private void ShowTag(int category, double x)
     {
-        var pages = PagesOf(category);
-        _tagText.Text = $"「{DiscoveryTable.CategoryNames[category]}」 {pages.Count}";
+        _tagText.Text = $"백과사전 ({DiscoveryTable.CategoryNames[category]})";
         _tag.Visibility = Visibility.Visible;
         _tag.UpdateLayout();
 
@@ -155,36 +152,8 @@ public sealed class EncyclopediaDialog : GameWindow
         Canvas.SetTop(_tag, (ShelfTop + BookShelf.SpineHeight + 2) * _scale);
     }
 
-    /// <summary>
-    /// 그 갈래 책에 적힌 쪽 — <b>발견한 것만</b>이다. 발견물 번호 차례로 쌓인다.
-    /// </summary>
-    private List<DiscoveryTable.Record> PagesOf(int category)
-    {
-        var pages = new List<DiscoveryTable.Record>();
-        foreach (var row in _table.Discoveries)
-            if (row.Category == category && _player.HasFound(row.Id)) pages.Add(row);
-        return pages;
-    }
-
-    /// <summary>한 권을 펴서 한 쪽씩 넘긴다. 빈 책이면 그렇다고 이른다.</summary>
-    private void Read(int category)
-    {
-        string name = DiscoveryTable.CategoryNames[category];
-        var pages = PagesOf(category);
-        if (pages.Count == 0)
-        {
-            NoticeDialog.Show(this, $"「{name}」은 아직 백지다.");
-            return;
-        }
-
-        for (int i = 0; i < pages.Count; i++)
-        {
-            var row = pages[i];
-            string text = _hints?.Find(row.Hint)?.Text ?? "";
-            // 왼쪽 면이 홀수 쪽이다 — 한 발견물이 한 장을 차지한다.
-            if (!OpenBookDialog.Show(this, _book, row.Name, text, i * 2 + 1)) break;
-        }
-    }
+    /// <summary>한 권을 편다.</summary>
+    private void Read(int category) => EncyclopediaPageDialog.Show(this, _game, category);
 
     private static BitmapSource ToBitmap(uint[] bgra, int width, int height)
     {
@@ -195,16 +164,15 @@ public sealed class EncyclopediaDialog : GameWindow
     }
 
     /// <summary>백과사전 책장을 연다. 그림이나 발견물 표가 없으면 그렇다고 이른다.</summary>
-    public static void Show(Window owner, string gameDirectory, Player player,
-                            DiscoveryTable? table, HintTable? hints, OpenBookArt? book)
+    public static void Show(Window owner, Engine.Game game)
     {
-        if (table == null)
+        if (game.Discoveries?.Table == null)
         {
             NoticeDialog.Show(owner, "발견물 표를 읽지 못했다.");
             return;
         }
 
-        var art = BookShelf.Open(gameDirectory);
+        var art = BookShelf.Open(game.Directory);
         if (art == null)
         {
             NoticeDialog.Show(owner, $"책장을 열지 못했다 — {BookShelf.LastError}");
@@ -212,7 +180,7 @@ public sealed class EncyclopediaDialog : GameWindow
         }
 
         int scale = owner.ActualHeight > 800 ? 2 : 1;
-        new EncyclopediaDialog(art, player, table, hints, book, scale) { Owner = owner }
+        new EncyclopediaDialog(art, game, scale) { Owner = owner }
             .ShowDialog();
     }
 }

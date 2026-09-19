@@ -293,7 +293,8 @@ public sealed class DiscoveryEditDialog : GameWindow
             var edited = new DiscoveryTable.Record(
                 row.Id, row.Name, row.Category, row.Hint, row.Reward, row.ItemId,
                 row.Indirect, row.OpenAtStart, row.OnLand, row.Once,
-                row.X1, row.Y1, row.X2, row.Y2, row.Picture, row.Movie);
+                row.X1, row.Y1, row.X2, row.Y2, row.Picture, row.Movie,
+                Clip: table.Original(row.Id)?.Clip ?? -1);
 
             // 원본에 있던 번호이고 게임 값과 똑같아졌으면 씌운 것을 걷는다.
             if (table.Original(row.Id) is { } game && SameCore(edited, game))

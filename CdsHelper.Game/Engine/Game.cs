@@ -82,6 +82,7 @@ public sealed class Game
         _cells = null; _cellsTried = false;
         _photos = null; _photosTried = false;
         _itemText = null; _itemTextTried = false;
+        _discoveryText = null; _discoveryTextTried = false;
         _itemArt = null;
         _discoveries = null; _discoveriesTried = false;
         _voyagers = null; _voyagersTried = false;
@@ -355,6 +356,11 @@ public sealed class Game
     public ItemDescriptions? ItemText =>
         Once(ref _itemText, ref _itemTextTried, ItemDescriptions.Open,
              () => ItemDescriptions.LastError, "아이템 설명문");
+
+    /// <summary>발견물 설명문(<c>0x0057AA78</c>). 백과사전 오른쪽 면에 뜬다.</summary>
+    public DiscoveryDescriptions? DiscoveryText =>
+        Once(ref _discoveryText, ref _discoveryTextTried, DiscoveryDescriptions.Open,
+             () => DiscoveryDescriptions.LastError, "발견물 설명문");
 
     /// <summary>
     /// 사건 스틸(<c>EVSTILL.CDS</c>) 열여섯 장 — 난파 · 폭풍 · 반란 · 놀이 끝 따위다.
@@ -646,6 +652,8 @@ public sealed class Game
     private bool _cellsTried;
     private BuildingPhoto? _photos;
     private ItemDescriptions? _itemText;
+    private DiscoveryDescriptions? _discoveryText;
+    private bool _discoveryTextTried;
     private ItemArt? _itemArt;
     private Dictionary<int, string>? _hintNames;
 
