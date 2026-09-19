@@ -1211,7 +1211,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     ///   44f166  친밀도가 0 이하면 감옥
     ///   44f170  문턱(<see cref="Palace.Reckoning"/>) 으로 갈린다
     /// </code>
-    /// 깃발 14 는 우리 쪽에 적어 두는 자리가 없어 <b>깃발 13 만</b> 본다.
+    /// 깃발 14 는 삐짐이다(<see cref="Player.IsSulking"/> — 설득을 물렸거나 계약중단을 한 뒤 30일).
     /// 말은 신분마다 세 벌씩이고, 위약금을 못 내면 그대로 감옥이다.
     /// </remarks>
     /// <returns>감옥에서 놀이가 끝났으면 true.</returns>
@@ -1226,7 +1226,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.Endear(patron.Name, -ClosenessLost);
         int close = _player.ClosenessOf(patron.Name);
 
-        bool jail = _player.IsBetrayed(patron.Name)
+        bool jail = _player.IsSulking(patron.Name)          // 깃발 14(0x0044F11B)
+                    || _player.IsBetrayed(patron.Name)      // 깃발 13(0x0044F130)
                     || SponsorFortune(sponsorRow)[Palace.MercyFortune] < 2
                     || close <= 0;
 
@@ -1491,13 +1492,19 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                 ? Pick3(".........", "무슨 일일까요...", "후~, 기대하고 있었건만.")
                 : Pick3("뭐라고...", "뭐라고...", "후~... 계약을 파기하리라고는."));
 
+        // 계약중단은 어느 갈래로 끝나든 후원자가 삐진다(0x0044EEA0 의 비트 14) — 30일 동안 설득을 물린다.
+        // 부관의 「제독, 곤란하게 되었습니다…」(0x00532430)는 여기서 안 나온다 — 감찰관을 처벌했을 때
+        // 나서는 말이다(0x0044E6FD 의 +0xBC == 2).
         bool forgiven = Forgiven(patron, overdue);
         if (!forgiven)
         {
+            // 용서받지 못하면 곧바로 죄를 묻는다(0x0044F7EB → 0x0044F87D 의 0x0044F100) —
+            // 친밀도 −20 뒤 봐줌·위약금·감옥으로 갈린다.
+            bool doomed = Punish(patron, _game.Sponsors?.FindByName(patron.Name), Pick3);
+            _player.Sulk(patron.Name);
             ReturnLentShips(broken: true);
             _player.EndContract();
-            GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
-                                  "가까이 하지 않는 것이 좋을 것 같군요.");
+            if (doomed) { EndGame(); return; }
             RecontractMates();
             return;
         }
@@ -1527,18 +1534,18 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             // 친밀도를 20 깎고 용서·위약금·감옥으로 갈린다.
             bool over = Punish(patron, _game.Sponsors?.FindByName(patron.Name), Pick3);
 
+            _player.Sulk(patron.Name);
             ReturnLentShips(broken: true);
             _player.EndContract();
             if (over) { EndGame(); return; }
 
-            GameDialog.Show(_view, "제독, 곤란하게 되었습니다... 위험하니 일단 스폰서와는 " +
-                                  "가까이 하지 않는 것이 좋을 것 같군요.");
             RecontractMates();
             return;
         }
 
         // 냈으면 친밀도만 20 깎인다(0x0044F886 이 -0x14 를 0x00478530 에 넘긴다).
         _player.Endear(patron.Name, -BreakPenaltyCloseness);
+        _player.Sulk(patron.Name);
         ReturnLentShips(broken: true);
         _player.EndContract();
         // 낼 수 있으면 말 없이 돈만 빠진다(0x0044F874 → 0x0047CBC0) — 알림은 없다.
