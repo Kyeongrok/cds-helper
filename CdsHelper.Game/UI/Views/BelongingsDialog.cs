@@ -314,7 +314,7 @@ public sealed class BelongingsDialog : GameWindow
                     NoticeDialog.Show(this, Engine.Discovery.ItemHintReading.ReadWord);
                     if (game.Hints?.Find(hint) is { } row)
                         HintDetailDialog.Show(this, row, game.Hints.CategoryOf(row.Category),
-                                              game.Player.Fame, game.Player.MateCount > 0,
+                                              game.Player.Fame, game.MateSpeaks,
                                               game.Player.Contract?.Hint == row.Id);
                     game.Player.GainHint(hint);
                     break;
