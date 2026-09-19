@@ -1570,7 +1570,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
         var inn = _lodging ??= new Lodging(_game.CityRows, _game.Rates);
         int price = inn.PriceAt(_cityId);
 
-        if (!ConfirmDialog.Ask(this, $"선불이네. 우리 집은 한 달에 금화 {price}닢인데, 머물고 갈텐가?"))
+        // 여관 주인이 얼굴을 띄우고 묻는다(0x0047FC5B — 시설 +0x80).
+        if (!ConfirmDialog.Ask(this, $"선불이네. 우리 집은 한 달에 금화 {price}닢인데, 머물고 갈텐가?",
+                               face: _game.SpeakerFace(InnCode, _cultureNo)))
             return;
 
         if (inn.Stay(_player, _cityId) != StayResult.Ok)
@@ -1579,7 +1581,6 @@ public sealed class CityPicView : GameWindow, ITownScreen
             return;
         }
 
-        NoticeDialog.Show(this, "손님, 손님! 일어나세요. 벌써 아침이에요.");
         NoticeDialog.Show(this, Lodging.WakeWord(_random));
         // 한 달 묵으면 HP 가 30~59 찬다(0x0047FCFF).
         _player.SetCondition(_player.Condition + Vitality.InnRest(_random));
