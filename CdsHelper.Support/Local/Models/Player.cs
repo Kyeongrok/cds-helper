@@ -1632,6 +1632,45 @@ public sealed class Player
     /// <summary>행적 갈래 — 발견물을 보고·발표했다(낱말: 발견물 번호). 원본도 갈래 <b>9</b> 다.</summary>
     public const int TraceDiscovery = 9;
 
+    private readonly Dictionary<int, string> _scooped = [];
+
+    /// <summary>
+    /// <b>남이 먼저 발표해 버린</b> 발견물 — 번호 → 그 사람 이름.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 발견물 인스턴스의 칸 2(발표자)에 그 사람 이름과 연월을 적는다
+    /// (<c>0x004AACA0</c>). 칸 2 가 비어 있지 않으면 그 발견물은 이미 세상에 알려진 것이라,
+    /// 내가 보고해도 명성이 안 오르고 사례가 계약금/4 로 깎인다(<c>0x004117F0</c>).
+    ///
+    /// 그 칸에 <b>남의</b> 이름이 올라가는 길은 누적 캐릭터뿐이다 — 은퇴한 제독의 행적 갈래
+    /// 9 가 되살아날 때 <c>68 0B [발견물]</c> 로 바뀌어(<c>0x0041A7CF</c>) 그 명령
+    /// (<c>0x0040B916</c>)이 이 칸을 채운다.
+    /// </remarks>
+    public IReadOnlyDictionary<int, string> Scooped => _scooped;
+
+    /// <summary>그 발견물을 남이 먼저 발표했으면 그 사람 이름, 아니면 null.</summary>
+    public string? ScoopedBy(int discovery) =>
+        _scooped.TryGetValue(discovery, out string? who) ? who : null;
+
+    /// <summary>
+    /// 남이 발표한 것으로 적는다. 이미 아무나 발표한 것이면 false 다
+    /// (<c>0x0040B983</c> 이 칸 2 가 비었을 때만 채운다).
+    /// </summary>
+    public bool Scoop(int discovery, string who)
+    {
+        if (who.Length == 0 || HasAnnounced(discovery) || _scooped.ContainsKey(discovery)) return false;
+        _scooped[discovery] = who;
+        return true;
+    }
+
+    /// <summary>세이브를 되돌릴 때 남이 발표한 것을 그대로 채운다.</summary>
+    public void RestoreScooped(IReadOnlyDictionary<int, string>? taken)
+    {
+        _scooped.Clear();
+        if (taken == null) return;
+        foreach (var (discovery, who) in taken) _scooped[discovery] = who;
+    }
+
     private readonly Dictionary<int, DateTime> _announcedOn = [];
 
     /// <summary>

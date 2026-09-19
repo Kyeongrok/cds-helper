@@ -74,6 +74,17 @@ public sealed class AccReplay
     /// <summary>공략 줄을 틀 때 부른다 — (인물, 도시, 나라). 도시를 넘기고 알리는 것은 부르는 쪽이 한다.</summary>
     public Action<int, int, int>? Captured { get; set; }
 
+    /// <summary>
+    /// 발견물 보고 줄을 틀 때 부른다 — (인물, 발견물). 적어 두고 알리는 것은 부르는 쪽이 한다.
+    /// </summary>
+    /// <remarks>
+    /// 행적 갈래 9 는 되살아날 때 대본 명령 <c>68 0B [발견물]</c> 이 되고
+    /// (<c>0x0041A7CF</c>), 그 명령이 발견물 칸 2 에 그 사람 이름을 올린다
+    /// (<c>0x0040B916</c> → <c>0x004AACA0</c>). 그래서 <b>내가 먼저 찾아 두었어도</b>
+    /// 남이 세상에 알려 버리면 보고 사례가 깎인다.
+    /// </remarks>
+    public Action<int, int>? Announced { get; set; }
+
     /// <summary>걸린 대본이 하나라도 있는지.</summary>
     public bool Any => _runners.Count > 0;
 
@@ -105,6 +116,7 @@ public sealed class AccReplay
                 else if (line.Kind == Player.TraceShipIn) AddHull(run.Hulls, line.A);
                 else if (line.Kind == Player.TraceShipOut) RemoveHull(run.Hulls, line.A);
                 else if (line.Kind == Player.TraceCapture) Captured?.Invoke(run.Person, line.A, line.B);
+                else if (line.Kind == Player.TraceDiscovery) Announced?.Invoke(run.Person, line.A);
             }
 
             // 마지막 줄까지 갔고 그날도 지났으면 세상에서 사라진다.

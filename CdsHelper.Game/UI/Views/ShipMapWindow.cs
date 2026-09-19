@@ -1873,6 +1873,16 @@ public sealed class ShipMapWindow : Window
                 if (who.Length > 0)
                     NoticeDialog.Show(this, $"{who}{GameUi.Josa(who, "이", "가")} [{town}]{GameUi.Josa(town, "을", "를")} 공략했습니다");
             };
+            // 옛 발견 보고를 되짚으면 그 발견물이 그 사람 이름으로 세상에 알려진다
+            // (0x0040B916 — 아무도 발표하지 않은 것에만 이름이 올라간다).
+            replay.Announced = (person, discovery) =>
+            {
+                string who = world.People.FirstOrDefault(r => r.Id == person)?.Name ?? "";
+                if (!_game.Player.Scoop(discovery, who)) return;
+                string what = _game.Discoveries?.Table.Find(discovery)?.Name ?? "";
+                if (what.Length == 0) return;
+                NoticeDialog.Show(this, $"{who}{GameUi.Josa(who, "이", "가")} [{what}]{GameUi.Josa(what, "을", "를")} 보고했습니다");
+            };
             replay.Load();
             world.Replay = replay.Any ? replay : null;
         }
@@ -2401,6 +2411,8 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreTraces(saved.Traces);
             // 대본으로 지어 준 발견물 이름을 표에 도로 덧씌운다 — 게임은 레코드에 직접 쓴다.
             _game.Player.RestoreNamedDiscoveries(saved.NamedDiscoveries);
+            // 남이 먼저 발표한 발견물. 이 칸 앞의 세이브는 아무도 안 앞지른 판으로 연다.
+            _game.Player.RestoreScooped(saved.Scooped);
             Local.Helpers.DiscoveryTable.ResetNames(_game.Player.NamedDiscoveries);
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);
