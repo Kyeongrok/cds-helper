@@ -554,7 +554,7 @@ internal sealed class CubePuzzleDialog : GameWindow
                 player.Earn(CubePuzzle.Prize);
                 NoticeDialog.Show(dialog,
                     $"금화로 따지면 {CubePuzzle.Prize} 닢에 상당되는 금괴를 손에 넣었다!",
-                    "게임 클리어");
+                    "금괴 취득");   // 제목도 원본 그대로다(0x0056DDE8)
             };
 
             dialog.ShowDialog();
