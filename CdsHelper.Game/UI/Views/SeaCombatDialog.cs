@@ -136,6 +136,12 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
 
     private SeaBattle.Ship? _picked;
     private List<(List<SeaBattle.Move> Plan, int X, int Y, int Way)> _options = [];
+
+    /// <summary>
+    /// 제자리 선회 칸 둘 — 뱃머리 오른앞·왼앞이다(<c>0x0043E6B8</c>). 길 후보보다 <b>먼저</b>
+    /// 걸리므로, 그 두 칸을 누르면 한 칸 움직이는 지시가 아니라 뱃머리만 돌리는 지시가 된다.
+    /// </summary>
+    private List<(int X, int Y, SeaBattle.Move Turn)> _pivots = [];
     private bool _running;
 
     public Outcome Result { get; private set; } = Outcome.Surrendered;
@@ -389,6 +395,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         {
             foreach (var option in _options)
                 Cell(_marks, option.X, option.Y, lit: false);
+            foreach (var (px, py, _) in _pivots)
+                Cell(_marks, px, py, lit: false);
 
             // 찍어 둔 길은 회색 칸으로 칠한다 — 누른 칸까지의 길이다.
             if (picked.Plan.Count > 0
@@ -606,21 +614,33 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
 
             _picked = here;
             _options = _battle.Options(here);
+            _pivots = _battle.Pivots(here);
             Redraw();
             return;
         }
 
         if (_picked is not { } ship) return;
 
+        // 뱃머리 앞옆 두 칸은 <b>제자리 선회</b>다 — 길 후보보다 먼저 본다(0x0043E92B).
+        if (_pivots.FirstOrDefault(p => p.X == x && p.Y == y) is { Turn: not SeaBattle.Move.Straight } pivot)
+        {
+            _battle.OrderPivot(ship, pivot.Turn);
+            Redraw();
+            ConfirmDialog.Tell(this, "선회 방향 결정!", BattleTitle);
+            Unpick();
+            AfterOrder();
+            return;
+        }
+
         var hit = _options.FirstOrDefault(o => o.X == x && o.Y == y);
         if (hit.Plan == null) return;
 
-        // 누르면 그 칸까지의 길이 회색으로 칠해지고 「해전」 창이 결정을 알린다(0x0056B698·0x0056B660).
+        // 누르면 그 칸까지의 길이 회색으로 칠해지고 「해전」 창이 결정을 알린다. 길 지시는
+        // 선회가 끼어 있어도 <b>늘</b> 「이동 전방 결정!」이다(0x0043EAB9 의 0x0056B698) —
+        // 「선회 방향 결정!」(0x0056B660)은 제자리 선회에만 뜬다(0x0043E994).
         _battle.Order(ship, hit.Plan);
         Redraw();
-        ConfirmDialog.Tell(this,
-            hit.Plan.All(m => m == SeaBattle.Move.Straight) ? "이동 전방 결정!" : "선회 방향 결정!",
-            BattleTitle);
+        ConfirmDialog.Tell(this, "이동 전방 결정!", BattleTitle);
         // 확인을 누르면 벌집(테·길)은 걷히고, 그 배 발밑 칸이 회색으로 바뀌어 지시가 끝났음을 보인다.
         Unpick();
         AfterOrder();
@@ -687,6 +707,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
     {
         _picked = null;
         _options = [];
+        _pivots = [];
         _path.Children.Clear();
         Redraw();
     }
@@ -726,6 +747,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         _running = true;
         _picked = null;
         _options = [];
+        _pivots = [];
         _path.Children.Clear();
         int windBefore = _battle.Wind;
         try
