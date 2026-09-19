@@ -481,15 +481,15 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         int age = son.AgeOn(_player.Date);
         if (age < Home.SucceedAge)
         {
+            // 「%s%s %d세입니다. 18세 미만의 아이는…」(0x0053A458)은 안 보이는 기록용
+            // 힌트 패널로만 간다(0x00461F9F → 0x0040E0A0(0x580C48, …)) — 창으로 띄우지 않는다.
             Wife($"{son.Name}에게는 책임이 너무 무거운 것 같아요. 당신도 아직 일할 수 있잖아요.");
-            GameDialog.Show(owner, $"{son.Name}{GameUi.Josa(son.Name, "은", "는")} {age}세입니다. "
-                                 + $"{Home.SucceedAge}세 미만의 아이는 세대교체를 할 수 없습니다.");
             return;
         }
         if (_player.Contract != null)
         {
+            // 「계약중에는 세대교체를 할 수 없습니다」(0x0053A3E8)도 힌트 패널행이다(0x00461F1F).
             Wife("여보, 당신 지금 계약중이 아니에요? 자기 계약은 스스로 끝내 주세요.");
-            GameDialog.Show(owner, "계약중에는 세대교체를 할 수 없습니다");
             return;
         }
         if (!ConfirmDialog.Ask(owner, $"{son.Name}에게 뒤를 잇게 하겠습니까?")) return;
