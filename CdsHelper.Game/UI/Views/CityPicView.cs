@@ -1998,7 +1998,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     private bool CanExplore(int buildingCode)
     {
         // 맡겨 둔 배가 있으면 탐험대를 못 모은다(0x004688E1) — 부관 있고 없고로 두 벌이다.
-        if (_player.DockedAt(_cityId).Count > 0)
+        // 모항에서는 안 본다(0x004688A8 의 도시 +0x1D 비트 8).
+        if (_cityId != _player.HomePort && _player.DockedAt(_cityId).Count > 0)
         {
             const string word = "항구에 편성돼 있지 않은 선박이 있습니다! 탐험대를 모집할 수 없습니다.";
             if (Port.MateFace() is { } who)
