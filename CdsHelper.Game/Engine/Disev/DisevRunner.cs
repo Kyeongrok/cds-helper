@@ -771,6 +771,8 @@ public sealed class DisevRunner
             // 미니게임 한 판 — 이겼는지를 들고 있다가 조건 47 이 읽는다.
             case DisevCall.Minigame:
                 _result = PlayMinigame(I("Game"));
+                // 이기면 MINI GAME 차림표에 그 줄이 풀린다(0x00408D47 벌 → 0x00406B60(n)).
+                if (_result) Local.Settings.GameSettings.UnlockMinigame(I("Game"));
                 return null;
 
             // 0E 14|1A [u32 판자] 04 [u16 n] — 코인 게임·발라몬의 탑(0x00408DF7). 번호가 4·5 가 아니면
@@ -785,7 +787,10 @@ public sealed class DisevRunner
                     case DisevMinigame.Tower:
                         _result = TowerPuzzleDialog.Play(_owner, _game.Random, I("Discs"));
                         break;
+                    default:
+                        return null;
                 }
+                if (_result) Local.Settings.GameSettings.UnlockMinigame(I("Game"));   // 0x00408E59 · 0x00408E86
                 return null;
 
             // 게임 오버 — 대본을 멈추고 부른 쪽에 알린다.

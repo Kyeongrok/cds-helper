@@ -1608,11 +1608,14 @@ public sealed class ShipMapWindow : Window
     /// </code>
     /// 게임은 줄마다 레지스트리를 읽어 <b>풀어 놓은 것만</b> 켠다 —
     /// <c>Software\KOEI\CostaDelSol.0</c> 의 <c>MG00</c>~<c>MG06</c> 이 1 이어야 한다
-    /// (<c>0x0045FA54</c> 벌). 여기서는 만든 것만 켠다.
+    /// (<c>0x0045FA54</c> 벌). 우리는 설정의 <see cref="Local.Settings.GameSettings.IsMinigameUnlocked"/> 로 본다.
     ///
     /// <b>여덟째 「일기토」는 원본 차림표에 없다.</b> 게임에서는 해전에서 기함끼리
     /// 붙었을 때만 열리는데(<c>0x0043A347</c>) 아직 해전이 없어서 여기에 붙여 둔다.
     /// </remarks>
+    /// <summary>원본 MINI GAME 차림표의 줄 수 — 이 뒤는 앱이 붙인 줄이다.</summary>
+    private const int OriginalMinigames = 7;
+
     private void MiniGames()
     {
         string[] names =
@@ -1626,7 +1629,9 @@ public sealed class ShipMapWindow : Window
             "육상전 모의전", "모의해전",
         ];
 
-        int pick = MapPointDialog.Ask(this, names, "미니 게임", MapPointDialog.MenuWidth);
+        // 원본 일곱 줄은 발견 이벤트에서 그 놀이를 이겨 풀린 것만 켜진다(0x0045FA54 벌). 뒤에 붙인 줄은 늘 된다.
+        bool[] open = [.. names.Select((_, i) => i >= OriginalMinigames || Local.Settings.GameSettings.IsMinigameUnlocked(i))];
+        int pick = MapPointDialog.Ask(this, names, "미니 게임", MapPointDialog.MenuWidth, open);
         if (pick < 0) return;
 
         switch (pick)
