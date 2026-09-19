@@ -524,12 +524,16 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
         int fee = Math.Max(_game.Rates.Of(_cityId) * CityInfoBase / 100, 1);
 
         // 같은 지역의 도시들. 지금 있는 마을은 뺀다 — 여기 있는데 물을 까닭이 없다.
+        // 아직 안 선 도시도 뺀다(0x00477611 — 도시 +4 비트 4).
         var towns = rows.InRegion(rows.RegionOf(_cityId));
         towns.Remove(_cityId);
+        towns.RemoveAll(c => !_game.CityStanding(c));
         if (towns.Count == 0) return;
 
+        // 세 마디 다 <b>항구 사람</b> 얼굴이다(0x0047776B · 0x00477905 · 0x004777DA — 시설 +0x80).
+        var face = _game.SpeakerFace(BuildingCode, _culture);
         ConfirmDialog.Tell(owner,
-            $"다른 마을에 대해 듣고 싶나? 그렇다면 한건 당 금화 {fee}닢이네.", face: SailFace());
+            $"다른 마을에 대해 듣고 싶나? 그렇다면 한건 당 금화 {fee}닢이네.", face: face);
 
         var names = towns.Select(_game.CityName).ToList();
         while (_player.Gold >= fee)
@@ -538,10 +542,10 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             if (pick < 0) return;
 
             _player.Pay(fee);
-            ConfirmDialog.Tell(owner, WhereIs(towns[pick]), face: SailFace());
+            ConfirmDialog.Tell(owner, WhereIs(towns[pick]), face: face);
         }
 
-        ConfirmDialog.Tell(owner, "공짜로 가르쳐 줄 것은 없네.", face: SailFace());
+        ConfirmDialog.Tell(owner, "공짜로 가르쳐 줄 것은 없네.", face: face);
     }
 
     /// <summary>
