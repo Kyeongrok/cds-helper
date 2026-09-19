@@ -68,9 +68,11 @@ public sealed class MarketBuyDialog : GameWindow
 
     private MarketBuyDialog(Player player, Market market, int cityId,
                             ItemDescriptions? descriptions, ItemArt? art,
-                            Engine.Discovery.DiscoveryLog? found, uint[]? face = null)
+                            Engine.Discovery.DiscoveryLog? found, uint[]? face = null,
+                            Engine.Game? game = null)
     {
         _face = face;
+        _game = game;
         _player = player;
         _market = market;
         _cityId = cityId;
@@ -146,10 +148,18 @@ public sealed class MarketBuyDialog : GameWindow
         }
     }
 
-    /// <summary>고른 것을 사는 데까지 끌고 간다 — 아이템 창 → 값 → 물음 → 결과.</summary>
+    /// <summary>고른 것을 사는 데까지 끌고 간다(<c>0x004B3978</c> 부터의 되풀이).</summary>
     /// <remarks>
-    /// 고른 것이 여럿이면 아이템 창이 <b>한 장씩 차례로</b> 뜨고, 값은 그 뒤에 한 번
-    /// 합쳐서 부른다("그렇다면 금화 2800닢 필요하네."). 물음도 "이것들의" 로 갈린다.
+    /// <code>
+    ///   0x004B39A1  지닌 것 + 고른 것 &gt; 16 이면 「이대로는 %d개 들을 수 없습니다. 괜찮습니까?」 — 아니오면 목록으로
+    ///   0x004B3A2A  아이템 창을 한 장씩
+    ///   0x004B3A79  장사꾼 「그렇다면 금화 %d닢 필요하네.」
+    ///   0x004B3A99  「%s 아이템을 구입하겠습니까?」(이/이것들의) — 아니오면 목록으로
+    ///   0x004B3AAD  돈이 모자라면 장사꾼 「가난한 사람에게는 볼일 없네!…」 — 목록으로
+    ///   0x004B3B03  모조품은 그 자리에서 발견(0x004B37B0) — 물건은 소지품에 안 든다
+    ///   0x004B3B52  나머지를 소지품에 넣는다 — 넘치면 물릴 수 없는 버리기 창(0x004B1710(…, 0))
+    ///   0x004B3B65  돈을 빼고, 장사꾼 「고맙네!」 — 창을 닫는다
+    /// </code>
     /// </remarks>
     private void Decide()
     {
@@ -159,86 +169,48 @@ public sealed class MarketBuyDialog : GameWindow
             if (at >= 0 && at < _stock.Length) { picked.Add(_stock[at]); pickedAt.Add(at); }
         if (picked.Count == 0) return;
 
-        // 2. 무엇인지 한 장씩 보여 준다.
+        int over = _player.Items.Count + picked.Count - Player.MaxItems;
+        if (over > 0 && !ConfirmDialog.Ask(this, $"이대로는 {over}개 들을 수 없습니다. 괜찮습니까?")) return;
+
         foreach (var item in picked)
             ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art);
 
-        // 3. 값을 합쳐 알린다.
         int total = picked.Sum(item => _market.PriceOf(item, _cityId));
-        GameDialog.Show(this, $"그렇다면 금화 {total}닢 필요하네.");
+        Say($"그렇다면 금화 {total}닢 필요하네.");
 
-        // 4. 물어본다. 게임은 여럿일 때 "이것들의" 로 갈린다.
         string what = picked.Count > 1 ? "이것들의 아이템" : "이 아이템";
         if (!ConfirmDialog.Ask(this, $"{what}을 구입하겠습니까?")) return;
 
-        // 5. 소지품이 넘치면 <b>버릴 것을 고르게 한다</b>(0x004B1734) — 게임도 여기서 막지 않고
-        //    자리를 내게 한다. 다 비울 때까지 되풀이하고, 물리면 사지 않는다.
-        if (!MakeRoom(picked.Count)) return;
-
-        // 6. 이제서야 돈을 본다.
-        var result = _market.Buy(_player, picked, _cityId);
-        GameDialog.Show(this, result switch
+        if (!_player.CanAfford(total))
         {
-            BuyResult.Ok => "고맙네!",
-            BuyResult.NotEnoughGold => "가난한 사람에게는 볼일 없네! 안 살 거면 돌아가게!",
-            BuyResult.BagFull => "이 이상 가질 수 없습니다!",
-            _ => "미안하네, 지금 물건이 떨어지고 없네.",
-        });
+            Say("가난한 사람에게는 볼일 없네! 안 살 거면 돌아가게!");
+            return;
+        }
 
-        if (result != BuyResult.Ok) return;
-
-        // 모조품을 샀으면 그 자리에서 <b>발견</b>이 된다(0x004B37B0). 게임은 이 두 마디를
-        // 「고맙네!」보다 <b>먼저</b> 낸다(0x004B3AE9 → 0x004B3B6A).
-        foreach (int at in pickedAt)
+        // 모조품은 산 그 자리에서 발견이 된다 — 증거 물건은 보고할 때까지 소지품에 안 든다.
+        var goods = new List<int>();
+        for (int k = 0; k < picked.Count; k++)
         {
-            int id = _asDiscovery[at];
-            if (id < 0) continue;
+            int id = _asDiscovery[pickedAt[k]];
+            if (id < 0) { goods.Add(picked[k].Id); continue; }
             if (_found?.Table.Find(id) is not { } row || !_player.Discover(id)) continue;
 
-            GameDialog.Show(this, "자네, 보는 눈이 있군. 득보는 걸세.");
+            Say("자네, 보는 눈이 있군. 득보는 걸세.");
             ConfirmDialog.Tell(this, $"{row.Name}{GameUi.Josa(row.Name, "을", "를")} 발견했다!");
         }
 
+        if (_game != null) ItemGain.AddForced(this, _game, goods);
+        else foreach (int id in goods) _player.Take(id);
+        _player.Pay(total);
+        Say("고맙네!");
         Close();
     }
 
-    /// <summary>
-    /// 살 것을 들 자리를 낸다(<c>0x004B1734</c>) — 열여섯 칸을 넘으면 버릴 것을 고르게 한다.
-    /// </summary>
-    /// <remarks>
-    /// <code>
-    ///   0x00544A30  「더 이상 가질 수 없습니다! 소지품을 삭제해 주십시오」
-    ///   0x005449D8  「삭제 아이템의 선택」        ← 목록 제목
-    ///   0x00544A00  「소지품을 앞으로 %d개 삭제해 주십시오」
-    /// </code>
-    /// 그 앞에 <b>한 번 더 묻는다</b>(<c>0x004B39AD</c>) — 고른 것까지 더해 열여섯을 넘으면
-    /// <c>0x00544748</c> 「이대로는 %d개 들을 수 없습니다. 괜찮습니까?」이고, 아니오면
-    /// 고르기로 되돌아간다.
-    /// </remarks>
-    /// <returns>자리가 났으면 true. 안 버리고 물리면 false.</returns>
-    private bool MakeRoom(int buying)
-    {
-        int over = _player.Items.Count + buying - Player.MaxItems;
-        if (over <= 0) return true;
+    /// <summary>장사꾼이 말한다(<c>0x004692E0</c> — 시장 화자 얼굴).</summary>
+    private void Say(string text) => TalkDialog.Say(this, _face, "", text);
 
-        if (!ConfirmDialog.Ask(this, $"이대로는 {over}개 들을 수 없습니다. 괜찮습니까?")) return false;
-
-        GameDialog.Show(this, "더 이상 가질 수 없습니다! 소지품을 삭제해 주십시오");
-
-        while (over > 0)
-        {
-            GameDialog.Show(this, $"소지품을 앞으로 {over}개 삭제해 주십시오");
-
-            var held = _player.Items.ToList();
-            var names = held.Select(id => _market.Find(id)?.Name ?? $"아이템 {id}").ToList();
-            int at = ChoiceDialog.Pick(this, "삭제 아이템의 선택", names);
-            if (at < 0 || at >= held.Count) return false;
-
-            _player.Drop(held[at]);
-            over--;
-        }
-        return true;
-    }
+    /// <summary>소지품 넘침 창에서 이름을 찾을 판. 없으면 넘침 창 없이 넣는다.</summary>
+    private readonly Engine.Game? _game;
 
     /// <summary>늘어놓을 줄 — 모조품(발견물 번호) 먼저, 그 다음 재고. 재고 줄의 발견물 번호는 −1.</summary>
     private static (ItemTable.Record[] Rows, int[] Marks) Offer(Player player, Market market, int cityId,
@@ -266,7 +238,8 @@ public sealed class MarketBuyDialog : GameWindow
     /// </remarks>
     public static void Show(Window owner, Player player, Market market, int cityId,
                             ItemDescriptions? descriptions, ItemArt? art,
-                            Engine.Discovery.DiscoveryLog? found = null, uint[]? face = null)
+                            Engine.Discovery.DiscoveryLog? found = null, uint[]? face = null,
+                            Engine.Game? game = null)
     {
         if (player.Items.Count >= Player.MaxItems)
         {
@@ -278,7 +251,7 @@ public sealed class MarketBuyDialog : GameWindow
             TalkDialog.Say(owner, face, "", "미안하네, 지금 물건이 떨어지고 없네.");
             return;
         }
-        new MarketBuyDialog(player, market, cityId, descriptions, art, found, face)
+        new MarketBuyDialog(player, market, cityId, descriptions, art, found, face, game)
             { Owner = owner }.ShowDialog();
     }
 }
