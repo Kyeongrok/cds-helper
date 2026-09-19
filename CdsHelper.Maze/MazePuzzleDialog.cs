@@ -481,6 +481,10 @@ internal sealed class MazePuzzleDialog : InfoDialog
         var dialog = new MazePuzzleDialog(rng) { Owner = owner };
         dialog.ShowDialog();
 
+        // 상금 갈래(+0x310)는 발견 대본이 걸 때뿐이다(0x0042C8A0(1)). 미니 게임은 0 이라 말도 다르고
+        // 금화도 없다(0x0042B11A).
+        bool stakes = player != null;
+
         switch (dialog._game.Over)
         {
             case MazePuzzle.Result.Trapped:
@@ -491,9 +495,10 @@ internal sealed class MazePuzzleDialog : InfoDialog
 
             case MazePuzzle.Result.Failed:
                 // 발견 대본이 거는 미궁은 <b>상금 갈래</b>다(0x00408D80 이 0x0042C8A0(1)).
-                // 그 갈래의 실패 말이 이것이다(0x0042B0C8) — 문이 닫힌다는 쪽은 딴 갈래다.
-                NoticeDialog.Show(owner,
-                    "이번엔 되돌아 오지 않았지만, 바닥이 불길한 소리를 내기 시작했다!",
+                // 그 갈래의 실패 말이 이것이고(0x0042B0C8), 미니 게임은 문이 닫힌다(0x0042B0D4).
+                NoticeDialog.Show(owner, stakes
+                    ? "이번엔 되돌아 오지 않았지만, 바닥이 불길한 소리를 내기 시작했다!"
+                    : "이번엔 되돌아 오지 않았지만 문이 닫히고 말았다. 이제 탈출은 불가능하다.",
                     "클리어 실패");
                 NoticeDialog.Show(owner, "게임 오버입니다. 다음 번엔 노력합시다.", "게임 오버");
                 break;
@@ -507,10 +512,14 @@ internal sealed class MazePuzzleDialog : InfoDialog
             // 연 상자 수만큼 금화를 준다(0x0042B11A 의 점프표).
             case MazePuzzle.Result.Cleared:
             case MazePuzzle.Result.Perfect:
-                NoticeDialog.Show(owner, "축하하네! 드디어 자네는 미궁을 돌파했네!", "게임 클리어");
+                // 미니 게임에서 상자 넷을 다 열고 한 번도 안 무르고 안 되돌아갔으면 말이 따로 있다
+                // (0x0042AFF9 → 0x00559A80).
+                NoticeDialog.Show(owner, !stakes && dialog._game.Over == MazePuzzle.Result.Perfect
+                    ? "축하하네! 자네는 실수하지 않고 미궁을 돌파해 보물을 손에 넣었네!"
+                    : "축하하네! 드디어 자네는 미궁을 돌파했네!", "게임 클리어");
                 // <b>말없이 넣어 준다</b> — 코인 게임과 달리 알리는 글이 없다(0x0042B136 이
                 // 곧바로 0x0047CBC0 으로 간다).
-                if (dialog._game.Prize > 0) player?.Earn(dialog._game.Prize);
+                if (stakes && dialog._game.Prize > 0) player!.Earn(dialog._game.Prize);
                 break;
         }
 
