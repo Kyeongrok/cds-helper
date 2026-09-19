@@ -1791,7 +1791,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         return TownMenu.Build(facility, title, code, teachMask, patron,
             new TownWorks.TownState(
                 Teaches: TownWorks.Teaches(teachMask),
-                Poor: _player.Gold < Lodging.OddJobMaxGold,
+                Poor: _player.Gold <= Lodging.OddJobMaxGold,   // 0x0047FE70 의 jle — 100닢이면 뜬다
                 // 게임도 알릴 것이 있고 <b>모항</b>일 때만 줄을 켠다(0x00476DE0).
                 CanAnnounce: _cityId == _player.HomePort && Port.Announceable().Count > 0,
                 PatronRow: patron == null ? null : Patrons.PatronRow(patron),
