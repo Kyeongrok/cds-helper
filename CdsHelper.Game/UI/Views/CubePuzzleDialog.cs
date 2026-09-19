@@ -534,7 +534,10 @@ internal sealed class CubePuzzleDialog : GameWindow
     }
 
     /// <summary>놀이를 한 판 하고 <c>0x0049B3C0</c> 이 하듯 결과를 알린다.</summary>
-    public static void Play(Window owner, Player player, Random rng)
+    /// <summary>금괴를 밟을 때 나는 소리 — 사운드 0x27(<c>0x0049C918</c>), WAVE 파트 11 이다.</summary>
+    private const int GoldSoundPart = 0x27 - 28;
+
+    public static void Play(Window owner, Player player, Random rng, Local.Helpers.SoundBank? sfx = null)
     {
         // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다.
         Explain(owner);
@@ -551,6 +554,7 @@ internal sealed class CubePuzzleDialog : GameWindow
             {
                 if (paid) return;
                 paid = true;
+                sfx?.Play(GoldSoundPart);
                 player.Earn(CubePuzzle.Prize);
                 NoticeDialog.Show(dialog,
                     $"금화로 따지면 {CubePuzzle.Prize} 닢에 상당되는 금괴를 손에 넣었다!",
