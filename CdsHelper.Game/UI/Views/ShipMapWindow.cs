@@ -3254,13 +3254,13 @@ public sealed class ShipMapWindow : Window
             _game.Player.PassDayAtSea();
             RollWeather();
             var (lat, _) = _host.ShipLatLon;
-            Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random));
+            Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random, FleetLevel(Skill.Sailing)));
             PassSeaMorale();
             CheckSeaDailyEvent();
             CheckSeaEvent();
 
             // 서 있는 재해가 날마다 해를 끼친다 — 쥐는 식량을, 병은 선원을(0x00474DA0).
-            SeaEvents.Ail(_game.Player, _game.Random);
+            SeaEvents.Ail(_game.Player, _game.Random, MateSheetAt);
             TellCrewShort();
 
             // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0). 병 중에 0 이면 거기서 끝이다.
@@ -4010,7 +4010,7 @@ public sealed class ShipMapWindow : Window
     private const int SeaMoraleStep = 3;
 
     /// <summary>
-    /// 그 기능을 <b>함대에서 제일 잘 아는 사람</b>의 수준 — 제독과 부하 가운데 가장 높은 값.
+    /// 그 기능의 수준 — <b>제독과 부하 자리 1</b> 가운데 높은 값.
     /// </summary>
     /// <remarks>
     /// 게임의 <c>0x0047CCA0(기능, 1, -1, -1, -1)</c> 이다. 뭍의 하루(<c>0x004754B6</c>, 운용술)와
@@ -4022,19 +4022,19 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private int FleetLevel(int skill)
     {
+        // 견주는 것은 <b>부하 자리 1</b> 하나뿐이다 — 0x0047CCA0(기능, 1, −1, −1, −1) 이 넘긴 자리만 제독과 대 본다.
         var player = _game.Player;
         int best = player.LevelOf(Skill.Names[skill]);
 
-        if (_game.World?.People is not { } people) return best;
-        for (int slot = 0; slot < player.Mates.Count; slot++)
-        {
-            string mate = player.MateAt(slot);
-            if (mate.Length == 0) continue;
-            if (people.FirstOrDefault(r => r.Name == mate) is { } row && skill < row.Skills.Length)
-                best = Math.Max(best, row.Skills[skill]);
-        }
+        string mate = player.MateAt(NavigatorSlot);
+        if (mate.Length == 0 || _game.World?.People is not { } people) return best;
+        if (people.FirstOrDefault(r => r.Name == mate) is { } row && skill < row.Skills.Length)
+            best = Math.Max(best, row.Skills[skill]);
         return best;
     }
+
+    /// <summary>항해·운용을 대 보는 부하 자리(<c>0x004754B4</c> · <c>0x0047574A</c> 의 인자 1).</summary>
+    private const int NavigatorSlot = 1;
 
     /// <summary>
     /// 상륙 차림표의 「수리」(<c>0x0048E140</c>) — 자재로 배를 고친다.

@@ -292,16 +292,16 @@ public static class SeaEvents
     ///   474e0c  전염병 → 죽는 수 += 6 - 부하 의학
     ///   474e3c  죽는 수만큼 선원 비율이 높은 배에서 한 명씩
     /// </code>
-    /// 부하 기능표를 우리는 안 들어 <b>주인공의 의학</b>으로 갈음한다. 우리 선원은 함대가 통째로
-    /// 태우므로 머릿수만 던다.
+    /// 의학은 제독과 <b>부하 자리 0</b> 가운데 높은 쪽이다(<c>0x00474DEA</c> · <c>0x00474E24</c> 의
+    /// <c>0x0047CCA0(5, 0, …)</c>). 우리 선원은 함대가 통째로 태우므로 머릿수만 던다.
     /// </remarks>
     /// <returns>오늘 죽은 선원 수.</returns>
-    public static int Ail(Player player, Random rng)
+    public static int Ail(Player player, Random rng, Func<int, Player.MateInfo?>? mateAt = null)
     {
         if (player.Has(SeaAilment.Rats))
             player.AddSupplyUnits(SupplyKind.Food, -RatsDailyUnits);
 
-        int medicine = player.LevelOf(MedicineSkill);
+        int medicine = Math.Max(player.LevelOf(MedicineSkill), mateAt?.Invoke(0)?.Medicine ?? 0);
         int dead = 0;
         if (player.Has(SeaAilment.Scurvy)) dead = rng.Next(2) + 3 - medicine;
         if (player.Has(SeaAilment.Plague)) dead += 6 - medicine;
@@ -548,7 +548,10 @@ public static class SeaEvents
     /// <b>바다에서는 날마다 지친다</b> — 폭풍이 없어도 오래 나가 있으면 반란이 온다.
     /// 항해사 등급은 우리에게 없어 그 자리에 <b>항해술 자리</b>를 넣는다.
     /// </remarks>
-    public static Day PassDay(Player player, double lat, Random rng)
+    /// <param name="sailing">
+    /// 항해술 — 제독과 부하 자리 1 가운데 높은 쪽(<c>0x0047574A</c> 의 <c>0x0047CCA0(0, 1, …)</c>). 안 주면 제독 것이다.
+    /// </param>
+    public static Day PassDay(Player player, double lat, Random rng, int? sailing = null)
     {
         int use = Supply.DailyUse(player.Crew);
         int warn = use * Supply.LowDays;
@@ -563,7 +566,7 @@ public static class SeaEvents
         int tired = water == 0 && food == 0 ? rng.Next(3) + 8
                   : water == 0 || food == 0 ? rng.Next(3) + 6
                   : rng.Next(2) + 4;
-        tired = Math.Max(0, tired - player.LevelOf(SkillName) + cold);
+        tired = Math.Max(0, tired - (sailing ?? player.LevelOf(SkillName)) + cold);
 
         int was = player.Fatigue;
         player.Tire(tired);
