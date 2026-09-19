@@ -115,8 +115,19 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// <summary>지금 짚은 방향. 게임의 <c>[0x2FC]</c> 다.</summary>
     private int _point = -1;
 
-    private MazePuzzleDialog(Random rng)
+    /// <summary>상금 갈래인지(<c>+0x310</c>) — 발견 대본이 걸 때만이다. 상자 말과 덫 말이 갈린다.</summary>
+    private readonly bool _stakes;
+
+    /// <summary>효과음. 없으면 조용하다.</summary>
+    private readonly CdsHelper.Game.Local.Helpers.SoundBank? _sfx;
+
+    /// <summary>상자를 열었을 때의 소리 — 사운드 0x22(<c>0x0042AACE</c>), WAVE 파트 6.</summary>
+    private const int ChestSoundPart = 0x22 - 28;
+
+    private MazePuzzleDialog(Random rng, bool stakes = false, CdsHelper.Game.Local.Helpers.SoundBank? sfx = null)
     {
+        _stakes = stakes;
+        _sfx = sfx;
         _game = new MazePuzzle(rng);
 
         if (Picture("maze-bg.png") is { } back)
@@ -367,11 +378,17 @@ internal sealed class MazePuzzleDialog : InfoDialog
             return;
         }
 
-        NoticeDialog.Show(this,
-            number == MazePuzzle.Chests
-                ? "보물을 손에 넣었다!"
-                : $"보물 상자 {number + 1}의 열쇠를 손에 넣었다!",
-            number == MazePuzzle.Chests ? "보물 발견" : "열쇠 발견");
+        // 상금 갈래면 상자마다 금화를 알린다 — n 번째 상자가 10^n 닢이다(0x0042AA05). 셈은 끝에 한 번에
+        // 치른다(0x0042B11A). 미니 게임은 마지막 상자면 보물, 아니면 다음 상자의 열쇠다.
+        if (_stakes)
+            NoticeDialog.Show(this, $"금화 {(int)Math.Pow(10, number)}닢을 손에 넣었다!", "보물 발견");
+        else
+            NoticeDialog.Show(this,
+                number == MazePuzzle.Chests
+                    ? "보물을 손에 넣었다!"
+                    : $"보물 상자 {number + 1}의 열쇠를 손에 넣었다!",
+                number == MazePuzzle.Chests ? "보물 발견" : "열쇠 발견");
+        _sfx?.Play(ChestSoundPart);
         Sync();
     }
 
@@ -473,24 +490,26 @@ internal sealed class MazePuzzleDialog : InfoDialog
     /// (<c>0x0042B154</c>) 덫·실패·포기는 0 이다 — 발견 대본(<c>0E 04 02</c>)이 이 값으로 갈라진다.
     /// </returns>
     public static bool Play(Window owner, Random rng,
-                            CdsHelper.Support.Local.Models.Player? player = null)
+                            CdsHelper.Support.Local.Models.Player? player = null,
+                            CdsHelper.Game.Local.Helpers.SoundBank? sfx = null)
     {
         // 판을 열기 전에 설명부터 낸다 — 게임도 그렇다(0x0042C84E).
         Explain(owner);
-
-        var dialog = new MazePuzzleDialog(rng) { Owner = owner };
-        dialog.ShowDialog();
 
         // 상금 갈래(+0x310)는 발견 대본이 걸 때뿐이다(0x0042C8A0(1)). 미니 게임은 0 이라 말도 다르고
         // 금화도 없다(0x0042B11A).
         bool stakes = player != null;
 
+        var dialog = new MazePuzzleDialog(rng, stakes, sfx) { Owner = owner };
+        dialog.ShowDialog();
+
         switch (dialog._game.Over)
         {
             case MazePuzzle.Result.Trapped:
+                // 덫 말도 갈래마다 다르다(0x0042AADC) — 상금 갈래는 미궁이 흔들린다.
                 NoticeDialog.Show(owner,
-                    "순서를 지키지 않았으므로 보물 상자에 장치된 덫이 작동!" +
-                    Environment.NewLine + "순식간에 목숨을 잃고 말았다!", "게임 오버");
+                    "순서를 지키지 않았으므로 보물 상자에 장치된 덫이 작동!" + Environment.NewLine +
+                    (stakes ? "갑자기 미궁이 흔들리기 시작했다." : "순식간에 목숨을 잃고 말았다!"), "게임 오버");
                 break;
 
             case MazePuzzle.Result.Failed:

@@ -1586,7 +1586,7 @@ public sealed class ShipMapWindow : Window
     /// 이 자리에 걸어 준다.
     /// </summary>
     /// <remarks>돌파했으면 true 를 낸다 — 발견 대본(<c>0E 04 02</c>)이 그 결과로 갈라진다.</remarks>
-    public static Func<Window, Random, Player?, bool>? MazeGame { get; set; }
+    public static Func<Window, Random, Player?, Local.Helpers.SoundBank?, bool>? MazeGame { get; set; }
 
     // 일기토를 밖에서 걸어 주던 자리(DuelGame)는 걷었다 — 이제 PlayDuel 이 반란·해전이
     // 쓰는 그 판을 곧장 부른다. CdsHelper.Duel 의 옛 판은 아무도 안 부른다.
@@ -1640,7 +1640,7 @@ public sealed class ShipMapWindow : Window
             case 1: SphinxQuizDialog.Play(this, _game.Random); break;
             case 2:
                 if (MazeGame == null) NoticeDialog.Show(this, "아직 만들지 않았습니다");
-                else MazeGame(this, _game.Random, null);   // 미니 게임은 상금 갈래가 아니다(0x0042C8A0(0))
+                else MazeGame(this, _game.Random, null, _game.Sfx);   // 미니 게임은 상금 갈래가 아니다(0x0042C8A0(0))
                 break;
             case 3: FishingGameDialog.Play(this, _game.Random); break;
             case 4: CoinPuzzleDialog.Play(this, _game.Random); break;
