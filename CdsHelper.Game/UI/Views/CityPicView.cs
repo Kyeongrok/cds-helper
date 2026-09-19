@@ -425,8 +425,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
         foreach (var folk in _game.TownFolk?.InCity(cityId) ?? []) AddFolk(folk, scale);
 
         // 게임 건물 표에 적힌 그대로 얹는다 — 그 도시에 있는 건물만, 게임이 쓰는 자리에.
+        // 코드가 <b>큰</b> 것부터 깔아 낮은 것이 위에 오게 한다 — 겹치면 낮은 코드가 이긴다(0x00491D58).
         bool harborPlaced = false;
-        foreach (var building in Standing(cityId))
+        foreach (var building in Enumerable.Reverse(Standing(cityId)))
         {
             AddSpot(building, scale);
             if (building.Kind == "항구") harborPlaced = true;
@@ -493,9 +494,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
         _layer.Children.Add(tag);
         _tags.Add(tag);
 
-        // 표의 상자는 96x80 이라 건물끼리 겹친다. 가운데는 그대로 두고 누를 자리만 좁힌다.
-        var a = new Rect(building.CenterX - HitWidth / 2.0, building.CenterY - HitHeight / 2.0,
-                         HitWidth, HitHeight);
+        // 누를 자리는 상자(96x80)의 가운데 절반이다 — 48x40(0x004733E0).
+        var a = new Rect(building.HitX, building.HitY, building.HitWidth, building.HitHeight);
         var spot = new Border
         {
             Width = a.Width * scale,
@@ -1416,9 +1416,6 @@ public sealed class CityPicView : GameWindow, ITownScreen
                        child.Name, talk.Child);
     }
 
-    /// <summary>누를 자리의 크기(그림 점). 건물끼리 겹치지 않을 만큼만 잡았다.</summary>
-    private const int HitWidth = 44, HitHeight = 38;
-
     /// <summary>
     /// 건물 <b>위에</b> 이름표를 띄운다. 게임은 밑에 붙이는데, 우리 커서는 이름표를 덮고
     /// 앉아 글자가 가린다 — 커서가 누르는 자리는 늘 이름표 아래가 되게 위로 올렸다.
@@ -1849,8 +1846,14 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 지금 서 있는 건물들 — 건물 표에 있어도 건물 낱말 비트가 꺼져 있으면 뺀다(<see cref="CityExeTable.HasBuilding"/>).
     /// 스톡홀름·이스파한·우르겐치·카슈가르 왕궁은 역사 대본이 세우기 전까지 안 들어가진다.
     /// </summary>
+    /// <remarks>
+    /// 차례는 <b>건물 코드 차례</b>다 — 게임은 도시 낱말(<c>+0x1C</c>)의 비트 0~15 를 훑어(<c>0x00491D58</c>)
+    /// 자리가 겹치면 <b>코드가 낮은 건물</b>을 집는다. 맵 포인트 목록도 같은 차례다.
+    /// </remarks>
     private List<CityBuildingTable.Building> Standing(int cityId) =>
-        [.. _table.InCity(cityId).Where(b => _game.CityRows?.HasBuilding(cityId, b.Code) ?? true)];
+        [.. _table.InCity(cityId)
+                  .Where(b => _game.CityRows?.HasBuilding(cityId, b.Code) ?? true)
+                  .OrderBy(b => b.Code)];
 
     /// <summary>그 자리의 건물 줄. 못 찾으면 null.</summary>
     private CityBuildingTable.Building? BuildingAt(int code)
