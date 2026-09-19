@@ -106,15 +106,26 @@ public sealed class TradePostDialog : GameWindow
         _qty = new int[_rows.Count];
         Array.Clear(_sell);
         _pct = 100;
+        _wins = 0;
         _tries = 0;
         _bargainOn = false;
         Paint();
     }
 
-    private TradePost.Deal DealNow() => new(
-        [.. _rows.Select((r, i) => (r, _qty[i])).Where(p => p.Item2 > 0)],
-        [.. Enumerable.Range(0, _player.CargoHold.Count).Where(s => _sell[s] > 0).Select(s => (s, _sell[s]))],
-        _pct);
+    private TradePost.Deal DealNow()
+    {
+        var plain = new TradePost.Deal(
+            [.. _rows.Select((r, i) => (r, _qty[i])).Where(p => p.Item2 > 0)],
+            [.. Enumerable.Range(0, _player.CargoHold.Count).Where(s => _sell[s] > 0).Select(s => (s, _sell[s]))]);
+        return _wins > 0 ? plain with { Total = TradePost.Haggled(TradePost.CostOf(plain), _wins) } : plain;
+    }
+
+    /// <summary>이번 [결정] 에서 흥정에 이긴 수 — 이길 때마다 총액이 95% 가 된다.</summary>
+    private int _wins;
+
+    /// <summary>악명을 올린다(<c>0x004697C0(1, n)</c> — 알림 없이, 끝에서 자른다).</summary>
+    private void RaiseInfamy(int by) =>
+        _player.Infamy = Math.Min(Engine.Sea.FleetRaid.MaxRenown, _player.Infamy + by);
 
     private int Cost => TradePost.CostOf(DealNow());
     private int Income => _post.GainOf(_player, _city, DealNow());
@@ -172,6 +183,7 @@ public sealed class TradePostDialog : GameWindow
     {
         if (_bargainOn) return;
         _pct = 100;
+        _wins = 0;
         _tries = 0;
         int cost = Cost;
         if (!_post.CanBargain(_player, _city, cost)) { Apply(close: true); return; }
@@ -201,6 +213,7 @@ public sealed class TradePostDialog : GameWindow
                 _ => "공급량이 모자랍니다.",
             }, true);
             _pct = 100;
+            _wins = 0;
             _tries = 0;
             _bargainOn = false;
             Paint();
@@ -222,13 +235,15 @@ public sealed class TradePostDialog : GameWindow
         if (k == 0) { _bargainOn = false; Apply(close: true); return; }
         if (k != 1) { _bargainOn = false; Paint(); return; }
 
+        RaiseInfamy(TradePost.HaggleInfamy);
         bool ok = TradePost.RollBargain(_player, _random);
-        if (ok) _pct = _pct * TradePost.BargainPct / 100;
+        if (ok) _wins++;
         Say(TradePost.BargainLine(ok, _tries, Cost), !ok);
         _tries++;
 
         if (ok && _tries >= TradePost.BargainWins)
         {
+            RaiseInfamy(TradePost.HaggleWinInfamy);
             _bargainOn = false;
             Apply(close: false);
             return;

@@ -47,7 +47,7 @@ public sealed class TradePost
     private const int MinRate = 1, MaxRate = 250, MaxRateStep = 50;
 
     /// <summary>흥정 — 한 번 깎일 때마다 이만큼(%)이 된다(<c>0x00481287</c>).</summary>
-    public const int BargainPct = 90;
+    public const int BargainPct = 95;
 
     /// <summary>성공이 이만큼 쌓이면 더 못 깎고 그대로 산다(<c>0x004812D1</c>).</summary>
     public const int BargainWins = 3;
@@ -272,8 +272,9 @@ public sealed class TradePost
     /// <param name="Buys">살 줄과 수량.</param>
     /// <param name="Sells">팔 짐 칸과 수량.</param>
     /// <param name="Pct">흥정으로 깎인 값(%). 100 이면 제값.</param>
+    /// <param name="Total">흥정으로 깎인 <b>총액</b>. 없으면 단가 x 수량의 합이다.</param>
     public sealed record Deal(IReadOnlyList<(Row Row, int Count)> Buys,
-                              IReadOnlyList<(int Slot, int Count)> Sells, int Pct = 100);
+                              IReadOnlyList<(int Slot, int Count)> Sells, int Pct = 100, int? Total = null);
 
     public enum Outcome { Ok, Nothing, NotEnoughGold, HoldFull, TooHeavy, NoSlot, NoSupply }
 
@@ -282,7 +283,23 @@ public sealed class TradePost
         price <= 0 ? price : Math.Max(1, price * pct / 100);
 
     /// <summary>살 것의 총액.</summary>
-    public static int CostOf(Deal deal) => deal.Buys.Sum(b => b.Count * Discounted(b.Row.Price, deal.Pct));
+    public static int CostOf(Deal deal) =>
+        deal.Total ?? deal.Buys.Sum(b => b.Count * Discounted(b.Row.Price, deal.Pct));
+
+    /// <summary>
+    /// 흥정에 한 번 이길 때마다 <b>총액</b>이 95% 가 된다(<c>0x00481287</c> — <c>x95 / 100</c>, 최소 1).
+    /// </summary>
+    public static int Haggled(int total, int wins)
+    {
+        for (int i = 0; i < wins && total > 0; i++) total = Math.Max(1, total * BargainPct / 100);
+        return total;
+    }
+
+    /// <summary>「값을 깎는다」를 누를 때마다 오르는 악명(<c>0x00481274</c> 의 <c>0x004697C0(1, 1)</c>).</summary>
+    public const int HaggleInfamy = 1;
+
+    /// <summary>세 번째에 이겨 거래가 서면 더 오르는 악명(<c>0x004812E4</c> 의 <c>0x004697C0(1, 3)</c>).</summary>
+    public const int HaggleWinInfamy = 3;
 
     /// <summary>팔 것의 총액 — 매각가는 원산지와 상관없이 이 도시 값이다.</summary>
     public int GainOf(Player player, int city, Deal deal) =>
