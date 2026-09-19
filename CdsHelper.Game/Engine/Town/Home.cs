@@ -94,6 +94,7 @@ public static class Home
     /// <summary>아내와 아이가 주고받는 두 줄 — 아내가 먼저, 아이가 받는다.</summary>
     /// <param name="Wife">아내가 하는 말. <c>{0}</c> 이 있으면 아이 이름이 든다.</param>
     /// <param name="Child">아이가 받는 말.</param>
+    /// <param name="Wife">아내 말. <c>{0}</c> 은 아이 이름, <c>{1}</c> 은 그 은/는 조사다.</param>
     public readonly record struct FamilyTalk(string Wife, string Child);
 
     /// <summary>
@@ -121,7 +122,7 @@ public static class Home
         if (age < GrownFrom)
             return pick switch
             {
-                0 => new("{0}는 크면, 뭐가 되고 싶어?",
+                0 => new("{0}{1} 크면, 뭐가 되고 싶어?",
                          daughter ? "신부가 되고 싶어!" : "나는..... 어른이 되고 싶어!"),
                 1 => new("아버지가 돌아오시면, 맛있는 걸 먹을 수 있어요!",
                          daughter ? "나도 요리 할거야~." : "와~, 와~!"),

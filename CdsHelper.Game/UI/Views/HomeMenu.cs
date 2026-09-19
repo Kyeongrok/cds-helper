@@ -437,7 +437,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         // 아이 소감 — 기능은 2·3 단계에서 기능마다 한마디, 언어는 2 단계에서 그 말로 뽐내고 3 단계에서 딴 나라를 그린다.
         string? remark = isSkill
             ? next == 3 ? Home.SkillRemarks[index].Three : next == 2 ? Home.SkillRemarks[index].Two : null
-            : next == 2 ? $"{what}{GameUi.Josa(what, "을", "를")} 유창하게 할 수 있어요! [안×하×요]···어때?"
+            : next == 2 ? $"{what}{GameUi.Josa(what, "은", "는")} 유창하게 할 수 있어요! [안×하×요]···어때?"
             : next == 3 ? "세계에는 여러가지 언어가 있네요. 딴 나라에 가보고 싶어." : null;
         if (remark != null) TalkDialog.Say(owner, null, son.Name, remark);
     }

@@ -1486,7 +1486,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         int age = child.AgeOn(_player.Date);
         var talk = Home.TalkWith(child.Daughter, age, dice);
-        TalkDialog.Say(this, face, _player.Spouse, string.Format(talk.Wife, child.Name));
+        // 「%s%s 크면」의 조사는 은/는이다(0x004147F7 의 0x004281B0(이름, 1)).
+        TalkDialog.Say(this, face, _player.Spouse,
+                       string.Format(talk.Wife, child.Name, GameUi.Josa(child.Name, "은", "는")));
         TalkDialog.Say(this, _game.Faces?.TryGetBgra(Home.FaceOf(child, age), child.Daughter),
                        child.Name, talk.Child);
     }
