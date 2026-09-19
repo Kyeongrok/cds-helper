@@ -136,6 +136,9 @@ public sealed class DisevRunner
     /// <remarks>게임은 <c>0x0044AF40(0x5A4D18, 0)</c> 으로 놀이 상태를 끝으로 돌린다(<c>0x0040BDBA</c>).</remarks>
     public static bool LastEndedInGameOver { get; private set; }
 
+    /// <summary>게임 오버로 끝났을 때 세울 그림 — 육상전 전멸이면 0x0D, 해전이면 0x0C, 그 밖은 0x0B.</summary>
+    public static int LastGameOverPicture { get; private set; } = GameOverDialog.MutinyLost;
+
     /// <summary>
     /// 마지막으로 돌린 이야기 대본의 <b>결과 코드</b> — 밑값 2, <c>4C</c> 0 · <c>4D</c> 1 · <c>4E</c> 2(맥락 <c>+8</c>).
     /// </summary>
@@ -192,6 +195,7 @@ public sealed class DisevRunner
     public static bool Run(Window owner, Game game, string cache, int partIndex, int building)
     {
         LastEndedInGameOver = false;
+        LastGameOverPicture = GameOverDialog.MutinyLost;
         LastResult = 2;
         LastStoryArcCompleted = false;
         LastAdvancedStep = false;
@@ -736,6 +740,7 @@ public sealed class DisevRunner
                 if (battle.Wiped)
                 {
                     LastEndedInGameOver = true;
+                    LastGameOverPicture = GameOverDialog.LandLost;   // 0x00449920 의 까닭 3
                     return Stop;
                 }
                 return null;
@@ -763,6 +768,7 @@ public sealed class DisevRunner
                 if (end.Over)
                 {
                     LastEndedInGameOver = true;
+                    LastGameOverPicture = GameOverDialog.FleetLost;  // 0x0044386D 의 까닭 2
                     return Stop;
                 }
                 return null;

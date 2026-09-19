@@ -3165,7 +3165,7 @@ public sealed class ShipMapWindow : Window
 
         if (end.GameOver)
         {
-            GameOver();
+            GameOver(end.Picture);
             Dispatcher.BeginInvoke(ReturnToTitle);
             return false;
         }
@@ -3267,7 +3267,7 @@ public sealed class ShipMapWindow : Window
             {
                 _host.Paused = true;
                 _asking = true;                      // 창이 떠 있는 동안 하루 셈이 다시 안 돌게
-                GameOver();
+                GameOver(GameOverDialog.FleetLost);   // 까닭 1
                 _asking = false;
                 Dispatcher.BeginInvoke(ReturnToTitle);
                 return;
@@ -3796,8 +3796,8 @@ public sealed class ShipMapWindow : Window
 
         if (report.Outcome != SeaCombatDialog.Outcome.Defeated) return false;
 
-        // 패배 — 0x0044AF40(0x5A4D18, 2). 끝 까닭별 그림 번호는 아직 못 갈라 반란 패배 그림을 쓴다.
-        GameOver();
+        // 패배 — 0x0044AF40(0x5A4D18, 2) → 그림 0x0C.
+        GameOver(GameOverDialog.FleetLost);
         return true;
     }
 
@@ -4268,7 +4268,7 @@ public sealed class ShipMapWindow : Window
             if (LandBattleScene.Run(this, _game, field, roll)) return;
             if (!field.Wiped) return;
 
-            GameOver();
+            GameOver(GameOverDialog.LandLost);   // 육상전 전멸은 까닭 3(0x00449920)
             Dispatcher.BeginInvoke(ReturnToTitle);
         }
         finally { _host.Paused = false; _asking = false; }
@@ -4745,7 +4745,7 @@ public sealed class ShipMapWindow : Window
             // 기함을 잃으면(격침·나포·일기토 패배) 놀이가 끝난다 — 보이는 함대 해전(FightFolk)과 같다.
             if (outcome == SeaCombatDialog.Outcome.Defeated)
             {
-                GameOver();
+                GameOver(GameOverDialog.FleetLost);   // 해전 패배는 까닭 2(0x0044386D)
                 over = true;
             }
         }
@@ -4795,7 +4795,7 @@ public sealed class ShipMapWindow : Window
         // 괴물에게 지면 여느 패배와 딴 말이다(0x004351F9).
         NoticeDialog.Show(this, "괴물이 먹어 버렸습니다", "해전");
 
-        GameOver();
+        GameOver(GameOverDialog.FleetLost);
         return (false, true);
     }
 
@@ -4991,7 +4991,7 @@ public sealed class ShipMapWindow : Window
         }
         finally { _host.Paused = false; _asking = false; }
 
-        GameOver();
+        GameOver(GameOverDialog.FleetLost);   // 극지방 전멸은 까닭 1(0x0048D7FD)
         Dispatcher.BeginInvoke(ReturnToTitle);
         return false;
     }
@@ -5479,7 +5479,7 @@ public sealed class ShipMapWindow : Window
 
         if (DisevRunner.LastEndedInGameOver)
         {
-            GameOver();
+            GameOver(DisevRunner.LastGameOverPicture);
             ReturnToTitle();
         }
     }
@@ -5523,7 +5523,7 @@ public sealed class ShipMapWindow : Window
             if (DisevRunner.LastEndedInGameOver)
             {
                 over = true;
-                GameOver();
+                GameOver(DisevRunner.LastGameOverPicture);
             }
 
             // 대본이 돌았으면 발견은 <b>대본의 01 0B 만</b> 적는다 — 게임의 발견 판정(0x0048D3F0)은

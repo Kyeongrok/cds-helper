@@ -37,7 +37,7 @@ internal static class HostileCityMenu
     /// <summary>한 판의 끝.</summary>
     /// <param name="Entered">문이 열렸는지 — 들어가도 되면 참.</param>
     /// <param name="GameOver">잡혀 죽었는지(<c>0x004A559F</c>).</param>
-    public readonly record struct Outcome(bool Entered, bool GameOver);
+    public readonly record struct Outcome(bool Entered, bool GameOver, int Picture = GameOverDialog.MutinyLost);
 
     /// <summary>
     /// 적대 도시 앞에 선다.
@@ -139,7 +139,7 @@ internal static class HostileCityMenu
                     {
                         // 부대가 모두 쓰러졌으면 놀이가 끝난다 — 마을 공략에서 지면 게임 오버다.
                         // 퇴각했으면(Wiped 가 안 선다) 차림표로 돌아간다.
-                        if (field.Wiped) return new Outcome(Entered: false, GameOver: true);
+                        if (field.Wiped) return new Outcome(Entered: false, GameOver: true, GameOverDialog.LandLost);
 
                         // 퇴각했으면 부관이 물러서자고 한다(0x00468A17). 부관이 없으면 상자만 뜬다.
                         if (game.AideFace is { } backFace)
