@@ -93,6 +93,11 @@ public sealed class SeaBattle
         /// <summary>지시를 마쳤는지(<c>+0x320</c> 1).</summary>
         public bool Ordered { get; internal set; }
         /// <summary>
+        /// 제자리 선회(<c>+0x8D0</c>) — 걸음 수 0 에 선회만 적힌 지시다. 한 칸도 안 가고
+        /// 뱃머리만 돌린다(<c>0x0043E92B</c>). <see cref="Move.Straight"/> 면 없는 것이다.
+        /// </summary>
+        public Move Pivot { get; internal set; }
+        /// <summary>
         /// 지시상태의 충돌 몫(<c>+0x320</c>) — 3 이번 턴에 들이받음 · 2 받혔거나 지난 턴에 들이받음 · 0 멀쩡.
         /// </summary>
         /// <remarks>턴 끝(<c>0x0043D7E7</c>)에 3 → 2, 그 밖 → 0 이다.</remarks>
@@ -453,7 +458,35 @@ public sealed class SeaBattle
     public void Order(Ship ship, IEnumerable<Move> plan)
     {
         ship.Plan.Clear();
+        ship.Pivot = Move.Straight;
         if (!ship.Stuck) ship.Plan.AddRange(plan.Take(ship.Power));
+        ship.Ordered = true;
+    }
+
+    /// <summary>
+    /// <b>제자리 선회</b> 칸 둘 — 뱃머리 오른앞(방향+1)과 왼앞(방향+5)이다
+    /// (<c>0x0043E6B8</c>~<c>0x0043E777</c> 이 배 <c>+0xA8</c>·<c>+0xB0</c> 에 세운다).
+    /// </summary>
+    public List<(int X, int Y, Move Turn)> Pivots(Ship ship)
+    {
+        var list = new List<(int, int, Move)>();
+        if (!ship.CanAct || ship.Stuck) return list;
+        foreach (var turn in new[] { Move.TurnRight, Move.TurnLeft })
+        {
+            var (x, y) = Step(ship.X, ship.Y, Turn(ship.Way, turn));
+            if (OnBoard(x, y)) list.Add((x, y, turn));
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// 제자리 선회를 적는다(<c>0x0043E92B</c>) — <b>걸음 수 0</b> 에 선회만 1 또는 2 다.
+    /// 한 칸도 안 가고 뱃머리만 돌린다.
+    /// </summary>
+    public void OrderPivot(Ship ship, Move turn)
+    {
+        ship.Plan.Clear();
+        ship.Pivot = ship.Stuck ? Move.Straight : turn;
         ship.Ordered = true;
     }
 
@@ -874,6 +907,15 @@ public sealed class SeaBattle
                          .Select(s => Math.Max(s.Plan.Count, s.Power))
                          .DefaultIfEmpty(0).Max();
 
+        // 제자리 선회는 걸음이 없으므로 맨 앞에 한 번만 먹인다(걸음 수 0 · 선회 1·2).
+        foreach (var ship in Ships)
+            if (ship.CanAct && ship.Pivot != Move.Straight)
+            {
+                ship.Way = Turn(ship.Way, ship.Pivot);
+                ship.Pivot = Move.Straight;
+            }
+        _stage?.Moved();
+
         for (int k = 0; k < beats && !Over; k++)
         {
             // 하위단계 0 — 걸음.
@@ -1173,6 +1215,7 @@ public sealed class SeaBattle
         foreach (var ship in Ships.ToList())
         {
             ship.Plan.Clear();
+            ship.Pivot = Move.Straight;
             ship.Ordered = false;
             ship.Blocked = false;
             ship.Bump = ship.Bump == 3 ? 2 : 0;
