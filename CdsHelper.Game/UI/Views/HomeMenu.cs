@@ -660,6 +660,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         if (want <= 0) return;
 
         GameDialog.Show(owner, $"금화 {_player.Deposit(want)}닢을 저금하겠습니다");
+        _menu.Pop();   // 맡기고 나면 저금 창이 닫힌다(0x00460BEB) — 수 적기를 물렸을 때만 창이 남는다
     }
 
     /// <summary>
@@ -684,6 +685,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         if (want <= 0) return;
 
         GameDialog.Show(owner, $"금화 {_player.Withdraw(want)}닢을 꺼내겠습니다");
+        _menu.Pop();   // 꺼내고 나면 저금 창이 닫힌다(0x00460BEB)
     }
 
     /// <summary>돈을 ↑↓ 로 움직이는 단위. Shift 를 누르면 천 닢씩 뛴다.</summary>
