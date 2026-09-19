@@ -2586,7 +2586,7 @@ public sealed class ShipMapWindow : Window
         // 그림도 설명도 없이 떴다(도시 창은 넘기고 있었다).
         ("소지품정보", () => Info(() => BelongingsDialog.Show(
             this, _game.Player, _game.Items, _game.ItemText, _game.ItemPictures,
-            GameInfo.DiscoveryNames(_game)))),
+            GameInfo.DiscoveryNames(_game), _game))),
         // 도시 커맨드(CityPicView.ShowHints)와 같은 창이다 — 보고까지 마친 힌트만 빼고, 고르면 설명을 편다.
         // 예전에는 발견만 한 힌트까지 빼는 딴 목록(GameInfo.HintNames)을 써서 바다에서는 비어 보였다(fb-ui-20).
         ("힌트정보", () => Info(ShowHints)),

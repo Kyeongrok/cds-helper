@@ -1487,7 +1487,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         CloseCityMenu();
 
         BelongingsDialog.Show(this, _player, _game.Items, _game.ItemText, _game.ItemPictures,
-                              GameInfo.DiscoveryNames(_game));
+                              GameInfo.DiscoveryNames(_game), _game);
     }
 
     /// <summary>

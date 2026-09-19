@@ -11,7 +11,7 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   +0x00  이름 ptr("바스타드소드")   +0x04  그림번호(-1 = 없음, 0~205)
 ///   +0x08  살 때 정가(12000)        +0x0C  팔 때 정가(6000)
 ///   +0x10  효과(48)                 +0x14  분류(0~8)
-///   +0x18  대개 -1
+///   +0x18  걸린 힌트(-1 = 없음) — 로제타석·사자의 책 같은 고문서 아홉 개만 있다(0x00465800)
 /// </code>
 /// 자리는 cds95-mod 의 <c>CharacterUtilKR/src/itemdb.h</c> 가 밝힌 것이다. 값·효과가
 /// <c>item.json</c> 과 맞는 것을 대조해 확인했다(286 중 값 271개·효과 전부).
@@ -53,13 +53,16 @@ public sealed class ItemTable
     /// <param name="SellList">팔 때 정가.</param>
     /// <param name="Effect">효과. 아이템 창 오른쪽 위에 뜨는 수다.</param>
     /// <param name="Category">분류 번호(0~8). 이름은 <see cref="CategoryNames"/>.</param>
+    /// <param name="Hint">
+    /// 걸린 힌트 번호. 없으면 -1. 소지품 정보에서 이 아이템을 보면 그 힌트를 읽어 볼 수 있다(<c>0x0046E8D2</c>).
+    /// </param>
     /// <remarks>
     /// 레코드 <b>구조체</b>는 빈 생성자가 늘 있어서, 적어 둔 JSON 을 되읽을 때 어느 것을 쓸지
     /// 일러 주지 않으면 값이 전부 0 으로 들어온다.
     /// </remarks>
     [method: JsonConstructor]
     public readonly record struct Record(
-        int Id, string Name, int Pic, int BuyList, int SellList, int Effect, int Category)
+        int Id, string Name, int Pic, int BuyList, int SellList, int Effect, int Category, int Hint = -1)
     {
         /// <summary>그림이 있는지.</summary>
         [JsonIgnore] public bool HasPic => Pic >= 0 && Pic <= MaxPic;
@@ -69,6 +72,9 @@ public sealed class ItemTable
         public string CategoryName =>
             Category >= 0 && Category < CategoryNames.Length ? CategoryNames[Category] : "";
     }
+
+    /// <summary>알맹이 모양 판. 힌트 칸(<see cref="Record.Hint"/>)을 더하면서 2 로 올렸다.</summary>
+    private const int SnapshotVersion = 2;
 
     /// <summary>JSON 으로 적어 두는 알맹이.</summary>
     internal sealed record Snapshot(Record[] Items);
@@ -100,7 +106,8 @@ public sealed class ItemTable
     /// </summary>
     public static ItemTable? Open(string gameDirectory)
     {
-        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error);
+        var snapshot = ExeTable.Open<Snapshot>(CacheName, gameDirectory, ReadFromExe, out string error,
+                                               SnapshotVersion);
         LastError = error;
         return snapshot == null ? null : new ItemTable(snapshot);
     }
@@ -120,7 +127,8 @@ public sealed class ItemTable
                 exe.Int(row + 0x08),
                 exe.Int(row + 0x0C),
                 exe.Int(row + 0x10),
-                exe.Int(row + 0x14));
+                exe.Int(row + 0x14),
+                exe.Int(row + 0x18));
         }
 
         if (items[ProbeId].Name != ProbeName)

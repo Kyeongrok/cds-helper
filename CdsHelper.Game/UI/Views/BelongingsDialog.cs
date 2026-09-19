@@ -53,10 +53,14 @@ public sealed class BelongingsDialog : GameWindow
     private readonly GameButton _decide;
     private int _at = -1;
 
+    /// <summary>고문서의 힌트를 읽힐 판. 없으면 아이템 창만 뜬다.</summary>
+    private readonly Engine.Game? _game;
+
     private BelongingsDialog(Player player, ItemTable? items,
                              ItemDescriptions? descriptions, ItemArt? art,
-                             IReadOnlyList<string> discoveries)
+                             IReadOnlyList<string> discoveries, Engine.Game? game)
     {
+        _game = game;
         _items = items;
         _descriptions = descriptions;
         _art = art;
@@ -291,15 +295,36 @@ public sealed class BelongingsDialog : GameWindow
         if (_at < 0 || _at >= _rows.Count) return;
         if (_items?.Find(_rows[_at].ItemId) is not { } item) return;
 
-        ItemInfoDialog.Show(this, item, _descriptions?.Of(item.Id) ?? "", _art,
-                            ItemInfoDialog.IsEquipped(item, _bag, _items));
+        string description = _descriptions?.Of(item.Id) ?? "";
+        bool equipped = ItemInfoDialog.IsEquipped(item, _bag, _items);
+
+        // 힌트가 걸린 고문서면 먼저 읽어 본다(0x0046E8D2). 못 읽으면 창을 띄운 채 말만 하고 닫는다.
+        if (_game is { } game)
+        {
+            switch (Engine.Discovery.ItemHintReading.Check(game, item, out int hint, out string word))
+            {
+                case Engine.Discovery.ItemHintReading.Outcome.Failed:
+                    ItemInfoDialog.ShowWhile(this, item, description, _art, equipped,
+                                             shown => NoticeDialog.Show(shown, word));
+                    return;
+                case Engine.Discovery.ItemHintReading.Outcome.Read:
+                    NoticeDialog.Show(this, Engine.Discovery.ItemHintReading.ReadWord);
+                    if (game.Hints?.Find(hint) is { } row)
+                        HintDetailDialog.Show(this, row, game.Hints.CategoryOf(row.Category),
+                                              game.Player.Fame, game.Player.MateCount > 0);
+                    game.Player.GainHint(hint);
+                    break;
+            }
+        }
+
+        ItemInfoDialog.Show(this, item, description, _art, equipped);
     }
 
     /// <summary>소지품 정보 창을 연다.</summary>
     /// <param name="discoveries">발견물 칸에 늘어놓을 이름. 찾은 차례대로 준다.</param>
     public static void Show(Window owner, Player player, ItemTable? items,
                             ItemDescriptions? descriptions, ItemArt? art,
-                            IReadOnlyList<string> discoveries)
+                            IReadOnlyList<string> discoveries, Engine.Game? game = null)
     {
         // <b>두 칸이 다 비면 창을 아예 안 연다</b>(0x0044CD06) — 「소지품이 없습니다」
         // 알림 한 장으로 끝난다(0x0055AD90, 제목 없음).
@@ -309,7 +334,7 @@ public sealed class BelongingsDialog : GameWindow
             return;
         }
 
-        new BelongingsDialog(player, items, descriptions, art, discoveries) { Owner = owner }
+        new BelongingsDialog(player, items, descriptions, art, discoveries, game) { Owner = owner }
             .ShowDialog();
     }
 }
