@@ -230,17 +230,22 @@ internal static class HostileCityMenu
         // 없으면 그냥 서술한다(「교섭에 성공/실패했습니다…」).
         bool aide = Standoff.HasAide(player);
 
+        // 부관이 있으면 부관 얼굴을 걸고(0x00469680 → 0x004695E0), 없으면 얼굴 없는 상자다.
+        void AideOrNews(string word, string news)
+        {
+            if (aide) TalkDialog.Say(owner, game.AideFace, "", word);
+            else NoticeDialog.Show(owner, news, "");
+        }
+
         if (!won)
         {
-            NoticeDialog.Show(owner,
-                aide ? say.TalkLostWord : string.Format(say.TalkLostNews, where), "");
+            AideOrNews(say.TalkLostWord, string.Format(say.TalkLostNews, where));
             return false;
         }
 
         int paid = player.Spend(Standoff.Price(player, dice));
         NoticeDialog.Show(owner, string.Format(say.Paid, paid), "");
-        NoticeDialog.Show(owner,
-            string.Format(aide ? say.TalkWonWord : say.TalkWonNews, where), "");
+        AideOrNews(string.Format(say.TalkWonWord, where), string.Format(say.TalkWonNews, where));
         player.OpenGate(city);
         return true;
     }
@@ -264,8 +269,7 @@ internal static class HostileCityMenu
         int tongue = TongueAt(game, city);
         bool aide = Standoff.HasAide(player);
         if (aide)
-            NoticeDialog.Show(owner,
-                tongue >= Standoff.SafeTongue ? say.Care : say.TongueThin, "");
+            TalkDialog.Say(owner, game.AideFace, "", tongue >= Standoff.SafeTongue ? say.Care : say.TongueThin);
 
         bool turban = HasTurban(game, player);
         if (turban)
@@ -290,7 +294,7 @@ internal static class HostileCityMenu
 
         if (away)
         {
-            if (aide) NoticeDialog.Show(owner, say.GotAway, "");
+            if (aide) TalkDialog.Say(owner, game.AideFace, "", say.GotAway);
             return new Outcome(false, false);  // 차림표로 안 돌아간다 — 그대로 물러선다
         }
 
@@ -347,7 +351,7 @@ internal static class HostileCityMenu
             NoticeDialog.Show(owner, say.Robbed, "");
         }
 
-        if (aide) NoticeDialog.Show(owner, say.GiveUpHere, "");
+        if (aide) TalkDialog.Say(owner, game.AideFace, "", say.GiveUpHere);
         return new Outcome(false, false);
     }
 
