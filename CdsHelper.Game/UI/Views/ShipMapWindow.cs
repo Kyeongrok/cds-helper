@@ -4072,8 +4072,8 @@ public sealed class ShipMapWindow : Window
 
                 TalkDialog.Say(this, mate, "", "자재를 몇 통 쓰겠습니까?");
                 int have = player.SupplyOf(SupplyKind.Material);
-                int barrels = CountDialog.Ask(this, "수리", "자재", "통", have);
-                if (barrels <= 0) continue;
+                // 통 수는 계산기 판으로 받는다(0x0048E4C5 → 0x00481FE0, 1~실은 자재).
+                if (have <= 0 || NumberPadDialog.Ask(this, 1, 1, have) is not { } barrels || barrels <= 0) continue;
 
                 player.AddSupply(SupplyKind.Material, -barrels);
                 int was = ship.Hp;
