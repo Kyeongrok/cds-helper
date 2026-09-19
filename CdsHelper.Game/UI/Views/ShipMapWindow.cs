@@ -3107,8 +3107,8 @@ public sealed class ShipMapWindow : Window
     ///   468804  그 나라 적대도 &gt; 0        →  적대 차림표 0x004A56F0
     ///   46882C  트루데시야스 조약에 막힘   →  같은 차림표 0x0046ABB0
     /// </code>
-    /// 어느 쪽이든 한 번 뚫으면(공략·잠입·교섭) 그 도시는 그냥 열린다 —
-    /// 「제독, 이것으로 마을에 들어갈 수 있습니다」(<c>0x00551C28</c>).
+    /// 교섭·잠입으로 뚫어도 <b>그때 한 번</b>이다 — 성공 갈래(<c>0x004A5669</c> · <c>0x004A53DC</c>)는 남는 것을
+    /// 아무것도 적지 않아 다음에 오면 차림표가 또 뜬다. 공략에 이기면 도시가 제 나라로 넘어와 그 뒤로는 안 막힌다.
     ///
     /// <b>적대도는 아직 오를 일이 없다</b> — 게임에서도 켤 때는 죄다 0 이고
     /// (<c>0x005859C0</c> 은 <c>.bss</c> 다) 무엇이 처음 올리는지를 못 짚었다. 그래서
@@ -3116,8 +3116,6 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private bool PassGate(int city, string name, bool byLand)
     {
-        if (_game.Player.IsGateOpen(city)) return true;
-
         int nation = _game.CityRows?.NationOf(city) ?? -1;
         int entry = Standoff.EntryOf(_game.Player, _game.Nations, nation);
         bool angry = nation >= 0 && Standoff.Barred(entry, byLand);

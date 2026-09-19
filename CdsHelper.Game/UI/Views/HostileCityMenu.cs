@@ -151,9 +151,6 @@ internal static class HostileCityMenu
                         return new Outcome(false, false);
                     }
 
-                    // 이겼으면 그 도시는 그 뒤로 그냥 열린다 — 교섭·잠입으로 뚫었을 때와
-                    // 같다("제독, 이것으로 마을에 들어갈 수 있습니다").
-                    player.OpenGate(city);
                     // 그리고 그 도시를 <b>내 나라로 넘긴다</b>(0x004689F1 → 0x00468AC0). 그 도시가 제 나라의
                     // 수도였으면 그 나라 도시가 모두 넘어간다(0x00468B40, 226곳을 훑는다). 넘겨받는 나라는
                     // 0x005B394C 인데, 늘 제독 국적(vt+0x14)을 옮겨 둔 값이다.
@@ -246,7 +243,6 @@ internal static class HostileCityMenu
         int paid = player.Spend(Standoff.Price(player, dice));
         NoticeDialog.Show(owner, string.Format(say.Paid, paid), "");
         AideOrNews(string.Format(say.TalkWonWord, where), string.Format(say.TalkWonNews, where));
-        player.OpenGate(city);
         return true;
     }
 
@@ -281,8 +277,7 @@ internal static class HostileCityMenu
 
         if (got)
         {
-            // 게임은 여기서 아무 말도 안 한다 — 0x004A53DC 가 곧장 돌아서서 도시로 든다.
-            player.OpenGate(city);
+            // 게임은 여기서 아무 말도 안 한다 — 0x004A53DC 가 곧장 돌아서서 도시로 든다(열린 문은 안 남는다).
             return new Outcome(Entered: true, GameOver: false);
         }
 
