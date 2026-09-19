@@ -78,14 +78,18 @@ internal sealed class SkillMakeDialog : InfoDialog
     };
 
     private readonly int _cap;
+
+    /// <summary>마지막으로 「다음」을 눌렀을 때 남은 보너스 — 되돌아오면 잇는다.</summary>
+    private static int LastLeft;
     private int _left;
     private bool _ok;
 
-    private SkillMakeDialog(Player player)
+    private SkillMakeDialog(Player player, int rolledMind, bool keep)
     {
         // 보너스는 앞 걸음에서 남겨 온 것이 아니라 여기서 새로 센다(0x0045DDD9).
         _left = Skill.BonusFor(player.Age, player.AbilityOf(Ability.Mind));
-        _cap = Skill.CapFor(player.AbilityOf(Ability.Mind));
+        // 상한은 <b>굴린</b> 지력으로 선다 — 능력치 화면에서 넣은 점은 안 친다(0x0045DFF6 의 [+0x110]).
+        _cap = Skill.CapFor(rolledMind);
 
         foreach (var (skill, level) in player.Work.Skills)
             _skills[skill] = _skillFloor[skill] = level;
@@ -94,6 +98,17 @@ internal sealed class SkillMakeDialog : InfoDialog
         // 직업이 주는 언어는 국적 것과 따로다 — 탐험가는 로망스어, 발굴자는 슬라브·그리스어다.
         foreach (var (tongue, level) in player.Work.Tongues)
             _tongues[tongue] = _tongueFloor[tongue] = level;
+
+        // 마지막 확인 화면에서 되돌아왔으면 고르던 것을 그대로 잇는다 — 원본은 능력치 화면을 나설 때만
+        // 기술을 새로 앉힌다(0x0045DAC0).
+        if (keep)
+        {
+            for (int i = 0; i < _skills.Length; i++)
+                _skills[i] = Math.Max(_skillFloor[i], player.LevelOf(Skill.Names[i]));
+            for (int i = 0; i < _tongues.Length; i++)
+                _tongues[i] = Math.Max(_tongueFloor[i], player.TongueOf(Skill.Languages[i]));
+            _left = LastLeft;
+        }
 
         var left = new StackPanel();
         for (int i = 0; i < Skill.Names.Length; i++)
@@ -245,13 +260,9 @@ internal sealed class SkillMakeDialog : InfoDialog
         if (by > 0)
         {
             if (values[at] >= Skill.MaxLevel || _left < CostOf(values[at])) return;
-            if (Total() >= _cap)
-            {
-                NoticeDialog.Show(this, ReferenceEquals(values, _skills)
-                    ? "더 이상 지식을 습득할 수 없습니다"
-                    : "더 이상 언어를 습득할 수 없습니다");
-                return;
-            }
+            // 상한은 기술 열셋과 언어를 <b>따로</b> 센다(0x0045DFE9 · 0x0045E118). 막는 말
+            // 「더 이상 지식/언어를 습득할 수 없습니다」는 안 보이는 힌트 패널로만 간다 — 말없이 물린다.
+            if (values.Sum() >= _cap) return;
             _left -= CostOf(values[at]);
             values[at]++;
         }
@@ -264,8 +275,6 @@ internal sealed class SkillMakeDialog : InfoDialog
         Sync();
     }
 
-    /// <summary>기술과 언어의 자리를 다 더한 값.</summary>
-    private int Total() => _skills.Sum() + _tongues.Sum();
 
     private void Sync()
     {
@@ -294,11 +303,14 @@ internal sealed class SkillMakeDialog : InfoDialog
     /// 보너스 포인트는 여기서 <b>새로 센다</b> — 나이와 지력과 직업 보정으로 나온다
     /// (<see cref="Skill.BonusFor"/>).
     /// </remarks>
-    public static bool Show(Window owner, Player player)
+    /// <param name="rolledMind">능력치 화면에서 굴린 지력(보너스를 넣기 전).</param>
+    /// <param name="keep">마지막 확인 화면에서 되돌아왔는지 — 그러면 고르던 것을 잇는다.</param>
+    public static bool Show(Window owner, Player player, int rolledMind, bool keep = false)
     {
-        var dialog = new SkillMakeDialog(player) { Owner = owner };
+        var dialog = new SkillMakeDialog(player, rolledMind, keep) { Owner = owner };
         dialog.ShowDialog();
         if (!dialog._ok) return false;
+        LastLeft = dialog._left;
 
         for (int i = 0; i < Skill.Names.Length; i++)
             player.SetSkill(Skill.Names[i], dialog._skills[i]);

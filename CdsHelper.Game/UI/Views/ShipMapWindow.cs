@@ -1953,6 +1953,7 @@ public sealed class ShipMapWindow : Window
         // 기술 화면에서 되돌아오면 능력치를 <b>그대로 잇는다</b>. −1 이면 새로 굴린다 —
         // 첫 걸음(이름·초상)으로 돌아갔다 오는 것은 사람을 새로 짓는 것이라 굴린다.
         int spare = -1;
+        bool back = false;
 
         while (true)
             switch (step)
@@ -1970,12 +1971,14 @@ public sealed class ShipMapWindow : Window
 
                 case 2:
                     // 보너스는 기술 화면이 제 손으로 센다 — 앞 걸음의 잔량이 아니다.
-                    step = SkillMakeDialog.Show(this, _game.Player) ? 3 : 1;
+                    step = SkillMakeDialog.Show(this, _game.Player, AbilityMakeDialog.RolledMind, back) ? 3 : 1;
+                    back = false;
                     break;
 
                 default:
                     if (CharacterSheetDialog.Show(this, _game.Player)) return true;
                     step = 2;
+                    back = true;   // 확인 화면에서 물러서면 기술 화면이 고르던 것을 잇는다
                     break;
             }
     }
