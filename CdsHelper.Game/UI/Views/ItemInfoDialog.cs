@@ -162,6 +162,19 @@ public sealed class ItemInfoDialog : GameWindow
         new ItemInfoDialog(item, description, art, equipped) { Owner = owner }.ShowDialog();
 
     /// <summary>
+    /// 창을 띄워 둔 채 <paramref name="during"/> 을 하고 <b>바로 닫는다</b> — 고문서를 못 읽을 때다
+    /// (<c>0x0046E97A</c> 로 창을 띄우고 말을 낸 뒤 <c>0x0046EBA8</c> 로 닫는다. 창 안의 고리는 안 돈다).
+    /// </summary>
+    public static void ShowWhile(Window owner, ItemTable.Record item, string description, ItemArt? art,
+                                 bool equipped, Action<Window> during)
+    {
+        var dialog = new ItemInfoDialog(item, description, art, equipped) { Owner = owner };
+        dialog.Show();
+        try { during(dialog); }
+        finally { dialog.Close(); }
+    }
+
+    /// <summary>
     /// 지닌 것 가운데 <b>그 갈래에서 가장 센 것</b>인지 — 이것 하나에만 「장비중」이 붙는다.
     /// </summary>
     /// <remarks>게임 <c>0x0046E6D7</c> 고리 그대로다. 같은 값이면 먼저 든 것이 이긴다.</remarks>

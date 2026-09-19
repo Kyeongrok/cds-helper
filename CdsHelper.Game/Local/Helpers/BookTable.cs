@@ -68,21 +68,25 @@ public sealed class BookTable
     /// 성지순례를 다녀와야 읽힌다는 것이 이 칸이다.
     /// </remarks>
     /// <param name="Skill">필요 기능 번호. -1 이면 기능 조건이 없다.</param>
-    /// <param name="Level">그 기능의 필요 자리.</param>
+    /// <param name="Level">그 기능(과 언어)의 필요 자리.</param>
     /// <param name="Parents">먼저 발견해 두어야 할 발견물 번호들. 빈 칸(-1)은 뺐다.</param>
     /// <param name="Picture">
     /// 펼친 책 왼쪽 면에 얹는 삽화 번호(힌트 줄 <c>+0x10</c>, <c>0x004D8E90</c>). 0~19 면
     /// <see cref="OpenBookArt"/> 의 그림 <c>13+값</c> 이고, 그 밖(-1)이면 삽화가 없다.
     /// </param>
+    /// <param name="Language">
+    /// 필요 언어(언어 이름표 색인). -1 이면 없다. 힌트 줄 <c>+0x24</c>(<see cref="HintsVa"/> 기준 <c>+0x04</c>).
+    /// 도서관은 책의 언어를 보므로 이 칸을 안 쓰고, <b>아이템에 걸린 힌트</b>를 읽을 때만 본다(<c>0x0046E9E7</c>).
+    /// </param>
     [method: JsonConstructor]
     public readonly record struct HintNeed(int Skill, int Level, IReadOnlyList<int>? Parents = null,
-                                           int Picture = -1);
+                                           int Picture = -1, int Language = -1);
 
     /// <summary>적어 둘 파일 이름(<c>%APPDATA%\CdsHelper\exe-tables\책표.json</c>).</summary>
     private const string CacheName = "책표";
 
-    /// <summary>알맹이 모양 판. 힌트의 삽화 칸(<see cref="HintNeed.Picture"/>)을 더하면서 3 으로 올렸다.</summary>
-    private const int SnapshotVersion = 3;
+    /// <summary>알맹이 모양 판. 삽화 칸(<see cref="HintNeed.Picture"/>)으로 3, 언어 칸(<see cref="HintNeed.Language"/>)으로 4 로 올렸다.</summary>
+    private const int SnapshotVersion = 4;
 
     /// <summary>삽화 칸이 <see cref="HintsVa"/> 에서 얼마나 떨어져 있는지(줄 안 +0x10).</summary>
     private const int PictureOffset = -0x10;
@@ -201,7 +205,7 @@ public sealed class BookTable
 
             needs[h] = new HintNeed(exe.Int(row), exe.Int(row + 0x08),
                                     parents.Count > 0 ? parents : null,
-                                    exe.Int(row + PictureOffset));
+                                    exe.Int(row + PictureOffset), exe.Int(row + 0x04));
         }
 
         return new Snapshot(books, needs);
