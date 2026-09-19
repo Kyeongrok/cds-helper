@@ -365,8 +365,10 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
 
         if (son == null || sonAge < Home.EducateAge)
         {
+            // 딸을 먼저 적고 아들을 뒤에 적으며, 끝은 <b>아들 이름</b>이다 — 밀어넣는 차례가
+            // 딸이름·딸조사·딸나이·아들이름·아들조사·아들나이·아들이름이다(0x004619A3~0x004619C0).
             if (son != null && daughter != null)
-                Wife($"{Is(son.Name)} {Math.Max(0, sonAge)}세, {Is(daughter.Name)} {Math.Max(0, daughter.AgeOn(_player.Date))}세에요. 아이들에게는 교육은 아직 무리에요.");
+                Wife($"{Is(daughter.Name)} {Math.Max(0, daughter.AgeOn(_player.Date))}세, {Is(son.Name)} {Math.Max(0, sonAge)}세에요. {son.Name}에게는 교육은 아직 무리에요.");
             else if (son != null)
                 Wife($"{Is(son.Name)} 아직 {Math.Max(0, sonAge)}세에요. 교육은 아직 일러요");
             else if (daughter != null)
