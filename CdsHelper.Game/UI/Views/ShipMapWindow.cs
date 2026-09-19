@@ -1899,25 +1899,29 @@ public sealed class ShipMapWindow : Window
         bool made = false;
         try
         {
-            int at = ChoiceDialog.Ask(this, "NEW GAME",
-                ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"]);
-            if (at < 0) return;
+            // 주인공 고르기나 신상에서 물리면 <b>NEW GAME 차림표로</b> 되돌아간다 — 원본은 0x0045EC6C · 0x0045EC85 에서
+            // 0x0045EBF5 로 뛰어 주인공을 다시 비우고(0x00478550) 차림표를 다시 낸다. 첫 화면으로는 차림표에서 물릴 때만 간다.
+            while (!made)
+            {
+                int at = ChoiceDialog.Ask(this, "NEW GAME",
+                    ["초심자용 주인공으로 시작한다(EASY)", "새로운 주인공으로 시작한다(NORMAL)"]);
+                if (at < 0) return;
 
-            if (at == 0)
-            {
-                // 미리 만든 주인공 둘(0x0045E670). 표는 0x00571998 두 줄이다.
-                int who = ChoiceDialog.Ask(this, "시작할 주인공을 선택해 주십시오",
-                                           ["라몬(포르투갈)", "에밀리오(에스파니아)"]);
-                if (who < 0) return;
-                Beginner.Apply(_game.Player, Beginner.All[who]);
+                if (at == 0)
+                {
+                    // 미리 만든 주인공 둘(0x0045E670). 표는 0x00571998 두 줄이다.
+                    int who = ChoiceDialog.Ask(this, "시작할 주인공을 선택해 주십시오",
+                                               ["라몬(포르투갈)", "에밀리오(에스파니아)"]);
+                    if (who < 0) { _game.NewPlayer(); continue; }
+                    Beginner.Apply(_game.Player, Beginner.All[who]);
+                }
+                else
+                {
+                    // 누적 캐릭터가 올라 있으면 <b>제독을 짓기 앞서</b> 내보낼지 묻는다(0x0041AF00).
+                    if (!AskCumulative() || !MakeCharacter()) { _game.NewPlayer(); continue; }
+                }
+                made = true;
             }
-            else
-            {
-                // 누적 캐릭터가 올라 있으면 <b>제독을 짓기 앞서</b> 내보낼지 묻는다(0x0041AF00).
-                if (!AskCumulative()) return;
-                if (!MakeCharacter()) return;
-            }
-            made = true;
         }
         finally
         {
