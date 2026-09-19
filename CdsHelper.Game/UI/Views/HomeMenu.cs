@@ -405,6 +405,21 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         string what = isSkill ? Skill.Names[index] : Skill.Languages[index];
         GameDialog.Show(owner, $"{Is(son.Name)} {what}{GameUi.Josa(what, "을", "를")} 터득했습니다!");
 
+        // 그 다음 숙달 능력 오름(0x004615B4 · 0x00461615 → 0x00490B40)을 부른다. 원본 그대로의 흠이 있다 —
+        // 숙달인지는 <b>제독</b>의 그 기능 레벨로 보고, 오르는 것도 <b>제독</b>의 능력(0x005B60C0)인데
+        // 알림만 아이 이름으로 「%s의 %s%s %d 올라갔다!」(0x0055A4C0)다.
+        int fatherLevel = isSkill ? _player.LevelOf(what) : _player.TongueOf(what);
+        var gains = Engine.Town.Mastery.Gains(isSkill ? index : -1, !isSkill, fatherLevel, _random);
+        for (int k = 0; k < gains.Length; k++)
+        {
+            if (gains[k] <= 0) continue;
+            int was = _player.AbilityOf(k);
+            _player.AdjustAbility(k, gains[k]);
+            int up = _player.AbilityOf(k) - was;
+            if (up > 0)
+                GameDialog.Show(owner, $"{son.Name}의 {Ability.Names[k]}{GameUi.Josa(Ability.Names[k], "이", "가")} {up} 올라갔다!");
+        }
+
         // 아이 소감 — 기능은 2·3 단계에서 기능마다 한마디, 언어는 2 단계에서 그 말로 뽐내고 3 단계에서 딴 나라를 그린다.
         string? remark = isSkill
             ? next == 3 ? Home.SkillRemarks[index].Three : next == 2 ? Home.SkillRemarks[index].Two : null
