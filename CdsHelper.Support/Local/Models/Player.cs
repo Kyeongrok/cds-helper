@@ -1341,8 +1341,8 @@ public sealed class Player
     /// </summary>
     /// <remarks>
     /// 게임은 <c>ACCDATA.CDS</c> 에 <b>스물다섯 자리</b>에서 스물세 갈래를 쌓는다. 우리는 그 가운데
-    /// <b>갈래 1(도시 입항)</b>만 적는다 — 되돌려 틀 때 쓰는 것이 그것뿐이라, 나머지를 적어 봐야
-    /// 읽는 데가 없다.
+    /// 되돌려 틀 때 쓰는 <b>갈래 1(도시 입항)</b>과 <b>0x15 · 0x16(배가 들고 남)</b>만 적는다 —
+    /// 나머지를 적어 봐야 읽는 데가 없다.
     /// </remarks>
     public IReadOnlyList<Trace> Traces => _traces;
 
@@ -1378,7 +1378,7 @@ public sealed class Player
     /// <remarks>같은 날 같은 곳이 잇달아 적히지는 않는다 — 도시를 드나들 때마다 불리기 때문이다.</remarks>
     public void Note(int kind, int a = 0, int b = 0)
     {
-        if (_traces.Count > 0 && _traces[^1] is { } last
+        if (kind == TraceArrival && _traces.Count > 0 && _traces[^1] is { } last
             && last.Kind == kind && last.A == a && last.B == b && last.On == Date) return;
         _traces.Add(new Trace(Date, kind, a, b));
     }
@@ -1390,8 +1390,17 @@ public sealed class Player
         foreach (var one in traces ?? []) _traces.Add(one);
     }
 
-    /// <summary>행적 갈래 — 우리가 쓰는 것은 입항뿐이다.</summary>
+    /// <summary>행적 갈래 — 도시 입항(낱말: 도시·나라).</summary>
     public const int TraceArrival = 1;
+
+    /// <summary>
+    /// 행적 갈래 — 배가 함대에 들어왔다(<c>0x00473D97</c>) · 나갔다(<c>0x00473E86</c>). 낱말은 선체 번호 하나다.
+    /// </summary>
+    /// <remarks>
+    /// 은퇴하면 명령 <c>69</c> · <c>6A</c> 로 바뀌어(<c>0x0041AAAE</c> · <c>0x0041AAB8</c>) 누적 캐릭터의
+    /// 함대 목록을 채우고 지운다 — 그 사람을 습격하면 이 선체들이 나온다.
+    /// </remarks>
+    public const int TraceShipIn = 0x15, TraceShipOut = 0x16;
 
     /// <summary>발견한 것으로 적는다. 처음 발견하는 것이면 true.</summary>
     /// <remarks>
@@ -1854,6 +1863,7 @@ public sealed class Player
         if (index < 0 || index >= list.Count) return false;
 
         _ships.Add(list[index]);
+        Note(TraceShipIn, list[index].Hull.GameId);
         list.RemoveAt(index);
         return true;
     }
@@ -1949,6 +1959,7 @@ public sealed class Player
     {
         if (IsFleetFull || _ships.Contains(ship)) return false;
         _ships.Add(ship);
+        Note(TraceShipIn, ship.Hull.GameId);
         return true;
     }
 
@@ -2001,6 +2012,7 @@ public sealed class Player
     /// <summary>함대에서 한 척을 뺀다. 기함 자리가 밀리지 않게 같이 손본다.</summary>
     private void RemoveShip(int index)
     {
+        Note(TraceShipOut, _ships[index].Hull.GameId);
         _ships.RemoveAt(index);
         if (Flagship > index) Flagship--;
         else if (Flagship == index) Flagship = 0;
@@ -2640,6 +2652,7 @@ public sealed class Player
 
         Gold -= cost;
         _ships.Add(new Ship(hull, name: string.IsNullOrWhiteSpace(name) ? SuggestShipName() : name.Trim()));
+        Note(TraceShipIn, hull.GameId);
         return PurchaseResult.Ok;
     }
 

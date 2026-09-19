@@ -1297,7 +1297,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                                 (int Dir, int Strength)? seaWind = null, SoundBank? sfx = null,
                                 uint[]? foeFace = null, Action<Window, Report>? settle = null,
                                 Func<Window, bool?>? duel = null, BgmPlayer? bgm = null,
-                                bool monster = false, Engine.Game? game = null)
+                                bool monster = false, Engine.Game? game = null, int[]? hulls = null)
     {
         var art = CombatArt.Open();
         if (art == null)
@@ -1372,7 +1372,7 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         // 이름은 게임이 일본 군함명 자리 채움(0x549A34)을 굴리는데 화면에는 선체 이름이 찍혀 무리 이름을 쓴다.
         // 적의 대열은 굴린다(0x004421F6 의 rand(8)).
         int enemyFormation = rng.Next(SeaBattle.FormationCount);
-        var fleet = EnemyFleet.Build(leader, player.Date.Year, rng);
+        var fleet = EnemyFleet.Build(leader, player.Date.Year, rng, hulls);
         for (int slot = 0; slot < fleet.Count; slot++)
         {
             var e = fleet[slot];

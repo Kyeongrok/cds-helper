@@ -3781,7 +3781,9 @@ public sealed class ShipMapWindow : Window
         var report = SeaCombatDialog.Engage(this, player, foe, rng, MateFace(),
                                             (_host.LastWind.Dir, _host.LastWind.Speed), _game.Sfx, foeFace,
                                             (board, end) => SettleRaid(board, end, nation, capital, rng),
-                                            SeaDuel(who.Id, who.Name, foeFace), _game.Bgm, game: _game);
+                                            SeaDuel(who.Id, who.Name, foeFace), _game.Bgm, game: _game,
+                                            // 누적 캐릭터면 제 옛 함대의 선체로 싸운다(0x0048CC3D).
+                                            hulls: world.Replay?.FleetOf(who.Id));
 
         // 판이 어떻게 끝났든 상대는 제 나라 수도로 돌아가 예순 날 쉰다 — 곧바로 다시 못 만난다.
         world.SendHome(who, capital);
