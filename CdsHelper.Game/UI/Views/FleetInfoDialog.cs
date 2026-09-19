@@ -73,7 +73,8 @@ internal sealed class FleetInfoDialog : InfoDialog
 
         rows.Children.Add(Gap(13));
         rows.Children.Add(Row("국적", Text(player.NationName)));
-        rows.Children.Add(Row("함대좌표", Text(coord.Length > 0 ? coord : "---")));
+        // 자리를 모르면(도시 안) 「위도 ---도  경도 ---도」다(0x00571320).
+        rows.Children.Add(Row("함대좌표", Text(coord.Length > 0 ? coord : "위도 ---도  경도 ---도")));
         rows.Children.Add(Row("피로도", Bar(player.Fatigue, Player.MaxFatigue)));
         rows.Children.Add(Row("총승원수", Bar(player.Crew, player.MaxCrew)));
         rows.Children.Add(Row("짐용량", Bar(player.LoadedBarrels, player.Capacity)));
@@ -146,7 +147,7 @@ internal sealed class FleetInfoDialog : InfoDialog
     }
 
     /// <summary>함대정보 판을 연다.</summary>
-    /// <param name="coord">함대좌표에 적을 글. 도시 안이면 비워 둔다 — 게임처럼 <c>---</c> 다.</param>
+    /// <param name="coord">함대좌표에 적을 글. 도시 안이면 비워 둔다 — 「위도 ---도  경도 ---도」가 선다.</param>
     /// <param name="items">아이템 표. 배 정보의 선수상 이름을 여기서 낸다.</param>
     /// <param name="cargoName">교역품 한 칸의 이름 — 「%s산」 과 품목 이름(<c>0x0042E310</c>).</param>
     public static void Show(Window owner, Player player, string coord = "",
