@@ -3291,7 +3291,7 @@ public sealed class ShipMapWindow : Window
     }
 
     /// <summary>
-    /// 새로 선 도시를 알린다 — 신대륙 식민 도시가 해마다 하나씩 늘어난다.
+    /// 새로 선 도시를 지도에 올린다 — 신대륙 식민 도시가 해마다 하나씩 늘어난다.
     /// </summary>
     /// <remarks>
     /// 언제 무엇이 서는지는 <see cref="CityFounding"/> 에 있다. 1531년에는 파나마가 선
@@ -3313,11 +3313,8 @@ public sealed class ShipMapWindow : Window
         }
         _scriptedSeen = scripted;
 
-        foreach (int city in now)
-        {
-            if (_founded.Contains(city)) continue;
-            NoticeDialog.Show(this, $"{_game.CityName(city)}에 새 항구가 생겼다는군.", "");
-        }
+        // 창으로 알리지는 않는다 — 원본은 역사 대본이 그 도시 소문 가게에 「…항이 생겼다는군」 같은 글을
+        // 적어 둘 뿐이고(HIST_EV 20 0A), 그것은 술집·여관 무명 손님이 말한다(CityHistory.Run).
         _founded = now;
         HideCities(now);
     }
