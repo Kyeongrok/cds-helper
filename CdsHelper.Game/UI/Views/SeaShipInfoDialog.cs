@@ -24,7 +24,9 @@ internal sealed class SeaShipInfoDialog : InfoDialog
     {
         var rows = new StackPanel();
 
-        var name = Label(ship.Name);
+        // 이름 칸은 <b>내 배만</b> 배 이름이다 — 적은 기함이면 「적기함」, 그 밖은 「적함」이다
+        // (0x0043ECDA 의 0x0056B6C0 · 0x0056B6C8).
+        var name = Label(ship.Mine ? ship.Name : ship.Flagship ? "적기함" : "적함");
         name.HorizontalAlignment = HorizontalAlignment.Right;
         rows.Children.Add(name);
         rows.Children.Add(Gap(8));
