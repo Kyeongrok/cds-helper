@@ -359,14 +359,6 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         }
         string Is(string name) => name + GameUi.Josa(name, "은", "는");
 
-        // 계약 중에는 아이를 못 가르친다(0x00461850) — 아내가 말린다.
-        if (_player.Contract != null)
-        {
-            Wife("여보, 당신 지금 계약중이죠? 아이에게 가르쳐 주는 건 고맙지만, "
-               + "일을 먼저 끝낸 다음에 해 주세요.");
-            return;
-        }
-
         var son = Home.EldestSon(_player);
         var daughter = _player.Children.Where(c => c.Daughter).OrderBy(c => c.Born).FirstOrDefault();
         int sonAge = son?.AgeOn(_player.Date) ?? -1;
@@ -382,6 +374,8 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
             return;
         }
 
+        // 계약은 아들·나이를 다 본 <b>다음</b>에 본다(0x004617FB → 0x0046180D · 0x0046181E →
+        // 0x00461827) — 아들이 없거나 어리면 계약 중이어도 계약 대사가 안 나온다.
         if (_player.Contract != null)
         {
             Wife("여보, 당신 지금 계약중이죠? 아이에게 가르쳐 주는 건 고맙지만, 일을 먼저 끝낸 다음에 해 주세요.");
