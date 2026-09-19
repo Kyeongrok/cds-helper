@@ -515,7 +515,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private void AddMast(Ship ship)
     {
         var owner = Owner;
-        int cost = Shipyard.MastCost(ship);
+        int cost = Shipyard.MastCost(ship, _rate);
 
         Say($"금화 {cost}닢이 드네.");
         if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }
@@ -583,7 +583,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
                 ? "삼각돛을 순풍에 뛰어난 사각돛으로 바꿀 건가?"
                 : "사각돛을 역풍에 뛰어난 삼각돛으로 바꿀 건가?")) return;
 
-        int cost = Shipyard.SailCost(ship);
+        int cost = Shipyard.SailCost(ship, _rate);
         if (!Ask($"금화 {cost}닢이 드는데, 좋나?")) return;
         if (!_player.Pay(cost)) { Say("돈이 모자라는 것 같군."); return; }
         if (!ship.SwapSail(mast)) return;
@@ -608,7 +608,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private void AddSail(Ship ship)
     {
         var owner = Owner;
-        int cost = Shipyard.SailCost(ship);
+        int cost = Shipyard.SailCost(ship, _rate);
 
         Say($"금화 {cost}닢이 드네.");
         if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }
@@ -803,7 +803,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private void DoRefit(Ship ship, string item)
     {
         var owner = Owner;
-        int cost = Shipyard.RefitCost(ship);
+        int cost = Shipyard.RefitCost(ship, _rate);
 
         Say($"금화 {cost}닢이 드네.");
         if (!_player.CanAfford(cost)) { Say("돈이 모자라는 것 같군."); return; }

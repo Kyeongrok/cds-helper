@@ -80,14 +80,20 @@ public static class Shipyard
     /// <summary>돛 값을 나누는 수(<c>mov $0x14,%ecx</c>) — 돛종류 변경도 같다.</summary>
     public const int SailDivisor = 20;
 
-    /// <summary>개조 한 번 값 — 선체 구입값의 열다섯 분의 일.</summary>
-    public static int RefitCost(Ship ship) => Math.Max(1, ship.Hull.Price / RefitDivisor);
+    /// <summary>
+    /// 개조 값의 밑 — 그 도시에서 이 선체를 살 값이다(<c>0x0044B450</c>: 선체값 x 시세 / 100, 최소 1).
+    /// 개조마다 이것을 나눈다 — 예전에는 시세를 안 먹여 비싼 도시·싼 도시가 같았다.
+    /// </summary>
+    private static int Base(Ship ship, int rate) => Math.Max(1, ship.Hull.Price * rate / 100);
 
-    /// <summary>마스트 하나를 세우는 값 — 선체 구입값의 다섯 분의 일.</summary>
-    public static int MastCost(Ship ship) => Math.Max(1, ship.Hull.Price / MastDivisor);
+    /// <summary>개조 한 번 값 — 그 도시 선체값의 열다섯 분의 일.</summary>
+    public static int RefitCost(Ship ship, int rate) => Base(ship, rate) / RefitDivisor;
 
-    /// <summary>돛 하나를 달거나 갈아 다는 값 — 선체 구입값의 스무 분의 일.</summary>
-    public static int SailCost(Ship ship) => Math.Max(1, ship.Hull.Price / SailDivisor);
+    /// <summary>마스트 하나를 세우는 값 — 그 도시 선체값의 다섯 분의 일.</summary>
+    public static int MastCost(Ship ship, int rate) => Base(ship, rate) / MastDivisor;
+
+    /// <summary>돛 하나를 달거나 갈아 다는 값 — 그 도시 선체값의 스무 분의 일.</summary>
+    public static int SailCost(Ship ship, int rate) => Base(ship, rate) / SailDivisor;
 
     /// <summary>
     /// 그 줄이 무엇을 얻고 무엇을 잃는지 알려 주는 물음. 게임 문구 그대로다
