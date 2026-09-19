@@ -585,6 +585,11 @@ public sealed class CityPicView : GameWindow, ITownScreen
     private void AddFolk(TownFolkTable.Folk folk, int scale)
     {
         var a = new Rect(folk.HitX, folk.HitY, folk.HitWidth, folk.HitHeight);
+
+        // 커서를 올리면 「남」·「여」 이름표가 뜬다(0x00491BB4 — 갈래 200 위가 여자다).
+        var tag = GameUi.NameTag(folk.Kind >= TownFolkTable.FemaleKind ? "여" : "남");
+        _layer.Children.Add(tag);
+        _tags.Add(tag);
         var spot = new Border
         {
             Width = a.Width * scale,
@@ -594,6 +599,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
         };
         Canvas.SetLeft(spot, a.X * scale);
         Canvas.SetTop(spot, a.Y * scale);
+        spot.MouseEnter += (_, _) => ShowTag(tag, a, scale);
+        spot.MouseLeave += (_, _) => tag.Visibility = Visibility.Collapsed;
         spot.MouseLeftButtonDown += (_, e) => e.Handled = true;
         spot.MouseLeftButtonUp += (_, e) =>
         {
@@ -1549,16 +1556,12 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 게임 커맨드의 그 줄이다(<c>0x0053BE10</c>). 누르면 <b>"어디로 들어 가시겠습니까?"</b>
     /// (<c>0x0053BF38</c>) 창이 뜨고 그 도시의 건물이 줄줄이 선다 — 고르면 그 건물의 명령
     /// 창이 열린다. 그림에서 작은 건물을 눈으로 찾아 누르지 않아도 되는 길이다.
-    /// 건물이 하나도 없으면 게임 말대로 "맵 포인트 데이터가 없습니다"(<c>0x0053A7FB</c>) 다.
+    /// 건물이 하나도 없으면 <b>빈 목록</b>이다 — 「맵 포인트 데이터가 없습니다」(<c>0x0053A7FB</c>)를 내는
+    /// 자리는 EXE 안에 없다.
     /// </remarks>
     private void EnterMapPoint()
     {
         var spots = Standing(_cityId);
-        if (spots.Count == 0)
-        {
-            NoticeDialog.Show(this, "맵 포인트 데이터가 없습니다");
-            return;
-        }
 
         // 줄은 건물 이름이다 — "베렌의 탑" 처럼 그 도시만의 이름이 뜨고, 없으면 종류를 낸다.
         int at = MapPointDialog.Ask(this,
@@ -1754,8 +1757,13 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </remarks>
     private void ShowContract() => KeepCityMenu(() =>
     {
-        // 계약이 없어도 빈 판을 낸다 — 도시 커맨드는 그 자리에서 물리지 않는다.
+        // 계약이 없으면 얼굴 없는 상자로 물린다(0x00493266 → 0x0053BF58).
         var sheet = GameInfo.ContractSheetOf(_game);
+        if (sheet.Contract == null)
+        {
+            NoticeDialog.Show(this, "계약을 맺지 않았습니다");
+            return;
+        }
         ContractDialog.Show(this, sheet.Contract, _player.Date,
                             sheet.HintName, sheet.Found, sheet.Evidence,
                             _game.Sponsors?.FindByName(sheet.Contract?.Sponsor ?? "")?.Name);
