@@ -229,7 +229,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             // 명성이 오백만 더 있으면 <b>집사를 매수</b>해 뚫을 수 있다(0x004AE2E1).
             if (!Palace.BribeAdmits(eye, _player.Fame)) return;
             if (ChoiceDialog.Ask(_view, "", ["매수한다", "포기하고 돌아간다"]) != 0) return;
-            if (!ConfirmDialog.Ask(_view, "집사에게 뇌물을 주겠습니까?")) return;
+            if (!ConfirmDialog.Ask(_view, "집사에게 뇌물을 주겠습니다. 좋습니까?")) return;   // 0x00545A98
 
             int fee = Palace.StewardFee(eye);
             if (_player.Gold < fee)
@@ -1489,7 +1489,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         _player.Endear(patron.Name, -BreakPenaltyCloseness);
         ReturnLentShips(broken: true);
         _player.EndContract();
-        GameDialog.Show(_view, $"위약금으로 금화 {penalty}닢을 물었다.");
+        // 낼 수 있으면 말 없이 돈만 빠진다(0x0044F874 → 0x0047CBC0) — 알림은 없다.
         RecontractMates();
     }
 
