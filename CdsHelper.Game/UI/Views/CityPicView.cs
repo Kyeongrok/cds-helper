@@ -718,12 +718,40 @@ public sealed class CityPicView : GameWindow, ITownScreen
         // 명령 창 제목은 건물 이름이다 — 게임도 "베렌의 탑", "홍경정" 으로 낸다.
         ShowMenu(() => BuildMenu(facility, building.Name, building.Code, building.TeachMask,
                                  building.Kind),
-                 facility.BgmTrack);
+                 BuildingTrack(building.Code));
         MarkGateway(facility.Kind, arrived);
     }
 
     /// <summary>왕궁의 건물 코드 — 문간 관문의 배수가 x100 이다(<c>0x00470AC0</c>).</summary>
     private const int PalaceCode = 2;
+
+    /// <summary>교회의 건물 코드.</summary>
+    private const int ChurchCode = 3;
+
+    /// <summary>술집의 건물 코드.</summary>
+    private const int TavernCode = 4;
+
+    /// <summary>
+    /// 건물에 들어가 있는 동안 도는 곡. 없으면(null) 도시 곡이 그대로 돈다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 시설 갈래가 아니라 <b>건물 코드</b>로 가른다(<c>0x004929C4</c>) — 왕궁 2 는 소리
+    /// <c>0x12</c>, 교회 3 은 <c>0x0E</c>, 술집 4 는 <c>0x14</c> 다. 왕궁과 술집은 도시 문화권이
+    /// 0·1·2(이베리아·북유럽·지중해)일 때만 바뀌고(<c>0x00492B1B</c> · <c>0x00492B35</c> 의
+    /// <c>test edi, edi</c>), 그 밖의 문화권에서는 문화권 곡이 그대로 돈다. 교회만 문화권을
+    /// 안 가린다(<c>0x00492B2C</c>). 나설 때 문화권 곡으로 되돌리는 것은
+    /// <c>0x00492BC1</c> 이다.
+    /// </remarks>
+    private int? BuildingTrack(int code) => code switch
+    {
+        PalaceCode => European ? BgmPlayer.PalaceTrack : null,
+        ChurchCode => BgmPlayer.ChurchTrack,
+        TavernCode => European ? BgmPlayer.TavernTrack : null,
+        _ => null,
+    };
+
+    /// <summary>문화권이 유럽 셋(이베리아·북유럽·지중해)인지 — 왕궁·술집 곡의 조건이다.</summary>
+    private bool European => _cultureNo is 0 or 1 or 2;
 
     /// <summary>지금 들어와 있는 시설 갈래 — 교회의 설득은 들머리 관문이 하나 더 있다(<c>0x004AE1F0</c>).</summary>
     private FacilityKind? _openKind;
@@ -739,7 +767,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         var harbor = Facility.For("항구");
         GreetHarbor(arrived);
         var shown = arrived ? ArrivalHarbor(harbor) : harbor;
-        ShowMenu(() => BuildMenu(shown, harbor.Name, HarborCode, 0, harbor.Name), harbor.BgmTrack);
+        ShowMenu(() => BuildMenu(shown, harbor.Name, HarborCode, 0, harbor.Name), BuildingTrack(HarborCode));
         MarkGateway(FacilityKind.Harbor, arrived);
     }
 
