@@ -128,7 +128,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
             if (fee <= 0) return false;
             TalkDialog.Say(owner, null, _player.Spouse,
                            "돌아오셨어요? 참, 마을 사람들에게 당신이 잡아온 희한한 동물을 보여 주었더니, "
-                           + $"관람료로 금화 {fee}닢이나 모아졌지 뭐예요!");
+                           + $"관람료로 금화 {fee} 닢이나 모아졌지 뭐예요!");
             _player.SetSavings(_player.Savings + fee);
             return true;
         }
