@@ -32,7 +32,7 @@ public enum FacilityKind
 /// 메뉴 문구는 CDS_95.EXE 에서 그대로 읽어 온 것이다(볼트 <c>15.분석-시설 화면 엔진</c>).
 /// 차례는 게임 화면에서 본 대로 맞췄다.
 /// </remarks>
-public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int? BgmTrack = null)
+public sealed record Facility(FacilityKind Kind, string Name, string[] Menu)
 {
     /// <summary>이 줄을 누르면 명령 창이 닫힌다. 시설마다 말이 다르다.</summary>
     public string ExitItem => Menu[^1];
@@ -54,8 +54,7 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
         // 파는 술은 여기 안 적는다 — 고장마다 다르므로 술 표(<see cref="DrinkTable"/>)에서
         // 그 고장 것을 골라 <see cref="TownWorks.LinesOf"/> 가 맨 앞에 붙인다.
         new(FacilityKind.Tavern, "술집",
-            ["포카를 권한다", "부하편성", "술집을 나온다"],
-            BgmPlayer.TavernTrack),
+            ["포카를 권한다", "부하편성", "술집을 나온다"]),
 
         // 차례는 게임 차림표 표(<c>0x005692E8</c>) 그대로다 — <b>부하편성이 허드렛일보다 위</b>다.
         // 표는 (글, 보임, 누를 수 있음) 셋씩이고, 허드렛일의 보임 칸을 0x0047FE38 이
@@ -70,8 +69,7 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
             ["매매", "회화", "교역소를 나온다"]),
 
         new(FacilityKind.Church, "교회",
-            ["수련", "교회를 나온다"],
-            BgmPlayer.ChurchTrack),
+            ["수련", "교회를 나온다"]),
 
         // "설득" 은 여기 적지 않는다 — 그 건물에 후원자가 앉아 있을 때만 붙는 줄이라
         // 도시마다 다르다(CityPicDialog.BuildMenu 가 맨 앞에 끼워 넣는다).

@@ -48,6 +48,12 @@ public sealed class BgmPlayer : IDisposable
     public const int ChurchTrack = 16;
 
     /// <summary>
+    /// 왕궁(건물 코드 2)에 들어가 있는 동안 도는 곡 — 소리 <c>0x12</c> 라 트랙으로는 20 이다
+    /// (<c>0x00492B25</c>). 유럽 문화권(0·1·2) 도시에서만 바뀐다.
+    /// </summary>
+    public const int PalaceTrack = 0x12 + SoundToTrack;
+
+    /// <summary>
     /// 해상에서 그 자리에 맞는 곡. 위경도로 구간을 갈라 고른다.
     /// </summary>
     /// <remarks>
