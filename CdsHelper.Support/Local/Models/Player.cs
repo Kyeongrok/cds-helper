@@ -1624,8 +1624,13 @@ public sealed class Player
     {
         if (!HasFound(discovery) || !_announced.Add(discovery)) return false;
         _announcedOn[discovery] = Date;
+        // 행적에도 한 줄 남는다(0x0047E630 끝의 0x0041A070(…, 9, 발견물번호)) — 은퇴하면 누적 캐릭터의 발자취가 된다.
+        Note(TraceDiscovery, discovery);
         return true;
     }
+
+    /// <summary>행적 갈래 — 발견물을 보고·발표했다(낱말: 발견물 번호). 원본도 갈래 <b>9</b> 다.</summary>
+    public const int TraceDiscovery = 9;
 
     private readonly Dictionary<int, DateTime> _announcedOn = [];
 
