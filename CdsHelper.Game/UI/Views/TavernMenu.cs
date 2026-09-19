@@ -1256,7 +1256,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 판이 무엇이든(술집 손님 · 도전 · 싸움) 같은 뒤처리다. 베이면 판의 결과가 3 이 되고
     /// 부르는 쪽이 <c>0x0044AF40(4)</c> 로 놀이를 끝낸다(<c>0x004A4A74</c> · <c>0x0042FD55</c> · <c>0x0042ED16</c>).
     /// </remarks>
-    private bool LostDuel(Engine.Town.Duel duel, uint[]? face, GameRandom dice, bool mateFought)
+    internal bool LostDuel(Engine.Town.Duel duel, uint[]? face, GameRandom dice, bool mateFought)
     {
         switch (duel.FateOf(_player.Fame))
         {

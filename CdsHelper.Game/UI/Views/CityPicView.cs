@@ -827,7 +827,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     ///     r &gt; 96 이면 곧바로 붙잡힌다, 아니면 일기토(인물 268) — 지면 붙잡힌다
     ///     붙잡히면 「좋아, 상금 걸린 자를 붙잡았다!」 → 후원자 「정신이 드나? …」 → GAME OVER
     /// </code>
-    /// 게임이 일기토 결과 3 을 따로 끝내는 갈래(<c>0x0044AF40(4)</c>)는 우리 일기토에 그 결과가 없어 안 옮겼다.
+    /// 일기토에 져서 베이면(결과 3) 붙잡는 말 없이 곧바로 놀이가 끝난다(<c>0x0044FFBE</c> 의 <c>0x0044AF40(4)</c>).
     /// </remarks>
     private bool Ambushed()
     {
@@ -873,10 +873,19 @@ public sealed class CityPicView : GameWindow, ITownScreen
             return true;
         }
 
-        if (r <= 96 && HunterDuel() != false)
+        if (r <= 96)
         {
-            TalkDialog.Say(this, aide, "", "후우~, 더 이상 쫓아오지 않는군요. 제독, 여긴 너무 위험합니다. 빨리 마을을 떠납시다.");
-            return true;
+            // 판 결과 0·1 이면 달아나고, 2(졌지만 살았다)면 붙잡히고, 3(베였다)이면 붙잡는 말도 없이
+            // 곧바로 놀이가 끝난다(0x0044FFAF → 0x0044FFBE 의 0x0044AF40(4)).
+            switch (HunterDuel())
+            {
+                case null or true:
+                    TalkDialog.Say(this, aide, "", "후우~, 더 이상 쫓아오지 않는군요. 제독, 여긴 너무 위험합니다. 빨리 마을을 떠납시다.");
+                    return true;
+                case false when _huntSlain:
+                    EndGame();
+                    return true;
+            }
         }
 
         var boss = hunters[dice.Next(hunters.Count)].Sponsor!.Value;
@@ -937,7 +946,10 @@ public sealed class CityPicView : GameWindow, ITownScreen
         if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
     }
 
-    /// <summary>현상금 사냥꾼(인물 268)과 일기토. 이기면 true, 지면 false, 판을 못 열면 null.</summary>
+    /// <summary>
+    /// 현상금 사냥꾼(인물 268)과 일기토. 이기면 true, 지면 false, 판을 못 열면 null.
+    /// 지면 여느 일기토처럼 도망·용서·죽음 말이 나고, 죽음이면 <see cref="_huntSlain"/> 이 선다.
+    /// </summary>
     private bool? HunterDuel()
     {
         const int hunter = Engine.Sea.Encounter.ChaserLeader;
@@ -958,9 +970,18 @@ public sealed class CityPicView : GameWindow, ITownScreen
                         myFace: _game.Faces?.TryGetBgra(PortraitAges.At(_player.Face, _player.Age, false, _game.Faces),
                                                         female: false),
                         arena: "duel-tavern", bgm: _game.Bgm);
+        _huntSlain = false;
+        if (duel.Won != true && Guests.LostDuel(duel, face, dice, mateFought: false))
+        {
+            _huntSlain = true;
+            return false;
+        }
         _player.Hurt(duel.BodyLost);
         return duel.Won;
     }
+
+    /// <summary>현상금 사냥꾼에게 져서 베였다 — 판 결과 3 이다.</summary>
+    private bool _huntSlain;
 
     /// <summary>
     /// 이 마을 자택으로 곧바로 들어선다. 새 판이 시작될 때 쓴다 —
