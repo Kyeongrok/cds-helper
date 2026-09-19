@@ -1079,23 +1079,25 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var face = FaceOf(who);
         bool known = Known(who);
 
-        if (!known && !inn)
-        {
-            string seen = female ? "아름다운 여성이 있다" : "술을 마시고 있는 남자가 있다";
-            if (TalkDialog.Ask(_view, null, "", seen, "한잔 산다", "무시한다") != 0) return;
-            if (BuyDrink() && _player.Meet(who.Name))
-                TalkDialog.Say(_view, face, "", $"고맙네. 나는 {who.Name}. 잘 부탁하네.");
-            return;
-        }
-
         // <b>이 줄에는 얼굴이 안 붙는다.</b> 「…이 있다」 는 그 사람이 하는 말이 아니라
-        // 눈에 띄었다는 서술이라 게임도 그냥 알림으로 낸다 — 모르는 사람 쪽
-        // (「술을 마시고 있는 남자가 있다」)과 같은 꼴이다. 얼굴은 말을 걸고 나서부터다.
+        // 눈에 띄었다는 서술이라 게임도 그냥 알림으로 낸다. 얼굴은 말을 걸고 나서부터다.
         // 이름표는 게임 표(0x005609C8)의 「남자」·「여」다.
         string label = female ? "여" : "남자";
-        string line = known ? $"[{who.Name}]{Subject(who.Name)} 있다"
-                            : $"낯선 {label}{Subject(label)} 있다";
-        if (TalkDialog.Ask(_view, null, "", line, "말을 건다", "무시한다") != 0) return;
+
+        // 술집에서 모르는 사람은 「술을 마시고 있는 %s%s 있다」(0x0054ABF0)에 한잔 산다 · 무시한다이고,
+        // 한잔 사면 <b>곧바로 그 사람과 이야기로</b> 넘어간다(0x0042F4B0 → 0x004A4DE0) — 따로 인사하는 말은 없다.
+        if (!known && !inn)
+        {
+            if (TalkDialog.Ask(_view, null, "", $"술을 마시고 있는 {label}{Subject(label)} 있다",
+                               "한잔 산다", "무시한다") != 0) return;
+            if (!BuyDrink()) return;
+        }
+        else
+        {
+            string line = known ? $"[{who.Name}]{Subject(who.Name)} 있다"
+                                : $"낯선 {label}{Subject(label)} 있다";
+            if (TalkDialog.Ask(_view, null, "", line, "말을 건다", "무시한다") != 0) return;
+        }
 
         // 일기토는 <b>역사 항해자 열넷에게만</b> 건다. 게임도 차림표를 짓고 나서
         // 조건이 안 맞으면 그 줄을 지운다(0x004A4AA0 이 0x00468F70 의 답을 보고
