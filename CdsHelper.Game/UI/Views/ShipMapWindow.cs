@@ -4588,7 +4588,10 @@ public sealed class ShipMapWindow : Window
             lines.Add(($"제독, {water}{food}얼마 남지 않았습니다!", Where.Strip));
         }
 
-        if (day.WaterOut && day.FoodOut)
+        // 오늘 하나라도 바닥났고 <b>지금 둘 다 0</b> 이면 둘 다의 말이다(0x004756E1) — 같은 날 함께 떨어질 필요는 없다.
+        bool bothEmpty = _game.Player.SupplyUnitsOf(SupplyKind.Water) <= 0
+                         && _game.Player.SupplyUnitsOf(SupplyKind.Food) <= 0;
+        if ((day.WaterOut || day.FoodOut) && bothEmpty)
             lines.Add(("제독, 물도 식량도 바닥을 드러내고 있습니다. 빨리 상륙하지 않으면 전멸입니다!",
                        Where.Mate));
         else if (day.WaterOut || day.FoodOut)
