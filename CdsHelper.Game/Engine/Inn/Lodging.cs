@@ -61,6 +61,9 @@ public sealed class Lodging
     /// <summary>한 번 묵으면 가는 달 수.</summary>
     public const int Months = 1;
 
+    /// <summary>한 번 묵으면 흐르는 날(<c>0x1E</c>).</summary>
+    public const int StayDays = 30;
+
     /// <summary>
     /// 소지금이 이 값 밑(<c>0x0047FE70</c> 의 <c>cmp 소지금, 100</c>)일 때만 허드렛일 줄이 나온다.
     /// </summary>
@@ -143,7 +146,8 @@ public sealed class Lodging
         if (!player.CanAfford(price)) return StayResult.NotEnoughGold;
 
         player.Pay(price);
-        player.AdvanceMonths(Months);
+        // 달력 한 달이 아니라 <b>서른 날</b>이다(0x0047FC9C 의 0x004A2AD0(0x1E, 1)).
+        player.AdvanceDays(StayDays);
         return StayResult.Ok;
     }
 
