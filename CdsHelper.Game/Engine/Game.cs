@@ -601,7 +601,19 @@ public sealed class Game
     }
 
     /// <summary>지금 판을 적는다. 적히는 자리는 <see cref="GameSave"/> 참고.</summary>
-    public string Save() => GameSave.Save(Player);
+    public string Save(bool suspended = false)
+    {
+        string error = GameSave.Save(Player, suspended);
+        // 적고 나면 「아직 저장 안 됨」이 풀린다(0x00479174 · 0x004794A2).
+        if (error.Length == 0) Unsaved = false;
+        return error;
+    }
+
+    /// <summary>
+    /// 아직 저장하지 않은 판인지(<c>0x005A4D18</c> 비트 <c>0x80</c>) — 중단저장을 불러오면 서고, 저장하면 풀린다.
+    /// 도시 「게임 종료」가 이 값을 보고 한 번 더 묻는다(<c>0x00568D38</c>).
+    /// </summary>
+    public bool Unsaved { get; set; }
 
     /// <summary>
     /// 표를 처음 쓸 때 한 번만 연다. 폴더를 모르거나 못 열면 <c>null</c> 인 채로 둔다.

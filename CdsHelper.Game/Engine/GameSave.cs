@@ -194,7 +194,7 @@ public static class GameSave
         Dictionary<int, string>? NamedDiscoveries = null,
         Dictionary<int, bool>? ScriptedCities = null,
         List<int>? LastSupply = null,
-        int? FleetCity = null, bool? SkipsCumulative = null);
+        int? FleetCity = null, bool? SkipsCumulative = null, bool? Suspended = null);
 
     /// <summary>
     /// 세이브에 적는 계약. <see cref="Support.Local.Models.Contract"/> 를 그대로 적을 수도
@@ -208,7 +208,11 @@ public static class GameSave
         bool LoanAnnounced = false, bool BribeOpen = true);
 
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
-    public static string Save(Player player)
+    /// <param name="suspended">
+    /// 중단저장인지 — 게임은 중단이면 <c>SAVEDATA.TMP</c> 로 적고, 그것을 불러온 판에 「아직 저장 안 됨」
+    /// 비트(<c>0x005A4D18 &amp; 0x80</c>)를 세운다(<c>0x00478E2B</c>). 우리는 파일이 하나라 이 칸으로 든다.
+    /// </param>
+    public static string Save(Player player, bool suspended = false)
     {
         var data = new Data(VirtualItemsFrom, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
@@ -301,7 +305,8 @@ public static class GameSave
                             // 함대가 닻을 내린 도시. 이 칸 앞의 세이브는 모름으로 연다.
                             FleetCity: player.FleetCity == Player.FleetUnknown ? null : player.FleetCity,
                             // 「누적캐릭터를 등장시키지 않는다」 깃발. 이 칸 앞의 세이브는 서지 않은 것으로 연다.
-                            SkipsCumulative: player.SkipsCumulative ? true : null);
+                            SkipsCumulative: player.SkipsCumulative ? true : null,
+                            Suspended: suspended ? true : null);
         try
         {
             var dir = System.IO.Path.GetDirectoryName(Path);
