@@ -76,6 +76,14 @@ public sealed class HintListDialog : GameWindow
     /// <summary>고른 줄. 아무것도 안 골랐으면 -1.</summary>
     private int _picked = -1;
 
+    /// <summary>
+    /// 여럿 고르기 — 누를 때마다 그 줄이 켜졌다 꺼진다. 항구 「발표」 창(<c>0x0047EA80</c>)이 쓴다.
+    /// </summary>
+    private readonly bool _multi;
+
+    /// <summary>여럿 고르기에서 켜진 줄.</summary>
+    private readonly SortedSet<int> _chosen = [];
+
     /// <summary>줄마다의 판. 고른 줄만 도드라지게 칠한다.</summary>
     private readonly List<Border> _rows = [];
 
@@ -83,9 +91,11 @@ public sealed class HintListDialog : GameWindow
 
     private HintListDialog(IReadOnlyList<string> hints, bool choosing, string caption,
                            string header = "", IReadOnlyList<uint[]?>? faces = null,
-                           IReadOnlyList<string>? subtitles = null, IReadOnlyList<bool>? marks = null)
+                           IReadOnlyList<string>? subtitles = null, IReadOnlyList<bool>? marks = null,
+                           bool multi = false)
     {
         _marks = marks;
+        _multi = multi;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -250,23 +260,33 @@ public sealed class HintListDialog : GameWindow
     /// <summary>한 줄을 고른다. 고르고 나야 결정이 살아난다.</summary>
     private void Select(int index)
     {
+        if (_multi)
+        {
+            if (!_chosen.Remove(index)) _chosen.Add(index);
+            for (int i = 0; i < _rows.Count; i++) Paint(i, _chosen.Contains(i));
+            _decide.On = _decideReady = _chosen.Count > 0;
+            return;
+        }
+
         _picked = index;
         // 고른 줄은 <b>남색 바탕에 흰 글씨</b>다 — 종이 위 검은 글씨를 그대로 두면
         // 바탕에 묻힌다. 테는 바탕보다 훨씬 짙어 한 겹 파인 것처럼 보인다.
-        for (int i = 0; i < _rows.Count; i++)
-        {
-            bool on = i == index;
-            // 고르지 않은 줄은 제 바탕으로 — 도드라진 줄이면 갈색이 남는다.
-            _rows[i].Background = on ? PickFill : RestFill(i);
-            _rows[i].BorderBrush = on ? PickEdge : Brushes.Transparent;
-            // 얼굴 · 둘째 줄이 붙은 줄은 글씨가 판 안에 들어 있다 — 든 글씨를 다 뒤집는다.
-            // 글씨색만 뒤집는다 — 겹쳐 찍기는 어느 줄에서도 안 한다.
-            foreach (var label in LabelsIn(_rows[i].Child))
-                label.TextColor = on ? GameFont.WhiteColor : GameFont.BlackColor;
-        }
+        for (int i = 0; i < _rows.Count; i++) Paint(i, i == index);
 
         _decide.On = true;
         _decideReady = true;
+    }
+
+    /// <summary>줄 하나를 고른 모양 또는 쉬는 모양으로 칠한다.</summary>
+    private void Paint(int i, bool on)
+    {
+        // 고르지 않은 줄은 제 바탕으로 — 도드라진 줄이면 갈색이 남는다.
+        _rows[i].Background = on ? PickFill : RestFill(i);
+        _rows[i].BorderBrush = on ? PickEdge : Brushes.Transparent;
+        // 얼굴 · 둘째 줄이 붙은 줄은 글씨가 판 안에 들어 있다 — 든 글씨를 다 뒤집는다.
+        // 글씨색만 뒤집는다 — 겹쳐 찍기는 어느 줄에서도 안 한다.
+        foreach (var label in LabelsIn(_rows[i].Child))
+            label.TextColor = on ? GameFont.WhiteColor : GameFont.BlackColor;
     }
 
     private bool _decideReady;
@@ -310,6 +330,7 @@ public sealed class HintListDialog : GameWindow
     private void Cancel()
     {
         _picked = -1;
+        _chosen.Clear();
         Close();
     }
 
@@ -357,5 +378,22 @@ public sealed class HintListDialog : GameWindow
         var dlg = new HintListDialog(items, choosing: true, caption, header, faces, subtitles, marks) { Owner = owner };
         dlg.ShowDialog();
         return dlg._picked;
+    }
+
+    /// <summary>
+    /// 여러 줄을 고르게 한다 — 누를 때마다 켜고 끈다. 켠 줄 번호를 차례대로 내고, 중단하면 빈 목록이다.
+    /// </summary>
+    /// <param name="preset">처음부터 켜 둘 줄 — 물음에 아니오로 되돌아올 때 고르던 것을 살린다.</param>
+    public static IReadOnlyList<int> PickMany(Window owner, IReadOnlyList<string> items, string caption,
+                                              IReadOnlyCollection<int>? preset = null)
+    {
+        if (items.Count == 0) return [];
+
+        var dlg = new HintListDialog(items, choosing: true, caption, multi: true) { Owner = owner };
+        if (preset != null)
+            foreach (int i in preset)
+                if (i >= 0 && i < items.Count) dlg.Select(i);
+        dlg.ShowDialog();
+        return [.. dlg._chosen];
     }
 }
