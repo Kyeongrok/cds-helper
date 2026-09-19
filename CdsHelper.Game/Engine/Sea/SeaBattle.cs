@@ -1033,8 +1033,12 @@ public sealed class SeaBattle
         }
         for (int i = 0; i < volley; i++)
         {
-            int odds = Math.Max(1, 6 * gunnery + (int)(17 * Math.Sqrt(ship.Guns)) - 24);
-            if (_rng.Next(100) >= odds)
+            // 명중률 = 6 x 포술 + 17 x isqrt(대포수 x 100) / 10 − 24 (0x00436E29).
+            // 0 이면 1 로 올리고(0x00436E51), 굴림은 <b>부호 없이</b> 재므로(0x004B7C6F 의 CF)
+            // 음수면 늘 맞는다 — 대포가 적고 포술이 낮은 배가 그렇다.
+            int odds = 6 * gunnery + 17 * Isqrt(ship.Guns * 100) / 10 - 24;
+            if (odds == 0) odds = 1;
+            if (odds >= 0 && _rng.Next(100) >= odds)
             {
                 shots.Add(new Shot(false, 0, false));
                 continue;
@@ -1087,6 +1091,23 @@ public sealed class SeaBattle
         bool sunk = target.Hp == 0;
         if (sunk) target.State = ShipState.Sunk;       // 판 닫기·연출은 Execute 의 Sink 가 한다
         return new Volley(ship, target, shots, sunk);
+    }
+
+    /// <summary>
+    /// 게임이 쓰는 정수 제곱근(<c>0x004B7C2C</c>) — 뉴턴 법이라 <c>Math.Sqrt</c> 와 값이 갈릴 수 있다.
+    /// </summary>
+    private static int Isqrt(int value)
+    {
+        if (value <= 0) return 0;
+        uint n = (uint)value, guess = 1, half = n;
+        while (half > guess) { half >>= 1; guess += guess; }
+        uint last;
+        do
+        {
+            last = guess;
+            guess = (guess + n / guess) >> 1;
+        } while (last > guess);
+        return (int)last;
     }
 
     /// <summary>
