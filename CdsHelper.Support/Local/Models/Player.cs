@@ -227,8 +227,8 @@ public sealed class Player
         SetFortune(fortune ?? Face);
     }
 
-    /// <summary>고를 수 있는 나이.</summary>
-    public const int MinAge = 15;
+    /// <summary>고를 수 있는 나이 — 숫자판이 18 ~ 40 이다(<c>0x0045C311</c>).</summary>
+    public const int MinAge = 18;
 
     /// <summary>고를 수 있는 가장 많은 나이.</summary>
     public const int MaxAge = 40;
