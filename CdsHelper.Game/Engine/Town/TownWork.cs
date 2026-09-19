@@ -173,7 +173,7 @@ public static class TownWorks
                                             IReadOnlyList<string>? Drinks = null,
                                             bool Contracted = false, bool HasHeir = false,
                                             bool Wed = false, bool PatronBribe = false,
-                                            bool PatronBorrow = false);
+                                            bool PatronBorrow = false, bool HasSon = false);
 
     /// <summary>
     /// 그 시설의 명령 창에 늘어놓을 줄들. 차례와 문구는 <see cref="Facility.Menu"/> 것이고,
@@ -211,6 +211,10 @@ public static class TownWorks
             items.Remove(NameOf(TownWork.Educate));
             items.Remove(NameOf(TownWork.Succeed));
         }
+
+        // 세대교체는 <b>아들</b>이 있어야 줄이 선다(0x0046245C — 0x004AB790(0, 0), 딸만으로는 안 선다).
+        if (facility.Kind == FacilityKind.Home && !state.HasSon)
+            items.Remove(NameOf(TownWork.Succeed));
 
         // 아내가 없으면 후손을 남길 길도 없다.
         if (facility.Kind == FacilityKind.Home && !state.Wed)
