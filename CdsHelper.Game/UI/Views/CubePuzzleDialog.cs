@@ -547,15 +547,13 @@ internal sealed class CubePuzzleDialog : GameWindow
         {
             var dialog = new CubePuzzleDialog(rng) { Owner = owner };
 
-            // <b>금괴를 밟는 그 자리에서</b> 벌고 알린다. 예전에는 판을 나간 뒤에야 알려
-            // 「얻은 것과 알림」이 한 박자 어긋났다. 글은 게임 것 그대로다(0x0056DDF8).
-            // 판을 다시 줘도 <b>삯은 한 번뿐</b>이다.
+            // 금괴를 밟으면 <b>그 자리에서는 글만</b> 뜬다(0x0049C91F, 0x0056DDF8) — 돈은 판을 마쳤을 때
+            // 0x0049B366 이 넣는다. 밟고 떨어지면 못 받는다. 판을 다시 줘도 삯은 한 번뿐이다.
             dialog._onGold = () =>
             {
                 if (paid) return;
                 paid = true;
                 sfx?.Play(GoldSoundPart);
-                player.Earn(CubePuzzle.Prize);
                 NoticeDialog.Show(dialog,
                     $"금화로 따지면 {CubePuzzle.Prize} 닢에 상당되는 금괴를 손에 넣었다!",
                     "금괴 취득");   // 제목도 원본 그대로다(0x0056DDE8)
@@ -563,7 +561,12 @@ internal sealed class CubePuzzleDialog : GameWindow
 
             dialog.ShowDialog();
 
-            if (dialog._game.Over != false || dialog._game.GaveUp) return;
+            if (dialog._game.Over != false || dialog._game.GaveUp)
+            {
+                // 판을 마쳤을 때만 금괴 값이 들어온다(0x0049B366).
+                if (paid && dialog._game.Over == true) player.Earn(CubePuzzle.Prize);
+                return;
+            }
 
             // 떨어져도 끝이 아니다 — 아래층이 있었다며 판을 새로 깔아 준다(0x0049B3C0).
             NoticeDialog.Show(owner,

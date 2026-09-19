@@ -414,6 +414,10 @@ internal sealed class GrailPuzzleDialog : InfoDialog
     /// </returns>
     public static bool Play(Window owner, Player player, Random rng, SoundBank? sfx = null)
     {
+        // 「대실패」(넘침) 뒤의 다시 하기는 <b>딱 한 번</b>이다 — 0x004684F5 가 깃발을 세우고 0x00468566 이
+        // 두 번째부터는 묻지도 않고 0 을 낸다. 「다시 한번 찬스」(쉰 수 넘김)는 그런 문이 없다.
+        bool spilledOnce = false;
+
         while (true)
         {
             var dialog = new GrailPuzzleDialog(rng.Next(GrailPuzzle.Problems.Length))
@@ -431,6 +435,8 @@ internal sealed class GrailPuzzleDialog : InfoDialog
 
                 case GrailPuzzle.Result.Spilled:
                     NoticeDialog.Show(owner, "성배에서 물이 넘쳤다!", "대실패");
+                    if (spilledOnce) return false;
+                    spilledOnce = true;
                     NoticeDialog.Show(owner, "재주가 없는 녀석이로군···한번 더 찬스를 주겠다",
                                       "성스러운 항아리");
                     if (!ConfirmDialog.Ask(owner, "다시 도전하겠습니까?", "메시지")) return false;
