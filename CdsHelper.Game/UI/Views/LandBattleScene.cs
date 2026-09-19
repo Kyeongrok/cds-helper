@@ -896,18 +896,33 @@ internal sealed class LandBattleScene : GameWindow
         NoticeDialog.Show(this, $"전리품으로서 금화 {spoils.Loot}닢을 손에 넣었다", "");
         player.Fame += spoils.Fame;
         player.Infamy += spoils.Infamy;
-        // 무력은 <b>실제로 오른 만큼</b>을 이름과 함께 알린다(0x00449825 · 0x0056D6A8).
-        // 이미 100 이면 아무 말도 없다. 부관 몫(0x0056D688 「부관의 무력이 %d 올라갔다!」)은
-        // 우리 부하 신상이 값을 못 받아 안 옮겼다.
+        // 무력은 <b>실제로 오른 만큼</b>을 이름과 함께 알린다. 부관(0x0047CC60(0,0))이 있으면 부관도
+        // 같은 만큼 오른다(0x00449798).
+        // <code>
+        //   부관 있음  제독이 올랐으면  부관도 올랐으면 0x0056D648 「%s, 부관의 무력이 %d 올라갔다!」
+        //                                아니면           0x0056D668 「%s의 무력이 %d 올라갔다!」
+        //              제독이 안 올랐으면                 0x0056D688 「부관의 무력이 %d 올라갔다!」(부관 오름)
+        //   부관 없음  제독이 올랐으면                    0x0056D6A8 「%s의 무력이 %d 올라갔다!」, 아니면 말 없음
+        // </code>
+        // 제독이 이미 끝이면 부관이 못 올라도 「부관의 무력이 0 올라갔다!」가 나온다 — 원본 그대로다.
         if (spoils.Might > 0)
         {
             var stats = player.Abilities.ToArray();
             int was = stats[Ability.Might];
             stats[Ability.Might] = Math.Min(Ability.Max, was + spoils.Might);
             player.SetAbilities(stats);
-
             int up = stats[Ability.Might] - was;
-            if (up > 0) NoticeDialog.Show(this, $"{player.Name}의 무력이 {up} 올라갔다!", "");
+
+            string mateName = player.MateAt(0);
+            if (mateName.Length > 0 && game.MateInfo(mateName) is { } mate)
+            {
+                int mateUp = Math.Min(Ability.Max, mate.Might + spoils.Might) - mate.Might;
+                player.RememberMate(mate with { Might = mate.Might + mateUp });
+                NoticeDialog.Show(this, up > 0
+                    ? mateUp > 0 ? $"{player.Name}, 부관의 무력이 {up} 올라갔다!" : $"{player.Name}의 무력이 {up} 올라갔다!"
+                    : $"부관의 무력이 {mateUp} 올라갔다!", "");
+            }
+            else if (up > 0) NoticeDialog.Show(this, $"{player.Name}의 무력이 {up} 올라갔다!", "");
         }
     }
 
