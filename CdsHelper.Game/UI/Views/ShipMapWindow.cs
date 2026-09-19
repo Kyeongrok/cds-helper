@@ -1607,7 +1607,7 @@ public sealed class ShipMapWindow : Window
     ///   MG06 화살표 입방체 퍼즐 0x0045FBBD
     /// </code>
     /// 게임은 줄마다 레지스트리를 읽어 <b>풀어 놓은 것만</b> 켠다 —
-    /// <c>Software\KOEI\CostaDelSol.0</c> 의 <c>MG00</c>~<c>MG06</c> 이 1 이어야 한다
+    /// <c>Software\KOEI\CostaDelSol\1.0</c> 의 <c>MG00</c>~<c>MG06</c> 이 1 이어야 한다
     /// (<c>0x0045FA54</c> 벌). 우리는 설정의 <see cref="Local.Settings.GameSettings.IsMinigameUnlocked"/> 로 본다.
     ///
     /// <b>여덟째 「일기토」는 원본 차림표에 없다.</b> 게임에서는 해전에서 기함끼리
