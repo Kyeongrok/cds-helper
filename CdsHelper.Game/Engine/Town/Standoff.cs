@@ -125,20 +125,6 @@ public static class Standoff
     public const string GateRelayVillage = "제독, 마을 안에는 들여보내지 않을 것 같은 말을 하더군요.";
     public const string GateRelayPort = "제독, 어쩐지 외국인은 들여보내지 않을 것 같은 말을 하더군요.";
 
-    /// <summary>못 알아듣는 말을 <b>×</b> 로 뭉갠다.</summary>
-    /// <remarks>
-    /// 게임은 <c>0x00469540</c> 에서 한다 — 말 번호가 0 이 아니면 일행(<c>0x005B60A0</c>)을
-    /// 훑어 아는 이를 찾고, 없으면 글자를 지운다. <b>띄어쓰기와 마침표는 남는다</b> —
-    /// "외국인은 들어올 수 없다." 가 "×××× ××× × ××." 로 나오는 것이 그 증거다.
-    /// </remarks>
-    public static string Garble(string text)
-    {
-        var made = new System.Text.StringBuilder(text.Length);
-        foreach (char c in text)
-            made.Append(char.IsLetterOrDigit(c) ? '×' : c);
-        return made.ToString();
-    }
-
     /// <summary>고른 값. 꺼진 칸도 자리를 지키므로 붙박이 번호다.</summary>
     public const int Attack = 0, Sneak = 1, Talk = 2, Leave = 3;
 
@@ -451,7 +437,8 @@ public static class Standoff
     /// <c>0x00469540</c> 으로 글자를 뭉갠다 — 인사만이 아니라 「침입자다! 잡아라!!」 도
     /// 그렇다. 대사 창에는 <b>제목이 없다</b>.
     /// </remarks>
-    public static string Heard(string words, bool heard) => heard ? words : Garble(words);
+    /// <param name="tongue">그 말을 아는 수준(0~3) — 두 바이트 글자마다 rand(10) &lt; {10,8,4,0}[수준] 이면 ×다.</param>
+    public static string Heard(string words, int tongue) => StrangerTalk.Garble(words, tongue, System.Random.Shared);
 
     /// <summary>배로 왔으면 「항구」, 말로 왔으면 「마을」(<c>0x00552120</c>).</summary>
     public static string Where(bool byLand) => byLand ? "마을" : "항구";

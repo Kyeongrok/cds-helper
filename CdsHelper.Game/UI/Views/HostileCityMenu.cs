@@ -88,7 +88,8 @@ internal static class HostileCityMenu
 
         // 문지기가 먼저 말한다(0x004A521A). 아는 말이 아니면 ×로 뭉개져 나오고,
         // 그때는 대원이 한 마디 덧붙인다 — 마을과 항구의 문구가 다르다(0x004A526E).
-        bool heard = TongueAt(game, city) > 0;
+        // 알아듣는 정도 — 그 말 수준(0~3)만큼 덜 뭉개진다(0x004780E0 → 0x004252F0).
+        int heard = TongueAt(game, city);
         int culture = game.CityRows?.CultureOf(city) ?? 0;
         var gate = game.SpeakerFace(Standoff.GateSpeaker(byLand), culture);
         // 조약으로 막힌 문에서는 이 인사가 아예 없다 — 부르는 쪽이 이미 조약 문구를 냈다
@@ -262,7 +263,7 @@ internal static class HostileCityMenu
     /// 달아났어도 다시 조를 기회를 안 준다는 뜻이다.
     /// </remarks>
     private static Outcome Sneak(Window owner, GateScene? scene, Engine.Game game,
-                                 GameRandom dice, int city, uint[]? gate, bool heard,
+                                 GameRandom dice, int city, uint[]? gate, int heard,
                                  Standoff.Script say)
     {
         var player = game.Player;
@@ -322,7 +323,7 @@ internal static class HostileCityMenu
     /// 부르는 <b>40밀리초 기다리기</b>지 날짜가 아니다.
     /// </remarks>
     private static Outcome Trial(Window owner, GateScene? scene, Engine.Game game,
-                                 GameRandom dice, uint[]? gate, bool heard, bool aide,
+                                 GameRandom dice, uint[]? gate, int heard, bool aide,
                                  Standoff.Script say)
     {
         var player = game.Player;
