@@ -1225,6 +1225,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (duel.Won == true)
         {
             Triumph(who, face, dice);
+            Setback(who, face, dice);
         }
         else
         {
@@ -1390,6 +1391,30 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 아니라 복장 갈래와 무력으로 그 자리에서 굴린다(<see cref="Engine.Town.Duel.GearOf"/>).
     /// 창을 물리면 놓아 준 것으로 친다.
     /// </remarks>
+    /// <summary>
+    /// 일기토에 진 사람이 물러가며 한 마디 하고 <b>제 길이 늦어진다</b>(<c>0x004A49F1</c>) — 결판(0·1)이
+    /// 난 뒤다. 말은 다섯 가운데 rand(5), 늦어짐은 <c>(rand(3) x 3 + 3) x 4</c> 날(<c>0x004322A0</c>)이고
+    /// 「%s의 행동이 늦어졌습니다」를 알린 뒤 악명이 조용히 100 오른다(<c>0x004697C0(1, 100)</c>).
+    /// 늦어짐이 실제로 먹는 것은 행적을 되짚는 누적 캐릭터뿐이다(<see cref="Engine.AccReplay.Delay"/>).
+    /// </summary>
+    private void Setback(TavernRoster.Person who, uint[]? face, GameRandom dice)
+    {
+        TalkDialog.Say(_view, face, "", Retreat[dice.Next(Retreat.Length)]);
+        _game.World?.Replay?.Delay(who.Index, _game.Random);
+        NoticeDialog.Show(_view, Engine.AccReplay.Delayed(who.Name));
+        _player.Infamy = Math.Min(Engine.Sea.FleetRaid.MaxRenown, _player.Infamy + Engine.AccReplay.DelayInfamy);
+    }
+
+    /// <summary>일기토에 진 사람이 물러가며 하는 말 다섯(<c>0x00551578</c>~).</summary>
+    internal static readonly string[] Retreat =
+    [
+        "윽, 제법이군. 자, 다시 만나세.",
+        "상처가 깊은 것 같군. 이러면 계획이 늦어져 버릴텐데. 앞으로 조금인데.",
+        "모처럼 단서를 잡았는데, 이런 일이... 운이 나쁘군.",
+        "너의 이름은... 그래, 그 이름 기억해 두지. 그럼.",
+        "생각보단 꽤 하는군. 하지만 이런 곳에서 죽을 수 있나. 내게는 큰 꿈이 있다.",
+    ];
+
     private void Triumph(TavernRoster.Person who, uint[]? face, GameRandom dice)
     {
         switch (ChoiceDialog.Pick(_view, "", ["처형한다", "놓아 준다", "모두 뺏는다"]))
