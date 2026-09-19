@@ -72,22 +72,10 @@ public static class GameInfo
     }
 
     /// <summary>
-    /// 힌트 이름 뒤에 <b>갈래</b>를 괄호로 붙인다 — 「몽생미셸 (종교)」.
+    /// 힌트 목록 한 줄 — <b>이름만</b>이다(<c>0x00476020</c> 이 힌트 줄 <c>+0x00</c> 이름을 <c>"%s"</c> 로 적는다).
     /// </summary>
-    /// <remarks>
-    /// 갈래는 힌트 줄의 <c>+0x0C</c> 고 이름표는 <c>0x00560C60</c> 여덟이다(지리·역사·보물·
-    /// 종교·교역품·미신·생물·민족). <b>후원자마다 좋아하는 갈래가 달라</b> 어느 갈래인지가
-    /// 설득에 그대로 드는데, 목록에 이름만 있으면 그때마다 힌트 정보를 다시 펴야 했다.
-    /// 표를 못 읽었으면 이름만 낸다.
-    /// </remarks>
-    public static string HintLabel(Game game, int id)
-    {
-        string name = game.HintName(id);
-        if (game.Hints is not { } hints || hints.Find(id) is not { } row) return name;
-
-        string category = hints.CategoryOf(row.Category);
-        return category.Length > 0 ? $"{name} ({category})" : name;
-    }
+    /// <remarks>예전에는 갈래를 괄호로 붙였는데 원본에 없는 표시라 뺐다 — 갈래는 힌트 설명 판에서 본다.</remarks>
+    public static string HintLabel(Game game, int id) => game.HintName(id);
 
     /// <summary>그 힌트가 가리키는 발견물을 이미 찾았는지.</summary>
     private static bool Found(Game game, DiscoveryTable? table,
