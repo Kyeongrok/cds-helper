@@ -112,7 +112,8 @@ internal static class HostileCityMenu
                 // 「공격한다」는 성문(건물 10)에서만 켜진다 — 배로 온 항구 문(건물 0)에서는 흐리다
                 // (0x004A574E 가 화면 vt+0x48 을 켜짐 칸에, 조약 문도 0x0046AC12 에서 같다).
                 (say.Rows[Standoff.Attack], byLand),
-                (say.Rows[Standoff.Sneak], Standoff.CanSneak(sect)),
+                // 조약 문의 「침입한다」는 종파를 안 본다(0x0046AC12) — 종파 3·4 검사는 적대도 쪽 잠입뿐이다.
+                (say.Rows[Standoff.Sneak], byTreaty || Standoff.CanSneak(sect)),
                 (say.Rows[Standoff.Talk], canTalk),
                 (say.Rows[Standoff.Leave], true),
             };
@@ -240,7 +241,9 @@ internal static class HostileCityMenu
             return false;
         }
 
-        int paid = player.Spend(Standoff.Price(player, dice));
+        int price = Standoff.Price(player, dice);
+        if (say.IsTreaty) price = Math.Max(price, Standoff.TreatyMinPrice);
+        int paid = player.Spend(price);
         NoticeDialog.Show(owner, string.Format(say.Paid, paid), "");
         AideOrNews(string.Format(say.TalkWonWord, where), string.Format(say.TalkWonNews, where));
         return true;
@@ -267,12 +270,14 @@ internal static class HostileCityMenu
         if (aide)
             TalkDialog.Say(owner, game.AideFace, "", tongue >= Standoff.SafeTongue ? say.Care : say.TongueThin);
 
-        bool turban = HasTurban(game, player);
+        // 터번은 적대도 쪽 잠입만 본다 — 조약 쪽 침입은 굴림이 따로다(0x0046A867).
+        bool turban = !say.IsTreaty && HasTurban(game, player);
         if (turban)
             NoticeDialog.Show(owner, $"{Standoff.TurbanName}을 사용했다", "");
 
         // 게임도 굴리고 나서 동전을 돌린다(0x004A53D0) — 멎은 쪽이 곧 결과다.
-        bool got = Standoff.Sneaks(player, tongue, turban, dice);
+        bool got = say.IsTreaty ? Standoff.Intrudes(player, tongue, dice)
+                                : Standoff.Sneaks(player, tongue, turban, dice);
         scene?.PlayCoin(got);
 
         if (got)
@@ -320,7 +325,9 @@ internal static class HostileCityMenu
         TalkDialog.Say(owner, gate, "", Standoff.Heard(say.Caught, heard));
 
         // ① 죄가 가벼운가 — 굴리고 나서 하트를 돌린다(0x004A549F).
-        int weight = Math.Max(0, player.Infamy - player.AbilityOf(Ability.Luck) - 1);
+        // 조약 쪽 재판은 운이 아니라 <b>매력</b>을 뺀다(0x0046A93A).
+        int weight = Math.Max(0, player.Infamy
+                                 - player.AbilityOf(say.IsTreaty ? Ability.Charm : Ability.Luck) - 1);
         bool light = dice.Next(2000) + 1000 > weight;
         scene?.PlayHeart(light);
 

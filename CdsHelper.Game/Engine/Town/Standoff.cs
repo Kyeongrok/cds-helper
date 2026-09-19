@@ -210,7 +210,11 @@ public static class Standoff
         string TalkWonWord, string TalkWonNews, string TalkLostWord, string TalkLostNews,
         string TongueThin, string Care, string Spotted, string GotAway,
         string Caught, string Banished, string Fined, string Robbed, string GiveUpHere,
-        string Villain);
+        string Villain)
+    {
+        /// <summary>조약 쪽 화면인지(<c>0x0046Axxx</c>) — 굴림 몇 가지가 적대도 쪽과 다르다.</summary>
+        public bool IsTreaty => ReferenceEquals(this, Treaty);
+    }
 
     /// <summary>적대도로 막힌 문(<c>0x004A5xxx</c>).</summary>
     public static readonly Script Hostile = new(
@@ -324,6 +328,12 @@ public static class Standoff
         tongue * 33 + (turban ? 100 : 0) + (player.AbilityOf(Ability.Luck) + 1) / 2
         >= dice.Next(250);
 
+    /// <summary>
+    /// 조약 문 「침입한다」가 되는지(<c>0x0046A867</c>) — <c>말*20 + (운+1)/2 ≥ rand(100)</c>. 터번은 안 본다.
+    /// </summary>
+    public static bool Intrudes(Player player, int tongue, GameRandom dice) =>
+        tongue * 20 + (player.AbilityOf(Ability.Luck) + 1) / 2 >= dice.Next(100);
+
     /// <summary>들킨 뒤에 달아나는지(<c>0x004A5401</c>). 못 달아나면 재판이다.</summary>
     /// <remarks>
     /// <code>
@@ -368,6 +378,9 @@ public static class Standoff
     /// </remarks>
     public static int Price(Player player, GameRandom dice) =>
         dice.Next(500) + (5 - player.LevelOf(Skill.Names[Skill.Rhetoric])) * 100;
+
+    /// <summary>조약 문의 뇌물 — 같은 셈에 <b>적어도 100</b>이다(<c>0x0046AACF</c>).</summary>
+    public const int TreatyMinPrice = 100;
 
     /// <summary>
     /// <b>부관이 있는가.</b> 성문의 말은 부관이 하느냐 그냥 서술하느냐로 갈린다.
