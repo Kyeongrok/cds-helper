@@ -1839,8 +1839,8 @@ public sealed class ShipMapWindow : Window
     ///   0x0055DFE8  다섯이 다 찼을 때의 본문 — 「…등장시키면 지금부터 시작하는 캐릭터로는 은퇴할 수 없게 됩니다.」
     ///   0x0055E0B0  그 밖의 본문
     /// </code>
-    /// 「않는다」를 고르면 깃발(<c>0x005A4D1A</c> 비트 0x10)이 서고, 그 판에서 은퇴하면
-    /// <b>올라 있던 다섯을 다 지운다</b>(<c>0x0041AD55</c>) — 우리는 그 자리에서 바로 비운다.
+    /// 「않는다」를 고르면 깃발(<c>0x005A4D1A</c> 비트 0x10)만 서고, 그 판에서 <b>은퇴할 때</b>
+    /// 올라 있던 다섯을 다 지운다(<c>0x0041AD55</c>) — 은퇴하지 않으면 다섯은 그대로 남는다.
     ///
     /// 「등장시킨다」를 고르면 인물 276~280 자리에 앉히고(<see cref="Engine.AccData.Place"/>)
     /// 옛 발자취를 날마다 되짚게 건다(<see cref="Engine.AccReplay"/>).
@@ -1862,8 +1862,8 @@ public sealed class ShipMapWindow : Window
             ["누적캐릭터를 등장시킨다", "누적캐릭터를 등장시키지 않는다"]);
         if (at < 0) return false;
 
-        // 「등장시키지 않는다」면 다섯 자리를 통째로 비운다(0x0041AD55).
-        if (at == 1) { Engine.AccData.Clear(); return true; }
+        // 「등장시키지 않는다」면 깃발만 세운다 — 비우는 것은 은퇴할 때다(0x0041AD55).
+        if (at == 1) { _game.Player.SkipsCumulative = true; return true; }
 
         // 등장시키면 인물 276~280 자리에 앉고(0x0041AF00), 옛 발자취를 날마다 되짚는다.
         if (_game.World is { } world)
@@ -2328,6 +2328,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityBuildings(saved.CityBuildings);
             _game.Player.SetLastSupply(saved.LastSupply);
             _game.Player.RestoreFleetCity(saved.FleetCity);
+            _game.Player.SkipsCumulative = saved.SkipsCumulative ?? false;
             // 앞 판은 발견물 아이템을 발견할 때 소지품에 넣었다 — 아직 안 알린 것은 한 벌씩 걷어 낸다.
             if (saved.Version < GameSave.VirtualItemsFrom)
                 foreach (int item in GameInfo.VirtualItems(_game)) _game.Player.Drop(item);

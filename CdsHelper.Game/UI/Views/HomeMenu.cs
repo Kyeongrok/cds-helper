@@ -294,11 +294,16 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// <remarks>
     /// <code>
     ///   초심자면      「…단, 초심자용 캐릭터는 누적 캐릭터로 등록할 수 없습니다. 좋습니까?」 0x0053A4D8
+    ///   비트 0x40     「…단, 누적 캐릭터가 5명 등록되어 있기 때문에 …」                     0x0053A538
+    ///   비트 0x10     「…단, %s%s 등록하면 현재 등록되어 있는 누적 캐릭터가 모두 삭제됩니다.」 0x0053A5B0
     ///   아니면        「…은퇴시키고 누적 캐릭터로 등록하겠습니다. 괜찮습니까?」               0x0053A498
     ///   두 번째 물음  「%s%s 모험가로서 게임에 복귀할 수 없게 됩니다만, 괜찮습니까?」          0x0053A630
     ///   EVSTILL 15 · 곡 0x0C · 「%s%s 모험가로서의 일생을 마쳤다...」                          0x0053A670
     ///   그 뒤 0x0041AB90 이 세이브(SAVEDATA.CDS·TMP·ACCDATA.CDS)를 지우고 끝낸다
     /// </code>
+    /// 비트 0x40 을 세우는 코드는 게임에 없어 셋째 물음은 절대 안 뜬다 — 옮기지 않는다.
+    /// 비트 0x10 은 NEW GAME 에서 「누적캐릭터를 등장시키지 않는다」를 고른 판이다
+    /// (<see cref="Player.SkipsCumulative"/>) — 등록하기 앞서 올라 있던 다섯을 모두 지운다(<c>0x0041AD55</c>).
     /// 초심자용이 아니면 누적 캐릭터 다섯 자리에 올린다(<see cref="Engine.AccData"/>) — 행적도
     /// 함께 올라가, 다음 판에서 인물 276~280 으로 서서 옛 발자취를 되짚는다
     /// (<see cref="Engine.AccReplay"/>). 부하·아내·아이는 게임도 <b>안 건드린다</b>(세이브째 사라진다).
@@ -312,7 +317,10 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         string first = novice
             ? $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키겠습니다. 단, 초심자용 캐릭터는 "
               + "누적 캐릭터로 등록할 수 없습니다. 좋습니까?"
-            : $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키고 누적 캐릭터로 등록하겠습니다. 괜찮습니까?";
+            : player.SkipsCumulative
+                ? $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키고 누적 캐릭터로 등록하겠습니다. "
+                  + $"단, {me}{GameUi.Josa(me, "을", "를")} 등록하면 현재 등록되어 있는 누적 캐릭터가 모두 삭제됩니다. 괜찮습니까?"
+                : $"{me}{GameUi.Josa(me, "을", "를")} 은퇴시키고 누적 캐릭터로 등록하겠습니다. 괜찮습니까?";
         if (!ConfirmDialog.Ask(_view, first)) return false;
         if (!ConfirmDialog.Ask(_view,
                 $"{me}{GameUi.Josa(me, "은", "는")} 모험가로서 게임에 복귀할 수 없게 됩니다만, 괜찮습니까?"))
@@ -323,7 +331,11 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
                              $"{me}{GameUi.Josa(me, "은", "는")} 모험가로서의 일생을 마쳤다...");
         // 초심자용 캐릭터가 아니면 누적 캐릭터 다섯 자리에 올린다(0x0041AB90).
         // 자리가 다 찼으면 <b>아무 말 없이</b> 못 올린다 — 원본도 그렇다.
-        if (!novice) Engine.AccData.Register(player);
+        if (!novice)
+        {
+            if (player.SkipsCumulative) Engine.AccData.Clear();
+            Engine.AccData.Register(player);
+        }
 
         Engine.GameSave.Delete();
         return true;
