@@ -905,8 +905,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
     /// 그림이 있으면 그것을 튼 뒤 친밀도 · 아이템 · 명성 차례로 낸다(<c>0x004111D0</c>).
     /// 사례는 다 끝나고 한 번이다.
     /// </remarks>
-    /// <returns>받은 사례(닢)와 후원자가 본 갈래.</returns>
-    private (int Paid, Palace.ReportGrade Grade) ReportEach(
+    /// <returns>받은 사례(닢) · 후원자가 본 갈래 · 남이 먼저 발표해 버렸는지.</returns>
+    private (int Paid, Palace.ReportGrade Grade, bool Scooped) ReportEach(
         Patron patron, Contract contract,
         IReadOnlyList<DiscoveryTable.Record> rows, bool inTime)
     {
@@ -988,7 +988,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
 
             ReturnLentShips(broken: true);
             _player.EndContract();
-            return (0, Palace.ReportGrade.Poor);
+            return (0, Palace.ReportGrade.Poor, scoopedHead);
         }
 
         // 다 보고하고 나면 후원자가 <b>성과를 가늠해</b> 한 마디 하고 사례를 친다(0x00411AA0).
@@ -997,13 +997,16 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var grade = world ? Palace.ReportGrade.Good : GradeOf(patron, contract, rows);
         int paid = world ? Palace.WorldRouteRewardFor(contract.Unpaid, inTime, _random)
                          : RewardFor(contract, grade, inTime, scoopedHead);
-        if (world) WorldRemark(patron, inTime); else Remark(patron, grade, inTime, paid);
+        if (world) WorldRemark(patron, inTime);
+        else if (scoopedHead && Headline(rows) is { } beaten)
+            ScoopedRemark(patron, beaten, inTime, paid);
+        else Remark(patron, grade, inTime, paid);
 
         _player.Earn(paid);
         // 계약이 끝나면 빌린 배를 거둬 간다(0x0040FE40).
         ReturnLentShips();
         _player.EndContract();
-        return (paid, grade);
+        return (paid, grade, scoopedHead);
     }
 
     /// <summary>
@@ -1075,6 +1078,40 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             : Pick3("훌륭하다! 잘 해내었다!! 늦은 것은 공제하겠다.",
                     "이것은... 상상 이상입니다!! 제 눈이 틀림없었던 것 같군요.",
                     "오오, 이건 굉장하다! 기대를 져버리지 않았군. 늦은 것은 없었던일로 하지."));
+    }
+
+    /// <summary>
+    /// <b>남이 먼저 발표해 버렸을 때</b> 후원자가 하는 말(<c>0x004117F0</c>) — 갈래 가늠은
+    /// 건너뛰고 이 말로 갈음한다(<c>0x00411FC0</c> 이 <see cref="Remark"/> 대신 이리 보낸다).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   기한 안  0x005300A8 · 0x00530100 · 0x00530158   ; 사례 닢수가 들어간다
+    ///   늦음     0x005301C8 · 0x00530238 · 0x005302A8   ; 한 푼도 없다
+    /// </code>
+    /// 견주는 발견물은 <see cref="Headline"/> 하나다. 조사는 발견물이 은/는
+    /// (<c>0x004281B0(이름, 1)</c>), 발표한 사람이 이/가(<c>…, 0</c>)다.
+    /// 기한 안 말은 얼굴 상자 하나로 내고(<c>0x004119AC</c>), 늦은 말은 말투 셋
+    /// (<c>0x004694C0</c>)으로 낸다 — 우리는 둘 다 같은 창으로 낸다.
+    /// </remarks>
+    private void ScoopedRemark(Patron patron, DiscoveryTable.Record row, bool inTime, int paid)
+    {
+        int style = StyleOf(patron);
+        string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
+
+        string me = _player.Name;
+        string what = row.Name;
+        string who = _player.ScoopedBy(row.Id) ?? "";
+        string eun = GameUi.Josa(what, "은", "는");
+        string iga = GameUi.Josa(who, "이", "가");
+
+        TalkDialog.Say(_view, FaceOf(patron), "", inTime
+            ? Pick3($"{me}, 안됐지만 발견한 {what}{eun} 벌써 {who}에 의해 발표되었네. 이렇다면 {paid}닢 밖에 지불할 수 없네.",
+                    $"{me}, 당신이 발견한 {what}{eun} {who}{iga} 먼저 발표했습니다. 안됐지만, {paid}닢 밖에 지불할 수 없습니다.",
+                    $"늦었군, {me}. {what}{eun} 벌써 {who}{iga} 발표했네. 사례는 {paid}닢으로 충분하겠지.")
+            : Pick3($"{me}, 자네가 발견한 {what}{eun} 벌써 {who}에 의해 발표되었네. 늦은데다 그 모양이라니 돈은 지불할 수 없네. 불만없겠지.",
+                    $"{me}, 당신이 발견한 {what}{eun} {who}{iga} 먼저 발표해 버렸습니다. 계약기한이 지나 버렸으니, 사례는 지불할 수 없습니다.",
+                    $"늦었군, {me}. {what}{eun} 벌써 {who}{iga} 발표했네. 기한이 지났으니 사례를 달라고는 못하겠지!"));
     }
 
     /// <summary>
@@ -1367,11 +1404,12 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         var stage = _view as CityPicView;
         int paid;
         Palace.ReportGrade grade;
+        bool scooped;
         try
         {
             // 보고하는 동안 도시 그림이 파래진다 — 바다에서 발견할 때와 같다.
             stage?.Shade(true);
-            (paid, grade) = ReportEach(patron, contract, rows, inTime);
+            (paid, grade, scooped) = ReportEach(patron, contract, rows, inTime);
         }
         finally
         {
@@ -1381,7 +1419,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 사례는 파란 막이 걷힌 뒤에 받는다. 줄도 갈래마다 다르다
         // (0x005304B0 · 0x00530570 · 0x00530648 · 0x00530788).
         string him = patron.Name;
-        GameDialog.Show(_view, grade != Palace.ReportGrade.Poor
+        GameDialog.Show(_view, grade != Palace.ReportGrade.Poor && !scooped
             ? $"금화 {paid}닢을 받았다!"
             : inTime ? $"{him}{GameUi.Josa(him, "은", "는")} 금화 {paid}닢 밖에 지불하지 않았다!"
                      : $"{him}{GameUi.Josa(him, "은", "는")} 돈을 지불하지 않았다!");
@@ -1393,9 +1431,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         //   0041116f  → 긴 벌 — 0x0052FA50 · 0x0052FA78 · 0x0052FAB8
         //   0041119a  → 짧은 벌 — 0x0052FB08 · 0x0052FB28 · 0x0052FB58
         // </code>
-        // 남이 먼저 발표하는 일은 우리 쪽에 없으므로(KnownByOthers) 기한만으로 갈린다.
+        // 남이 먼저 발표해 버렸어도 짧은 벌이다(0x00411165).
         if (world) WorldFinale(patron, inTime, Pick3);
-        else Say(inTime
+        else Say(inTime && !scooped
             ? Pick3("잘 했네. 무슨 일이 있으면 또 오게나.",
                     "수고하셨습니다. 다시 모험을 하게 되신다면 여기에 와 주십시오.",
                     "음음, 잘 했네. 또 흥미있는 이야기가 있을 때는 원조하겠네. 부담없이 와 주게나.")
