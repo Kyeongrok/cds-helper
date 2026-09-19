@@ -3246,6 +3246,8 @@ public sealed class ShipMapWindow : Window
             {
                 PassLandDay();
                 if (!PassVitalityDay()) return;
+                // 선원 0 검사는 뭍의 하루 뒤에도 돈다(0x00475A2C 는 뭍 갈래 뒤에 있다).
+                if (CrewGone()) return;
                 continue;
             }
 
@@ -3264,18 +3266,23 @@ public sealed class ShipMapWindow : Window
             // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0). 병 중에 0 이면 거기서 끝이다.
             if (!PassVitalityDay()) return;
 
-            // 바다에서 선원이 다 죽으면 놀이가 끝난다 — 게임도 하루 셈 끝에 도시 밖이고
-            // 선원 합이 0 이면 0x0044AF40(0x5A4D18, 1) 로 GAME OVER 다(0x00475A2C).
-            if (_game.Player.Ships.Count > 0 && _game.Player.Crew <= 0)
-            {
-                _host.Paused = true;
-                _asking = true;                      // 창이 떠 있는 동안 하루 셈이 다시 안 돌게
-                GameOver(GameOverDialog.FleetLost);   // 까닭 1
-                _asking = false;
-                Dispatcher.BeginInvoke(ReturnToTitle);
-                return;
-            }
+            if (CrewGone()) return;
         }
+    }
+
+    /// <summary>
+    /// 선원이 다 죽었으면 놀이가 끝난다 — 하루 셈 끝에 도시 밖이고 선원 합이 0 이면
+    /// <c>0x0044AF40(0x5A4D18, 1)</c> 로 GAME OVER 다(<c>0x00475A2C</c>). 바다든 뭍이든 본다.
+    /// </summary>
+    private bool CrewGone()
+    {
+        if (_game.Player.Ships.Count == 0 || _game.Player.Crew > 0) return false;
+        _host.Paused = true;
+        _asking = true;                      // 창이 떠 있는 동안 하루 셈이 다시 안 돌게
+        GameOver(GameOverDialog.FleetLost);   // 까닭 1
+        _asking = false;
+        Dispatcher.BeginInvoke(ReturnToTitle);
+        return true;
     }
 
     /// <summary>
