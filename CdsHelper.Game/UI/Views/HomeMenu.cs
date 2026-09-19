@@ -47,10 +47,12 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         var owner = Owner;
 
         // 아직 소개 안 한 아이가 있으면 그것으로 끝난다(0x0045FFC0 이 참이면 뒤가 다 건너뛴다).
-        var newborns = Home.NotIntroduced(_player);
-        if (newborns.Count > 0)
+        // 한 번에 <b>하나만</b> 소개한다 — 원본은 0x004AB980 으로 아직 안 알린 아이 가운데
+        // <b>가장 어린</b> 하나만 집어 0x00460070 을 한 번 부른다(0x0045FFC6).
+        // NotIntroduced 가 태어난 차례(오름차순)라 마지막이 가장 어리다.
+        if (Home.NotIntroduced(_player) is [.., var newborn])
         {
-            foreach (var child in newborns) Introduce(owner, child);
+            Introduce(owner, newborn);
             return;
         }
 
