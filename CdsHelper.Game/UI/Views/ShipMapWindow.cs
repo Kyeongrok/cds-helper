@@ -5593,11 +5593,8 @@ public sealed class ShipMapWindow : Window
         for (int city = 0; city < CityExeTable.Count; city++)
             if (player.Knows(city) && CityCoordinates.Of(rows, city) != null) seen.Add(city);
 
-        if (seen.Count == 0)
-        {
-            NoticeDialog.Show(this, "아직 가 본 도시가 없습니다");
-            return;
-        }
+        // 고를 도시가 없으면 말없이 물린다 — 원본(0x004269F0)에는 빈 목록을 알리는 말이 없다.
+        if (seen.Count == 0) return;
 
         _asking = true;
         _host.Paused = true;
