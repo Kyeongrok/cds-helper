@@ -481,7 +481,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     }
 
     /// <summary>취중에 시비가 붙는 상대(<c>0x0042EC19</c> 의 <c>0x113</c>).</summary>
-    private const int BrawlPerson = 275;
+    internal const int BrawlPerson = 275;
 
     /// <summary>이겼을 때 오르는 값(<c>0x0042ECD3</c>).</summary>
     private const int BrawlFame = 100, BrawlWinInfamy = 500;
@@ -1512,7 +1512,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ];
 
     /// <summary>이긴 뒤 처형·놓아 준다·모두 뺏는다(<c>0x004A8380(3)</c>). 고른 번호(0 처형 · 1 놓아 줌 · 2 뺏음)를 낸다.</summary>
-    private int Triumph(int person, uint[]? face, GameRandom dice)
+    internal int Triumph(int person, uint[]? face, GameRandom dice)
     {
         int pick = ChoiceDialog.Pick(_view, "", ["처형한다", "놓아 준다", "모두 뺏는다"]);
         switch (pick)
