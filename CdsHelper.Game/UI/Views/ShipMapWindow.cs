@@ -2560,7 +2560,9 @@ public sealed class ShipMapWindow : Window
             items.Add(("수리", () => { Close(); RepairAshore(); }));
 
             // 대 둔 배 곁(두 칸 안)이어야 선다(0x0048B397) — 아무 물가에서나 타지는 못한다.
-            if (_host.IsNearMoor())
+            // 함대가 도시 항구에 들어가 있으면(0x005B6388 — 바다로 들어와 성문으로 탐험 나선 길) 줄이 없다 —
+            // 그 도시로 걸어 돌아가야 배에 오른다.
+            if (_host.IsNearMoor() && _game.Player.FleetCity < 0)
                 // 뭍에서 배로 옮겨 타는 줄은 「승선」이다(0x0056F9A8, 0x0048B3ED) — 「출항」은 항구 것이다.
                 items.Add(("승선", () => { if (_host.Embark()) _game.Bgm.Play(BgmPlayer.SeaTrack); Close(); }));
         }
