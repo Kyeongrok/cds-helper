@@ -4580,9 +4580,10 @@ public sealed class ShipMapWindow : Window
                 _ => "선원들의 피로가 한계에 달하고 있습니다. 이대로라면 죽는 사람이 나오고 맙니다!",
             }, Where.Strip));
 
-        // 지쳐 죽어 승원이 모자라졌으면 부관이 한 줄 한다(0x004759A5). 죽은 수는 따로 안 알린다 —
-        // 게임도 선원 칸이 줄어드는 것으로만 보인다.
-        if (day.Short.Length > 0) lines.Add((day.Short, Where.Mate));
+        // 지쳐 죽어 승원이 모자라졌으면 부관이 한 줄 한다(0x004759A5) — 부관이 없으면 알림 상자다
+        // (0x004759D0). 죽은 수는 따로 안 알린다 — 게임도 선원 칸이 줄어드는 것으로만 보인다.
+        if (day.Short.Length > 0)
+            lines.Add((day.Short, _game.Player.MateAt(0).Length > 0 ? Where.Mate : Where.Notice));
 
         if (lines.Count == 0) return;
 

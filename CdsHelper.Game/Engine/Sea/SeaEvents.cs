@@ -508,18 +508,23 @@ public static class SeaEvents
     }
 
     /// <summary>
-    /// 승원이 모자라졌을 때 부관이 하는 말(<c>0x005357D8</c> · <c>0x00535820</c>). 넉넉하면 빈 글이다.
+    /// 승원이 모자라졌을 때의 말. 넉넉하면 빈 글이다.
     /// </summary>
     /// <remarks>
-    /// 게임은 배마다 견주지만 우리는 함대가 통째로 태우므로 <b>합</b>으로 본다. 부하가 하나도
-    /// 없으면 게임도 이 줄을 안 낸다(<c>0x004759A5</c> 앞의 <c>0x0047CC50(0) == −1</c> 검사).
+    /// 게임은 배마다 견주지만 우리는 함대가 통째로 태우므로 <b>합</b>으로 본다. 부관이 있으면
+    /// 부관이(<c>0x005357D8</c> · <c>0x00535820</c>), 없으면 알림 상자로(<c>0x00535860</c> · <c>0x005358A0</c>)
+    /// 이른다 — <c>0x0047CC50(0) == −1</c> 이 가른다(<c>0x0047598C</c>). 배가 두 척 이상이면 앞의 말이다.
     /// </remarks>
     public static string ShortCrewWord(Player player)
     {
         if (player.Crew >= player.MinCrew) return "";
-        if (player.MateInfoOf(player.MateAt(0)) == null) return "";
+        bool many = player.Ships.Count > 1;
 
-        return player.Ships.Count > 1
+        if (player.MateAt(0).Length == 0)
+            return many
+                ? "선원이 부족한 선박이 존재합니다. 선원수를 조정해 주십시오."
+                : "선원이 부족합니다! 마을에서 선원을 고용해 주십시오";
+        return many
             ? "제독, 선원이 부족한 배는 따라 올 수 없습니다. 선원수를 조정해 주십시오."
             : "제독, 선원수가 모자랍니다! 아무 항구에서든 선원을 고용합시다.";
     }
