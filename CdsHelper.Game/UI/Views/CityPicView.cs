@@ -709,7 +709,40 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         // 악명이 3000 을 넘으면 <b>모항</b>에 닿을 때 병사가 막아선다(0x0046885D).
         if (_player.Infamy > Standoff.VillainInfamy && _cityId == _player.HomePort)
+        {
             Villain(harbor, harbor ? HarborCode : GateCode);
+            return;
+        }
+
+        AmbientFolk();
+    }
+
+    /// <summary>
+    /// 닿아서 마을에 들면 <b>누르지 않아도</b> 마을 사람이 한 마디 할 때가 있다(<c>0x00492BD0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0x00492BDC  닿음(0x005B6384)이 서 있고 나온 건물이 항구(0)·성문(10)일 때
+    ///   0x00492C01  rand(5) == 0
+    ///   0x00492C5B  그 고장 말 수준(0x00478050)이 2 이상
+    ///   0x00492C60  갈래 표 0x0056A0D0(100·101·102·200·201·202) 가운데 이 도시에 있는 것에서 rand
+    /// </code>
+    /// 그 뒤는 누른 것과 같다(<see cref="TalkToFolk"/>). 말 수준은 누를 때처럼 제독 것으로 본다.
+    /// </remarks>
+    private void AmbientFolk()
+    {
+        if (_random.Next(5) != 0) return;
+
+        int language = _game.Nations?.Find(_game.CityRows?.NationOf(_cityId) ?? -1)?.Language ?? -1;
+        int mine = language >= 0 && language < Skill.Languages.Length
+            ? _player.TongueOf(Skill.Languages[language]) : Skill.MaxLevel;
+        if (mine < 2) return;
+
+        // 갈래마다 표에서 처음 걸리는 사람이다(0x00473800).
+        var here = (_game.TownFolk?.InCity(_cityId) ?? [])
+            .GroupBy(f => f.Kind).OrderBy(g => g.Key).Select(g => g.First()).ToList();
+        if (here.Count == 0) return;
+        TalkToFolk(here[_random.Next(here.Count)]);
     }
 
 
