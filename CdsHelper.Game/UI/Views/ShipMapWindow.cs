@@ -1391,6 +1391,7 @@ public sealed class ShipMapWindow : Window
         }));
         items.Children.Add(TitleMenuItem("MINI GAME", MiniGames));
         items.Children.Add(TitleMenuItem("END GAME", Close));
+        items.Children.Add(TitleMenuItem("사운드테스트", SoundTest));
 
         var box = new Border
         {
@@ -2109,6 +2110,33 @@ public sealed class ShipMapWindow : Window
             return false;
         }
     }
+
+    /// <summary>
+    /// 타이틀의 <b>사운드테스트</b>(<c>0x0045FBCD</c>) — 번호를 적으면 그 소리를 틀고, 중단하면 소리를 끄고 나간다.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 수 적기 창(<c>0x00481FE0(지금값, 0, 0x4D, 1, 1)</c>)을 되풀이해 띄우고 고른 번호를
+    /// <c>0x004225A0</c> 에 넘긴다. 번호 0~27 은 CD 트랙, 28~77 은 WAVE 파트다
+    /// (<see cref="Support.Local.Helpers.WaveBank.FirstSoundId"/>).
+    /// </remarks>
+    private void SoundTest()
+    {
+        int at = _soundTestAt;
+        while (CountDialog.Set(this, "사운드테스트", "번호", "", at, SoundTestMax) is { } pick)
+        {
+            at = _soundTestAt = pick;
+            if (pick < Support.Local.Helpers.WaveBank.FirstSoundId) _game.Bgm.Play(pick);
+            else _game.Sfx?.Play(pick - Support.Local.Helpers.WaveBank.FirstSoundId);
+        }
+
+        _game.Bgm.Stop();   // 나갈 때 소리를 끈다(0x0045FC24 의 0x00422A40(-1, 3))
+    }
+
+    /// <summary>사운드테스트가 마지막으로 튼 번호(<c>0x005527B8</c>).</summary>
+    private int _soundTestAt;
+
+    /// <summary>사운드테스트에서 고를 수 있는 가장 큰 번호(<c>0x0045FBDC</c> 의 <c>0x4D</c>).</summary>
+    private const int SoundTestMax = 0x4D;
 
     /// <summary>
     /// 타이틀의 메인메뉴 상자를 걷거나 도로 낸다.
