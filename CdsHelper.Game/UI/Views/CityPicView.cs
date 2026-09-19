@@ -2107,7 +2107,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
     bool ITownScreen.CanSellGoods => Market != null && _game.Items != null;
     bool ITownScreen.CanFormFleet => _player.FleetHere(_cityId) && Port.CanFormFleet;   // 0x0046A1CC
     bool ITownScreen.CanRepairShip => Yard.CanRepair;
-    bool ITownScreen.CanSellShip => _player.FleetHere(_cityId, 1) && _player.Ships.Count > 1;   // 0x0044BD29
+    // 줄은 함대가 이 도시에 닿아 있는지만 본다(0x0044BD60) — 한 척뿐이면 눌러서 「기함을 처분하는 일은 불가능합니다!」(0x0044B96F).
+    bool ITownScreen.CanSellShip => _player.FleetHere(_cityId, 1);
     bool ITownScreen.CanRefitShip => _player.FleetHere(_cityId, 1);                              // 0x0044BD69
     bool ITownScreen.CanRead => Books.CanRead;
     bool ITownScreen.CanLeaveHeir => Home.CanLeaveHeir(_player);
