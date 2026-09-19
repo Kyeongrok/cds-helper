@@ -295,7 +295,8 @@ public static class Home
     /// <param name="wifeBlood">아내 혈액형. 모르면 −1 이라 아버지 것만 본다.</param>
     /// <param name="daughter">딸인지. 안 주면 여기서 굴린다(이미 아이가 있으면 그 반대 성별이다).</param>
     public static Player.Child Conceive(Player father, Random random, string name,
-                                        int wifeFortune = -1, int wifeBlood = -1, bool? daughter = null)
+                                        int wifeFortune = -1, int wifeBlood = -1, bool? daughter = null,
+                                        int nationLanguage = -1, int wifeTongues = 0)
     {
         daughter ??= father.Children.Count > 0 ? !father.Children[^1].Daughter : random.Next(2) == 0;
 
@@ -310,7 +311,7 @@ public static class Home
                                      Blood: BloodOf(father.Blood, wifeBlood, random),
                                      Face: ChildFaces[random.Next(2) + (daughter.Value ? 2 : 0)][0],
                                      GrownFace: father.Face);
-        return Bless(father, random, child);
+        return Bless(father, random, child, nationLanguage, wifeTongues);
     }
 
     /// <summary>
@@ -458,14 +459,34 @@ public static class Home
         "당신도 좋아하죠.",
     ];
 
-    /// <summary>기능·언어를 아버지에게서 받는다 — 잉태할 때와, 이름만 있는 옛 세이브 아이를 채울 때 쓴다.</summary>
-    public static Player.Child Bless(Player father, Random random, Player.Child child)
+    /// <summary>
+    /// 기능·언어를 아버지에게서 받는다 — 잉태할 때와, 이름만 있는 옛 세이브 아이를 채울 때 쓴다.
+    /// </summary>
+    /// <remarks>
+    /// 언어는 <b>셋 가운데 하나만 맞아도</b> 3 으로 준다(<c>0x00460EB8</c>~<c>0x00460F1A</c>).
+    /// <code>
+    ///   0x00460ECE  제독 나라의 언어인가        ; 나라표 +0x04
+    ///   0x00460EE2  아버지가 3 인 언어인가
+    ///   0x00460EF8  아내가 가르치는 언어인가    ; 여급 표 +0x20 비트
+    /// </code>
+    /// </remarks>
+    /// <param name="nationLanguage">제독 나라의 언어 번호. 모르면 −1.</param>
+    /// <param name="wifeTongues">아내가 가르치는 언어 비트. 아내가 없으면 0.</param>
+    public static Player.Child Bless(Player father, Random random, Player.Child child,
+                                     int nationLanguage = -1, int wifeTongues = 0)
     {
         var skills = Skill.Names.Select(n => father.LevelOf(n) >= Skill.MaxLevel ? Skill.MaxLevel : 0).ToArray();
         var empty = Enumerable.Range(0, skills.Length).Where(i => skills[i] == 0).ToList();
         if (empty.Count > 0) skills[empty[random.Next(empty.Count)]] = 2;
 
-        var tongues = Skill.Languages.Select(n => father.TongueOf(n) >= Skill.MaxLevel ? Skill.MaxLevel : 0).ToArray();
+        var tongues = new int[Skill.Languages.Length];
+        for (int i = 0; i < tongues.Length; i++)
+        {
+            bool knows = i == nationLanguage
+                         || father.TongueOf(Skill.Languages[i]) >= Skill.MaxLevel
+                         || (wifeTongues & (1 << i)) != 0;
+            tongues[i] = knows ? Skill.MaxLevel : 0;
+        }
 
         var abilities = child.Abilities.All(a => a == 0)
             ? Enumerable.Range(0, 6).Select(i => Math.Clamp(father.AbilityOf(i) + random.Next(20) - 10 + 1, 1, 100)).ToArray()

@@ -263,8 +263,12 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         var wife = _player.SpouseId >= 0 ? _game.Barmaids?.Find(_player.SpouseId) : null;
         // 성별이 먼저 정해져야 이름을 뽑는다 — 이미 아이가 있으면 그 반대다(0x00460CA1).
         bool daughter = _player.Children.Count > 0 ? !_player.Children[^1].Daughter : _random.Next(2) == 0;
+        // 아이가 물려받는 언어는 아버지 것뿐이 아니다 — 제독 나라의 언어와 아내가 가르치는
+        // 언어도 3 으로 들어온다(0x00460EB8).
         var child = Home.Conceive(_player, _random, HeirName(daughter),
-                                  wife?.Fortune ?? -1, wife?.Blood ?? -1, daughter);
+                                  wife?.Fortune ?? -1, wife?.Blood ?? -1, daughter,
+                                  _game.Nations?.Find(_player.Nation)?.Language ?? -1,
+                                  wife?.Tongues ?? 0);
         _player.AddChild(child);
     }
 
