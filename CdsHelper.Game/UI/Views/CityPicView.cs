@@ -506,7 +506,11 @@ public sealed class CityPicView : GameWindow, ITownScreen
         Canvas.SetLeft(spot, a.X * scale);
         Canvas.SetTop(spot, a.Y * scale);
         _spots.Add((building, tag, a, scale));
-        spot.MouseEnter += (_, _) => ShowTag(tag, a, scale);
+        spot.MouseEnter += (_, _) =>
+        {
+            ShowTag(tag, a, scale);
+            _pickedCode = building.Code;   // 커서를 올리면 글쇠 고름도 그리로 간다(0x00491C7B)
+        };
         spot.MouseLeave += (_, _) => tag.Visibility = Visibility.Collapsed;
         // 건물을 누른 것은 여기서 삼킨다 — 안 그러면 그림 끌기가 먼저 걸려 메뉴가 안 열린다.
         spot.MouseLeftButtonDown += (_, e) => e.Handled = true;
@@ -564,6 +568,10 @@ public sealed class CityPicView : GameWindow, ITownScreen
             case Key.Enter or Key.Space:
                 if (at < 0) return false;
                 AskEnter(order[at].Building);
+                return true;
+            // 「0」 글쇠는 오른쪽 클릭과 같다 — 도시 커맨드 창을 그림 왼쪽 위에 낸다(0x00491CCA → 0x00491D01).
+            case Key.D0 or Key.NumPad0:
+                ShowCityMenu(_cityName, ToScreen(new Point(0, 0)));
                 return true;
             default:
                 return false;
