@@ -3241,7 +3241,7 @@ public sealed class ShipMapWindow : Window
             if (_host.IsOnLand)
             {
                 PassLandDay();
-                if (!PassVitalityDay()) return;
+                PassVitalityDay();
                 // 선원 0 검사는 뭍의 하루 뒤에도 돈다(0x00475A2C 는 뭍 갈래 뒤에 있다).
                 if (CrewGone()) return;
                 continue;
@@ -3252,8 +3252,8 @@ public sealed class ShipMapWindow : Window
             _game.Player.PassDayAtSea();
             RollWeather();
 
-            // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0). 병 중에 0 이면 거기서 끝이다.
-            if (!PassVitalityDay()) return;
+            // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0).
+            PassVitalityDay();
 
             var (lat, _) = _host.ShipLatLon;
             Tell(SeaEvents.PassDay(_game.Player, lat, _game.Random, FleetLevel(Skill.Sailing)));
@@ -5772,7 +5772,7 @@ public sealed class ShipMapWindow : Window
     /// <b>여기서는 안 죽는다.</b> 게임이 HP 0 을 보는 자리는 둘뿐이다 — 도시에 들어설 때(<c>0x00492717</c>)와
     /// 병이 새로 터질 때(<c>0x004748F6</c> · <c>0x00474AA2</c>)다. 바다에서는 0 인 채로 계속 떠 있는다.
     /// </remarks>
-    private bool PassVitalityDay()
+    private void PassVitalityDay()
     {
         var player = _game.Player;
         if (Vitality.PassDay(player) is { } warn)
@@ -5783,8 +5783,6 @@ public sealed class ShipMapWindow : Window
             _asking = false;
             _host.Paused = false;
         }
-
-        return true;
     }
 
     /// <summary>
