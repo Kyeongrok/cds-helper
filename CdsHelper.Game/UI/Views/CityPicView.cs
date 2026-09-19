@@ -1117,8 +1117,8 @@ public sealed class CityPicView : GameWindow, ITownScreen
         // 같은 얼굴을 쓴다(0x0040D385 가 +0x84 를 넘긴다).
         ConfirmDialog.Tell(this, "너 같은 녀석이 들어올 장소가 아니다! 꺼지지 못할까!",
                            face: _game.SpeakerFace(building.Code, _cultureNo));
-        // 지도 아래 띠에도 한마디 적힌다(0x005459A0).
-        (Owner as ShipMapWindow)?.Say("명성치가 모자랍니다.");
+        // 「명성치가 모자랍니다」(0x00544BF0 · 0x00544BA0)는 힌트 패널(0x0040E0A0)로만 가는 안 보이는 기록이라
+        // 화면에 내지 않는다(0x0040D39B · 0x00470AE3 — 디버그 깃발 [0x00580C6C]&2 뒤).
         return false;
     }
 
