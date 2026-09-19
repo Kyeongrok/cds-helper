@@ -265,7 +265,18 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </remarks>
     /// <param name="drink">표에서 고른 술.</param>
     /// <param name="shown">줄에 적힌 이름. 그 고장 말을 모르면 별칭이다.</param>
-    public void Drink(DrinkTable.Drink drink, string shown) => Alone(() =>
+    public void Drink(DrinkTable.Drink drink, string shown)
+    {
+        _leaveAfter = false;
+        Alone(() => DrinkOnce(drink, shown));
+        // 뻗거나·싸우거나·토하거나·아내가 데리러 오면 술집을 나선다(0x0042FF32 → 0x004A2740).
+        if (_leaveAfter) _leave?.Invoke();
+    }
+
+    /// <summary>취해 벌어진 일 끝에 술집을 나서야 하는지(<c>0x0042EFE0</c> 가 내는 1).</summary>
+    private bool _leaveAfter;
+
+    private void DrinkOnce(DrinkTable.Drink drink, string shown)
     {
         int price = Math.Max(_game.Rates.Of(_cityId) * drink.Price / 100, 1);
         // 값을 이르고 돈을 받는 것은 <b>술집 주인</b>이다 — 지나가는 손님(무명 손님 얼굴)이 아니다.
@@ -286,7 +297,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         _player.SetCondition(_player.Condition + price);   // 0x00469820
         try { Sip(drink); }
         finally { if (_player.Condition <= 0) _player.SetCondition(1); }   // 0x0042F137
-    });
+    }
 
     /// <summary>마신 뒤 — 취기를 쌓고 취했는지 본다(<c>0x0042F00A</c>).</summary>
     private void Sip(DrinkTable.Drink drink)
@@ -349,6 +360,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 ? _game.Faces?.TryGetBgra(wife.Face, female: true) : null;
             ConfirmDialog.Tell(_view, "여보, 여보, 괜찮아요?", face: her);
             ConfirmDialog.Tell(_view, "부인 목소리에 정신이 들었다");
+            _leaveAfter = true;
             _player.Hurt(_game.Random.Next(5));              // 0x00469850(rand(5)) — 컨디션
             _player.Infamy += _game.Random.Next(5) + 10;     // 0x0042EB40
             return;
@@ -357,9 +369,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         int pick = _game.Random.Next(_player.Gold > TreatFloor ? DrunkKinds : DrunkKinds - 1);
         switch (pick)
         {
-            case 0: PassOut(hasMate, mate); break;
-            case 1: PickFight(mate); break;
-            case 2: ThrowUp(hasMate, mate); break;
+            // 뻗음·싸움·토함은 끝나면 술집을 나선다(0x0042F0B3 · 0x0042F0C1 · 0x0042F0CF 의 esi=1).
+            // 토함은 깨는 자리의 그림이 여관이다(0x0042EE0C) — 우리는 말로만 여관이라 한다.
+            case 0: PassOut(hasMate, mate); _leaveAfter = true; break;
+            case 1: PickFight(mate); _leaveAfter = true; break;
+            case 2: ThrowUp(hasMate, mate); _leaveAfter = true; break;
             case 3: FoundMoney(hasMate, mate); break;
             default: BuyRound(mate); break;
         }
