@@ -611,29 +611,39 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
     /// 0x46 으로 나누고 10 과 견준다). 그 자리에서 <b>피로도가 풀리고 규율이 100 으로
     /// 돌아온다</b>(<c>0x0047E885</c> · <c>0x0047E88A</c>) — <see cref="Harbor.Celebrate"/> 다.
     ///
-    /// 하나 알리고 나면 목록으로 돌아온다 — 게임도 고른 것을 다 알릴 때까지 돈다.
+    /// 창은 <b>여럿 고르기</b>다(<c>0x0047EA80</c>) — 켠 것을 결정 한 번에 차례로 다 알리고 끝난다.
+    /// <code>
+    ///   고르기    「발표할 발견물 선택」(0x0055A358), 누를 때마다 켜고 끈다
+    ///   넘침      켠 것 가운데 아이템을 주는 수 + 지금 소지품 &gt; 16 이면
+    ///             「소지품을 다 갖진 못하게 됩니다만, 괜찮습니까?」(0x0055A370) — 아니오면 고르던 창으로
+    ///   알리기    켠 차례대로 0x0047E8D0: 말 · 동영상 · 명성(0x0047E810)
+    ///   아이템    다 알린 뒤 한꺼번에 들인다(0x0047EA5F → 0x004B1710)
+    /// </code>
     /// </remarks>
     public void Announce()
     {
         var owner = Owner;
+        var rows = Announceable();
+        if (rows.Count == 0) return;
 
+        IReadOnlyList<int> picked = [];
         while (true)
         {
-            var rows = Announceable();
-            if (rows.Count == 0) return;
+            picked = HintListDialog.PickMany(owner, [.. rows.Select(r => r.Name)], "발표할 발견물 선택", picked);
+            if (picked.Count == 0) return;
 
-            int at = HintListDialog.Pick(owner, [.. rows.Select(r => r.Name)],
-                                         "발표할 발견물 선택", "알릴 발견물이 없습니다");
-            if (at < 0 || at >= rows.Count) return;
+            int gives = picked.Count(i => rows[i].GivesItem);
+            if (_player.Items.Count + gives <= Player.MaxItems
+                || ConfirmDialog.Ask(owner, "소지품을 다 갖진 못하게 됩니다만, 괜찮습니까?"))
+                break;
+        }
 
+        var found = new List<int>();
+        foreach (int at in picked)
+        {
             var row = rows[at];
-
-            // 아이템을 주는 발견물이면 소지품이 넘칠지 먼저 묻는다(0x0047ECBC) — 아니오면 고르기로.
-            if (row.GivesItem && _player.Items.Count + 1 > Player.MaxItems
-                && !ConfirmDialog.Ask(owner, "소지품을 다 갖진 못하게 됩니다만, 괜찮습니까?"))
-                continue;
-
             if (!_player.Announce(row.Id)) continue;
+            if (row.GivesItem) found.Add(row.ItemId);
 
             // 어느 것이든 먼저 「%s의 발견을 발표했다!」와 동영상이다(0x0047E953 · 0x0047E96F) — 그 다음에
             // 들어 주는지를 가린다(0x0047E810).
@@ -651,7 +661,6 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             if (row.Indirect)
             {
                 GameDialog.Show(owner, Harbor.NobodyCares);
-                GiveFound(owner, row);
                 continue;
             }
 
@@ -660,16 +669,10 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             Harbor.Celebrate(_player);
 
             GameDialog.Show(owner, $"명성이 {fame} 올라갔다!");
-            GiveFound(owner, row);
         }
-    }
 
-    /// <summary>
-    /// 발표한 발견물의 아이템이 <b>그제야</b> 소지품으로 들어온다(<c>0x0047EA5F</c> → <c>0x004B1710</c>).
-    /// 아무도 안 들어 준 것이어도 들어온다. 넘치면 물릴 수 없는 버리기 창이다(<see cref="ItemGain"/>).
-    /// </summary>
-    private void GiveFound(Window owner, DiscoveryTable.Record row)
-    {
-        if (row.GivesItem) ItemGain.AddForced(owner, _game, [row.ItemId]);
+        // 발표한 발견물의 아이템이 <b>그제야</b> 소지품으로 들어온다 — 아무도 안 들어 준 것이어도 들어온다.
+        // 넘치면 물릴 수 없는 버리기 창이다(ItemGain).
+        ItemGain.AddForced(owner, _game, found);
     }
 }
