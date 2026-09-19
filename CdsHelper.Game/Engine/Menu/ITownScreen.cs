@@ -80,6 +80,9 @@ internal interface ITownScreen
     /// <summary>명령 창을 닫고 도시로 돌아간다.</summary>
     void CloseMenu();
 
+    /// <summary>「술집을 나온다」 — 나서기 앞서 누가 결투를 걸어 올 수 있다(<c>0x0042FFBC</c>).</summary>
+    void LeaveTavern();
+
     /// <summary>수련 — 가르치는 사람이 먼저 말을 걸고 그 다음이 배우기다.</summary>
     void Train(int buildingCode, uint teachMask);
 

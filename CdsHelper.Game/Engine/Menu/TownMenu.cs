@@ -54,6 +54,7 @@ internal static class TownMenu
 
         return TownWorks.WorkOf(facility, item, TownWorks.Teaches(teachMask), patron != null) switch
         {
+            TownWork.Exit when facility.Kind == FacilityKind.Tavern => screen.LeaveTavern,
             TownWork.Exit => screen.CloseMenu,
 
             // 가르치는 사람은 <b>수련을 눌러야</b> 말을 건다 — 들어서자마자가 아니다.
