@@ -15,7 +15,8 @@ namespace CdsHelper.Game.Engine.Sea;
 ///   대포     (갈래 x 연대) 표 (a,b) · 수 = min(위값, (아래값+2)*(무력+지력)/200 + rand(포술) + 1)
 ///   승원     기함 min(m+X, 5m) · 호위 min(m + X*7/10 + rand(4), 5m)      ; 5-5·5-6
 /// </code>
-/// 괴물(271~274)은 배를 짓지 않는다. 대본이 채우는 함대 목록(276~280)은 옮기지 않았다.
+/// 괴물(271~274)은 배를 짓지 않는다. 누적 캐릭터(276~280)를 습격하면 행적이 채운 함대 목록이
+/// 척수와 선체를 대신 정한다(<see cref="Engine.AccReplay.FleetOf"/>).
 /// </remarks>
 public static class EnemyFleet
 {
@@ -160,19 +161,24 @@ public static class EnemyFleet
     /// 적 함대를 짓는다. 괴물이면 빈 목록이다.
     /// </summary>
     /// <param name="year">그 해(<c>[0x5A4D20]</c>).</param>
-    public static List<Ship> Build(in Captain leader, int year, Random rng)
+    /// <param name="hulls">
+    /// 누적 캐릭터를 습격할 때 넘기는 함대 목록(<c>0x0048CC20</c>). 있으면 척수가 목록 길이이고
+    /// 선체도 목록 그대로다 — 척수 굴림(<c>0x0044104E</c>)과 선체 고르기(<c>0x0044135C</c>)를 건너뛴다.
+    /// 대포·승원은 여느 적과 같다.
+    /// </param>
+    public static List<Ship> Build(in Captain leader, int year, Random rng, int[]? hulls = null)
     {
         var ships = new List<Ship>();
         if (leader.Id is >= FirstMonster and <= LastMonster) return ships;
 
-        int count = CountOf(leader, rng);
+        int count = hulls is { Length: > 0 } ? Math.Min(hulls.Length, SeaBattle.PerSide) : CountOf(leader, rng);
         var (a, b) = GunTable[GunGroups[GroupOf(leader.Nation)]][EraOf(year)];
         int better = count - a * count / 100 - 1;
         int x = ExtraCrew(leader, rng);
 
         for (int i = 0; i < count; i++)
         {
-            var spec = Hull.Table[HullOf(leader.Nation, year, i)];
+            var spec = Hull.Table[hulls is { Length: > 0 } ? hulls[i] : HullOf(leader.Nation, year, i)];
 
             // 대포 — 앞 슬롯(기함 쪽)이 좋은 포를 받는다. 수는 위값으로 자른다.
             int gun = better > i ? (b + 2) / 2 : (b - 1) / 2;

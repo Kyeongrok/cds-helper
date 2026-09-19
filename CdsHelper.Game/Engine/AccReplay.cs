@@ -35,6 +35,14 @@ public sealed class AccReplay
 
         /// <summary>다 틀었는지(<c>0x0040D1D0</c> 이 −1 을 준 뒤).</summary>
         public bool Done { get; set; }
+
+        /// <summary>다음에 틀 줄.</summary>
+        public int Next { get; set; }
+
+        /// <summary>
+        /// 함대 목록 — 선체 번호 여덟 칸, 빈 칸은 −1(<c>0x00589C70 + 인물 x 32</c>, 처음엔 다 비었다 <c>0x00431C4C</c>).
+        /// </summary>
+        public int[] Hulls { get; } = [-1, -1, -1, -1, -1, -1, -1, -1];
     }
 
     private readonly List<Runner> _runners = [];
@@ -85,6 +93,16 @@ public sealed class AccReplay
             int step = Array.FindLastIndex(run.Track, t => t.On <= at);
             if (step < 0) continue;
 
+            // 그날까지의 줄을 차례로 튼다 — 배가 드나든 줄은 함대 목록을 채우고 지운다.
+            int arrival = -1;
+            for (; run.Next <= step; run.Next++)
+            {
+                var line = run.Track[run.Next];
+                if (line.Kind == Player.TraceArrival) arrival = run.Next;
+                else if (line.Kind == Player.TraceShipIn) AddHull(run.Hulls, line.A);
+                else if (line.Kind == Player.TraceShipOut) RemoveHull(run.Hulls, line.A);
+            }
+
             // 마지막 줄까지 갔고 그날도 지났으면 세상에서 사라진다.
             if (step == run.Track.Length - 1 && at > run.Track[^1].On)
             {
@@ -93,12 +111,43 @@ public sealed class AccReplay
                 continue;
             }
 
+            if (arrival < 0) continue;
             var row = people[run.Person];
-            if (run.Track[step].Kind != Player.TraceArrival) continue;
-            row.City = run.Track[step].A;
+            row.City = run.Track[arrival].A;
             row.Building = PersonTable.Tavern;
             row.Appear = 1;
         }
+    }
+
+    /// <summary>
+    /// 명령 <c>69 [선체]</c>(<c>0x0040B9ED</c>) — 선체를 0~7 로 자르고(밖이면 0) 첫 빈 칸에 넣는다.
+    /// 빈 칸이 없으면 아무 일도 없다.
+    /// </summary>
+    private static void AddHull(int[] hulls, int hull)
+    {
+        if (hull is < 0 or > 7) hull = 0;
+        int at = Array.IndexOf(hulls, -1);
+        if (at >= 0) hulls[at] = hull;
+    }
+
+    /// <summary>명령 <c>6A [선체]</c>(<c>0x0040BA52</c>) — 그 선체가 든 첫 칸을 비운다.</summary>
+    private static void RemoveHull(int[] hulls, int hull)
+    {
+        if (hull is < 0 or > 7) hull = 0;
+        int at = Array.IndexOf(hulls, hull);
+        if (at >= 0) hulls[at] = -1;
+    }
+
+    /// <summary>
+    /// 그 누적 캐릭터를 습격할 때의 함대 — 빈 칸을 걷어 앞으로 모은 선체 번호들(<c>0x0048CC62</c>).
+    /// </summary>
+    /// <returns>누적 캐릭터가 아니거나 목록이 비었으면 null — 그러면 여느 적처럼 짓는다(<c>0x0048CCA4</c>).</returns>
+    public int[]? FleetOf(int person)
+    {
+        var run = _runners.Find(r => r.Person == person);
+        if (run == null) return null;
+        int[] hulls = [.. run.Hulls.Where(h => h != -1)];
+        return hulls.Length > 0 ? hulls : null;
     }
 
     /// <summary>
