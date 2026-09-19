@@ -51,6 +51,11 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// <summary>주인이 한 마디 한다.</summary>
     private void Say(string text) => ConfirmDialog.Tell(Owner, text, face: Face);
 
+    /// <summary>
+    /// 얼굴 없는 알림(<c>0x00469060</c>) — 정박·척수·자금·매각값·수리 돈 부족은 목수 말이 아니라 이것이다.
+    /// </summary>
+    private void Notice(string text) => ConfirmDialog.Tell(Owner, text);
+
     /// <summary>주인이 예·아니오를 묻는다.</summary>
     private bool Ask(string text) => ConfirmDialog.Ask(Owner, text, face: Face);
 
@@ -115,12 +120,12 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             // 선체를 고른 뒤에 함대가 여기 있는지 본다(0x0044B63A) — 없으면 말하고 끝이다.
             if (!_player.FleetHere(_cityId))
             {
-                Say("함대가 정박해 있지 않는 마을에서는 배를 살 수 없습니다");
+                Notice("함대가 정박해 있지 않는 마을에서는 배를 살 수 없습니다");
                 return;
             }
             if (_player.Ships.Count >= Player.MaxShips)
             {
-                Say("이 이상 배를 늘릴 수 없습니다!");
+                Notice("이 이상 배를 늘릴 수 없습니다!");
                 return;
             }
 
@@ -131,7 +136,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
             if (!_player.CanAfford(price))
             {
-                Say("자금이 모자랍니다!");
+                Notice("자금이 모자랍니다!");
                 continue;
             }
 
@@ -211,7 +216,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         if (picked.Count == 0) return;
 
         int paid = picked.Sum(at => Shipyard.SellPrice(_player.Ships[at], _rate));
-        if (!Ask($"{paid}닢입니다. 좋습니까?")) return;
+        if (!ConfirmDialog.Ask(owner, $"{paid}닢입니다. 좋습니까?")) return;
 
         // 뒤에서부터 뺀다 — 앞을 먼저 빼면 뒤 자리가 하나씩 밀린다.
         foreach (int at in picked.OrderByDescending(i => i)) _player.Scrap(at);
@@ -271,7 +276,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         if (!_player.Pay(cost))
         {
-            Say("소지금이 모자랍니다!");
+            Notice("소지금이 모자랍니다!");
             return;
         }
         ship.Repair();
