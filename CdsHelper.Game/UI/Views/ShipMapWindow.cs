@@ -2537,6 +2537,9 @@ public sealed class ShipMapWindow : Window
     /// 해상 커맨드 창의 줄들. <b>지을 때마다 새로 본다</b> — 바다냐 뭍이냐에 따라 줄이 갈리므로,
     /// 상륙한 자리에서 <see cref="GameMenuHost.Refresh"/> 하면 그대로 승선 줄이 된다.
     /// </summary>
+    /// <summary>도시에 드는 문 — 바다에서는 항구(건물 0), 뭍에서는 성문(건물 10).</summary>
+    private const int HarborCode = 0, GateCode = 10;
+
     private GameMenu CommandMenuBox()
     {
         void Close() => CommandMenu.Close();
@@ -2545,16 +2548,20 @@ public sealed class ShipMapWindow : Window
         // 흐린 줄로 남겨 두면 창 높이만 잡아먹고 게임에도 없는 모습이다.
         // 게임 커맨드 창에는 없는 줄이지만 이 창에서는 이것으로 뭍을 오간다.
         var items = new List<(string Text, Action? Run)>();
+
+        // 도시에 닿아 있으면 <b>맨 위</b>가 그 도시로 들어가는 줄이다 — 바다든 뭍이든, 창 안에 드는 도시마다
+        // 한 줄씩이다(0x0048B1E2). 아는 도시(+4 비트 0)이고 선 도시여야 하며, 바다면 항구(건물 0), 뭍이면
+        // 성문(건물 10)이 있어야 한다(0x0048B2B7 ~ 0x0048B2DB). 다가갈 때 한 번 물어보는 창(CheckPort)에서
+        // 아니오를 눌렀어도 이 줄로 다시 들어간다. 줄 글은 0x0056F990 "[%s]에 들어간다" 다.
+        int door = _host.IsOnLand ? GateCode : HarborCode;
+        foreach (int town in _host.TownsAt())
+        {
+            if (!_game.CityKnown(town) || !(_game.CityRows?.HasBuilding(town, door) ?? true)) continue;
+            items.Add(($"[{_game.CityName(town)}]에 들어간다", () => { Close(); AskEnterCity(town); }));
+        }
+
         if (_host.IsOnLand)
         {
-            // 도시에 닿아 있으면 <b>맨 위</b>가 그 도시로 들어가는 줄이다. 다가갈 때 한 번
-            // 물어보는 창(<see cref="CheckPort"/>)에서 아니오를 눌렀어도 이 줄로 다시 들어간다.
-            int town = _host.NearestTown();
-            if (town >= 0)
-                // 줄 글은 0x0056F990 "[%s]에 들어간다" 다 — 이름을 꺾쇠에 넣는다(0x0048B2F4).
-                items.Add(($"[{_game.CityName(town)}]에 들어간다",
-                           () => { Close(); AskEnterCity(town); }));
-
             // 상륙해 있으면 「보급」·「수리」가 붙는다(0x0048E5E0 의 상륙 차림표 — 탐색 ·
             // 보급 · 수리 · 승선한다). 「탐색」은 우리 쪽에서 걸으며 하는 발견 판정이 대신한다.
             items.Add(("보급", () => { Close(); Forage(); }));
