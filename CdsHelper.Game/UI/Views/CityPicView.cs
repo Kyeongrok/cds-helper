@@ -1866,14 +1866,17 @@ public sealed class CityPicView : GameWindow, ITownScreen
     // 어느 줄이 무슨 일인지는 TownWorks 가 알고, 그 일에 손을 달아 주는 것은 TownMenu 다.
     // 여기 있는 것은 <b>실제로 창을 띄우고 값을 세는</b> 몫뿐이다.
 
-    bool ITownScreen.HasShips => _player.Ships.Count > 0;
+    // 함대가 이 도시에 닻을 내려야 한다 — 걸어 들어온 마을에서는 출항·보급·선원편성이 흐리다
+    // (0x00476CBB · 0x00476D09 → 0x0040E1C0(도시, 1)).
+    bool ITownScreen.HasShips => _player.FleetHere(_cityId, 1);
     bool ITownScreen.HasCrew => _player.Crew > 0;
     bool ITownScreen.HasItems => _player.Items.Count > 0;
     bool ITownScreen.CanBuyGoods => Market != null;
     bool ITownScreen.CanSellGoods => Market != null && _game.Items != null;
-    bool ITownScreen.CanFormFleet => Port.CanFormFleet;
+    bool ITownScreen.CanFormFleet => _player.FleetHere(_cityId) && Port.CanFormFleet;   // 0x0046A1CC
     bool ITownScreen.CanRepairShip => Yard.CanRepair;
-    bool ITownScreen.CanSellShip => _player.Ships.Count > 1;
+    bool ITownScreen.CanSellShip => _player.FleetHere(_cityId, 1) && _player.Ships.Count > 1;   // 0x0044BD29
+    bool ITownScreen.CanRefitShip => _player.FleetHere(_cityId, 1);                              // 0x0044BD69
     bool ITownScreen.CanRead => Books.CanRead;
     bool ITownScreen.CanLeaveHeir => Home.CanLeaveHeir(_player);
     bool ITownScreen.CanSucceed => _player.Children.Count > 0;
@@ -1965,6 +1968,15 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
     void ITownScreen.Trade()
     {
+        // 함대가 없으면 매매가 안 열린다(0x004819BB → 0x00469680).
+        if (!_player.FleetHere(_cityId, 1))
+        {
+            if (_player.MateAt(0).Length > 0 && _game.AideFace is { } aide)
+                TalkDialog.Say(Menu.Window ?? this, aide, "", "제독, 배가 없습니다");
+            else
+                NoticeDialog.Show(Menu.Window ?? this, "배가 없습니다");
+            return;
+        }
         if (TradeRules is { } rules)
             TradePostDialog.Show(Menu.Window ?? this, _game, rules, _cityId, _player.CityName, _cultureNo);
     }

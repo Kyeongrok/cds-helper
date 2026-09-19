@@ -96,7 +96,7 @@ internal static class TownMenu
             TownWork.SellShip when screen.CanSellShip => screen.SellShip,
             // 게임도 고칠 배가 없으면 이 줄을 흐리게 둔다(0x0044BD40).
             TownWork.RepairShip when screen.CanRepairShip => screen.RepairShip,
-            TownWork.RefitShip => screen.RefitShip,
+            TownWork.RefitShip when screen.CanRefitShip => screen.RefitShip,
 
             TownWork.BuyGoods when screen.CanBuyGoods => screen.BuyGoods,
             TownWork.SellGoods when screen.CanSellGoods => screen.SellGoods,

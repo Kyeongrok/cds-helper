@@ -367,6 +367,32 @@ public sealed class Player
     /// <summary>지금 들어와 있는 도시. 바다에 있으면 -1.</summary>
     public int CityId { get; private set; } = -1;
 
+    /// <summary>
+    /// 함대가 <b>닻을 내린 도시</b> — 배 레코드 <c>+0x60</c>(세터 <c>0x0044CA70</c>). 바다면 -1.
+    /// </summary>
+    /// <remarks>
+    /// 바다로 들어설 때 함대 배 모두에 그 도시를 적고(<c>0x0048B54E</c> · <c>0x0048DC33</c>), 출항하면
+    /// -1 로 돌린다(<c>0x0048EB84</c>). <b>성문으로 나서 걸어가도 그대로</b>라, 걸어 들어간 딴 마을에서는
+    /// 함대가 없는 것으로 친다 — <see cref="FleetHere"/> 가 그 관문(<c>0x0040E1C0</c>)이다.
+    /// 옛 세이브는 이 값을 몰라 <see cref="FleetUnknown"/> 으로 열고, 그때는 어디서나 통과시킨다.
+    /// </remarks>
+    public int FleetCity { get; private set; } = FleetUnknown;
+
+    /// <summary>함대 도시를 모른다 — 옛 세이브. 다음 입항까지 어디서나 함대가 있는 것으로 친다.</summary>
+    public const int FleetUnknown = -2;
+
+    /// <summary>함대가 그 도시에 닻을 내렸다.</summary>
+    public void MoorAt(int city) => FleetCity = city;
+
+    /// <summary>세이브에서 함대 도시를 되돌린다. 없으면 모른다.</summary>
+    public void RestoreFleetCity(int? city) => FleetCity = city ?? FleetUnknown;
+
+    /// <summary>
+    /// 함대가 그 도시에 있고 배가 <paramref name="ships"/> 척 이상인지(<c>0x0040E1C0(도시, n)</c>).
+    /// </summary>
+    public bool FleetHere(int city, int ships = 0) =>
+        (FleetCity == FleetUnknown || FleetCity == city) && _ships.Count >= ships;
+
     /// <summary>지금 들어와 있는 도시 이름. 바다에 있으면 빈 문자열.</summary>
     public string CityName { get; private set; } = "";
 

@@ -67,12 +67,12 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     ///   0044b4c1  부관 「새로운 배라도 사십니까?」        0x00530F20
     ///   0044b4d7  아니면 「형씨, 바다에 나갈 거면 좋은 배를 사요.」 0x00530F38
     /// </code>
-    /// 부관 쪽에는 관문이 하나 더 있는데(<c>0x0040E1C0(도시, 0)</c> — 팔 배가 있는가로 보인다)
-    /// 우리 조선소는 늘 배를 파므로 부관 유무만 본다.
+    /// 부관 쪽에는 관문이 하나 더 있다 — 함대가 이 도시에 닻을 내렸는가(<c>0x0040E1C0(도시, 0)</c>).
+    /// 걸어 들어온 마을이면 부관이 있어도 조선공이 말한다.
     /// </remarks>
     public void Greet()
     {
-        if (_game.AideFace is { } aide)
+        if (_game.AideFace is { } aide && _player.FleetHere(_cityId))
             TalkDialog.Say(_view, aide, "", "새로운 배라도 사십니까?");
         else
             ConfirmDialog.Tell(_view, "형씨, 바다에 나갈 거면 좋은 배를 사요.",
@@ -94,8 +94,6 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     ///   0x00422C10  AVI\S%02d_0001.AVI — 선체 번호(0~7) 동영상
     ///   0x0044B7B0  선명입력 → 배를 지어 함대에 붙인다. 끝 알림은 없다
     /// </code>
-    /// 「함대가 정박해 있지 않는 마을에서는 배를 살 수 없습니다」 검사는 아직 없다 — 뭍으로
-    /// 걸어 든 마을인지를 이 창이 모른다.
     /// </remarks>
     public void BuyShip()
     {
@@ -114,6 +112,12 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         while (HullSelectDialog.Show(owner, hulls) is { } hull)
         {
+            // 선체를 고른 뒤에 함대가 여기 있는지 본다(0x0044B63A) — 없으면 말하고 끝이다.
+            if (!_player.FleetHere(_cityId))
+            {
+                Say("함대가 정박해 있지 않는 마을에서는 배를 살 수 없습니다");
+                return;
+            }
             if (_player.Ships.Count >= Player.MaxShips)
             {
                 Say("이 이상 배를 늘릴 수 없습니다!");

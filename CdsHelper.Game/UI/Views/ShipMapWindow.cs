@@ -2221,6 +2221,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreCityScales(saved.CityScales);
             _game.Player.RestoreCityBuildings(saved.CityBuildings);
             _game.Player.SetLastSupply(saved.LastSupply);
+            _game.Player.RestoreFleetCity(saved.FleetCity);
             _game.Player.RestoreScriptedCities(saved.ScriptedCities);
             _game.Player.RestoreNationStatus(saved.NationStatus);
             _game.Player.RestoreBarmaidFlags(saved.GiftedBarmaids, saved.RefusedBarmaids);
@@ -5535,6 +5536,9 @@ public sealed class ShipMapWindow : Window
         string culture = _game.CultureOf(city);
         int track = BgmPlayer.CityTrackFor(culture, _game.CityRows?.CultureOf(city) ?? -1);
 
+        // 바다로 들어서면 함대가 이 도시에 닻을 내린다(0x0048B54E). 말로 걸어 들어오면 안 바뀐다.
+        if (enterHome || !_host.IsOnLand) _game.Player.MoorAt(city);
+
         var dialog = CityPicView.Open(this, _game, city, name, MapAreaOnScreen(), track, culture);
         if (dialog == null) return false;
 
@@ -5578,6 +5582,8 @@ public sealed class ShipMapWindow : Window
             // 항구에서 출항했는데 아직 뭍이면(뭍으로 걸어 들어온 마을이다) 그 마을 앞바다에 배를
             // 띄운다. 예전에는 출항을 따로 안 받아, 말을 탄 채 뭍에 그대로 남았다.
             if (dialog.Sailed && _host.IsOnLand) _host.PlaceAtCity(city);
+            // 출항하면 닻을 걷는다(0x0048EB84). 성문으로 나섰으면 함대는 이 도시에 그대로 있다.
+            if (dialog.Sailed) _game.Player.MoorAt(-1);
 
             // 성문으로 나섰으면 뭍에 올라 말로 걷는다 — 곡도 뭍 것으로 바뀐다.
             // 이미 뭍에 서 있으면(말로 걸어 들어온 마을이면) Land() 는 거짓을 낸다 — 그때도 걷는
