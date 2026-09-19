@@ -181,9 +181,13 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// </summary>
     private readonly bool _stakes;
 
-    private CoinPuzzleDialog(Random rng, bool stakes)
+    /// <summary>다시 하라고 이르는 얼굴 — 부관, 없으면 뱃사람(<c>0x00450D01</c> 의 <c>0x0047CC60(0,0)</c>).</summary>
+    private readonly uint[]? _aide;
+
+    private CoinPuzzleDialog(Random rng, bool stakes, uint[]? aide)
     {
         _stakes = stakes;
+        _aide = aide;
         _game = new CoinPuzzle(rng);
         _coin = new Border[_game.Coins];
 
@@ -479,9 +483,9 @@ internal sealed class CoinPuzzleDialog : InfoDialog
                 Environment.NewLine + "장치가 작동된 것 같은 소리가 들리고" +
                 Environment.NewLine + "방이 흔들흔들 움직였다. 여기저기 벽에 금이 가기 시작한다.",
                 "클리어 실패");
-            NoticeDialog.Show(this,
-                " 한번 더 방이 흔들리면 찌그러질 겁니다. 빨리 가짜 금화를 발견해서 이곳으로부터 탈출합시다.",
-                "천칭 퍼즐");
+            // 알림 상자가 아니라 부관이 얼굴을 띄우고 이른다(0x00450D1C → 0x00478280).
+            TalkDialog.Say(this, _aide, "천칭 퍼즐",
+                " 한번 더 방이 흔들리면 찌그러질 겁니다. 빨리 가짜 금화를 발견해서 이곳으로부터 탈출합시다.");
             Chosen = 0;
             Sync();
             return;
@@ -677,10 +681,10 @@ internal sealed class CoinPuzzleDialog : InfoDialog
     /// </returns>
     /// <param name="player">삯을 받을 제독. 없으면 금화만 안 준다.</param>
     public static bool Play(Window owner, Random rng,
-                            Support.Local.Models.Player? player = null)
+                            Support.Local.Models.Player? player = null, uint[]? aide = null)
     {
         bool stakes = player != null;
-        var dialog = new CoinPuzzleDialog(rng, stakes) { Owner = owner };
+        var dialog = new CoinPuzzleDialog(rng, stakes, aide) { Owner = owner };
         dialog.ShowDialog();
 
         bool won = dialog._game.Won == true;
