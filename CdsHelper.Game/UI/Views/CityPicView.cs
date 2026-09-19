@@ -556,10 +556,19 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// 그 고장 말을 모르면 글자가 뭉개진다(<see cref="StrangerTalk.Garble"/>) — 부하가 더 잘하면
     /// 「[…]라고 말하고 있는 것 같습니다.」로 옮겨 준다.
     /// </remarks>
+    /// <summary>멕시코의 도시 번호 — 마을 사람 말이 따로 박혀 있다(<c>0x00492E5B</c> 의 <c>cmp eax, 0xC9</c>).</summary>
+    private const int MexicoCity = 201;
+
     private void TalkToFolk(TownFolkTable.Folk folk)
     {
         string words = folk.WordsOn(_player.Date.Year);
-        if (folk.Kind < 200 && _random.Next(2) != 0)
+        // 멕시코(201)는 표 말을 안 쓰고 붙박이 넉 줄이다(0x00492E5B) — 갈래 100 은 반기는 말,
+        // 나머지는 황금 이야기 가운데 rand(2) 로 하나.
+        if (_cityId == MexicoCity)
+            words = folk.Kind == 100
+                ? _random.Next(2) == 0 ? "황금도시 멕시코에 잘 오셨습니다." : "이곳은 멕시코란 도시에요."
+                : _random.Next(2) == 0 ? "이 도시에는 황금이 많이 있어요." : "이 도시는 멕시코라는 이름이에요.";
+        else if (folk.Kind < 200 && _random.Next(2) != 0)
         {
             string nation = _game.Nations?.Find(_game.CityRows?.NationOf(_cityId) ?? -1)?.Name ?? "";
             words = _random.Next(2) == 0 || nation.Length == 0
