@@ -107,6 +107,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </remarks>
     public void Greet()
     {
+        // 들어설 때마다 새 술집 객체다 — 취기는 여기서만 0 이 된다(생성자 0x0042E870).
+        _tipsy = 0;
+
         // 들어서면 부관이 먼저 한마디 한다(0x0042E940) — 부관이 없으면 이 줄은 통째로 없다.
         if (_game.AideFace is { } aide)
             TalkDialog.Say(_view, aide, "", "제독, 적당히 하고 있겠습니다.");
@@ -256,8 +259,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   0042F030  취기가 (주량 + 1) x 50 을 넘으면 취한다
     ///   0042F0ED  안 취했으면 다섯 마디 가운데 하나
     /// </code>
-    /// <b>피로도는 안 건드린다.</b> "피로가 풀렸다!" 는 그 다섯 마디 중 하나일 뿐이고,
-    /// 게임에서도 마신다고 피로가 풀리지는 않는다 — 피로는 자택 휴양이 푼다.
+    /// <b>피로도는 안 건드린다.</b> "피로가 풀렸다!" 는 그 다섯 마디 중 하나일 뿐이다.
+    /// 대신 <b>컨디션이 치른 값만큼 오른다</b>(<c>0x0042EFFE</c> → <c>0x00469820(값)</c>, 0~2000 으로 자름).
+    /// 취해 벌어진 일로 컨디션이 0 밑으로 가면 끝에 1 로 올려 둔다(<c>0x0042F12E</c>).
     /// </remarks>
     /// <param name="drink">표에서 고른 술.</param>
     /// <param name="shown">줄에 적힌 이름. 그 고장 말을 모르면 별칭이다.</param>
@@ -279,6 +283,14 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         _drank = true;
 
         _player.Pay(price);
+        _player.SetCondition(_player.Condition + price);   // 0x00469820
+        try { Sip(drink); }
+        finally { if (_player.Condition <= 0) _player.SetCondition(1); }   // 0x0042F137
+    });
+
+    /// <summary>마신 뒤 — 취기를 쌓고 취했는지 본다(<c>0x0042F00A</c>).</summary>
+    private void Sip(DrinkTable.Drink drink)
+    {
         if (drink.Proof <= 0) return;
 
         // 마신 뒤에 뜨는 말은 <b>얼굴이 없다</b> — 값을 이르는 창은 얼굴을 걸고 부르지만
@@ -292,7 +304,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         }
 
         ConfirmDialog.Tell(_view, Sips[_game.Random.Next(Sips.Length)]);
-    });
+    }
 
     /// <summary>
     /// 취하고 나서 벌어지는 일(<c>0x0042F046</c>).
@@ -309,7 +321,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// </remarks>
     private void Drunk()
     {
-        _tipsy = 0;                                   // 한 번 뻗으면 취기가 가신다
+        // 취기는 안 지운다 — 게임은 술집에 들어설 때(생성자)만 0 으로 둔다. 그래서 한 번 취하면
+        // 그 뒤로는 한 잔마다 또 취한다.
 
         string first = _player.MateAt(0);
         bool hasMate = first.Length > 0;
@@ -321,7 +334,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         {
             ConfirmDialog.Tell(_view, "제독! 이봐요, 제독! 괜찮습니까?", face: mate);
             ConfirmDialog.Tell(_view, "부관의 목소리에 정신이 들었다");
-            _player.Tire(_game.Random.Next(5) + 5);
+            _player.SetCondition(_player.Condition - (_game.Random.Next(5) + 5));   // 0x0042EA74 → 0x00469850
             _player.Infamy += _game.Random.Next(5);
             return;
         }
@@ -466,7 +479,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             lost = Math.Min(_player.Gold, _game.Random.Next(10) + 20);
         }
 
-        _player.Tire(tire);
+        _player.SetCondition(_player.Condition - tire);   // 0x0042EDC9 → 0x00469850 — 컨디션이다
         _player.Pay(lost);
         _player.Infamy += _game.Random.Next(30) + 10;
 
