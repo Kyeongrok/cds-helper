@@ -1399,9 +1399,7 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         string Pick3(string plain, string polite, string merchant) => style switch { 1 => polite, 2 => merchant, _ => plain };
 
         bool overdue = contract.IsOverdue(_player.Date);
-        if (!ConfirmDialog.Ask(owner, overdue
-                ? "기한을 넘겼다. 계약을 그만두겠나?"
-                : "계약을 그만두겠나?")) return;
+        // 원본은 「계약중단」을 누르면 묻지 않고 곧바로 집사가 나선다(0x0044F7A0).
 
         _cityMenu.Close();
 
