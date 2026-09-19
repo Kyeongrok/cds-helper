@@ -1124,7 +1124,11 @@ public sealed class SeaBattle
     /// </remarks>
     private void EndTurn()
     {
-        if (_rng.Next(10) == 0) Wind = (Wind + 5) % Ways;
+        // 바람은 <b>양쪽으로</b> 돈다 — rand(10) 이 0 이면 시계로 한 눈금(+1), 1 이면 반시계로
+        // 한 눈금(+5)이고 그 밖이면 그대로다(0x0043D9D0~0x0043DA5F). 곧 각각 1/10 이다.
+        int turn = _rng.Next(10);
+        if (turn == 0) Wind = (Wind + 1) % Ways;
+        else if (turn == 1) Wind = (Wind + 5) % Ways;
 
         foreach (var ship in Ships.ToList())
         {
