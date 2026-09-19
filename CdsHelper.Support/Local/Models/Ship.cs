@@ -578,7 +578,7 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
     public static Refit Between(Ship.Stats was, Ship.Stats now) =>
         new([
             new Line("적재용량", Room(was), Room(now), "통"),
-            new Line("적재중량", was.Tonnage, now.Tonnage),
+            new Line("적재중량", Load(was), Load(now)),
             new Line("최대추진력", was.Speed, now.Speed),
             new Line("최대내구력", was.MaxHp, now.MaxHp),
             new Line("최저승원수", was.Crew, now.Crew, "명"),
@@ -605,7 +605,7 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
     /// <summary>부력(적재중량 늘림, <c>0x00495825</c>, 서식 <c>0x005319C0</c>) — 네 줄.</summary>
     public static Refit Buoyancy(Ship.Stats was, Ship.Stats now) =>
         new([
-            new Line("적재중량", was.Tonnage, now.Tonnage),
+            new Line("적재중량", Load(was), Load(now)),
             new Line("적재용량", Room(was), Room(now), "통"),
             new Line("최대추진력", was.Speed, now.Speed),
             new Line("최대내구력", was.MaxHp, now.MaxHp),
@@ -616,7 +616,7 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
         new([
             new Line("최대내구력", was.MaxHp, now.MaxHp),
             new Line("최대추진력", was.Speed, now.Speed),
-            new Line("적재중량", was.Tonnage, now.Tonnage),
+            new Line("적재중량", Load(was), Load(now)),
         ]);
 
     /// <summary>포탑수변경을 마쳤을 때 뜨는 상자(<c>0x00496157</c>, 서식 <c>0x00531E78</c>).</summary>
@@ -630,8 +630,12 @@ public sealed record Refit(IReadOnlyList<Refit.Line> Lines)
     public static Refit Guns(Ship.Stats was, Ship.Stats now) =>
         new([
             new Line("대포수", was.Guns, now.Guns),
-            new Line("적재중량", was.Tonnage, now.Tonnage),
+            new Line("적재중량", Load(was), Load(now)),
         ]);
+
+    /// <summary>상자에 뜨는 적재중량 — 실은 대포 무게를 뺀 것이다(<c>0x0044C8B0</c>: +0x40 − 문수 x 한 문 무게).</summary>
+    private static int Load(Ship.Stats stats) =>
+        Math.Max(0, stats.Tonnage - (Cannon.Of(stats.Gun)?.Weight ?? 0) * stats.Guns);
 
     /// <summary>상자에 뜨는 적재용량 — 포탑이 차지한 자리를 뺀 것이다(<c>0x0044C910</c>).</summary>
     private static int Room(Ship.Stats stats) => Math.Max(0, stats.Capacity - stats.Turrets);
