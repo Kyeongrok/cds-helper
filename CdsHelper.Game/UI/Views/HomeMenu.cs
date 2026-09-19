@@ -257,15 +257,12 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         // 애니메이션은 도시 그림 위에서 돈다 — 명령 창이 아니라 그림이 든다.
         (_view as CityPicView)?.PlayHeir(born);
 
-        // 닷새가 간다. 됐든 안 됐든 간다.
-        _player.AdvanceDays(Home.HeirDays);
-
         // 됐든 안 됐든 아내가 한 마디 한다(0x00414B30) — 쉰 살이 넘어야 앞 셋이 나온다.
         TalkDialog.Say(Owner, null, _player.Spouse, Home.WifeWord(_player.Age, _random));
 
         // 됐는지는 따로 알리지 않는다 — 원본은 애니메이션(0x004A6340)과 아내 말(0x00414B30) 뒤에
         // 됐으면 조용히 아이를 들일 뿐이다(0x004613F4 → 0x00460C50, 말이 없다).
-        if (!born) return;
+        if (!born) { PassHeirDays(); return; }
 
         // 아내의 운명 코드와 혈액형이 아이 능력치·혈액형에 든다(0x00461139 · 0x00460FA0).
         var wife = _player.SpouseId >= 0 ? _game.Barmaids?.Find(_player.SpouseId) : null;
@@ -278,7 +275,15 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
                                   _game.Nations?.Find(_player.Nation)?.Language ?? -1,
                                   wife?.Tongues ?? 0);
         _player.AddChild(child);
+        PassHeirDays();
     }
+
+    /// <summary>
+    /// 후손 남기기가 잡아먹는 닷새 — 차례가 <b>맨 뒤</b>다(<c>0x004613E3</c>~<c>0x00461408</c>:
+    /// 애니메이션 → 아내 말 → 아이 만들기 → <c>0x00469850(5)</c>). 아이를 만든 뒤에 날이 가야
+    /// 태어나는 날이 안 밀린다.
+    /// </summary>
+    private void PassHeirDays() => _player.AdvanceDays(Home.HeirDays);
 
     // ── 교육 ────────────────────────────────────────────────────────────────
 
