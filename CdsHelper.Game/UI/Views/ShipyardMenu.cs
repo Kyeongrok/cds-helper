@@ -84,6 +84,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// </summary>
     /// <remarks>
     /// <code>
+    ///   0x00422CA0  이 조선소가 파는 선체 — 없으면 "미안하지만, 우리집은 새로 만든 배는 취급하지 않네." 뒤 끝
     ///   0x00531068  "새로운 배가 갖고 싶나?"                           얼굴 창
     ///   0x00422DE0  「선체종류 선택」 — 중단이면 끝
     ///   0x005310B8  함대가 8척이면 "이 이상 배를 늘릴 수 없습니다!" 뒤 끝
@@ -101,9 +102,17 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         var owner = Owner;
         var face = _game.SpeakerFace(BuildingCode, _culture);
 
+        // 파는 선체는 도시마다 다르고 해가 가면 는다(0x00422CA0 · ShipyardStock). 등록해 넣은 배는 늘 판다.
+        var hulls = SoldHulls();
+        if (hulls.Count == 0)
+        {
+            Say(ShipyardStock.NoneWord);
+            return;
+        }
+
         Say("새로운 배가 갖고 싶나?");
 
-        while (HullSelectDialog.Show(owner) is { } hull)
+        while (HullSelectDialog.Show(owner, hulls) is { } hull)
         {
             if (_player.Ships.Count >= Player.MaxShips)
             {
@@ -130,6 +139,14 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             _menu.Refresh();
             return;
         }
+    }
+
+    /// <summary>이 조선소가 지금 파는 선체. 도시 표를 못 읽으면 모두다.</summary>
+    private List<Hull> SoldHulls()
+    {
+        if (_game.CityRows is not { } cities) return [.. Hull.All];
+        var sold = ShipyardStock.HullsAt(cities, _cityId, _player.Date);
+        return [.. Hull.All.Where(h => h.Id is < 0 or >= 8 || sold.Contains(h.Id))];
     }
 
     /// <summary>
