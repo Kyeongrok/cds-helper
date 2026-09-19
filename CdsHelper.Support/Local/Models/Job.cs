@@ -163,17 +163,31 @@ public static class Ability
     }
 
     /// <summary>
-    /// 시작 소지금 — <b>체력에서 나온다</b>(<c>0x0045D5A3</c>).
+    /// 시작 컨디션 — <b>굴린 체력</b>에서 나온다(<c>0x0045D5A3</c>, 보너스를 얹기 전 값).
     /// </summary>
     /// <remarks>
     /// <code>
     /// 45d5a3  eax = 체력
-    /// 45d5a9  eax &lt;&lt;= 2               ; x4
-    /// 45d5b3  eax = eax + eax*4        ; x5  — 합쳐서 x20
-    /// 45d5bd  0x0049E540(eax, 10, 2000)
+    /// 45d5b3  eax *= 20
+    /// 45d5bd  0x0049E540(eax, 10, 2000)   → [+0x13C] → 마무리가 0x005B60D8 로 옮긴다
     /// </code>
+    /// 예전에는 이것을 소지금으로 읽었다 — 소지금은 <see cref="GoldRoll"/> 이다.
     /// </remarks>
-    public static int GoldFor(int body) => Math.Clamp(body * 20, 10, 2000);
+    public static int ConditionFor(int body) => Math.Clamp(body * 20, 10, 2000);
+
+    /// <summary>나이가 이보다 많으면 돈·명성이 더 붙는다(<c>0x0045D640</c> 의 <c>cmp 0x23</c>).</summary>
+    public const int SeniorAge = 35;
+
+    /// <summary>시작 소지금 — <c>rand(1000) + 1000</c>, 나이 &gt; 35 면 <c>rand(500) + 1500</c> 더(<c>0x0045D628</c>).</summary>
+    public static int GoldRoll(int age, Random rng) =>
+        rng.Next(1000) + 1000 + (age > SeniorAge ? rng.Next(500) + 1500 : 0);
+
+    /// <summary>시작 명성 — <c>rand(500) + 500</c>, 나이 &gt; 35 면 1000 더(<c>0x0045D667</c>).</summary>
+    public static int FameRoll(int age, Random rng) =>
+        rng.Next(500) + 500 + (age > SeniorAge ? 1000 : 0);
+
+    /// <summary>시작 악명 — 나이 &gt; 35 면 <c>rand(500)</c>, 아니면 0(<c>0x0045D69C</c> → 0x005B6150).</summary>
+    public static int InfamyRoll(int age, Random rng) => age > SeniorAge ? rng.Next(500) : 0;
 
     /// <summary>
     /// 능력치 다섯과 신앙심을 굴린다.
