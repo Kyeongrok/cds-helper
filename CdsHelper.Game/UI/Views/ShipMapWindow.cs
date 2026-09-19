@@ -2845,7 +2845,7 @@ public sealed class ShipMapWindow : Window
             if (_game.Hints?.Find(ids[at]) is not { } hint) return;
 
             HintDetailDialog.Show(this, hint, _game.Hints.CategoryOf(hint.Category),
-                                  player.Fame, player.MateCount > 0);
+                                  player.Fame, player.MateCount > 0, player.Contract?.Hint == hint.Id);
         }
     }
 

@@ -169,8 +169,12 @@ public sealed class HintDetailDialog : GameWindow
     /// <summary>
     /// 힌트 하나를 펴 본다 — 파란 판을 띄우고, 부관의 평은 <b>따로</b> 말 창으로 낸다.
     /// </summary>
+    /// <param name="contracted">
+    /// 지금 계약으로 좇는 힌트인지. 그러면 평 대신 「현재 계약중입니다.」다(<c>0x0046EDDA</c> —
+    /// 계약 물건 <c>0x0061D1D0</c> 이 있고 그 힌트 <c>0x0061D1E0</c> 과 같을 때).
+    /// </param>
     public static void Show(Window owner, HintTable.Hint hint, string category,
-                            int fame, bool hasMate)
+                            int fame, bool hasMate, bool contracted = false)
     {
         string head = category.Length > 0 ? $"{hint.Name}({category})" : hint.Name;
         var panel = new HintDetailDialog(head, hint.Text) { Owner = owner };
@@ -188,7 +192,8 @@ public sealed class HintDetailDialog : GameWindow
 
         try
         {
-            ConfirmDialog.Tell(owner, CommentOn(hint.Grade, fame, hasMate), under: panel);
+            ConfirmDialog.Tell(owner, contracted ? "현재 계약중입니다." : CommentOn(hint.Grade, fame, hasMate),
+                               under: panel);
         }
         finally
         {
