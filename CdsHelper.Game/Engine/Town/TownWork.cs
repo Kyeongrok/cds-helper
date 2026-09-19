@@ -173,7 +173,8 @@ public static class TownWorks
                                             IReadOnlyList<string>? Drinks = null,
                                             bool Contracted = false, bool HasHeir = false,
                                             bool Wed = false, bool PatronBribe = false,
-                                            bool PatronBorrow = false, bool HasSon = false);
+                                            bool PatronBorrow = false, bool HasSon = false,
+                                            bool HasBooks = true);
 
     /// <summary>
     /// 그 시설의 명령 창에 늘어놓을 줄들. 차례와 문구는 <see cref="Facility.Menu"/> 것이고,
@@ -192,8 +193,10 @@ public static class TownWorks
             items.Insert(0, NameOf(TownWork.Info));
 
         // 가르치는 건물인데 줄에 수련이 없으면(학자 저택 따위) 맨 앞에 붙여 준다.
+        // 가르칠 것이 없으면 수련 줄은 <b>아예 없다</b>(0x00490D60 이 보임 칸을 0 으로 둔다) — 흐리게 남기지 않는다.
         string train = NameOf(TownWork.Train);
         if (state.Teaches && !items.Contains(train)) items.Insert(0, train);
+        if (!state.Teaches) items.Remove(train);
 
         // 여관 허드렛일은 주머니가 가벼울 때만 나온다.
         if (facility.Kind == FacilityKind.Inn && !state.Poor)
@@ -215,6 +218,10 @@ public static class TownWorks
         // 세대교체는 <b>아들</b>이 있어야 줄이 선다(0x0046245C — 0x004AB790(0, 0), 딸만으로는 안 선다).
         if (facility.Kind == FacilityKind.Home && !state.HasSon)
             items.Remove(NameOf(TownWork.Succeed));
+
+        // 도서관 「열람」은 그 해 이 서가에 꽂힌 책이 있어야 줄이 선다(0x004B3630 → 0x004B3470).
+        if (facility.Kind == FacilityKind.Library && !state.HasBooks)
+            items.Remove(NameOf(TownWork.Read));
 
         // 아내가 없으면 후손을 남길 길도 없다.
         if (facility.Kind == FacilityKind.Home && !state.Wed)
