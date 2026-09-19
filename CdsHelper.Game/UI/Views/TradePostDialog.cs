@@ -239,7 +239,8 @@ public sealed class TradePostDialog : GameWindow
             string said = _message;
             _post.CutSupply(_player, _city, cut);
             Reload();
-            Say($"{said} (공급이 {cut}% 줄었습니다)", true);
+            // 공급이 줄었다고 따로 이르지는 않는다 — 원본은 상인의 말만 한다.
+            Say(said, true);
             Paint();
             return;
         }
@@ -252,7 +253,7 @@ public sealed class TradePostDialog : GameWindow
         if (_tries <= 0) return false;
         _post.CutSupply(_player, _city, TradePost.CutQuit);
         Reload();
-        Say($"{TradePost.QuitLine} (공급이 {TradePost.CutQuit}% 줄었습니다)", true);
+        Say(TradePost.QuitLine, true);
         Paint();
         return true;
     }
