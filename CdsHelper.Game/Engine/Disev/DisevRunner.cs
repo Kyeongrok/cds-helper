@@ -433,21 +433,13 @@ public sealed class DisevRunner
             //                              (0x0040A0F8 의 or [힌트+4], 8). 그 비트는 판을 열 때
             //                              120줄 모두 서 있고 지우는 곳이 없어(LibraryDialog 의
             //                              Unlocked 주석 참고) 다시 세워도 달라지는 것이 없다.
-            //   11  ChangeCityNation     어느 나라로 가는지가 명령에 없다(0x00409AB6 이 문맥에서 집는다).
-            //                              대본을 뜯어 보면 이 명령은 <b>SetStat(26, 도시)</b> 꼴이고
-            //                              (26 1C 1A 00 = 칸 26, 08 u16 = 그 도시), 늘 같은 도시의
-            //                              OccupyCity(23 08) 바로 앞에 짝지어 선다 —
-            //                              예: 「26 1C 1A 00 08 CA 00 · 26 1C 1A 00 08 CC 00 ·
-            //                              26 1C 1A 00 08 CB 00 · 23 08 CA 00 · 23 08 CC 00 ·
-            //                              23 08 CB 00」(발견 이벤트 파트 263). 칸 26 이 무엇을
-            //                              담는지는 아직 못 밝혔다.
-            //   10  OccupyCity(23 08)    점령·해제·없앰은 도시 소속을 판마다 덮어써야 한다
+            //   10  OccupyCity(23 08)    도시 레코드 +0x04 에 비트 2 를 세운다(0x00409E36, 25 08 이 지운다).
+            //                              마을 공략에 이겼을 때(0x00468B20)도 이 비트와 나라를 함께 세운다.
+            //                              비트 2 를 누가 읽는지는 아직 못 밝혔다.
             //    3  DestroyNation(22 00)
             //    3  MoveEventTarget(3C 08)
             //    2  CreateCity(26 08)
             //    1  AddCityRumor · RemoveCity · HalveTroops · RemoveFacility
-            // 도시 소속을 바꾸는 것들은 <see cref="Market.CityHistory"/> 의 ChangeNation 과
-            // <c>Player.SetHistoryNation</c> 이 이미 있으니, 어느 나라로 가는지만 밝히면 붙는다.
             default:
                 return null;
         }
@@ -592,6 +584,14 @@ public sealed class DisevRunner
                 }
                 return null;
             }
+
+            // 26 1C 1A 00 08 [도시] — 그 도시를 <b>제독의 나라</b>로 넘긴다. SetStat 의 칸 26 만
+            // 뒤에 값 식 대신 도시가 오는 딴 꼴이다(0x0040A168 cmp ax,0x1A): 도시 레코드 +0x00 에
+            // 제독 물건 vt+0x14(= [0x005B60B4], 국적)를 그대로 넣는다(0x0040A1A3). 21 08 과 달리
+            // 수도여도 그 나라 도시를 함께 넘기지 않는다. 대본은 늘 같은 도시의 23 08 앞에 둔다.
+            case DisevCall.ChangeCityNation:
+                _game.Player.SetHistoryNation(I("City"), _game.Player.Nation);
+                return null;
 
             // 46 — 결과를 거짓으로(0x0040B1BC).
             case DisevCall.ClearResult:
