@@ -725,68 +725,97 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// 4965b7  "실을 수 있을 만큼 싣겠네."(예/아니오) → 아니면 "얼마나 싣겠나?"
     /// 4965f8  "%s%s %d문 실으면 금화 %d닢이네. 좋은가?"            0x005321F0
     /// </code>
-    /// 갈래를 바꿔 실으면 실려 있던 것은 <b>30프로</b>로 되사 준다.
-    /// <b>어느 마을에서나 넷 다 판다</b> — 게임은 마을마다 파는 것을 가리는데
-    /// (<c>0x00443FD0</c>) 그 표는 아직 안 읽었다.
+    /// 갈래를 바꿔 실으면 실려 있던 것은 <b>30프로</b>로 되사 준다. 파는 대포는 마을마다 다르다(<see cref="CannonsSold"/>).
     /// </remarks>
     private void BuyCannon(Ship ship)
     {
         var owner = Owner;
         if (ship.Turrets <= 0) { Say("포탑이 없으면 대포는 실을 수 없네."); return; }
 
-        Say("어느 대포를 실을 건가?");
-        int at = HintListDialog.Pick(owner,
-            [.. Cannon.All.Select(c => $"{GameUi.Pad(c.Name, 12)}{c.Price,6}닢{c.Weight,5}")],
-            "대포 선택", "대포가 없네.", GunHead);
-        if (at < 0 || at >= Cannon.Count) return;
+        // 이 마을이 파는 대포만 늘어놓는다(0x00443FD0 → 0x00429F30).
+        var sold = CannonsSold();
 
-        var gun = Cannon.All[at];
-        // 이 배의 대포를 다 내렸다 치고 함대에 남는 무게 — 게임도 그렇게 잰다.
-        int free = _player.Tonnage - _player.LoadedWeight + ship.GunWeight;
-        int room = ship.RoomFor(at, free);
-        if (at == ship.Gun) room -= ship.Guns;
-
-        if (room <= 0)
+        // 막히거나 물리면 대포 목록으로 돌아간다(0x004966A5 → 0x00496489). 물려야 나온다.
+        while (true)
         {
-            Say(at == ship.Gun ? "이 대포는 더 이상 실을 수 없네."
-                                                  : "이 대포는 무거워서 실을 수 없네.");
+            Say("어느 대포를 실을 건가?");
+            int pick = HintListDialog.Pick(owner,
+                [.. sold.Select(i => Cannon.All[i]).Select(c => $"{GameUi.Pad(c.Name, 12)}{c.Price,6}닢{c.Weight,5}")],
+                "대포 선택", "대포가 없네.", GunHead);
+            if (pick < 0 || pick >= sold.Count) return;
+            int at = sold[pick];
+
+            var gun = Cannon.All[at];
+            // 이 배의 대포를 다 내렸다 치고 함대에 남는 무게 — 게임도 그렇게 잰다.
+            int free = _player.Tonnage - _player.LoadedWeight + ship.GunWeight;
+            int room = ship.RoomFor(at, free);
+            bool same = at == ship.Gun && ship.Guns > 0;
+            if (same) room -= ship.Guns;
+
+            if (room <= 0)
+            {
+                Say(same ? "이 대포는 더 이상 실을 수 없네." : "이 대포는 무거워서 실을 수 없네.");
+                continue;
+            }
+            if (!_player.CanAfford(gun.Price)) { Say("돈이 모자라는군."); continue; }
+
+            // 같은 갈래를 이미 실었으면 대포 설명은 안 한다(0x00496557 → 0x004965B7).
+            if (!same) Say(gun.Word);
+            room = Math.Min(room, _player.Gold / gun.Price);
+
+            int want;
+            if (Ask("실을 수 있을 만큼 싣겠네.")) want = room;
+            else
+            {
+                // 「얼마나 싣겠나?」는 말로 하고, 수 적기 창의 제목은 대포 이름이다(0x004965D2~0x00496617).
+                Say("얼마나 싣겠나?");
+                want = CountDialog.Ask(owner, gun.Name, "대포수", "문", room, 1, true,
+                    new CountDialog.Gauge("최대대포수", room),
+                    new CountDialog.Gauge("현재의 포수", same ? ship.Guns : 0));
+            }
+            if (want <= 0) continue;
+
+            int cost = gun.Price * want;
+            string who = gun.Name;
+            if (!Ask($"{who}{GameUi.Josa(who, "을", "를")} {want}문 실으면 금화 {cost}닢이네. 좋은가?"))
+                continue;
+            if (!_player.Pay(cost)) { Say("돈이 모자라네."); continue; }
+
+            var was = ship.Snapshot();
+
+            // 갈래가 갈리면 실려 있던 것은 30프로로 되사 준다.
+            if (at != ship.Gun && Cannon.Of(ship.Gun) is { } old && ship.Guns > 0)
+            {
+                // 0x0049632E. <b>얼마를 받았는지는 안 알린다</b> — 0x00531E58
+                // 「금화 %ld닢을 벌었습니다.」는 EXE 에 있기만 하고 아무도 안 가리키는 죽은 글이다.
+                Say("지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
+                _player.Earn(old.Price * ship.Guns * Cannon.BuyBackPercent / 100);
+                ship.Load(at, want);
+            }
+            else
+            {
+                ship.Load(at, ship.Guns + want);
+            }
+
+            ShowRefit(owner, Refit.Guns(was, ship.Snapshot()), ship);
             return;
         }
-        if (!_player.CanAfford(gun.Price)) { Say("돈이 모자라는군."); return; }
+    }
 
-        Say(gun.Word);
-        room = Math.Min(room, _player.Gold / gun.Price);
-
-        int want = Ask("실을 수 있을 만큼 싣겠네.")
-            ? room
-            : CountDialog.Ask(owner, "얼마나 싣겠나?", "대포수", "문", room, 1, true,
-                new CountDialog.Gauge("최대대포수", ship.Turrets),
-                new CountDialog.Gauge("현재의 포수", ship.Guns));
-        if (want <= 0) return;
-
-        int cost = gun.Price * want;
-        string who = gun.Name;
-        if (!Ask($"{who}{GameUi.Josa(who, "을", "를")} {want}문 실으면 금화 {cost}닢이네. 좋은가?"))
-            return;
-        if (!_player.Pay(cost)) { Say("돈이 모자라네."); return; }
-
-        var was = ship.Snapshot();
-
-        // 갈래가 갈리면 실려 있던 것은 30프로로 되사 준다.
-        if (at != ship.Gun && Cannon.Of(ship.Gun) is { } old && ship.Guns > 0)
-        {
-            // 0x0049632E. <b>얼마를 받았는지는 안 알린다</b> — 0x00531E58
-            // 「금화 %ld닢을 벌었습니다.」는 EXE 에 있기만 하고 아무도 안 가리키는 죽은 글이다.
-            Say("지금 싣고 있는 것은 가격의 30프로로 사 주겠네.");
-            _player.Earn(old.Price * ship.Guns * Cannon.BuyBackPercent / 100);
-            ship.Load(at, want);
-        }
-        else
-        {
-            ship.Load(at, ship.Guns + want);
-        }
-
-        ShowRefit(owner, Refit.Guns(was, ship.Snapshot()), ship);
+    /// <summary>
+    /// 이 마을 조선소가 파는 대포(<c>0x00429F30</c>) — 세이커포는 어디서나, 둘째는 규모 3 이상, 셋째는 4 이상,
+    /// 넷째는 1490년부터 도시 0·7 · 1500년부터 도시 38 · 1510년부터 도시 15 에서만 판다.
+    /// </summary>
+    private List<int> CannonsSold()
+    {
+        var sold = new List<int> { 0 };
+        int scale = _game.CityRows?.ScaleOf(_cityId) ?? 0;
+        if (scale >= 3) sold.Add(1);
+        if (scale >= 4) sold.Add(2);
+        int year = _player.Date.Year;
+        if ((year >= 1490 && _cityId is 0 or 7) || (year >= 1500 && _cityId == 38) || (year >= 1510 && _cityId == 15))
+            sold.Add(3);
+        return sold;
     }
 
     /// <summary>개조 결과 상자를 띄우고 개조 창을 다시 짓는다.</summary>
