@@ -313,7 +313,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 차례가 이렇다.
     /// <list type="number">
     ///   <item><b>부관이 깨운다</b>(<c>0x0042EA40</c>) — 부관이 있고 굴림에 걸릴 때.</item>
-    ///   <item><b>부인이 깨운다</b>(<c>0x0042EAA0</c>) — 여기가 모항일 때. 굴림 없이 이것만 난다.</item>
+    ///   <item><b>부인이 깨운다</b>(<c>0x0042EAA0</c>) — 제독 나라의 수도인 모항에서 아내가 있고 운·신앙 굴림에 걸릴 때.</item>
     ///   <item>아니면 <b>다섯 가지 가운데 하나</b>(<c>0x0042F07F</c>). 소지금이 100닢
     ///         이하면 넷 중에서 뽑는다 — 한턱은 낼 돈이 있어야 낸다.</item>
     /// </list>
@@ -339,9 +339,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return;
         }
 
-        // <b>모항에서는 아내가 데리러 온다</b>(0x0042F05B) — 굴림도 없고 다른 갈래도 안 난다.
-        // 아내가 없으면 이 갈래 자체가 아무 일도 안 하고 끝난다(0x0042EAC4).
-        if (_cityId == _player.HomePort && _player.Spouse.Length > 0)
+        // <b>아내가 데리러 온다</b>(0x0042F1D0) — 여기가 제독 나라의 수도(나라 표 +0)이면서 모항이고,
+        // 아내가 있고, rand(150) ≤ 운 + 신앙심 + 2 일 때다. 못 걸리면 아래 다섯 가지로 간다.
+        if (_game.Nations?.Find(_player.Nation) is { } home && home.Capital == _cityId
+            && _cityId == _player.HomePort && _player.Spouse.Length > 0
+            && _game.Random.Next(150) <= _player.AbilityOf(Ability.Luck) + _player.AbilityOf(Ability.Faith) + 2)
         {
             var her = _game.Barmaids?.Find(_player.SpouseId) is { } wife
                 ? _game.Faces?.TryGetBgra(wife.Face, female: true) : null;
