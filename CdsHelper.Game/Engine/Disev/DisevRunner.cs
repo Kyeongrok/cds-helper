@@ -1153,7 +1153,8 @@ public sealed class DisevRunner
 
         string got = $"{who.Name}{GameUi.Josa(who.Name, "을", "를")}";
         NoticeDialog.Show(_owner, old.Length > 0
-            ? $"{old}{GameUi.Josa(old, "을", "를")} 해고하고 {got} {role}으로 삼았습니다"
+            // 이음말이 자리마다 다르다 — 부관은 「해고하고」(0x00538D60), 통역은 「해고하여」(0x00538C98).
+            ? $"{old}{GameUi.Josa(old, "을", "를")} {(slot == InterpreterSlot ? "해고하여" : "해고하고")} {got} {role}으로 삼았습니다"
             : $"{got} {role}으로 삼았습니다");
     }
 
