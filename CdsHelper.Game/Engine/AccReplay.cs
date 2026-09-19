@@ -71,6 +71,9 @@ public sealed class AccReplay
         }
     }
 
+    /// <summary>공략 줄을 틀 때 부른다 — (인물, 도시, 나라). 도시를 넘기고 알리는 것은 부르는 쪽이 한다.</summary>
+    public Action<int, int, int>? Captured { get; set; }
+
     /// <summary>걸린 대본이 하나라도 있는지.</summary>
     public bool Any => _runners.Count > 0;
 
@@ -101,6 +104,7 @@ public sealed class AccReplay
                 if (line.Kind == Player.TraceArrival) arrival = run.Next;
                 else if (line.Kind == Player.TraceShipIn) AddHull(run.Hulls, line.A);
                 else if (line.Kind == Player.TraceShipOut) RemoveHull(run.Hulls, line.A);
+                else if (line.Kind == Player.TraceCapture) Captured?.Invoke(run.Person, line.A, line.B);
             }
 
             // 마지막 줄까지 갔고 그날도 지났으면 세상에서 사라진다.

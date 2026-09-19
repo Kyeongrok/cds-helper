@@ -157,6 +157,8 @@ internal static class HostileCityMenu
                     // 수도였으면 그 나라 도시가 모두 넘어간다(0x00468B40, 226곳을 훑는다). 넘겨받는 나라는
                     // 0x005B394C 인데, 늘 제독 국적(vt+0x14)을 옮겨 둔 값이다.
                     Engine.Market.CityHistory.ChangeNation(player, game.CityRows, game.Nations, city, player.Nation);
+                    // 행적에 공략을 적는다(0x00468A01, 원본 갈래 1) — 은퇴하면 누적 캐릭터가 이 도시를 되빼앗는다.
+                    player.Note(Player.TraceCapture, city, player.Nation);
                     // 공략 문구는 교섭 것과 따로다(0x004689BA) — 마을 이름이 안 들어간다.
                     if (game.AideFace is { } wonFace)
                         TalkDialog.Say(owner, wonFace, "", Standoff.RaidWonWord);

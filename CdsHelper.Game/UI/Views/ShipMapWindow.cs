@@ -1870,6 +1870,15 @@ public sealed class ShipMapWindow : Window
         {
             Engine.AccData.Place(world.People);
             var replay = new Engine.AccReplay(_game.Player.Date);
+            // 누적 캐릭터가 옛 공략을 되짚으면 그 도시가 그 나라로 넘어가고 알림이 뜬다(0x00409A7E).
+            replay.Captured = (person, city, nation) =>
+            {
+                Engine.Market.CityHistory.ChangeNation(_game.Player, _game.CityRows, _game.Nations, city, nation);
+                string who = world.People.FirstOrDefault(r => r.Id == person)?.Name ?? "";
+                string town = _game.CityName(city);
+                if (who.Length > 0)
+                    NoticeDialog.Show(this, $"{who}{GameUi.Josa(who, "이", "가")} [{town}]{GameUi.Josa(town, "을", "를")} 공략했습니다");
+            };
             replay.Load();
             world.Replay = replay.Any ? replay : null;
         }
@@ -3017,7 +3026,7 @@ public sealed class ShipMapWindow : Window
 
             _host.EnterPort(name);
 
-            // 행적에 적는다(0x00468A01, 갈래 1) — 은퇴하면 이 줄들이 누적 캐릭터의 발자취가 된다.
+            // 행적에 적는다(원본 갈래 0, 0x0049270F — 도시 화면을 펼 때) — 은퇴하면 이 줄들이 누적 캐릭터의 발자취가 된다.
             _game.Player.Note(Player.TraceArrival, city, _game.Player.Nation);
 
             inCity = ShowCityPicture(city, name);
