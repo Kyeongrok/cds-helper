@@ -435,9 +435,11 @@ public sealed class DisevRunner
             //                              Unlocked 주석 참고) 다시 세워도 달라지는 것이 없다.
             //   10  OccupyCity(23 08)    도시 레코드 +0x04 에 비트 2 를 세운다(0x00409E36, 25 08 이 지운다).
             //                              마을 공략에 이겼을 때(0x00468B20)도 이 비트와 나라를 함께 세운다.
-            //                              비트 2 를 누가 읽는지는 아직 못 밝혔다.
-            //    3  MoveEventTarget(3C 08)
-            //    1  AddCityRumor · HalveTroops
+            //                              <b>그 비트를 읽는 곳을 못 찾았다</b> — 나라는 앞의 26 1C 1A 가 넘긴다.
+            //    3  MoveEventTarget(3C 08) <b>옮길 것이 없다.</b> 대본 주인([문맥+0x10])의 갈래가 1(역사 항해자)일
+            //                              때만 움직이는데(0x0040ABAE), 발견 대본의 주인은 제독(갈래 0,
+            //                              0x004783D7)이다. HISTCHR 에서만 뜻이 있다.
+            //    1  HalveTroops
             default:
                 return null;
         }
@@ -617,6 +619,19 @@ public sealed class DisevRunner
             case DisevCall.CreateCity:
                 _game.Player.SetScriptedCity(I("City"), true);
                 return null;
+
+            // 20 0A [글] 00 08 [도시] — 그 도시 소문 가게에 글을 적는다(0x004099CB). 역사 대본과 같은
+            // 핸들러라 술집·여관 무명 손님이 이것을 말한다. 제독 이름 자리표는 적을 때 편다(0x0040C410).
+            case DisevCall.AddCityRumor:
+            {
+                var raw = line.Raw;
+                int zero = Array.IndexOf(raw, (byte)0, 2);
+                if (zero < 0) return null;
+                string text = DisevScript.DecodeDialogue(raw.AsSpan(2, zero - 2), normalize: true,
+                                                         player: _game.Player.Name).Body;
+                _game.Player.AddRumor(I("City"), text, _game.Player.Date);
+                return null;
+            }
 
             // 46 — 결과를 거짓으로(0x0040B1BC).
             case DisevCall.ClearResult:
