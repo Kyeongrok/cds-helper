@@ -2291,6 +2291,31 @@ public sealed class Player
         foreach (var (nation, s) in status ?? new Dictionary<int, int>()) SetNationStatus(nation, s);
     }
 
+    private readonly Dictionary<int, bool> _scriptedCities = [];
+
+    /// <summary>
+    /// 발견 대본이 <b>세우거나(<c>26 08</c>) 없앤(<c>22 08</c>)</b> 도시 — 참이면 세움.
+    /// </summary>
+    /// <remarks>
+    /// 게임은 도시 레코드 <c>+0x04</c> 의 비트 4(「안 서 있다」)를 지우고(<c>0x0040A038</c>)
+    /// 세운다(<c>0x00409DC8</c>). 날짜로 되짚는 <c>CityFounding</c> 보다 이 값이 먼저다.
+    /// 아스텍을 무너뜨리면(발견 이벤트 263) 테노치티틀란이 없어지고 멕시코가 선다.
+    /// </remarks>
+    public IReadOnlyDictionary<int, bool> ScriptedCities => _scriptedCities;
+
+    /// <summary>발견 대본이 세운(참)·없앤(거짓) 도시를 적는다.</summary>
+    public void SetScriptedCity(int cityId, bool standing)
+    {
+        if (cityId >= 0) _scriptedCities[cityId] = standing;
+    }
+
+    /// <summary>세이브에서 발견 대본이 세우고 없앤 도시를 되돌린다.</summary>
+    public void RestoreScriptedCities(IReadOnlyDictionary<int, bool>? cities)
+    {
+        _scriptedCities.Clear();
+        foreach (var (city, standing) in cities ?? new Dictionary<int, bool>()) SetScriptedCity(city, standing);
+    }
+
     private readonly Dictionary<int, int> _cityBuildings = [];
 
     /// <summary>역사 대본(<c>22/26 10 [비트] 08 [도시]</c>)이 바꾼 건물 낱말 — 도시 레코드 <c>+0x1C</c>.</summary>

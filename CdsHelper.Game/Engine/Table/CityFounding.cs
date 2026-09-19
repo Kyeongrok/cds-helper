@@ -89,6 +89,10 @@ public static class CityFounding
     /// 오피코드가 없고, <c>HISTCHR.CDS</c> 의 <c>2608</c> 은 뜻이 달라 역사 항해자가
     /// 들르는 <b>경유 항구</b>다. 코르테스 편에 멕시코가, 피사로 편에 리마가 나오는 것도
     /// 항로 지점일 뿐 도시를 세우는 것이 아니다.
+    ///
+    /// 다만 <b>멕시코는 발견 대본으로 선다</b> — 발견 이벤트 263(아스텍)이 끝에
+    /// <c>22 08 C8 00</c>(테노치티틀란을 없앰) · <c>26 08 C9 00</c>(멕시코를 세움)을 둔다.
+    /// 날짜로는 안 나오므로 <c>Player.ScriptedCities</c> 가 따로 든다.
     /// </remarks>
     public static readonly IReadOnlySet<int> NeverFounded = new HashSet<int> { 201, 211, 222 };
 
@@ -136,8 +140,10 @@ public static class CityFounding
     }
 
     /// <summary>그 도시가 그 날짜에 지도에 있는지.</summary>
-    public static bool Standing(int city, DateTime when) =>
-        !Hidden.Contains(city) || FoundedBy(when).Contains(city);
+    /// <param name="scripted">발견 대본이 세우거나 없앤 도시(<c>Player.ScriptedCities</c>) — 날짜보다 먼저다.</param>
+    public static bool Standing(int city, DateTime when, IReadOnlyDictionary<int, bool>? scripted = null) =>
+        scripted != null && scripted.TryGetValue(city, out bool set) ? set
+        : !Hidden.Contains(city) || FoundedBy(when).Contains(city);
 
     /// <summary>그 도시가 서는 해와 달. 영영 안 서면 null.</summary>
     public static (int Year, int Month)? WhenOf(int city)
