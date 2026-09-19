@@ -1858,6 +1858,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         if (_player.Ships.Count > 0)
         {
             GameDialog.Show(_view, mate ? Palace.ShipsReturned : Palace.ShipsReturnedAlone);
+            // 남은 배에 짐이 넘치면 짐 덜기 창이다(0x0040FEFD).
+            CargoDropDialog.Force(_view, _game, _cityId);
             return;
         }
 
@@ -1926,6 +1928,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // 남는 배는 대출 표시를 지워 내 배가 되고(0x00410380), 표시가 남은 배는 떠난다.
         foreach (var ship in stays) ship.Keep();
         _player.TakeBackLentShips();
+
+        // 떠난 배만큼 짐이 넘치면 짐 덜기 창이다(0x00410354 — 0x005A4D18 비트 8 일 때).
+        CargoDropDialog.Force(_view, _game, _cityId);
 
         // <b>떠난다는 말은 없다.</b> 원본도 그 자리에서 아무 말을 안 한다 — 「%s호가
         // 탈주했습니다!」는 조건이 뒤집혀 절대 안 뜨는 죽은 가지다(LentShips 주석).
