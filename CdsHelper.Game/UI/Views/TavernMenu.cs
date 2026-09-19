@@ -1233,9 +1233,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                     // 상대가 그 다음으로 제독에게 눈을 돌린다. 도망까지 실패한 판
                     // ([+0x1D0] > 3)에서는 「너의 고용주도 함께 처리해 주겠다.」(0x00534538)
                     // 하는데, 우리 판정은 도망 실패를 따로 내지 않아 그 갈래는 안 쓴다.
+                    // 제독이 몸소 졌으면 다섯 말 가운데 하나다(0x004AA142 의 rand(5)). 「자네, 제독감이
+                    // 아니로군…」은 반란 판(갈래 7)에서 부관이 졌을 때만의 말이다(0x004AA0B6).
                     TalkDialog.Say(_view, face, "", mate is { }
                         ? AfterMate[dice.Next(AfterMate.Length)]
-                        : "자네, 제독감이 아니로군. 물고기의 먹이가 더 어울리는군.");
+                        : Slain[dice.Next(Slain.Length)]);
                     lost = Math.Max(lost, _player.AbilityOf(Ability.Body) - 1);
                     break;
             }
@@ -1326,6 +1328,16 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         "적의 제독도 한꺼번에 없애버려라!",
         "녀석들! 적의 제독도 쓰러뜨려라!",
         "하는 김에 적의 제독도 쓰러뜨려라!",
+    ];
+
+    /// <summary>제독을 쓰러뜨린 상대가 하는 말 다섯(<c>0x00534560</c>~, <c>0x004AA142</c> 의 <c>rand(5)</c>).</summary>
+    internal static readonly string[] Slain =
+    [
+        "죽어라!",
+        "상대를 잘못 만난 것 같군...",
+        "미안하지만, 죽어줘야겠네.",
+        "네 여행도 여기까지다.",
+        "저 세상에서나 후회하거라.",
     ];
 
     /// <summary>
