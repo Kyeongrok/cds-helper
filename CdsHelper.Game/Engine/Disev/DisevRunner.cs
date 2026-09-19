@@ -436,7 +436,6 @@ public sealed class DisevRunner
             //   10  OccupyCity(23 08)    도시 레코드 +0x04 에 비트 2 를 세운다(0x00409E36, 25 08 이 지운다).
             //                              마을 공략에 이겼을 때(0x00468B20)도 이 비트와 나라를 함께 세운다.
             //                              비트 2 를 누가 읽는지는 아직 못 밝혔다.
-            //    3  DestroyNation(22 00)
             //    3  MoveEventTarget(3C 08)
             //    2  CreateCity(26 08)
             //    1  AddCityRumor · RemoveCity · HalveTroops · RemoveFacility
@@ -591,6 +590,12 @@ public sealed class DisevRunner
             // 수도여도 그 나라 도시를 함께 넘기지 않는다. 대본은 늘 같은 도시의 23 08 앞에 둔다.
             case DisevCall.ChangeCityNation:
                 _game.Player.SetHistoryNation(I("City"), _game.Player.Nation);
+                return null;
+
+            // 22 00 [나라] — 그 나라를 <b>망하게</b> 한다. 나라 레코드(0x005859C0 + 나라 x 16)의 +0x04 에
+            // 2 를 넣는다(0x00409DAD). 역사 대본이 쓰는 것과 같은 칸이다.
+            case DisevCall.DestroyNation:
+                _game.Player.SetNationStatus(I("Nation"), 2);
                 return null;
 
             // 46 — 결과를 거짓으로(0x0040B1BC).
