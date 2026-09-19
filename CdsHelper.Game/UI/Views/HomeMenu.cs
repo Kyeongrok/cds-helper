@@ -452,7 +452,8 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
             ? next == 3 ? Home.SkillRemarks[index].Three : next == 2 ? Home.SkillRemarks[index].Two : null
             : next == 2 ? $"{what}{GameUi.Josa(what, "은", "는")} 유창하게 할 수 있어요! [안×하×요]···어때?"
             : next == 3 ? "세계에는 여러가지 언어가 있네요. 딴 나라에 가보고 싶어." : null;
-        if (remark != null) TalkDialog.Say(owner, null, son.Name, remark);
+        // 소감은 아이 얼굴을 걸고 낸다(0x00461723 의 0x00469540(아이, 0, 글)).
+        if (remark != null) TalkDialog.Say(owner, ChildFace(son), son.Name, remark);
     }
 
     // ── 세대교체 ────────────────────────────────────────────────────────────
@@ -549,7 +550,8 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
             string? words = her >= 15
                 ? (_player.Age > her ? "이것으로 오빠도 성인이 되는거네! 가끔 오빠 집에 놀러 갈께." : "나는 시집가지만 앞으로 열심히 노력해!")
                 : her >= 5 ? "오빠, 안녕! 가끔 놀러 갈께요." : null;
-            if (words != null) TalkDialog.Say(owner, null, daughter.Name, words);
+            // 딸의 작별 인사도 얼굴을 건다(0x00461DDA 의 0x00469540).
+            if (words != null) TalkDialog.Say(owner, ChildFace(daughter), daughter.Name, words);
         }
 
         _player.ClearChildren();
