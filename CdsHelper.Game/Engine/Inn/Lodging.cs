@@ -65,7 +65,7 @@ public sealed class Lodging
     public const int StayDays = 30;
 
     /// <summary>
-    /// 소지금이 이 값 밑(<c>0x0047FE70</c> 의 <c>cmp 소지금, 100</c>)일 때만 허드렛일 줄이 나온다.
+    /// 소지금이 이 값 이하(<c>0x0047FE70</c> 의 <c>cmp 소지금, 100 / jle</c>)일 때만 허드렛일 줄이 나온다.
     /// </summary>
     public const int OddJobMaxGold = 100;
 
