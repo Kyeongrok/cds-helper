@@ -3239,6 +3239,7 @@ public sealed class ShipMapWindow : Window
 
             // 서 있는 재해가 날마다 해를 끼친다 — 쥐는 식량을, 병은 선원을(0x00474DA0).
             SeaEvents.Ail(_game.Player, _game.Random);
+            TellCrewShort();
 
             // 제독 HP 도 닳는다 — 이레마다·병마다(0x0047CEE0). 병 중에 0 이면 거기서 끝이다.
             if (!PassVitalityDay()) return;
@@ -5124,6 +5125,35 @@ public sealed class ShipMapWindow : Window
     {
         string name = _game.Player.MateAt(slot);
         return name.Length > 0 ? _game.MateInfo(name) : null;
+    }
+
+    /// <summary>
+    /// 선원이 한 명도 없는 배가 있으면 날마다 한마디 한다 — 「제독, …호, …호가 인원 부족입니다!」.
+    /// </summary>
+    /// <remarks>
+    /// 게임의 바다 하루 뒷정리(<c>0x00474DA0</c>) 끝이다. 배 여덟 칸 가운데 승원(<c>0x0044C7C0</c>)이 0 인
+    /// 배가 있으면(<c>0x00474FB4</c>) <b>함대 배 이름을 모두</b> 「, %s호」(<c>0x00535238</c>)로 잇고
+    /// 「제독%s%s 인원 부족입니다!」(<c>0x00535240</c>, 조사 이/가)를 부관 아니면 뱃사람이 말한다
+    /// (<c>0x00478280</c>). 편성으로 선원을 나눠 태울 때까지 날마다 되풀이된다.
+    /// </remarks>
+    private void TellCrewShort()
+    {
+        var player = _game.Player;
+        var shares = player.CrewShares;
+        if (player.Ships.Count == 0 || !shares.Any(c => c <= 0)) return;
+
+        string names = string.Concat(player.Ships.Select(s => $", {s.Name}호"));
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            ConfirmDialog.Tell(this, $"제독{names}{GameUi.Josa(names, "이", "가")} 인원 부족입니다!", face: MateFace());
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
     }
 
     private uint[]? MateFace()
