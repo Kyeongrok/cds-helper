@@ -5708,7 +5708,9 @@ public sealed class ShipMapWindow : Window
             WorldRouteScene.Play(dialog, _game, SponsorFaceOf(_game.Player.Contract?.Sponsor), MateFace());
         // 들어가는 데 열흘 — 다만 새 판은 이미 자택 안에서 시작하므로 날을 안 보낸다.
         // 게임도 새 판은 1월 1일에 자택 명령 창이 떠 있다. 여기서 열흘을 보내 1월 11일이 되었었다.
-        if (!enterHome) PassPortDays();
+        // 세이브를 열어 이어 가는 도시도 이미 들어와 있던 것이라 날을 안 보낸다 — 예전에는 불러올
+        // 때마다 열흘씩 흘렀다.
+        if (!enterHome && !resumed) PassPortDays();
         // 새 판은 자택 안에서 시작한다 — 게임도 판을 열면 자택 명령 창이 이미 떠 있다.
         if (enterHome) dialog.EnterHome();
         // 닿았으면 바다는 항구 차림표부터, 뭍은 성문을 지나며 부관이 인사한다(0x004A2530).
