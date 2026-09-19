@@ -855,6 +855,12 @@ internal sealed class LandBattleScene : GameWindow
     /// 몰살했을 때 살려 주는 문(<c>0x0056D6C8</c> "적이 봐 준 것 같습니다")은
     /// 마을 공략에서는 안 열리므로, 아군이 다 쓰러지면 그대로 진 것이다.
     /// </remarks>
+    /// <summary>봐 줄 수 있는 명성의 끝(<c>0x004498A2</c> 의 <c>0x7D0</c>).</summary>
+    private const int SparedFame = 2000;
+
+    /// <summary>봐 줄 수 있는 처음 병력의 끝 — 이보다 적을수록 잘 봐 준다(<c>0x004498BD</c>).</summary>
+    private const int SparedMen = 100;
+
     private void Settle(bool won, bool retreated, GameRandom dice)
     {
         if (_game is not { } game) return;
@@ -868,18 +874,29 @@ internal sealed class LandBattleScene : GameWindow
             return;
         }
 
-        // 끝맺음 소리 — <b>이김과 물러남에만</b> 있다. 진 자리(+0x3C 가 4)는 0x00449890
-        // 으로 빠져 소리가 없다(0x004499B5 · 0x004499FF).
-        if (won) _game?.Sfx?.Play(LandUnits.Sound.Won);
-        else if (retreated) _game?.Sfx?.Play(LandUnits.Sound.Retreat);
-
-        // 다 쓰러진 자리(0x00449908)는 부상병 복귀(0x00449570)를 안 부르고 곧장 게임 오버다.
+        // 다 쓰러지면 0x00449890 이 <b>한 번 봐 줄지</b> 굴린다 — 들에서 마주친 부대(갈래 0·1)이고
+        // 명성 2000 이하, 처음 병력(+0x38) 100 이하일 때 rand(100) &lt; 100 − 처음 병력이면
+        // 「적이 봐 준 것 같습니다」로 물러난 셈이 되어 부상병이 돌아온다(0x004498F1 · 0x00449570).
+        // 아니면 「GAME OVER 입니다」(0x00449908)로 곧장 게임 오버다 — 소리는 없다.
         if (!won && !retreated)
         {
-            _battle.Wiped = true;
-            NoticeDialog.Show(this, "부대는 모두 쓰러졌다…", "");
-            return;
+            if (_battle.Sort == LandBattle.Field && game.Player.Fame <= SparedFame
+                && _battle.MyFirst <= SparedMen && dice.Next(100) < SparedMen - _battle.MyFirst)
+            {
+                NoticeDialog.Show(this, "적이 봐 준 것 같습니다", "");
+                retreated = true;
+            }
+            else
+            {
+                _battle.Wiped = true;
+                NoticeDialog.Show(this, "GAME OVER 입니다", "");
+                return;
+            }
         }
+
+        // 끝맺음 소리 — <b>이김과 물러남에만</b> 있다(0x004499B5 · 0x004499FF). 봐 준 자리는 소리가 없다.
+        else if (won) _game?.Sfx?.Play(LandUnits.Sound.Won);
+        else _game?.Sfx?.Play(LandUnits.Sound.Retreat);
 
         var spoils = _battle.Finish(won, dice);
         var player = game.Player;
