@@ -513,7 +513,7 @@ public static class Home
         int age = child.AgeOn(today);
         return age > 0
             ? $"보세요, 당신의 아이에요. 올해 {age}세가 되지요. 이름은 {child.Name}. 신부님이 지어 주셨어요."
-            : $"보세요, 당신의 아이에요. 이름은 {child.Name}…";
+            : $"보세요, 당신의 아이에요. 이름은 {child.Name}. 신부님이 지어 주셨어요.";
     }
 
     /// <summary>이 나이까지는 소개할 때 사건 그림을 함께 낸다(<c>0x0045FFE6</c>).</summary>
