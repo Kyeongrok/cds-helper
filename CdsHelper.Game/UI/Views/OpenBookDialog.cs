@@ -394,16 +394,4 @@ public sealed class OpenBookDialog : GameWindow
         new OpenBookDialog(art, count, 1, spreadAt, shown, scale) { Owner = owner }.ShowDialog();
         return true;
     }
-
-    /// <summary>한 면짜리 책을 띄운다. 그림을 못 읽으면 아무 일도 없다(글 알림은 부른 쪽이 낸다).</summary>
-    /// <param name="leftPage">왼쪽 면의 쪽 번호. 오른쪽은 그 다음이다.</param>
-    public static bool Show(Window owner, OpenBookArt? art, string title, string text, int leftPage)
-    {
-        if (art == null || art.TryGetBgra(OpenBookArt.Frame) == null) return false;
-
-        int scale = owner.ActualHeight > 800 ? 2 : 1;
-        var spread = new Spread(true, -1, true, title, text);
-        new OpenBookDialog(art, 1, leftPage, _ => spread, null, scale) { Owner = owner }.ShowDialog();
-        return true;
-    }
 }
