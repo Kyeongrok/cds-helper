@@ -559,9 +559,11 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     };
 
     /// <summary>한 달 쉰다. 물어보고 예라야 쉰다.</summary>
+    /// <remarks>쉬든 안 쉬든 휴양 창은 닫힌다 — 원본은 한 번 묻는 팝업이다(<c>0x00469A70</c>).</remarks>
     private void RestOneMonth()
     {
         if (ConfirmDialog.Ask(Owner, "한 달 동안 휴양하겠습니까?")) Rest(1);
+        _menu.Pop();
     }
 
     /// <summary>몇 달이고 쉰다. 게임처럼 한 해까지만 고를 수 있다.</summary>
@@ -572,6 +574,7 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         // 물음 뒤에 계산기 판이 곧바로 뜬다(0x00460788 → 0x00481FE0, 1~12) — 수 적기 창이 아니다.
         GameDialog.Show(owner, "몇 개월 동안 휴양하겠습니까?");
         if (NumberPadDialog.Ask(owner, 1, 1, Home.MaxRestMonths) is { } months && months > 0) Rest(months);
+        _menu.Pop();
     }
 
     /// <summary>
@@ -588,10 +591,16 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     /// </remarks>
     private void Rest(int months)
     {
-        _player.AdvanceDays(Home.RestDays(months));
+        // 쉬는 동안 화면을 덮는다(0x004606EB — 0x004A59F0 · 0x004A5AE0 · 0x004A5AA0).
+        DayPass.Blackout(Owner, () => _player.AdvanceDays(Home.RestDays(months)));
 
+        // 쉬는 사이에 아이가 태어났으면 그 자리에서 소개하고, 그때는 쉰 말을 건너뛴다(0x00460727 →
+        // 0x00460150 → 0x0045FFC0). HP 는 그대로 찬다.
+        var newborns = Home.NotIntroduced(_player);
+        if (newborns.Count > 0)
+            foreach (var child in newborns) Introduce(Owner, child);
         // 아내가 있으면 아내가 말하고, 없으면 지문이 뜬다(0x004607FE).
-        if (_player.Spouse.Length > 0)
+        else if (_player.Spouse.Length > 0)
             TalkDialog.Say(Owner, null, _player.Spouse, Home.RestWifeWord(_random));
         else
             GameDialog.Show(Owner, Home.RestWord(_random));
