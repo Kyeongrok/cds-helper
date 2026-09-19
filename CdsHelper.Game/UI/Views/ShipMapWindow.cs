@@ -1375,16 +1375,19 @@ public sealed class ShipMapWindow : Window
         _titleFocus = new GameUi.FocusGroup();
         items.Children.Add(TitleMenuItem("NEW GAME", NewGame));
 
-        // 적어 둔 판이 없으면 <b>죽은 줄</b>로 낸다 — 누를 것이 없는 줄을 성한 것처럼
-        // 내면 눌러 보고서야 빈 것을 알게 된다.
-        bool saved = System.IO.File.Exists(Engine.GameSave.Path);
-
-        // 게임도 로드 전에 한 번 묻는다. 제목 줄은 안 단다 — 게임 물음창에는 없다.
-        items.Children.Add(TitleMenuItem("LOAD GAME", !saved ? null : () =>
+        // 줄은 <b>늘 살아 있다</b>(0x0045F947) — 적어 둔 판이 없으면 로드해 보고 나서 에러를 낸다.
+        items.Children.Add(TitleMenuItem("LOAD GAME", () =>
         {
             // 게임도 제목 띠를 얹는다 — 0x00571A78 "게임 로드" · 0x00571A88 본문.
-            if (ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다", "게임 로드"))
-                StartMap(fresh: false);
+            if (!ConfirmDialog.Ask(this, "마지막에 저장한 데이터를 로드합니다", "게임 로드")) return;
+            if (!System.IO.File.Exists(Engine.GameSave.Path))
+            {
+                // 0x005723F8 「저장 데이터 · 파일 이름 · 발견되지 않습니다」 — 제목은 「에러」다.
+                NoticeDialog.Show(this, $"저장 데이터{Environment.NewLine}{Engine.GameSave.Path}"
+                                        + $"{Environment.NewLine}가 발견되지 않습니다", "에러");
+                return;
+            }
+            StartMap(fresh: false);
         }));
         items.Children.Add(TitleMenuItem("MINI GAME", MiniGames));
         items.Children.Add(TitleMenuItem("END GAME", Close));
@@ -2691,10 +2694,9 @@ public sealed class ShipMapWindow : Window
     private void Suspend()
     {
         var owner = CommandMenu.Window ?? this;
+        // 바다에서는 <b>한 번만</b> 묻는다(0x0048B75B) — 「이 시점에서 데이터를 저장하고…」(0x00568C80)는
+        // 도시 기능 창의 「중단」 줄(0x004A27D0) 말이다.
         if (!ConfirmDialog.Ask(owner, "지금 플레이하고 있는 게임을 중단하겠습니까?")) return;
-
-        // 적기 앞서 한 번 더 묻는다(0x004A27D0) — 물리면 아무것도 안 적고 놀이로 돌아간다.
-        if (!ConfirmDialog.Ask(owner, "이 시점에서 데이터를 저장하고 게임을 중단하겠습니다.")) return;
 
         _game.Player.SetSeaCell(_host.SeaSpot);
         string error = GameSave.Save(_game.Player);

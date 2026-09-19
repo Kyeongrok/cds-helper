@@ -44,8 +44,8 @@ internal static class GameSystemMenu
     /// </remarks>
     public static void Save(Window view, Engine.Game game, GameMenuHost menu)
     {
-        // 적고 나면 기능 창이 닫힌다 — 원본도 겹쳐 썼다는 알림 뒤에 차림표로 안 돌아온다.
-        if (Save(menu.Window ?? view, game)) menu.Close();
+        // 적고 나도 기능 창은 그대로 있다 — 0x004A2800 이 돌아가면 0x004A2970 고리가 차림표를 다시 낸다.
+        Save(menu.Window ?? view, game);
     }
 
     /// <summary>
