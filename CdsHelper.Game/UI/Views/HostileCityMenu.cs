@@ -109,7 +109,9 @@ internal static class HostileCityMenu
             // 넉 줄을 먼저 깔고 켜고 끈다 — 꺼진 칸도 자리를 지킨다.
             var rows = new (string, bool)[]
             {
-                (say.Rows[Standoff.Attack], true),
+                // 「공격한다」는 성문(건물 10)에서만 켜진다 — 배로 온 항구 문(건물 0)에서는 흐리다
+                // (0x004A574E 가 화면 vt+0x48 을 켜짐 칸에, 조약 문도 0x0046AC12 에서 같다).
+                (say.Rows[Standoff.Attack], byLand),
                 (say.Rows[Standoff.Sneak], Standoff.CanSneak(sect)),
                 (say.Rows[Standoff.Talk], canTalk),
                 (say.Rows[Standoff.Leave], true),
@@ -138,15 +140,15 @@ internal static class HostileCityMenu
                     if (!LandBattleScene.Run(owner, game, field, dice))
                     {
                         // 부대가 모두 쓰러졌으면 놀이가 끝난다 — 마을 공략에서 지면 게임 오버다.
-                        // 퇴각했으면(Wiped 가 안 선다) 차림표로 돌아간다.
                         if (field.Wiped) return new Outcome(Entered: false, GameOver: true, GameOverDialog.LandLost);
 
                         // 퇴각했으면 부관이 물러서자고 한다(0x00468A17). 부관이 없으면 상자만 뜬다.
+                        // 싸움을 치른 뒤에는 이기든 물러나든 차림표가 다시 안 뜬다(0x004A57E7).
                         if (game.AideFace is { } backFace)
                             TalkDialog.Say(owner, backFace, "", Standoff.RaidLostWord);
                         else
                             NoticeDialog.Show(owner, Standoff.RaidLostNews, "");
-                        break;
+                        return new Outcome(false, false);
                     }
 
                     // 이겼으면 그 도시는 그 뒤로 그냥 열린다 — 교섭·잠입으로 뚫었을 때와
@@ -182,10 +184,15 @@ internal static class HostileCityMenu
                     canTalk = false;          // 이번 방문에서는 다시 못 조른다
                     break;
 
-                default:
-                    // 떠난다, 또는 창을 닫았다.
-                    NoticeDialog.Show(owner, say.GiveUp, "");
+                case Standoff.Leave:
+                    // 떠나는 말은 <b>부관만</b> 한다(0x004A582C → 0x004696B0) — 부관이 없으면 아무 말 없이 떠난다.
+                    if (Standoff.HasAide(player))
+                        TalkDialog.Say(owner, game.AideFace, "", say.GiveUp);
                     return new Outcome(false, false);
+
+                default:
+                    // 창을 닫으면 차림표가 다시 뜬다 — 떠나는 것은 「떠난다」 줄뿐이다(0x004A57C7 → 0x004A5804).
+                    break;
             }
         }
     }
