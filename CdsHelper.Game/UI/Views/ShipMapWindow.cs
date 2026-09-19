@@ -1613,9 +1613,6 @@ public sealed class ShipMapWindow : Window
     /// <b>여덟째 「일기토」는 원본 차림표에 없다.</b> 게임에서는 해전에서 기함끼리
     /// 붙었을 때만 열리는데(<c>0x0043A347</c>) 아직 해전이 없어서 여기에 붙여 둔다.
     /// </remarks>
-    /// <summary>원본 MINI GAME 차림표의 줄 수 — 이 뒤는 앱이 붙인 줄이다.</summary>
-    private const int OriginalMinigames = 7;
-
     private void MiniGames()
     {
         // 원본 차림표 그대로 일곱 줄이다 — 일기토·육상전 모의전·모의해전은 게임에 없는 줄이라 개발 창으로 옮겼다.
