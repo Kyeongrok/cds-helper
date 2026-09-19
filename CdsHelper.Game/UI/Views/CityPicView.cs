@@ -1504,7 +1504,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         CityCommandMenu.Build(cityName, new CityCommandMenu.Actions(
             EnterMapPoint: EnterMapPoint,
             ShowPerson: ShowPerson,
-            ShowFleet: ShowFleet,
+            ShowFleet: _player.Ships.Count > 0 ? ShowFleet : null,
             ShowBelongings: ShowBelongings,
             ShowCityInfo: ShowCityInfo,
             ShowHints: ShowHints,

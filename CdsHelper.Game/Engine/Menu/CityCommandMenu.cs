@@ -19,7 +19,8 @@ internal static class CityCommandMenu
     /// </summary>
     /// <param name="EnterMapPoint">맵 포인트에 들어간다 — 건물을 골라 그 창을 연다.</param>
     /// <param name="ShowPerson">인물 정보 — 부하가 있으면 누구를 볼지 먼저 묻는다.</param>
-    /// <param name="ShowFleet">함대 정보.</param>
+    /// <param name="ShowFleet">함대 정보 — 배가 한 척도 없으면 null 이라 줄이 흐리다(<c>0x0049300C</c> 가
+    /// <c>0x00473CD0() == -1</c> 을 켜짐 칸에 넣는다).</param>
     /// <param name="ShowBelongings">소지품 정보.</param>
     /// <param name="ShowCityInfo">도시 정보.</param>
     /// <param name="ShowHints">힌트 정보.</param>
@@ -29,7 +30,7 @@ internal static class CityCommandMenu
     /// <param name="Quit">게임 종료.</param>
     /// <param name="Cancel">취소 — 창을 닫는다. 제목 줄의 닫기도 이것이다.</param>
     internal readonly record struct Actions(
-        Action EnterMapPoint, Action ShowPerson, Action ShowFleet, Action ShowBelongings,
+        Action EnterMapPoint, Action ShowPerson, Action? ShowFleet, Action ShowBelongings,
         Action ShowCityInfo, Action ShowHints, Action ShowContract, Action ShowPatrons,
         Action ShowMap, Action Quit, Action Cancel);
 
