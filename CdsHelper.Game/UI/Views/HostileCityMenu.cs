@@ -152,6 +152,10 @@ internal static class HostileCityMenu
                     // 이겼으면 그 도시는 그 뒤로 그냥 열린다 — 교섭·잠입으로 뚫었을 때와
                     // 같다("제독, 이것으로 마을에 들어갈 수 있습니다").
                     player.OpenGate(city);
+                    // 그리고 그 도시를 <b>내 나라로 넘긴다</b>(0x004689F1 → 0x00468AC0). 그 도시가 제 나라의
+                    // 수도였으면 그 나라 도시가 모두 넘어간다(0x00468B40, 226곳을 훑는다). 넘겨받는 나라는
+                    // 0x005B394C 인데, 늘 제독 국적(vt+0x14)을 옮겨 둔 값이다.
+                    Engine.Market.CityHistory.ChangeNation(player, game.CityRows, game.Nations, city, player.Nation);
                     // 공략 문구는 교섭 것과 따로다(0x004689BA) — 마을 이름이 안 들어간다.
                     if (game.AideFace is { } wonFace)
                         TalkDialog.Say(owner, wonFace, "", Standoff.RaidWonWord);

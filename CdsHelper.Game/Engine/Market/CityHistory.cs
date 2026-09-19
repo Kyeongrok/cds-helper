@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using CdsHelper.Game.Engine.Disev;
 using CdsHelper.Game.Local.Helpers;
 using CdsHelper.Support.Local.Helpers;
@@ -320,8 +320,11 @@ public sealed class CityHistory
     /// <remarks>
     /// 수도는 나라 레코드(<c>0x005859C0</c> + 나라 x 16)의 <c>+0x00</c> 이다. 놀이 중에 이 칸을 바꾸는 곳을 못 찾아
     /// 나라 표의 수도(<see cref="NationTable.Nation.Capital"/>)로 본다.
+    ///
+    /// 마을 공략에 이겼을 때(<c>0x00468AC0</c>)도 같은 셈이다 — 그쪽은 도시 레코드 <c>+0x04</c> 에
+    /// 비트 2 를 함께 세우지만(<c>0x00468B28</c>) 그 비트를 읽는 곳은 못 찾았다.
     /// </remarks>
-    private static void ChangeNation(Player player, CityExeTable? cities, NationTable? nations, int city, int nation)
+    public static void ChangeNation(Player player, CityExeTable? cities, NationTable? nations, int city, int nation)
     {
         int old = cities?.NationOf(city) ?? -1;
         if (old >= 0 && nations?.Find(old) is { } was && was.Capital == city && cities != null)
