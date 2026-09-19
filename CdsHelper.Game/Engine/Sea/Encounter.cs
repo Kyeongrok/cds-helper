@@ -42,7 +42,7 @@ public enum EnemyKind
 /// </param>
 public readonly record struct Captain(
     int Id, int Nation, int Job, int Might, int Mind, int Charm, int Luck, int Faith,
-    int Gunnery, int Sword, int Shooting, int[]? Fortune = null)
+    int Gunnery, int Sword, int Shooting, int[]? Fortune = null, int Theology = 0)
 {
     /// <summary>운세 칸 하나(0~2).</summary>
     public int FortuneAt(int slot) =>
@@ -248,11 +248,17 @@ public static class Encounter
     /// </summary>
     /// <remarks>
     /// <code>
-    ///   요구액 = ((적장 능력 넷의 합 + 1) * 적 함대수 * 20 / 100) * 100
+    ///   둘째 인자 = 적 함대수 x 30                                   ; 0x0044364F
+    ///   요구액    = ((검술 + 포술 + 사격술 + 신학 + 1) x 그것 x 20 / 100) x 100
     /// </code>
-    /// 백 닢 단위로 내림한다.
+    /// 곧 <b>기능 넷의 합 x 척수 x 600</b> 이다. 백 닢 단위로 내림한다. 예전에는 능력 넷의 합에 x20 만 곱해
+    /// 서른 곱이 빠져 있었다.
     /// </remarks>
-    public static int Demand(in Enemy foe) => foe.Sum * foe.Ships * 20 / 100 * 100;
+    public static int Demand(in Enemy foe) => (SkillSum(foe) + 1) * (foe.Ships * 30) * 20 / 100 * 100;
+
+    /// <summary>요구액에 드는 적장 기능 넷 — 검술·포술·사격술·신학(<c>0x00455A36</c>).</summary>
+    private static int SkillSum(in Enemy foe) =>
+        foe.Leader is { } who ? who.Sword + who.Gunnery + who.Shooting + who.Theology : foe.Sum;
 
     /// <summary>
     /// 교섭이 통할 확률(%). <c>0x004559AE</c> 그대로다.
@@ -269,11 +275,14 @@ public static class Encounter
     /// 말은 부관이 대신하므로 부관 웅변과 내 웅변 가운데 <b>높은 쪽</b>을 쓴다.
     /// 이슬람 함대에게는 밑값 서른이 안 붙어 <b>거의 안 통한다</b>.
     /// </remarks>
-    public static int TalkOdds(Player player, EnemyKind kind, int mateRhetoric, Random rng)
+    /// <param name="mateLuck">말하는 이(부관, 없으면 뱃사람)의 운 — 제독 운과 견준다.</param>
+    public static int TalkOdds(Player player, EnemyKind kind, int mateRhetoric, Random rng, int mateLuck = 0)
     {
         int rhetoric = Math.Max(mateRhetoric, player.LevelOf(Skill.Names[Skill.Rhetoric]));
         int floor = kind == EnemyKind.Islam ? rng.Next(5) : rng.Next(10) + 30;
-        return player.Ships.Count / 2 + rhetoric * 10 + floor;
+        // 첫 항은 <b>말하는 이와 제독의 운 가운데 높은 쪽 + 1 의 절반</b>이다(0x004555D0 이 미리 담아 둔 값).
+        int luck = Math.Max(mateLuck, player.AbilityOf(Ability.Luck));
+        return (luck + 1) / 2 + rhetoric * 10 + floor;
     }
 
     /// <summary>
@@ -302,12 +311,14 @@ public static class Encounter
     /// 상대 객체가 내는 값인데(<c>0x00455B63</c>), 그 깃발이 무엇인지는 아직 못 짚어
     /// 적 배 수로 갈음한다. 셈의 얼개(차 + 100 을 나누어 굴린다)는 게임 것 그대로다.
     /// </remarks>
-    public static bool Escapes(Player player, in Enemy foe, Random rng)
+    /// <param name="mateLuck">말하는 이의 운 — 제독 운과 견준다.</param>
+    public static bool Escapes(Player player, in Enemy foe, Random rng, int mateLuck = 0)
     {
-        int mine = player.Morale;
-        int theirs = foe.Ships * 10;
-        int odds = (mine - theirs + 100) / 2;
-        return rng.Next(Math.Max(1, odds)) != 0;
+        // 확률 = (규율 − 피로 + (높은 쪽 운 + 1) + 100) / 나눔수, 나눔수는 갑작스런 무리·해적이 3, 추격대·이슬람이 5다.
+        int luck = Math.Max(mateLuck, player.AbilityOf(Ability.Luck));
+        int div = foe.Kind is EnemyKind.Raider or EnemyKind.Pirate ? 3 : 5;
+        int odds = (player.Morale - player.Fatigue + luck + 1 + 100) / div;
+        return Roll(odds, rng);
     }
 
     // ── 누구를 만나는가 ─────────────────────────────────────────────────────
@@ -471,7 +482,8 @@ public static class Encounter
             Gunnery: Skl(Skill.Gunnery, fallback.Gunnery),
             Sword: Skl(Skill.Sword, fallback.Sword),
             Shooting: Skl(Skill.Shooting, fallback.Shooting),
-            Fortune: FleetRaid.FortuneOf(face ?? 0, blood ?? 0, home));
+            Fortune: FleetRaid.FortuneOf(face ?? 0, blood ?? 0, home),
+            Theology: Skl(Skill.Theology, fallback.Theology));
     }
 
     /// <summary>

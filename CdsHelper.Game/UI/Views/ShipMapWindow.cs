@@ -4746,7 +4746,9 @@ public sealed class ShipMapWindow : Window
                 case 0 when Talked(foe, rng, face): return;  // 교섭이 되면 그대로 끝난다
                 case 1:
                     // 게임도 굴리고 나서 동전을 돌린다(0x00455B8D → 0x00455B98) — 멎은 쪽이 곧 결과다.
-                    bool fled = Encounter.Escapes(_game.Player, foe, rng);
+                    bool fled = Encounter.Escapes(_game.Player, foe, rng,
+                                                  MateRow(0) is { } who && who.Stats.Length > Ability.Luck
+                                                      ? who.Stats[Ability.Luck] : 0);
                     EffectPopup.PlayCoin(this, _game, fled, MapAreaOnScreen());
                     if (fled)
                     {
@@ -4861,22 +4863,57 @@ public sealed class ShipMapWindow : Window
                                    template?.Face, template?.Blood);
     }
 
+    /// <summary>그 자리에 앉은 부하의 인물 표 줄. 비었으면 null.</summary>
+    private PersonTable.Row? MateRow(int slot)
+    {
+        string mate = _game.Player.MateAt(slot);
+        return mate.Length == 0 ? null : _game.World?.People.FirstOrDefault(p => p.Name == mate);
+    }
+
+    /// <summary>
+    /// 적장과 말이 통하는지(<c>0x004558B1</c>) — 그 나라 말을 제독 · 말하는 이(부하 자리 0) · 부하 자리 3
+    /// 가운데 하나라도 알면 통한다.
+    /// </summary>
+    private bool SpeaksWithFoe(in Enemy foe)
+    {
+        int nation = foe.Leader?.Nation ?? -1;
+        int tongue = _game.Nations?.Find(nation)?.Language ?? -1;
+        if (tongue < 0 || tongue >= Skill.Languages.Length) return true;   // 나라를 모르면 막지 않는다
+
+        if (_game.Player.TongueOf(Skill.Languages[tongue]) > 0) return true;
+        foreach (int slot in (int[])[0, 3])
+            if (MateRow(slot) is { } row && tongue < row.Languages.Length && row.Languages[tongue] > 0)
+                return true;
+        return false;
+    }
+
     /// <summary>교섭 한 판. 돈을 물어 물러가면 true.</summary>
     private bool Talked(in Enemy foe, Random rng, uint[]? face)
     {
         // 추격대·토벌대는 말이 안 통한다(0x0045585C) — 굴림 없이 진 동전이 돈다(0x00455860).
         // 통하는 적이면 굴리고 나서 동전을 돌린다(0x004559C2 → 0x004559CD).
         // 말은 부관이 대신한다 — 부관 웅변과 내 웅변 가운데 높은 쪽이 먹힌다(0x0045597D).
-        string mate = _game.Player.MateAt(0);
-        int mateRhetoric = mate.Length > 0
-                           && _game.World?.People.FirstOrDefault(p => p.Name == mate) is { } who
-                           && who.Skills.Length > Skill.Rhetoric ? who.Skills[Skill.Rhetoric] : 0;
-        bool heard = Encounter.CanTalk(foe.Kind)
-                     && Encounter.Roll(Encounter.TalkOdds(_game.Player, foe.Kind, mateRhetoric, rng), rng);
+        var speaker = MateRow(0);
+        int mateRhetoric = speaker is { } who && who.Skills.Length > Skill.Rhetoric ? who.Skills[Skill.Rhetoric] : 0;
+        int mateLuck = speaker is { } row && row.Stats.Length > Ability.Luck ? row.Stats[Ability.Luck] : 0;
+
+        // <b>말이 통해야 굴린다</b>(0x004558B1) — 적장 나라 말을 제독 · 말하는 이 · 부하 자리 3 가운데
+        // 아무도 모르면 굴림 없이 「말이 통하지 않습니다…」다. 추격대는 그 앞에서 막힌다(0x0045585C).
+        if (!Encounter.CanTalk(foe.Kind) || !SpeaksWithFoe(foe))
+        {
+            EffectPopup.PlayCoin(this, _game, false, MapAreaOnScreen());
+            ConfirmDialog.Tell(this,
+                Encounter.CanTalk(foe.Kind) ? Encounter.NoWordsWord(rng) : Encounter.TalkFailedWord(rng),
+                "교섭", face: face);
+            return false;
+        }
+
+        bool heard = Encounter.Roll(Encounter.TalkOdds(_game.Player, foe.Kind, mateRhetoric, rng, mateLuck), rng);
         EffectPopup.PlayCoin(this, _game, heard, MapAreaOnScreen());
         if (!heard)
         {
-            ConfirmDialog.Tell(this, Encounter.NoWordsWord(rng), "교섭", face: face);
+            // 굴림에 지면 「교섭이 되지 않는…」 벌이다(0x00455868) — 말이 안 통할 때의 말과 다르다.
+            ConfirmDialog.Tell(this, Encounter.TalkFailedWord(rng), "교섭", face: face);
             return false;
         }
 
@@ -4891,7 +4928,9 @@ public sealed class ShipMapWindow : Window
 
         if (_game.Player.Gold < want)
         {
+            // 돈이 모자라면 한 줄을 더 듣는다 — 0x00455AA0 뒤에 0x00455868 로 떨어진다.
             ConfirmDialog.Tell(this, Encounter.TooPoorWord(rng), "교섭", face: face);
+            ConfirmDialog.Tell(this, Encounter.TalkFailedWord(rng), "교섭", face: face);
             return false;
         }
 
