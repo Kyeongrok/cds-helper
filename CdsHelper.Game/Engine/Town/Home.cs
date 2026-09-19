@@ -549,9 +549,14 @@ public static class Home
     public const int AnimalCategory = 8;
 
     /// <summary>
-    /// 아내의 욕심 칸 — 성미 여덟 가운데 <b>여섯째</b>(편협 0 · 1 · 욕심장이 2).
+    /// 아내의 성미 칸 — 성미 여덟 가운데 <b>일곱째</b>(칸 번호 6, 무신경 0 · 1 · 신경질 2).
     /// </summary>
-    public const int GreedSlot = 5;
+    /// <remarks>
+    /// 동물 사건(<c>0x00460306</c>)과 사진 사건(<c>0x00460471</c>) 둘 다 성미 버퍼 첫머리에서
+    /// <c>+0x18</c>, 곧 <b>칸 6</b> 을 본다. 값이 2 이상이면 그냥 벌이가 되고, 1 이면 운을
+    /// 굴리고(<c>rand(100) &gt; 운+1</c> 이면 놓친다), 0 이면 굴림 없이 놓친다.
+    /// </remarks>
+    public const int GreedSlot = 6;
 
     /// <summary>
     /// 동물을 구경시켜 돈을 벌었는가, 아니면 놓쳤는가(<c>0x00460306</c>).
