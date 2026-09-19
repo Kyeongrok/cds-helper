@@ -89,12 +89,14 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
     }
 
     /// <summary>
-    /// 아내의 욕심 칸(성미 여섯째). 여급 표에서 별자리와 혈액형을 꺼내 센다(<c>0x0047CB70</c>).
+    /// 아내의 성미 칸 <see cref="Home.GreedSlot"/>(칸 6). 여급 표에서 별자리와 혈액형을 꺼내
+    /// 센다(<c>0x0047CB70</c>).
     /// </summary>
     /// <remarks>
     /// 아내는 별자리를 <b>생월·생일</b>로 쥐고 있어(<c>0x0047CB50</c>) 얼굴로 지어내지 않는다.
-    /// 운명 코드 보정(<c>0x0047D710</c>)은 여자면 <c>clamp(나이/5, 0, 2)</c> 줄인데 그 줄들이
-    /// 손대는 칸이 여섯째가 아니라 여기서는 없는 셈이다. 아내를 못 찾으면 1 로 둔다.
+    /// 운명 코드 보정(<c>0x0047D710</c>)은 여자면 <c>clamp(나이/5, 0, 2)</c> 줄인데, 그 줄이
+    /// 칸 6 을 건드리면 값이 갈릴 수 있다 — 여기서는 아직 얹지 않는다(불확실).
+    /// 아내를 못 찾으면 1 로 둔다.
     /// </remarks>
     private int WifeGreed()
     {
