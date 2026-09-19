@@ -53,6 +53,12 @@ public static class GameSave
     /// <summary>이 판부터 모항(새 판을 연 도시)도 적는다 — 항구 발표가 모항에서만 된다.</summary>
     public const int HomePortFrom = 29;
 
+    /// <summary>
+    /// 이 판부터 발견물 아이템은 <b>발표할 때</b> 소지품에 든다(<see cref="GameInfo.VirtualItems"/>).
+    /// 앞 판은 발견할 때 넣어 두었으므로, 아직 안 알린 발견물의 아이템을 한 벌씩 걷어 낸다.
+    /// </summary>
+    public const int VirtualItemsFrom = 30;
+
     /// <summary>이 판부터 <c>ShipStats</c> 에 마스트의 돛도 함께 적힌다.</summary>
     public const int SailsInStatsFrom = 19;
 
@@ -204,7 +210,7 @@ public static class GameSave
     /// <summary>지금 상태를 적는다. 실패하면 까닭을 돌려준다(성공이면 빈 문자열).</summary>
     public static string Save(Player player)
     {
-        var data = new Data(HomePortFrom, DateTime.Now, player.Gold, player.Date,
+        var data = new Data(VirtualItemsFrom, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
                             new Dictionary<string, int>(player.Skills), [.. player.Hints],
                             [.. player.Mates], [.. player.Met], [.. player.Items],

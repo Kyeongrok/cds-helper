@@ -180,12 +180,12 @@ public static class DisevScript
         new(Sig(0x0F, 0x05), 4, "아이템 소지 조건"),     // 0x00408EC8: 있으면 1 (cds_disev_editor 이름이 뒤바뀌어 있었다)
         new(Sig(0x0F, 0x0E), 4, "힌트 상태 활성 조건"),
         new(Sig(0x12, 0x0E), 4, "힌트 상태 미활성 조건"),
-        new(Sig(0x00, 0x05), 4, "아이템 획득"),
+        new(Sig(0x00, 0x05), 4, "아이템 보이기"),
         new(Sig(0x57, 0x05), 4, "아이템 상실"),
         new(Sig(0x01, 0x0B), 4, "발견물 등록/발견 처리"),
         new(Sig(0x01, 0x15), 4, "교역품 활성화"),
-        new(Sig(0x05, 0x05), 4, "이벤트 아이템 등록"),
-        new(Sig(0x26, 0x05), 4, "이벤트 아이템 처리"),
+        new(Sig(0x05, 0x05), 4, "아이템 획득(발견물 제외)"),
+        new(Sig(0x26, 0x05), 4, "아이템 획득(버리기 창)"),
         new(Sig(0x05, 0x0E), 4, "힌트 획득"),
         new(Sig(0x26, 0x08), 4, "신도시 생성"),
         new(Sig(0x26, 0x10), 7, "특수 건물 생성"),
@@ -651,7 +651,7 @@ public static class DisevScript
                 return $"금화 -{U32(raw, 2)}";
             case "아이템 소지 조건":
             case "아이템 비소지 조건":
-            case "아이템 획득":
+            case "아이템 보이기":
             case "아이템 상실":
                 return $"{kind}: 아이템 ID {U16(raw, 2)}";
             case "힌트 상태 활성 조건":
@@ -679,8 +679,8 @@ public static class DisevScript
                 return $"힌트 획득: 힌트 {U16(raw, 2)}";
             case "교역품 활성화":
                 return $"교역품 활성화: 교역품 {U16(raw, 2)}";
-            case "이벤트 아이템 등록":
-            case "이벤트 아이템 처리":
+            case "아이템 획득(발견물 제외)":
+            case "아이템 획득(버리기 창)":
                 return $"{kind}: 아이템 ID {U16(raw, 2)}";
             case "음원 정지":
                 return $"음원 정지: 슬롯 {U16(raw, 2)}";

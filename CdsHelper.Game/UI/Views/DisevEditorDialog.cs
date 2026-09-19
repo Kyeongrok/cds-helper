@@ -536,7 +536,7 @@ public sealed class DisevEditorDialog : GameWindow
         if (op.Kind == "EVSTILL 이미지 표시") return ("그림", () => ShowEventStill(slot));
         if (op.Kind == "음원 재생") return ("▶", () => PlaySound(slot));
         if (op.Kind == "AVI 재생") return ("▶", () => PlayMovie(slot));
-        if (op.Kind == "아이템 획득") return ("보기", () => ShowItem(slot));
+        if (op.Kind == "아이템 보이기") return ("보기", () => ShowItem(slot));
         return null;
     }
 

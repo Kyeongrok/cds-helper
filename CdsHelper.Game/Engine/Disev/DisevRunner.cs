@@ -427,12 +427,6 @@ public sealed class DisevRunner
             //   34  Wait(29 1A)          창이 모달이라 멈출 자리가 없다 — 연출이라 건너뛴다
             //   20  HideDialog(48)       "
             //   20  ShowDialog(49)       "
-            //   12  MarkEventItem(26 05) <b>옮길 것이 없다.</b> 인자는 아이템이 아니라 <b>힌트</b>고
-            //                              (0x00406CB0 이 0x0058B4E0 + n*8 로 푼다), 하는 일은
-            //                              그 힌트의 개방 비트를 세우는 것뿐이다
-            //                              (0x0040A0F8 의 or [힌트+4], 8). 그 비트는 판을 열 때
-            //                              120줄 모두 서 있고 지우는 곳이 없어(LibraryDialog 의
-            //                              Unlocked 주석 참고) 다시 세워도 달라지는 것이 없다.
             //   10  OccupyCity(23 08)    도시 레코드 +0x04 에 비트 2 를 세운다(0x00409E36, 25 08 이 지운다).
             //                              마을 공략에 이겼을 때(0x00468B20)도 이 비트와 나라를 함께 세운다.
             //                              <b>그 비트를 읽는 곳을 못 찾았다</b> — 나라는 앞의 26 1C 1A 가 넘긴다.
@@ -672,11 +666,19 @@ public sealed class DisevRunner
                 return null;
 
             // 05 05 — 16칸 소지품에 넣는다. 아이템 획득(00 05)과 달리 알림 창은 없다.
+            // 05 05 [아이템] — 준다(0x00408A06). 다만 그 아이템이 <b>발견물 아이템</b>(표 +0x30)이면 아무 일도
+            // 없다 — 발견물 아이템은 발표할 때 들어온다. 꽉 찼으면 버리기 창 없이 놓친다.
             case DisevCall.AddEventItem:
-                if (MakeRoom(I("Item"))) _game.Player.Take(I("Item"));
+                GiveUnlessDiscovery(I("Item"));
                 return null;
+            // 00 05 [아이템] — 아이템 창을 <b>보여 주기만</b> 한다(0x004083DC → 0x0046E7D0(아이템, 0)).
+            // 발견한 뒤 대본이 그 물건을 보이는 자리다. 소지품에는 안 넣는다.
             case DisevCall.GiveItem:
-                Obtain(I("Item"));
+                ShowItem(I("Item"));
+                return null;
+            // 26 05 [아이템] — 준다(0x00409F24). 꽉 찼으면 버릴 것을 고르게 하고, 안 고르면 받았다고만 한다.
+            case DisevCall.MarkEventItem:
+                GiveMakingRoom(I("Item"));
                 return null;
             case DisevCall.RemoveItem:
                 _game.Player.Drop(I("Item"));
@@ -1186,48 +1188,68 @@ public sealed class DisevRunner
     /// 눌렀을 때 뜨는 것과 같은 창이다(<see cref="ItemInfoDialog"/>).
     /// 소지품 열여섯 칸이 다 찼으면 <b>버릴 것을 고르게 한다</b>(<c>0x00409F93</c>) — 안 버리면 못 든다.
     /// </remarks>
-    private void Obtain(int itemId)
-    {
-        if (!MakeRoom(itemId) || !_game.Player.Take(itemId)) return;
-        if (_game.Items?.Find(itemId) is not { } item) return;
+    private string ItemName(int itemId) => _game.Items?.Find(itemId)?.Name ?? $"아이템 {itemId}";
 
+    /// <summary>아이템 창만 띄운다(00 05).</summary>
+    private void ShowItem(int itemId)
+    {
+        if (_game.Items?.Find(itemId) is not { } item) return;
         ItemInfoDialog.Show(_owner, item, _game.ItemText?.Of(itemId) ?? "", _game.ItemPictures);
     }
 
     /// <summary>
-    /// 소지품 자리를 낸다(<c>0x00409F93</c>) — 다 찼으면 버릴 것을 고르게 하고, 안 고르면 그 물건을 놓친다.
+    /// 05 05 — 발견물 아이템이 아니면 준다(<c>0x00408A06</c>).
     /// </summary>
     /// <remarks>
     /// <code>
+    ///   0x00408A4F  274 발견물의 표 +0x30 과 같으면 끝(말 없음)
+    ///   0x005385D0  「[%s]%s 손에 넣었다」
+    ///   0x00538598  「소유 아이템이 너무 많기 때문에 [%s]%s 포기했습니다」   ← 꽉 찼을 때, 버리기 창 없음
+    /// </code>
+    /// </remarks>
+    private void GiveUnlessDiscovery(int itemId)
+    {
+        if (_game.Discoveries?.Table is { } table && table.Discoveries.Any(r => r.ItemId == itemId)) return;
+        string name = ItemName(itemId);
+        if (_game.Player.IsBagFull)
+        {
+            NoticeDialog.Show(_owner, $"소유 아이템이 너무 많기 때문에 [{name}]{GameUi.Josa(name, "을", "를")} 포기했습니다");
+            return;
+        }
+        _game.Player.Take(itemId);
+        NoticeDialog.Show(_owner, $"[{name}]{GameUi.Josa(name, "을", "를")} 손에 넣었다");
+    }
+
+    /// <summary>
+    /// 26 05 — 준다. 꽉 찼으면 버릴 것을 고르게 한다(<c>0x00409F24</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   빈 칸이 있으면 말 없이 넣는다
     ///   0x00538888  「[%s]을 손에 넣었습니다만 소유 아이템이 많아서 더 이상 가질 수 없습니다.
     ///                필요없는 아이템을 선택해 버려 주십시오.」
-    ///   0x005388F8  「버릴 아이템을 선택해 주십시오」   ← 목록 제목
-    ///   0x00538598  「소유 아이템이 너무 많기 때문에 [%s]%s 포기했습니다」
+    ///   0x005388F8  「버릴 아이템을 선택해 주십시오」   ← 지금 든 16개 목록(0x004B1100)
+    ///   고르면 그것을 버리고 다시 넣어 본다 · 물리면 0x00538918 「[%s]을 손에 넣었습니다」만 하고 안 넣는다
     /// </code>
-    /// 게임은 자리가 날 때까지 목록을 되풀이해 낸다. 물리면 그 물건을 포기한다.
     /// </remarks>
-    private bool MakeRoom(int itemId)
+    private void GiveMakingRoom(int itemId)
     {
         var player = _game.Player;
-        if (!player.IsBagFull) return true;
-
-        string name = _game.Items?.Find(itemId)?.Name ?? $"아이템 {itemId}";
-        NoticeDialog.Show(_owner, $"[{name}]을 손에 넣었습니다만 소유 아이템이 많아서 더 이상 가질 수 없습니다. "
-                                + "필요없는 아이템을 선택해 버려 주십시오.");
-
+        string name = ItemName(itemId);
         while (player.IsBagFull)
         {
+            NoticeDialog.Show(_owner, $"[{name}]을 손에 넣었습니다만 소유 아이템이 많아서 더 이상 가질 수 없습니다. "
+                                    + "필요없는 아이템을 선택해 버려 주십시오.");
             var held = player.Items.ToList();
-            var names = held.Select(id => _game.Items?.Find(id)?.Name ?? $"아이템 {id}").ToList();
-            int at = ChoiceDialog.Ask(_owner, "버릴 아이템을 선택해 주십시오", names);
+            int at = ChoiceDialog.Ask(_owner, "버릴 아이템을 선택해 주십시오", [.. held.Select(ItemName)]);
             if (at < 0 || at >= held.Count)
             {
-                NoticeDialog.Show(_owner, $"소유 아이템이 너무 많기 때문에 [{name}]{GameUi.Josa(name, "을", "를")} 포기했습니다");
-                return false;
+                NoticeDialog.Show(_owner, $"[{name}]을 손에 넣었습니다");
+                return;
             }
             player.Drop(held[at]);
         }
-        return true;
+        player.Take(itemId);
     }
 
     /// <summary>

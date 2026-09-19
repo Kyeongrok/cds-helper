@@ -571,11 +571,22 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
             if (at < 0 || at >= rows.Count) return;
 
             var row = rows[at];
+
+            // 아이템을 주는 발견물이면 소지품이 넘칠지 먼저 묻는다(0x0047ECBC) — 아니오면 고르기로.
+            if (row.GivesItem && _player.Items.Count + 1 > Player.MaxItems
+                && !ConfirmDialog.Ask(owner, "소지품을 다 갖진 못하게 됩니다만, 괜찮습니까?"))
+                continue;
+
             if (!_player.Announce(row.Id)) continue;
 
             // 자리로는 못 찾는 것(유적 속 물건·인물·비보)은 알려도 아무도 안 들어 준다
             // (0x0047E820) — 명성도 회복도 없이 알린 것으로만 찍힌다.
-            if (row.Indirect) { GameDialog.Show(owner, Harbor.NobodyCares); continue; }
+            if (row.Indirect)
+            {
+                GameDialog.Show(owner, Harbor.NobodyCares);
+                GiveFound(owner, row);
+                continue;
+            }
 
             int fame = Harbor.FameFor(row);
             _player.Fame += fame;
@@ -591,6 +602,16 @@ internal sealed class HarborMenu(Window view, Engine.Game game, GameMenuHost men
                 DiscoveryDialog.ShowPicture(owner, _game.Stills, row.Picture);   // 그림만(0x004AD640)
 
             GameDialog.Show(owner, $"명성이 {fame} 올라갔다!");
+            GiveFound(owner, row);
         }
+    }
+
+    /// <summary>
+    /// 발표한 발견물의 아이템이 <b>그제야</b> 소지품으로 들어온다(<c>0x0047EA5F</c> → <c>0x004B1710</c>).
+    /// 아무도 안 들어 준 것이어도 들어온다. 넘치면 물릴 수 없는 버리기 창이다(<see cref="ItemGain"/>).
+    /// </summary>
+    private void GiveFound(Window owner, DiscoveryTable.Record row)
+    {
+        if (row.GivesItem) ItemGain.AddForced(owner, _game, [row.ItemId]);
     }
 }

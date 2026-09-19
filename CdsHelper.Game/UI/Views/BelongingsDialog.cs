@@ -71,7 +71,8 @@ public sealed class BelongingsDialog : GameWindow
 
         // 창은 <b>줄 수를 따라 자란다</b> — 원본도 넉 줄 남짓한 납작한 창으로 열리고
         // 지닌 것이 늘면 아래로 길어진다. 가로는 원본이 화면의 2/3 쯤이다.
-        int lines = Math.Clamp(Math.Max(player.Items.Count, discoveries.Count),
+        int virtualCount = game != null ? Engine.GameInfo.VirtualItems(game).Count : 0;
+        int lines = Math.Clamp(Math.Max(player.Items.Count + virtualCount, discoveries.Count),
                                MinRows, MaxRows);
         Width = BoardWidth;
         Height = ChromeHeight + lines * RowHeight;
@@ -115,7 +116,9 @@ public sealed class BelongingsDialog : GameWindow
             });
 
         _bag.AddRange(player.Items);
-        foreach (int id in player.Items)
+        // 실제 16칸 뒤에 아직 안 알린 발견물의 아이템이 붙는다(0x0044CBB3). 장비 셈은 실제 칸만 본다.
+        var shown = player.Items.Concat(game != null ? Engine.GameInfo.VirtualItems(game) : []).ToList();
+        foreach (int id in shown)
         {
             var row = Row(id);
             _rows.Add(row);
