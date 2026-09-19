@@ -767,16 +767,23 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// 게임은 배를 <b>살 때도</b> 같은 창으로 이름을 받는데 우리 조선소 구입은 아직 안 묻는다 —
     /// 그때는 안 쓴 이름을 하나 집어 준다(<c>Player.SuggestShipName</c>).
     /// </remarks>
+    /// <remarks>
+    /// 곧장 입력 창이다. 「배의 이름을 정해 주십시오」(<c>0x00531478</c>)는 <b>빈 이름으로 결정했을 때만</b>
+    /// 얼굴 없이 내고 창을 다시 띄운다. 바꾸고 나서 알리는 말은 없다.
+    /// </remarks>
     private void RenameShip(Ship ship)
     {
         var owner = Owner;
-        Say("배의 이름을 정해 주십시오");
-
-        // 그대로 결정했으면 고칠 게 없다 — 창은 그 둘을 가려 주지 않는다.
-        if (ShipNameDialog.Ask(owner, ship.Name) is not { } name || name == ship.Name) return;
-        if (!ship.Rename(name)) return;
-
-        NoticeDialog.Show(owner, $"{ship.Name}호로 바꾸었다");
+        while (ShipNameDialog.Ask(owner, ship.Name) is { } name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                Notice("배의 이름을 정해 주십시오");
+                continue;
+            }
+            if (name != ship.Name) ship.Rename(name);
+            break;
+        }
         _menu.Refresh();
     }
 
