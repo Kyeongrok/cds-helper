@@ -56,7 +56,11 @@ public sealed class MarketRates
     public IReadOnlyDictionary<int, int> Adjusted => _game.Player.CityRates;
 
     /// <summary>살 때 내는 값 — 정가에 그 도시 시세를 먹인 것이다.</summary>
-    public int BuyPrice(int listPrice, int cityId) => Apply(listPrice, Of(cityId));
+    /// <remarks>
+    /// 시세 곱하기(<c>0x00429DC0</c>)는 <c>정가 x 시세 / 100</c> 이고 정가가 있으면 최소 1 이다.
+    /// <b>100 단위로 내리지 않는다</b> — 내림은 시장 매각 본체(<c>0x004B3D1D</c>)에만 있다.
+    /// </remarks>
+    public int BuyPrice(int listPrice, int cityId) => Scale(listPrice, Of(cityId));
 
     /// <summary>팔 때 받는 값.</summary>
     public int SellPrice(int listPrice, int cityId) => Apply(listPrice, Of(cityId));
@@ -69,7 +73,7 @@ public sealed class MarketRates
     /// 가게 쪽에서 붙인 이름이다. 시장은 EXE 표(<c>ItemTable</c>)를 쓰는 쪽이 원본이라
     /// 이 두 줄은 옛 부르는 곳을 위해 남겨 둔 것이다.
     /// </remarks>
-    public int BuyPrice(Item item, int cityId) => Apply(item.SellPrice, Of(cityId));
+    public int BuyPrice(Item item, int cityId) => Scale(item.SellPrice, Of(cityId));
 
     /// <inheritdoc cref="BuyPrice(Item, int)"/>
     public int SellPrice(Item item, int cityId) => Apply(item.BuyPrice, Of(cityId));
@@ -84,6 +88,11 @@ public sealed class MarketRates
     /// 정가에 시세를 먹인다. 값이 커도 넘치지 않게 <see cref="long"/> 으로 셈한다 —
     /// 가장 비싼 것이 50만이라 시세를 곱하면 int 한 줄로는 아슬아슬하다.
     /// </summary>
+    /// <summary>시세만 먹인다(<c>0x00429DC0</c>) — 정가가 있으면 최소 1.</summary>
+    private static int Scale(int listPrice, int rate) =>
+        listPrice <= 0 ? 0
+        : Math.Max(1, (int)Math.Min(int.MaxValue, (long)listPrice * rate / Par));
+
     private static int Apply(int listPrice, int rate) =>
         listPrice <= 0 ? 0
         : Round((int)Math.Min(int.MaxValue, (long)listPrice * rate / Par));
