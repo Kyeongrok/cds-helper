@@ -201,11 +201,23 @@ public sealed record Facility(FacilityKind Kind, string Name, string[] Menu, int
     public const string SavingsExit = "중지한다";
 
     /// <summary>
-    /// 건물 표(<c>CityBuildingTable</c>)의 종류 이름으로 시설을 찾는다. 아직 흉내내지 않는
-    /// 종류(성문·상관·모스크 …)는 나가기 한 줄만 있는 창을 준다.
+    /// 건물 코드 0~11 이 가리키는 시설 — 게임은 종류 이름이 아니라 <b>코드</b>로 건물 갈래를 고른다.
     /// </summary>
-    public static Facility For(string kind)
+    /// <remarks>
+    /// 그래서 코드 2 인 「성」·「총독부」·「황궁」도 왕궁 갈래라 「왕궁을 나온다」(<c>0x00544D08</c>)가
+    /// 뜬다. 코드 12~15(모스크·사원·상관·저택·학자 저택·관청·대사관 …)는 후원자가 앉는 자리로
+    /// 「%s에서 나온다」(<c>0x00568DC0</c>)다.
+    /// </remarks>
+    private static readonly string[] CodeKinds =
+        ["항구", "교역소", "왕궁", "교회", "술집", "여관", "조선소", "시장", "도서관", "조합", "성문", "자택"];
+
+    /// <summary>
+    /// 건물의 시설을 찾는다 — 코드가 0~11 이면 그 갈래, 아니면 종류 이름으로 찾고, 그래도 없으면
+    /// 나가기 한 줄만 있는 창을 준다.
+    /// </summary>
+    public static Facility For(string kind, int code = -1)
     {
+        if (code >= 0 && code < CodeKinds.Length) kind = CodeKinds[code];
         foreach (var f in All)
             if (f.Name == kind) return f;
         return new Facility(FacilityKind.Other, kind, [$"{kind}에서 나온다"]);

@@ -472,7 +472,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     /// </summary>
     private void AddSpot(CityBuildingTable.Building building, int scale)
     {
-        var facility = Facility.For(building.Kind);
+        var facility = Facility.For(building.Kind, building.Code);
         var tag = GameUi.NameTag(building.Kind);   // 지도 이름표에는 종류가 뜬다("술집")
         _layer.Children.Add(tag);
         _tags.Add(tag);
@@ -578,7 +578,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
         // 배신한 후원자의 나라에서는 건물에 들어서다 보복을 당한다(0x004A267D → 0x00450140).
         if (Ambushed()) return;
 
-        var facility = Facility.For(building.Kind);
+        var facility = Facility.For(building.Kind, building.Code);
         if (!PassFameGate(building, facility)) return;   // 문 앞에서 돌아섰다
         Discover(building);                              // 이 건물이 곧 발견물일 수 있다
         Greet(facility, building);
@@ -747,7 +747,7 @@ public sealed class CityPicView : GameWindow, ITownScreen
     public void EnterHome()
     {
         foreach (var building in _table.InCity(_cityId))
-            if (Facility.For(building.Kind).Kind == FacilityKind.Home) { Enter(building); return; }
+            if (Facility.For(building.Kind, building.Code).Kind == FacilityKind.Home) { Enter(building); return; }
     }
 
     /// <summary>
