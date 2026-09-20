@@ -203,9 +203,6 @@
                                     Background="#FAFAFA"
                                     BorderBrush="#E0E0E0"
                                     BorderThickness="0,0,0,1">
-                                    <MenuItem Header="파일">
-                                        <MenuItem Command="{Binding LoadSaveCommand}" Header="세이브 파일 열기" />
-                                    </MenuItem>
                                     <MenuItem x:Name="PART_SettingsMenu" Header="설정" />
                                     <MenuItem
                                         x:Name="PART_ShipMapMenu"
