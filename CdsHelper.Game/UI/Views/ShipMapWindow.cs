@@ -646,6 +646,9 @@ public sealed class ShipMapWindow : Window
                                                  : _host.Status;
             _stopAutoButton.Visibility = _host.AutoSailing ? Visibility.Visible : Visibility.Collapsed;
             CheckPort();
+            // 극지방은 <b>틱마다</b> 본다(0x0048EF29) — 하루가 안 넘어가도 문턱을 넘는 그
+            // 틱에 한 번 난다. 게임오버면 그 틱의 나머지는 건너뛴다.
+            if (!CheckPolar()) return;
             SpotCities();
             _folkEntered = MeetFolk();
             CheckDiscovery();
@@ -3370,9 +3373,6 @@ public sealed class ShipMapWindow : Window
         {
             // 새 도시가 섰으면 알린다 — 날이 간 뒤라야 그 달로 넘어간 것이 보인다.
             TellFounded();
-
-            // 극지방은 뭍이든 바다든 같이 본다(0x0048D690) — 넘어서는 걸음에만 한 번 난다.
-            if (!CheckPolar()) return;
 
             // 뭍은 따로 센다 — 보급도 항해일도 없고 여행비와 규율만 움직인다.
             if (_host.IsOnLand)
