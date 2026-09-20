@@ -2004,7 +2004,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                             Environment.TickCount);
         var dice = new GameRandom(Environment.TickCount);
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
-                        FighterSprites.SetForCulture(_culture), arena: "duel-tavern", bgm: _game.Bgm);
+                        // 후원자 자리는 술집·여관이 아니므로 무대가 밑값 1(초원)이다(0x004A2D92).
+                        FighterSprites.SetForCulture(_culture), arena: DuelArt.Field, bgm: _game.Bgm);
         // 지면 여느 일기토처럼 도망·용서·죽음이 갈리고, <b>베였을 때만</b> 놀이가 끝난다(0x00410145 의
         // 결과 3). 졌어도 살았으면 이긴 것과 같이 이어 간다 — 원본 함수는 그때도 1 을 낸다.
         if (duel.Won != true && TavernMenu.LostDuel(_view, _player, duel, face, dice, mateFought: false))

@@ -1048,7 +1048,11 @@ public sealed class CityPicView : GameWindow, ITownScreen
         DuelDialog.Show(this, duel, dice, face, _game.Fighters, FighterSprites.SetForCulture(_cultureNo),
                         myFace: _game.Faces?.TryGetBgra(PortraitAges.At(_player.Face, _player.Age, false, _game.Faces),
                                                         female: false),
-                        arena: "duel-tavern", bgm: _game.Bgm);
+                        // 추격대는 든 건물에 따라 무대가 갈린다(0x004A2D92) — 술집·여관이면
+                        // 문화권 배경이고 그 밖에는 초원이다.
+                        arena: _openKind == FacilityKind.Tavern || _openKind == FacilityKind.Inn
+                                   ? DuelArt.TavernFor(_cultureNo) : DuelArt.Field,
+                        bgm: _game.Bgm);
         _huntSlain = false;
         if (duel.Won != true && TavernMenu.LostDuel(this, _player, duel, face, dice, mateFought: false))
         {
