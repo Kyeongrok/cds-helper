@@ -72,10 +72,25 @@ public static class GameInfo
     }
 
     /// <summary>
-    /// 힌트 목록 한 줄 — <b>이름만</b>이다(<c>0x00476020</c> 이 힌트 줄 <c>+0x00</c> 이름을 <c>"%s"</c> 로 적는다).
+    /// 힌트 이름 뒤에 <b>갈래</b>를 괄호로 붙인다 — 「몽생미셸 (종교)」.
     /// </summary>
-    /// <remarks>예전에는 갈래를 괄호로 붙였는데 원본에 없는 표시라 뺐다 — 갈래는 힌트 설명 판에서 본다.</remarks>
-    public static string HintLabel(Game game, int id) => game.HintName(id);
+    /// <remarks>
+    /// 갈래는 힌트 줄의 <c>+0x0C</c> 고 이름표는 <c>0x00560C60</c> 여덟이다(지리·역사·보물·
+    /// 종교·교역품·미신·생물·민족). <b>후원자마다 좋아하는 갈래가 달라</b> 어느 갈래인지가
+    /// 설득에 그대로 드는데, 목록에 이름만 있으면 그때마다 힌트 정보를 다시 펴야 했다.
+    /// 표를 못 읽었으면 이름만 낸다.
+    ///
+    /// <b>원본은 이름만 적지만(<c>0x00476020</c>) 이것은 일부러 둔 것이다</b> — 원본에 없다고
+    /// 뺐다가 되돌렸다. 다시 빼지 말 것.
+    /// </remarks>
+    public static string HintLabel(Game game, int id)
+    {
+        string name = game.HintName(id);
+        if (game.Hints is not { } hints || hints.Find(id) is not { } row) return name;
+
+        string category = hints.CategoryOf(row.Category);
+        return category.Length > 0 ? $"{name} ({category})" : name;
+    }
 
     /// <summary>
     /// 부하의 인물 판에 적을 직업·별자리·혈액형·국적 — 인물 표에서 이름으로 번호를 찾아 밑표에서 꺼낸다.
