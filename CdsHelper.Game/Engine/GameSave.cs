@@ -86,6 +86,17 @@ public static class GameSave
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "CdsHelper", "SAVEDATA.CDS");
 
+    /// <summary>
+    /// <b>자동저장</b> 파일 자리 — 손으로 적은 것과 <b>따로</b> 둔다.
+    /// </summary>
+    /// <remarks>
+    /// 원본에 없는 것이다. 입항할 때마다 덮어쓰므로 손으로 적어 둔 <see cref="Path"/> 를
+    /// 건드리지 않게 이름을 달리한다. 첫 화면의 <b>CONTINUE</b> 가 이 파일을 연다.
+    /// </remarks>
+    public static string AutoPath => System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "CdsHelper", "AUTOSAVE.CDS");
+
     /// <summary>적어 두는 것.</summary>
     /// <param name="Version">형식 판. 나중에 늘릴 때 본다.</param>
     /// <param name="SavedAt">적은 때(현실 시각).</param>
@@ -213,7 +224,10 @@ public static class GameSave
     /// 중단저장인지 — 게임은 중단이면 <c>SAVEDATA.TMP</c> 로 적고, 그것을 불러온 판에 「아직 저장 안 됨」
     /// 비트(<c>0x005A4D18 &amp; 0x80</c>)를 세운다(<c>0x00478E2B</c>). 우리는 파일이 하나라 이 칸으로 든다.
     /// </param>
-    public static string Save(Player player, bool suspended = false)
+    /// <param name="path">
+    /// 적을 자리. 안 주면 <see cref="Path"/> 다 — <b>자동저장</b>만 <see cref="AutoPath"/> 를 준다.
+    /// </param>
+    public static string Save(Player player, bool suspended = false, string? path = null)
     {
         var data = new Data(VirtualItemsFrom, DateTime.Now, player.Gold, player.Date,
                             player.CityId, player.CityName,
@@ -314,9 +328,10 @@ public static class GameSave
                             Suspended: suspended ? true : null);
         try
         {
-            var dir = System.IO.Path.GetDirectoryName(Path);
+            string file = string.IsNullOrEmpty(path) ? Path : path;
+            var dir = System.IO.Path.GetDirectoryName(file);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            File.WriteAllText(Path, JsonSerializer.Serialize(data, Pretty));
+            File.WriteAllText(file, JsonSerializer.Serialize(data, Pretty));
             return "";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -346,12 +361,14 @@ public static class GameSave
     }
 
     /// <summary>적어 둔 것을 읽는다. 없거나 깨졌으면 null.</summary>
-    public static Data? Load()
+    /// <param name="path">읽을 자리. 안 주면 <see cref="Path"/> 다.</param>
+    public static Data? Load(string? path = null)
     {
         try
         {
-            if (!File.Exists(Path)) return null;
-            return JsonSerializer.Deserialize<Data>(File.ReadAllText(Path));
+            string file = string.IsNullOrEmpty(path) ? Path : path;
+            if (!File.Exists(file)) return null;
+            return JsonSerializer.Deserialize<Data>(File.ReadAllText(file));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

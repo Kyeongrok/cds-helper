@@ -79,6 +79,11 @@ public sealed class GameSettingsData
     /// </summary>
     public bool AskLendShips { get; set; } = true;
 
+    /// <summary>
+    /// 항구에 들어설 때마다 <b>자동저장</b> 파일에 적을지. 놀이에는 없는 것이라 꺼 두고 시작한다.
+    /// </summary>
+    public bool AutoSaveOnPort { get; set; }
+
     /// <summary>햄버거에 「여급 수첩」 줄을 낼지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowBarmaidBookMenu { get; set; }
 
@@ -564,6 +569,19 @@ public static class GameSettings
     {
         get => Get(d => d.AskLendShips);
         set => Set(d => d.AskLendShips = value);
+    }
+
+    /// <summary>
+    /// 항구에 들어설 때마다 자동저장할지 — 모드 창에서 켜고 끈다.
+    /// </summary>
+    /// <remarks>
+    /// 적는 자리는 <see cref="Engine.GameSave.AutoPath"/> 라 손으로 적어 둔 것과 따로다.
+    /// 첫 화면의 <b>CONTINUE</b> 가 그 파일을 연다.
+    /// </remarks>
+    public static bool AutoSaveOnPort
+    {
+        get => Get(d => d.AutoSaveOnPort);
+        set => Set(d => d.AutoSaveOnPort = value);
     }
 
     /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>

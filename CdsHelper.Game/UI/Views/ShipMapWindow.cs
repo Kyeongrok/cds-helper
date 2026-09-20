@@ -1424,6 +1424,18 @@ public sealed class ShipMapWindow : Window
             }
             StartMap(fresh: false);
         }));
+        // CONTINUE — 원본에 없는 줄이다. 입항 자동저장(모드 창)이 적어 둔 파일을 연다.
+        items.Children.Add(TitleMenuItem("CONTINUE", () =>
+        {
+            if (!System.IO.File.Exists(Engine.GameSave.AutoPath))
+            {
+                NoticeDialog.Show(this, $"자동저장 데이터{Environment.NewLine}{Engine.GameSave.AutoPath}"
+                                        + $"{Environment.NewLine}가 발견되지 않습니다", "에러");
+                return;
+            }
+            if (!ConfirmDialog.Ask(this, "자동저장한 데이터를 로드합니다", "게임 로드")) return;
+            StartMap(fresh: false, auto: true);
+        }));
         items.Children.Add(TitleMenuItem("MINI GAME", MiniGames));
         items.Children.Add(TitleMenuItem("END GAME", Close));
         items.Children.Add(TitleMenuItem("사운드테스트", SoundTest));
@@ -2392,13 +2404,16 @@ public sealed class ShipMapWindow : Window
         StartMap(fresh: false);
     }
 
-    private void StartMap(bool fresh)
+    /// <param name="auto">
+    /// 자동저장 파일(<see cref="GameSave.AutoPath"/>)을 열지 — 첫 화면의 <b>CONTINUE</b> 다.
+    /// </param>
+    private void StartMap(bool fresh, bool auto = false)
     {
         // 불러올 것이 없으면 타이틀에 그대로 머문다 — 화면부터 갈아 끼우면 되돌리기 번거롭다.
         GameSave.Data? saved = null;
         if (!fresh)
         {
-            saved = GameSave.Load();
+            saved = GameSave.Load(auto ? GameSave.AutoPath : null);
             if (saved == null)
             {
                 NoticeDialog.Show(this, "적어 둔 기록이 없다.");
@@ -3189,6 +3204,9 @@ public sealed class ShipMapWindow : Window
             // 행적에 적는다(원본 갈래 0, 0x0049270F — 도시 화면을 펼 때) — 은퇴하면 이 줄들이 누적 캐릭터의 발자취가 된다.
             _game.Player.Note(Player.TraceArrival, city, _game.Player.Nation);
 
+            // 원본에 없는 것 — 모드 창에서 켜 두었으면 여기서 자동저장한다.
+            AutoSaveHere();
+
             inCity = ShowCityPicture(city, name);
         }
         finally
@@ -3199,6 +3217,22 @@ public sealed class ShipMapWindow : Window
                 _asking = false;
             }
         }
+    }
+
+    /// <summary>
+    /// 항구에 들어선 그 자리에서 <b>자동저장</b> 한다 — 모드 창에서 켰을 때만이다.
+    /// </summary>
+    /// <remarks>
+    /// 원본에 없는 것이다. 적는 자리는 <see cref="Engine.GameSave.AutoPath"/> 라 손으로 적어
+    /// 둔 <c>SAVEDATA.CDS</c> 는 안 건드린다. 적다 넘어져도 놀이는 그대로 굴러가야 하므로
+    /// 띠에 한 줄만 남기고 지나간다.
+    /// </remarks>
+    private void AutoSaveHere()
+    {
+        if (!GameSettings.AutoSaveOnPort) return;
+
+        string error = _game.AutoSave();
+        Say(error.Length == 0 ? "자동저장했습니다" : $"자동저장하지 못했습니다 — {error}");
     }
 
     /// <summary>
