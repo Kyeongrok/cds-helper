@@ -1538,8 +1538,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
             case 2:
                 TalkDialog.Say(_view, face, "", Robbed[dice.Next(Robbed.Length)]);
+                // 실제로 오르는 것은 10 인데 알림만 100 이라고 찍는다 — 원본이 그렇다
+                // (0x004AA467 의 0x004800E0(1, 10) 뒤 0x004AA470 의 0x64).
                 _player.Infamy += RobInfamy;
-                NoticeDialog.Show(_view, $"악명이 {RobInfamy} 올라갔다", "일기토");
+                NoticeDialog.Show(_view, $"악명이 {RobInfamyShown} 올라갔다", "일기토");
                 int gold = dice.Next(RobGoldRoll) + RobGoldBase;
                 _player.Earn(gold);
                 NoticeDialog.Show(_view, $"금화 {gold}닢을 손에 넣었다", "일기토");
@@ -1555,7 +1557,11 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     }
 
     /// <summary>놓아 주면 오르는 명성(<c>0x004AA3E0</c>) · 뺏으면 오르는 악명(<c>0x004AA470</c> 알림 값).</summary>
-    internal const int SpareFame = 10, RobInfamy = 100;
+    /// <summary>
+    /// 놓아 주면 명성 +10(<c>0x004AA3DB</c>), 모두 뺏으면 악명 <b>+10</b>(<c>0x004AA467</c>).
+    /// 악명 알림만 100 이라고 찍는다(<c>0x004AA470</c>) — 원본이 스스로 어긋나 있다.
+    /// </summary>
+    internal const int SpareFame = 10, RobInfamy = 10, RobInfamyShown = 100;
 
     /// <summary>뺏는 금화 — <c>rand(11) + 20</c>(<c>0x004AA486</c>).</summary>
     /// <remarks>
