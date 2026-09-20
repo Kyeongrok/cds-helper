@@ -486,8 +486,9 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
             LandUnits.Lord => 25,
             _ => 0,
         };
-        if (kick > 0 && LandUnits.KindOf(battle.Units[from].Kind) == LandUnits.Kind.Melee
-            && dice.Next(100) <= kick)
+        bool kicked = kick > 0 && LandUnits.KindOf(battle.Units[from].Kind) == LandUnits.Kind.Melee
+                   && dice.Next(100) <= kick;
+        if (kicked)
         {
             Say(to, Countered[dice.Next(Countered.Length)]);
             (from, to) = (to, from);
@@ -495,7 +496,9 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         }
 
         // 닌자의 변신술 — <b>작렬탄이 없을 때</b> 40%로 피해가 없다(0x004492AA 는 비가 아니라 작렬탄을 본다).
-        if (battle.Units[to].Kind == LandUnits.Ninja && !Shells && dice.Next(100) < 40)
+        // <b>되받아쳤으면 아예 안 굴린다</b> — 게임은 되받아친 가지에서 0x004492FB 로 뛰어
+        // 닌자 칸을 통째로 건너뛴다(0x00449299).
+        if (!kicked && battle.Units[to].Kind == LandUnits.Ninja && !Shells && dice.Next(100) < 40)
         {
             Log(new Line(Vanished[dice.Next(Vanished.Length)], from, to, 0, LandUnits.Sound.Ninja));
             return;
