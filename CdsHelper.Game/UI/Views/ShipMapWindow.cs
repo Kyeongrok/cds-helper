@@ -535,6 +535,9 @@ public sealed class ShipMapWindow : Window
 
         // 게임은 지도 아래에도 같은 띠를 하나 둔다 — 짧은 알림이 이 자리에 뜬다.
         var footer = TitleBarStrip(null, _note);
+        // 띠를 누르면 마지막 알림을 상자로 다시 편다(0x0040DE30).
+        footer.Cursor = System.Windows.Input.Cursors.Hand;
+        footer.MouseLeftButtonUp += (_, e) => { e.Handled = true; ReadNote(); };
         DockPanel.SetDock(footer, Dock.Bottom);
         root.Children.Add(footer);
         root.Children.Add(surface);
@@ -3003,6 +3006,8 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     public void Say(string text)
     {
+        // 게임은 글을 넣기 앞서 통을 비운다(0x0040E0D7) — 그래서 통에는 <b>마지막 하나</b>만 남는다.
+        if (text.Length > 0) _lastNote = text;
         _note.Text = text;
         _note.Visibility = Visibility.Visible;
         _noteTick = 0;
@@ -3020,6 +3025,31 @@ public sealed class ShipMapWindow : Window
 
     private DispatcherTimerLite? _noteTimer;
     private int _noteTick;
+
+    /// <summary>띠에 마지막으로 적은 글 — 띠를 눌러 다시 펴 볼 때 쓴다.</summary>
+    /// <remarks>
+    /// 게임은 글통(<c>+0xC4</c>)에 <b>마지막 하나만</b> 담는다 — <c>0x0040E0C0</c> 이 새 글을
+    /// 넣기 앞서 통을 비우기 때문이다(<c>0x0040E0D7</c>). 띠가 흐려진 뒤에도 통은 그대로라
+    /// 눌러 보면 나온다. 비우는 것은 띠를 감출 때뿐이다(<c>0x0040E060</c>).
+    /// </remarks>
+    private string _lastNote = "";
+
+    /// <summary>
+    /// 띠를 눌러 마지막 알림을 다시 편다(<c>0x0040DE30</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0040de38  누름이면
+    ///   0040de3d  글통에 글이 있으면(+0xB8 비트 0)
+    ///   0040de64  0x0049E3E0(0, "Information"(0x00535C84), "%s"(0x0052F858), 글)
+    /// </code>
+    /// 제목이 한글이 아니라 <b>Information</b> 이다 — 원본 그대로 둔다.
+    /// </remarks>
+    private void ReadNote()
+    {
+        if (_lastNote.Length == 0) return;
+        NoticeDialog.Show(this, _lastNote, "Information");
+    }
 
     private void NoteTick()
     {
