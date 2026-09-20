@@ -162,17 +162,6 @@ internal sealed class LandBattleScene : GameWindow
                 continue;
             }
 
-            // 적이 일기토를 걸어오면 그 턴은 통째로 일대일이 된다(0x004479D0 →
-            // 0x0044938E). 물리면 여느 턴으로 돌아간다.
-            if (_battle.FoeDuelOffered(dice) && ConfirmDialog.Ask(this, LandBattle.FoeDuelWord))
-            {
-                var met = Fought(dice);
-                fight.End(met == DuelEnd.Won);
-                if (met == DuelEnd.Slain) { Slain(); return false; }
-                Settle(met == DuelEnd.Won, retreated: met == DuelEnd.Lost, dice);
-                return met == DuelEnd.Won;
-            }
-
             // 「돌격」은 턴 첫머리에 한 번 소리를 낸다(0x0044932E).
             if (order == LandBattle.Charge) _game?.Sfx?.Play(LandUnits.Sound.Charge);
 
@@ -187,6 +176,19 @@ internal sealed class LandBattleScene : GameWindow
             // 건너뛰고 뒷셈으로 간다(0x00449369 → 0x00449410).
             if (!fight.Struck)
             {
+                // 적이 일기토를 걸어오면 그 턴은 통째로 일대일이 된다. 물음은 <b>적 명령을
+                // 고르는 그 자리</b>에서 뜬다 — <c>0x00447A64</c> 가 <c>0x004479D0</c> 을 맨
+                // 먼저 부르고, 참이면 적 명령을 3(일기토)으로 두고 나간다. 곧 <b>묘책이
+                // 터진 뒤</b>다. 물리면 여느 턴으로 돌아간다(0x0044938E).
+                if (_battle.FoeDuelOffered(dice) && ConfirmDialog.Ask(this, LandBattle.FoeDuelWord))
+                {
+                    var met = Fought(dice);
+                    fight.End(met == DuelEnd.Won);
+                    if (met == DuelEnd.Slain) { Slain(); return false; }
+                    Settle(met == DuelEnd.Won, retreated: met == DuelEnd.Lost, dice);
+                    return met == DuelEnd.Won;
+                }
+
                 var lines = fight.Turn(order, _battle.FoeOrder(dice));
                 Play(lines, fight.Opening);
             }
