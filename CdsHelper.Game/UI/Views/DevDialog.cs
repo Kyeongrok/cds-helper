@@ -45,6 +45,9 @@ public sealed class DevDialog : GameWindow
         /// <summary>자동항해 — 목적지 도시를 골라 손을 놓고 몬다. 개발 창을 닫은 뒤 부른다.</summary>
         public Action? AutoSail { get; init; }
 
+        /// <summary>도구 앱(Editor.exe) 띄우기 — 창을 닫은 뒤 부른다.</summary>
+        public Action? HelperApp { get; init; }
+
         /// <summary>싸움 셈을 돌려 보는 세 가지 — 일기토 · 육상전 모의전 · 모의해전. 창을 닫은 뒤 부른다.</summary>
         public Action? Duel { get; init; }
         public Action? LandSpar { get; init; }
@@ -108,6 +111,23 @@ public sealed class DevDialog : GameWindow
                 VerticalAlignment = VerticalAlignment.Center,
             });
             line.Children.Add(GameUi.PushButton(label + "…", () => { Close(); go(); }, 180));
+            rows.Children.Add(line);
+        }
+
+        // 도구 앱 — 따로 도는 exe 다. 표를 손볼 일이 생기면 여기서 띄운다(햄버거에서 옮겼다).
+        if (options.HelperApp is { } tools)
+        {
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+            line.Children.Add(new TextBlock
+            {
+                Text = "도구",
+                Width = 64,
+                Foreground = GameUi.Text,
+                FontWeight = FontWeights.Bold,
+                FontSize = 15,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            line.Children.Add(GameUi.PushButton("도구 앱…", () => { Close(); tools(); }, 180));
             rows.Children.Add(line);
         }
 
