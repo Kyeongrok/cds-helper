@@ -246,11 +246,23 @@ public sealed class Ship
     /// <summary>마스트 하나가 먹는 적재용량과 승원.</summary>
     public const int MastCapacityCost = 25, MastCrewCost = 2;
 
-    /// <summary>그 자리의 돛을 삼각↔사각으로 바꾼다.</summary>
+    /// <summary>
+    /// 그 자리의 돛을 삼각↔사각으로 바꾼다.
+    /// </summary>
+    /// <remarks>
+    /// 새 돛은 <b>지금 돛이 사각이면 삼각, 그 밖이면 사각</b>이다(<c>0x00495100</c>).
+    /// <code>
+    ///   00495100  dec ebx            ; ebx = 지금 돛
+    ///   00495102  cmp ebx, 1
+    ///   00495106  mov eax, 2
+    ///   0049510b  adc eax, -1        ; 돛 &lt; 2 면 2(사각), 아니면 1(삼각)
+    /// </code>
+    /// 그러니 <b>돛이 없는 마스트를 골라도 사각돛이 달린다</b> — 원본 그대로다.
+    /// </remarks>
     public bool SwapSail(int at)
     {
-        if (!CanChangeSail || at < 0 || at >= MastSlots || _sails[at] == NoSail) return false;
-        _sails[at] = _sails[at] == Lateen ? Square : Lateen;
+        if (!CanChangeSail || at < 0 || at >= MastSlots) return false;
+        _sails[at] = _sails[at] < Square ? Square : Lateen;
         return true;
     }
 
