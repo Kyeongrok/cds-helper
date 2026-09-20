@@ -22,21 +22,25 @@ internal static class CityInfoMenu
     /// 그 줄이 조용히 흐려진다 — 그래서 양쪽이 이 이름을 함께 쓴다.
     /// </summary>
     public const string Date = "날짜", Coord = "위도·경도", Gold = "소지금",
-                        Fame = "명성", City = "도시명", Fatigue = "피로도", Morale = "규율",
+                        Fame = "명성", City = "도시명", Fatigue = "피로도", Morale = "규칙",
                         Crew = "선원·대원", Stores = "물·식량", DaysLeft = "남은일수",
-                        Wind = "바람·속도", Language = "언어", Rate = "시세";
+                        Wind = "풍향·풍속", Language = "언어", Rate = "시세",
+                        Current = "해류", Vitality = "생명력";
 
     /// <summary>
     /// 게임 도시정보 창의 줄 차례. 화면에서 그대로 옮겼다.
     /// </summary>
     /// <remarks>
-    /// <b>「규율」한 줄만 우리가 더한 것이다.</b> 게임 띠에는 없지만 뭍을 걸을 때 하루
-    /// 몇씩 깎이는 값이라 눈으로 봐야 한다(<c>0x00475470</c>). 피로도 옆에 둔다.
+    /// 이름표 배열은 <c>0x005691D0</c>(열다섯 줄)이고 차례는 날짜 · 선원·대원 · 물·식량 ·
+    /// 위도·경도 · 소지금 · 피로도 · 명성 · 도시명 · 언어 · 시세 · 남은일수 · <b>규칙</b> ·
+    /// <b>풍향/풍속</b> · <b>해류</b> · <b>생명력</b> 이다.
+    /// 「규칙」은 함대 값 <c>0x005B3954</c> 고(<c>0x0047DF4E</c>), 「생명력」은 제독 컨디션
+    /// <c>0x005B60D8</c> 이다(<c>0x0047DFC9</c>).
     /// </remarks>
     public static readonly string[] Rows =
     [
-        Date, Crew, Stores, Coord, Gold, Fatigue, Morale,
-        Fame, City, Language, Rate, DaysLeft, Wind,
+        Date, Crew, Stores, Coord, Gold, Fatigue,
+        Fame, City, Language, Rate, DaysLeft, Morale, Wind, Current, Vitality,
     ];
 
     private const string OnMark = ":ON", OffMark = ":OFF";
