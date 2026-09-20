@@ -5899,6 +5899,11 @@ public sealed class ShipMapWindow : Window
             // 술잔(104)을 낚시에 지고도(대본은 4E 로 끝남) 손에 넣었다. 대본이 없을 때만 여기서 적는다.
             // 발견물 아이템은 여기서 안 든다 — 발표할 때 들어온다(GameInfo.VirtualItems).
             if (!over && !scripted) log.Discover(_game.Player, id);
+
+            // 게임은 대본 결과가 0 이나 1 이면 그 발견물 줄의 +0x17 에 비트 0 을 세운다
+            // (0x0048D569 · 0x0049294A · 0x00492B49). 그런데 <b>그 비트를 읽는 데가 EXE
+            // 어디에도 없다</b> — 세우기만 하는 죽은 깃발이라 옮길 것이 없다. 「한 번 본
+            // 사건은 다시 안 뜬다」로 쓰려던 자리로 보인다.
         }
         finally
         {
