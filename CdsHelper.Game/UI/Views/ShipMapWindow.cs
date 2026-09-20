@@ -3027,13 +3027,9 @@ public sealed class ShipMapWindow : Window
             //
             // 묻는 것이 먼저다. 게임도 이 자리(0x004687EC)에서 대원 대사까지 낸 다음에야
             // 출입여부를 본다(0x004687FD) — 들어가겠다고 해야 적대 차림표가 뜬다.
-            // 도시가 눈에 들면 먼저 알린다(0x0048D9E6) — 부관이 있으면 부관이 말하고,
-            // 없으면 알림 상자다.
+            // (「제독, 도시가 보입니다!」는 여기가 아니라 <b>도시를 처음 알아볼 때</b> 나온다 —
+            //  SpotCities 로 옮겼다.)
             string where = byLand ? "도시" : "항구";
-            if (_game.Player.MateAt(0).Length > 0)
-                ConfirmDialog.Tell(this, "제독, 도시가 보입니다!", face: MateFace());
-            else
-                NoticeDialog.Show(this, "도시를 발견했습니다!");
 
             // <b>피로도가 60 이상이면 말이 다르다</b>(0x0048DBCA) — 물음인 것은 같다.
             if (!ConfirmDialog.Ask(this, _game.Player.Fatigue >= TiredToRest
@@ -3505,8 +3501,24 @@ public sealed class ShipMapWindow : Window
 
         // 지도는 한 번만 다시 짓는다 — 한 틱에 둘을 봐도 한 장이면 된다.
         HideCities();
-        foreach (int city in spotted)
-            NoticeDialog.Show(this, $"[{_game.CityName(city)}]을(를) 발견했다!", "");
+
+        // 도시 이름은 <b>안 나온다</b> — 부관이 있으면 부관이 말하고(0x0048D9E6 의 0x00478280),
+        // 없으면 얼굴 없는 알림이다(0x0048DA0A 의 0x0049E3E0). 알아본 도시가 여럿이어도
+        // 원본은 한 번만 낸다.
+        _asking = true;
+        _host.Paused = true;
+        try
+        {
+            if (_game.Player.MateAt(0).Length > 0)
+                ConfirmDialog.Tell(this, "제독, 도시가 보입니다!", face: MateFace());
+            else
+                NoticeDialog.Show(this, "도시를 발견했습니다!");
+        }
+        finally
+        {
+            _host.Paused = false;
+            _asking = false;
+        }
     }
 
     /// <summary>발견 반지름의 밑값 — 게임도 측량술에 둘을 더한다(<c>0x0048D834</c>).</summary>
