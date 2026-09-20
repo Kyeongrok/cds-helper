@@ -14,8 +14,8 @@ namespace CdsHelper.Game.Local.Helpers;
 ///   파트 2k+2     320x240   8bpp 색인 (76,800바이트)   ← 사진 k
 ///   파트 2k+3     768바이트  256색 팔레트              ← 사진 k
 /// </code>
-/// 사진은 <b>k = 0~83</b> 이고, 어느 것을 낼지는 EXE 의 표
-/// <c>0x546DD8</c>(9행 x 16열)에서 <c>(문화권 행, 건물 코드)</c> 로 고른다.
+/// 사진은 <b>k = 0~83</b> 이고, 어느 것을 낼지는 정적으로 넣은 표
+/// (<c>exe-tables\건물사진표.json</c>)에서 <c>(문화권 행, 건물 코드)</c>로 고른다.
 ///
 /// <b>타원은 마스크가 판다.</b> 사진 안에도 비침 색인(64, 팔레트값 252,0,252 마젠타)이
 /// 들어 있지만 그것만 믿으면 안 된다 — 타원 꼭대기에 사진이 마젠타로 <i>흐려지는</i>
@@ -38,8 +38,8 @@ public sealed class BuildingPhoto
     /// <summary>테두리를 칠하는 색인. 사진마다 팔레트 7 이 (49,24,24) 로 같다.</summary>
     private const byte EdgeIndex = 7;
 
-    /// <summary>사진 고르는 표(EXE) — 9행(문화권) x 16열(건물 코드), 값 0~83.</summary>
-    private const int PickTableVa = 0x00546DD8;
+    /// <summary>사진 고르는 표 — 9행(문화권) x 16열(건물 코드), 값 0~83.</summary>
+    private const string PickTableName = "건물사진표";
     private const int RowCount = 9, ColCount = 16;
 
     /// <summary>사진 장수. 파트로는 <c>2k+2</c> · <c>2k+3</c> 두 장씩이다.</summary>
@@ -59,7 +59,7 @@ public sealed class BuildingPhoto
     /// <summary>왜 못 열었는지. 잘 열렸으면 빈 문자열.</summary>
     public static string LastError { get; private set; } = "";
 
-    /// <summary>MPCG.CDS 와 EXE 의 고르기 표를 함께 연다. 하나라도 어긋나면 null.</summary>
+    /// <summary>MPCG.CDS 와 사진 고르기 표를 함께 연다. 하나라도 어긋나면 null.</summary>
     public static BuildingPhoto? Open(string gameDirectory)
     {
         LastError = "";
@@ -78,11 +78,12 @@ public sealed class BuildingPhoto
         var mask = archive.Decode(MaskPart);
         if (mask == null || mask.Length < Pixels) { LastError = "타원 마스크를 못 풀었습니다"; return null; }
 
-        var exe = PeImage.Read(Path.Combine(gameDirectory, "CDS_95.EXE"), out string error);
-        if (exe == null) { LastError = error; return null; }
-
-        var pick = new int[RowCount * ColCount];
-        for (int i = 0; i < pick.Length; i++) pick[i] = exe.Int(PickTableVa + i * 4);
+        var pick = TableCache.Read<PickSnapshot>(PickTableName)?.Data?.Pick;
+        if (pick == null || pick.Length != RowCount * ColCount)
+        {
+            LastError = $"{TableCache.Folder}\\{PickTableName}.json 을 찾지 못했거나 형식이 맞지 않습니다";
+            return null;
+        }
 
         // 판이 다른 EXE 를 잘못 읽지 않도록 첫 줄을 확인한다 — 유럽 행은 0,1,2,… 로 간다.
         if (pick[0] != 0 || pick[1] != 1 || pick[2] != 2)
@@ -93,6 +94,8 @@ public sealed class BuildingPhoto
 
         return new BuildingPhoto(archive, mask, pick);
     }
+
+    private sealed record PickSnapshot(int[] Pick);
 
     /// <summary>
     /// 문화권 이름을 표의 행으로 옮긴다. 게임은 문화권 열하나를 아홉 행으로 접는다 —

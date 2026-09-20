@@ -8,9 +8,8 @@ namespace CdsHelper.Game.Local.Helpers;
 /// 여기서는 파일 다루는 일만 한다.
 /// </summary>
 /// <remarks>
-/// <see cref="ExeTable"/>(게임 EXE 에서 굽는 표)와 <see cref="CityTable"/>(앱 DB 에서 굽는 표)이
-/// 같이 쓴다. 둘은 <b>언제 다시 구울지</b>가 서로 다르고 — EXE 는 안 바뀌니 도장이 같으면
-/// 그냥 쓰고, DB 는 앱에서 고쳐지니 원본이 있으면 늘 원본을 본다 — 그 규칙만 각자 갖는다.
+/// <see cref="ExeTable"/>(정적으로 넣은 표)와 <see cref="CityTable"/>(앱 DB 에서 굽는 표)이
+/// 같이 쓴다.
 /// </remarks>
 internal static class TableCache
 {
@@ -21,10 +20,20 @@ internal static class TableCache
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    /// <summary>적어 두는 자리. 세이브·설정과 같은 %APPDATA%\CdsHelper 밑이다.</summary>
-    public static string Folder => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "CdsHelper", "exe-tables");
+    /// <summary>정적으로 넣은 표 자리. 개발 때는 저장소 루트, 배포 때는 실행 파일 옆이다.</summary>
+    public static string Folder
+    {
+        get
+        {
+            for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, "exe-tables");
+                if (Directory.Exists(candidate)) return candidate;
+            }
+
+            return Path.Combine(AppContext.BaseDirectory, "exe-tables");
+        }
+    }
 
     public static string PathFor(string name) => Path.Combine(Folder, name + ".json");
 

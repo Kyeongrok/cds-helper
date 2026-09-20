@@ -21,6 +21,10 @@
         <Link>asset\%(RecursiveDir)%(Filename)%(Extension)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <Content Include="..\exe-tables\**\*.json">
+        <Link>exe-tables\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
       <Content Include="..\CdsHelper\cities.json">
         <Link>cities.json</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
