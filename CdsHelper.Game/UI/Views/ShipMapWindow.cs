@@ -673,6 +673,9 @@ public sealed class ShipMapWindow : Window
             _morale.Text = $"규칙{_game.Player.Morale,4}";
             _windText.Text = WindLine();
             _currentText.Text = CurrentLine();
+            // 커서 쪽 길찾기 보정은 항해사(자리 1)와 나침반이 있을 때만 든다(0x0048ECEF).
+            _host.PathAssist = _game.Player.MateAt(NavigatorSlot).Length > 0
+                               && _game.Player.Items.Contains(CompassItem);
             _hpCell.Text = $"HP:{_game.Player.Condition,4}";
             // 게임은 뭍이면 「대원」, 바다면 「선원」이다(0x0056BEA8 의 %s).
             _crew.Text = $"{(_host.IsOnLand ? "대원" : "선원")}{_game.Player.Crew,4}명";
