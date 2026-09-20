@@ -465,12 +465,12 @@ public sealed class LandBattle
                               FoeSkill(Skill.Shooting), dice);
 
     /// <summary>
-    /// 적 대장의 기능 자리. <b>적 대장 인물을 아직 안 들고 있어</b> 능력에서 어림한다.
+    /// 적 대장의 기능 자리 — 검술·포술·사격술이 <b>셋 다 같은 값</b>이다.
     /// </summary>
     /// <remarks>
-    /// 게임은 <c>0x00446F70(기능, 6)</c> 으로 적 대장 인물 레코드를 그대로 본다. 우리는
-    /// 그 자리에 세울 인물을 안 만들어 두었으므로 검술은 무력에서, 포술·사격술은 지력에서
-    /// 넷으로 갈라 매긴다.
+    /// 판을 세울 때 <b>도시 규모</b>로 매긴다(<c>0x00449FBB</c>): 0 → 0 · 1~2 → 1 ·
+    /// 3~4 → 2 · 5 이상 → 3 을 <c>+0x48</c>(검술) · <c>+0x4C</c> · <c>+0x50</c> 에 똑같이 적고,
+    /// 싸움은 <c>0x00446F70</c> 으로 그 값을 그대로 읽는다. 능력치에서 어림하던 것은 틀렸다.
     /// </remarks>
     private int FoeSkill(int slot)
     {
@@ -485,8 +485,7 @@ public sealed class LandBattle
                 _ => 0,
             }, 0, Skill.MaxLevel);
 
-        int stat = slot == Skill.Sword ? FoeMight : FoeMind;
-        return stat >= 80 ? 3 : stat >= 60 ? 2 : stat >= 40 ? 1 : 0;
+        return Scale <= 0 ? 0 : Scale <= 2 ? 1 : Scale <= 4 ? 2 : 3;
     }
 
     /// <summary>
