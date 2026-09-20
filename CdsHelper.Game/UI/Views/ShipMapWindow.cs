@@ -2697,11 +2697,9 @@ public sealed class ShipMapWindow : Window
 
         if (_host.IsOnLand)
         {
-            // 상륙해 있으면 「보급」·「수리」가 붙는다(0x0048E5E0 의 상륙 차림표 — 탐색 ·
-            // 보급 · 수리 · 승선한다). 「탐색」은 우리 쪽에서 걸으며 하는 발견 판정이 대신한다.
-            items.Add(("보급", () => { Close(); Forage(); }));
-            items.Add(("수리", () => { Close(); RepairAshore(); }));
-
+            // 뭍에 올라 있는 동안은 보급·수리 줄이 <b>없다</b> — 그 둘은 배에 탄 채로 여는
+            // 「상륙」 차림표에 있다(0x0048B1E2~0x0048B4C2 에는 도시·승선·정보·도시좌표·
+            //  항해일지·기능뿐이다).
             // 대 둔 배 곁(두 칸 안)이어야 선다(0x0048B397) — 아무 물가에서나 타지는 못한다.
             // 함대가 도시 항구에 들어가 있으면(0x005B6388 — 바다로 들어와 성문으로 탐험 나선 길) 줄이 없다 —
             // 그 도시로 걸어 돌아가야 배에 오른다.
@@ -2711,18 +2709,9 @@ public sealed class ShipMapWindow : Window
         }
         else if (_host.IsNearLand())
         {
-            items.Add(("상륙", () =>
-            {
-                if (!_host.Land()) { Close(); return; }
-                _game.Bgm.Play(BgmPlayer.LandTrack);
-
-                // 재해가 풀려 <b>부관이 한 마디 할 때만</b> 창을 남긴다 — 닫으면 그 자리에서
-                // 멈춤이 풀려 말이 뜨는 동안 말(馬)이 벌써 달려 나가고, 읽고 나면 바로 승선할
-                // 수도 있기 때문이다. 아무 말 없이 상륙했으면 <b>곧바로 닫아</b> 그 자리에서
-                // 움직이게 둔다.
-                if (EndVoyage()) CommandMenu.Refresh();
-                else Close();
-            }));
+            // 「상륙」은 곧바로 뭍에 올리지 않는다 — 네 줄짜리 차림표가 한 겹 더 있다
+            // (0x0048E5E0). 「탐색」만 뭍에 올리고, 보급·수리는 <b>배에 탄 채로</b> 한다.
+            items.Add(("상륙", () => CommandMenu.Push(AshoreMenuBox)));
         }
 
         items.Add(("정보", () => CommandMenu.Push(InfoMenuBox)));
@@ -2822,6 +2811,34 @@ public sealed class ShipMapWindow : Window
         CommandMenu.Close();
         ReturnToTitle();
     }
+
+    /// <summary>
+    /// 「상륙」 차림표(<c>0x0048E5E0</c>) — 탐색(<c>0x00570D30</c>) · 보급(<c>0x00570D38</c>) ·
+    /// 수리(<c>0x00570D40</c>) · 승선한다(<c>0x00570D48</c>) 넉 줄이고 제목은 「상륙」
+    /// (<c>0x00570D58</c>)이다.
+    /// </summary>
+    /// <remarks>
+    /// <b>「탐색」만 뭍에 올린다</b>(<c>0x0048E734</c>). 보급(<c>0x0048DC60</c>)과
+    /// 수리(<c>0x0048E140</c>)는 배에 탄 채로 하고 차림표로 되돌아오며, 「승선한다」는 닫는다.
+    /// </remarks>
+    private GameMenu AshoreMenuBox() => new("상륙", null,
+    [
+        ("탐색", () =>
+        {
+            if (!_host.Land()) { Close(); return; }
+            _game.Bgm.Play(BgmPlayer.LandTrack);
+
+            // 재해가 풀려 <b>부관이 한 마디 할 때만</b> 창을 남긴다 — 닫으면 그 자리에서
+            // 멈춤이 풀려 말이 뜨는 동안 말(馬)이 벌써 달려 나가고, 읽고 나면 바로 승선할
+            // 수도 있기 때문이다. 아무 말 없이 상륙했으면 <b>곧바로 닫아</b> 그 자리에서
+            // 움직이게 둔다.
+            if (EndVoyage()) CommandMenu.Refresh();
+            else Close();
+        }),
+        ("보급", () => { Forage(); CommandMenu.Refresh(); }),
+        ("수리", () => { RepairAshore(); CommandMenu.Refresh(); }),
+        ("승선한다", Close),
+    ]);
 
     private GameMenu InfoMenuBox() => new("정보", null,
     [
