@@ -2118,7 +2118,42 @@ public sealed class ShipMapHost : HwndHost
     /// <summary>
     /// 배 둘레 <paramref name="radiusCells"/> 칸 안에 뭍이 있는지. 상륙할 수 있는 자리인지 볼 때 쓴다.
     /// </summary>
-    public bool IsNearLand(int radiusCells = 2) => IsNear(true, radiusCells);
+    /// <summary>
+    /// 상륙할 수 있는 자리인지 — 배 칸 둘레 <b>3x3</b> 에 <b>부류 2(육지)</b> 칸이 있어야 한다
+    /// (<c>0x0048B248</c>~<c>0x0048B25F</c> 의 <c>dx·dy −1..1</c> 과 <c>cmp eax, 2</c>).
+    /// 산(3)·사막(4)·숲(6)에는 못 내린다.
+    /// </summary>
+    public bool IsNearLand()
+    {
+        if (!_shipKnown || _terrain == null) return false;
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+                if (_terrain.ClassOfCell(CellValue(_shipX + dx, _shipY + dy)) == PlainLandClass)
+                    return true;
+        return false;
+    }
+
+    /// <summary>내릴 수 있는 뭍의 지형 부류(<c>0x0048B25C</c> 의 <c>cmp eax, 2</c>).</summary>
+    private const int PlainLandClass = 2;
+
+    /// <summary>둘레 3x3 에서 가장 가까운 부류 2 칸. 없으면 null.</summary>
+    private (double X, double Y)? NearestPlainLand()
+    {
+        if (_terrain == null) return null;
+        (double X, double Y)? best = null;
+        double near = double.MaxValue;
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                double x = Math.Floor(_shipX) + dx + 0.5, y = Math.Floor(_shipY) + dy + 0.5;
+                if (_terrain.ClassOfCell(CellValue(x, y)) != PlainLandClass) continue;
+                double far = (x - _shipX) * (x - _shipX) + (y - _shipY) * (y - _shipY);
+                if (far >= near) continue;
+                near = far;
+                best = (x, y);
+            }
+        return best;
+    }
 
     /// <summary>배 둘레에 물이 있는지. 뭍에서 출항할 수 있는 자리인지 볼 때 쓴다.</summary>
     public bool IsNearWater(int radiusCells = 2) => IsNear(false, radiusCells);
@@ -2151,7 +2186,10 @@ public sealed class ShipMapHost : HwndHost
     public bool Land()
     {
         if (SeaBlocked || _onLand) return false;
-        var spot = NearestCell(_shipX, _shipY, wantLand: true, maxRing: 3);
+        // 내리는 자리는 <b>둘레 3x3 의 부류 2 칸</b>이다 — 원본은 비트 0x4000 이 선 칸들을
+        // 밝혀 주고 숫자판 1~9 로 고르게 하는데(0x0048B840 · 0x0048B95F), 우리는 고르개 없이
+        // 가장 가까운 것을 잡는다. 그런 칸이 없으면 예전처럼 가까운 뭍을 찾는다.
+        var spot = NearestPlainLand() ?? NearestCell(_shipX, _shipY, wantLand: true, maxRing: 3);
         if (spot == null) return false;
 
         StopAutoSail();   // 뭍에 오르면 자동항해는 뜻이 없다
