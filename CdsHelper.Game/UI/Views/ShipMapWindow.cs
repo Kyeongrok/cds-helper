@@ -622,6 +622,8 @@ public sealed class ShipMapWindow : Window
             }
             // 그냥 찍으면 닻을 내리고 그 자리에 선다. 한 번 더 찍으면 올리고 다시 간다.
             // 뭍에서도 같은 스위치로 말이 서고 다시 간다.
+            // 이 클릭이 커서 조타도 깨운다(0x0048B080 이 +0x104 에 1).
+            _host.SteerArmed = true;
             _host.ToggleAnchor();
             // 내릴 때도 올릴 때도 같은 소리가 난다.
             _game.Sfx?.Play(SoundBank.AnchorPart);
