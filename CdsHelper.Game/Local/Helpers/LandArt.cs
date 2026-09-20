@@ -91,7 +91,7 @@ public sealed class LandArt
     {
         LastError = "";
 
-        string path = Path.Combine(gameDirectory, FileName);
+        string path = CdsAssetPath.Resolve(gameDirectory, FileName);
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

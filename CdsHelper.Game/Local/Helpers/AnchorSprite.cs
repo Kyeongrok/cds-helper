@@ -45,7 +45,7 @@ public sealed class AnchorSprite
     /// <summary>게임 폴더의 MISC.CDS 에서 닻을 꺼낸다. 못 꺼내면 null.</summary>
     public static AnchorSprite? LoadFromDirectory(string directory)
     {
-        string path = Path.Combine(directory, FileName);
+        string path = CdsAssetPath.Resolve(directory, FileName);
         if (!File.Exists(path)) { LastError = $"{FileName} 없음"; return null; }
 
         var archive = Ls12Reader.Open(path);
