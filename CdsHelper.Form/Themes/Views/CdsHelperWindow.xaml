@@ -221,6 +221,14 @@
                                             x:Name="PART_MotionMakerMenu"
                                             Header="모션 메이커"
                                             ToolTip="일기토 그림 서른셋을 늘어놓고 번호를 적어 이어 돌려 본다 — 장마다 0.1초씩 맞춘다" />
+                                        <MenuItem
+                                            x:Name="PART_SoundTestMenu"
+                                            Header="사운드테스트"
+                                            ToolTip="번호 0~77 을 적어 소리를 튼다 — 0~27 은 CD 트랙, 28~77 은 WAVES.CDS 의 효과음 (게임 타이틀에 있던 줄을 옮겼다)" />
+                                        <MenuItem
+                                            x:Name="PART_UiSpriteDumpMenu"
+                                            Header="화면 조각 뽑기"
+                                            ToolTip="MISC.CDS 의 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다" />
                                         <Separator />
                                         <MenuItem
                                             x:Name="PART_ImageShrinkMenu"
@@ -276,10 +284,6 @@
                                             x:Name="PART_WaveBankMenu"
                                             Header="효과음 보기"
                                             ToolTip="WAVES.CDS 에 든 게임 효과음" />
-                                        <MenuItem
-                                            x:Name="PART_UiSpriteDumpMenu"
-                                            Header="화면 조각 뽑기"
-                                            ToolTip="MISC.CDS 의 화면 조각을 PNG 로 뽑아 asset/ui 에 넣는다 — 손으로 다듬으려면 그림 파일이 있어야 한다" />
                                         <MenuItem
                                             x:Name="PART_MovieBankMenu"
                                             Header="동영상 보기"
