@@ -309,7 +309,11 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     public void RefitShip()
     {
         var owner = Owner;
-        if (_player.Ships.Count == 0) { Say("배가 없습니다"); return; }
+
+        // 함대가 이 마을에 없으면 「배가 없습니다」(0x005322D8)를 <b>얼굴 없이</b> 내고
+        // 그대로 배 고르기로 넘어간다 — 돌아가지 않는다(0x00496994).
+        if (!_player.FleetHere(_cityId) || _player.Ships.Count == 0)
+            ConfirmDialog.Tell(owner, "배가 없습니다");
 
         Say("어느 배를 개조할 건가?");                       // 0x005322E8
         PickRefitShip();
@@ -745,10 +749,11 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         // 이 마을이 파는 대포만 늘어놓는다(0x00443FD0 → 0x00429F30).
         var sold = CannonsSold();
 
-        // 막히거나 물리면 대포 목록으로 돌아간다(0x004966A5 → 0x00496489). 물려야 나온다.
+        // 「어느 대포를 실을 건가?」는 <b>한 번만</b> 묻는다 — 막히거나 물리면 돌아가는 자리는
+        // 그 말이 아니라 목록 그 자체다(0x00496473 뒤 0x004966A5 → 0x00496489).
+        Say("어느 대포를 실을 건가?");
         while (true)
         {
-            Say("어느 대포를 실을 건가?");
             int pick = HintListDialog.Pick(owner,
                 [.. sold.Select(i => Cannon.All[i]).Select(c => $"{GameUi.Pad(c.Name, 12)}{c.Price,6}닢{c.Weight,5}")],
                 "대포 선택", "대포가 없네.", GunHead);
