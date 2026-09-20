@@ -552,7 +552,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
         // (0x00410718 이 0x00410800 으로 가려, 0 이면 물음창을 건너뛴다). 그 셈(0x0040E210 · 0x0040E320)은
         // 제독 것인 배만 센다 — <b>빌린 배는 안 친다</b>. 그래서 배를 안 산 초심자는 늘 묻지 않고 받는다.
         if ((_player.Ships.Any(s => !s.Lent) || _player.DockedAt(_cityId).Any(s => !s.Lent))
-            && !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?"))
+            // 모드에서 「배 빌림 묻기」를 끄면 안 묻고 안 빌린 것으로 한다(원본에는 없는 길이다).
+            && (!Local.Settings.GameSettings.AskLendShips || !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?")))
         {
             // 0x0055C6C0 · 0x0055C6E8 · 0x0055C708
             Say(Pick3("그런가. 그렇다면, 좋을 대로 하게.",
@@ -2102,7 +2103,8 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
             ships));
 
         if ((_player.Ships.Any(s => !s.Lent) || _player.DockedAt(_cityId).Any(s => !s.Lent))
-            && !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?"))
+            // 모드에서 「배 빌림 묻기」를 끄면 안 묻고 안 빌린 것으로 한다(원본에는 없는 길이다).
+            && (!Local.Settings.GameSettings.AskLendShips || !ConfirmDialog.Ask(_view, "배를 빌리겠습니까?")))
         {
             Say(Pick3("그런가. 그렇다면, 좋을 대로 하게.",
                       "그렇습니까. 좋을 대로 하십시오.",
