@@ -845,10 +845,17 @@ public sealed class DisevRunner
             // 1F 0B [발견물] 0A [꼬리말] — <b>이름을 지어 준다</b>(0x004098C0).
             // 「명명」 창에 스무 글자에서 꼬리말 길이를 뺀 만큼 받고, 꼬리말을 뒤에 붙인 뒤
             // 「[…]로 명명하겠습니다. 좋습니까?」로 한 번 더 묻는다. 아니오면 다시 받는다.
-            // 무르면 결과 0 이라 대본이 기본 이름 쪽으로 간다(43 47).
+            // 무르면 <b>결과 코드를 0↔1 로 뒤집는다</b> — 덮어쓰는 것이 아니다(0x00409992).
+            // <code>
+            //   00409992  cmp dword ptr [ebp - 0x1c], 1
+            //   00409996  sbb eax, eax ; neg eax        ; 결과 &lt; 1 이면 1, 아니면 0
+            // </code>
+            // 곧 앞서 0 이던 결과는 1 이 되고, 1·2 던 결과는 0 이 된다.
+            // 이름을 <b>정했으면 결과를 안 건드린다</b>(0x00409982 가 0x0040999D 로 바로 뛴다) —
+            // 앞선 「이름을 붙이겠습니까?」가 세워 둔 1 이 그대로 남아 43 47 이 뛴다.
             case DisevCall.InputDiscoveryName:
-                LastResult = NameDiscovery(I("Discovery"),
-                                           args["Suffix"]?.GetValue<string>() ?? "") ? 1 : 0;
+                if (!NameDiscovery(I("Discovery"), args["Suffix"]?.GetValue<string>() ?? ""))
+                    LastResult = LastResult < 1 ? 1 : 0;
                 return null;
 
             // 38 0D — 그 <b>인물</b>을 이미 만난 것으로 친다(후원자 쪽은 38 12 다).
@@ -1133,8 +1140,23 @@ public sealed class DisevRunner
     }
 
     /// <summary>부관 신상. 없으면 null.</summary>
-    /// <summary>이름에 받을 수 있는 글자 수(<c>0x0040990B</c> 의 <c>mov edi, 0x14</c>).</summary>
+    /// <summary>
+    /// 이름에 받을 수 있는 <b>바이트</b> 수(<c>0x0040990B</c> 의 <c>mov edi, 0x14</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   0040990b  edi = 0x14
+    ///   00409917  edi -= strlen(꼬리말)       ; 0x004B7DA4 — <b>바이트</b> 길이다
+    ///   0040992f  0x004B0740("명명", 받는 칸, edi)
+    /// </code>
+    /// CP949 라 한글 한 자가 <b>두 바이트</b>다 — 「의 곶」 같은 꼬리말이면 남는 칸이
+    /// 글자 수로 센 것보다 훨씬 빠듯하다.
+    /// </remarks>
     private const int NameRoom = 20;
+
+    /// <summary>CP949 로 적었을 때의 바이트 수 — 게임이 세는 길이다.</summary>
+    private static int Bytes(string text) =>
+        System.Text.Encoding.GetEncoding(949).GetByteCount(text);
 
     /// <summary>
     /// 발견물에 이름을 지어 준다(<c>0x004098C0</c>). 이름을 정했으면 참.
@@ -1148,7 +1170,10 @@ public sealed class DisevRunner
         suffix ??= "";
         while (true)
         {
-            string? typed = UI.Views.TextInputDialog.Ask(_owner, "", Math.Max(1, NameRoom - suffix.Length), "명명");
+            // 남는 칸은 <b>바이트</b>로 센다(0x00409917) — 꼬리말 한글 한 자가 두 칸을 먹는다.
+            // 받는 칸도 바이트라 한글이면 그 절반만 들어간다.
+            int room = Math.Max(1, (NameRoom - Bytes(suffix)) / 2);
+            string? typed = UI.Views.TextInputDialog.Ask(_owner, "", room, "명명");
             if (typed == null) return false;                 // 무르면 기본 이름으로 간다
 
             string name = typed + suffix;
