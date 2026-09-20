@@ -187,7 +187,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         var roll = new GameRandom(Environment.TickCount);
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
-        var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
         DuelDialog.Show(_view, duel, roll, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
@@ -462,7 +462,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         var dice = new GameRandom(Environment.TickCount);
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
-        var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
 
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
@@ -488,6 +488,13 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
     /// <summary>취중에 시비가 붙는 상대(<c>0x0042EC19</c> 의 <c>0x113</c>).</summary>
     internal const int BrawlPerson = 275;
+
+    /// <summary>
+    /// 그 사람의 이름은 판이 열릴 때 <b>「술집의 술주정꾼」으로 덮인다</b>(<c>0x004A2C40</c> 이
+    /// <c>0x00568E38</c> 을 인물 <c>+0xBC</c> 에 베낀다). 술집 도전·싸움·여급 연적 세 자리가
+    /// 모두 같은 인물 <c>0x113</c> 을 넘기므로 셋 다 이 이름이다.
+    /// </summary>
+    internal const string BrawlName = "술집의 술주정꾼";
 
     /// <summary>이겼을 때 오르는 값(<c>0x0042ECD3</c>).</summary>
     private const int BrawlFame = 100, BrawlWinInfamy = 500;
@@ -989,7 +996,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         if (PersonTable.Open().Find(BrawlPerson) is not { } row || row.Stats.Length < 5) return true;
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
-        var foe = new Engine.Town.Duel.Fighter(row.Name, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), dice.Next());
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
