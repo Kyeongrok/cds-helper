@@ -209,7 +209,7 @@ public class EditDiscoveryDialog : Window
         if (string.IsNullOrEmpty(savePath)) return;
         var dir = Path.GetDirectoryName(savePath);
         if (string.IsNullOrEmpty(dir)) return;
-        var worldPath = Path.Combine(dir, "WORLD.CDS");
+        var worldPath = CdsAssetPath.Resolve(dir, "WORLD.CDS");
         var data = WorldMapRenderer.LoadWorldData(worldPath);
         if (data == null) return;
         var palette = MapPalette.LoadOrDefault(AppSettings.MapPaletteFilePath);
