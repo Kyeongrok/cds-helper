@@ -140,7 +140,13 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     /// <summary>비가 오는지 — 주술사가 부르면 총·포가 죽는다(<c>+0x3C</c> 의 <c>0x20</c>).</summary>
     public bool Raining { get; private set; }
 
-    /// <summary>표범이 춘 춤의 겹수(<c>+0x44</c>). 적 공격력이 겹마다 1.5배가 된다.</summary>
+    /// <summary>
+    /// 표범이 춘 춤의 겹수(<c>+0x44</c>). 적 공격력이 겹마다 1.5배가 된다.
+    /// </summary>
+    /// <remarks>
+    /// <b>턴마다 0 으로 지운다</b>(<c>0x00449D5E</c>) — 그 턴에 춘 춤만 센다. 예전에는 판이
+    /// 끝날 때까지 쌓여, 표범이 여럿인 판에서 열 턴째 공격력이 수십 배가 되었다.
+    /// </remarks>
     public int Dances { get; private set; }
 
     /// <summary>다 빈치의 작렬탄 — 서 있으면 포가 비를 무시한다(<c>+0x3C</c> 의 <c>0x48</c>).</summary>
@@ -156,6 +162,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         _log.Clear();
         Opening = Snapshot();
         (_myOrder, _foeOrder) = (mine, theirs);
+        Dances = 0;                      // 춤 겹수는 턴마다 지운다(0x00449D5E)
 
         // 차례는 행동속도가 빠른 쪽부터다(0x00447C20 → 0x004493BE 의 순서표).
         // 기습이 먹히면 아군이, 어그러지면 적이 앞선다(0x00447E10).
