@@ -93,9 +93,13 @@ public sealed class MarketRates
         listPrice <= 0 ? 0
         : Math.Max(1, (int)Math.Min(int.MaxValue, (long)listPrice * rate / Par));
 
+    /// <summary>
+    /// 시세를 먹이고 100닢 단위로 내린다 — <b>정가가 있으면 최소 1</b> 이다
+    /// (<c>0x00429DC0</c> 이 <c>eax &lt; 1</c> 이면 1 로 올린다).
+    /// </summary>
     private static int Apply(int listPrice, int rate) =>
         listPrice <= 0 ? 0
-        : Round((int)Math.Min(int.MaxValue, (long)listPrice * rate / Par));
+        : Math.Max(1, Round((int)Math.Min(int.MaxValue, (long)listPrice * rate / Par)));
 
     /// <summary>
     /// 1000 닢부터는 100 단위로 <b>내린다</b>. 게임 매각 본체(<c>0x004B3D1C</c>)가 그렇게 한다.

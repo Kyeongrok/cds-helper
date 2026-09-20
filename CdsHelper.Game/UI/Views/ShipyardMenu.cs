@@ -521,9 +521,15 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         ? Math.Max(1, (_game.Items?.Find(Figureheads.ToItem(index))?.BuyList ?? 0) * _rate / 100)
         : Figureheads.PriceOf(index);
 
-    /// <summary>놓고 가는 선수상을 팔아 주는 값 — 매각값에 시세를 먹인다.</summary>
-    private int SellBack(int index) =>
-        Math.Max(0, (_game.Items?.Find(Figureheads.ToItem(index))?.SellList ?? 0) * _rate / 100);
+    /// <summary>
+    /// 놓고 가는 선수상을 팔아 주는 값 — 매각값에 시세를 먹인다. 정가가 있으면 최소 1 이다
+    /// (<c>0x00495C92</c> 가 <c>0x00429DC0</c> 을 탄다).
+    /// </summary>
+    private int SellBack(int index)
+    {
+        int list = _game.Items?.Find(Figureheads.ToItem(index))?.SellList ?? 0;
+        return list <= 0 ? 0 : Math.Max(1, list * _rate / 100);
+    }
 
     /// <summary>선수상 이름 — 아이템 표에서 낸다(213 송골매상 …).</summary>
     private string NameOf(int index) =>
@@ -750,8 +756,10 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             int at = sold[pick];
 
             var gun = Cannon.All[at];
-            // 이 배의 대포를 다 내렸다 치고 함대에 남는 무게 — 게임도 그렇게 잰다.
-            int free = _player.Tonnage - _player.LoadedWeight + ship.GunWeight;
+            // 무게 한도는 <b>그 배의 적재중량 그대로</b>다 — 짐은 안 본다
+            // (0x004964FF 가 0x0044C8B0(배) = 적재중량 − 실은 대포 무게 에 지금 대포 무게를
+            //  도로 더한다). 함대 남는 중량이 아니다.
+            int free = ship.Tonnage;
             int room = ship.RoomFor(at, free);
             bool same = at == ship.Gun && ship.Guns > 0;
             if (same) room -= ship.Guns;
