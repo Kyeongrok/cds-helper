@@ -667,7 +667,7 @@ public sealed class ShipMapWindow : Window
             // 그림은 기함 것으로 그린다 — 항구 함대편성에서 기함을 바꾸면 배 모양도 바뀐다.
             ShipSprites.Use(_game.Player.FlagshipHull?.Hull);
             _date.Text = $"{_game.Player.Date.Year,4}년{_game.Player.Date.Month,2}월{_game.Player.Date.Day,2}일";
-            _cityLabel.Text = _game.Player.CityName.Length > 0 ? _game.Player.CityName : "—";
+            _cityLabel.Text = _game.Player.CityName.Length > 0 ? _game.Player.CityName : NoCity;
             _language.Text = CityLanguage();
             _rate.Text = CityRate();
             if (_overlay.IsOpen) FillOverlay(lat, lon);
@@ -916,6 +916,9 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>도시 밖일 때 언어 칸에 나오는 줄표(<c>0x0056BF58</c>, 열여덟 개).</summary>
     private const string NoValue = "------------------";
+
+    /// <summary>도시 밖일 때 도시명 칸에 나오는 줄표(<c>0x0056BF40</c>, 열아홉 개).</summary>
+    private const string NoCity = "-------------------";
 
     /// <summary>도시정보 창. 상단 띠 밑에 붙여 띄운다.</summary>
     private GameMenuHost? _infoMenuHost;
