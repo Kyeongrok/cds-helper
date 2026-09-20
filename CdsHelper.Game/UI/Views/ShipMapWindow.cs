@@ -3781,7 +3781,10 @@ public sealed class ShipMapWindow : Window
             string mine = _game.Nations?.Find(player.Nation)?.Name ?? player.NationName;
             ConfirmDialog.Tell(this, $"경고한다. 여기는 {mine}의 영해다. " +
                                      "타국의 배는 기항도 항해도 허용되지 않는다. 신속히 떠나도록.", face: aide);
-            if (fortune[3] == 2)
+            // 여기서 보는 성미는 <b>제독 제 것</b>이다 — 0x0048C5E5 가 ecx 에 0x005B60A0
+            // (제독 함대)을 넣고 vtbl+0x24 를 부른다. 상대 것을 쓰려던 흠으로 보이지만
+            // 원본 그대로 옮긴다.
+            if (FleetRaid.AdmiralFortuneOf(player)[3] == 2)
             {
                 ConfirmDialog.Tell(this, "조약따윈 모른다! 물고기 밥이 되게 해 주마!", face: face);
                 ConfirmDialog.Tell(this, "당치도 않는 소리를! 제독, 할 수 없습니다. 싸웁시다.", face: aide);
