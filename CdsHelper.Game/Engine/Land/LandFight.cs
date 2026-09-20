@@ -438,19 +438,22 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 break;
 
             case LandUnits.Monk:
-                // 한 부대 정원만큼의 2할을 되살린다(0x00448280).
-                int side = slot < LandBattle.FirstFoe ? 0 : LandBattle.FirstFoe;
+                // <b>한 부대만</b> 고친다(0x00448CFE) — 총대장 부대의 병사수가 정원의 4할
+                // 이상이면 그 대장을, 아니면 제 편에서 병사수가 가장 적은 부대를 고른다.
+                // 되살리는 만큼은 min(정원, 병사수 + 정원*2/10) 이다(0x00448280).
+                bool monkFoe = slot >= LandBattle.FirstFoe;
+                int side = monkFoe ? LandBattle.FirstFoe : 0;
                 int room = battle.RoomPerUnit(side);
-                int healed = 0;
-                for (int i = side; i < side + LandBattle.PerSide; i++)
-                {
-                    if (!Alive(i)) continue;
-                    int was = battle.Units[i].Men;
-                    int now = Math.Min(room, was + room * 2 / 10);
-                    battle.SetMen(i, now);
-                    healed += now - was;
-                }
-                if (healed > 0)
+
+                int who = LeaderOf(monkFoe);
+                if (who < 0 || battle.Units[who].Men < room * 4 / 10)
+                    who = Pick(foe: monkFoe, frontOnly: false);
+                if (who < 0) break;
+
+                int was = battle.Units[who].Men;
+                int now = Math.Min(room, was + room * 2 / 10);
+                battle.SetMen(who, now);
+                if (now > was)
                     Say(slot, Prayers[dice.Next(Prayers.Length)], LandUnits.Sound.Heal);
                 break;
 
