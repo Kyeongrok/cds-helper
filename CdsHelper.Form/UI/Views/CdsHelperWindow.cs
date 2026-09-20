@@ -24,6 +24,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_DbTableViewerMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WaveBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_UiSpriteDumpMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_SoundTestMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_GameDataMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_MovieBankMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_PortraitBookMenu, Type = typeof(MenuItem))]
@@ -61,6 +62,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_DbTableViewerMenu = "PART_DbTableViewerMenu";
     private const string PART_WaveBankMenu = "PART_WaveBankMenu";
     private const string PART_UiSpriteDumpMenu = "PART_UiSpriteDumpMenu";
+    private const string PART_SoundTestMenu = "PART_SoundTestMenu";
     private const string PART_GameDataMenu = "PART_GameDataMenu";
     private const string PART_MovieBankMenu = "PART_MovieBankMenu";
     private const string PART_PortraitBookMenu = "PART_PortraitBookMenu";
@@ -161,6 +163,9 @@ public class CdsHelperWindow : CdsWindow
 
         if (GetTemplateChild(PART_UiSpriteDumpMenu) is MenuItem uiSpriteDumpMenu)
             uiSpriteDumpMenu.Click += OnUiSpriteDumpMenuClick;
+
+        if (GetTemplateChild(PART_SoundTestMenu) is MenuItem soundTestMenu)
+            soundTestMenu.Click += OnSoundTestMenuClick;
 
         if (GetTemplateChild(PART_GameDataMenu) is MenuItem gameDataMenu)
             gameDataMenu.Click += OnGameDataMenuClick;
@@ -551,6 +556,27 @@ public class CdsHelperWindow : CdsWindow
 
     // 게임 화면처럼 지도 위에 함대만 띄우는 창. 세계지도 탭과 달리 D3D 로 그린다.
     private void OnShipMapMenuClick(object sender, RoutedEventArgs e) => OpenShipMap();
+
+    /// <summary>
+    /// 사운드테스트 — 게임 타이틀에 있던 줄을 이리로 옮겼다(<c>0x0045FBCD</c>).
+    /// </summary>
+    /// <remarks>
+    /// 소리를 트는 것은 놀이 쪽 <c>ShipMapWindow</c> 다(배경음악·효과음 둘 다 그쪽이 쥐고 있다).
+    /// 이미 떠 있는 창이 있으면 그것에 물어보고, 없으면 새로 띄워 놓고 부른다.
+    /// </remarks>
+    private void OnSoundTestMenuClick(object sender, RoutedEventArgs e)
+    {
+        var map = Application.Current.Windows.OfType<CdsHelper.Game.UI.Views.ShipMapWindow>().FirstOrDefault();
+        if (map == null)
+        {
+            OpenShipMap();
+            map = Application.Current.Windows.OfType<CdsHelper.Game.UI.Views.ShipMapWindow>().FirstOrDefault();
+        }
+        if (map == null) return;
+
+        map.Activate();
+        map.SoundTest();
+    }
 
     private void OpenShipMap()
     {
