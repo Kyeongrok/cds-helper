@@ -647,8 +647,12 @@ public sealed class ShipMapWindow : Window
             MarkSeen();
             var (lat, lon) = _host.ShipLatLon;
             // 칸마다의 서식은 게임 것을 자리 수까지 그대로 옮겼다(BarFormats 참고).
-            _coord.Text = $"{(lat >= 0 ? "북" : "남")}위 {Math.Abs(lat),3:F0}  " +
-                          $"{(lon >= 0 ? "동" : "서")}경 {Math.Abs(lon),3:F0}  ";
+            // 좌표는 <b>육분의</b>를 지녀야 보인다 — 없으면 「위도 ---′ 경도 ---′」다
+            // (0x0047DCE2 가 0x0047CE20(0x22) 를 보고 0x0056BF00 을 찍는다).
+            _coord.Text = _game.Player.Items.Contains(SextantItem)
+                ? $"{(lat >= 0 ? "북" : "남")}위 {Math.Abs(lat),3:F0}  " +
+                  $"{(lon >= 0 ? "동" : "서")}경 {Math.Abs(lon),3:F0}  "
+                : "위도 ---′ 경도 ---′";
             _purse.Text = $"소지금{_game.Player.Gold,6}닢";
             _fame.Text = $"명성{_game.Player.Fame,6}";
             _tired.Text = $"피로도{_game.Player.Fatigue,4}";
@@ -919,6 +923,15 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>도시 밖일 때 도시명 칸에 나오는 줄표(<c>0x0056BF40</c>, 열아홉 개).</summary>
     private const string NoCity = "-------------------";
+
+    /// <summary>
+    /// 상단 띠 좌표 칸에 드는 <b>육분의</b>(아이템 <c>0x22</c> = 34) · 자동 경로에 드는
+    /// <b>나침반</b>(<c>0x21</c> = 33) · 도시 발견 반지름을 넓히는 아이템(<c>0x23</c> = 35).
+    /// </summary>
+    private const int CompassItem = 0x21, SextantItem = 0x22, SpyglassItem = 0x23;
+
+    /// <summary>망원경을 지녔을 때 도시 발견 반지름에 얹는 칸 수(<c>0x0048D84A</c>).</summary>
+    private const int SpotWithGlass = 2;
 
     /// <summary>도시정보 창. 상단 띠 밑에 붙여 띄운다.</summary>
     private GameMenuHost? _infoMenuHost;
@@ -3470,7 +3483,10 @@ public sealed class ShipMapWindow : Window
         if (_host.ShipCell is not { } here) return;
 
         var spotted = new List<int>();
-        int reach = _game.Player.LevelOf(Skill.Names[Skill.Survey]) + SpotBase;
+        // 측량술은 <b>제독과 측량사 부하 가운데 큰 쪽</b>이고(0x0048D82F), 망원경을 지녔으면
+        // 두 칸 더 본다(0x0048D84A).
+        int reach = SurveyLevel() + SpotBase
+                    + (_game.Player.Items.Contains(SpyglassItem) ? SpotWithGlass : 0);
         int far = reach * reach;
         int sx = (int)here.X, sy = (int)here.Y;
 
