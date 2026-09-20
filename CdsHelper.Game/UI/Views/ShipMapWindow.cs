@@ -123,6 +123,8 @@ public sealed class ShipMapWindow : Window
 
     /// <summary>바람과 배 속도. 게임 띠에는 없는 칸이라 꺼 둔 채로 낸다.</summary>
     private readonly GameButton _windText = new("") { Lit = true, Margin = default };
+    private readonly GameButton _currentText = new("") { Lit = true, Margin = default };
+    private readonly GameButton _hpCell = new("") { Lit = true, Margin = default };
 
     /// <summary>실어 둔 물과 식량(통).</summary>
     private readonly GameButton _stores = new("") { Lit = true, Margin = default };
@@ -488,6 +490,8 @@ public sealed class ShipMapWindow : Window
         gameCells.Children.Add(InfoCell(CityInfoMenu.City, _cityLabel, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Language, _language, on: false));
         gameCells.Children.Add(InfoCell(CityInfoMenu.Rate, _rate, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Current, _currentText, on: false));
+        gameCells.Children.Add(InfoCell(CityInfoMenu.Vitality, _hpCell, on: false));
 
         // 게임처럼 액자를 깔고 그 위에 칸들을 얹는다(asset/ui/misc-00.png).
         // 그림이 없으면 예전처럼 민색 띠로 물러선다.
@@ -658,8 +662,12 @@ public sealed class ShipMapWindow : Window
             _purse.Text = $"소지금{_game.Player.Gold,6}닢";
             _fame.Text = $"명성{_game.Player.Fame,6}";
             _tired.Text = $"피로도{_game.Player.Fatigue,4}";
-            _morale.Text = $"규율{_game.Player.Morale,4}";
+            // 게임 서식 그대로다 — 「규칙%4d」(0x0056BFB0) · 「풍향: %s/풍속:%d」(0x0056BFF8) ·
+            // 「해류: %s/속도:%d」(0x0056C010) · 「HP:%4d」(0x005692AC).
+            _morale.Text = $"규칙{_game.Player.Morale,4}";
             _windText.Text = WindLine();
+            _currentText.Text = CurrentLine();
+            _hpCell.Text = $"HP:{_game.Player.Condition,4}";
             // 게임은 뭍이면 「대원」, 바다면 「선원」이다(0x0056BEA8 의 %s).
             _crew.Text = $"{(_host.IsOnLand ? "대원" : "선원")}{_game.Player.Crew,4}명";
             _stores.Text = $"물{_game.Player.SupplyOf(SupplyKind.Water),4}통" +
@@ -5675,9 +5683,17 @@ public sealed class ShipMapWindow : Window
     /// </remarks>
     private string WindLine()
     {
-        var (dir, speed, relative) = _host.LastWind;
+        var (dir, speed, _) = _host.LastWind;
         string where = ShipMapHost.Compass[(dir & 0xF) >> 1];
-        return $"바람 {where} {speed}  각 {relative,2}  속도 {_host.LastSpeed,3}";
+        return $"풍향: {where}/풍속:{speed}";
+    }
+
+    /// <summary>상단 띠의 해류 칸 — 「해류: %s/속도:%d」(<c>0x0056C010</c>, <c>0x0047DF8F</c>).</summary>
+    private string CurrentLine()
+    {
+        var (dir, speed) = _host.LastFlow;
+        string where = ShipMapHost.Compass[(dir & 0xF) >> 1];
+        return $"해류: {where}/속도:{speed}";
     }
 
     /// <summary>
