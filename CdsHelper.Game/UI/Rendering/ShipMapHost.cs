@@ -334,6 +334,17 @@ public sealed class ShipMapHost : HwndHost
     public bool SteerArmed { get; set; }
 
     /// <summary>
+    /// <b>커서 쪽 길찾기 보정</b>이 드는지 — 항해사(부하 자리 1)가 있고 나침반(아이템 <c>0x21</c>)을
+    /// 지녔을 때만이다(<c>0x0048ECEF</c>~<c>0x0048ED13</c>). 켜져 있으면 커서 칸으로 곧장 뱃머리를
+    /// 돌리지 않고, 바닷길을 찾아 <b>첫 길목</b> 쪽으로 돌린다(<c>0x0048EE2E</c>).
+    /// </summary>
+    public bool PathAssist { get; set; }
+
+    /// <summary>길찾기 보정이 마지막으로 셈한 커서 칸과 그 첫 길목.</summary>
+    private (int X, int Y) _assistFrom = (int.MinValue, int.MinValue);
+    private (double X, double Y)? _assistStep;
+
+    /// <summary>
     /// 뱃머리를 그 쪽(16방위)으로 <b>곧장</b> 세우고 다시 나아간다 — 숫자판 조타다
     /// (<c>0x0048B04E</c>: 표 <c>0x005696EC[글쇠]</c> 를 <c>0x005B63CC</c> 에 박고
     /// 닻 <c>0x005B3A00</c> 을 0 으로, 커서 조타 <c>+0x104</c> 를 0 으로 둔다).
@@ -1263,6 +1274,13 @@ public sealed class ShipMapHost : HwndHost
                 // 커서가 가리키는 칸으로 뱃머리를 돌린다.
                 _targetX = origin.X + _mouse.X * dpiX * _cellsPerPixel;
                 _targetY = origin.Y + _mouse.Y * dpiY * _cellsPerPixel;
+
+                // 항해사와 나침반이 있으면 곧장 돌지 않고 바닷길의 첫 길목으로 돈다(0x0048EE2E).
+                if (PathAssist && !_onLand && NextWaypoint(_targetX, _targetY) is { } step)
+                {
+                    _targetX = step.X;
+                    _targetY = step.Y;
+                }
             }
             _hasHeadingTarget = AutoSailing || (_mouseInside && SteerArmed);
             Sail(dt);
@@ -2135,6 +2153,25 @@ public sealed class ShipMapHost : HwndHost
 
     /// <summary>내릴 수 있는 뭍의 지형 부류(<c>0x0048B25C</c> 의 <c>cmp eax, 2</c>).</summary>
     private const int PlainLandClass = 2;
+
+    /// <summary>
+    /// 커서 칸으로 가는 바닷길의 <b>첫 길목</b>. 길을 못 찾거나 이미 그 자리면 null 이다.
+    /// 같은 칸을 두 번 셈하지 않게 마지막 결과를 쥐고 있는다.
+    /// </summary>
+    private (double X, double Y)? NextWaypoint(double toX, double toY)
+    {
+        if (_world == null || _terrain == null) return null;
+
+        var want = ((int)Math.Floor(toX), (int)Math.Floor(toY));
+        if (want == _assistFrom) return _assistStep;
+
+        _assistFrom = want;
+        _assistStep = null;
+
+        var route = Engine.Sea.SeaPathfinder.FindRoute(_world, _terrain, (_shipX, _shipY), (toX, toY));
+        if (route is { Count: > 1 }) _assistStep = (route[1].X + 0.5, route[1].Y + 0.5);
+        return _assistStep;
+    }
 
     /// <summary>둘레 3x3 에서 가장 가까운 부류 2 칸. 없으면 null.</summary>
     private (double X, double Y)? NearestPlainLand()
