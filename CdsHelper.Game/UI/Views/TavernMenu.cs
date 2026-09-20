@@ -1649,10 +1649,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
     /// <summary>뺏는 금화 — <c>rand(11) + 20</c>(<c>0x004AA486</c>).</summary>
     /// <remarks>
-    /// 게임은 금화에 이어 <b>상대의 무기·방어구</b>도 뺏고 「상대는 %s%s 장비하고 있다」
-    /// (<c>0x00534A50</c> · <c>0x00534A78</c>)를 낸다. 우리 인물 표에는 <b>소지품 칸이 없어</b>
-    /// 상대가 무엇을 들었는지 알 길이 없다 — 그래서 그쪽은 안 옮겼다(일기토에서도 상대
-    /// 무기·방어구 효과를 0 으로 둔다).
+    /// 금화에 이어 <b>상대의 무기·방어구</b>도 뺏는다 — 인물 표에 소지품 칸은 없지만 그 둘은
+    /// 판이 열릴 때 복장 갈래와 무력으로 굴려 두므로(<see cref="Engine.Town.Duel.GearOf"/>)
+    /// 그것을 그대로 준다(<see cref="Loot"/>, <c>0x004AA4B3</c>).
     /// </remarks>
     internal const int RobGoldRoll = 11, RobGoldBase = 20;
 
