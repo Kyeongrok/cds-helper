@@ -1363,6 +1363,8 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
 
         // 바다 괴물과의 판은 달아나는 길이 없다(원본 판 종류 0).
         battle.Monster = monster;
+        // 괴물이 누구인지로 이동력이 갈린다(0x00434CB5) — 적장 번호가 곧 괴물 번호다.
+        battle.MonsterPerson = monster ? foe.Leader?.Id ?? -1 : -1;
 
         // 제독 값(0x00441D8A) — 제독·부관(부하 첫 자리) 가운데 큰 값이다. 능력은 +1, 기능은 그대로,
         // 운세칸[0] 은 제독 것(0x00477FE0). 무력도 +1 이다(예전에는 +1 을 안 먹였다).

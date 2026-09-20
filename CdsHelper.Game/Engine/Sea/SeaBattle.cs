@@ -376,6 +376,9 @@ public sealed class SeaBattle
     /// <summary>이동력(<c>0x004349A0</c>).</summary>
     public int PowerOf(Ship ship)
     {
+        // 괴물은 돛 셈을 건너뛴다(0x00434CB5).
+        if (Monster && !ship.Mine) return MonsterPower;
+
         int angle = ((Wind - ship.Way) % Ways + Ways) % Ways;
         int a = ship.Sails.ElementAtOrDefault(0), b = ship.Sails.ElementAtOrDefault(1), c = ship.Sails.ElementAtOrDefault(2);
         int band = angle == 0 ? 0 : angle is 1 or 5 ? 1 : 2;
@@ -588,7 +591,7 @@ public sealed class SeaBattle
             }
             else if (PickTarget(ship, foes) is { } target)
             {
-                var (ax, ay) = AimPoint(target);
+                var (ax, ay) = AimPoint(target, aimer: ship);
                 plan = Broadside(ship, ax, ay);
             }
             else
@@ -629,6 +632,18 @@ public sealed class SeaBattle
     /// 부관이 없거나 못 찾으면 1(여느 판정)이다.
     /// </summary>
     public int MateTemper { get; set; } = 1;
+
+    /// <summary>
+    /// 괴물 인물 번호(<c>0x0044307B</c>) — 271 크라켄 · 272 시서펜트 · 273 식인 상어 · 274 맨터.
+    /// 괴물 판이 아니면 −1 이다.
+    /// </summary>
+    public int MonsterPerson { get; set; } = -1;
+
+    /// <summary>
+    /// 괴물의 이동력(<c>0x00434CB5</c>) — 그림 갈래(<c>+0x900</c>)로 갈린다.
+    /// 식인 상어 6 · 시서펜트 5 · 크라켄과 맨터 4 다. 돛 셈을 아예 안 탄다.
+    /// </summary>
+    private int MonsterPower => MonsterPerson switch { 273 => 6, 272 => 5, _ => 4 };
 
     /// <summary>
     /// 괴물이 <b>떠올라 있는가</b>(<c>+0x8FC</c> 가 2 면 참, 1 이면 잠수).
@@ -740,12 +755,14 @@ public sealed class SeaBattle
     ///   짝수 X 에 Y 16 이면 상대 자리 그대로
     /// </code>
     /// </remarks>
-    private (int X, int Y) AimPoint(Ship target)
+    private (int X, int Y) AimPoint(Ship target, Ship? aimer = null)
     {
         int ax = target.X, ay = target.Y;
         if ((target.Way - Wind + Ways) % Ways == 3) return (ax, ay);
 
-        int n = Math.Max(0, _rng.Next(2) + target.Power / 2 - 1);
+        // 괴물이 겨눌 때는 앞지르는 칸 수가 <b>늘 2</b> 다(0x0043BBB2).
+        bool monsterAims = Monster && aimer is { Mine: false };
+        int n = monsterAims ? 2 : Math.Max(0, _rng.Next(2) + target.Power / 2 - 1);
         if (Wind == 0) ay -= n;
         if (Wind == 3) ay += n;
         if ((ax & 1) == 0 && Wind is 2 or 4) ay += (n + 1) / 2;
