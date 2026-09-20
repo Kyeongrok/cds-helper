@@ -2650,6 +2650,8 @@ public sealed class ShipMapWindow : Window
         },
         // 싸움 셈을 도시 없이 돌려 보는 세 가지 — 미니 게임 차림표에 붙여 두었던 것을 옮겼다.
         HelperApp = RunHelperApp,
+        // 묘책 확률 표(0x00549B80) — 보고 고치면 놀이에도 바로 든다.
+        RuseTable = () => RuseEditDialog.Show(this),
         Duel = PlayDuel,
         LandSpar = () => LandSparDialog.Play(this, _game),
         SeaSpar = MockSeaBattle,
