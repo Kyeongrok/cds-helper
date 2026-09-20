@@ -273,9 +273,7 @@ public class WorldMapContent : ContentControl
             var dir = Path.GetDirectoryName(savePath);
             if (dir != null)
             {
-                var worldPath = Path.Combine(dir, "WORLD.CDS");
-                if (File.Exists(worldPath))
-                    LoadAndRender(worldPath);
+                LoadAndRender(CdsAssetPath.Resolve(dir, "WORLD.CDS"));
             }
         }
 
