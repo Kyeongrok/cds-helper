@@ -197,8 +197,10 @@ public sealed class Duel
 
     public Duel(Fighter me, Fighter foe, bool shield, int seed)
     {
-        Me = me;
-        Foe = foe;
+        // 무력과 운은 <b>담은 값에 1 을 더해</b> 쓴다(0x004A87F1 · 0x004A8809, 상대도 같다).
+        // 체력도 그렇고(MyFull), 검술만 그대로다(0x004A87FE).
+        Me = me with { Might = me.Might + 1, Luck = me.Luck + 1 };
+        Foe = foe with { Might = foe.Might + 1, Luck = foe.Luck + 1 };
         HasShield = shield;
         _dice = new GameRandom(seed);
         MyFull = me.Body + 1;
