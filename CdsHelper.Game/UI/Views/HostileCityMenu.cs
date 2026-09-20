@@ -138,7 +138,8 @@ internal static class HostileCityMenu
                         ? player.MateInfoOf(player.Mates[0]) : null;
                     var field = new LandBattle(line, player, aide,
                                                game.CityRows?.ScaleOf(city) ?? 0,
-                                               nation, culture, CityField, dice, city: city);
+                                               nation, culture, CityField, dice, city: city)
+                    { MyCulture = game.MyCulture };
                     if (!LandBattleScene.Run(owner, game, field, dice))
                     {
                         // 부대가 모두 쓰러졌으면 놀이가 끝난다 — 마을 공략에서 지면 게임 오버다.
