@@ -41,18 +41,18 @@ internal sealed class SeaBattleInfoDialog : InfoDialog
         {
             // 마지막 줄(총함대수)은 도드라지지 않는다(0x004343B4 의 je).
             bool ahead = i < Labels.Length - 1 && mine[i] >= theirs[i];
-            rows.Children.Add(Line(Labels[i], mine[i], theirs[i], ahead));
+            rows.Children.Add(Row(Labels[i], mine[i], theirs[i], ahead));
         }
         Build("해전전황정보(제독·함대수)", rows, BoardWidth, RowHeight * Labels.Length + 16);
     }
 
     /// <summary>한 줄 — 같은 이름을 칸마다 적고 그 오른쪽에 값을 놓는다.</summary>
-    private static UIElement Line(string label, int mine, int theirs, bool ahead)
+    private static UIElement Row(string label, int mine, int theirs, bool ahead)
     {
-        var line = new StackPanel { Orientation = Orientation.Horizontal, Height = RowHeight };
-        line.Children.Add(Cell(label, mine, ahead));
-        line.Children.Add(Cell(label, theirs, false));
-        return line;
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Height = RowHeight };
+        row.Children.Add(Cell(label, mine, ahead));
+        row.Children.Add(Cell(label, theirs, false));
+        return row;
     }
 
     private static UIElement Cell(string label, int value, bool ahead)
