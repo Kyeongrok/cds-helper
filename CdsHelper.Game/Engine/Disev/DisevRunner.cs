@@ -1038,6 +1038,11 @@ public sealed class DisevRunner
                 ? _game.Faces?.TryGetBgra(t.Face, female: false) : null;
         }
 
+        // 대본 일기토는 판 종류 2 라 <b>부관을 대신 내보낼지 묻는다</b>(0x004A8680 의 종류 <= 2).
+        var stand = UI.Views.TavernMenu.SendMate(_owner, me, _game, _dice);
+        if (stand is { } who)
+            mine = new Town.Duel.Fighter(who.Name, who.Body, who.Might, who.Sword, who.Luck, 0, 0);
+
         var duel = new Town.Duel(mine, foe, me.Items.Contains(Town.Duel.EdithShieldId),
                                  Environment.TickCount);
         bool won = UI.Views.DuelDialog.Show(_owner, duel, _dice, face, _game.Fighters,
@@ -1045,7 +1050,9 @@ public sealed class DisevRunner
             myFace: _game.Faces?.TryGetBgra(
                 Local.Helpers.PortraitAges.At(me.Face, me.Age, false, _game.Faces), female: false),
             bgm: _game.Bgm);
-        me.Hurt(duel.BodyLost);
+        // 대신 나간 사람이 다친다(0x004AA5CA).
+        if (stand is { } hurt) me.HurtMate(hurt.Name, duel.BodyLost);
+        else me.Hurt(duel.BodyLost);
         return won;
     }
 
