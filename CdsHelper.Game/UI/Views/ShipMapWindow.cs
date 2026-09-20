@@ -43,6 +43,7 @@ public sealed class ShipMapWindow : Window
         FontFamily = new FontFamily("Consolas"),
     };
     private readonly DispatcherTimerLite _statusTimer;
+    private string? _downloadStatus;
 
     /// <summary>
     /// 지도 아래 띠에 적는 글. 게임은 이 자리에 짧은 알림을 낸다 —
@@ -644,8 +645,8 @@ public sealed class ShipMapWindow : Window
         _statusTimer = new DispatcherTimerLite(TimeSpan.FromMilliseconds(100), () =>
         {
             SyncMouse();
-            _status.Text = _focusNote.Length > 0 ? $"{_host.Status}    {_focusNote}"
-                                                 : _host.Status;
+            _status.Text = _downloadStatus
+                ?? (_focusNote.Length > 0 ? $"{_host.Status}    {_focusNote}" : _host.Status);
             _stopAutoButton.Visibility = _host.AutoSailing ? Visibility.Visible : Visibility.Collapsed;
             // 한 틱의 차례는 원본 고리 그대로다(0x0048EF18~0x0048EF7D) —
             // 조우 → 극지 → 발견 → 도시 발견·입항 물음 → 이동·날 눈금.
@@ -6263,8 +6264,15 @@ public sealed class ShipMapWindow : Window
                 MessageBoxImage.Question);
             if (result == MessageBoxResult.Yes)
             {
-                _status.Text = "BGM 다운로드 중...";
-                var download = await BgmAssetDownloader.DownloadAsync();
+                var progress = new Progress<int>(percent =>
+                {
+                    _downloadStatus = $"BGM 다운로드 중... {percent}%";
+                    _status.Text = _downloadStatus;
+                });
+                _downloadStatus = "BGM 다운로드 중... 0%";
+                _status.Text = _downloadStatus;
+                var download = await BgmAssetDownloader.DownloadAsync(progress);
+                _downloadStatus = null;
                 if (!download.Success)
                     MessageBox.Show($"BGM 다운로드 실패:\n{download.Error}", "오류",
                         MessageBoxButton.OK, MessageBoxImage.Error);

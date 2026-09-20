@@ -14,7 +14,7 @@ public static class BgmAssetDownloader
         Path.Combine(AppContext.BaseDirectory, "bgm", $"Track{track:D2}.mp3");
 
     public static async Task<(bool Success, string Error)> DownloadAsync(
-        CancellationToken cancellationToken = default)
+        IProgress<int>? progress = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -24,10 +24,21 @@ public static class BgmAssetDownloader
             string tempDirectory = Path.Combine(cacheDirectory, ".part");
             Directory.CreateDirectory(tempDirectory);
 
-            for (int track = 2; track <= 29; track++)
+            const int firstTrack = 2;
+            const int lastTrack = 29;
+            const int trackCount = lastTrack - firstTrack + 1;
+            int completed = 0;
+            progress?.Report(0);
+
+            for (int track = firstTrack; track <= lastTrack; track++)
             {
                 string target = CachePath(track);
-                if (File.Exists(target)) continue;
+                if (File.Exists(target))
+                {
+                    completed++;
+                    progress?.Report(completed * 100 / trackCount);
+                    continue;
+                }
 
                 string temp = Path.Combine(tempDirectory, $"Track{track:D2}.mp3");
                 using var response = await client.GetAsync(
@@ -38,6 +49,8 @@ public static class BgmAssetDownloader
                 await using (var output = File.Create(temp))
                     await input.CopyToAsync(output, cancellationToken);
                 File.Move(temp, target, overwrite: true);
+                completed++;
+                progress?.Report(completed * 100 / trackCount);
             }
 
             return File.Exists(CachePath(BgmPlayer.RequiredTrack))
