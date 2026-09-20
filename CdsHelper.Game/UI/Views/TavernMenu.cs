@@ -1382,7 +1382,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                                   GameRandom dice, bool mateFought,
                                   bool canFlee = true, bool canSpare = true)
     {
-        switch (duel.FateOf(player.Fame, canFlee, canSpare))
+        switch (duel.FateOf(player.Fame, canFlee, canSpare, player.Crew))
         {
             case Engine.Town.Duel.Fate.Fled:
                 NoticeDialog.Show(view, "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!", "일기토");

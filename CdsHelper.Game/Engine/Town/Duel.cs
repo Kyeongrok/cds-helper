@@ -135,7 +135,13 @@ public sealed class Duel
     /// <summary>도망 판정(<c>0x004A9EED</c>) — <c>운*5 + 10 + rand(60) &gt;= rand(1000)</c>.</summary>
     private const int FleeLuck = 5, FleeBase = 10, FleeDice = 60, FleeRoll = 1000;
 
-    /// <summary>용서 판정(<c>0x004A9FC8</c>) — 명성이 2000 아래고 <c>rand(100) &lt; 99</c> 면 살려 준다.</summary>
+    /// <summary>
+    /// 용서 판정(<c>0x004A9FC8</c>) — 명성이 2000 아래고 <c>rand(100) &lt; 99 − 대원수</c> 면 살려 준다.
+    /// </summary>
+    /// <remarks>
+    /// 문턱에서 <b>대원 수</b>(<c>0x005AA2C4</c>)를 뺀다(<c>0x004A9FE2</c>) — 사람이 많을수록
+    /// 안 봐준다. 아흔아홉이 넘으면 아예 안 봐준다.
+    /// </remarks>
     private const int SpareFame = 2000, SpareDice = 100, SpareEdge = 99;
 
     /// <summary>이번 판이 무엇인가.</summary>
@@ -472,11 +478,12 @@ public sealed class Duel
     /// 하나라야 한다(<c>0x004A9EBE</c> · <c>0x004A9ED6</c> · <c>0x004A9EDE</c>).
     /// 아니면 도망도 용서도 없이 곧바로 죽는다.
     /// </param>
-    public Fate FateOf(int fame, bool canFlee = true, bool canSpare = true)
+    /// <param name="crew">대원 수(<c>0x005AA2C4</c>) — 용서 문턱에서 이만큼 뺀다.</param>
+    public Fate FateOf(int fame, bool canFlee = true, bool canSpare = true, int crew = 0)
     {
         if (canFlee && Me.Luck * FleeLuck + FleeBase + _dice.Next(FleeDice) >= _dice.Next(FleeRoll))
             return Fate.Fled;
-        if (canSpare && fame <= SpareFame && _dice.Next(SpareDice) < SpareEdge)
+        if (canSpare && fame <= SpareFame && _dice.Next(SpareDice) < SpareEdge - crew)
             return Fate.Spared;
         return Fate.Slain;
     }
