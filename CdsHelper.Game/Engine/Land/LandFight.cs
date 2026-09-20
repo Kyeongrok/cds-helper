@@ -381,8 +381,9 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         switch (kind)
         {
             case LandUnits.Kind.Melee:
-                // 창병만 앞열 하나와 그 뒤까지 둘을 친다(0x004487C0).
-                int front = Across(mine, frontOnly: true);
+                // 창병은 <b>앞열 자리를 굴려</b> 잡고 그 뒤까지 둘을 친다(0x004487C0).
+                // 그 밖의 근접은 총대장·최소·자리굴림 네 갈래다(0x00448900).
+                int front = unit.Kind == LandUnits.Spear ? FrontByRoll(foe: mine) : MeleeTarget(mine);
                 if (front < 0) { Done(); return; }
                 Hit(slot, front);
                 if (unit.Kind == LandUnits.Spear && Behind(front) is { } back && Alive(back))
@@ -394,7 +395,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 // 궁병만 아무나 하나를 노린다(0x00448880). 나머지는 앞열 전부대다.
                 if (unit.Kind == LandUnits.Bow)
                 {
-                    int one = Across(mine, frontOnly: false);
+                    int one = BowTarget(mine);
                     if (one >= 0) Hit(slot, one);
                 }
                 else foreach (int at in Facing(mine, frontOnly: true)) Hit(slot, at);
@@ -586,6 +587,75 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
 
     /// <summary>맞은편에서 노릴 부대 하나 — <see cref="Facing"/> 와 같은 셈이다.</summary>
     private int Across(bool mine, bool frontOnly) => Pick(foe: mine, frontOnly);
+
+    /// <summary>그 편의 총대장 부대 자리. 없거나 쓰러졌으면 −1.</summary>
+    private int LeaderOf(bool foe)
+    {
+        int side = foe ? LandBattle.FirstFoe : 0;
+        for (int i = side; i < side + LandBattle.PerSide; i++)
+            if (Alive(i) && battle.Units[i].IsLeader) return i;
+        return -1;
+    }
+
+    /// <summary>
+    /// 앞열 <b>자리를 굴려</b> 잡는다(<c>0x00447470(편, rand(3))</c>) — 빈 자리면 다시 굴린다.
+    /// 앞열이 다 비었으면 −1.
+    /// </summary>
+    private int FrontByRoll(bool foe)
+    {
+        int side = foe ? LandBattle.FirstFoe : 0;
+        bool any = false;
+        for (int i = side; i < side + 3; i++) if (Alive(i)) any = true;
+        if (!any) return -1;
+
+        while (true)
+        {
+            int at = side + dice.Next(3);
+            if (Alive(at)) return at;
+        }
+    }
+
+    /// <summary>
+    /// 창병 아닌 근접 부대가 노릴 자리(<c>0x00448900</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   00448971  맞은편 총대장이 앞열이면 rand(5) &lt; 2 (40%) 로 그 대장
+    ///   00448998  아니면 rand(5) == 2 (20%) 로 병사수 최소 부대
+    ///   004489a7  아니면 rand(5) &lt;= 2 (60%) 로 처음부터 다시
+    ///   004489b6  거기서도 떨어지면 앞열 자리를 굴려 잡는다
+    /// </code>
+    /// </remarks>
+    private int MeleeTarget(bool mine)
+    {
+        bool foe = mine;                       // 치는 쪽이 아군이면 맞은편은 적 쪽이다
+        for (int round = 0; round < MeleeRounds; round++)
+        {
+            int leader = LeaderOf(foe);
+            if (leader >= 0 && LandUnits.IsFront(leader) && dice.Next(5) < 2) return leader;
+            if (dice.Next(5) == 2) return Pick(foe, frontOnly: true);
+            if (dice.Next(5) > 2) break;
+        }
+        return FrontByRoll(foe);
+    }
+
+    /// <summary>되돌이가 끝없이 돌지 않게 두는 끝 — 원본은 확률로 저절로 빠진다.</summary>
+    private const int MeleeRounds = 32;
+
+    /// <summary>
+    /// 궁병이 노릴 자리(<c>0x00448880</c>) — <c>rand(6)</c> 으로 가른다.
+    /// 0 총대장 · 1~4 병사수 최소(앞뒤 다) · 5 아무 부대나(총대장 뺀다).
+    /// </summary>
+    private int BowTarget(bool mine)
+    {
+        bool foe = mine;
+        return dice.Next(6) switch
+        {
+            0 => LeaderOf(foe) is var l && l >= 0 ? l : Pick(foe, frontOnly: false),
+            5 => Any(mine: !mine, dice, leader: false),
+            _ => Pick(foe, frontOnly: false),
+        };
+    }
 
     private IEnumerable<int> All(bool foe, bool frontOnly)
     {
