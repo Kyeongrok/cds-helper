@@ -104,19 +104,3 @@ jobs:
           gh release upload "${{ github.ref_name }}" single/CostaDelSol.exe single/Editor.exe --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # BGM은 Git 저장소에 넣지 않고 이전 릴리즈의 자산을 새 릴리즈에도 재사용한다.
-      - name: Download BGM asset
-        shell: pwsh
-        run: |
-          gh release download --repo Kyeongrok/cds-helper --pattern bgm.zip --dir .
-          if (-not (Test-Path "bgm.zip")) {
-            throw "이전 릴리즈에 bgm.zip이 없습니다"
-          }
-
-      - name: Upload BGM
-        shell: pwsh
-        run: |
-          gh release upload "${{ github.ref_name }}" bgm.zip --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

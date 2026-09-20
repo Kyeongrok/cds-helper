@@ -6264,7 +6264,7 @@ public sealed class ShipMapWindow : Window
             if (result == MessageBoxResult.Yes)
             {
                 _status.Text = "BGM 다운로드 중...";
-                var download = await BgmAssetDownloader.DownloadAsync(dir);
+                var download = await BgmAssetDownloader.DownloadAsync();
                 if (!download.Success)
                     MessageBox.Show($"BGM 다운로드 실패:\n{download.Error}", "오류",
                         MessageBoxButton.OK, MessageBoxImage.Error);
