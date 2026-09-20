@@ -120,6 +120,18 @@ public sealed class Duel
         return (weapon, armor);
     }
 
+    /// <summary>
+    /// 굴린 무기·방어구를 <b>아이템 표의 효과</b>로 바꾼다 — 판에 들어가는 값은 아이템 번호가
+    /// 아니라 표 <c>0x004FD558</c> 의 <c>+0x10</c> 효과다(<c>0x004A89D4</c>~<c>0x004A8D65</c>).
+    /// </summary>
+    /// <param name="effectOf">아이템 번호를 효과로 바꾸는 손. 표를 못 읽으면 0 을 내면 된다.</param>
+    public static (int Weapon, int Armor) GearFor(int set, int might, GameRandom dice,
+                                                  Func<int, int> effectOf)
+    {
+        var (weapon, armor) = GearOf(set, might, dice);
+        return (effectOf(weapon), effectOf(armor));
+    }
+
     /// <summary>도망 판정(<c>0x004A9EED</c>) — <c>운*5 + 10 + rand(60) &gt;= rand(1000)</c>.</summary>
     private const int FleeLuck = 5, FleeBase = 10, FleeDice = 60, FleeRoll = 1000;
 

@@ -187,7 +187,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         var roll = new GameRandom(Environment.TickCount);
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
-        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        // 상대도 무기·방어구를 굴려 든다(0x004A89D4) — 복장 갈래는 그 사람 나라의 수도 문화권이다.
+        var gear = Engine.Town.Duel.GearFor(FoeSet(BrawlPerson), row.Stats[2], roll, EffectOf);
+        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword,
+                                               row.Stats[4], gear.Weapon, gear.Armor);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
         DuelDialog.Show(_view, duel, roll, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo), arena: DuelArt.TavernFor(_cultureNo), bgm: _game.Bgm);
@@ -462,7 +465,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         var dice = new GameRandom(Environment.TickCount);
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
-        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        // 상대도 무기·방어구를 굴려 든다(0x004A89D4) — 복장 갈래는 그 사람 나라의 수도 문화권이다.
+        var gear = Engine.Town.Duel.GearFor(FoeSet(BrawlPerson), row.Stats[2], dice, EffectOf);
+        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword,
+                                               row.Stats[4], gear.Weapon, gear.Armor);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
 
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
@@ -996,7 +1002,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         if (PersonTable.Open().Find(BrawlPerson) is not { } row || row.Stats.Length < 5) return true;
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
-        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
+        // 상대도 무기·방어구를 굴려 든다(0x004A89D4) — 복장 갈래는 그 사람 나라의 수도 문화권이다.
+        var gear = Engine.Town.Duel.GearFor(FoeSet(BrawlPerson), row.Stats[2], dice, EffectOf);
+        var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword,
+                                               row.Stats[4], gear.Weapon, gear.Armor);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), dice.Next());
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo), arena: DuelArt.TavernFor(_cultureNo), bgm: _game.Bgm);
@@ -1316,7 +1325,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         var mate = SendMate(dice);
         var duel = new Engine.Town.Duel(mate is { } m ? MateSide(m) : Mine(),
-                                        Theirs(who), Shielded(), Environment.TickCount);
+                                        Theirs(who, dice), Shielded(), Environment.TickCount);
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
                         FighterSprites.SetForCulture(_cultureNo),
                         myFace: _game.Faces?.TryGetBgra(
@@ -1675,8 +1684,25 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             Best(Engine.Town.Duel.ArmorCategory));
 
     /// <summary>상대 몫. 세이브에 적힌 능력치와 검술을 그대로 쓴다.</summary>
-    private static Engine.Town.Duel.Fighter Theirs(in TavernRoster.Person who) =>
-        new(who.Name, who.Body, who.Might, who.Sword, who.Luck, 0, 0);
+    private Engine.Town.Duel.Fighter Theirs(in TavernRoster.Person who, GameRandom dice)
+    {
+        var (weapon, armor) = Engine.Town.Duel.GearFor(FoeSet(who.Index), who.Might, dice, EffectOf);
+        return new(who.Name, who.Body, who.Might, who.Sword, who.Luck, weapon, armor);
+    }
+
+    /// <summary>아이템 번호의 효과(표 <c>+0x10</c>). 표를 못 읽으면 0.</summary>
+    private int EffectOf(int item) => _game.Items?.Find(item)?.Effect ?? 0;
+
+    /// <summary>
+    /// 상대의 복장 갈래 — <b>그 사람 나라의 수도 문화권</b>으로 고른다(<c>0x004A88EA</c>).
+    /// 나라를 모르면 유럽(1)이다.
+    /// </summary>
+    private int FoeSet(int person)
+    {
+        if (_game.PersonTemplates?.Find(person) is not { } who) return 1;
+        if (_game.Nations?.Find(who.Nation) is not { } nation) return 1;
+        return FighterSprites.SetForCulture(_game.CityRows?.CultureOf(nation.Capital) ?? 0);
+    }
 
     /// <summary>이디스의 방패를 지녔는가 — 스친 것이 막은 것이 된다.</summary>
     private bool Shielded() => _player.Items.Contains(Engine.Town.Duel.EdithShieldId);
