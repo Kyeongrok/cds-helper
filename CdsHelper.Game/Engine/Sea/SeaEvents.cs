@@ -616,7 +616,9 @@ public static class SeaEvents
 
         var hurt = new int[player.Ships.Count];
         for (int i = 0; i < hurt.Length; i++)
-            hurt[i] = Math.Max(0, HurtBase - player.Ships[i].Hp) / 10 + rng.Next(3);
+            // 바닥이 없다 — 내구가 100 을 넘으면 셈이 <b>음수</b>가 되어 오히려 낫는다
+            // (0x00474EF9: esi = (100 − 내구)/10 + rand(3) 을 그대로 neg 해서 더한다).
+            hurt[i] = (HurtBase - player.Ships[i].Hp) / 10 + rng.Next(3);
 
         // 뒤에서부터 깎아야 배를 잃어도 앞 칸의 짝이 안 어긋난다.
         var lost = new List<string>();
@@ -625,8 +627,8 @@ public static class SeaEvents
             var ship = player.Ships[i];
             bool flag = i == player.Flagship;
             // 폭풍은 <b>추진력과 내구를 같은 만큼</b> 깎는다(0x00474F28 · 0x00474F5A).
-            ship.SlowDown(hurt[i]);
-            ship.Hurt(hurt[i], floor: flag ? 1 : 0);
+            ship.Drive(-hurt[i]);
+            ship.Batter(-hurt[i], floor: flag ? 1 : 0);
             if (ship.Hp == 0 && !flag && player.Ships.Count > 1)
             {
                 lost.Add(ship.Name);

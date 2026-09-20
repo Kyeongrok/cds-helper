@@ -367,6 +367,16 @@ public sealed class Ship
         Hp = Math.Clamp(Hp - Math.Max(0, amount), Math.Clamp(floor, 0, MaxHp), MaxHp);
 
     /// <summary>
+    /// 내구를 <b>부호 그대로</b> 더한다 — 음수면 깎이고 양수면 찬다(<c>0x0049E560</c>).
+    /// 폭풍처럼 셈이 음수로 뒤집힐 수 있는 자리에 쓴다.
+    /// </summary>
+    public void Batter(int delta, int floor = 0) =>
+        Hp = Math.Clamp(Hp + delta, Math.Clamp(floor, 0, MaxHp), MaxHp);
+
+    /// <summary>추진력을 부호 그대로 더한다(<c>0x0049E560</c>).</summary>
+    public void Drive(int delta) => Speed = Math.Clamp(Speed + delta, 0, MaxSpeed);
+
+    /// <summary>
     /// 말끔히 고친다 — <b>내구와 추진력을 둘 다</b> 꽉 채운다(<c>0x0044BBB0</c>).
     /// </summary>
     public void Repair()
