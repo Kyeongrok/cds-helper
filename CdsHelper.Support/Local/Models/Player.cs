@@ -647,14 +647,22 @@ public sealed class Player
     /// <summary>
     /// 부관이 다친다 — 일기토를 대신 치른 뒤에 부른다.
     /// </summary>
-    /// <remarks>게임도 부관을 내보내면 그 사람의 체력에서 깎는다(<c>0x004AA5F8</c>).</remarks>
+    /// <remarks>
+    /// 게임도 부관을 내보내면 그 사람의 컨디션(인물 <c>+0x38</c>)에서 깎는데, 제독 쪽과
+    /// <b>길이 다르다</b> — 컨디션이 잃은 값 <b>이하면 100 으로 세우고 거기서 끝난다</b>
+    /// (<c>0x004AA5EF</c> 의 <c>jmp 0x4AA639</c>). 제독만 100 을 세운 뒤 이어서 뺀다
+    /// (<c>0x004AA622</c>).
+    /// </remarks>
     public void HurtMate(string name, int amount)
     {
         if (amount <= 0 || !_mateBook.TryGetValue(name ?? "", out var who)) return;
 
-        // 제독과 같은 길이다(0x004AA5F8 — 인물 +0x38). 체력은 안 깎는다.
-        int fit = who.Condition <= amount ? ConditionFull : who.Condition;
-        _mateBook[who.Name] = who with { Condition = Math.Clamp(fit - amount, 0, ConditionMax) };
+        if (who.Condition <= amount)
+        {
+            _mateBook[who.Name] = who with { Condition = ConditionFull };
+            return;
+        }
+        _mateBook[who.Name] = who with { Condition = Math.Clamp(who.Condition - amount, 0, ConditionMax) };
     }
 
     /// <summary>두 자리를 맞바꾼다. 빈 자리와도 바꿀 수 있다.</summary>
