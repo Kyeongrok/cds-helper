@@ -1341,10 +1341,18 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         LostDuel(_view, _player, duel, face, dice, mateFought);
 
     /// <inheritdoc cref="LostDuel(Engine.Town.Duel, uint[], GameRandom, bool)"/>
+    /// <param name="canFlee">
+    /// 도망을 굴릴 수 있는 판인지 — 술집·여관 무대(4 이상)뿐이다(<c>0x004A9EE4</c>).
+    /// </param>
+    /// <param name="canSpare">
+    /// 용서를 굴릴 수 있는 판인지 — 갑판(무대 0)과 종류 0·3·8 이 아닌 판은 곧바로 죽는다
+    /// (<c>0x004A9EBE</c>).
+    /// </param>
     internal static bool LostDuel(Window view, Player player, Engine.Town.Duel duel, uint[]? face,
-                                  GameRandom dice, bool mateFought)
+                                  GameRandom dice, bool mateFought,
+                                  bool canFlee = true, bool canSpare = true)
     {
-        switch (duel.FateOf(player.Fame))
+        switch (duel.FateOf(player.Fame, canFlee, canSpare))
         {
             case Engine.Town.Duel.Fate.Fled:
                 NoticeDialog.Show(view, "안되겠다. 이길 수가 없군! 틈을 봐서 도망쳐야겠다!", "일기토");
