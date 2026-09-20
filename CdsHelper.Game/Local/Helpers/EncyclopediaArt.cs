@@ -53,7 +53,7 @@ public sealed class EncyclopediaArt
     public static EncyclopediaArt? Open(string gameDirectory)
     {
         LastError = "";
-        string path = Path.Combine(gameDirectory, "ENC.CDS");
+        string path = CdsAssetPath.Resolve(gameDirectory, "ENC.CDS");
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
         var archive = Ls12Reader.Open(path);
         if (archive == null || archive.PartCount < 2) { LastError = $"{path} 를 읽지 못했습니다"; return null; }

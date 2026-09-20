@@ -123,7 +123,7 @@ public sealed class TavernGuests
         byte[]? palette = null;
         if (!ArtComplete(snapshot.Guests) && !string.IsNullOrEmpty(gameDirectory))
         {
-            var path = Path.Combine(gameDirectory, "MPCG.CDS");
+            var path = CdsAssetPath.Resolve(gameDirectory, "MPCG.CDS");
             archive = File.Exists(path) ? Ls12Reader.Open(path) : null;
             if (archive is { PartCount: >= FirstPart + Count })
             {

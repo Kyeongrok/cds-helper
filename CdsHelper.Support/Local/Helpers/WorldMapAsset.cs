@@ -1,5 +1,4 @@
 using System.IO;
-using System.Net.Http;
 
 namespace CdsHelper.Support.Local.Helpers;
 
@@ -18,20 +17,7 @@ public static class WorldMapAsset
     public static string? EnsureDownloaded()
     {
         if (File.Exists(FilePath)) return FilePath;
-
-        string tempPath = FilePath + ".part";
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-            var data = client.GetByteArrayAsync(DownloadUrl).GetAwaiter().GetResult();
-            File.WriteAllBytes(tempPath, data);
-            File.Move(tempPath, FilePath, overwrite: true);
-            return FilePath;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
-        {
-            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
-            return null;
-        }
+        string path = CdsAssetPath.Resolve("", "WORLD.CDS");
+        return File.Exists(path) ? path : null;
     }
 }

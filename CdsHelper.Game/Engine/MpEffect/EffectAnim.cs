@@ -149,7 +149,7 @@ public sealed class EffectAnim
         LastError = "";
 
         // 게임 폴더는 대소문자를 안 가리지만(NTFS) 이름을 그대로 적어 둔다.
-        var path = Path.Combine(gameDirectory, FileName);
+        var path = CdsAssetPath.Resolve(gameDirectory, "MPEFFECT.CDS");
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

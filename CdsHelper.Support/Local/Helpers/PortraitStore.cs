@@ -40,7 +40,9 @@ public static class PortraitStore
         string path = Path.Combine(Directory, NameOf(female));
         if (File.Exists(path)) return path;
 
-        return Unpack(female, path) ? path : "";
+        if (Unpack(female, path)) return path;
+        return CdsAssetPath.Resolve("", NameOf(female)) is var fallback && File.Exists(fallback)
+            ? fallback : "";
     }
 
     /// <summary>왜 못 꺼냈는지. 잘 됐으면 빈 글.</summary>

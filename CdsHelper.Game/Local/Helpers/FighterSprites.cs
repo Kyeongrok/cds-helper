@@ -104,7 +104,7 @@ public sealed class FighterSprites
     public static FighterSprites? Open(string gameDirectory)
     {
         LastError = "";
-        string path = Path.Combine(gameDirectory, "FIGHTER.CDS");
+        string path = CdsAssetPath.Resolve(gameDirectory, "FIGHTER.CDS");
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);
