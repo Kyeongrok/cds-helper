@@ -40,18 +40,19 @@ public static class Shipyard
     public const int RepairRate = 26;
 
     /// <summary>
-    /// 배 한 척을 고치는 값.
+    /// 고른 배를 고치는 값 — 손상 <b>합</b>으로 <b>굴림 한 번</b>이다.
     /// </summary>
     /// <remarks>
     /// <code>
     ///   0x0044BBF0  손상 = (최대내구 - 지금내구) + (최대돛 - 지금돛)   ; 음수는 0
-    ///   0x0044BAA1  값 = (rand(4) + 26) * 손상                        ; 26~29 곱
+    ///   0x0044BA83  고른 줄마다 그 손상을 더한다
+    ///   0x0044BAA1  값 = (rand(4) + 26) * 손상합                      ; 26~29 곱, 한 번만
     ///   0x0044BABD  값 = 값 x 도시 시세 / 100                          ; 적어도 1
     /// </code>
     /// 우리 선체 표에는 돛 값이 없어 <b>내구만</b> 센다.
     /// </remarks>
-    public static int RepairCost(Ship ship, int cityRate, Random random) =>
-        Math.Max(1, (RepairRate + random.Next(4)) * ship.RepairNeed * cityRate / 100);
+    public static int RepairCostOf(int need, int cityRate, Random random) =>
+        Math.Max(1, (RepairRate + random.Next(4)) * need * cityRate / 100);
 
     /// <summary>
     /// 이 마을에서 고칠 수 있는 배 — 함대 먼저, 그 뒤가 이 마을이 맡은 배다.
