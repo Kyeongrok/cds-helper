@@ -69,7 +69,7 @@ public sealed class CloudSprites
     /// </summary>
     public static CloudSprites? LoadFromDirectory(string directory)
     {
-        string path = Path.Combine(directory, FileName);
+        string path = CdsAssetPath.Resolve(directory, FileName);
         if (!File.Exists(path)) { LastError = $"{FileName} 없음"; return null; }
 
         var reader = Ls12Reader.Open(path);

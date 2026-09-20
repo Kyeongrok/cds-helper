@@ -68,7 +68,7 @@ public sealed class WaveBank
     /// </summary>
     public static WaveBank? LoadFromDirectory(string directory)
     {
-        var path = Path.Combine(directory, FileName);
+        var path = CdsAssetPath.Resolve(directory, FileName);
         if (_cached != null && string.Equals(_cachedPath, path, StringComparison.OrdinalIgnoreCase))
         {
             LastError = "";

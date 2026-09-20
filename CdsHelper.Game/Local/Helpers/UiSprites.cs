@@ -255,7 +255,7 @@ public sealed class UiSprites
         byte[]? icons = null;
         byte[]? digits = null;
 
-        var path = Path.Combine(gameDirectory, "MISC.CDS");
+        var path = CdsAssetPath.Resolve(gameDirectory, "MISC.CDS");
         if (File.Exists(path))
         {
             var archive = Ls12Reader.Open(path);
