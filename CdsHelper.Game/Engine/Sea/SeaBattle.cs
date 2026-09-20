@@ -424,9 +424,13 @@ public sealed class SeaBattle
             int total = (int)Math.Pow(3, len);
             for (int code = 0; code < total; code++)
             {
-                var plan = new List<Move>(len);
+                // 늘어놓는 차례는 <b>마지막 걸음이 가장 빨리</b> 바뀐다 — 원본의 자릿수 올림이
+                // 끝자리부터 올라간다(0x0043AB4D~0x0043AB7A). 같은 칸에 닿는 길이 여럿이면
+                // 먼저 걸린 것을 쓰므로 차례가 고르는 길을 바꾼다.
+                // (원본은 자릿수가 절대 방향 여섯이고 우리는 선회 셋이라 꼭 같지는 않다.)
+                var plan = new List<Move>(new Move[len]);
                 int rest = code;
-                for (int i = 0; i < len; i++) { plan.Add((Move)(rest % 3)); rest /= 3; }
+                for (int i = len - 1; i >= 0; i--) { plan[i] = (Move)(rest % 3); rest /= 3; }
 
                 int x = ship.X, y = ship.Y, way = ship.Way;
                 bool ok = true;
