@@ -52,19 +52,26 @@ public static class Figureheads
     /// <summary>선수상 번호를 아이템 번호로.</summary>
     public static int ToItem(int index) => FirstItemId + index;
 
-    /// <summary>등급. 표 밖이면 -1.</summary>
-    public static int GradeOf(int index) => Known(index) ? Grades[index] : -1;
+    /// <summary>
+    /// 등급. 표 밖이면 -1. 도구 앱에서 고쳐 둔 것이 있으면 <b>그것이 이긴다</b>
+    /// (<see cref="Local.Helpers.FigureheadEdits"/>).
+    /// </summary>
+    public static int GradeOf(int index) =>
+        !Known(index) ? -1 : Local.Helpers.FigureheadEdits.Of(index) ?? Grades[index];
+
+    /// <summary>표에 적힌 <b>본디</b> 등급 — 고친 것을 얹지 않는다. 도구 앱이 되돌릴 때 쓴다.</summary>
+    public static int BuiltinGradeOf(int index) => Known(index) ? Grades[index] : -1;
 
     /// <summary>막는 재앙(<c>번호 % 4</c>). 표 밖이면 -1.</summary>
     public static int GuardOf(int index) => Known(index) ? index % 4 : -1;
 
     /// <summary>막을 확률(%). 저주받은 것은 음수라 아무것도 못 막는다.</summary>
     public static int BlockPercent(int index) =>
-        Known(index) ? Grades[index] * 30 - 20 : 0;
+        Known(index) ? GradeOf(index) * 30 - 20 : 0;
 
     /// <summary>다는 삯. 표 밖이면 0.</summary>
     public static int PriceOf(int index) =>
-        Known(index) ? Prices[Grades[index]] : 0;
+        Known(index) ? Prices[Math.Clamp(GradeOf(index), 0, Prices.Length - 1)] : 0;
 
     /// <summary>저주받았는지 — 등급 0 이다.</summary>
     public static bool Cursed(int index) => GradeOf(index) == 0;

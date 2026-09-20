@@ -40,16 +40,6 @@
                                 Header="아이템"
                                 IsExpanded="True"
                                 IsGroup="True">
-                                <units:AccordionItem Header="선수상" Tag="FigureheadContent">
-                                    <units:AccordionItem.Icon>
-                                        <Path
-                                            Width="16"
-                                            Height="16"
-                                            Data="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"
-                                            Fill="White"
-                                            Stretch="Uniform" />
-                                    </units:AccordionItem.Icon>
-                                </units:AccordionItem>
                                 <units:AccordionItem Header="아이템" Tag="ItemContent">
                                     <units:AccordionItem.Icon>
                                         <Path
