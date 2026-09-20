@@ -4485,6 +4485,7 @@ public sealed class ShipMapWindow : Window
                                        foe, roll, foeSkills, sort: LandBattle.Field,
                                        scale: bandScale, nation: bandNation)
             {
+                MyCulture = _game.MyCulture,
                 FoeFace = _game.PersonTemplates?.Find(LandFieldFoes.FirstLeader + at) is { } chief
                     ? _game.Faces?.TryGetBgra(chief.Face, female: false) : null,
             };

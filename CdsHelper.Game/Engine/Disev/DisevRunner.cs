@@ -1106,6 +1106,7 @@ public sealed class DisevRunner
                               foeSkills, scale: scale, nation: foeNation)
         {
             KeepsCrew = _borrowedMen >= 0,
+            MyCulture = _game.MyCulture,
         };
     }
 
@@ -1127,6 +1128,7 @@ public sealed class DisevRunner
                               0, _dice, myMen, city: city)
         {
             KeepsCrew = _borrowedMen >= 0,
+            MyCulture = _game.MyCulture,
         };
     }
 

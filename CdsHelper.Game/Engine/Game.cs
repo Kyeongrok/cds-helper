@@ -134,6 +134,16 @@ public sealed class Game
         Once(ref _nations, ref _nationsTried, NationTable.Open,
              () => NationTable.LastError, "나라 표");
 
+    /// <summary>
+    /// <b>제독 나라 수도의 문화권</b> — 육상전에서 아군 쪽 낯을 가릴 때 쓴다(<c>0x00447070(0)</c>).
+    /// </summary>
+    /// <remarks>
+    /// 게임은 아군 대장 묶음(<c>+0x98</c>)의 인물 → 나라 → 수도 → <c>+0x58</c> 로 거슬러
+    /// 문화권을 얻는다. 못 찾으면 서유럽(0)으로 둔다.
+    /// </remarks>
+    public int MyCulture =>
+        CityRows?.CultureOf(Nations?.Find(Player.Nation)?.Capital ?? -1) ?? 0;
+
     /// <summary>교역품 표(CDS_95.EXE). 도시 특산품을 낼 때 쓴다.</summary>
     public GoodsTable? Goods =>
         Once(ref _goods, ref _goodsTried, GoodsTable.Open, () => GoodsTable.LastError, "교역품 표");

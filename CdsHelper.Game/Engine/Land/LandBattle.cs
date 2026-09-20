@@ -72,6 +72,20 @@ public sealed class LandBattle
     /// <summary>상대 도시의 문화권. 적 진형과 그림이 이것으로 갈린다.</summary>
     public int Culture { get; }
 
+    /// <summary>
+    /// <b>아군</b> 쪽 문화권 — 제독 나라 수도의 것이다(<c>0x00447070(0)</c>).
+    /// </summary>
+    /// <remarks>
+    /// 쓰러지며 하는 말(<c>0x00446C00</c>)이 <b>쓰러진 쪽</b>의 문화권으로 갈린다.
+    /// 부르는 데가 <c>0x00447F7E</c> 인데 <c>0x00446200(자리)</c> 이 <c>자리 &gt;= 6</c> 으로
+    /// 편을 내고 그것을 <c>0x00447070</c> 에 넘긴다 — 아군이 쓰러지면 <b>내</b> 문화권이다.
+    /// 안 넣어 주면 서유럽(0)으로 둔다.
+    /// </remarks>
+    public int MyCulture { get; init; }
+
+    /// <summary>그 편의 문화권(<c>0x00447070(편)</c>).</summary>
+    public int CultureOfSide(bool foe) => foe ? Culture : MyCulture;
+
     /// <summary>적 대장의 능력 — 무력 · 지력 · 운 · 체력(<c>0x00449E50</c>).</summary>
     public int FoeMight { get; }
     public int FoeMind { get; }

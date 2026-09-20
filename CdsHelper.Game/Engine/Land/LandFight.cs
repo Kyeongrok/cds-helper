@@ -58,10 +58,14 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     /// <remarks>
     /// 문화권마다 제 말이 있고, 안 걸리면 <b>짧은 비명 열하나</b>(표 <c>0x00549C18</c>)에서
     /// 하나를 굴린다. 말이 아예 안 나오는 낯도 있다.
+    ///
+    /// 문화권은 <b>쓰러진 쪽</b>의 것이다 — <c>0x00447F7E</c> 가 <c>0x00446200(자리)</c> 으로
+    /// 편(<c>자리 &gt;= 6</c>)을 내고 그것을 <c>0x00447070</c> 에 넘긴다. 예전에는 늘
+    /// 적 문화권을 써서, 아군이 쓰러져도 「이놈 남만인!」 같은 말이 나왔다.
     /// </remarks>
-    private string FellWord()
+    private string FellWord(int slot)
     {
-        string? said = battle.Culture switch
+        string? said = battle.CultureOfSide(slot >= LandBattle.FirstFoe) switch
         {
             0 or 1 or 2 => dice.Next(10) < 4 ? "오오, 신이여···"
                          : dice.Next(10) < 4 ? "아니, 이럴 수가!!" : null,
@@ -504,7 +508,7 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         // 말풍선을 띄우고 그러고 나서 부대를 지운다(0x00447F50).
         bool felled = battle.Units[to].Men <= 0;
         Log(new Line($"{Name(from)}의 공격 — {Name(to)} {hurt}명", from, to, hurt, sound,
-                     Felled: felled ? to : -1, Fell: felled ? FellWord() : ""));
+                     Felled: felled ? to : -1, Fell: felled ? FellWord(to) : ""));
         Done();
     }
 

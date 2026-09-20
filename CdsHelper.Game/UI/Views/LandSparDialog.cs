@@ -396,7 +396,8 @@ internal sealed class LandSparDialog : GameWindow
                                    rows?.ScaleOf(made.Target) ?? 3,
                                    rows?.NationOf(made.Target) ?? -1,
                                    rows?.CultureOf(made.Target) ?? made.Culture,
-                                   TownField, dice, made.MyMen, mock: true);
+                                   TownField, dice, made.MyMen, mock: true)
+            { MyCulture = game.MyCulture };
         }
         else
         {
@@ -405,7 +406,8 @@ internal sealed class LandSparDialog : GameWindow
             int culture = made.Target >= 0
                 ? LandFieldFoes.All[made.Target].Culture : made.Culture;
             field = new LandBattle(made.Mine, made.Theirs, made.MyMen, foeMen,
-                                   player, aide, culture, made.Terrain, dice, made.Sort);
+                                   player, aide, culture, made.Terrain, dice, made.Sort)
+            { MyCulture = game.MyCulture };
         }
 
         LandBattleScene.Run(owner, game, field, dice);
