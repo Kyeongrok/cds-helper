@@ -646,6 +646,17 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
         AfterOrder();
     }
 
+    /// <summary>
+    /// 부관의 성미 칸 0. 부관이 없거나 밑표에서 못 찾으면 1(여느 판정)이다.
+    /// </summary>
+    private static int MateTemperOf(Engine.Game? game, string mateName)
+    {
+        if (game == null || mateName.Length == 0) return 1;
+        if (game.World?.People.FirstOrDefault(r => r.Name == mateName) is not { } row) return 1;
+        if (game.PersonTemplates?.Find(row.Id) is not { } who) return 1;
+        return FleetRaid.FortuneOf(who.Face, who.Blood, who.Nation)[0];
+    }
+
     /// <summary>해전 창 제목.</summary>
     private const string BattleTitle = "해전";
 
@@ -1373,6 +1384,10 @@ public sealed class SeaCombatDialog : GameWindow, SeaBattle.IStage
                                               leader.Mind, leader.Charm, leader.Sword, leader.Shooting,
                                               leader.FortuneAt(0));
         battle.LeaderFortune = leader.FortuneAt(3);
+
+        // 위임했을 때 아군 AI 가 보는 부관 성미 칸 0(0x0043B7B1) — 부관을 인물 밑표에서 찾아
+        // 얼굴·혈액형·나라로 센다. 못 찾으면 1(여느 판정)로 둔다.
+        battle.MateTemper = MateTemperOf(game, player.MateAt(0));
         // 탄약 = 함대 보급품 탄약 x 10(볼트 85). 잠수폭탄은 소지품 칸마다 굴린다(볼트 94 3.1).
         battle.Ammo = player.SupplyOf(SupplyKind.Ammo) * 10;
         battle.Mines = player.Items.Count(id => id == SeaBattle.MineItem);
