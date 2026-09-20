@@ -521,6 +521,8 @@ internal sealed class HomeMenu(Window view, Engine.Game game, GameMenuHost menu)
         _player.BirthDay = son.Born.Day;
         _player.BirthYear = son.Born.Year;
         _player.SetAbilities(son.Abilities);
+        // 주량도 아들 칸을 그대로 이어받는다(0x0047D4F5 의 rep movsd 가 +0x3C 를 함께 옮긴다).
+        _player.Drinking = son.Drinking;
         for (int i = 0; i < Skill.Names.Length && i < son.Skills.Length; i++) _player.SetSkill(Skill.Names[i], son.Skills[i]);
         for (int i = 0; i < Skill.Languages.Length && i < son.Tongues.Length; i++) _player.SetTongue(Skill.Languages[i], son.Tongues[i]);
 

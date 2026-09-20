@@ -2413,6 +2413,7 @@ public sealed class ShipMapWindow : Window
             _game.Player.RestoreNamedDiscoveries(saved.NamedDiscoveries);
             // 남이 먼저 발표한 발견물. 이 칸 앞의 세이브는 아무도 안 앞지른 판으로 연다.
             _game.Player.RestoreScooped(saved.Scooped);
+            _game.Player.Drinking = saved.Drinking ?? 0;
             Local.Helpers.DiscoveryTable.ResetNames(_game.Player.NamedDiscoveries);
             _game.Player.RestoreRumors(saved.Rumors, saved.PersonLines);
             _game.Player.RestoreHistory(saved.HistoryMonth, saved.HistoryNations, saved.HistoryDone);

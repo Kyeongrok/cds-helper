@@ -258,6 +258,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     private const int TipsyStep = 50;
 
     /// <summary>
+    /// 취하는 문턱 — <c>(주량 + 1) x 50</c> 이다(<c>0x0042F021</c>). 주량은 세대를 넘어야
+    /// 바뀌므로 첫 대에서는 늘 50 이다.
+    /// </summary>
+    private int TipsyLimit => (_player.Drinking + 1) * TipsyStep;
+
+    /// <summary>
     /// 술 한 잔. 값을 이르고 좋다면 받아 마신다(<c>0x0042F580</c>).
     /// </summary>
     /// <remarks>
@@ -319,7 +325,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         // 마신 뒤에 뜨는 말은 <b>얼굴이 없다</b> — 값을 이르는 창은 얼굴을 걸고 부르지만
         // (0x4692E0), 이쪽은 얼굴 없는 알림이다(0x469060, 인자가 둘뿐이다).
         _tipsy += drink.Proof;
-        if (_tipsy > TipsyStep)
+        if (_tipsy > TipsyLimit)
         {
             ConfirmDialog.Tell(_view, "기분이 좋아졌다.........");
             Drunk();

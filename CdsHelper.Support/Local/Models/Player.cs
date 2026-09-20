@@ -292,6 +292,20 @@ public sealed class Player
                            - 1;
     }
 
+    /// <summary>
+    /// 주량(<c>0x005B60DC</c>, 0~3) — 술집에서 <c>(주량 + 1) x 50</c> 을 넘게 마시면 취한다
+    /// (<c>0x0042F021</c>).
+    /// </summary>
+    /// <remarks>
+    /// <b>놀이 안에서 올라가는 길이 없다.</b> NEW GAME 은 0 으로 시작하고, 아이가 물려받을 때만
+    /// <c>rand(3) − 1</c> 이 얹히며(<c>0x00460E99</c>), 세대교체가 아이 칸을 그대로 베껴 온다
+    /// (<c>0x0047D4F5</c> 의 <c>rep movsd</c> 가 <c>+0x20</c>~<c>+0xAB</c> 를 옮긴다).
+    /// </remarks>
+    public int Drinking { get; set; }
+
+    /// <summary>주량이 들 수 있는 끝(<c>0x00460EA3</c> 의 <c>clamp(값, 0, 3)</c>).</summary>
+    public const int MaxDrinking = 3;
+
     /// <summary>제독의 컨디션(<c>0x005B60D8</c>). 처음 값은 <see cref="ConditionFull"/> 이다.</summary>
     public int Condition { get; private set; } = ConditionFull;
 
@@ -963,9 +977,12 @@ public sealed class Player
     /// 자란 아들이 쓰는 얼굴(<c>아이 +0x334</c>) — 태어날 때 <b>아버지 얼굴</b>을 그대로 받는다
     /// (<c>0x00460F88</c> 이 <c>0x0047CB10</c> 의 제독 얼굴을 넣는다). 딸은 안 쓴다.
     /// </param>
+    /// <param name="Drinking">
+    /// 주량(0~3) — 아버지 것에 <c>rand(3) − 1</c> 을 얹어 0~3 으로 자른다(<c>0x00460E99</c>).
+    /// </param>
     public sealed record Child(string Name, bool Daughter, DateTime Born, int[] Abilities, int[] Skills,
                                int[] Tongues, bool Introduced = false, int Blood = 0, int Face = -1,
-                               int GrownFace = -1)
+                               int GrownFace = -1, int Drinking = 0)
     {
         /// <summary>그 날의 나이. 아직 안 태어났으면 음수다.</summary>
         public int AgeOn(DateTime now) =>
