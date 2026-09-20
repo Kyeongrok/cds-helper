@@ -130,6 +130,7 @@ internal sealed class LandBattleScene : GameWindow
                 NoticeDialog.Show(this, _battle.ShellWord, "");
 
             int order = Ask(dice);
+            _newTurn = false;                        // 다시 열어도 새 턴이 아니다(0x00449DC4)
             if (order < 0) continue;                 // 물러도 차림표가 다시 뜬다
 
             if (order == LandBattle.Retreat)
@@ -176,6 +177,7 @@ internal sealed class LandBattleScene : GameWindow
 
             var lines = fight.Turn(order, _battle.FoeOrder(dice));
             _ruseThisTurn = false;                  // 턴이 넘어가면 묘책을 다시 걸 수 있다(0x00449DDA)
+            _newTurn = true;                        // 턴이 굴렀으니 다음 차림표는 새 턴이다(0x00449DC4)
             Play(lines, fight.Opening);
 
             if (fight.Over is { } won)
@@ -218,12 +220,25 @@ internal sealed class LandBattleScene : GameWindow
     /// </remarks>
     private bool _showMen;
 
+    /// <summary>이번 차림표가 <b>새 턴의 첫 차림표</b>인지(<c>0x00449DC4</c> 의 <c>[ebp-0x14]</c>).</summary>
+    /// <remarks>
+    /// 애니메이션을 껐다 켜거나 묘책을 걸거나 퇴각을 물리면 차림표가 다시 뜨는데, 그때는
+    /// <b>「제N턴」을 다시 내걸지 않고 일기토 칸도 다시 굴리지 않는다</b>. 게임은 턴을
+    /// 굴린 <c>0x00449A20</c> 이 참을 내야 이 값을 다시 세운다.
+    /// </remarks>
+    private bool _newTurn = true;
+
+    /// <summary>새 턴에 굴려 둔 일기토 칸 — 그 턴 동안 그대로 쓴다.</summary>
+    private bool _duelRow;
+
     /// <summary>
     /// 「제N턴」을 내걸고 공격명령을 묻는다 — <b>이 동안만 병사수가 보인다</b>.
     /// </summary>
     /// <remarks>
-    /// 일기토 칸은 <b>차림표를 열 때마다 굴린다</b> — 적 대장이 나보다 셀수록 열린다
-    /// (<c>0x00447930</c>). 예전에는 첫 턴이면 늘 열어 두었다.
+    /// 일기토 칸은 <b>새 턴의 첫 차림표에서만 굴린다</b> — 적 대장이 나보다 셀수록 열린다
+    /// (<c>0x00447930</c>). 차림표를 짓는 <c>0x00449BA0</c> 이 「새 턴인가」를 인자로 받아,
+    /// 새 턴일 때만 일기토 비트를 다시 셈하고(<c>0x00449BC3</c>) 그 밖에는 앞서 지은 것을
+    /// 그대로 쓴다 — 그러니 애니메이션을 껐다 켜며 일기토가 열릴 때까지 다시 굴릴 수 없다.
     /// </remarks>
     private int Ask(GameRandom dice)
     {
@@ -231,13 +246,18 @@ internal sealed class LandBattleScene : GameWindow
         Redraw();
         try
         {
-            NoticeDialog.Show(this, _battle.TurnWord, "");
+            // 「제N턴」도 새 턴에만 내건다(0x00449D23).
+            if (_newTurn)
+            {
+                NoticeDialog.Show(this, _battle.TurnWord, "");
+                _duelRow = _battle.DuelOffered(dice);
+            }
 
             // 들싸움 첫 턴에는 아예 안 묻고 통상공격으로 간다(0x00449C00).
             if (!_battle.AsksOrder) return LandBattle.Normal;
 
             return ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
-                                     _battle.OrderRows(canDuel: _battle.DuelOffered(dice),
+                                     _battle.OrderRows(canDuel: _duelRow,
                                                        canRuse: !_ruseThisTurn),
                                      Corner, exitRow: false);
         }
