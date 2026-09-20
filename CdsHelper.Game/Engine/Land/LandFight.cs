@@ -38,6 +38,39 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
 
     private readonly List<Line> _log = [];
 
+    /// <summary>
+    /// 심판(벼락)이 <b>판을 끝냈는지</b> — 그러면 그 턴은 통째로 건너뛴다.
+    /// </summary>
+    /// <remarks>
+    /// <c>0x00448F80</c> 이 한 부대를 칠 때마다 <c>+0x3C</c> 를 보고, 8(판이 이어짐)이
+    /// 아니면 <b>1 을 내고 곧바로 나간다</b>. 받은 <c>0x00449369</c> 는 <c>0x00449410</c> 으로
+    /// 뛰어 행동 차례 짜기·적 명령·싸움 되돌이를 다 건너뛴다.
+    /// </remarks>
+    public bool Struck { get; private set; }
+
+    /// <summary>
+    /// 자리 열둘을 섞어 낸다 — 게임의 피셔–예이츠 그대로다(<c>0x00448F9A</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   00448f9c  arr[i] = i                       ; 0..11
+    ///   00448fa8  for i in 0..11:
+    ///   00448fb0      r = rand(12 - i) + i
+    ///   00448fc2      swap(arr[i], arr[r])         ; 0x00444540
+    /// </code>
+    /// </remarks>
+    private static int[] Shuffled(GameRandom dice)
+    {
+        var order = new int[LandBattle.Slots];
+        for (int i = 0; i < order.Length; i++) order[i] = i;
+        for (int i = 0; i < order.Length; i++)
+        {
+            int r = dice.Next(order.Length - i) + i;
+            (order[i], order[r]) = (order[r], order[i]);
+        }
+        return order;
+    }
+
     /// <summary>턴이 열릴 때의 병사수 열둘 — 그림은 여기서 시작한다.</summary>
     public IReadOnlyList<int> Opening { get; private set; } = [];
 
@@ -268,8 +301,10 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
 
             case LandBattle.Judgement:
                 // 하늘에서 벼락이 — 굴림 없이 <b>양쪽</b> 선 부대를 다 친다(0x00448F80).
+                // 차례는 <b>섞는다</b>(0x00448F9A 의 피셔–예이츠). 치는 사이에 판이 끝나면
+                // 거기서 멈추고 참을 내며, 그러면 <b>그 턴은 통째로 건너뛴다</b>(0x0044904B).
                 said.Add(new Line("하늘에서 벼락이···!"));
-                for (int slot = 0; slot < LandBattle.PerSide * 2; slot++)
+                foreach (int slot in Shuffled(dice))
                 {
                     if (!Alive(slot)) continue;
                     int hurt = (dice.Next(100) == 0 ? dice.Next(1000) : dice.Next(100)) + 1;
@@ -277,6 +312,8 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                     hurt = Math.Min(hurt, men);
                     battle.SetMen(slot, men - hurt);
                     said.Add(new Line("", Actor: slot, Target: slot, Damage: hurt, Men: Snapshot()));
+                    Done();
+                    if (Over != null) { Struck = true; break; }
                 }
                 Done();
                 break;

@@ -179,11 +179,17 @@ internal sealed class LandBattleScene : GameWindow
             // 걸어 둔 묘책은 여기서 터진다 — 퇴각·일기토를 골랐으면 여기까지 안 온다(0x00449320).
             FireRuse(fight, dice);
 
-            var lines = fight.Turn(order, _battle.FoeOrder(dice));
             _ruseThisTurn = false;                  // 턴이 넘어가면 묘책을 다시 걸 수 있다(0x00449DDA)
             _newTurn = true;                        // 턴이 굴렀으니 다음 차림표는 새 턴이다(0x00449DC4)
             _battle.ShellSpent();                   // 작렬탄은 한 턴만 간다(0x00449DE3)
-            Play(lines, fight.Opening);
+
+            // 벼락이 판을 끝냈으면 <b>그 턴은 아무도 안 친다</b> — 행동 차례 짜기도 적 명령도
+            // 건너뛰고 뒷셈으로 간다(0x00449369 → 0x00449410).
+            if (!fight.Struck)
+            {
+                var lines = fight.Turn(order, _battle.FoeOrder(dice));
+                Play(lines, fight.Opening);
+            }
 
             if (fight.Over is { } won)
             {
