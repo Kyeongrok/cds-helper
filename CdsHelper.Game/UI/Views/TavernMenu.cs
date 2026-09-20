@@ -1312,7 +1312,10 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
         if (duel.Won == true)
         {
-            Triumph(who.Index, face, dice);
+            // 「일기토를 신청한다」는 판 종류 8 이라 <b>승리 차림표가 안 뜬다</b> —
+            // 종류 2·5·7 이상은 처형·놓아 준다·모두 뺏는다를 통째로 건너뛰고 결과 1 만
+            // 세운다(0x004AA2B1~0x004AA2CC). 그래서 물러가는 말과 행동 늦어짐만 남는다
+            // (0x004A49F1~0x004A4A6A).
             Setback(who, face, dice);
         }
         else if (LostDuel(duel, face, dice, mate is { }))
