@@ -1527,10 +1527,18 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         "생각보단 꽤 하는군. 하지만 이런 곳에서 죽을 수 있나. 내게는 큰 꿈이 있다.",
     ];
 
-    /// <summary>이긴 뒤 처형·놓아 준다·모두 뺏는다(<c>0x004A8380(3)</c>). 고른 번호(0 처형 · 1 놓아 줌 · 2 뺏음)를 낸다.</summary>
-    internal int Triumph(int person, uint[]? face, GameRandom dice)
+    /// <summary>
+    /// 이긴 뒤 처형·놓아 준다·모두 뺏는다(<c>0x004A8380(3)</c>). 고른 번호(0 처형 · 1 놓아 줌 ·
+    /// 2 뺏음)를 낸다.
+    /// </summary>
+    /// <param name="indoors">
+    /// 판 무대가 <b>4 이상</b>(술집·모스크·사원)인지. 그때만 「놓아 준다」·「모두 뺏는다」가
+    /// 붙고, 갑판(0)·초원(1) 같은 데서는 「처형한다」 한 줄뿐이다(<c>0x004A8470</c>).
+    /// </param>
+    internal int Triumph(int person, uint[]? face, GameRandom dice, bool indoors = true)
     {
-        int pick = ChoiceDialog.Pick(_view, "", ["처형한다", "놓아 준다", "모두 뺏는다"]);
+        int pick = ChoiceDialog.Pick(_view, "",
+            indoors ? ["처형한다", "놓아 준다", "모두 뺏는다"] : ["처형한다"]);
         switch (pick)
         {
             case 0:

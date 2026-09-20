@@ -1013,7 +1013,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
 
         if (won)
         {
-            if (Guests.Triumph(TavernMenu.BrawlPerson, face, new GameRandom(Environment.TickCount)) == 0)
+            // 성문 앞 판은 무대 1(초원)이라 「처형한다」 한 줄뿐이다(0x004A847A).
+            if (Guests.Triumph(TavernMenu.BrawlPerson, face, new GameRandom(Environment.TickCount),
+                               indoors: false) == 0)
                 _player.Infamy += Standoff.VillainInfamyUp;
             return;
         }

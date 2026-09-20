@@ -1781,7 +1781,10 @@ public sealed class ShipMapWindow : Window
     private void SeaTriumph(Window owner, int leaderId, uint[]? face, GameRandom dice)
     {
         var player = _game.Player;
-        switch (ChoiceDialog.Pick(owner, "", ["처형한다", "놓아 준다", "모두 뺏는다"]))
+        // 해전 일기토는 <b>무대 0(갑판)</b> 이라 줄이 「처형한다」 하나뿐이다 — 「놓아 준다」와
+        // 「모두 뺏는다」는 무대 4 이상(술집·모스크·사원)이고 종류가 6 이 아닐 때만 붙는다
+        // (0x004A8470~0x004A84AC).
+        switch (ChoiceDialog.Pick(owner, "", ["처형한다"]))
         {
             case 0:
                 TalkDialog.Say(owner, face, "", TavernMenu.Executed[dice.Next(TavernMenu.Executed.Length)]);
