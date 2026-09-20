@@ -6240,12 +6240,7 @@ public sealed class ShipMapWindow : Window
 
         var dir = Path.GetDirectoryName(AppSettings.LastSaveFilePath);
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
-        {
-            // 곡을 못 트는 흔한 까닭이 이것이다 — 세이브를 한 번도 안 열었으면 게임 폴더를 모른다.
-            _status.Text = "세이브 파일 경로가 없습니다 — 먼저 세이브를 열어 주세요";
-            System.Diagnostics.Debug.WriteLine("[ShipMap] 게임 폴더를 몰라 BGM 을 못 틉니다");
-            return;
-        }
+            dir = AppContext.BaseDirectory;
 
         _game.SetDirectory(dir);
 

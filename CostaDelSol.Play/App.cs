@@ -49,8 +49,6 @@ internal sealed class App : Application
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         GameSettings.Load();
 
-        if (!EnsureGameFolder()) { Shutdown(); return; }
-
         // 미궁은 딴 어셈블리에 있어 놀이 쪽에서 곧장 못 부른다 — 여기서 걸어 준다.
         // 일기토는 이제 놀이 쪽(ShipMapWindow.PlayDuel)이 제 판을 곧장 부른다.
         ShipMapWindow.MazeGame = CdsHelper.Maze.MazeGame.Play;
@@ -63,32 +61,4 @@ internal sealed class App : Application
     }
 
     /// <summary>
-    /// 게임 폴더를 아는지 보고, 모르면 <c>SAVEDATA.CDS</c> 를 골라 달라고 한 번 묻는다.
-    /// </summary>
-    /// <remarks>
-    /// 폴더가 아니라 <b>세이브 파일</b>을 고르게 한다 — 앱이 그 파일 경로를 들고 있고
-    /// (<see cref="AppSettings.LastSaveFilePath"/>) 게임 폴더는 그 상위 폴더로 얻기 때문이다.
-    /// 뷰어와 같은 값을 쓰므로 한쪽에서 열어 두면 다른 쪽도 안다.
-    /// </remarks>
-    private static bool EnsureGameFolder()
-    {
-        string? known = AppSettings.LastSaveFilePath;
-        if (!string.IsNullOrEmpty(known) && File.Exists(known)) return true;
-
-        MessageBox.Show(
-            "대항해시대3 이 어디 있는지 아직 모릅니다.\n게임 폴더의 SAVEDATA.CDS 를 골라 주세요.",
-            "대항해시대3", MessageBoxButton.OK, MessageBoxImage.Information);
-
-        var pick = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "SAVEDATA.CDS 를 고르세요",
-            Filter = "대항해시대3 세이브 (SAVEDATA.CDS)|SAVEDATA.CDS|모든 파일 (*.*)|*.*",
-            CheckFileExists = true,
-        };
-
-        if (pick.ShowDialog() != true) return false;
-
-        AppSettings.LastSaveFilePath = pick.FileName;
-        return true;
-    }
 }
