@@ -1020,7 +1020,9 @@ public sealed class CityPicView : GameWindow, ITownScreen
             return;
         }
 
-        TavernMenu.LostDuel(this, _player, duel, face, new GameRandom(Environment.TickCount), mateFought: false);
+        // 성문 앞 병사와의 판은 종류 6 이라 도망도 용서도 없다(0x004A9EDE).
+        TavernMenu.LostDuel(this, _player, duel, face, new GameRandom(Environment.TickCount),
+                            mateFought: false, canFlee: false, canSpare: false);
         GameOverDialog.Show(this, _game.EventStills, GameOverDialog.MutinyLost, bgm: _game.Bgm);
         if (Owner is ShipMapWindow map) Dispatcher.BeginInvoke(map.ReturnToTitle);
     }
