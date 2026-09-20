@@ -105,14 +105,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # BGM은 용량이 커서 설치 패키지와 단일 파일 exe에 넣지 않고 별도 자산으로 올린다.
-      - name: Package BGM
+      # BGM은 Git 저장소에 넣지 않고 이전 릴리즈의 자산을 새 릴리즈에도 재사용한다.
+      - name: Download BGM asset
         shell: pwsh
         run: |
-          if (-not (Test-Path "asset/bgm/Track23.mp3")) {
-            throw "asset/bgm/Track23.mp3 가 없습니다"
+          gh release download --repo Kyeongrok/cds-helper --pattern bgm.zip --dir .
+          if (-not (Test-Path "bgm.zip")) {
+            throw "이전 릴리즈에 bgm.zip이 없습니다"
           }
-          Compress-Archive -Path "asset/bgm" -DestinationPath "bgm.zip" -CompressionLevel Optimal
 
       - name: Upload BGM
         shell: pwsh
