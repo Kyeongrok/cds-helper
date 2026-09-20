@@ -311,7 +311,10 @@ public static class Home
                                      new int[Skill.Names.Length], new int[Skill.Languages.Length],
                                      Blood: BloodOf(father.Blood, wifeBlood, random),
                                      Face: ChildFaces[random.Next(2) + (daughter.Value ? 2 : 0)][0],
-                                     GrownFace: father.Face);
+                                     GrownFace: father.Face,
+                                     // 주량은 아버지 것에 rand(3) − 1 을 얹어 0~3 으로 자른다(0x00460E99).
+                                     Drinking: Math.Clamp(father.Drinking + random.Next(3) - 1,
+                                                          0, Player.MaxDrinking));
         return Bless(father, random, child, nationLanguage, wifeTongues);
     }
 
