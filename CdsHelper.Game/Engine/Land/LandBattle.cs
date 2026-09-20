@@ -781,6 +781,20 @@ public sealed class LandBattle
         60, 20, 40,   80, 20, 60,   40, 20, 60,
     ];
 
+    /// <summary>표의 칸 수(<c>0x00549B80</c> 의 서른셋).</summary>
+    public static int RuseOddsCount => RuseOdds.Length;
+
+    /// <summary>표 칸을 읽는 자리 — <b>문화권 * 3 + 묘책</b> 이다(<c>0x00449092</c>).</summary>
+    public static int RuseOddsAt(int culture, int ruse) => Math.Clamp(culture, 0, 10) * 3 + ruse;
+
+    /// <summary>게임 표의 값 — 손으로 고친 것을 안 얹은 것이다.</summary>
+    public static int BuiltinRuseOdds(int index) =>
+        index >= 0 && index < RuseOdds.Length ? RuseOdds[index] : -1;
+
+    /// <summary>그 칸의 확률 — 손으로 고쳐 두었으면 그것이 먼저다(<see cref="Local.Helpers.RuseEdits"/>).</summary>
+    public static int RuseOddsOf(int index) =>
+        Local.Helpers.RuseEdits.Of(index) ?? BuiltinRuseOdds(index);
+
     /// <summary>한 판에 한 번씩만 쓴다(<c>+0x50</c> 의 비트).</summary>
     private int _usedRuses;
 
@@ -820,8 +834,8 @@ public sealed class LandBattle
     {
         if (ruse == Judgement) return true;
 
-        int at = Math.Clamp(Culture, 0, 10) * 3 + ruse;
-        return at < RuseOdds.Length && RuseOdds[at] >= dice.Next(100);
+        int at = RuseOddsAt(Culture, ruse);
+        return at < RuseOdds.Length && RuseOddsOf(at) >= dice.Next(100);
     }
 
     /// <summary>공격명령 차림표의 제목(<c>0x0056D7A0</c>).</summary>

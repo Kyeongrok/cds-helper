@@ -48,6 +48,9 @@ public sealed class DevDialog : GameWindow
         /// <summary>도구 앱(Editor.exe) 띄우기 — 창을 닫은 뒤 부른다.</summary>
         public Action? HelperApp { get; init; }
 
+        /// <summary>묘책 확률 표(<c>0x00549B80</c>) 보고 고치기 — 창을 닫은 뒤 부른다.</summary>
+        public Action? RuseTable { get; init; }
+
         /// <summary>싸움 셈을 돌려 보는 세 가지 — 일기토 · 육상전 모의전 · 모의해전. 창을 닫은 뒤 부른다.</summary>
         public Action? Duel { get; init; }
         public Action? LandSpar { get; init; }
@@ -111,6 +114,23 @@ public sealed class DevDialog : GameWindow
                 VerticalAlignment = VerticalAlignment.Center,
             });
             line.Children.Add(GameUi.PushButton(label + "…", () => { Close(); go(); }, 180));
+            rows.Children.Add(line);
+        }
+
+        // 묘책 확률 표 — 게임 표를 그대로 보여 주고 고치면 놀이에도 바로 든다.
+        if (options.RuseTable is { } ruses)
+        {
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
+            line.Children.Add(new TextBlock
+            {
+                Text = "표",
+                Width = 64,
+                Foreground = GameUi.Text,
+                FontWeight = FontWeights.Bold,
+                FontSize = 15,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            line.Children.Add(GameUi.PushButton("묘책 확률…", () => { Close(); ruses(); }, 180));
             rows.Children.Add(line);
         }
 
