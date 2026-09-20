@@ -1578,7 +1578,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// (<c>0x004AA4B3</c>). 굴린 것이 없으면 (0, 0) 이고 그때는 안 준다.
     /// </param>
     internal int Triumph(int person, uint[]? face, GameRandom dice, bool indoors = true,
-                         (int Weapon, int Armor) gear = default)
+                         (int Weapon, int Armor) gear = default, bool mateFought = false)
     {
         int pick = ChoiceDialog.Pick(_view, "",
             indoors ? ["처형한다", "놓아 준다", "모두 뺏는다"] : ["처형한다"]);
@@ -1608,7 +1608,33 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                 NoticeDialog.Show(_view, $"명성이 {SpareFame} 올라갔다", "일기토");
                 break;
         }
+
+        GrowMight(_view, _player, mateFought, dice);
         return pick;
+    }
+
+    /// <summary>
+    /// 이긴 뒤 <b>1/100</b> 으로 무력이 오른다(<c>0x004AA592</c>) — 승리 차림표가 뜬 판에서만이다.
+    /// </summary>
+    internal static void GrowMight(Window view, Player player, bool mateFought, GameRandom dice)
+    {
+        string first = player.MateAt(0);
+        var mate = first.Length > 0 ? player.MateInfoOf(first) : null;
+        var (by, mine, theirs) = Engine.Town.Duel.MightGrowth(
+            mateFought, player.AbilityOf(Ability.Might), mate?.Might, dice);
+        if (by <= 0) return;
+
+        if (mine) player.AdjustAbility(Ability.Might, by);
+        if (theirs && mate is { } who) player.GrowMate(who.Name, by);
+
+        // 0x00560258 · 0x00560280 · 0x005602A8 — 제독만 · 부관만 · 둘 다.
+        string me = player.Name;
+        NoticeDialog.Show(view, (mine, theirs) switch
+        {
+            (true, true) => $"{me}, 부관의 무력이 {by} 상승했다!",
+            (true, false) => $"{me}의 무력이 {by} 상승했다!",
+            _ => $"부관의 무력이 {by} 상승했다!",
+        }, "성장");
     }
 
     /// <summary>놓아 주면 오르는 명성(<c>0x004AA3E0</c>) · 뺏으면 오르는 악명(<c>0x004AA470</c> 알림 값).</summary>

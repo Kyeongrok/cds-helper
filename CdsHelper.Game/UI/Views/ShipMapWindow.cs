@@ -1751,6 +1751,8 @@ public sealed class ShipMapWindow : Window
 
         if (duel.Won != true) return false;
         SeaTriumph(board, leaderId, foeFace, dice);
+        // 승리 차림표가 뜬 판이라 무력 성장 굴림이 붙는다(0x004AA592).
+        TavernMenu.GrowMight(board, player, mate is { }, dice);
         return true;
     };
 
