@@ -321,6 +321,13 @@ public sealed class ShipMapHost : HwndHost
     public bool SteerWithMouse { get; set; } = true;
 
     /// <summary>
+    /// 커서 조타가 <b>깨어 있는지</b>(<c>this+0x104</c>). 왼쪽 클릭에서만 켜지고
+    /// (<c>0x0048B080</c>), 승선하면 꺼진다(<c>0x0048B5F6</c>). 꺼져 있으면 커서 쪽으로
+    /// 뱃머리를 안 돌린다(<c>0x0048ECC2</c> 의 <c>je</c>).
+    /// </summary>
+    public bool SteerArmed { get; set; }
+
+    /// <summary>
     /// 도시에 들어가 있는지. 참이면 지도 위에 남색 막을 씌운다 — 색을 칠하는 것이 아니라
     /// 지도가 그 밑으로 비쳐 보인다(게임도 그렇다).
     /// </summary>
@@ -1232,13 +1239,13 @@ public sealed class ShipMapHost : HwndHost
             {
                 UpdateAutoTarget();
             }
-            else if (_mouseInside)
+            else if (_mouseInside && SteerArmed)
             {
                 // 커서가 가리키는 칸으로 뱃머리를 돌린다.
                 _targetX = origin.X + _mouse.X * dpiX * _cellsPerPixel;
                 _targetY = origin.Y + _mouse.Y * dpiY * _cellsPerPixel;
             }
-            _hasHeadingTarget = AutoSailing || _mouseInside;
+            _hasHeadingTarget = AutoSailing || (_mouseInside && SteerArmed);
             Sail(dt);
             // <b>멈춤과 커서 놓침을 먼저 적는다.</b> 이 둘은 뱃머리가 안 도는 까닭인데,
             // 예전 줄은 그래도 "커서 쪽으로 항해 중" 이라 적어 서 있는 배와 구별이 안 됐다.
@@ -2059,6 +2066,7 @@ public sealed class ShipMapHost : HwndHost
         _shipKnown = true;
         _blocked = false;
         _anchored = true;                  // 닻을 내린 채로 연다 — 곧바로 흘러가지 않게
+        SteerArmed = false;                // 커서 조타도 잠든다(0x0048EB32 언저리)
         _onLand = false;
         _moored = false;
         _tickAccum = 0;
@@ -2165,8 +2173,10 @@ public sealed class ShipMapHost : HwndHost
         _targetY = _shipY;
         _onLand = false;
         _blocked = false;
-        // 배에 오르면 <b>닻을 내린 채</b>다 — 왼쪽 클릭으로 출발한다(0x0048B601 이 0x005B3A00 에 1).
+        // 배에 오르면 <b>닻을 내린 채</b>고 커서 조타도 잠든다 — 왼쪽 클릭으로 출발한다
+        // (0x0048B601 이 0x005B3A00 에 1, 0x0048B5F6 이 +0x104 에 0).
         _anchored = true;
+        SteerArmed = false;
         _tickAccum = 0;
         if (_follow) { _centerX = _shipX; _centerY = _shipY; }
         return true;
