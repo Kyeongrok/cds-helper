@@ -451,11 +451,20 @@ public sealed class Duel
     /// 졌을 때의 끝을 가린다(<c>0x004A9EED</c> · <c>0x004A9FC8</c>).
     /// </summary>
     /// <param name="fame">내 명성. 2000 을 넘으면 봐 주지 않는다.</param>
-    public Fate FateOf(int fame)
+    /// <param name="canFlee">
+    /// 도망을 굴릴 수 있는 판인지 — 무대가 <b>4 이상</b>(술집·모스크·사원)이라야 한다
+    /// (<c>0x004A9EE4</c> 의 <c>cmp eax, 4 / jl</c>).
+    /// </param>
+    /// <param name="canSpare">
+    /// 용서를 굴릴 수 있는 판인지 — 무대가 0(갑판)이 아니고 종류가 <b>0·3·8</b> 가운데
+    /// 하나라야 한다(<c>0x004A9EBE</c> · <c>0x004A9ED6</c> · <c>0x004A9EDE</c>).
+    /// 아니면 도망도 용서도 없이 곧바로 죽는다.
+    /// </param>
+    public Fate FateOf(int fame, bool canFlee = true, bool canSpare = true)
     {
-        if (Me.Luck * FleeLuck + FleeBase + _dice.Next(FleeDice) >= _dice.Next(FleeRoll))
+        if (canFlee && Me.Luck * FleeLuck + FleeBase + _dice.Next(FleeDice) >= _dice.Next(FleeRoll))
             return Fate.Fled;
-        if (fame <= SpareFame && _dice.Next(SpareDice) < SpareEdge)
+        if (canSpare && fame <= SpareFame && _dice.Next(SpareDice) < SpareEdge)
             return Fate.Spared;
         return Fate.Slain;
     }
