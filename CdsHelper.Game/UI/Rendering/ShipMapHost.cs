@@ -317,6 +317,12 @@ public sealed class ShipMapHost : HwndHost
     /// </remarks>
     public long Steps { get; private set; }
 
+    /// <summary>
+    /// 고리를 돈 횟수 — <b>닻을 내렸든 안 움직였든</b> 틱마다 는다. 날이 가는 눈금은
+    /// 여기에 매인다(<c>0x0048EF64</c> 의 <c>0x0044AF90</c> 이 조건 없이 돈다).
+    /// </summary>
+    public long Ticks { get; private set; }
+
     /// <summary>커서를 따라 배를 몬다. 끄면 게임 함대 자리를 그대로 따라간다.</summary>
     public bool SteerWithMouse { get; set; } = true;
 
@@ -1382,6 +1388,7 @@ public sealed class ShipMapHost : HwndHost
         while (_tickAccum >= TickSeconds)
         {
             _tickAccum -= TickSeconds;
+            Ticks++;                       // 날 눈금은 서 있어도 쌓인다(0x0044AF90)
             Turn();
 
             // 닻을 내렸으면 뱃머리만 돌고 그 자리에 선다 — 게임도 돌기가 닻 검사보다 앞이라,
