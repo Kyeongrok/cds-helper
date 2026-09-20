@@ -3316,10 +3316,11 @@ public sealed class ShipMapWindow : Window
     private void PassTime()
     {
         if (_asking || _host.Paused || _host.SeaBlocked) return;
-        if (_host.IsAnchored) return;
 
-        // 지난번에 세고 나서 몇 걸음이나 걸었는지. 게임 고리 한 바퀴가 한 걸음이다.
-        long walked = _host.Steps;
+        // <b>닻을 내려도 날은 간다</b> — 게임은 자리만 안 옮기고(0x0048D14F) 칸 눈금은
+        // 조건 없이 쌓는다(0x0048EF64 → 0x0044AF90). 그래서 서 있어도 식량·물·피로가 흐른다.
+        // 지난번에 세고 나서 고리를 몇 바퀴 돌았는지. 게임 고리 한 바퀴가 한 눈금이다.
+        long walked = _host.Ticks;
         int since = (int)Math.Min(walked - _steps, MaxCatchUp);
         if (since <= 0) { _steps = walked; return; }
         _steps = walked;
