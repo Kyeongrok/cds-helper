@@ -328,6 +328,19 @@ public sealed class ShipMapHost : HwndHost
     public bool SteerArmed { get; set; }
 
     /// <summary>
+    /// 뱃머리를 그 쪽(16방위)으로 <b>곧장</b> 세우고 다시 나아간다 — 숫자판 조타다
+    /// (<c>0x0048B04E</c>: 표 <c>0x005696EC[글쇠]</c> 를 <c>0x005B63CC</c> 에 박고
+    /// 닻 <c>0x005B3A00</c> 을 0 으로, 커서 조타 <c>+0x104</c> 를 0 으로 둔다).
+    /// </summary>
+    public void SteerTo(int heading)
+    {
+        _desired = heading & 0xF;
+        _making = true;
+        _anchored = false;
+        SteerArmed = false;
+    }
+
+    /// <summary>
     /// 도시에 들어가 있는지. 참이면 지도 위에 남색 막을 씌운다 — 색을 칠하는 것이 아니라
     /// 지도가 그 밑으로 비쳐 보인다(게임도 그렇다).
     /// </summary>

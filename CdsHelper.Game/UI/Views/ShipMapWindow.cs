@@ -2300,6 +2300,22 @@ public sealed class ShipMapWindow : Window
         // <b>이 창은 GameWindow 가 아니다</b> — 공용 글쇠 손(GameWindow 의 클래스 손)이
         // 여기까지 오지 않는다. 그래서 지도 창에서는 이 자리에서 같은 글쇠를 받는다.
         // 예전에는 지도 글쇠가 <b>창이 하나 떠 있을 때만</b> 먹어, 커맨드를 열고 눌러야 했다.
+        // 숫자판 조타(0x0048B02C) — 1~9 가 뱃머리를 곧장 세우고, 5 는 멈춤을 토글하며
+        // 0 은 커맨드 창을 연다. 뭍에서도 같은 글쇠다.
+        if (NumpadWay(e.Key) is { } pad)
+        {
+            e.Handled = true;
+            if (pad < 0) _host.ToggleAnchor();          // 「5」
+            else _host.SteerTo(pad);
+            return;
+        }
+        if (e.Key is Key.D0 or Key.NumPad0)
+        {
+            e.Handled = true;
+            ShowCommandMenu(this, new Point(ActualWidth / 2, ActualHeight / 2));
+            return;
+        }
+
         if (e.Key == KeyOf(GameSettings.MapKey, Key.D))
         {
             e.Handled = true;
@@ -2312,6 +2328,24 @@ public sealed class ShipMapWindow : Window
         e.Handled = true;
         Hold(() => SaveByKey(this));
     }
+
+    /// <summary>
+    /// 숫자판 조타 표(<c>0x005696EC</c> 의 글쇠 <c>'1'</c>~<c>'9'</c> 칸) — 16방위 값이다.
+    /// <c>'5'</c> 는 −1 로 내어 멈춤 토글을 뜻한다. 숫자 글쇠가 아니면 null.
+    /// </summary>
+    private static int? NumpadWay(Key key) => key switch
+    {
+        Key.D1 or Key.NumPad1 => 6,
+        Key.D2 or Key.NumPad2 => 8,
+        Key.D3 or Key.NumPad3 => 10,
+        Key.D4 or Key.NumPad4 => 4,
+        Key.D5 or Key.NumPad5 => -1,
+        Key.D6 or Key.NumPad6 => 12,
+        Key.D7 or Key.NumPad7 => 2,
+        Key.D8 or Key.NumPad8 => 0,
+        Key.D9 or Key.NumPad9 => 14,
+        _ => null,
+    };
 
     /// <summary>글쇠 이름을 글쇠로. 비었거나 모르는 이름이면 기본값이다.</summary>
     private static Key KeyOf(string name, Key fallback) =>
