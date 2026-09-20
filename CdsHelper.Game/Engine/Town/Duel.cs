@@ -466,7 +466,7 @@ public sealed class Duel
     /// <remarks>
     /// <code>
     ///   004a48be  성미 여덟 칸을 뜬다(vtbl+0x24)
-    ///   004a48c1  ebx = 성미[6]  ; 무신경 0 ~ 신경질 2, 0~2 로 자른다
+    ///   004a48c1  ebx = 성미[3]  ; [esp+0x30] 은 버퍼(S1+0x18) 에서 0x0C, 곧 칸 3 이다
     ///   004a48d5  묶음 크기 = {5, 6, 5}   (0x00572940)
     ///   004a48ec  표 = 0x00572998[ebx]    → 0x00572950 · 0x00572968 · 0x00572980
     /// </code>
@@ -478,8 +478,11 @@ public sealed class Duel
         return set[dice.Next(set.Length)];
     }
 
-    /// <summary>대사 묶음을 가르는 성미 칸 — 일곱째(무신경 ↔ 신경질).</summary>
-    public const int TauntSlot = 6;
+    /// <summary>
+    /// 대사 묶음을 가르는 성미 칸 — <b>넷째</b>(칸 3)다. 영해 경고에 불복하는지를 가르는
+    /// 칸과 같다(<c>0x0048C5E8</c>).
+    /// </summary>
+    public const int TauntSlot = 3;
 
     /// <summary>성미마다의 대사 묶음(<c>0x00551228</c> ~ <c>0x00551500</c>).</summary>
     private static readonly string[][] Taunts =
