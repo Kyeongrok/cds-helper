@@ -123,12 +123,13 @@ internal sealed class LandBattleScene : GameWindow
         // 싸우는 동안은 그 곡이 돈다. 끝나면 부르는 쪽이 제 곡으로 되돌린다.
         _game?.Bgm.Play(BgmPlayer.BattleTrack);
 
+        // 작렬탄은 턴 되돌이에 들기 **앞서** 딱 한 번 굴린다 — 살아 있는 아군 포가 있고
+        // 아이템을 지녔으면 40%다(0x00449C9E).
+        if (_game is { } g && _battle.TryShell(g.Player, dice))
+            NoticeDialog.Show(this, _battle.ShellWord, "");
+
         while (true)
         {
-            // 턴 첫머리마다 굴린다 — 살아 있는 아군 포가 있고 아이템을 지녔으면 40%다(0x00449C9E).
-            if (_game is { } g && _battle.TryShell(g.Player, dice))
-                NoticeDialog.Show(this, _battle.ShellWord, "");
-
             int order = Ask(dice);
             _newTurn = false;                        // 다시 열어도 새 턴이 아니다(0x00449DC4)
             if (order < 0) continue;                 // 물러도 차림표가 다시 뜬다
@@ -178,6 +179,7 @@ internal sealed class LandBattleScene : GameWindow
             var lines = fight.Turn(order, _battle.FoeOrder(dice));
             _ruseThisTurn = false;                  // 턴이 넘어가면 묘책을 다시 걸 수 있다(0x00449DDA)
             _newTurn = true;                        // 턴이 굴렀으니 다음 차림표는 새 턴이다(0x00449DC4)
+            _battle.ShellSpent();                   // 작렬탄은 한 턴만 간다(0x00449DE3)
             Play(lines, fight.Opening);
 
             if (fight.Over is { } won)

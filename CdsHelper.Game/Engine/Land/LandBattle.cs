@@ -628,9 +628,10 @@ public sealed class LandBattle
     /// 다 빈치의 작렬탄(<c>0x00448DD0</c>) — 판이 열릴 때 한 번 굴린다.
     /// </summary>
     /// <remarks>
-    /// <b>턴마다</b> 굴린다(<c>0x00449C9E</c>). 살아 있는 <b>포 부대</b>가 아군에 있고 아이템 2 를 지녔을 때,
-    /// 40%로 <c>0x0056D340</c> 「다 빈치 선생의 작렬탄을 받아라!」가 뜨고 그 아이템이 없어진다.
-    /// 한 번 받으면 그 판이 끝날 때까지 서 있다.
+    /// <b>판을 열 때 딱 한 번</b> 굴린다(<c>0x00449C9E</c> — 턴 되돌이 <b>앞</b>이다). 살아 있는
+    /// <b>포 부대</b>가 아군에 있고 아이템 2 를 지녔을 때, 40%로 <c>0x0056D340</c>
+    /// 「다 빈치 선생의 작렬탄을 받아라!」가 뜨고 그 아이템이 없어진다.
+    /// 받아도 <b>첫 턴만</b> 간다(<see cref="ShellSpent"/>).
     /// </remarks>
     public const int ShellItem = 2, ShellOdds = 40;
 
@@ -648,20 +649,30 @@ public sealed class LandBattle
     /// <summary>전투 갈래 — 들에서 마주친 부대 · 마을 공략 · 발견 대본의 인물전(<c>2F 0D</c>)이다.</summary>
     public const int Field = 1, Town = 2, Script = 3;
 
-    /// <summary>작렬탄을 받았는지. 서 있으면 포가 비를 안 탄다.</summary>
+    /// <summary>작렬탄을 받았는지. 서 있으면 포가 비를 안 타고 두 번 쏜다.</summary>
     public bool Shells { get; private set; }
+
+    /// <summary>
+    /// 한 턴이 굴렀으니 작렬탄을 내린다(<c>0x00449DE3</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>+0x3C</c> 의 <c>0x40</c> 이 작렬탄이고 <c>0x08</c> 이 「판이 이어진다」다. 턴이
+    /// 굴러간 뒤 둘이 다 서 있으면 <c>0x48</c> 을 뒤집고 <c>0x08</c> 만 도로 세운다 — 곧
+    /// <b>작렬탄만 지운다</b>. 판을 열 때 한 번 굴리므로 사실상 <b>첫 턴에만</b> 듣는다.
+    /// </remarks>
+    public void ShellSpent() => Shells = false;
 
     /// <summary>작렬탄을 받았을 때 나오는 말(<c>0x0056D340</c>). 안 받았으면 빈 글.</summary>
     public string ShellWord { get; private set; } = "";
 
     /// <summary>
-    /// 작렬탄을 굴린다(<c>0x00448DD0</c>) — 턴 첫머리마다 한 번씩이다.
+    /// 작렬탄을 굴린다(<c>0x00448DD0</c>) — <b>판을 열 때 한 번</b>이다.
     /// </summary>
     /// <remarks>
     /// 살아 있는 <b>포 부대</b>(총대장 부대는 안 센다, <c>0x00447580(2, 0)</c>)가 있어야 하고, 아이템을
     /// 지녀야 하며, <c>rand(100) &lt; 40</c> 이라야 받는다. 받으면 그 아이템이 없어진다(<c>0x0047CDB0</c>).
     /// </remarks>
-    /// <returns>이번 턴에 <b>새로</b> 받았으면 참 — 그때만 말이 나온다.</returns>
+    /// <returns>받았으면 참 — 그때만 말이 나온다.</returns>
     public bool TryShell(Player player, GameRandom dice)
     {
         if (Shells || !player.HasItem(ShellItem)) return false;
