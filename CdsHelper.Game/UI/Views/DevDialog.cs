@@ -50,10 +50,6 @@ public sealed class DevDialog : GameWindow
         public Action? LandSpar { get; init; }
         public Action? SeaSpar { get; init; }
 
-        /// <summary>바람·해류 화살표 — 원본에 없는 덧그림이라 이 창에 둔다.</summary>
-        public Func<bool> ArrowsOn { get; init; } = () => false;
-        public Action<bool> SetArrows { get; init; } = _ => { };
-
     }
 
     private DevDialog(Player player, Options options)
@@ -78,10 +74,6 @@ public sealed class DevDialog : GameWindow
         // 놀이에는 없는 것이라 이 창으로 옮겨 두었다.
         rows.Children.Add(Toggle("좌표 겹쳐 보기", options.CoordsOn(), options.SetCoords,
             "배가 선 자리를 WORLD.CDS 의 칸·파일 오프셋까지 지도 위에 띄웁니다"));
-
-        // 바람·해류 화살표 — 원본은 물결로만 흐름을 보인다. 커맨드 줄에 있던 것을 이 창으로 옮겼다.
-        rows.Children.Add(Toggle("바람·해류 화살표", options.ArrowsOn(), options.SetArrows,
-            "원본에 없는 덧그림입니다 — 바람과 해류의 방위를 화살표로 얹습니다"));
 
         // 자동항해 — 해상 커맨드에 있던 것을 옮겼다. 창을 닫고 나서 목적지를 고른다.
         if (options.AutoSail is { } autoSail)

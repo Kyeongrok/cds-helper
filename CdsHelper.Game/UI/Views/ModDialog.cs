@@ -27,6 +27,10 @@ public sealed class ModDialog : GameWindow
         /// <summary>미니맵 — 발견물 지도를 작게 잘라 배를 따라간다.</summary>
         public Func<bool> MiniMapOn { get; init; } = () => false;
         public Action<bool> SetMiniMap { get; init; } = _ => { };
+
+        /// <summary>바람·해류 화살표 — 원본에 없는 덧그림이다.</summary>
+        public Func<bool> ArrowsOn { get; init; } = () => false;
+        public Action<bool> SetArrows { get; init; } = _ => { };
     }
 
     private ModDialog(Options options)
@@ -48,6 +52,10 @@ public sealed class ModDialog : GameWindow
         // 미니맵 — D 로 여는 발견물 지도를 항해·뭍 이동 중에 오른쪽 아래에 작게 띄운다.
         rows.Children.Add(Toggle("미니맵", options.MiniMapOn(), options.SetMiniMap,
             "항해·뭍 이동 중에 발견물 지도를 지도 오른쪽 아래에 작게 띄웁니다. 배를 가운데 두고 따라갑니다(빨강 찾음 · 회색 아직 · 파랑 내 자리)"));
+
+        // 바람·해류 화살표 — 원본은 물결로만 흐름을 보인다. 개발 창에 있던 것을 여기로 옮겼다.
+        rows.Children.Add(Toggle("바람·해류 화살표", options.ArrowsOn(), options.SetArrows,
+            "원본에 없는 덧그림입니다 — 바람과 해류의 방위를 지도 위에 화살표로 얹습니다"));
 
         // 발견물 지도 — 햄버거 줄과 단축키를 함께 여닫는다. 원본 항해지도는 표식을 안 찍는다.
         rows.Children.Add(Toggle("발견물 지도", GameSettings.ShowDiscoveryMapMenu,
