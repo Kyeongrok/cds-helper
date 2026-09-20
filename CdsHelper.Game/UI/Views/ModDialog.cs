@@ -1,6 +1,7 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using CdsHelper.Game.Local.Settings;
 
 namespace CdsHelper.Game.UI.Views;
@@ -12,8 +13,8 @@ namespace CdsHelper.Game.UI.Views;
 /// 개발 창에 섞여 있던 것 가운데 <b>놀 때 쓰는 것</b>만 따로 뽑아 왔다. 개발 창은 값을
 /// 손으로 밀어 넣어 시험하는 데고, 여기는 판을 그대로 두고 보기를 거드는 데다.
 ///
-/// 지금 든 것은 컨디션 막대 · 미니맵 · 발견물 지도 · 여급 수첩 · 기능·언어 쪽지 ·
-/// 인물 이동 · Ctrl+클릭 배 놓기 · 기능·언어 쪽지 · 출입 일수 · 인물 이동 굴림 두 줄이다.
+/// 줄은 <b>왼쪽</b>에 늘어놓고, 커서를 올리거나 고른 줄의 설명이 <b>오른쪽</b>에 뜬다 —
+/// 처음 보면 이름만으로는 무엇인지 알 수 없어 풍선말 대신 붙박이 설명 칸을 두었다.
 /// </remarks>
 public sealed class ModDialog : GameWindow
 {
@@ -33,6 +34,33 @@ public sealed class ModDialog : GameWindow
         public Action<bool> SetArrows { get; init; } = _ => { };
     }
 
+    /// <summary>줄 목록과 설명 칸의 너비.</summary>
+    private const double ListWidth = 250, TipWidth = 330;
+
+    /// <summary>아무 줄에도 커서가 없을 때 설명 칸에 적는 글.</summary>
+    private const string Greeting =
+        "원본에 없는 편의 기능을 켜고 끄는 창입니다.\n\n왼쪽 줄에 커서를 올리면 여기에 설명이 뜹니다.";
+
+    /// <summary>오른쪽 설명 칸의 이름 줄.</summary>
+    private readonly TextBlock _tipName = new()
+    {
+        Foreground = GameUi.Text,
+        FontWeight = FontWeights.Bold,
+        FontSize = 15,
+        Margin = new Thickness(0, 0, 0, 6),
+        TextWrapping = TextWrapping.Wrap,
+    };
+
+    /// <summary>오른쪽 설명 칸의 본문.</summary>
+    private readonly TextBlock _tipText = new()
+    {
+        Text = Greeting,
+        Foreground = GameUi.Text,
+        FontSize = 13,
+        LineHeight = 20,
+        TextWrapping = TextWrapping.Wrap,
+    };
+
     private ModDialog(Options options)
     {
         Title = "모드";
@@ -43,45 +71,52 @@ public sealed class ModDialog : GameWindow
         ShowInTaskbar = false;
         Background = GameUi.Back;
 
-        var rows = new StackPanel { Margin = new Thickness(12, 10, 12, 4) };
+        var rows = new StackPanel { Width = ListWidth, Margin = new Thickness(12, 10, 8, 4) };
 
         // 컨디션 — 제독 HP(0x005B60D8)를 지도 왼쪽 아래에 막대로 띄운다. 300·100 문턱도 같이 그린다.
         rows.Children.Add(Toggle("컨디션", options.ConditionOn(), options.SetCondition,
-            "제독 컨디션(HP, 0~2000)을 지도 왼쪽 아래에 띄웁니다. 300·100 아래면 부관이 쉬라고 하고, 0 이면 쓰러집니다"));
+            "제독 컨디션(HP, 0~2000)을 지도 왼쪽 아래에 띄웁니다. 300·100 아래면 부관이 쉬라고 하고, 0 이면 쓰러집니다."));
 
         // 미니맵 — D 로 여는 발견물 지도를 항해·뭍 이동 중에 오른쪽 아래에 작게 띄운다.
         rows.Children.Add(Toggle("미니맵", options.MiniMapOn(), options.SetMiniMap,
-            "항해·뭍 이동 중에 발견물 지도를 지도 오른쪽 아래에 작게 띄웁니다. 배를 가운데 두고 따라갑니다(빨강 찾음 · 회색 아직 · 파랑 내 자리)"));
+            "항해·뭍 이동 중에 발견물 지도를 지도 오른쪽 아래에 작게 띄웁니다. 배를 가운데 두고 따라갑니다"
+            + " (빨강 찾음 · 회색 아직 · 파랑 내 자리)."));
 
         // 바람·해류 화살표 — 원본은 물결로만 흐름을 보인다. 개발 창에 있던 것을 여기로 옮겼다.
         rows.Children.Add(Toggle("바람·해류 화살표", options.ArrowsOn(), options.SetArrows,
-            "원본에 없는 덧그림입니다 — 바람과 해류의 방위를 지도 위에 화살표로 얹습니다"));
+            "원본에 없는 덧그림입니다 — 바람과 해류의 방위를 지도 위에 화살표로 얹습니다."));
 
         // 발견물 지도 — 햄버거 줄과 단축키를 함께 여닫는다. 원본 항해지도는 표식을 안 찍는다.
         rows.Children.Add(Toggle("발견물 지도", GameSettings.ShowDiscoveryMapMenu,
             on => GameSettings.ShowDiscoveryMapMenu = on,
-            "햄버거에 「발견물 지도」 줄을 냅니다. 어디에 무엇이 있는지 표식으로 찍어 보여 줍니다"
-            + " — 끄면 줄도 단축키도 안 먹습니다"));
+            "햄버거에 「발견물 지도」 줄을 냅니다. 어디에 무엇이 있는지 표식으로 찍어 보여 줍니다."
+            + " 끄면 줄도 단축키도 안 먹습니다."));
 
         // 여급 수첩 — 낯을 튼 여급과 궁합을 모아 본다. 원본에는 없는 창이다.
         rows.Children.Add(Toggle("여급 수첩", GameSettings.ShowBarmaidBookMenu,
             on => GameSettings.ShowBarmaidBookMenu = on,
-            "햄버거에 「여급 수첩」 줄을 냅니다. 낯을 튼 여급의 친밀도와 궁합을 모아 봅니다"));
+            "햄버거에 「여급 수첩」 줄을 냅니다. 낯을 튼 여급의 친밀도와 궁합을 모아 봅니다."));
 
         // 인물 이동 — 누가 어느 도시로 가고 있는지 늘어놓는 창.
         rows.Children.Add(Toggle("인물 이동", GameSettings.ShowPersonMoveMenu,
             on => GameSettings.ShowPersonMoveMenu = on,
-            "햄버거에 「인물 이동」 줄을 냅니다. 인물이 어느 도시로 가고 있는지 늘어놓습니다"));
+            "햄버거에 「인물 이동」 줄을 냅니다. 인물이 어느 도시로 가고 있는지 늘어놓습니다."));
 
         // Ctrl+클릭 배 놓기 — 지도를 찍은 자리로 배가 뛴다. 켠 채로 시작한다.
         rows.Children.Add(Toggle("Ctrl+클릭 배 놓기", GameSettings.PlaceShipByCtrlClick,
             on => GameSettings.PlaceShipByCtrlClick = on,
-            "Ctrl 을 짚고 지도를 찍으면 배를 그 자리에 놓습니다. 끄면 여느 클릭처럼 닻만 오르내립니다"));
+            "Ctrl 을 짚고 지도를 찍으면 배를 그 자리에 놓습니다. 끄면 여느 클릭처럼 닻만 오르내립니다."));
 
         // 기능·언어 — 켜 두면 도시에 들어갈 때 도시 그림 왼쪽에 쪽지로 뜬다.
         rows.Children.Add(Toggle("기능·언어", GameSettings.ShowSkillOverlay,
             on => GameSettings.ShowSkillOverlay = on,
-            "도시에 들어가면 제독과 부하 넷의 기능·언어를 도시 그림 왼쪽에 띄웁니다. 끌어 옮기면 그 자리를 기억합니다"));
+            "도시에 들어가면 제독과 부하 넷의 기능·언어를 도시 그림 왼쪽에 띄웁니다. 끌어 옮기면 그 자리를 기억합니다."));
+
+        // 배 빌림 묻기 — 원본은 배가 있으면 계약 자리에서 늘 묻는다(0x00410724).
+        rows.Children.Add(Toggle("배 빌림 묻기", GameSettings.AskLendShips,
+            on => GameSettings.AskLendShips = on,
+            "계약을 맺을 때 내 배가 한 척이라도 있으면 후원자가 「배를 빌리겠습니까?」를 묻습니다(원본 그대로)."
+            + " 끄면 묻지 않고 안 빌린 것으로 넘어갑니다 — 배를 이미 갖춘 판에서 물음이 성가실 때 씁니다."));
 
         // 마을·항구에 들고 날 때 보내는 날수. 원본은 열흘씩이라 오가는 시험이 더디다.
         rows.Children.Add(Select("출입 일수",
@@ -120,9 +155,29 @@ public sealed class ModDialog : GameWindow
         var title = GameUi.TitleBar("모드", Close);
         GameUi.EnableDrag(this, title);
 
+        // 오른쪽 설명 칸 — 줄 이름과 설명을 한 판에 담는다.
+        var tip = new StackPanel();
+        tip.Children.Add(_tipName);
+        tip.Children.Add(_tipText);
+
+        var side = new Border
+        {
+            Width = TipWidth,
+            Margin = new Thickness(0, 10, 12, 4),
+            Padding = new Thickness(10, 8, 10, 8),
+            Background = new SolidColorBrush(Color.FromArgb(0x30, 0, 0, 0)),
+            BorderBrush = GameUi.Edge,
+            BorderThickness = new Thickness(1),
+            Child = tip,
+        };
+
+        var body = new StackPanel { Orientation = Orientation.Horizontal };
+        body.Children.Add(rows);
+        body.Children.Add(side);
+
         var stack = new StackPanel();
         stack.Children.Add(title);
-        stack.Children.Add(rows);
+        stack.Children.Add(body);
         stack.Children.Add(buttons);
 
         Content = new Border
@@ -137,8 +192,22 @@ public sealed class ModDialog : GameWindow
         KeyDown += (_, e) => { if (e.Key is Key.Escape) Close(); };
     }
 
+    /// <summary>그 줄의 설명을 오른쪽 칸에 건다. 커서가 떠나도 마지막 것을 남긴다.</summary>
+    private void Watch(FrameworkElement row, string label, string tip)
+    {
+        void Show()
+        {
+            _tipName.Text = label;
+            _tipText.Text = tip;
+        }
+
+        row.MouseEnter += (_, _) => Show();
+        row.GotKeyboardFocus += (_, _) => Show();
+        row.PreviewMouseLeftButtonDown += (_, _) => Show();
+    }
+
     /// <summary>켜고 끄는 줄 하나.</summary>
-    private static CheckBox Toggle(string label, bool on, Action<bool> set, string tip)
+    private CheckBox Toggle(string label, bool on, Action<bool> set, string tip)
     {
         var box = new CheckBox
         {
@@ -149,22 +218,21 @@ public sealed class ModDialog : GameWindow
             FontSize = 15,
             Margin = new Thickness(0, 8, 0, 2),
             VerticalContentAlignment = VerticalAlignment.Center,
-            ToolTip = tip,
         };
         box.Checked += (_, _) => set(true);
         box.Unchecked += (_, _) => set(false);
+        Watch(box, label, tip);
         return box;
     }
 
     /// <summary>고르는 줄 하나 — 이름과 펼침 상자. 고르면 곧바로 설정에 남긴다.</summary>
-    private static UIElement Select(string label, IReadOnlyList<string> items, int selected,
-                                    Action<int> set, string tip)
+    private UIElement Select(string label, IReadOnlyList<string> items, int selected,
+                             Action<int> set, string tip)
     {
         var line = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 8, 0, 2),
-            ToolTip = tip,
         };
         line.Children.Add(new TextBlock
         {
@@ -190,6 +258,8 @@ public sealed class ModDialog : GameWindow
         box.SelectionChanged += (_, _) => { if (box.SelectedIndex >= 0) set(box.SelectedIndex); };
 
         line.Children.Add(box);
+        Watch(line, label, tip);
+        Watch(box, label, tip);
         return line;
     }
 

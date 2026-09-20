@@ -73,6 +73,12 @@ public sealed class GameSettingsData
     /// <summary>햄버거에 「발견물 지도」 줄을 낼지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowDiscoveryMapMenu { get; set; }
 
+    /// <summary>
+    /// 계약을 맺을 때 배가 있으면 후원자가 「배를 빌리겠습니까?」를 묻는다 — 끄면 안 묻고
+    /// 안 빌린다. 원본에는 늘 묻는 자리라 켜 두고 시작한다.
+    /// </summary>
+    public bool AskLendShips { get; set; } = true;
+
     /// <summary>햄버거에 「여급 수첩」 줄을 낼지. 놀이에는 없는 것이라 꺼 두고 시작한다.</summary>
     public bool ShowBarmaidBookMenu { get; set; }
 
@@ -549,6 +555,16 @@ public static class GameSettings
 
     /// <summary><see cref="ShowSkillOverlay"/> 가 바뀌었다.</summary>
     public static event Action? ShowSkillOverlayChanged;
+
+    /// <summary>
+    /// 계약을 맺을 때 배가 있으면 후원자가 「배를 빌리겠습니까?」를 묻는지(<c>0x00410724</c>).
+    /// 끄면 묻지 않고 안 빌린 것으로 한다 — 모드 창에서 켜고 끈다.
+    /// </summary>
+    public static bool AskLendShips
+    {
+        get => Get(d => d.AskLendShips);
+        set => Set(d => d.AskLendShips = value);
+    }
 
     /// <summary>지도 위의 까만 조작 줄을 보일지. 개발 창에서 켜고 끈다.</summary>
     public static bool ShowToolBar
