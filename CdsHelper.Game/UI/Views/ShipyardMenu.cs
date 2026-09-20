@@ -150,12 +150,27 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
         }
     }
 
-    /// <summary>이 조선소가 지금 파는 선체. 도시 표를 못 읽으면 모두다.</summary>
+    /// <summary>
+    /// 이 조선소가 지금 파는 선체. 도시 표를 못 읽으면 모두다.
+    /// </summary>
+    /// <remarks>
+    /// 도시 레코드 <c>+0x1E</c> 의 여덟 비트를 다 훑으므로(<c>0x00422CA0</c>) 코구(0) ·
+    /// 대형카락(4) · 다우(7) 도 그 도시에서는 실제로 판다 — 붙박이 다섯에 없으면
+    /// <see cref="Hull.FromTable"/> 로 선체표 아래값을 세워 목록에 올린다.
+    /// </remarks>
     private List<Hull> SoldHulls()
     {
         if (_game.CityRows is not { } cities) return [.. Hull.All];
+
         var sold = ShipyardStock.HullsAt(cities, _cityId, _player.Date);
-        return [.. Hull.All.Where(h => h.Id is < 0 or >= 8 || sold.Contains(h.Id))];
+        var list = Hull.All.Where(h => h.Id is < 0 or >= 8 || sold.Contains(h.Id)).ToList();
+
+        // 붙박이에 없는 선체(코구·대형카락·다우)도 켜져 있으면 낸다.
+        foreach (int id in sold)
+            if (!list.Any(h => h.Id == id)) list.Add(Hull.FromTable(id));
+
+        // 값이 비싼 쪽이 위다 — Hull.All 과 같은 차례로 다시 세운다.
+        return [.. list.OrderByDescending(h => h.Price)];
     }
 
     /// <summary>
