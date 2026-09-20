@@ -190,7 +190,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
         DuelDialog.Show(_view, duel, roll, face, _game.Fighters,
-                        FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
+                        FighterSprites.SetForCulture(_cultureNo), arena: DuelArt.TavernFor(_cultureNo), bgm: _game.Bgm);
         if (duel.Won == true)
         {
             _player.Hurt(duel.BodyLost);
@@ -466,7 +466,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
 
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
-                        FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
+                        FighterSprites.SetForCulture(_cultureNo), arena: DuelArt.TavernFor(_cultureNo), bgm: _game.Bgm);
         if (duel.Won == true)
         {
             _player.Hurt(duel.BodyLost);
@@ -999,7 +999,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword, row.Stats[4], 0, 0);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), dice.Next());
         DuelDialog.Show(_view, duel, dice, face, _game.Fighters,
-                        FighterSprites.SetForCulture(_cultureNo), arena: "duel-tavern", bgm: _game.Bgm);
+                        FighterSprites.SetForCulture(_cultureNo), arena: DuelArt.TavernFor(_cultureNo), bgm: _game.Bgm);
 
         if (duel.Won == true)
         {
@@ -1305,7 +1305,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
                         myFace: _game.Faces?.TryGetBgra(
                             PortraitAges.At(_player.Face, _player.Age, false, _game.Faces),
                             female: false),
-                        arena: "duel-tavern",
+                        arena: DuelArt.TavernFor(_cultureNo),
                         bgm: _game.Bgm);
 
         int lost = duel.BodyLost;

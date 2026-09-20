@@ -63,11 +63,27 @@ public sealed class DuelArt
 
     /// <summary>배경 이름 — <see cref="FighterSprites.SetForCulture"/> 와 짝이 아니다.</summary>
     /// <remarks>
-    /// 배 위(<c>deck</c>)는 해전 일기토가 쓰고, 뭍에서는 고장에 따라 갈린다. 어느
-    /// 문화권이 어느 배경을 쓰는지는 아직 못 짚어 <b>초원</b>을 밑값으로 둔다 —
-    /// 화면에서 본 반란 판도 초원이었다.
+    /// 배경은 <b>무대 번호</b>로 갈리고 그림 파트는 <c>0x12 + 무대 * 2</c> 다(<c>0x004A9200</c>).
+    /// <code>
+    ///   0 갑판 · 1 초원 · 2 숲 · 3 모래 · 4 술집 · 5 모스크 · 6 사원
+    /// </code>
+    /// 밑값은 1(초원)이고, 시설이 술집·여관이면 도시 문화권으로 4·5·6 이 된다
+    /// (<c>0x004A2D88</c>~<c>0x004A2DCE</c>, 표 <c>0x004A2E6C</c>/<c>0x004A2E58</c>).
+    /// 해전 일기토는 무대 0 이다(<c>0x0043A4A8</c>).
     /// </remarks>
-    public const string Field = "duel-field", Deck = "duel-deck";
+    public const string Field = "duel-field", Deck = "duel-deck",
+                        Tavern = "duel-tavern", Mosque = "duel-mosque", Temple = "duel-temple";
+
+    /// <summary>
+    /// 술집·여관 일기토의 배경 — 도시 문화권으로 갈린다(표 <c>0x004A2E6C</c>).
+    /// 0·1·2 술집 · 3·4·5·10 모스크 · 6·7·8·9 사원.
+    /// </summary>
+    public static string TavernFor(int culture) => culture switch
+    {
+        0 or 1 or 2 => Tavern,
+        6 or 7 or 8 or 9 => Temple,
+        _ => Mosque,
+    };
 
     /// <summary>
     /// 눈금판 — <b>배경을 안 탄다</b>. 어느 배경이든 같은 한 장이다.
