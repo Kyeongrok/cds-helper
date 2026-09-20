@@ -570,9 +570,8 @@ public sealed class ShipMapWindow : Window
             (PersonMoveRow, () => PersonMoveDialog.Show(this, _game)),
             // 어디에 무엇이 있는지 한눈에 — 게임 항해지도는 표식을 안 찍는다(볼트 91).
             (DiscoveryMapRow, ShowDiscoveryMap),
-            // 도구 앱은 따로 도는 exe 다. 게임을 하다 표를 손볼 일이 생기면 여기서 띄운다.
-            ("도구 앱", RunHelperApp),
-            // 원본에 없는 편의 기능(컨디션·미니맵·기능·언어·출입 일수)은 모드 창에 모아 두었다.
+            // 「도구 앱」은 개발 창으로 옮겼다 — 표를 손보는 길이라 개발 쪽이 맞다.
+            // 원본에 없는 편의 기능(컨디션·미니맵·바람 화살표·기능·언어·출입 일수)은 모드 창에 모아 두었다.
             ("모드", ShowModDialog),
             ("개발", ShowDevDialog));
         DockPanel.SetDock(titleBar, Dock.Top);
@@ -2645,6 +2644,7 @@ public sealed class ShipMapWindow : Window
             SyncOverlay();
         },
         // 싸움 셈을 도시 없이 돌려 보는 세 가지 — 미니 게임 차림표에 붙여 두었던 것을 옮겼다.
+        HelperApp = RunHelperApp,
         Duel = PlayDuel,
         LandSpar = () => LandSparDialog.Play(this, _game),
         SeaSpar = MockSeaBattle,
