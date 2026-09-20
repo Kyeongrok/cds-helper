@@ -206,16 +206,17 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
 
         Say("어느 배를 팔 건가? 봐 주겠네.");
 
-        // 기함은 값이 0 이라 줄이 흐리고 안 골라진다 — 게임도 그렇게 낸다.
+        // 값이 0 이라 줄이 흐린 것은 <b>빌린 배</b>다(0x0044B889 의 배 +0x64) — 기함이 아니다.
+        // 기함도 팔 수 있고, 배가 한 척뿐일 때만 위에서 막는다(0x0044B863).
         var rows = _player.Ships.Select((s, i) => new ShipSellDialog.Row(
             i, s.Name, s.Hull.Name,
             s.Figurehead >= 0 ? NameOf(s.Figurehead) : "---",
-            i == _player.Flagship ? 0 : Shipyard.SellPrice(s, _rate))).ToList();
+            s.Lent ? 0 : Shipyard.SellPrice(s, _rate))).ToList();
 
         var picked = ShipSellDialog.Ask(owner, rows);
         if (picked.Count == 0) return;
 
-        int paid = picked.Sum(at => Shipyard.SellPrice(_player.Ships[at], _rate));
+        int paid = picked.Sum(at => _player.Ships[at].Lent ? 0 : Shipyard.SellPrice(_player.Ships[at], _rate));
         if (!ConfirmDialog.Ask(owner, $"{paid}닢입니다. 좋습니까?")) return;
 
         // 뒤에서부터 뺀다 — 앞을 먼저 빼면 뒤 자리가 하나씩 밀린다.
