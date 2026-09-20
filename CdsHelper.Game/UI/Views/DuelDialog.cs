@@ -776,8 +776,8 @@ public sealed class DuelDialog : GameWindow
             // 판 중 말풍선을 띄우고 확인 단추를 세웠다. 쓰러지는 모습만 잠깐 보여 주고 닫는다 —
             // 뒤의 말(처형·놓아 준다·모두 뺏는다, 반란 진압)은 부른 쪽이 낸다.
             Speak("");
-            // 이겼으면 승리 소리가 난다(사운드 ID 77).
-            if (_duel.Won == true) Sound(SoundBank.DuelWinPart);
+            // 이겼으면 77, 졌으면 74 가 난다(0x004A6FBF).
+            Sound(_duel.Won == true ? SoundBank.DuelWinPart : SoundBank.DuelLosePart);
             _stage?.Fall(mine: _duel.Won != true);
             _keys.Children.Clear();
             _keyBox.Visibility = Visibility.Collapsed;
