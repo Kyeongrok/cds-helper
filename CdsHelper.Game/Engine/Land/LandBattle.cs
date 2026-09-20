@@ -576,6 +576,22 @@ public sealed class LandBattle
     public bool NextTurn() => ++Turn <= LastTurn;
 
     /// <summary>
+    /// 이번 턴에 <b>공격명령을 묻는가</b> — <b>들싸움 첫 턴</b>에는 안 묻는다(<c>0x00449C00</c>).
+    /// </summary>
+    /// <remarks>
+    /// 차림표를 여는 <c>0x00449BA0</c> 이 마지막에 턴과 갈래를 본다.
+    /// <code>
+    ///   00449c00  cmp dword ptr [ebp + 8], 1      ; 턴(+0x00)이 1 이고
+    ///   00449c06  cmp dword ptr [esi + 0x34], 1   ; 갈래가 1(들에서 마주친 부대)이면
+    ///   00449c0c  mov dword ptr [esi + 0x90], 0   ; 명령을 통상공격으로 두고
+    ///   00449c24  ret 0xc                         ; 차림표를 안 열고 나간다
+    /// </code>
+    /// 「제N턴」 알림은 그 앞(<c>0x00449D29</c>)이라 그대로 뜬다. 마을 공략(2)·대본(3)은
+    /// 첫 턴에도 묻는다.
+    /// </remarks>
+    public bool AsksOrder => !(Turn == 1 && Sort == Field);
+
+    /// <summary>
     /// 열 턴을 넘겼을 때 <b>이긴 것으로 치는가</b>(<c>0x00449420</c>).
     /// </summary>
     /// <remarks>

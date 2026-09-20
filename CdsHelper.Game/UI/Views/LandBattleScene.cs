@@ -232,6 +232,10 @@ internal sealed class LandBattleScene : GameWindow
         try
         {
             NoticeDialog.Show(this, _battle.TurnWord, "");
+
+            // 들싸움 첫 턴에는 아예 안 묻고 통상공격으로 간다(0x00449C00).
+            if (!_battle.AsksOrder) return LandBattle.Normal;
+
             return ChoiceDialog.Pick(this, $" {LandBattle.OrderTitle} ",
                                      _battle.OrderRows(canDuel: _battle.DuelOffered(dice),
                                                        canRuse: !_ruseThisTurn),
