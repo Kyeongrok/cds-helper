@@ -328,26 +328,52 @@ public sealed class DisevRunner
     }
 
     /// <summary>
-    /// 조건 덩이가 통과인지 — 조건식 호출을 AND 로 잇고 <c>Or</c>(50) 에서 끊는다(<c>0x00407EB1</c>).
-    /// 뜻을 모르는 조건식은 통과로 친다 — 막으면 대본이 통째로 안 돈다.
+    /// 조건 덩이가 통과인지 — <c>Or</c>(50) 로 모으고 나머지는 AND 로 잇는다(<c>0x00407EB1</c>).
     /// </summary>
+    /// <remarks>
+    /// 게임은 조건 하나를 셈한 뒤 <b>바로 다음 바이트가 0x50 인지</b>를 본다.
+    /// <code>
+    ///   004073ba  and  = 1          ; [esp+0x2c] — 덩이 전체
+    ///   004073c2  orAcc = 0         ; [esp+0x28] — 슬롯을 열 때 한 번만 지운다
+    ///   004073d5  inOr  = 0         ; [esp+0x20] — AND 항마다 지운다
+    ///   00407eb1  다음 바이트가 0x50 이면  orAcc |= 값 · inOr = 1 · 다음 조건으로
+    ///   00407ecb  아니면  inOr 이면 값 |= orAcc · and &amp;= 값
+    /// </code>
+    /// 곧 <c>A 50 B C</c> 는 <b><c>(A|B) &amp; C</c></b> 다 — A 가 참이라고 덩이가 끝나는 것이
+    /// 아니라 <b>C 까지 다 본다</b>. 예전에는 A 가 참이면 그 자리에서 통과로 쳤다.
+    ///
+    /// <c>orAcc</c> 는 <b>AND 항이 바뀌어도 안 지워진다</b>(0x004073D5 가 <c>inOr</c> 만 지운다) —
+    /// <c>A 50 B C 50 D</c> 면 뒤 덩이가 <c>D|A|B|C</c> 가 된다. 원본 그대로 둔다.
+    ///
+    /// 뜻을 모르는 <b>조건식</b>은 통과로 친다 — 막으면 대본이 통째로 안 돈다. 다만 바이트
+    /// 자체를 못 읽으면 게임도 그 파트를 안 튼다(<c>0x00407F09</c>).
+    /// </remarks>
     private bool Passes(List<Line> lines)
     {
-        bool group = true;
-        foreach (var line in lines)
+        bool and = true, orAcc = false, inOr = false;
+
+        for (int i = 0; i < lines.Count; i++)
         {
+            var line = lines[i];
             if (line.Call is DisevCall.End) break;
-            if (line.Call is DisevCall.Or)
-            {
-                if (group) return true;
-                group = true;
-                continue;
-            }
+            if (line.Call is DisevCall.Or) continue;   // 앞 조건이 이미 거둬 갔다
+
             // 모르는 조건이 끼면 게임은 그 파트를 통째로 안 튼다(0x00407F09) — 참으로 흘리면 안 된다.
             if (line.Call is not { } call) return false;
-            if (Evaluate(call, line.Args) is false) group = false;
+            bool value = Evaluate(call, line.Args) is not false;
+
+            // 뒤에 50 이 붙어 있으면 모아 두고 다음 조건으로 넘어간다.
+            if (i + 1 < lines.Count && lines[i + 1].Call is DisevCall.Or)
+            {
+                orAcc |= value;
+                inOr = true;
+                continue;
+            }
+
+            if (inOr) { value |= orAcc; inOr = false; }
+            and &= value;
         }
-        return group;
+        return and;
     }
 
     /// <summary>
