@@ -164,6 +164,14 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
         (_myOrder, _foeOrder) = (mine, theirs);
         Dances = 0;                      // 춤 겹수는 턴마다 지운다(0x00449D5E)
 
+        // 적이 「퇴각」을 골랐으면 <b>아무도 안 움직이고</b> 그 자리에서 이긴다
+        // (0x004493A5 가 [+0x94] == 4 이면 [+0x3C] = 1 을 적고 돌아간다).
+        if (theirs == LandBattle.Retreat)
+        {
+            Over = true;
+            return _log;
+        }
+
         // 차례는 행동속도가 빠른 쪽부터다(0x00447C20 → 0x004493BE 의 순서표).
         // 기습이 먹히면 아군이, 어그러지면 적이 앞선다(0x00447E10).
         var order = Order();
