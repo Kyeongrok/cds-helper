@@ -220,9 +220,8 @@ public sealed class DisevRunner
     /// 한다. <see cref="Discovery.StoryLog"/> 가 이야기 장면을 틀지 말지 미리 가늠할 때 쓴다.
     /// </summary>
     /// <remarks>
-    /// <see cref="PickBody"/> 와 다르다 — 그쪽은 맞는 슬롯이 없으면 <b>첫 슬롯으로 물러서</b>
-    /// "일단 돈다"고 치지만(조건 없는 발견 이벤트가 그 꼴이다), 여기서는 물러서지 않는다 —
-    /// 이야기 장면은 조건 자체가 "지금 틀어도 되는지"의 문(건물·도시·연도·계약 상태)이다.
+    /// 고르는 잣대는 <see cref="PickBody"/> 와 같다 — 둘 다 맞는 슬롯이 없으면 물러서지 않는다
+    /// (<c>0x00407EFD</c>). 다만 이쪽은 본문을 돌리지 않고 <b>될지 안 될지만</b> 낸다.
     /// </remarks>
     public static bool IsEligible(Game game, string cache, int partIndex, int building)
     {
