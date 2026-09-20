@@ -121,7 +121,8 @@ public static class DisevTree
         {
             // 대사 무리는 Args.Text 가 곧 풀이라 Note 를 또 달지 않는다.
             bool speech = call.Call is DisevCall.Say or DisevCall.AskYesNo or DisevCall.SayBare or DisevCall.AskChoice
-                or DisevCall.AskChoiceWide or DisevCall.SetDiscoveryName or DisevCall.InputDiscoveryName or DisevCall.AddCityRumor;
+                or DisevCall.AskChoiceWide or DisevCall.SetDiscoveryName or DisevCall.InputDiscoveryName
+                or DisevCall.AddCityRumor or DisevCall.AddCultureRumor;
             return new DisevLine
             {
                 Hex = call.OpCode, Call = call.Call, Args = call.Args.Count > 0 ? call.Args : null, Note = speech ? null : note,
