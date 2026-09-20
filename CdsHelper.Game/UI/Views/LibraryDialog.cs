@@ -187,15 +187,34 @@ public sealed class LibraryDialog : GameWindow
         Canvas.SetTop(image, y * _scale);
 
         image.MouseEnter += (_, _) => ShowTag(book, x, y);
-        image.MouseLeave += (_, _) => { _tag.Visibility = Visibility.Collapsed; _say?.Invoke(""); };
+        image.MouseLeave += (_, _) =>
+        {
+            _tag.Visibility = Visibility.Collapsed;
+            // 책을 펴는 동안에는 띠를 안 지운다 — 책 창이 뜨면 책등에서 쥐가 벗어나
+            // 이 줄이 바로 돌아, 「무슨 말인지 잘 모르겠습니다」가 스쳐 지나가 버렸다.
+            if (!_hovering) return;
+            _hovering = false;
+            _say?.Invoke("");
+        };
         image.MouseLeftButtonDown += (_, e) => e.Handled = true;
         image.MouseLeftButtonUp += (_, e) => { e.Handled = true; Read(book, image, spines); };
         _layer.Children.Add(image);
     }
 
+    /// <summary>
+    /// 지금 띠에 뜬 글이 <b>책등에 쥐를 올려서</b> 난 것인지.
+    /// </summary>
+    /// <remarks>
+    /// 책을 펴면 <see cref="Shown"/> 이 띠에 말을 넣는데, 그 순간 책 창이 책등을 덮어
+    /// <c>MouseLeave</c> 가 돌아 방금 넣은 말을 지워 버렸다. 그래서 띠를 지우는 것은
+    /// <b>올려서 난 글일 때뿐</b>으로 좁힌다.
+    /// </remarks>
+    private bool _hovering;
+
     /// <summary>책등 밑에 제목·저자를 띄운다.</summary>
     private void ShowTag(BookTable.Book book, double x, double y)
     {
+        _hovering = true;
         // 읽을 수 없는 책은 이름이 안 보인다 — 글자마다 x 로 가린다.
         bool readable = CanRead(book);
         string title = readable ? book.Title : Masked(book.Title);
@@ -335,6 +354,7 @@ public sealed class LibraryDialog : GameWindow
     private void Read(BookTable.Book book, Image image, BitmapSource[] spines)
     {
         int count = Math.Min(book.Hints.Count, OpenBookDialog.MaxSpreads);
+        _hovering = false;      // 펴는 동안 난 띠 말은 책등에서 쥐가 벗어나도 안 지운다
 
         // 그림을 못 읽으면 첫 면만 편 셈 치고 힌트 주기와 띠 말만 낸다.
         if (!OpenBookDialog.Read(this, _book, count, i => SpreadAt(book, i), i => Shown(book, i)))
