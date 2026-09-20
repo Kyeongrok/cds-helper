@@ -6229,7 +6229,7 @@ public sealed class ShipMapWindow : Window
     /// 게임 폴더를 잡고 타이틀 곡을 튼다. 지도는 아직 띄우지 않는다 —
     /// 메뉴에서 NEW/LOAD 를 골라야 <see cref="StartMap"/> 로 넘어간다.
     /// </summary>
-    private void OnLoaded(object? sender, RoutedEventArgs e)
+    private async void OnLoaded(object? sender, RoutedEventArgs e)
     {
         // <b>작업표시줄 단추를 하나로 둔다.</b> 뷰어에서 띄운 것이면 이 창까지
         // 단추를 갖는데, 대화 창을 여닫을 때마다 활성 창이 두 단추 사이를 오가는 것이
@@ -6252,6 +6252,23 @@ public sealed class ShipMapWindow : Window
             // 묶음은 BuildTitleScreen 이 새로 잡는다 — 새 줄에 초점이 다시 간다.
             _titleRoot = BuildTitleScreen();
             _screen.Content = _titleRoot;
+        }
+
+        if (!BgmPlayer.IsAvailable(dir))
+        {
+            var result = MessageBox.Show(
+                "배경음악 파일이 없습니다.\n릴리즈에서 BGM을 다운로드할까요?",
+                "BGM 다운로드",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (result == MessageBoxResult.Yes)
+            {
+                _status.Text = "BGM 다운로드 중...";
+                var download = await BgmAssetDownloader.DownloadAsync(dir);
+                if (!download.Success)
+                    MessageBox.Show($"BGM 다운로드 실패:\n{download.Error}", "오류",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         _game.Bgm.Enabled = GameSettings.BgmEnabled;   // 설정 창에서 꺼 뒀으면 조용히 시작한다

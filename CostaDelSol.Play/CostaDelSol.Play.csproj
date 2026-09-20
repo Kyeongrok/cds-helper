@@ -21,6 +21,8 @@
         <Link>asset\%(RecursiveDir)%(Filename)%(Extension)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <!-- BGM은 릴리즈의 별도 bgm.zip으로 배포하고 실행 파일에는 넣지 않는다. -->
+      <Content Remove="..\asset\bgm\**\*" />
       <Content Include="..\exe-tables\**\*.json">
         <Link>exe-tables\%(RecursiveDir)%(Filename)%(Extension)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
