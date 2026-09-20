@@ -521,9 +521,24 @@ public sealed class Duel
     ];
 
     /// <summary>
-    /// 신청을 한 뒤 상대가 달아나는지(<c>0x004A494B</c>) — 내 체력과 상대 체력에
+    /// 신청을 한 뒤 상대가 <b>달아나려 드는지</b>(<c>0x004A4901</c>) — 성미 칸
+    /// <see cref="TauntSlot"/> 이 0 이면 늘, 1 이면 <c>rand(2) == 0</c> 일 때, 2 면 아예 안 든다.
+    /// </summary>
+    public static bool TriesToFlee(int temper, GameRandom dice) => Math.Clamp(temper, 0, 2) switch
+    {
+        0 => true,
+        1 => dice.Next(2) == 0,
+        _ => false,
+    };
+
+    /// <summary>
+    /// 달아나려 드는 상대를 쫓아 잡는지(<c>0x004A494B</c>) — 내 체력과 상대 체력에
     /// 주사위 오십씩을 얹어 견준다. 못 미치면 놓친다.
     /// </summary>
+    /// <param name="myBody">
+    /// 제독 체력(담은 값). <b>부관이 있고 그 값이 더 크면 부관 것을 쓴다</b>
+    /// (<c>0x004A4964</c> 의 <c>0x00468F10(부관, 0)</c>).
+    /// </param>
     public static bool Caught(int myBody, int foeBody, GameRandom dice) =>
         myBody + 1 + dice.Next(ChaseDice) >= foeBody + dice.Next(ChaseDice) + 1;
 

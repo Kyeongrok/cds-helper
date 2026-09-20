@@ -1288,14 +1288,30 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var dice = new GameRandom(Environment.TickCount);
         TalkDialog.Say(_view, face, "", Engine.Town.Duel.Taunt(FortuneOf(who), dice));
 
-        if (!Engine.Town.Duel.Caught(_player.AbilityOf(Ability.Body), who.Body, dice))
+        // 상대가 <b>달아나려 드는지부터</b> 성미로 가른다(0x004A4901) — 안 들면 그대로 붙는다.
+        var temper = FortuneOf(who);
+        if (Engine.Town.Duel.TriesToFlee(temper[Engine.Town.Duel.TauntSlot], dice))
         {
-            // 0x004A49A6 — 부관이 있으면 부관이 이르고, 없으면 이름 없이 상자만 뜬다.
-            if (_game.AideFace is { } aide)
-                TalkDialog.Say(_view, aide, "", "도망쳐 버렸군요....");
-            else
-                NoticeDialog.Show(_view, "도망쳤다!");
-            return;
+            // 쫓기 전에 한마디 — 부관 있음/없음 두 벌이다(0x004A4937 의 0x00469680).
+            string fled = _player.MateAt(0).Length > 0
+                ? "앗, 도망쳤다!"
+                : $"{who.Name}{GameUi.Josa(who.Name, "이", "가")} 도망쳤다!";
+            TalkDialog.Say(_view, _game.AideFace, "", fled);
+
+            // 쫓는 값은 제독 체력이지만 <b>부관 것이 더 크면 그것</b>이다(0x004A4964).
+            int chase = _player.AbilityOf(Ability.Body);
+            if (_player.MateInfoOf(_player.MateAt(0)) is { } chaser)
+                chase = Math.Max(chase, chaser.Body);
+
+            if (!Engine.Town.Duel.Caught(chase, who.Body, dice))
+            {
+                // 0x004A49A6 — 부관이 있으면 부관이 이르고, 없으면 이름 없이 상자만 뜬다.
+                if (_game.AideFace is { } aide)
+                    TalkDialog.Say(_view, aide, "", "도망쳐 버렸군요....");
+                else
+                    NoticeDialog.Show(_view, "도망쳤다!");
+                return;
+            }
         }
 
         var mate = SendMate(dice);
