@@ -118,6 +118,13 @@ public sealed class ModDialog : GameWindow
             "계약을 맺을 때 내 배가 한 척이라도 있으면 후원자가 「배를 빌리겠습니까?」를 묻습니다(원본 그대로)."
             + " 끄면 묻지 않고 안 빌린 것으로 넘어갑니다 — 배를 이미 갖춘 판에서 물음이 성가실 때 씁니다."));
 
+        // 자동저장 — 원본에 없다. 손으로 적는 자리(SAVEDATA.CDS)는 안 건드리고 따로 적는다.
+        rows.Children.Add(Toggle("입항 자동저장", GameSettings.AutoSaveOnPort,
+            on => GameSettings.AutoSaveOnPort = on,
+            "원본에 없는 것입니다 — 항구에 들어설 때마다 자동저장 파일(AUTOSAVE.CDS)에 적습니다."
+            + " 손으로 적어 둔 세이브(SAVEDATA.CDS)는 건드리지 않습니다."
+            + " 첫 화면의 「CONTINUE」가 이 파일을 엽니다."));
+
         // 마을·항구에 들고 날 때 보내는 날수. 원본은 열흘씩이라 오가는 시험이 더디다.
         rows.Children.Add(Select("출입 일수",
             [.. Enumerable.Range(GameSettings.MinPortDays,
