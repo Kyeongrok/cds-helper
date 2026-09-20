@@ -258,7 +258,8 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     /// </code>
     /// 우리 선체 표에는 돛 값이 없어 <b>내구만</b> 센다.
     ///
-    /// 게임 화면은 여러 척을 한꺼번에 골라 값을 합치는데 여기서는 한 척씩 고친다.
+    /// <b>여러 척을 한꺼번에 고른다</b>(<c>0x0044BA62</c> 가 고름표를 낸다) — 손상을 다 더해
+    /// <b>굴림 한 번</b>으로 값을 매긴다.
     /// </remarks>
     /// <summary>
     /// 이 마을에서 고칠 수 있는 배 — 함대 먼저, 그 뒤가 이 마을이 맡은 배다.
@@ -281,16 +282,15 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             return;
         }
 
-        int CostOf(Ship s) => Shipyard.RepairCost(s, _rate, _random);
+        var picked = ShipRepairDialog.Ask(owner,
+            [.. hurt.Select((h, i) => new ShipRepairDialog.Row(
+                i, h.Docked, h.Ship.Name, h.Ship.Hull.Name,
+                h.Ship.Hp, h.Ship.MaxHp, h.Ship.RepairNeed))]);
+        if (picked.Count == 0) return;
 
-        int at = HintListDialog.Pick(owner,
-            [.. hurt.Select(h => $"{(h.Docked ? "맡김 " : "     ")}{h.Ship.Name}  " +
-                                 $"내구 {h.Ship.Hp,3}/{h.Ship.MaxHp,-3}")],
-            "수리선박 선택", "수리가 필요한 배는 없네!");
-        if (at < 0 || at >= hurt.Count) return;
-
-        var ship = hurt[at].Ship;
-        int cost = CostOf(ship);
+        // 손상을 다 더해 한 번만 굴린다(0x0044BA83 → 0x0044BAA1).
+        int need = picked.Sum(at => hurt[at].Ship.RepairNeed);
+        int cost = Shipyard.RepairCostOf(need, _rate, _random);
         if (!Ask($"수리하는데 금화 {cost}닢 필요하네. 좋나?")) return;
 
         if (!_player.Pay(cost))
@@ -298,7 +298,7 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
             Notice("소지금이 모자랍니다!");
             return;
         }
-        ship.Repair();
+        foreach (int at in picked) hurt[at].Ship.Repair();
 
         // 마지막 상한 배를 고쳤으면 "수리" 줄이 그 자리에서 꺼져야 한다.
         _menu.Refresh();
