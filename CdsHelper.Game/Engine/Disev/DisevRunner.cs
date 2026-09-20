@@ -670,6 +670,29 @@ public sealed class DisevRunner
                 return null;
             }
 
+            // 20 0A [글] 19 [문화권] — 그 <b>문화권 도시 전부</b>의 소문 가게에 같은 글을 적는다
+            // (0x00409A18). 꼬리 바이트만 08(도시 하나)과 다르고 앞은 같은 꼴이다.
+            // <code>
+            //   00409a29  for (i = 0; i &lt; 0xE2; i++)            ; 도시 226
+            //   00409a32      if (도시[i] + 0x58 == 문화권)
+            //   00409a44          0x0044E1D0(i, 글)              ; 같은 소문 가게
+            // </code>
+            case DisevCall.AddCultureRumor:
+            {
+                var raw = line.Raw;
+                int zero = Array.IndexOf(raw, (byte)0, 2);
+                if (zero < 0) return null;
+                string text = DisevScript.DecodeDialogue(raw.AsSpan(2, zero - 2), normalize: true,
+                                                         player: _game.Player.Name).Body;
+                if (_game.CityRows is not { } rows) return null;
+
+                int want = I("Culture");
+                for (int city = 0; city < Local.Helpers.CityExeTable.Count; city++)
+                    if (rows.CultureOf(city) == want)
+                        _game.Player.AddRumor(city, text, _game.Player.Date);
+                return null;
+            }
+
             // 34 1C [칸] [값 식] — 병력을 <b>반으로</b>(올림) 줄인다(0x0040A7C8). 값 식은 읽기만 하고 안 쓴다.
             //   칸 2  빌린 묶음이 서 있으면 그 병력(0x0040A84E → 0x0045FF40), 아니면 제독 육상 묶음
             //         0x005AA2B8 의 수(0x0040A830). 대본이 쓰는 곳은 잉카(파트 264)뿐이고, 800 을 빌려

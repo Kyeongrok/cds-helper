@@ -30,7 +30,7 @@ public enum DisevCall
 
     // ── 진행·등록 ─────────────────────────────────────────────
     Discover, SetDiscoveryName, InputDiscoveryName, GiveItem, AddEventItem, MarkEventItem, RemoveItem,
-    GiveHint, AddCityRumor, CreateCity, BuildSpecialBuilding, ActivateGoods,
+    GiveHint, AddCityRumor, AddCultureRumor, CreateCity, BuildSpecialBuilding, ActivateGoods,
 
     // ── 상태 변경 ─────────────────────────────────────────────
     AddStat, SubStat, SetStat, SetStat22, HalveTroops, AddGold, SubGold, AddAffinity, SubAffinity,
@@ -88,6 +88,7 @@ public static class DisevCalls
         S(DisevCall.SetDiscoveryName, "1F 0A str 0B u16", "Name", "Discovery"),
         S(DisevCall.InputDiscoveryName, "1F 0B u16 0A str", "Discovery", "Suffix"),
         S(DisevCall.AddCityRumor, "20 0A str 08 u16", "Text", "City"),
+        S(DisevCall.AddCultureRumor, "20 0A str 19 u16", "Text", "Culture"),
 
         S(DisevCall.ShowDStill, "00 01 u16", "Id"),
         S(DisevCall.PlayVideo, "00 02 u16", "Id"),

@@ -444,14 +444,17 @@ public static class DisevScript
             }
 
             // 20 0A [글] 00 08 [u16 도시] — 도시 소문 등록. 대사처럼 보이지만 창은 안 뜬다.
+            // 꼬리가 19 면 <b>그 문화권 도시 전부</b>다(0x004099E8 → 0x00409A18).
             if (data[i] == 0x20 && i + 2 < end && data[i + 1] == 0x0A)
             {
                 int term = Array.IndexOf(data, (byte)0, i + 2, end - (i + 2));
-                if (term >= 0 && term + 4 <= end && data[term + 1] == 0x08)
+                if (term >= 0 && term + 4 <= end && data[term + 1] is 0x08 or 0x19)
                 {
+                    bool byCulture = data[term + 1] == 0x19;
                     var (_, rumor) = DecodeDialogue(span[(i + 2)..term]);
+                    string where = byCulture ? $"문화권 {U16(span, term + 2)}" : $"도시 {U16(span, term + 2)}";
                     ops.Add(new Op(i, term + 4 - i, "도시 소문 등록",
-                        $"도시 소문 등록: 도시 {U16(span, term + 2)} ← \"{rumor}\"", Hex(span[i..(term + 4)]), true));
+                        $"도시 소문 등록: {where} ← \"{rumor}\"", Hex(span[i..(term + 4)]), true));
                     i = term + 4;
                     continue;
                 }
