@@ -923,6 +923,9 @@ public sealed class SeaBattle
 
     private IStage? _stage;
 
+    /// <summary>한 턴의 틱 수(<c>0x0043CA60</c> 의 되돌이) — 걸음과 사격이 이 눈금에 흩어진다.</summary>
+    public const int Ticks = 60;
+
     /// <summary>
     /// 한 턴을 실행한다(<c>0x0043CA60</c>).
     /// </summary>
@@ -936,15 +939,14 @@ public sealed class SeaBattle
     ///     3 턴 끝 (틱 59)
     ///   하위단계 1·2 는 (이동력*(틱+1)) % 60 == 0 틱에만 — 곧 한 턴에 이동력 번
     /// </code>
-    /// 틱을 「박자」로 묶었다 — 박자 k 에 모든 배가 걸음 k 를 딛고, 이어서 k &lt; 이동력인 배가 총격, 그 뒤 포격한다.
-    /// 번호가 낮은 배가 먼저 칸을 차지하면 뒤에 오는 배가 거기로 들어가려다 충돌한다.
+    /// 틱을 그대로 돈다 — 걸음 둘짜리 배는 틱 29·59 에, 여섯짜리는 9·19·29·39·49·59 에 딛는다.
+    /// 걸음 수와 이동력이 서로 다른 눈금이라 <b>배마다 딛는 때가 어긋난다</b> — 걸음이 짧은 배는
+    /// 턴 끝에서야 움직인다. 번호가 낮은 배가 먼저 칸을 차지하면 뒤에 오는 배가 거기로
+    /// 들어가려다 충돌한다.
     /// </remarks>
     public void Execute(IStage? stage = null)
     {
         _stage = stage;
-        int beats = Ships.Where(s => s.CanAct)
-                         .Select(s => Math.Max(s.Plan.Count, s.Power))
-                         .DefaultIfEmpty(0).Max();
 
         // 제자리 선회는 걸음이 없으므로 맨 앞에 한 번만 먹인다(걸음 수 0 · 선회 1·2).
         foreach (var ship in Ships)
@@ -955,13 +957,22 @@ public sealed class SeaBattle
             }
         _stage?.Moved();
 
-        for (int k = 0; k < beats && !Over; k++)
+        int beat = 0;
+        for (int tick = 0; tick < Ticks && !Over; tick++)
         {
-            // 하위단계 0 — 걸음.
+            bool stirred = false;
+
+            // 하위단계 0 — 걸음. (틱+1) x 걸음수 가 60 의 배수인 틱에만 한 걸음 딛는다(0x0043CBE7).
             foreach (var ship in Ships.ToList())
             {
                 if (Over) break;
-                if (!ship.CanAct || ship.Halted || ship.Blocked || k >= ship.Plan.Count) continue;
+                if (!ship.CanAct || ship.Halted || ship.Blocked) continue;
+                int steps = ship.Plan.Count;
+                if (steps == 0 || (tick + 1) * steps % Ticks != 0) continue;
+                int k = (tick + 1) * steps / Ticks - 1;
+                if (k < 0 || k >= steps) continue;
+
+                stirred = true;
                 int way = Turn(ship.Way, ship.Plan[k]);
                 var (nx, ny) = Step(ship.X, ship.Y, way);
                 ship.Way = way;                                   // 돌기는 이미 먹었다
@@ -974,13 +985,18 @@ public sealed class SeaBattle
                 ship.X = nx;
                 ship.Y = ny;
             }
-            _stage?.Moved();
+            if (stirred) _stage?.Moved();
+
+            // 하위단계 1·2 는 (틱+1) x 이동력 이 60 의 배수인 틱에만 — 곧 한 턴에 이동력 번이다
+            // (0x0043CBA4). 걸음 눈금과 달라 배마다 쏘는 때가 어긋난다.
+            bool Fires(Ship ship) => ship.Power > 0 && (tick + 1) * ship.Power % Ticks == 0;
 
             // 하위단계 1 — 총격. 충돌한 배(지시상태 ≥ 2)는 먼저 걸지 않는다(걸리는 쪽으로는 맞는다).
             foreach (var ship in Ships.ToList())
             {
                 if (Over) break;
-                if (!ship.CanAct || ship.Halted || k >= ship.Power) continue;
+                if (!ship.CanAct || ship.Halted || !Fires(ship)) continue;
+                stirred = true;
                 Gunfight(ship);
             }
 
@@ -988,13 +1004,14 @@ public sealed class SeaBattle
             foreach (var ship in Ships.ToList())
             {
                 if (Over) break;
-                if (!ship.CanAct || k >= ship.Power) continue;
+                if (!ship.CanAct || !Fires(ship)) continue;
+                stirred = true;
                 if (Fire(ship) is not { } volley) continue;
                 _stage?.Volley(volley);
                 if (volley.Sunk) Sink([volley.Target]);           // 0x0043D79D → 연출 갈래 1
             }
 
-            _stage?.BeatDone(k);
+            if (stirred) _stage?.BeatDone(beat++);
         }
 
         EndTurn();
