@@ -119,9 +119,10 @@ public sealed class ModDialog : GameWindow
             + " 끄면 묻지 않고 안 빌린 것으로 넘어갑니다 — 배를 이미 갖춘 판에서 물음이 성가실 때 씁니다."));
 
         // 자동저장 — 원본에 없다. 손으로 적는 자리(SAVEDATA.CDS)는 안 건드리고 따로 적는다.
-        rows.Children.Add(Toggle("입항 자동저장", GameSettings.AutoSaveOnPort,
+        rows.Children.Add(Toggle("도시 자동저장", GameSettings.AutoSaveOnPort,
             on => GameSettings.AutoSaveOnPort = on,
-            "원본에 없는 것입니다 — 항구에 들어설 때마다 자동저장 파일(AUTOSAVE.CDS)에 적습니다."
+            "원본에 없는 것입니다 — 도시에 들어설 때마다 자동저장 파일(AUTOSAVE.CDS)에 적습니다."
+            + " 배로 입항하든 뭍으로 성문을 지나든 마찬가지라, 항구가 없는 내륙 마을에서도 적힙니다."
             + " 손으로 적어 둔 세이브(SAVEDATA.CDS)는 건드리지 않습니다."
             + " 첫 화면의 「CONTINUE」가 이 파일을 엽니다."));
 

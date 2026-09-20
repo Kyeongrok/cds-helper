@@ -143,28 +143,38 @@ public sealed class DiscoveryLog
     /// 신대륙에 가려지지 않게 하려는 것이다. 넓이가 같으면 번호가 작은 쪽이 이긴다
     /// (게임도 <c>0x004256DE</c> 에서 &gt; 로만 갈아 끼운다).
     ///
+    /// <b>후보는 하나만 뽑는다.</b> 게임의 <c>0x00425640</c> 은 <b>자리와 너비만</b> 보고
+    /// 한 줄을 고르고, 받은 <c>0x0048D462</c> 가 그 <b>한 줄에만</b> 관문을 건다 —
+    /// 열렸는지(<c>0x08</c>) · 이미 찾았는지(<c>0x0100</c>) · 바다뭍(<c>+0x28</c>)이
+    /// 안 맞으면 <b>그냥 아무 일도 안 일어난다</b>. 다른 후보로 물러서지 않는다.
+    /// 예전에는 관문을 통과하는 것 가운데 가장 좁은 것을 골라, 겹친 자리에서 이미 찾은
+    /// 발견물을 건너뛰고 넓은 쪽이 잡히곤 했다.
+    ///
     /// <b>한 가지 다르게 한다</b> — 역사가 가져간 것은 여기서 미리 뺀다. 게임은 그래도
     /// 사건을 틀어 놓고 <c>0x004AAC10</c> 이 조용히 안 적는 쪽인데, 그러면 그 자리를 지날
     /// 때마다 아무것도 안 남는 연출만 되풀이된다.
     /// </remarks>
     public int At(Player player, int cellX, int cellY, bool onLand)
     {
+        // ① 자리와 너비만 보고 한 줄을 고른다(0x00425640).
         int found = -1;
         int best = int.MaxValue;
 
         foreach (var row in _table.Discoveries)
         {
             if (!row.Covers(cellX, cellY)) continue;
-            if (row.OnLand != onLand) continue;      // 표 +0x28 과 0x5B61B4 를 견주는 자리
-            if (row.Indirect) continue;              // 깃발 0x04 가 없어 자리로는 안 잡힌다
-            if (player.HasFound(row.Id)) continue;
-            if (!IsOpen(player, row)) continue;
-            if (TakenBy(row, player.Date) >= 0) continue;   // 역사가 먼저 가져갔다
-
             if (row.Span >= best) continue;
             best = row.Span;
             found = row.Id;
         }
+
+        if (found < 0 || _table.Find(found) is not { } picked) return -1;
+
+        // ② 그 한 줄에만 관문을 건다(0x0048D462 → 0x004AAD20).
+        if (picked.OnLand != onLand) return -1;      // 표 +0x28 과 0x5B61B4 를 견주는 자리
+        if (player.HasFound(picked.Id)) return -1;   // 깃발 0x0100
+        if (!IsOpen(player, picked)) return -1;      // 깃발 0x08
+        if (TakenBy(picked, player.Date) >= 0) return -1;   // 역사가 먼저 가져갔다
 
         return found;
     }
