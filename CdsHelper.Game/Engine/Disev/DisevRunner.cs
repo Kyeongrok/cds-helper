@@ -312,16 +312,20 @@ public sealed class DisevRunner
     /// 「조건 없음 · 항상 발생」이 그 꼴이다.
     ///
     /// <b>맞는 슬롯이 하나도 없으면 사건을 아예 안 튼다</b>(<c>0x00407EFD</c> 이 0 을 내고
-    /// <c>0x0040CF9F</c> 가 해석기를 안 부른다). 예전에는 첫 슬롯으로 물러섰는데, DISEV 274 파트가
-    /// 죄다 슬롯 하나라 그것은 <b>조건을 통째로 무시</b>하는 것과 같았다 — 확률 조건
-    /// (<c>2E 1A [분모] 1A [성공]</c>)이 달린 일흔다섯 파트가 늘 걸려 버렸다.
+    /// <c>0x0040CF9F</c> 가 해석기를 안 부른다). 이야기 대본은 이 규칙을 그대로 따른다.
+    /// 다만 발견 이벤트 274 파트는 죄다 슬롯 하나에 확률 조건
+    /// (<c>2E 1A [분모] 1A [성공]</c>)만 붙어 있다. 발견물을 실제로 밟은 뒤에 다시
+    /// 이 조건을 사건 발생 게이트로 쓰면 이벤트가 확률적으로 사라지므로, 발견 이벤트
+    /// 에서는 그 조건만 무시하고 본문을 튼다.
     /// </remarks>
     private int PickBody(DisevPart part)
     {
         foreach (var slot in part.Slots)
         {
             var (from, to) = part.ChunkRange(slot.Condition);
-            if (Passes(Lines(part, from, to))) return slot.Body;
+            // 발견 이벤트의 슬롯 조건에 붙은 확률값은 이벤트 발생 여부가 아니라
+            // 원본 분석 데이터에 남은 조건 표기다. 발견물을 밟은 뒤에는 본문을 늘 튼다.
+            if (Passes(Lines(part, from, to), _cache == DisevBook.CacheName)) return slot.Body;
         }
         return -1;
     }
@@ -357,7 +361,7 @@ public sealed class DisevRunner
     /// 분기(<c>43</c>)에서만 쓰는 조건식(<c>45</c> 결과 따위)은 조건 덩이에 오면 파트가
     /// 안 돈다. <b>스톡 DISEV.CDS 274 파트는 죄다 이 스물여덟 안에 든다</b>(2026-09-20 확인).
     /// </remarks>
-    private bool Passes(List<Line> lines)
+    private bool Passes(List<Line> lines, bool ignoreRandomChance = false)
     {
         bool and = true, orAcc = false, inOr = false;
 
@@ -369,7 +373,9 @@ public sealed class DisevRunner
 
             // 모르는 조건이 끼면 게임은 그 파트를 통째로 안 튼다(0x00407F09) — 참으로 흘리면 안 된다.
             if (line.Call is not { } call) return false;
-            bool value = Evaluate(call, line.Args) is not false;
+            bool value = ignoreRandomChance && call == DisevCall.RandomChance
+                ? true
+                : Evaluate(call, line.Args) is not false;
 
             // 뒤에 50 이 붙어 있으면 모아 두고 다음 조건으로 넘어간다.
             if (i + 1 < lines.Count && lines[i + 1].Call is DisevCall.Or)
