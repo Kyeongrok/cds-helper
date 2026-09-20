@@ -120,7 +120,7 @@ public sealed class TrampArt
         }
 
         string cds = CdsAssetPath.Resolve(gameDirectory, "TRAMP.CDS");
-        string pal = Path.Combine(gameDirectory, "TRAMP.P");
+        string pal = CdsAssetPath.Resolve(gameDirectory, "TRAMP.P");
 
         var archive = Ls12Reader.Open(cds);
         if (archive == null || archive.PartCount < 5)

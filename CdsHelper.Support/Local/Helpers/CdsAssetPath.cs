@@ -17,7 +17,9 @@ public static class CdsAssetPath
 
         string assetName = string.Equals(cdsName, "WORLD.CDS", StringComparison.OrdinalIgnoreCase)
             ? "world.cdsx"
-            : Path.GetFileNameWithoutExtension(cdsName).ToUpperInvariant() + ".CDSX";
+            : string.Equals(Path.GetExtension(cdsName), ".P", StringComparison.OrdinalIgnoreCase)
+                ? Path.GetFileNameWithoutExtension(cdsName).ToUpperInvariant() + ".PX"
+                : Path.GetFileNameWithoutExtension(cdsName).ToUpperInvariant() + ".CDSX";
         string local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, assetName);
         if (File.Exists(local)) return local;
 
