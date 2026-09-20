@@ -237,6 +237,18 @@ public sealed class TradePostDialog : GameWindow
         Paint();
     }
 
+    /// <summary>
+    /// 부관(부하 첫 자리)의 회계 — 흥정 굴림이 제독 것과 견준다(<c>0x00481330</c>).
+    /// 부관이 없거나 인물표를 못 읽으면 −1 이다.
+    /// </summary>
+    private int MateAccounting()
+    {
+        string mate = _player.MateAt(0);
+        if (mate.Length == 0) return -1;
+        if (_game.World?.People.FirstOrDefault(r => r.Name == mate) is not { } row) return -1;
+        return Skill.Accounting < row.Skills.Length ? row.Skills[Skill.Accounting] : -1;
+    }
+
     /// <summary>판에서 고른 것 — 0 결정, 1 값을 깎는다, 2 돌아간다.</summary>
     private void Pick(int k)
     {
@@ -244,7 +256,7 @@ public sealed class TradePostDialog : GameWindow
         if (k != 1) { _bargainOn = false; Paint(); return; }
 
         RaiseInfamy(TradePost.HaggleInfamy);
-        bool ok = TradePost.RollBargain(_player, _random);
+        bool ok = TradePost.RollBargain(_player, _random, MateAccounting());
         if (ok) _wins++;
         Say(TradePost.BargainLine(ok, _tries, Cost), !ok);
         _tries++;

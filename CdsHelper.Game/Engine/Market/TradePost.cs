@@ -396,10 +396,18 @@ public sealed class TradePost
                && player.TongueOf(Skill.Languages[language]) >= BargainTongue;
     }
 
-    /// <summary>한 번 깎아 본다(<c>0x00481330</c>) — 회계 자리로 확률표를 고른다.</summary>
-    public static bool RollBargain(Player player, Random random)
+    /// <summary>
+    /// 한 번 깎아 본다(<c>0x00481330</c>) — 회계 자리로 확률표를 고른다.
+    /// </summary>
+    /// <param name="mateAccounting">
+    /// 부관(부하 첫 자리)의 회계. 제독 것보다 크면 <b>그것을 쓴다</b>
+    /// (<c>0x00481330</c> 이 <c>0x0047CC60(0, 0)</c> → <c>0x00468F40(부관, 9)</c> 와 견준다).
+    /// 부관이 없으면 −1 을 넘긴다.
+    /// </param>
+    public static bool RollBargain(Player player, Random random, int mateAccounting = -1)
     {
-        int level = Math.Clamp(player.LevelOf(Skill.Names[Skill.Accounting]), 0, BargainOdds.Length - 1);
+        int best = Math.Max(player.LevelOf(Skill.Names[Skill.Accounting]), mateAccounting);
+        int level = Math.Clamp(best, 0, BargainOdds.Length - 1);
         return random.Next(100) < BargainOdds[level];
     }
 
