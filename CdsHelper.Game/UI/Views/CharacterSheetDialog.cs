@@ -58,7 +58,7 @@ internal sealed class CharacterSheetDialog : InfoDialog
         // 왼쪽에 능력치 다섯, 오른쪽에 기술·언어 목록.
         var left = new StackPanel { Width = 108 };
         for (int i = 0; i < Ability.Shown; i++)
-            left.Children.Add(Label($"  {GameUi.Pad(Ability.Names[i], 8)}{player.AbilityOf(i),3}"));
+            left.Children.Add(Label($"  {GameUi.Pad(Ability.Names[i], 8)}{Ability.Display(player.AbilityOf(i)),3}"));
 
         var body = new StackPanel { Orientation = Orientation.Horizontal };
         body.Children.Add(left);

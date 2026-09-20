@@ -56,13 +56,15 @@ internal sealed class PersonInfoDialog : InfoDialog
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
         head.Children.Add(BlackLine($"  {player.Name}"));
-        head.Children.Add(BlackLine($"  체  력/{player.AbilityOf(Ability.Body),4}" +
+        // 능력치는 <b>담은 값 + 1</b> 로 보인다(0x0046D76C 의 inc eax).
+        int Shows(int which) => Ability.Display(player.AbilityOf(which));
+        head.Children.Add(BlackLine($"  체  력/{Shows(Ability.Body),4}" +
                                 $"    명성치/{player.Fame,8}"));
-        head.Children.Add(BlackLine($"  지  력/{player.AbilityOf(Ability.Mind),4}" +
+        head.Children.Add(BlackLine($"  지  력/{Shows(Ability.Mind),4}" +
                                 $"    악명치/{player.Infamy,8}"));
-        head.Children.Add(BlackLine($"  무  력/{player.AbilityOf(Ability.Might),4}" +
+        head.Children.Add(BlackLine($"  무  력/{Shows(Ability.Might),4}" +
                                 $"    직업  /{player.Work.Name}"));
-        head.Children.Add(BlackLine($"  매  력/{player.AbilityOf(Ability.Charm),4}"));
+        head.Children.Add(BlackLine($"  매  력/{Shows(Ability.Charm),4}"));
 
         var top = new StackPanel { Orientation = Orientation.Horizontal };
         if (Face(player, faces) is { } portrait) top.Children.Add(portrait);
@@ -95,10 +97,11 @@ internal sealed class PersonInfoDialog : InfoDialog
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
         head.Children.Add(BlackLine($"  {who.Name}"));
-        head.Children.Add(BlackLine($"  체  력/{who.Body,4}"));
-        head.Children.Add(BlackLine($"  지  력/{who.Mind,4}"));
-        head.Children.Add(BlackLine($"  무  력/{who.Might,4}    직업  /{sheet.Job}"));
-        head.Children.Add(BlackLine($"  매  력/{who.Charm,4}"));
+        // 부하도 같은 판이라 능력치는 담은 값 + 1 이다(0x0046D76C).
+        head.Children.Add(BlackLine($"  체  력/{Ability.Display(who.Body),4}"));
+        head.Children.Add(BlackLine($"  지  력/{Ability.Display(who.Mind),4}"));
+        head.Children.Add(BlackLine($"  무  력/{Ability.Display(who.Might),4}    직업  /{sheet.Job}"));
+        head.Children.Add(BlackLine($"  매  력/{Ability.Display(who.Charm),4}"));
 
         var top = new StackPanel { Orientation = Orientation.Horizontal };
         if (Face(faces?.TryGetBgra(who.Face, female: false)) is { } portrait)
@@ -127,10 +130,10 @@ internal sealed class PersonInfoDialog : InfoDialog
     {
         var head = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
         head.Children.Add(BlackLine($"  {who.Name}"));
-        head.Children.Add(BlackLine($"  체  력/{who.Body,4}"));
-        head.Children.Add(BlackLine($"  지  력/{who.Mind,4}"));
-        head.Children.Add(BlackLine($"  무  력/{who.Might,4}    직업  /{who.Job}"));
-        head.Children.Add(BlackLine($"  매  력/{who.Charm,4}"));
+        head.Children.Add(BlackLine($"  체  력/{Ability.Display(who.Body),4}"));
+        head.Children.Add(BlackLine($"  지  력/{Ability.Display(who.Mind),4}"));
+        head.Children.Add(BlackLine($"  무  력/{Ability.Display(who.Might),4}    직업  /{who.Job}"));
+        head.Children.Add(BlackLine($"  매  력/{Ability.Display(who.Charm),4}"));
 
         var top = new StackPanel { Orientation = Orientation.Horizontal };
         if (Face(face) is { } portrait) top.Children.Add(portrait);

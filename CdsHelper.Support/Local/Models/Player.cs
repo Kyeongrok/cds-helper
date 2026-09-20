@@ -287,7 +287,9 @@ public sealed class Player
     public void AdjustAbility(int which, int by)
     {
         if (which < 0 || which >= Abilities.Length) return;
-        Abilities[which] = Math.Clamp(Abilities[which] + by, 0, 100);
+        // 게임은 <b>보이는 값</b> 1~100 으로 자른 뒤 도로 1 을 뺀다(0x00432C50 → 0x0049E560).
+        Abilities[which] = Math.Clamp(Ability.Display(Abilities[which]) + by, 1, Ability.Max)
+                           - 1;
     }
 
     /// <summary>제독의 컨디션(<c>0x005B60D8</c>). 처음 값은 <see cref="ConditionFull"/> 이다.</summary>
