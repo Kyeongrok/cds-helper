@@ -188,7 +188,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var roll = new GameRandom(Environment.TickCount);
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
         // 상대도 무기·방어구를 굴려 든다(0x004A89D4) — 복장 갈래는 그 사람 나라의 수도 문화권이다.
-        var gear = Engine.Town.Duel.GearFor(FoeSet(BrawlPerson), row.Stats[2], roll, EffectOf);
+        var ids = Engine.Town.Duel.GearOf(FoeSet(BrawlPerson), row.Stats[2], roll);
+        var gear = (Weapon: EffectOf(ids.Weapon), Armor: EffectOf(ids.Armor));
         var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword,
                                                row.Stats[4], gear.Weapon, gear.Armor);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
@@ -197,7 +198,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (duel.Won == true)
         {
             _player.Hurt(duel.BodyLost);
-            if (Triumph(BrawlPerson, face, roll) == 0)
+            if (Triumph(BrawlPerson, face, roll, gear: ids) == 0)
             {
                 _player.Fame += BrawlFame;
                 _player.Infamy += ChallengeWinInfamy;
@@ -466,7 +467,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         var dice = new GameRandom(Environment.TickCount);
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
         // 상대도 무기·방어구를 굴려 든다(0x004A89D4) — 복장 갈래는 그 사람 나라의 수도 문화권이다.
-        var gear = Engine.Town.Duel.GearFor(FoeSet(BrawlPerson), row.Stats[2], dice, EffectOf);
+        var ids = Engine.Town.Duel.GearOf(FoeSet(BrawlPerson), row.Stats[2], dice);
+        var gear = (Weapon: EffectOf(ids.Weapon), Armor: EffectOf(ids.Armor));
         var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword,
                                                row.Stats[4], gear.Weapon, gear.Armor);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), Environment.TickCount);
@@ -476,7 +478,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (duel.Won == true)
         {
             _player.Hurt(duel.BodyLost);
-            if (Triumph(BrawlPerson, face, dice) == 0)
+            if (Triumph(BrawlPerson, face, dice, gear: ids) == 0)
             {
                 _player.Fame += BrawlFame;
                 _player.Infamy += BrawlWinInfamy;
@@ -1003,7 +1005,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
         if (PersonTable.Open().Find(BrawlPerson) is not { } row || row.Stats.Length < 5) return true;
         int sword = row.Skills.Length > Skill.Sword ? row.Skills[Skill.Sword] : 0;
         // 상대도 무기·방어구를 굴려 든다(0x004A89D4) — 복장 갈래는 그 사람 나라의 수도 문화권이다.
-        var gear = Engine.Town.Duel.GearFor(FoeSet(BrawlPerson), row.Stats[2], dice, EffectOf);
+        var ids = Engine.Town.Duel.GearOf(FoeSet(BrawlPerson), row.Stats[2], dice);
+        var gear = (Weapon: EffectOf(ids.Weapon), Armor: EffectOf(ids.Armor));
         var foe = new Engine.Town.Duel.Fighter(BrawlName, row.Stats[0], row.Stats[2], sword,
                                                row.Stats[4], gear.Weapon, gear.Armor);
         var duel = new Engine.Town.Duel(Mine(), foe, Shielded(), dice.Next());
@@ -1570,7 +1573,12 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 판 무대가 <b>4 이상</b>(술집·모스크·사원)인지. 그때만 「놓아 준다」·「모두 뺏는다」가
     /// 붙고, 갑판(0)·초원(1) 같은 데서는 「처형한다」 한 줄뿐이다(<c>0x004A8470</c>).
     /// </param>
-    internal int Triumph(int person, uint[]? face, GameRandom dice, bool indoors = true)
+    /// <param name="gear">
+    /// 판이 열릴 때 굴려 둔 상대의 무기·방어구 번호 — 「모두 뺏는다」가 그것을 준다
+    /// (<c>0x004AA4B3</c>). 굴린 것이 없으면 (0, 0) 이고 그때는 안 준다.
+    /// </param>
+    internal int Triumph(int person, uint[]? face, GameRandom dice, bool indoors = true,
+                         (int Weapon, int Armor) gear = default)
     {
         int pick = ChoiceDialog.Pick(_view, "",
             indoors ? ["처형한다", "놓아 준다", "모두 뺏는다"] : ["처형한다"]);
@@ -1584,6 +1592,7 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
 
             case 2:
                 TalkDialog.Say(_view, face, "", Robbed[dice.Next(Robbed.Length)]);
+                if (gear.Weapon != 0) Loot(gear.Weapon, gear.Armor);
                 // 실제로 오르는 것은 10 인데 알림만 100 이라고 찍는다 — 원본이 그렇다
                 // (0x004AA467 의 0x004800E0(1, 10) 뒤 0x004AA470 의 0x64).
                 _player.Infamy += RobInfamy;
@@ -1649,10 +1658,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     ///   0x00534A70  "상대는 %s%s 장비하고 있다"        ; 무기뿐일 때
     /// </code>
     /// </remarks>
-    private void Loot(in TavernRoster.Person who, GameRandom dice)
+    private void Loot(int weapon, int armor)
     {
-        var (weapon, armor) = Engine.Town.Duel.GearOf(
-            FighterSprites.SetForCulture(_cultureNo), who.Might, dice);
         string Name(int id) => _game.Items?.Find(id)?.Name ?? "";
 
         string w = Name(weapon), a = Name(armor);
