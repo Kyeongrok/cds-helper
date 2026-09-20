@@ -2841,24 +2841,30 @@ public sealed class ShipMapWindow : Window
     /// <b>「탐색」만 뭍에 올린다</b>(<c>0x0048E734</c>). 보급(<c>0x0048DC60</c>)과
     /// 수리(<c>0x0048E140</c>)는 배에 탄 채로 하고 차림표로 되돌아오며, 「승선한다」는 닫는다.
     /// </remarks>
-    private GameMenu AshoreMenuBox() => new("상륙", null,
-    [
-        ("탐색", () =>
-        {
-            if (!_host.Land()) { Close(); return; }
-            _game.Bgm.Play(BgmPlayer.LandTrack);
+    private GameMenu AshoreMenuBox()
+    {
+        // <b>창을 닫는 것은 차림표다</b> — 이름만 Close 라고 쓰면 게임 창이 닫혀 놀이가 끝난다.
+        void Shut() => CommandMenu.Close();
 
-            // 재해가 풀려 <b>부관이 한 마디 할 때만</b> 창을 남긴다 — 닫으면 그 자리에서
-            // 멈춤이 풀려 말이 뜨는 동안 말(馬)이 벌써 달려 나가고, 읽고 나면 바로 승선할
-            // 수도 있기 때문이다. 아무 말 없이 상륙했으면 <b>곧바로 닫아</b> 그 자리에서
-            // 움직이게 둔다.
-            if (EndVoyage()) CommandMenu.Refresh();
-            else Close();
-        }),
-        ("보급", () => { Forage(); CommandMenu.Refresh(); }),
-        ("수리", () => { RepairAshore(); CommandMenu.Refresh(); }),
-        ("승선한다", Close),
-    ]);
+        return new GameMenu("상륙", null,
+        [
+            ("탐색", () =>
+            {
+                if (!_host.Land()) { Shut(); return; }
+                _game.Bgm.Play(BgmPlayer.LandTrack);
+
+                // 재해가 풀려 <b>부관이 한 마디 할 때만</b> 창을 남긴다 — 닫으면 그 자리에서
+                // 멈춤이 풀려 말이 뜨는 동안 말(馬)이 벌써 달려 나가고, 읽고 나면 바로 승선할
+                // 수도 있기 때문이다. 아무 말 없이 상륙했으면 <b>곧바로 닫아</b> 그 자리에서
+                // 움직이게 둔다.
+                if (EndVoyage()) CommandMenu.Refresh();
+                else Shut();
+            }),
+            ("보급", () => { Forage(); CommandMenu.Refresh(); }),
+            ("수리", () => { RepairAshore(); CommandMenu.Refresh(); }),
+            ("승선한다", Shut),
+        ]);
+    }
 
     private GameMenu InfoMenuBox() => new("정보", null,
     [
