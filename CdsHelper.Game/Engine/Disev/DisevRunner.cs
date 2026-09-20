@@ -309,8 +309,13 @@ public sealed class DisevRunner
     /// </summary>
     /// <remarks>
     /// 슬롯은 <c>[조건][본문]</c> 짝이 여럿이고, 앞에서부터 조건이 맞는 것을 쓴다.
-    /// 조건 덩이가 비었거나(바로 <c>FF</c>) 뜻을 모르는 것뿐이면 <b>맞은 것으로 친다</b> —
-    /// 카르낙 거석군의 「조건 없음 · 항상 발생」이 그 꼴이다.
+    /// 조건 덩이가 비었으면(바로 <c>FF</c>) 맞은 것으로 친다 — 카르낙 거석군의
+    /// 「조건 없음 · 항상 발생」이 그 꼴이다.
+    ///
+    /// <b>맞는 슬롯이 하나도 없으면 사건을 아예 안 튼다</b>(<c>0x00407EFD</c> 이 0 을 내고
+    /// <c>0x0040CF9F</c> 가 해석기를 안 부른다). 예전에는 첫 슬롯으로 물러섰는데, DISEV 274 파트가
+    /// 죄다 슬롯 하나라 그것은 <b>조건을 통째로 무시</b>하는 것과 같았다 — 확률 조건
+    /// (<c>2E 1A [분모] 1A [성공]</c>)이 달린 일흔다섯 파트가 늘 걸려 버렸다.
     /// </remarks>
     private int PickBody(DisevPart part)
     {
@@ -319,7 +324,7 @@ public sealed class DisevRunner
             var (from, to) = part.ChunkRange(slot.Condition);
             if (Passes(Lines(part, from, to))) return slot.Body;
         }
-        return part.Slots.Count > 0 ? part.Slots[0].Body : -1;
+        return -1;
     }
 
     /// <summary>
