@@ -14,6 +14,9 @@ namespace CdsHelper.Game.Local.Helpers;
 /// </remarks>
 public sealed class BgmPlayer : IDisposable
 {
+    /// <summary>게임을 시작할 때 준비 여부를 확인할 대표 곡.</summary>
+    public const int RequiredTrack = TitleTrack;
+
     /// <summary>타이틀 화면에서 도는 곡.</summary>
     public const int TitleTrack = 23;
 
@@ -220,6 +223,10 @@ public sealed class BgmPlayer : IDisposable
 
     /// <summary>게임 폴더를 알려 준다. 그 밑의 <c>bgm</c> 을 본다.</summary>
     public void SetGameDirectory(string gameDir) => _dir = gameDir;
+
+    /// <summary>게임 폴더에 BGM이 준비되어 있는지 확인한다.</summary>
+    public static bool IsAvailable(string gameDir) =>
+        File.Exists(Path.Combine(gameDir, "bgm", $"Track{RequiredTrack:D2}.mp3"));
 
     /// <summary>곡을 틀지. 끄면 소리를 멈추고, 켜면 마지막으로 틀라던 곡부터 다시 돈다.</summary>
     public bool Enabled

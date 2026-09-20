@@ -104,3 +104,19 @@ jobs:
           gh release upload "${{ github.ref_name }}" single/CostaDelSol.exe single/Editor.exe --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # BGM은 용량이 커서 설치 패키지와 단일 파일 exe에 넣지 않고 별도 자산으로 올린다.
+      - name: Package BGM
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "asset/bgm/Track23.mp3")) {
+            throw "asset/bgm/Track23.mp3 가 없습니다"
+          }
+          Compress-Archive -Path "asset/bgm" -DestinationPath "bgm.zip" -CompressionLevel Optimal
+
+      - name: Upload BGM
+        shell: pwsh
+        run: |
+          gh release upload "${{ github.ref_name }}" bgm.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
