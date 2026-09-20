@@ -2620,6 +2620,12 @@ public sealed class ShipMapWindow : Window
             GameSettings.ShowConditionOverlay = on;   // 다음에 켤 때도 그대로
             SyncOverlay();
         },
+        ArrowsOn = () => _host.ShowFlowArrows,
+        SetArrows = on =>
+        {
+            _host.ShowFlowArrows = on;
+            GameSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
+        },
     });
 
     /// <summary>
@@ -2642,12 +2648,6 @@ public sealed class ShipMapWindow : Window
         Duel = PlayDuel,
         LandSpar = () => LandSparDialog.Play(this, _game),
         SeaSpar = MockSeaBattle,
-        ArrowsOn = () => _host.ShowFlowArrows,
-        SetArrows = on =>
-        {
-            _host.ShowFlowArrows = on;
-            GameSettings.ShowFlowArrows = on;   // 다음에 켤 때도 그대로
-        },
         ToolBarOn = () => GameSettings.ShowToolBar,
         SetToolBar = on =>
         {
