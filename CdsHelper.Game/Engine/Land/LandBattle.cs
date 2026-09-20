@@ -802,12 +802,22 @@ public sealed class LandBattle
     ];
 
     /// <summary>
-    /// 그 묘책을 걸어 본다. 먹혔으면 참이고, 어느 쪽이든 한 번 쓰면 없어진다.
+    /// 그 묘책을 <b>골랐다</b>고 적어 둔다 — 한 판에 한 번뿐이라 이때 없어진다.
+    /// </summary>
+    /// <remarks>
+    /// 차림표를 여는 <c>0x004490D0</c> 이 고른 자리에서 바로 <c>+0x50</c> 에 비트를
+    /// 세운다(<c>0x00449153</c>·<c>0x0044915D</c>·<c>0x00449167</c>·<c>0x00449171</c>).
+    /// 성사 굴림은 <b>그때가 아니라 턴이 굴러갈 때</b>다 — 고르고 나서 퇴각이나 일기토를
+    /// 고르면 그 묘책은 <b>쓰지도 못하고 없어진다</b>.
+    /// </remarks>
+    public void UseRuse(int ruse) => _usedRuses |= 1 << ruse;
+
+    /// <summary>
+    /// 그 묘책을 걸어 본다. 먹혔으면 참이다.
     /// <b>심판은 안 굴린다</b> — 늘 떨어지고 양쪽을 다 친다(<c>0x00448F80</c>).
     /// </summary>
     public bool TryRuse(int ruse, GameRandom dice)
     {
-        _usedRuses |= 1 << ruse;
         if (ruse == Judgement) return true;
 
         int at = Math.Clamp(Culture, 0, 10) * 3 + ruse;

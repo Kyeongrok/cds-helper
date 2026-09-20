@@ -176,6 +176,9 @@ internal sealed class LandBattleScene : GameWindow
             // 「돌격」은 턴 첫머리에 한 번 소리를 낸다(0x0044932E).
             if (order == LandBattle.Charge) _game?.Sfx?.Play(LandUnits.Sound.Charge);
 
+            // 걸어 둔 묘책은 여기서 터진다 — 퇴각·일기토를 골랐으면 여기까지 안 온다(0x00449320).
+            FireRuse(fight, dice);
+
             var lines = fight.Turn(order, _battle.FoeOrder(dice));
             _ruseThisTurn = false;                  // 턴이 넘어가면 묘책을 다시 걸 수 있다(0x00449DDA)
             _newTurn = true;                        // 턴이 굴렀으니 다음 차림표는 새 턴이다(0x00449DC4)
@@ -307,7 +310,30 @@ internal sealed class LandBattleScene : GameWindow
         if (pick < 0) return;
         _ruseThisTurn = true;
 
-        var said = fight.Ruse(pick, dice, out _);
+        // 고른 자리에서는 <b>적어 두기만</b> 한다 — 터지는 것은 턴이 굴러갈 때다(0x00449B64).
+        _battle.UseRuse(pick);
+        _ruse = pick;
+    }
+
+    /// <summary>이번 턴에 걸어 둔 묘책(<c>+0x54</c>). 아직 안 걸었으면 −1 이다.</summary>
+    /// <remarks>
+    /// 게임은 차림표(<c>0x004490D0</c>)가 낸 값을 <c>+0x54</c> 에 적어 두기만 하고
+    /// (<c>0x00449B64</c>) 턴을 굴리는 <c>0x00449320</c> 첫머리에서야 그 갈래로 갈라
+    /// 터뜨린다. 그러니 묘책을 걸고 <b>퇴각이나 일기토를 고르면 아무 일도 안 일어난다</b> —
+    /// 그 둘은 <c>0x00449320</c> 을 안 거친다(<c>0x00449ACC</c>·<c>0x00449A72</c>).
+    /// 기습(0)만 갈래가 없는데, 행동 차례를 짜는 <c>0x00447E10</c> 이 <c>+0x54 == 0</c> 을
+    /// 보고 거기서 굴린다(<c>0x00447E59</c>).
+    /// </remarks>
+    private int _ruse = -1;
+
+    /// <summary>턴이 구르기 직전에 걸어 둔 묘책을 터뜨린다(<c>0x00449320</c> 첫머리).</summary>
+    private void FireRuse(LandFight fight, GameRandom dice)
+    {
+        if (_ruse < 0) return;
+        int ruse = _ruse;
+        _ruse = -1;
+
+        var said = fight.Ruse(ruse, dice, out _);
         foreach (var line in said)
         {
             if (line.Sound >= 0) _game?.Sfx?.Play(line.Sound);
