@@ -626,28 +626,37 @@ internal sealed class ShipyardMenu(Window view, Engine.Game game, GameMenuHost m
     private void SwapSail(Ship ship)
     {
         var owner = Owner;
-        var standing = new List<int>();
-        for (int i = 0; i < Ship.MastSlots; i++)
-            if (ship.Sails[i] != Ship.NoSail) standing.Add(i);
-        if (standing.Count == 0) return;
 
-        // 마스트가 하나면 묻지도 늘어놓지도 않고 곧장 바꿀지 묻는다(0x00494F7D). 여럿이면 아니오·돈 부족·
-        // 바꾼 뒤에도 마스트 목록으로 돌아간다(jmp 0x00494F6B) — 물러야 나온다.
-        bool single = standing.Count == 1;
+        // 목록에 나오는 마스트 수는 <b>돛이 달린 가장 높은 마스트</b>다(0x00422CE0) — 그것이
+        // 하나뿐이면 묻지도 늘어놓지도 않고 메인마스트를 곧장 바꿀지 묻는다(0x00494F7D).
+        int masts = 0;
+        for (int i = 0; i < Ship.MastSlots; i++) if (ship.Sails[i] != Ship.NoSail) masts = i + 1;
+        if (masts == 0) return;
+
+        // 여럿이면 아니오·돈 부족·바꾼 뒤에도 마스트 목록으로 돌아간다(jmp 0x00494F6B) — 물러야 나온다.
+        bool single = masts <= 1;
         while (true)
         {
             int mast;
-            if (single) mast = standing[0];
+            if (single) mast = 0;
             else
             {
+                // 줄은 <b>늘 셋</b>이다 — 돛이 없는 마스트도 「없음」으로 나온다(0x00494FA5 의
+                // 되돌이가 0x0056E260 의 세 이름을 다 돈다). 끝에 「그만둔다」가 붙는다(0x005316C8).
                 Say("어느 마스트의 돛을 바꿀건가?");
-                int pick = HintListDialog.Pick(owner,
-                    [.. standing.Select(i => $"{GameUi.Pad(Ship.MastNames[i], 14)}{Ship.SailNames[ship.Sails[i]]}")],
-                    "돛종류 변경", "");
-                if (pick < 0 || pick >= standing.Count) break;
-                mast = standing[pick];
+                List<string> rows =
+                [
+                    .. Enumerable.Range(0, Ship.MastSlots)
+                                 .Select(i => $"{GameUi.Pad(Ship.MastNames[i], 14)}{Ship.SailNames[ship.Sails[i]]}"),
+                    "그만둔다",
+                ];
+                int pick = HintListDialog.Pick(owner, rows, "돛종류 변경", "");
+                if (pick < 0 || pick >= Ship.MastSlots) break;
+                mast = pick;
             }
 
+            // 물음은 <b>삼각돛일 때만</b> 「삼각→사각」이다 — 돛이 없어도 「사각→삼각」을
+            // 묻고는 사각돛을 단다(0x0049507C 와 0x00495100 이 어긋난 채다).
             bool lateen = ship.Sails[mast] == Ship.Lateen;
             int cost = Shipyard.SailCost(ship, _rate);
             if (Ask(lateen
