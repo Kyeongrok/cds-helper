@@ -1420,25 +1420,28 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// <c>(무력+1)/20 + 검술*10</c> 으로 잰다(<c>0x004A86CD</c>). 부관이 더 세면 흔쾌히
     /// 나서고 다시 묻지 않는다.
     /// </remarks>
-    private Player.MateInfo? SendMate(GameRandom dice)
-    {
-        string first = _player.Mates.FirstOrDefault(m => m.Length > 0) ?? "";
-        if (first.Length == 0 || _player.MateInfoOf(first) is not { } mate) return null;
-        if (!ConfirmDialog.Ask(_view, "　부관을 싸우게 하겠습니까?", "일기토")) return null;
+    private Player.MateInfo? SendMate(GameRandom dice) => SendMate(_view, _player, _game, dice);
 
-        int mine = (_player.AbilityOf(Ability.Might) + 1) / MateEdge
-                 + _player.LevelOf(Skill.Names[Skill.Sword]) * MateSwordWeight;
+    /// <inheritdoc cref="SendMate(GameRandom)"/>
+    internal static Player.MateInfo? SendMate(Window view, Player player, Engine.Game game, GameRandom dice)
+    {
+        string first = player.Mates.FirstOrDefault(m => m.Length > 0) ?? "";
+        if (first.Length == 0 || player.MateInfoOf(first) is not { } mate) return null;
+        if (!ConfirmDialog.Ask(view, "　부관을 싸우게 하겠습니까?", "일기토")) return null;
+
+        int mine = (player.AbilityOf(Ability.Might) + 1) / MateEdge
+                 + player.LevelOf(Skill.Names[Skill.Sword]) * MateSwordWeight;
         int theirs = (mate.Might + 1) / MateEdge + mate.Sword * MateSwordWeight;
 
-        var face = _player.MateInfoOf(first) is { } who ? MateFace(who) : null;
+        var face = game.Faces?.TryGetBgra(mate.Face, female: false);
         if (mine <= theirs)
         {
-            TalkDialog.Say(_view, face, "", MateEager[dice.Next(MateEager.Length)]);
+            TalkDialog.Say(view, face, "", MateEager[dice.Next(MateEager.Length)]);
             return mate;
         }
 
-        TalkDialog.Say(_view, face, "", MateShy[dice.Next(MateShy.Length)]);
-        return ConfirmDialog.Ask(_view, "　부관을 싸우게 하겠습니까?", "일기토") ? mate : null;
+        TalkDialog.Say(view, face, "", MateShy[dice.Next(MateShy.Length)]);
+        return ConfirmDialog.Ask(view, "　부관을 싸우게 하겠습니까?", "일기토") ? mate : null;
     }
 
     /// <summary>부관 세기를 재는 잣대 — 무력을 스물로 나누고 검술에 열을 곱한다.</summary>
