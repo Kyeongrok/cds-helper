@@ -1,4 +1,5 @@
 using System.IO;
+using CdsHelper.Support.Local.Helpers;
 
 namespace CdsHelper.Game.Local.Helpers;
 
@@ -40,8 +41,10 @@ public sealed class WorldCells
         {
             string path = Path.Combine(gameDirectory, "WORLD.CDS");
             if (!File.Exists(path))
+                path = WorldMapAsset.EnsureDownloaded() ?? path;
+            if (!File.Exists(path))
             {
-                LastError = "WORLD.CDS 가 없습니다";
+                LastError = "WORLD.CDS가 없고 대체 지도도 내려받지 못했습니다";
                 return null;
             }
 
