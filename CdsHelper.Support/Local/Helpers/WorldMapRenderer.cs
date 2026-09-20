@@ -24,7 +24,7 @@ public static class WorldMapRenderer
     public static byte[]? LoadWorldData(string path)
     {
         if (!File.Exists(path))
-            path = WorldMapAsset.EnsureDownloaded() ?? path;
+            path = CdsAssetPath.Resolve("", "WORLD.CDS");
         if (!File.Exists(path)) return null;
         var data = File.ReadAllBytes(path);
         if (data.Length != RawStride * CellH * 2) return null;

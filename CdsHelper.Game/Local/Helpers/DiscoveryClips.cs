@@ -48,7 +48,7 @@ public sealed class DiscoveryClips
     public static DiscoveryClips? Open(string gameDirectory)
     {
         LastError = "";
-        string path = Path.Combine(gameDirectory, "DISCOVER.CDS");
+        string path = CdsAssetPath.Resolve(gameDirectory, "DISCOVER.CDS");
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

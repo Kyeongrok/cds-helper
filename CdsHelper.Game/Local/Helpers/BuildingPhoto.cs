@@ -64,7 +64,7 @@ public sealed class BuildingPhoto
     {
         LastError = "";
 
-        var path = Path.Combine(gameDirectory, "MPCG.CDS");
+        var path = CdsAssetPath.Resolve(gameDirectory, "MPCG.CDS");
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

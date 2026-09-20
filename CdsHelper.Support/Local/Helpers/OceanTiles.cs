@@ -64,7 +64,7 @@ public sealed class OceanTiles
     /// </summary>
     public static OceanTiles? LoadFromDirectory(string directory)
     {
-        var path = Path.Combine(directory, FileName);
+        var path = CdsAssetPath.Resolve(directory, FileName);
         if (_cached != null && string.Equals(_cachedPath, path, StringComparison.OrdinalIgnoreCase))
         {
             LastError = "";

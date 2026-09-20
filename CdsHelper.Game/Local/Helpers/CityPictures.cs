@@ -45,7 +45,7 @@ public sealed class CityPictures
     public static CityPictures? Open(string gameDirectory)
     {
         LastError = "";
-        var path = Path.Combine(gameDirectory, "CITYCG.CDS");
+        var path = CdsAssetPath.Resolve(gameDirectory, "CITYCG.CDS");
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

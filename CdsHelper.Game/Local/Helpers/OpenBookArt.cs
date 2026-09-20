@@ -105,7 +105,7 @@ public sealed class OpenBookArt
     public static OpenBookArt? Open(string gameDirectory)
     {
         LastError = "";
-        string path = Path.Combine(gameDirectory, "OPENBOOK.CDS");
+        string path = CdsAssetPath.Resolve(gameDirectory, "OPENBOOK.CDS");
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

@@ -76,7 +76,7 @@ public sealed class ItemArt
         Ls12Reader? archive = null;
         if (!string.IsNullOrEmpty(gameDirectory))
         {
-            string path = Path.Combine(gameDirectory, "ITEM.CDS");
+            string path = CdsAssetPath.Resolve(gameDirectory, "ITEM.CDS");
             archive = File.Exists(path) ? Ls12Reader.Open(path) : null;
             if (archive == null) LastError = $"{path} 를 열지 못했습니다";
         }

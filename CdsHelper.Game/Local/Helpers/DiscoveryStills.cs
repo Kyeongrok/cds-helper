@@ -59,7 +59,7 @@ public sealed class DiscoveryStills
     public static DiscoveryStills? Open(string gameDirectory, string fileName)
     {
         LastError = "";
-        string path = Path.Combine(gameDirectory, fileName);
+        string path = CdsAssetPath.Resolve(gameDirectory, fileName);
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

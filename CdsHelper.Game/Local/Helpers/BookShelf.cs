@@ -46,7 +46,7 @@ public sealed class BookShelf
     public static BookShelf? Open(string gameDirectory)
     {
         LastError = "";
-        var path = Path.Combine(gameDirectory, "BOOKSHEL.CDS");
+        var path = CdsAssetPath.Resolve(gameDirectory, "BOOKSHEL.CDS");
         var archive = Ls12Reader.Open(path);
         if (archive == null) { LastError = $"{path} 를 읽지 못했습니다"; return null; }
         if (archive.PartCount < 5) { LastError = "BOOKSHEL.CDS 에 파트가 모자랍니다"; return null; }

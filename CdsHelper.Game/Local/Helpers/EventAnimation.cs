@@ -104,7 +104,7 @@ public sealed class EventAnimation
     {
         LastError = "";
 
-        var path = Path.Combine(gameDirectory, FileName);
+        var path = CdsAssetPath.Resolve(gameDirectory, FileName);
         if (!File.Exists(path)) { LastError = $"{path} 가 없습니다"; return null; }
 
         var archive = Ls12Reader.Open(path);

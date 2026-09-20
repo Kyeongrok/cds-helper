@@ -39,9 +39,7 @@ public sealed class WorldCells
         LastError = "";
         try
         {
-            string path = Path.Combine(gameDirectory, "WORLD.CDS");
-            if (!File.Exists(path))
-                path = WorldMapAsset.EnsureDownloaded() ?? path;
+            string path = CdsAssetPath.Resolve(gameDirectory, "WORLD.CDS");
             if (!File.Exists(path))
             {
                 LastError = "WORLD.CDS가 없고 대체 지도도 내려받지 못했습니다";
