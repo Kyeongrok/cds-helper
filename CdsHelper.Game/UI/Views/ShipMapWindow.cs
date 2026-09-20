@@ -5315,6 +5315,14 @@ public sealed class ShipMapWindow : Window
                     $"제독 {names}{GameUi.Josa(names, "이", "가")} 눈에 띄지 않습니다. " +
                     $"{word}에서 놓친 것 같습니다.", face: face);
             }
+            else if (_game.Player.CrewShares.Any(c => c <= 0))
+            {
+                // 배를 놓치지는 않았어도 <b>승원이 0 인 배</b>가 생겼으면 「간신히…」 대신
+                // 인원 부족 말이다(0x004750C5 — 0x00474FD1 이 승원 0 인 배를 보고 세운 깃발).
+                string names = string.Concat(_game.Player.Ships.Select(s => $", {s.Name}호"));
+                ConfirmDialog.Tell(this,
+                    $"제독{names}{GameUi.Josa(names, "이", "가")} 인원 부족입니다!", face: face);
+            }
             else
             {
                 ConfirmDialog.Tell(this, kind == SeaEventKind.Storm
