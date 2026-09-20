@@ -365,6 +365,17 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
     ///   2 포    rand(14 - 포술)   + 포술*2
     ///   3 지원  rand(2*(7 - 신학)) + 신학*3
     /// </code>
+    /// <b>속도가 같으면</b> 갈래로 한 번 더 가른다(<c>0x00447D35</c>). 같은 속도가 이어지는
+    /// 동안만 끼워넣기 정렬을 도는데,
+    /// <code>
+    ///   00447d8e  왼쪽이 갈래 3(지원)이면 건드리지 않는다
+    ///   00447da8  오른쪽이 갈래 3 이면 <b>무조건</b> 앞으로 당긴다
+    ///   00447db3  아니면 왼쪽 갈래 &gt; 오른쪽 갈래 일 때만 당긴다
+    ///   00447ddb  당기다가 갈래 3 을 만나면 멈춘다
+    /// </code>
+    /// 곧 <b>지원이 맨 앞</b>이고 나머지는 <b>갈래 오름차순</b>(근접 → 사격 → 포)이며,
+    /// 같은 갈래끼리는 자리 차례 그대로다. 예전에는 속도만 보고 같은 속도는 아무렇게나
+    /// 두었다.
     /// </remarks>
     private int[] Order()
     {
@@ -380,10 +391,17 @@ public sealed class LandFight(LandBattle battle, GameRandom dice)
                 : dice.Next(Math.Max(1, 14 - level)) + level * 2;
         }
 
-        var order = new int[LandBattle.Slots];
-        for (int i = 0; i < order.Length; i++) order[i] = i;
-        Array.Sort(order, (a, b) => speed[b].CompareTo(speed[a]));
-        return order;
+        // OrderBy 는 제자리 차례를 지킨다 — 게임의 끼워넣기 정렬과 같은 결이다.
+        return [.. Enumerable.Range(0, LandBattle.Slots)
+                             .OrderByDescending(i => speed[i])
+                             .ThenBy(TieKind)];
+    }
+
+    /// <summary>같은 속도끼리 가르는 잣대 — 지원(3)은 −1 로 쳐서 맨 앞이다(<c>0x00447DA8</c>).</summary>
+    private int TieKind(int slot)
+    {
+        var kind = LandUnits.KindOf(battle.Units[slot].Kind);
+        return kind == LandUnits.Kind.Support ? -1 : (int)kind;
     }
 
     /// <summary>그 갈래가 보는 기능 자리.</summary>
