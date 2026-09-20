@@ -5521,9 +5521,19 @@ public sealed class ShipMapWindow : Window
             // 굴림 하나로 갈음하던 것을 <b>진짜 일기토 판</b>으로 바꿨다. 술집이 쓰는
             // 그 판(DuelDialog)이고, 상대만 그 자리에서 지어 세운다.
             var dice = new GameRandom(Environment.TickCount);
-            var duel = new Engine.Town.Duel(MyFighter(), MutinyLeader(dice),
-                                            _game.Player.Items.Contains(Engine.Town.Duel.EdithShieldId),
-                                            Environment.TickCount);
+            // 반란은 판 종류 7 이라 <b>부관을 대신 내보낼지 묻는다</b>(0x004A8680 의
+            // 종류 <= 2 또는 >= 7).
+            var stand = SeaSendMate(this, dice);
+            var duel = new Engine.Town.Duel(
+                stand is { } fighter
+                    ? new Engine.Town.Duel.Fighter(fighter.Name, fighter.Body, fighter.Might,
+                                                   fighter.Sword, fighter.Luck,
+                                                   BestItem(Engine.Town.Duel.WeaponCategory),
+                                                   BestItem(Engine.Town.Duel.ArmorCategory))
+                    : MyFighter(),
+                MutinyLeader(dice),
+                _game.Player.Items.Contains(Engine.Town.Duel.EdithShieldId),
+                Environment.TickCount);
             // 배경은 뭍이면 초원, 바다면 배 갑판이다.
             // 대표 얼굴은 #212 다 — 게임이 [대표+8] 에 0xD4 를 박는다(0x00475279).
             DuelDialog.Show(this, duel, dice,
@@ -5536,6 +5546,10 @@ public sealed class ShipMapWindow : Window
                             arena: land ? DuelArt.Field : DuelArt.Deck,
                             // 반란도 일기토 판이라 트랙 11 이 돈다(0x004AA8A0).
                             bgm: _game.Bgm);
+
+            // 대신 나간 사람이 다친다(0x004AA5CA).
+            if (stand is { } hurtStand) _game.Player.HurtMate(hurtStand.Name, duel.BodyLost);
+            else _game.Player.Hurt(duel.BodyLost);
 
             if (duel.Won == true)
             {
