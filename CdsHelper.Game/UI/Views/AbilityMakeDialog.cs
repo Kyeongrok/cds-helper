@@ -340,7 +340,8 @@ internal sealed class AbilityMakeDialog : InfoDialog
         if (!dialog._ok) return -1;
 
         player.JobIndex = dialog._job;
-        player.SetAbilities(dialog._stats);
+        // 굴린 값은 <b>보이는 값</b>이라 담을 때 1 을 뺀다(0x0045E47A 의 dec edx).
+        player.SetAbilities([.. dialog._stats.Select(Ability.Store)]);
         // 마무리(0x0045E485 ~ 0x0045E4B1)가 옮겨 박는다. 초심자 주인공은 따로다(Beginner).
         player.SetCondition(dialog._condition);
         player.SetGold(dialog._gold);

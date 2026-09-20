@@ -95,6 +95,19 @@ public static class Ability
     /// <summary>능력치가 들 수 있는 폭(<c>0x0045D576</c> 의 <c>clamp(값, 20, 100)</c>).</summary>
     public const int Min = 20, Max = 100;
 
+    /// <summary>
+    /// <b>담는 값은 보이는 값에서 1 을 뺀 것</b>이다(<c>0x005B60C0</c>).
+    /// </summary>
+    /// <remarks>
+    /// NEW GAME 이 굴린 값을 넣을 때 <c>dec</c> 하고(<c>0x0045E47A</c>), 보여 줄 때 도로
+    /// 1 을 더한다(<c>0x0046D76C</c> 의 「체  력/%4d」). 능력치를 올리고 내리는 자리도
+    /// 보이는 값 1~100 으로 자른 뒤 다시 1 을 뺀다(<c>0x00432C50</c>).
+    /// </remarks>
+    public static int Display(int stored) => stored + 1;
+
+    /// <summary>보이는 값을 담는 값으로 되돌린다.</summary>
+    public static int Store(int shown) => shown - 1;
+
     /// <summary>능력치를 굴릴 때 얹는 밑값(<c>add $0x32</c>).</summary>
     public const int Base = 50;
 
