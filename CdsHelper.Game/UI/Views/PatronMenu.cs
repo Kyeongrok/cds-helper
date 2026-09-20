@@ -2008,7 +2008,9 @@ internal sealed class PatronMenu(Window view, Engine.Game game, string cityName,
                         FighterSprites.SetForCulture(_culture), arena: DuelArt.Field, bgm: _game.Bgm);
         // 지면 여느 일기토처럼 도망·용서·죽음이 갈리고, <b>베였을 때만</b> 놀이가 끝난다(0x00410145 의
         // 결과 3). 졌어도 살았으면 이긴 것과 같이 이어 간다 — 원본 함수는 그때도 1 을 낸다.
-        if (duel.Won != true && TavernMenu.LostDuel(_view, _player, duel, face, dice, mateFought: false))
+        // 빌린 배 선장과의 판은 종류 4 라 도망도 용서도 없다(0x004A9EDE).
+        if (duel.Won != true && TavernMenu.LostDuel(_view, _player, duel, face, dice,
+                                                    mateFought: false, canFlee: false, canSpare: false))
             return false;
         _player.Hurt(duel.BodyLost);
         return true;

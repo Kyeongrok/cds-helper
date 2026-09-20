@@ -1010,7 +1010,8 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
             return true;
         }
 
-        if (LostDuel(duel, face, dice, mateFought: false))
+        // 여급 연적은 판 종류 5 라 도망도 용서도 없다 — 지면 바로 죽는다(0x004A9EDE).
+        if (LostDuel(duel, face, dice, mateFought: false, canFlee: false, canSpare: false))
         {
             EndGame();   // 0x00465A64 → 0x0044AF40(4)
             return false;
@@ -1337,8 +1338,9 @@ internal sealed class TavernMenu(Window view, Engine.Game game, int cityId, stri
     /// 판이 무엇이든(술집 손님 · 도전 · 싸움) 같은 뒤처리다. 베이면 판의 결과가 3 이 되고
     /// 부르는 쪽이 <c>0x0044AF40(4)</c> 로 놀이를 끝낸다(<c>0x004A4A74</c> · <c>0x0042FD55</c> · <c>0x0042ED16</c>).
     /// </remarks>
-    private bool LostDuel(Engine.Town.Duel duel, uint[]? face, GameRandom dice, bool mateFought) =>
-        LostDuel(_view, _player, duel, face, dice, mateFought);
+    private bool LostDuel(Engine.Town.Duel duel, uint[]? face, GameRandom dice, bool mateFought,
+                          bool canFlee = true, bool canSpare = true) =>
+        LostDuel(_view, _player, duel, face, dice, mateFought, canFlee, canSpare);
 
     /// <inheritdoc cref="LostDuel(Engine.Town.Duel, uint[], GameRandom, bool)"/>
     /// <param name="canFlee">
