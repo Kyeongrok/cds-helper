@@ -1425,17 +1425,16 @@ public sealed class ShipMapWindow : Window
             StartMap(fresh: false);
         }));
         // CONTINUE — 원본에 없는 줄이다. 입항 자동저장(모드 창)이 적어 둔 파일을 연다.
-        items.Children.Add(TitleMenuItem("CONTINUE", () =>
-        {
-            if (!System.IO.File.Exists(Engine.GameSave.AutoPath))
-            {
-                NoticeDialog.Show(this, $"자동저장 데이터{Environment.NewLine}{Engine.GameSave.AutoPath}"
-                                        + $"{Environment.NewLine}가 발견되지 않습니다", "에러");
-                return;
-            }
-            if (!ConfirmDialog.Ask(this, "자동저장한 데이터를 로드합니다", "게임 로드")) return;
-            StartMap(fresh: false, auto: true);
-        }));
+        // 적어 둔 것이 없으면 <b>줄이 흐리다</b>(눌러도 안 먹는다) — LOAD GAME 과 달리
+        // 원본에 없는 줄이라 「없습니다」를 띄울 자리가 아니다.
+        items.Children.Add(TitleMenuItem("CONTINUE",
+            System.IO.File.Exists(Engine.GameSave.AutoPath)
+                ? () =>
+                {
+                    if (!ConfirmDialog.Ask(this, "자동저장한 데이터를 로드합니다", "게임 로드")) return;
+                    StartMap(fresh: false, auto: true);
+                }
+                : null));
         items.Children.Add(TitleMenuItem("MINI GAME", MiniGames));
         items.Children.Add(TitleMenuItem("END GAME", Close));
         items.Children.Add(TitleMenuItem("사운드테스트", SoundTest));
@@ -2266,6 +2265,8 @@ public sealed class ShipMapWindow : Window
         _statusTimer.Stop();
         _askedCity = -1;                 // 다시 들어가면 도시를 새로 묻게
 
+        // 놀다 온 사이에 자동저장이 생겼을 수 있다 — CONTINUE 줄이 살아나게 다시 짓는다.
+        _titleRoot = BuildTitleScreen();
         _screen.Content = _titleRoot;
         _game.Bgm.Play(BgmPlayer.TitleTrack);
         _status.Text = "";
