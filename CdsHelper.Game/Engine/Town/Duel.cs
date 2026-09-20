@@ -556,4 +556,34 @@ public sealed class Duel
 
     /// <summary>쫓을 때 섞는 주사위.</summary>
     private const int ChaseDice = 50;
+
+    /// <summary>
+    /// 이긴 뒤 <b>1/100</b> 으로 무력이 1~2 오른다(<c>0x004AA592</c> → <c>0x00455CA0</c>).
+    /// </summary>
+    /// <remarks>
+    /// <code>
+    ///   00455cb5  rand(100) != 0 이면 아무 일 없다
+    ///   00455ccc  부관이 안 싸웠고 제독 무력 &lt;= 99 면 제독이 오를 자리에 든다
+    ///   00455cf2  부관이 있고 그 무력 &lt;= 99 면 부관도 든다
+    ///   00455d08  오르는 값 = rand(2) + 1
+    /// </code>
+    /// 승리 차림표가 <b>뜬 판에서만</b> 굴린다 — 종류 2·5·7 이상은 차림표째 건너뛰므로 없다.
+    /// </remarks>
+    /// <param name="mateFought">부관이 대신 싸웠는지 — 그러면 제독은 안 오른다.</param>
+    /// <param name="myMight">제독 무력(담는 값). 99 를 넘으면 안 오른다.</param>
+    /// <param name="mateMight">부하 첫 자리의 무력(담는 값). 부하가 없으면 null.</param>
+    public static (int By, bool Mine, bool Mate) MightGrowth(bool mateFought, int myMight,
+                                                             int? mateMight, GameRandom dice)
+    {
+        if (dice.Next(100) != 0) return (0, false, false);
+
+        bool mine = !mateFought && myMight <= GrowthCeiling;
+        bool mate = mateMight is { } m && m <= GrowthCeiling;
+        if (!mine && !mate) return (0, false, false);
+
+        return (dice.Next(2) + 1, mine, mate);
+    }
+
+    /// <summary>이 값을 넘으면 더 안 오른다(<c>0x00455CD1</c> 의 <c>sub eax, 0x63</c>).</summary>
+    private const int GrowthCeiling = 99;
 }

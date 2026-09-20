@@ -665,6 +665,16 @@ public sealed class Player
         _mateBook[who.Name] = who with { Condition = Math.Clamp(who.Condition - amount, 0, ConditionMax) };
     }
 
+    /// <summary>
+    /// 부하의 무력을 올린다 — 일기토에 이긴 뒤 굴리는 성장이다(<c>0x00455D6B</c>).
+    /// </summary>
+    /// <remarks>담는 값이라 <see cref="Ability.Max"/> − 1 을 넘기지 않는다.</remarks>
+    public void GrowMate(string name, int by)
+    {
+        if (by <= 0 || !_mateBook.TryGetValue(name ?? "", out var who)) return;
+        _mateBook[who.Name] = who with { Might = Math.Min(who.Might + by, Ability.Max - 1) };
+    }
+
     /// <summary>두 자리를 맞바꾼다. 빈 자리와도 바꿀 수 있다.</summary>
     public void SwapMates(int a, int b)
     {
