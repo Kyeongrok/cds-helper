@@ -826,8 +826,8 @@ public sealed class LandBattle
     ///   0044793A  몫 = 내 운 * 3 / 10          ; 0x00446FF0(4, 0) — 능력 4 가 운
     ///   00447951  몫 -= 내 무력                ; 0x00446FF0(2, 0)
     ///   0044795C  몫 += 적 대장 무력           ; 0x00446FF0(2, 6)
-    ///   00447965  몫이 0 이하면 0
-    ///   0044799D  rand(100) &lt;= 몫 이면 열린다
+    ///   00447965  몫이 0 이하면 0                ; 닫는 것이 아니라 <b>0 으로 눌러 둔다</b>
+    ///   0044799D  rand(100) &lt;= 몫 이면 열린다   ; 곧 몫이 0 이라도 <b>1%</b> 는 열린다
     ///   004479B0  갈래(+0x34)가 2 나 4 면 그래도 닫는다
     /// </code>
     /// 곧 <b>적 대장이 나보다 셀수록</b> 열린다 — 내가 훨씬 세면 굳이 일대일로 겨룰
@@ -840,9 +840,10 @@ public sealed class LandBattle
     {
         if (Sort == Town) return false;     // 0x004479B0 은 갈래 2·4 만 닫는다
 
-        int odds = _me.AbilityOf(Ability.Luck) * 3 / 10
-                 - _me.AbilityOf(Ability.Might) + FoeMight;
-        return odds > 0 && dice.Next(100) <= odds;
+        // 몫이 0 이하여도 닫지 않는다 — 0 으로 눌러 두고 굴리므로 늘 1% 는 열린다(0x0044799B).
+        int odds = Math.Max(0, _me.AbilityOf(Ability.Luck) * 3 / 10
+                             - _me.AbilityOf(Ability.Might) + FoeMight);
+        return dice.Next(100) <= odds;
     }
 
     /// <summary>적장이 하는 말(<c>0x0056D228</c>).</summary>
