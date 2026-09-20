@@ -43,6 +43,7 @@ namespace CdsHelper.Form.UI.Views;
 [TemplatePart(Name = PART_ImageShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_VideoShrinkMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipRegistryMenu, Type = typeof(MenuItem))]
+[TemplatePart(Name = PART_FigureheadEditMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_ShipMapMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_HelpMenu, Type = typeof(MenuItem))]
 [TemplatePart(Name = PART_WorldMapMenu, Type = typeof(MenuItem))]
@@ -79,6 +80,7 @@ public class CdsHelperWindow : CdsWindow
     private const string PART_ImageShrinkMenu = "PART_ImageShrinkMenu";
     private const string PART_VideoShrinkMenu = "PART_VideoShrinkMenu";
     private const string PART_ShipRegistryMenu = "PART_ShipRegistryMenu";
+    private const string PART_FigureheadEditMenu = "PART_FigureheadEditMenu";
     private const string PART_ShipMapMenu = "PART_ShipMapMenu";
     private const string PART_HelpMenu = "PART_HelpMenu";
     private const string PART_WorldMapMenu = "PART_WorldMapMenu";
@@ -186,6 +188,11 @@ public class CdsHelperWindow : CdsWindow
         if (GetTemplateChild(PART_NationEditMenu) is MenuItem nationEditMenu)
         {
             nationEditMenu.Click += OnNationEditMenuClick;
+        }
+
+        if (GetTemplateChild(PART_FigureheadEditMenu) is MenuItem figureheadEditMenu)
+        {
+            figureheadEditMenu.Click += OnFigureheadEditMenuClick;
         }
 
         if (GetTemplateChild(PART_CultureEditMenu) is MenuItem cultureEditMenu)
@@ -437,6 +444,9 @@ public class CdsHelperWindow : CdsWindow
     // 나라 이름·쓰는 말·수도를 고치는 창. 고친 것은 놀이에도 그대로 쓰인다.
     private void OnNationEditMenuClick(object sender, RoutedEventArgs e) =>
         CdsHelper.Game.UI.Views.NationEditDialog.Show(this);
+
+    private void OnFigureheadEditMenuClick(object sender, RoutedEventArgs e) =>
+        CdsHelper.Game.UI.Views.FigureheadEditDialog.Show(this);
 
     // 도시마다의 문화권만 고치는 창 — 「도시 · 문화권 · 왕국」에서 떼어 요소로 뽑았다.
     private void OnCultureEditMenuClick(object sender, RoutedEventArgs e) =>

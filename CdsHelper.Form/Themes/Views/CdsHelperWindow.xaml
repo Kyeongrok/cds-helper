@@ -253,6 +253,10 @@
                                             Header="선박"
                                             ToolTip="조선소에 낼 배를 등록한다" />
                                         <MenuItem
+                                            x:Name="PART_FigureheadEditMenu"
+                                            Header="선수상"
+                                            ToolTip="선수상 서른여섯의 등급을 고친다 — 막을 확률(등급x30−20)과 다는 삯이 놀이에 바로 든다" />
+                                        <MenuItem
                                             x:Name="PART_VoyagerEditMenu"
                                             Header="경쟁자"
                                             ToolTip="역사 항해자 열넷이 언제 무엇을 채가는지 고친다 — 고친 것은 놀이에도 그대로 쓰인다" />
