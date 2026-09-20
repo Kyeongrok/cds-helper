@@ -645,13 +645,17 @@ public sealed class ShipMapWindow : Window
             _status.Text = _focusNote.Length > 0 ? $"{_host.Status}    {_focusNote}"
                                                  : _host.Status;
             _stopAutoButton.Visibility = _host.AutoSailing ? Visibility.Visible : Visibility.Collapsed;
-            CheckPort();
-            // 극지방은 <b>틱마다</b> 본다(0x0048EF29) — 하루가 안 넘어가도 문턱을 넘는 그
-            // 틱에 한 번 난다. 게임오버면 그 틱의 나머지는 건너뛴다.
-            if (!CheckPolar()) return;
-            SpotCities();
+            // 한 틱의 차례는 원본 고리 그대로다(0x0048EF18~0x0048EF7D) —
+            // 조우 → 극지 → 발견 → 도시 발견·입항 물음 → 이동·날 눈금.
+            // <b>조우가 걸린 틱은 나머지를 통째로 건너뛴다</b>(0x0048EF1D).
             _folkEntered = MeetFolk();
+            if (_folkEntered) return;
+
+            // 극지방은 틱마다 본다(0x0048EF29) — 게임오버면 그 틱의 나머지는 건너뛴다.
+            if (!CheckPolar()) return;
             CheckDiscovery();
+            SpotCities();
+            CheckPort();
             PassTime();
             MarkSeen();
             var (lat, lon) = _host.ShipLatLon;
