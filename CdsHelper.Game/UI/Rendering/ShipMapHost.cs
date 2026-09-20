@@ -2165,7 +2165,8 @@ public sealed class ShipMapHost : HwndHost
         _targetY = _shipY;
         _onLand = false;
         _blocked = false;
-        _anchored = false;
+        // 배에 오르면 <b>닻을 내린 채</b>다 — 왼쪽 클릭으로 출발한다(0x0048B601 이 0x005B3A00 에 1).
+        _anchored = true;
         _tickAccum = 0;
         if (_follow) { _centerX = _shipX; _centerY = _shipY; }
         return true;
